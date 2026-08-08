@@ -10,12 +10,15 @@ import {
     armageddon,
     balance,
     benalishHero,
+    blackWard,
     blazeOfGlory,
     blessing,
+    blueWard,
     bogWraith,
     castle,
     chaoslace,
     circleOfProtectionBlue,
+    circleOfProtectionGreen,
     circleOfProtectionRed,
     circleOfProtectionWhite,
     consecrateLand,
@@ -27,7 +30,9 @@ import {
     farmstead,
     fireball,
     forest,
+    giantGrowth,
     goblinKing,
+    greenWard,
     grizzlyBears,
     guardianAngel,
     holyArmor,
@@ -1074,6 +1079,105 @@ describe("White Ward (exempt self-referential aura, CR 702.16n)", () => {
     });
 });
 
+// Black/Blue/Green Ward — the rest of the makeColorWard cycle (Red Ward and
+// White Ward above already exercise the shared attach/detach/exempt-SBA
+// machinery in full). Each gets its own focused test: the keyword-grant
+// materializes the CORRECT color's protection, and that protection excludes
+// the host from a same-colored source's legal targets (CR 702.16b) — the
+// part of the shared factory that actually varies per card.
+describe("Black Ward (Aura keyword-grant → protection from black, CR 611 + 702.16)", () => {
+    it("grants 'protection from black' and removes the host from a black source's legal targets", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, blackWard.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).toContain("protection from black");
+
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, {
+            ...NO_TARGETING_SOURCE,
+            colors: ["B"],
+        });
+        expect(legal.map((t) => t.id)).not.toContain("bear");
+    });
+});
+
+describe("Blue Ward (Aura keyword-grant → protection from blue, CR 611 + 702.16)", () => {
+    it("grants 'protection from blue' and removes the host from a blue source's legal targets", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, blueWard.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).toContain("protection from blue");
+
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, {
+            ...NO_TARGETING_SOURCE,
+            colors: ["U"],
+        });
+        expect(legal.map((t) => t.id)).not.toContain("bear");
+    });
+});
+
+describe("Green Ward (Aura keyword-grant → protection from green, CR 611 + 702.16)", () => {
+    it("grants 'protection from green' and removes the host from a green source's legal targets", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, greenWard.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).toContain("protection from green");
+
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, {
+            ...NO_TARGETING_SOURCE,
+            colors: ["G"],
+        });
+        expect(legal.map((t) => t.id)).not.toContain("bear");
+    });
+});
+
 describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
     function setupCoPOnBattlefield(copCard = circleOfProtectionRed) {
         const cop = makeInstance(copCard.id, { id: "cop" });
@@ -1251,6 +1355,44 @@ describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
     });
 });
 
+describe("Circle of Protection: Green (CR 615.1, imperative resolve() on cop-prevent)", () => {
+    it("activating against a green spell registers the chosen source's end-of-turn prevention", () => {
+        const cop = makeInstance(circleOfProtectionGreen.id, { id: "cop" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cop] }),
+                makePlayer("p2"),
+            ],
+        });
+        const growth = makeInstance(giantGrowth.id, {
+            id: "growth-stack",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...growth,
+            castById: "p2",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        state.stack.push({
+            ...cop,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "cop-prevent",
+            targets: [{ type: "spell", id: "growth-stack" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.preventionEffects).toEqual([
+            {
+                sourceInstanceId: "growth-stack",
+                playerId: "p1",
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+    });
+});
+
 describe("Circle of Protection: color filter on target selection", () => {
     it("Red CoP only offers red spells/permanents as legal targets", () => {
         const redBolt = makeInstance(lightningBolt.id, {
@@ -1300,6 +1442,31 @@ describe("Circle of Protection: color filter on target selection", () => {
             NO_TARGETING_SOURCE
         );
         expect(legal.map((t) => t.id)).toEqual(["recall"]);
+    });
+
+    it("Green CoP only offers green spells/permanents as legal targets", () => {
+        const redBolt = makeInstance(lightningBolt.id, {
+            id: "bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        const greenSpell = makeInstance(giantGrowth.id, {
+            id: "growth",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        const state = makeState();
+        state.stack.push({ ...redBolt, castById: "p2" });
+        state.stack.push({ ...greenSpell, castById: "p2" });
+        const ability = circleOfProtectionGreen.activatedAbilities![0];
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
+        expect(legal.map((t) => t.id)).toEqual(["growth"]);
     });
 
     it("color filter excludes players (players have no color)", () => {

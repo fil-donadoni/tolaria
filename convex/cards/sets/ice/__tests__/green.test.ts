@@ -16,6 +16,8 @@ import {
     folkOfThePines,
     freyalisesCharm,
     gorillaPack,
+    forbiddenLore,
+    hotSprings,
     thermokarst,
     thoughtleech,
     venomousBreath,
@@ -61,11 +63,13 @@ import {
     tapPermanent,
     emitPermanentTapped,
     applySourceStaticEffects,
+    dealDamageFromPermanentToPlayer,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
+import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     emitBlockersConfirmedEvents,
@@ -2562,5 +2566,172 @@ describe("Blizzard — cast only if you control a snow land (CR 601.3a)", () => 
                 strippedState.state
             )
         ).toBeDefined();
+    });
+});
+
+// --- Forbidden Lore — activated-grant land pump (CR 611 activated-grant) ---
+
+describe("Forbidden Lore (CR 611 activated-grant on enchanted land)", () => {
+    function setup(withAura: boolean) {
+        const land = makeInstance(getCardByName("Plains").id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const battlefield: CardInstanceState[] = [land];
+        if (withAura) {
+            battlefield.push(
+                makeInstance(forbiddenLore.id, {
+                    id: "aura",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    attachedTo: "land",
+                })
+            );
+        }
+        const target = vanilla("t", 2, 2, {
+            id: "t",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        if (withAura) {
+            applySourceStaticEffects(
+                state,
+                battlefield.find((c) => c.id === "aura")!
+            );
+        }
+        return {
+            state,
+            land: state.players[0].battlefield.find((c) => c.id === "land")!,
+        };
+    }
+
+    it("without Forbidden Lore attached, the land has no granted ability", () => {
+        const { land } = setup(false);
+        expect(getEffectiveActivatedAbilities(land)).toEqual([]);
+    });
+
+    it("attached, grants the land a tap-pump ability that survives the wire and resolves +2/+1 (CR 611.1b)", () => {
+        const { state, land } = setup(true);
+        expect(land.grantedActivatedAbilities).toHaveLength(1);
+        expect(land.grantedActivatedAbilities![0].abilityId).toBe(
+            "forbidden-lore-pump"
+        );
+        expect(land.grantedActivatedAbilities![0].sourceCardId).toBe(
+            forbiddenLore.id
+        );
+
+        // Wire format: the granted ability must survive projection, or the
+        // UI never offers the land's tap-pump affordance.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLand = projected.players[0].battlefield.find(
+            (c) => c.id === "land"
+        )!;
+        expect(slimLand.grantedActivatedAbilities).toHaveLength(1);
+        expect(slimLand.grantedActivatedAbilities![0].abilityId).toBe(
+            "forbidden-lore-pump"
+        );
+
+        // Activate the granted ability, driven via the host land (CR 113.1).
+        state.stack.push({
+            ...land,
+            zone: "stack",
+            castById: "p1",
+            grantedSourceCardId: forbiddenLore.id,
+            abilityId: "forbidden-lore-pump",
+            targets: [{ type: "permanent", id: "t" }],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[1].battlefield.find((c) => c.id === "t")!;
+        expect(getEffectivePower(state, after)).toBe(4);
+        expect(getEffectiveToughness(state, after)).toBe(3);
+    });
+});
+
+// --- Hot Springs — activated-grant prevention on enchanted land (CR 611 / 615) ---
+
+describe("Hot Springs (CR 611 activated-grant prevention on enchanted land)", () => {
+    function setup(withAura: boolean) {
+        const land = makeInstance(getCardByName("Plains").id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const battlefield: CardInstanceState[] = [land];
+        if (withAura) {
+            battlefield.push(
+                makeInstance(hotSprings.id, {
+                    id: "aura",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    attachedTo: "land",
+                })
+            );
+        }
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
+        });
+        if (withAura) {
+            applySourceStaticEffects(
+                state,
+                battlefield.find((c) => c.id === "aura")!
+            );
+        }
+        return {
+            state,
+            land: state.players[0].battlefield.find((c) => c.id === "land")!,
+        };
+    }
+
+    it("without Hot Springs attached, the land has no granted ability", () => {
+        const { land } = setup(false);
+        expect(getEffectiveActivatedAbilities(land)).toEqual([]);
+    });
+
+    it("attached, grants a prevention shield that survives the wire and absorbs the next 1 damage (CR 615.1)", () => {
+        const { state, land } = setup(true);
+        expect(land.grantedActivatedAbilities).toHaveLength(1);
+        expect(land.grantedActivatedAbilities![0].abilityId).toBe(
+            "hot-springs-prevent"
+        );
+
+        // Wire format: the granted ability must survive projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLand = projected.players[0].battlefield.find(
+            (c) => c.id === "land"
+        )!;
+        expect(slimLand.grantedActivatedAbilities).toHaveLength(1);
+        expect(slimLand.grantedActivatedAbilities![0].abilityId).toBe(
+            "hot-springs-prevent"
+        );
+
+        // Activate the granted ability targeting p1 (CR 113.1: the host land
+        // is the source), arming a prevent-the-next-1 shield.
+        state.stack.push({
+            ...land,
+            zone: "stack",
+            castById: "p1",
+            grantedSourceCardId: hotSprings.id,
+            abilityId: "hot-springs-prevent",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        resolveTopOfStack(state);
+
+        // Real consumer: a permanent deals 3 damage to p1 — the shield
+        // absorbs exactly 1, so only 2 gets through.
+        const burner = vanilla("burner", 3, 3, {
+            id: "burner",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(burner);
+        dealDamageFromPermanentToPlayer(state, burner, "p2", "p1", 3);
+        expect(state.players[0].life).toBe(18);
     });
 });

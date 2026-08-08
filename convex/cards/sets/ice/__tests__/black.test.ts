@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 import {
     balduvianBears,
+    abyssalSpecter,
     cloakOfConfusion,
     gazeOfPain,
     burntOffering,
@@ -3162,5 +3163,69 @@ describe("Dread Wight — paralyzation counters (CR 511.3 / 122.1 / 502.1 / 611)
                 slim as unknown as CardInstanceState
             ).map((g) => g.ability.id)
         ).toContain("dread-wight-remove-paralyzation");
+    });
+});
+
+describe("Abyssal Specter (flying + damage-dealt discard trigger, CR 120.3 / 603.4)", () => {
+    it("the damaged player discards a card when Abyssal Specter deals damage", () => {
+        const specter = makeInstance(abyssalSpecter.id, {
+            id: "specter",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const h1 = makeInstance(balduvianBears.id, {
+            id: "h1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const h2 = makeInstance(balduvianBears.id, {
+            id: "h2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [specter] }),
+                makePlayer("p2", { hand: [h1, h2] }),
+            ],
+        });
+        resolveTrigger(state, specter, "abyssal-specter-discard", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "specter",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 2,
+            isCombat: true,
+        } as StackItem["triggerEvent"]);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        submitChoice(state, ["h1"]);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["h2"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("h1");
+    });
+
+    it("no discard is prompted when the damaged player's hand is already empty", () => {
+        const specter = makeInstance(abyssalSpecter.id, {
+            id: "specter",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [specter] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, specter, "abyssal-specter-discard", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "specter",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 2,
+            isCombat: true,
+        } as StackItem["triggerEvent"]);
+        expect(state.pendingChoices ?? []).toEqual([]);
     });
 });

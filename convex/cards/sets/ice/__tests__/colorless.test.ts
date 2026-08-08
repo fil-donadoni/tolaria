@@ -20,6 +20,7 @@ import {
     jestersCap,
     pitTrap,
     shieldOfTheAges,
+    staffOfTheAges,
     skullCatapult,
     snowFortress,
     vibratingSphere,
@@ -94,8 +95,12 @@ import {
 } from "../../lea";
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import { untapStep, fireDelayedTriggers } from "../../../../gre/phases";
-import { validateAttackerEligibility } from "../../../../gre/combat";
+import {
+    validateAttackerEligibility,
+    validateBlockerEligibility,
+} from "../../../../gre/combat";
 import { applyDamageReplacements } from "../../../../gre/replacements";
+import { negatedLandwalkSubtypes } from "../../../landwalkNegation";
 import {
     getDefinition,
     getCardByName,
@@ -3899,5 +3904,71 @@ describe("Arcum's Whistle (forced attack with pay-{X} gate + delayed destroy)", 
             targetId: "victim",
         });
         expect(state.pendingTarget).toBeUndefined();
+    });
+});
+
+describe("Staff of the Ages (CR 509.1b / 702.13 landwalk-negation static, all basic subtypes)", () => {
+    function setup(withStaff: boolean) {
+        const attacker = makeInstance(balduvianBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            isAttacking: true,
+            staticAbilities: ["islandwalk"],
+        });
+        const blocker = makeInstance(balduvianBears.id, {
+            id: "blk",
+            controllerId: "p2",
+        });
+        const land = makeInstance(island.id, {
+            id: "land",
+            controllerId: "p2",
+        });
+        const defenderBattlefield = [blocker, land];
+        if (withStaff) {
+            defenderBattlefield.push(
+                makeInstance(staffOfTheAges.id, {
+                    id: "staff",
+                    controllerId: "p2",
+                })
+            );
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: defenderBattlefield }),
+            ],
+        });
+        return { state, attacker, blocker, defenderBattlefield };
+    }
+
+    it("islandwalk attacker stays unblockable behind an Island with no Staff (CR 702.13b)", () => {
+        const { attacker, blocker, defenderBattlefield, state } = setup(false);
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(false);
+    });
+
+    it("Staff of the Ages lets the islandwalk attacker be blocked despite the Island (CR 509.1b)", () => {
+        const { attacker, blocker, defenderBattlefield, state } = setup(true);
+        const res = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defenderBattlefield,
+            state
+        );
+        expect(res.eligible).toBe(true);
+    });
+
+    it("the negation survives projection — the wire-format defender battlefield still reports Island negated", () => {
+        const { state } = setup(true);
+        const projected = projectPublicState(state, 1, "p2");
+        const slimDefenderBattlefield = projected.players[1].battlefield;
+        expect(negatedLandwalkSubtypes(slimDefenderBattlefield)).toContain(
+            "Island"
+        );
     });
 });

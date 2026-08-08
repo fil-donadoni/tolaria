@@ -36,13 +36,17 @@ import {
     exoticCurse,
     gohamDjinn,
     maraudingKnight,
+    mourning,
     phyrexianDelver,
     phyrexianInfiltrator,
     phyrexianReaper,
     phyrexianSlayer,
     plagueSpitter,
+    scavengedWeaponry,
     spreadingPlague,
+    taintedWell,
     tsabosAssassin,
+    urborgShambler,
     urborgSkeleton,
 } from "../black";
 import { getCardByName } from "../../../index";
@@ -832,6 +836,316 @@ describe("Urborg Skeleton (Kicker → a single +1/+1 counter; CR 702.33 / 122.1)
             (c) => c.card.id === urborgSkeleton.id
         )!;
         expect(skel.counters?.["+1/+1"] ?? 0).toBe(0);
+    });
+});
+
+describe("Mourning (Aura -2/-0 pt-buff + {B}: return to owner's hand; CR 613.4c / 701.10)", () => {
+    it("gives the enchanted creature -2/-0 while attached, and nothing when detached", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bears] }),
+            ],
+        });
+        // WITHOUT Mourning on the battlefield: unaffected.
+        expect(getEffectivePower(state, bears)).toBe(2);
+        expect(getEffectiveToughness(state, bears)).toBe(2);
+
+        // WITH Mourning attached: -2/-0.
+        const aura = makeInstance(mourning.id, {
+            id: "mourning-aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bears",
+        });
+        state.players[0].battlefield.push(aura);
+        expect(getEffectivePower(state, bears)).toBe(0); // 2 - 2
+        expect(getEffectiveToughness(state, bears)).toBe(2); // untouched
+    });
+
+    it("wire format: the -2/-0 buff survives projectPublicState", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(mourning.id, {
+            id: "mourning-aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bears",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [bears] }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p2");
+        const slimBears = projected.players[1].battlefield.find(
+            (c) => c.id === "bears"
+        )!;
+        expect(getEffectivePower(projected, slimBears)).toBe(0);
+        expect(getEffectiveToughness(projected, slimBears)).toBe(2);
+    });
+
+    it("{B}: returns the Aura to its OWNER's hand, lifting the debuff", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(mourning.id, {
+            id: "mourning-aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bears",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [bears] }),
+            ],
+        });
+        expect(getEffectivePower(state, bears)).toBe(0);
+
+        resolveActivated(state, aura, "mourning-return");
+
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "mourning-aura")
+        ).toBe(false);
+        expect(
+            state.players[0].hand.some((c) => c.id === "mourning-aura")
+        ).toBe(true);
+        expect(getEffectivePower(state, bears)).toBe(2); // debuff lifted
+    });
+});
+
+describe("Scavenged Weaponry (Aura +1/+1 pt-buff; CR 613.4c)", () => {
+    it("gives the enchanted creature +1/+1 while attached, and nothing when detached", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bears] }),
+                makePlayer("p2"),
+            ],
+        });
+        // WITHOUT the Aura on the battlefield: unaffected.
+        expect(getEffectivePower(state, bears)).toBe(2);
+        expect(getEffectiveToughness(state, bears)).toBe(2);
+
+        // WITH the Aura attached: +1/+1.
+        const aura = makeInstance(scavengedWeaponry.id, {
+            id: "weaponry-aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bears",
+        });
+        state.players[0].battlefield.push(aura);
+        expect(getEffectivePower(state, bears)).toBe(3); // 2 + 1
+        expect(getEffectiveToughness(state, bears)).toBe(3); // 2 + 1
+    });
+
+    it("wire format: the +1/+1 buff survives projectPublicState", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(scavengedWeaponry.id, {
+            id: "weaponry-aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bears",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bears, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBears = projected.players[0].battlefield.find(
+            (c) => c.id === "bears"
+        )!;
+        expect(getEffectivePower(projected, slimBears)).toBe(3);
+        expect(getEffectiveToughness(projected, slimBears)).toBe(3);
+    });
+});
+
+describe("Tainted Well (Aura — enchanted land is ALSO a Swamp, additively; CR 305.7 / 611 layer 4)", () => {
+    it("adds Swamp to the enchanted land's subtypes WITHOUT replacing the printed type", () => {
+        const land = makeInstance(plains.id, {
+            id: "the-plains",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const well = makeInstance(taintedWell.id, {
+            id: "well",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "the-plains",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, well] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        applySourceStaticEffects(state, well);
+
+        expect(land.subtypes).toContain("Plains");
+        expect(land.subtypes).toContain("Swamp");
+    });
+
+    it("wire format: the additive Swamp subtype survives projectPublicState", () => {
+        const land = makeInstance(plains.id, {
+            id: "the-plains",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const well = makeInstance(taintedWell.id, {
+            id: "well",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "the-plains",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, well] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, well);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLand = projected.players[0].battlefield.find(
+            (c) => c.id === "the-plains"
+        )!;
+        expect(slimLand.subtypes).toContain("Plains");
+        expect(slimLand.subtypes).toContain("Swamp");
+    });
+
+    it("reverts the additive Swamp grant when the Aura leaves the battlefield", () => {
+        const land = makeInstance(plains.id, {
+            id: "the-plains",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const well = makeInstance(taintedWell.id, {
+            id: "well",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "the-plains",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, well] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, well);
+        expect(land.subtypes).toContain("Swamp");
+
+        unapplySourceStaticEffects(state, well);
+
+        expect(land.subtypes).toEqual(["Plains"]);
+        expect(land.subtypes).not.toContain("Swamp");
+    });
+});
+
+describe("Urborg Shambler (other black creatures get -1/-1, self and nonblack excluded; CR 613.4c)", () => {
+    it("debuffs another black creature regardless of controller", () => {
+        const shambler = makeInstance(urborgShambler.id, {
+            id: "shambler",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const skeleton = makeInstance(urborgSkeleton.id, {
+            id: "skeleton",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shambler] }),
+                makePlayer("p2", { battlefield: [skeleton] }),
+            ],
+        });
+        expect(getEffectivePower(state, skeleton)).toBe(-1); // 0 - 1
+        expect(getEffectiveToughness(state, skeleton)).toBe(0); // 1 - 1
+    });
+
+    it("does NOT debuff itself", () => {
+        const shambler = makeInstance(urborgShambler.id, {
+            id: "shambler",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shambler] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, shambler)).toBe(4);
+        expect(getEffectiveToughness(state, shambler)).toBe(3);
+    });
+
+    it("does NOT debuff a nonblack creature", () => {
+        const shambler = makeInstance(urborgShambler.id, {
+            id: "shambler",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shambler, bears] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, bears)).toBe(2);
+        expect(getEffectiveToughness(state, bears)).toBe(2);
+    });
+
+    it("wire format: the -1/-1 debuff survives projectPublicState", () => {
+        const shambler = makeInstance(urborgShambler.id, {
+            id: "shambler",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const skeleton = makeInstance(urborgSkeleton.id, {
+            id: "skeleton",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shambler] }),
+                makePlayer("p2", { battlefield: [skeleton] }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimSkeleton = projected.players[1].battlefield.find(
+            (c) => c.id === "skeleton"
+        )!;
+        expect(getEffectivePower(projected, slimSkeleton)).toBe(-1);
+        expect(getEffectiveToughness(projected, slimSkeleton)).toBe(0);
     });
 });
 

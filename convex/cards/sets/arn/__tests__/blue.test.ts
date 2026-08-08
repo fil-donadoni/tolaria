@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import {
     dandan,
+    fishliverOil,
     giantTortoise,
     islandFishJasconius,
     moorishCavalry,
@@ -15,7 +16,12 @@ import {
     unstableMutation,
 } from "..";
 import { grizzlyBears, island, mountain } from "../../lea";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,
@@ -23,7 +29,8 @@ import {
 } from "../../../../gre/layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
-import type { StackItem } from "../../../../gre/state";
+import { validateBlockerEligibility } from "../../../../gre/combat";
+import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
 import {
     resolveActivated,
     resolveTrigger,
@@ -277,5 +284,108 @@ describe("Old Man of the Sea ({T}: steal a creature with power <= its own while 
         ).map((t) => t.id);
         expect(legal).toContain("small");
         expect(legal).not.toContain("big");
+    });
+});
+
+describe("Fishliver Oil (Aura keyword-grant → islandwalk, CR 611 + 702.13i)", () => {
+    it("grants islandwalk to the host; the host becomes unblockable only once the defender controls an Island", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, fishliverOil.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).toContain("islandwalk");
+
+        // Defender has no Island — islandwalk grants nothing yet, still blockable.
+        const blockerNoIsland = makeInstance(grizzlyBears.id, {
+            id: "blk-no-isl",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        expect(
+            validateBlockerEligibility(bearAfter, blockerNoIsland, [
+                blockerNoIsland,
+            ]).eligible
+        ).toBe(true);
+
+        // Defender controls an Island — islandwalk makes the host unblockable
+        // (CR 702.13i / 509.1b).
+        const isl = makeInstance(island.id, {
+            id: "isl",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blockerWithIsland = makeInstance(grizzlyBears.id, {
+            id: "blk-isl",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        expect(
+            validateBlockerEligibility(bearAfter, blockerWithIsland, [
+                blockerWithIsland,
+                isl,
+            ]).eligible
+        ).toBe(false);
+    });
+
+    it("wire format: the islandwalk grant and its unblockable consequence survive projectPublicState", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, fishliverOil.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const isl = makeInstance(island.id, {
+            id: "isl",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(isl, blocker);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        const slimBlocker = projected.players[1].battlefield.find(
+            (c) => c.id === "blk"
+        )!;
+        const slimIsl = projected.players[1].battlefield.find(
+            (c) => c.id === "isl"
+        )!;
+        expect(slimBear.staticAbilities).toContain("islandwalk");
+        expect(
+            validateBlockerEligibility(slimBear, slimBlocker, [
+                slimBlocker,
+                slimIsl,
+            ]).eligible
+        ).toBe(false);
     });
 });

@@ -10,6 +10,7 @@ import {
     bindingGrasp,
     brainstorm,
     counterspellIce,
+    deflection,
     iceberg,
     powerSinkIce,
     seaSpirit,
@@ -57,6 +58,7 @@ import {
     zursWeirding,
     soldeviMachinist,
 } from "../../ice";
+import { lightningBolt } from "../../lea";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
 import {
@@ -3232,5 +3234,48 @@ describe("Soldevi Machinist — '{T}: Add {C}{C}. Spend only on artifact abiliti
         });
         // The pool chip's label is asserted in the frontend suite
         // (src/lib/__tests__/restricted-mana.test.ts).
+    });
+});
+
+describe("Deflection (retarget a single-target spell to any target, CR 114.6)", () => {
+    function setup() {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        return { state, bolt };
+    }
+
+    it("resolution opens an any-target retarget prompt for the caster (CR 114.6)", () => {
+        const { state, bolt } = setup();
+        pushSpell(state, deflection.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+
+        const pt = state.pendingTarget;
+        expect(pt?.kind).toBe("retarget");
+        expect(pt?.cardInstanceId).toBe(bolt.id);
+        expect(pt?.targetType).toBe("any");
+        // Deflection itself has left the stack; the bolt remains unresolved.
+        expect(state.stack.map((s) => s.id)).toEqual([bolt.id]);
+    });
+
+    it("changes the ORIGINAL spell's target and it deals damage to the new target instead", () => {
+        const { state, bolt } = setup();
+        pushSpell(state, deflection.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+
+        // Redirect the bolt from p1 back onto p2 (mirrors
+        // finalizeTargetSelection's retarget branch writing onto the
+        // original stack item).
+        const pt = state.pendingTarget!;
+        const spell = state.stack.find((s) => s.id === pt.cardInstanceId)!;
+        spell.targets = [{ type: "player", id: "p2" }];
+        state.pendingTarget = undefined;
+
+        resolveTopOfStack(state); // Bolt resolves at the NEW target.
+        expect(state.players[1].life).toBe(17); // p2 took the 3 damage
+        expect(state.players[0].life).toBe(20); // p1 untouched
     });
 });

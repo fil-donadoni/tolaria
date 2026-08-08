@@ -26,8 +26,15 @@ import {
     planeswalkersFury,
     tahngarthTalruumHero,
     thunderscapeBattlemage,
+    thunderscapeFamiliar,
 } from "../red";
-import { grizzlyBears, savannahLions, swamp } from "../../lea";
+import {
+    darkRitual,
+    giantGrowth,
+    grizzlyBears,
+    savannahLions,
+    swamp,
+} from "../../lea";
 import { ephemerate } from "../../mh1/white";
 import {
     makeInstance,
@@ -40,6 +47,7 @@ import {
     resolveTopOfStack,
     tapPermanent,
     emitPermanentTapped,
+    getCostModifiers,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -920,5 +928,68 @@ describe("Thunderscape Battlemage — CR 603.4 per-Kicker check-time gate (issue
         expect(
             kickerPaidCondition("kicker-b")(slim as unknown as PermanentView)
         ).toBe(false);
+    });
+});
+
+// Thunderscape Familiar — a `cost-modifier` static effect scoped to TWO
+// colours (CR 601.2f), the same static-effect kind as Nightscape Familiar
+// (`pls/__tests__/black.test.ts`) and Derelor (`fem/__tests__/black.test.ts`).
+describe("Thunderscape Familiar (CR 601.2f cost reduction for black AND green spells, PLS 76)", () => {
+    it("reduces the controller's own black and green spells by {1}, but not red or an opponent's", () => {
+        const familiar = makeInstance(thunderscapeFamiliar.id, { id: "fam" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [familiar] }),
+                makePlayer("p2"),
+            ],
+        });
+        const myBlackSpell = makeInstance(darkRitual.id, {
+            id: "my-black",
+            zone: "hand",
+        });
+        const myGreenSpell = makeInstance(giantGrowth.id, {
+            id: "my-green",
+            zone: "hand",
+        });
+        const myRedSpell = makeInstance(magmaBurst.id, {
+            id: "my-red",
+            zone: "hand",
+        });
+        const oppBlackSpell = makeInstance(darkRitual.id, {
+            id: "opp-black",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        expect(
+            getCostModifiers(state, myBlackSpell, "spell").reductionGeneric
+        ).toBe(1);
+        expect(
+            getCostModifiers(state, myGreenSpell, "spell").reductionGeneric
+        ).toBe(1);
+        expect(
+            getCostModifiers(state, myRedSpell, "spell").reductionGeneric
+        ).toBe(0);
+        expect(
+            getCostModifiers(state, oppBlackSpell, "spell").reductionGeneric
+        ).toBe(0);
+    });
+
+    it("wire format: the reduction still applies once the source's card is stripped to { id } by projectPublicState", () => {
+        const familiar = makeInstance(thunderscapeFamiliar.id, { id: "fam" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [familiar] }),
+                makePlayer("p2"),
+            ],
+        });
+        const myGreenSpell = makeInstance(giantGrowth.id, {
+            id: "my-green",
+            zone: "hand",
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            getCostModifiers(projected, myGreenSpell, "spell").reductionGeneric
+        ).toBe(1);
     });
 });

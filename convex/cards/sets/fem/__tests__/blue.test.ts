@@ -18,6 +18,7 @@ import {
     merseineFemB,
     riverMerfolk,
     seasinger,
+    tidalFlats,
     tidalInfluence,
     vodalianKnights,
     vodalianMage,
@@ -889,5 +890,75 @@ describe("Homarid Shaman — tap a green creature (CR 701.21)", () => {
         expect(
             state.players[1].battlefield.find((c) => c.id === "green")?.isTapped
         ).toBe(true);
+    });
+});
+
+describe("Tidal Flats — per-attacker may-pay first strike grant (CR 509, 117.3a)", () => {
+    /** A non-flying attacker for p2, blocked by a single p1 creature, with
+     *  Tidal Flats on p1's battlefield. The live combat state
+     *  (`getBlockersByAttacker`) is what the resolve() body reads. */
+    function tidalFlatsBoard(): {
+        state: GameState;
+        flats: CardInstanceState;
+        blocker: CardInstanceState;
+    } {
+        const flats = makeInstance(tidalFlats.id, {
+            id: "flats",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const blocker = makeInstance(homarid.id, {
+            id: "blocker",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isBlocking: true,
+        });
+        const attacker = makeInstance(vodalianSoldiers.id, {
+            id: "att",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [flats, blocker] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["att"],
+                confirmed: true,
+                blockerAssignments: { blocker: ["att"] },
+                blockersConfirmed: true,
+            },
+        });
+        return { state, flats, blocker };
+    }
+
+    it("grants its blockers first strike when the attacker's controller declines to pay {1}", () => {
+        const { state, flats, blocker } = tidalFlatsBoard();
+        resolveActivated(state, flats, "tidal-flats-first-strike");
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === blocker.id
+        )!;
+        expect(onBoard.staticAbilities).toContain("first strike");
+    });
+
+    it("grants no first strike when the attacker's controller pays {1}", () => {
+        const { state, flats, blocker } = tidalFlatsBoard();
+        state.players[1].manaPool = { C: 1 };
+        resolveActivated(state, flats, "tidal-flats-first-strike");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === blocker.id
+        )!;
+        expect(onBoard.staticAbilities).not.toContain("first strike");
     });
 });

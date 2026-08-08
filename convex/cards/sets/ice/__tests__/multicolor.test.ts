@@ -30,6 +30,9 @@ import {
     chromaticArmor,
     knightOfStromgald,
     seaSpirit,
+    glaciers,
+    diabolicVision,
+    elementalAugury,
 } from "../../ice";
 import { mountain, grizzlyBears, scatheZombies } from "../../lea";
 import { collectAttackSacrificeTax } from "../../../../gre/combat";
@@ -41,9 +44,13 @@ import {
     type SacrificeSelection,
 } from "../../../../gre/sacrificeChoice";
 import type { PermanentFilter } from "../../../filters";
-import { isLand } from "../../../../gre/constants";
+import { isLand, getBasicLandMana } from "../../../../gre/constants";
 import { getDefinition, getCardByName } from "../../../index";
-import { resolveTopOfStack, runDamageReplacement } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    runDamageReplacement,
+    applySourceStaticEffects,
+} from "../../../../gre/state";
 import { resolveAbilityManaCost } from "../../../../game";
 import { describeDamageSource } from "../../../../gre/replacements";
 import {
@@ -79,6 +86,7 @@ import {
     PHASE_EVENT,
     PHASE_EVENT_EOC,
     makeTargetCreature,
+    library,
 } from "./helpers";
 
 describe("Storm Spirit ({T}: 2 damage to a creature, CR 120.1)", () => {
@@ -1676,5 +1684,108 @@ describe("Chromatic Armor (re-choosable colour shield, CR 615 / 700.2c / 601.2f)
                 false
             )?.amount
         ).toBe(3);
+    });
+});
+
+describe("Glaciers (CR 613.1d subtype-set — All Mountains are Plains)", () => {
+    it("without Glaciers, a Mountain keeps its subtype and taps for red", () => {
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn",
+            controllerId: "p1",
+        });
+        expect(mtn.subtypes).toEqual(["Mountain"]);
+        expect(getBasicLandMana(mtn)).toBe("R");
+    });
+
+    it("with Glaciers on the battlefield every Mountain becomes a Plains and taps for white; survives the wire (CR 613.1d)", () => {
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn",
+            controllerId: "p1",
+        });
+        const glac = makeInstance(glaciers.id, {
+            id: "glac",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mtn] }),
+                makePlayer("p2", { battlefield: [glac] }),
+            ],
+        });
+        applySourceStaticEffects(state, glac);
+        expect(mtn.subtypes).toEqual(["Plains"]);
+        expect(getBasicLandMana(mtn)).toBe("W");
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimMtn = projected.players[0].battlefield.find(
+            (c) => c.id === "mtn"
+        )!;
+        expect(slimMtn.subtypes).toEqual(["Plains"]);
+        expect(getBasicLandMana(slimMtn)).toBe("W");
+    });
+});
+
+describe("Diabolic Vision (look at top 5, keep 1, reorder the rest on top, CR 401)", () => {
+    it("keeps the chosen card in hand and reorders the rest on top", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: library("p1", ["c1", "c2", "c3", "c4", "c5"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, diabolicVision.id, "p1");
+        resolveTopOfStack(state);
+
+        const keepHead = state.pendingChoices![0];
+        expect(keepHead.kind).toBe("search-library");
+        submitChoice(state, ["c3"]);
+
+        const reorderHead = state.pendingChoices![0];
+        expect(reorderHead.kind).toBe("reorder-library");
+        submitChoice(state, ["c5", "c4", "c2", "c1"]);
+
+        expect(state.players[0].hand.map((c) => c.id)).toContain("c3");
+        expect(state.players[0].library.slice(0, 4).map((c) => c.id)).toEqual([
+            "c5",
+            "c4",
+            "c2",
+            "c1",
+        ]);
+    });
+});
+
+describe("Elemental Augury ({3}: look at target player's top 3, reorder in place, CR 401 / 114.6-adjacent)", () => {
+    it("reorders the target player's top three cards, known only to the caster (cross-player scry)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    library: library("p2", ["c1", "c2", "c3", "c4"]),
+                }),
+            ],
+        });
+        const augury = makeInstance(elementalAugury.id, {
+            id: "augury",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(augury);
+        resolveActivated(state, augury, "elemental-augury-look", [
+            { type: "player", id: "p2" },
+        ]);
+
+        expect(state.pendingChoices![0].kind).toBe("reorder-library");
+        submitChoice(state, ["c3", "c1", "c2"]);
+
+        const lib = state.players[1].library;
+        expect(lib.slice(0, 3).map((c) => c.id)).toEqual(["c3", "c1", "c2"]);
+        // Known to the caster (p1) only — not to the library's owner p2.
+        expect(lib[0].knownTo).toEqual(["p1"]);
+        expect(lib[1].knownTo).toEqual(["p1"]);
+        expect(lib[2].knownTo).toEqual(["p1"]);
+        // The untouched 4th card stays unknown to everyone.
+        expect(lib[3].knownTo).toBeUndefined();
     });
 });

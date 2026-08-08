@@ -9,6 +9,7 @@ import {
     farrelsMantle,
     farrelsZealot,
     handOfJustice,
+    heroism,
     icatianJavelineers,
     icatianPhalanx,
     icatianPriest,
@@ -36,7 +37,8 @@ import {
     finalizeTargetSelection,
     tryAutoCommitPendingActivation,
 } from "../../../../game";
-import { grizzlyBears } from "../../lea";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { grizzlyBears, monssGoblinRaiders } from "../../lea";
 import { matchesPermanentFilter } from "../../../filters";
 import {
     makeInstance,
@@ -697,6 +699,56 @@ describe("Order of Leitbur — protection + pump knight (CR 702.16 / 611)", () =
         expect(getEffectivePower(state, knight)).toBe(2);
         resolveActivated(state, knight, "order-of-leitbur-pump");
         expect(getEffectivePower(state, knight)).toBe(3);
+    });
+});
+
+describe("Heroism — sacrifice-a-white-creature punisher prevention on red attackers (CR 615, 117.3a)", () => {
+    function heroismBoard(): {
+        state: GameState;
+        heroismInst: CardInstanceState;
+    } {
+        const heroismInst = makeInstance(heroism.id, {
+            id: "heroism",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const redAttacker = makeInstance(monssGoblinRaiders.id, {
+            id: "red-atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [heroismInst] }),
+                makePlayer("p2", { battlefield: [redAttacker] }),
+            ],
+        });
+        return { state, heroismInst };
+    }
+
+    it("marks the attacking red creature to assign no combat damage when its controller declines to pay {2}{R}", () => {
+        const { state, heroismInst } = heroismBoard();
+        resolveActivated(state, heroismInst, "heroism-prevent");
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(sourcePreventionShieldApplies(state, "red-atk", true)).toBe(
+            true
+        );
+    });
+
+    it("does not mark the attacker when its controller pays {2}{R}", () => {
+        const { state, heroismInst } = heroismBoard();
+        state.players[1].manaPool = { C: 2, R: 1 };
+        resolveActivated(state, heroismInst, "heroism-prevent");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(sourcePreventionShieldApplies(state, "red-atk", true)).toBe(
+            false
+        );
     });
 });
 

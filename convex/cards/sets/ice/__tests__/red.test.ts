@@ -55,13 +55,15 @@ import {
     orcishFarmer,
     errantry,
     orcishConscripts,
+    curseOfMaritLage,
+    goblinSnowman,
 } from "../../ice";
 import {
     validateDeclaredAttackers,
     validateDeclaredBlockers,
     collectBlockBypassCharges,
 } from "../../../../gre/combat";
-import { plains, mountain, forest } from "../../lea";
+import { plains, mountain, forest, island } from "../../lea";
 import {
     applyLandManaReplacement,
     getBasicLandMana,
@@ -71,6 +73,7 @@ import {
     resolveTopOfStack,
     applyExistingGrantsTo,
     refreshCounterGatedStatics,
+    applySourceStaticEffects,
 } from "../../../../gre/state";
 import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import {
@@ -82,6 +85,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import {
     emitAttackersDeclaredEvents,
     advancePhase,
+    untapStep,
 } from "../../../../gre/phases";
 import { recordBlockedAttackers } from "../../../../gre/banding";
 import {
@@ -2343,5 +2347,147 @@ describe("collectBlockBypassCharges helper (CR 509.1b)", () => {
             },
         });
         expect(collectBlockBypassCharges(state)).toHaveLength(0);
+    });
+});
+
+describe("Curse of Marit Lage (ETB tap all Islands + Islands don't untap, CR 502.1 / 603.6a)", () => {
+    it("the ETB trigger taps every Island across both players, leaving non-Islands alone", () => {
+        const island1 = makeInstance(island.id, {
+            id: "isl1",
+            controllerId: "p1",
+        });
+        const island2 = makeInstance(island.id, {
+            id: "isl2",
+            controllerId: "p2",
+        });
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn",
+            controllerId: "p1",
+        });
+        const curse = makeInstance(curseOfMaritLage.id, {
+            id: "curse",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [island1, mtn, curse] }),
+                makePlayer("p2", { battlefield: [island2] }),
+            ],
+        });
+        resolveTrigger(state, curse, "curse-marit-lage-tap-islands", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "curse",
+            controllerId: "p1",
+            types: ["Enchantment"],
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "isl1")!.isTapped
+        ).toBe(true);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "isl2")!.isTapped
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "mtn")!.isTapped
+        ).toBe(false);
+    });
+
+    it("without the curse in play, a tapped Island untaps normally during its controller's untap step", () => {
+        const island1 = makeInstance(island.id, {
+            id: "isl1",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [island1] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+        });
+        untapStep(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "isl1")!.isTapped
+        ).toBe(false);
+    });
+
+    it("with the curse's untap-restriction static in play, a tapped Island stays tapped through its controller's untap step (CR 502.1); survives the wire", () => {
+        const island1 = makeInstance(island.id, {
+            id: "isl1",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const curse = makeInstance(curseOfMaritLage.id, {
+            id: "curse",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [island1] }),
+                makePlayer("p2", { battlefield: [curse] }),
+            ],
+            activePlayerId: "p1",
+        });
+        untapStep(state);
+        const isl = state.players[0].battlefield.find((c) => c.id === "isl1")!;
+        expect(isl.isTapped).toBe(true);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimIsl = projected.players[0].battlefield.find(
+            (c) => c.id === "isl1"
+        )!;
+        expect(slimIsl.isTapped).toBe(true);
+    });
+});
+
+describe("Goblin Snowman ({T}: 1 damage to the creature it's blocking, CR 509.1)", () => {
+    function setup(isBlocking: boolean) {
+        const snowman = makeInstance(goblinSnowman.id, {
+            id: "snowman",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const atk = vanilla("atk", 2, 2, {
+            id: "atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [snowman] }),
+                makePlayer("p2", { battlefield: [atk] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: isBlocking ? { snowman: ["atk"] } : {},
+                blockersConfirmed: true,
+            },
+        });
+        return { state, snowman };
+    }
+
+    it("deals 1 damage to the attacker it's currently blocking", () => {
+        const { state, snowman } = setup(true);
+        resolveActivated(state, snowman, "goblin-snowman-ping", [
+            { type: "permanent", id: "atk" },
+        ]);
+        const atkAfter = state.players[1].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(atkAfter.damageMarked).toBe(1);
+    });
+
+    it("does nothing when it isn't blocking the targeted creature (CR 509.1 'it's blocking')", () => {
+        const { state, snowman } = setup(false);
+        resolveActivated(state, snowman, "goblin-snowman-ping", [
+            { type: "permanent", id: "atk" },
+        ]);
+        const atkAfter = state.players[1].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(atkAfter.damageMarked).toBeUndefined();
     });
 });
