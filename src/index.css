@@ -520,10 +520,23 @@
 /* ── Micro-motion pass (issue #598, PRD #589) ──
    Tasteful, subtle motion that gives the chrome life without distraction. Every
    keyframe animates only `transform` / `opacity` (compositor-friendly — never a
-   layout property), so there is no reflow or jank. ALL of it is gated behind the
-   `prefers-reduced-motion: no-preference` query at the bottom of this block, so
-   when the OS requests reduced motion NOTHING animates. The base rules above
-   (`.runic-ring`, ambient layers) ship the static look unconditionally. */
+   layout property), so there is no reflow or jank.
+
+   The gate below is for DECORATIVE motion only — ambient glows, the runic
+   ring, one-shot flourishes — where removing the motion costs no
+   information, so ALL of it is gated behind the `prefers-reduced-motion:
+   no-preference` query at the bottom of this block: when the OS requests
+   reduced motion, none of it animates. The base rules above (`.runic-ring`,
+   ambient layers) ship the static look unconditionally.
+
+   INFORMATIONAL motion — where the motion itself IS the value being
+   displayed, e.g. the Pick Timer's draining bar (`limited-draft-timer.tsx`,
+   issue #2238) — is exempt from this gate. Freezing it under reduced motion
+   would not be a degraded readout, it would be a bar silently displaying a
+   value that is no longer true, which is worse than showing nothing. Those
+   cases stay driven from JS (`useReducedMotion` from `motion/react`) and
+   degrade to a discrete, once-a-second stepped update instead of a
+   continuously-interpolated one — still moving, never frozen, never hidden. */
 
 /* Slow rotation for the Title Treatment's runic ring (#597 shipped the markup). */
 @keyframes runicSpin {

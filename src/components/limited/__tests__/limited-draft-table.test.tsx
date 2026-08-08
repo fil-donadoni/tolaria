@@ -14,6 +14,13 @@ import {
 } from "@convex/limited/eventProjection";
 import LimitedDraftTable from "../limited-draft-table";
 
+// LimitedDraftTable mounts LimitedDraftTimer (issue #2238), which reads
+// `useReducedMotion` from `motion/react` — jsdom has no `matchMedia`, so
+// every test here needs the same stub the timer's own test file uses.
+vi.mock("motion/react", () => ({
+    useReducedMotion: () => false,
+}));
+
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
 
 const submitPickMock = vi.fn().mockResolvedValue(null);
@@ -62,6 +69,7 @@ afterEach(() => cleanup());
 function eventRow(overrides: {
     selectedPickId?: string;
     poolLength?: number;
+    pickDeadline?: number;
 }): LimitedEventRow {
     const poolLength = overrides.poolLength ?? 0;
     return {
@@ -96,6 +104,7 @@ function eventRow(overrides: {
                     },
                 ],
                 selectedPickId: overrides.selectedPickId,
+                pickDeadline: overrides.pickDeadline,
             },
             { seatIndex: 1, isBot: true },
         ],
@@ -107,6 +116,7 @@ function eventRow(overrides: {
 function renderTable(overrides: {
     selectedPickId?: string;
     poolLength?: number;
+    pickDeadline?: number;
 }) {
     const view = projectLimitedEvent(eventRow(overrides), "user1");
     const seat = view.seats.find((s) => s.seatIndex === 0)!;
@@ -199,5 +209,13 @@ describe("LimitedDraftTable pick gestures through projectLimitedEvent (ADR 0060,
         fireEvent.contextMenu(cards[0]);
         expect(selectDraftPickMock).not.toHaveBeenCalled();
         expect(submitPickMock).not.toHaveBeenCalled();
+    });
+
+    // Issue #2238: the Pick Timer used to render inline in the meta row and
+    // this suite never exercised a non-null `pickDeadline` at all. Assert it
+    // mounts (through the real projection, seam 3) once the seat carries one.
+    it("mounts the Pick Timer above the Booster when the seat has a pickDeadline", () => {
+        const { getByRole } = renderTable({ pickDeadline: Date.now() + 5000 });
+        expect(getByRole("timer").textContent).toMatch(/left|Auto-picking/);
     });
 });
