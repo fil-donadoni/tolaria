@@ -5334,11 +5334,15 @@ export function emitEntersWithCounterEvents(
  *  bookkeeping (`resolutionStep`, `collectedChoices`, `massRiderTargets`) —
  *  every one of these is stale by the time any call site below runs (the
  *  redirect flags have already been READ and branched on; resolution
- *  bookkeeping only matters mid-resolve; `evoked`/`dashed`/`escaped` are only
- *  ever read on the BATTLEFIELD object — an ETB `condition`/`conditionOnSelf`
- *  or the `escaped` `EffectValue` — never on a `StackItem` still on the
- *  stack; and every call site here runs AFTER resolution decided its
- *  destination or BEFORE it ever started, on a counter). (2) Fields that
+ *  bookkeeping only matters mid-resolve; `evoked`/`dashed`/`escaped` are read
+ *  by an ETB `condition`/`conditionOnSelf` on the BATTLEFIELD object, and
+ *  `SpellContext.isEscaped`'s last-known-information fallback also reads
+ *  `escaped` directly off `item` WHILE it is still the currently-resolving
+ *  stack item (`target.id === item.id`) — so the safety argument here is
+ *  ORDERING, not "never read on a StackItem": every such read happens DURING
+ *  the item's OWN resolution, and every call site below runs only AFTER
+ *  resolution decided the item's destination or BEFORE it ever started, on a
+ *  counter). (2) Fields that
  *  exist ONLY on an ABILITY stack item (`abilityId`, `triggeredAbilityId`,
  *  `triggerSourceId`, `triggerEvent`, `abilityResolutionRecorded`,
  *  `madnessTrigger`, `reboundTrigger`, `emblemSourceId`, `stormSnapshot`,
@@ -5367,11 +5371,11 @@ export function emitEntersWithCounterEvents(
  *  `StackItem`-absent and permanent-side-only; they are stamped directly
  *  onto the `StackItem` literal at cast commit (`convex/game.ts`) and a
  *  COUNTERED evoked/dashed/escaped spell reproduces the exact `buybackPaid`
- *  leak shape this function exists to close. `docs/findings/2137-battlefield-cast-flags.md`
- *  documents the surviving SIBLING gap on the permanent-exit side
- *  (`resetBattlefieldTransientState`, a permanent bounced directly off the
- *  battlefield without ever re-entering the stack) — that half is real and
- *  still open.
+ *  leak shape this function exists to close. The SIBLING gap on the
+ *  permanent-exit side (`resetBattlefieldTransientState`, a permanent
+ *  bounced directly off the battlefield without ever re-entering the stack)
+ *  is closed too, same trio, issue #2412 fixup round 3 — see that function's
+ *  own doc comment.
  *
  *  A TRAP THIS FUNCTION MUST NOT WALK INTO. `castById` is deleted here, but
  *  the `reboundFromHand` exit branch reads `item.castById` AFTER its own
@@ -5408,15 +5412,22 @@ function resetStackTransientState(item: StackItem): void {
     // `evokeTrigger`'s `conditionOnSelf: self.evoked === true`
     // (`cards/abilities/evoke.ts`) sacrifices a hard-cast permanent, `dashed`
     // bounces one that was never dashed, and an "unless it escaped" clause
-    // inverts. Safe to delete here: every read of these three fields is on
-    // the BATTLEFIELD object (an ETB `condition`/`conditionOnSelf`, or the
-    // `escaped` `EffectValue`) — never on a `StackItem` still resolving — so
-    // by the time any call site below runs, the value has already been read
-    // or was never set for this exit. See
-    // `docs/findings/2137-battlefield-cast-flags.md` for the SIBLING gap this
-    // does NOT close: a permanent bounced directly off the battlefield
-    // (never re-entering the stack) still isn't cleared by
-    // `resetBattlefieldTransientState`, the CR 400.7 gate on that side.
+    // inverts. Safe to delete here: every read of these three fields is
+    // either an ETB `condition`/`conditionOnSelf`/the `escaped` `EffectValue`
+    // on the BATTLEFIELD object, or `SpellContext.isEscaped`'s
+    // last-known-information fallback reading `item.escaped` while `item` is
+    // STILL the currently-resolving stack item — ORDERING is what makes this
+    // safe, not the absence of any StackItem-side read: every such read
+    // happens during the item's OWN resolution, strictly before any call
+    // site below runs (which is only reached once resolution has decided the
+    // item's destination, or before it ever started, on a counter) — so by
+    // that point the value has already been read or was never set for this
+    // exit. `resetBattlefieldTransientState` (`convex/gre/state.ts`) is the
+    // SIBLING gate on the permanent-exit side (a permanent bounced directly
+    // off the battlefield, never re-entering the stack — e.g. `dashTrigger`'s
+    // own next-end-step `moveZone $self → hand`) and carries the matching
+    // `delete card.evoked` / `dashed` / `escaped` trio (issue #2412 fixup
+    // round 3).
     delete item.evoked;
     delete item.dashed;
     delete item.escaped;
@@ -9841,6 +9852,34 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // paths that never run the creature spell's `resolveSteps`, so no new name
     // is ever asked for) would silently re-lock the old name.
     delete card.chosenName;
+    // CR 702.74a / 702.109a / 702.138e / 400.7 (issue #2412 fixup round 3) —
+    // the PERMANENT-side sibling of the `wasKicked`/`chosenXOnCast` pairs
+    // above, and of `resetStackTransientState`'s `evoked`/`dashed`/`escaped`
+    // clear (round 2, this same function's stack-exit counterpart).
+    // `evoked`/`dashed`/`escaped` are one-shot facts about the OBJECT that
+    // was cast that way; a CR 400.7 zone change makes a new object with no
+    // memory of it. `convex/game.ts` stamps all three directly onto the
+    // `StackItem` literal at cast commit (the same seam as `wasKicked`), and
+    // that object becomes the battlefield permanent for free — so a
+    // permanent bounced DIRECTLY off the battlefield (never re-entering the
+    // stack: a bounce spell, or `dashTrigger`'s own next-end-step
+    // `moveZone $self → hand`, CR 702.109a) still carried the flag on the
+    // object landing in hand/library, left uncleared here. `game.ts`'s cast
+    // branches build every new stack item as
+    // `{ ...card, ...(isDashCost ? { dashed: true } : {}) }` — a spread that
+    // is `{}` whenever the new cast doesn't pay the alt cost, so it never
+    // CLEARS an inherited value. A hard recast of that same object then
+    // inherited `dashed: true`/`evoked: true`/`escaped: true`, incorrectly
+    // re-firing `dashTrigger`'s haste grant + end-step self-bounce (or
+    // `evokeTrigger`'s ETB sacrifice, or an "unless it escaped" clause) on a
+    // permanent nobody dashed/evoked/escaped this time. Reproduced with a
+    // shipped card: Ragavan, Nimble Pilferer (MH2) dashed → resolves →
+    // bounces itself via its own `dashTrigger` end step → hard recast would
+    // silently gain haste and re-schedule ANOTHER self-bounce, every game.
+    // See `convex/gre/__tests__/dash.test.ts` ("battlefield-side leak").
+    delete card.evoked;
+    delete card.dashed;
+    delete card.escaped;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only

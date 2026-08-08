@@ -39,7 +39,7 @@ import {
 } from "../alternativeCost";
 import { getLegalActions } from "../rules";
 import { fireDelayedTriggers } from "../phases";
-import { tryAutoCommitPendingCast } from "../../game";
+import { tryAutoCommitPendingCast, finalizeTargetSelection } from "../../game";
 import { collectTriggers } from "../triggers";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
@@ -51,6 +51,7 @@ import {
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { dashTrigger } from "../../cards/abilities/dash";
+import { ragavanNimblePilferer } from "../../cards/sets/mh2/red";
 
 // A dash creature: printed cost is a steep {X:5}{R} (6 mana value), its dash
 // cost is a cheap {R} (1 mana value) — the contrast the "cast legal via dash
@@ -272,6 +273,132 @@ describe("Dash — CR 702.109a haste grant + next-end-step return", () => {
         expect(onBoard?.staticAbilities ?? []).not.toContain("haste");
         expect(state.delayedTriggers?.length ?? 0).toBe(0);
         expect(onBoard).toBeDefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #2412 fixup round 3 (PR review finding). `dashTrigger`'s OWN template
+// is the direct battlefield→hand bounce `resetBattlefieldTransientState`
+// (CR 400.7, `convex/gre/state.ts`) is supposed to gate: the "next end step"
+// delayed trigger does `moveZone $self → hand`, which runs the permanent
+// through `removePermanentTo`'s hand/library branch — NOT through
+// `resetStackTransientState` (that function only reaches a permanent
+// re-entering the stack). `resetBattlefieldTransientState` had no
+// `delete card.dashed` (nor `evoked`/`escaped`), so the bounced object kept
+// `dashed: true`, and a later HARD recast's
+// `{ ...card, ...(isDashCost ? { dashed: true } : {}) }` spread in
+// `finalizeTargetSelection`/`tryAutoCommitPendingCast` never clears an
+// inherited value it doesn't itself set — reproduced with the shipped card
+// (Ragavan, Nimble Pilferer, MH2) whose own `dashTrigger` IS this exact
+// interaction: dash → resolve → end-of-turn self-bounce → hard recast would
+// silently gain haste and re-schedule ANOTHER end-step bounce, every game,
+// no counter/Regrowth round trip needed.
+// ---------------------------------------------------------------------------
+describe("Dash — battlefield-side leak: end-step self-bounce then HARD recast does not leak (CR 400.7 / issue #2412 fixup round 3)", () => {
+    it("a HARD recast of Ragavan after a dashed end-step self-bounce does not gain haste or re-schedule the end-step return", () => {
+        const RAGAVAN_ID = ragavanNimblePilferer.id;
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+
+        // 1. Cast Ragavan DASHED — stamp `dashed: true` directly on the stack
+        //    item, exactly like `tryAutoCommitPendingCast`'s real cast-commit
+        //    seam (already covered by the "cast commit tags the stack item"
+        //    describe block above; this test is about the EXIT, not payment).
+        const ragavanStack: StackItem = {
+            ...handCard(RAGAVAN_ID, "rag"),
+            zone: "stack",
+            castById: "p1",
+            dashed: true,
+        };
+        state.stack.push(ragavanStack);
+        resolveTopOfStack(state);
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "rag"
+        );
+        expect(onBoard).toBeDefined();
+        expect(onBoard!.dashed).toBe(true);
+
+        // 2. Fire Ragavan's OWN `dashTrigger` (haste grant + schedule the
+        //    next-end-step return) through the real ETB trigger path.
+        const etbTriggers = collectTriggers(state, [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "rag",
+                controllerId: "p1",
+                cardId: RAGAVAN_ID,
+                types: ["Creature"],
+            },
+        ]);
+        expect(etbTriggers.map((t) => t.triggeredAbilityId)).toContain(
+            "dash-haste-and-return"
+        );
+        state.stack.push(...etbTriggers);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers?.length).toBe(1);
+
+        // 3. Fire the next-end-step delayed trigger: `moveZone $self → hand`
+        //    — a DIRECT battlefield→hand bounce, never re-entering the stack.
+        //    This runs through `removePermanentTo`'s hand branch, which calls
+        //    `resetBattlefieldTransientState` (NOT `resetStackTransientState`
+        //    — the already-fixed stack-side chokepoint from round 2).
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.some((c) => c.id === "rag")).toBe(
+            false
+        );
+        const inHand = state.players[0].hand.find((c) => c.id === "rag");
+        expect(inHand).toBeDefined();
+        // The core assertion the fix guarantees: a self-bounced dashed
+        // permanent reaches hand with no memory of having been dashed.
+        expect((inHand as { dashed?: boolean }).dashed).toBe(undefined);
+
+        // 4. Recast, HARD (no dash), through the real production cast-commit
+        //    path (`finalizeTargetSelection`). Ragavan costs {R}.
+        state.players[0].manaPool.R = 1;
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "rag",
+                targetType: "any",
+                count: 0,
+                selected: [],
+            },
+            "p1"
+        );
+        const recast = state.stack.find((s) => s.id === "rag");
+        expect(recast).toBeDefined();
+        expect(recast?.dashed).toBe(undefined);
+
+        // 5. Resolve to the battlefield and re-run the real ETB trigger scan.
+        //    A hard-cast Ragavan must NOT re-offer `dash-haste-and-return` —
+        //    on pre-fix code the stale `dashed: true` survives step 4's
+        //    spread and this would incorrectly appear, granting haste and
+        //    scheduling ANOTHER end-step self-bounce.
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.some((c) => c.id === "rag")).toBe(
+            true
+        );
+        const hardCastTriggers = collectTriggers(state, [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "rag",
+                controllerId: "p1",
+                cardId: RAGAVAN_ID,
+                types: ["Creature"],
+            },
+        ]);
+        expect(hardCastTriggers.map((t) => t.triggeredAbilityId)).not.toContain(
+            "dash-haste-and-return"
+        );
+
+        // No haste grant, no re-scheduled end-step return.
+        const hardCastOnBoard = state.players[0].battlefield.find(
+            (c) => c.id === "rag"
+        );
+        expect(hardCastOnBoard?.staticAbilities ?? []).not.toContain("haste");
+        expect(state.delayedTriggers?.length ?? 0).toBe(0);
     });
 });
 
