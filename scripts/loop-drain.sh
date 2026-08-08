@@ -297,6 +297,15 @@ while :; do
     green_after=$(read_green_sha)
     if is_uint "$queue_after"; then
         last_queue_count="$queue_after"
+    else
+        # gh can fail AFTER a pass just as easily as before one (transient
+        # API error, rate limit). An empty queue_after breaks the 7-field
+        # log-line invariant the same way an empty claude_exit did — default
+        # to a placeholder rather than leaving the field empty. This does
+        # NOT stop the run (post-pass gh failures are not fatal the way a
+        # pre-pass one is, see queue_before above) — it only keeps the log
+        # line well-formed.
+        queue_after="-"
     fi
 
     reason_field="-"

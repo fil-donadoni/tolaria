@@ -142,17 +142,23 @@ export function sumWindow(
 // quota reading. If a supported usage endpoint ever appears, that is what
 // should replace this table, not a better-tuned version of it.
 //
-// The weights approximate relative LIST PRICE per token category, anchored so
-// "1 unit == 1 sonnet input token" (an arbitrary but stated anchor — only the
-// RATIOS matter for comparing burn across passes):
-//   - opus output costs far more than sonnet output (~5x list price)
-//   - a cache write costs slightly more than an equivalent fresh input token
-//   - a cache read is an order of magnitude cheaper than a fresh input token
-// These are illustrative ratios, not pinned to a price list that will drift;
-// override them with `--weights <file.json>` if the real ratios matter to you.
+// The weights are PINNED to current list price per MTok, ÷ 3 and anchored so
+// "1 unit == 1 sonnet input token" (Sonnet 5 input is $3/MTok — the anchor is
+// arbitrary, only the RATIOS matter for comparing burn across passes). This
+// is a LOCAL PROXY for relative burn, not Anthropic's quota accounting (see
+// the module comment above) — override with `--weights <file.json>` if a
+// different ratio set matters to you. List price drifts: re-anchor this
+// table (and re-derive every row ÷ 3) whenever Anthropic's published pricing
+// changes.
+//
+// Sonnet 5 currently has introductory pricing ($2/$10 per MTok through
+// 2026-08-31) below the $3/$15 standard rate this table is anchored to. The
+// table stays on STANDARD list price deliberately — it's the durable number
+// once the intro period lapses, and it's the conservative (higher) weight in
+// the meantime. Do not "correct" the sonnet row to the intro rate.
 // ─────────────────────────────────────────────────────────────────────────
 
-export type WeightClass = "opus" | "sonnet" | "haiku";
+export type WeightClass = "opus" | "sonnet" | "haiku" | "fable";
 
 export interface CategoryWeights {
     input: number;
@@ -163,32 +169,44 @@ export interface CategoryWeights {
 
 /** An unrecognised/new model MUST fall back to this class — fail expensive,
  * so an unknown model can never look artificially cheap and keep an
- * unattended loop running past its real budget. */
-export const MOST_EXPENSIVE_WEIGHT_CLASS: WeightClass = "opus";
+ * unattended loop running past its real budget. Must stay pointed at
+ * whichever class in `DEFAULT_WEIGHTS` is genuinely the most expensive: a
+ * model that classifies as this class but is actually pricier than every row
+ * in the table would defeat the fail-expensive guarantee silently. */
+export const MOST_EXPENSIVE_WEIGHT_CLASS: WeightClass = "fable";
 
-// sonnet and opus are exact against current list price ÷3 (the anchor is "1
-// unit == 1 sonnet input token", see the module comment above). haiku is
-// re-anchored to the same list, current tier (was pinned to Haiku 3.5
-// pricing — $0.80/$4/$1.00/$0.08 — a stale generation of the family).
+// List price per MTok (verified): Sonnet 5 $3/$15, Opus 5 $5/$25, Haiku 4.5
+// $1/$5, Fable 5 / Mythos 5 $10/$50. Each row here is that ÷ 3, anchored so
+// sonnet.input == 1. cacheCreation is 1.25x input, cacheRead is 0.1x input —
+// that relationship holds for every class and must keep holding.
 export const DEFAULT_WEIGHTS: Record<WeightClass, CategoryWeights> = {
     sonnet: { input: 1, output: 5, cacheCreation: 1.25, cacheRead: 0.1 },
-    opus: { input: 5, output: 25, cacheCreation: 6.25, cacheRead: 0.5 },
+    opus: { input: 1.67, output: 8.33, cacheCreation: 2.08, cacheRead: 0.167 },
     haiku: {
         input: 0.33,
         output: 1.67,
         cacheCreation: 0.42,
         cacheRead: 0.033,
     },
+    fable: {
+        input: 3.33,
+        output: 16.67,
+        cacheCreation: 4.17,
+        cacheRead: 0.33,
+    },
 };
 
 /** Map a raw model string (e.g. `claude-opus-4-5-20260101`) to a weight
  * class. Falls back to `MOST_EXPENSIVE_WEIGHT_CLASS` for anything that
- * doesn't contain a recognised family name — see the fail-expensive note. */
+ * doesn't contain a recognised family name — see the fail-expensive note.
+ * `fable` and `mythos` are the same underlying model family (Fable 5 /
+ * Mythos 5) and share one row. */
 export function classifyModel(model: string): WeightClass {
     const m = model.toLowerCase();
     if (m.includes("opus")) return "opus";
     if (m.includes("haiku")) return "haiku";
     if (m.includes("sonnet")) return "sonnet";
+    if (m.includes("fable") || m.includes("mythos")) return "fable";
     return MOST_EXPENSIVE_WEIGHT_CLASS;
 }
 

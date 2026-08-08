@@ -110,3 +110,9 @@ All of `--max-passes`, `--max-pct`, and `--budget` are validated as numeric
 at startup — a non-numeric value (a typo, a suffix like `2M`, a separator
 like `2_000_000`) is a loud `exit 2`, never a guard that silently does
 nothing or coerces to 0.
+
+**`--dry-run` always ends in `reason=no-progress` after 2 passes, by design.**
+A dry run never lands anything (`claude` isn't actually invoked to do the
+work), so the TOTAL open count and green-sha never move — the no-progress
+guard is doing exactly its job. This is not a bug to fix; don't read it as
+one.

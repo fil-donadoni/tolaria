@@ -88,6 +88,36 @@ const stubGhTwoCounters = (
     );
 };
 
+/** `gh` stub that succeeds for the first `succeedCalls` invocations (the
+ * pre-pass `queue_before`/`total_before` reads) and fails every call after
+ * that (the post-pass `queue_after`/`total_after` reads) — reproduces a
+ * transient `gh` API error that happens to land AFTER a pass runs rather
+ * than before it. Used to prove `queue_after` gets the same `-` placeholder
+ * `claude_exit` already gets, so the 7-field log-line invariant survives a
+ * post-pass `gh` failure the same way it survives a subshell that dies
+ * before writing its exit code. */
+const stubGhSucceedsPrePassFailsPostPass = (
+    succeedCalls: number,
+    value: number
+): void => {
+    const counterFile = path.join(tmp, "gh-call-count");
+    fs.writeFileSync(counterFile, "0");
+    writeStub(
+        "gh",
+        [
+            `n=$(cat "${counterFile}" 2>/dev/null || echo 0)`,
+            `n=$((n + 1))`,
+            `echo "$n" > "${counterFile}"`,
+            `if [ "$n" -le ${succeedCalls} ]; then`,
+            `  echo ${value}`,
+            `  exit 0`,
+            `fi`,
+            `echo "gh: transient API error" 1>&2`,
+            `exit 1`,
+        ].join("\n")
+    );
+};
+
 /** `claude` stub in "progress" mode: decrements the queue file and bumps
  * green-sha on every call, simulating a batch that actually lands a PR. */
 const stubClaudeProgress = (): void => {
@@ -544,6 +574,33 @@ describe("one log line per pass", () => {
         for (const line of lines) {
             expect(line.split(/\s+/)).toHaveLength(7);
         }
+    });
+
+    it("still has 7 fields when gh fails AFTER the pass (queue_after unreadable)", () => {
+        // Reproduces the hole a re-review found: `queue_after=$(count_unclaimed
+        // 2>/dev/null) || queue_after=""` had no default, unlike
+        // `claude_exit`, which DOES get `is_uint "$claude_exit" || claude_exit=1`.
+        // 2 pre-pass gh calls succeed (queue_before, total_before) so the
+        // pass actually runs; every gh call after that fails, so
+        // queue_after/total_after both come back unreadable.
+        stubGhSucceedsPrePassFailsPostPass(2, 3);
+        stubClaudeNoProgress();
+        const r = run({ args: ["--claude-args", "x"] });
+        const lines = logLines();
+        expect(lines.length).toBeGreaterThan(0);
+        for (const line of lines) {
+            expect(line.split(/\s+/)).toHaveLength(7);
+        }
+        // field 6 (0-indexed 5) is queue_after — must be the `-` placeholder,
+        // never empty, when gh couldn't be read post-pass.
+        const fields = lines[0].split(/\s+/);
+        expect(fields[5]).toBe("-");
+        // The run's NEXT pre-pass gh call also fails (the stub never
+        // recovers), so the driver stops with gh-error on pass 2 — confirms
+        // this is a genuine post-pass-only failure, not a stub that never
+        // worked at all.
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=gh-error/);
     });
 });
 

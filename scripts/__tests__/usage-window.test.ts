@@ -247,19 +247,34 @@ describe("classifyModel / weightedTokens — unknown model fails expensive", () 
         expect(classifyModel("claude-opus-4-5-20260101")).toBe("opus");
         expect(classifyModel("CLAUDE-SONNET-5-20260101")).toBe("sonnet");
         expect(classifyModel("claude-haiku-4-5")).toBe("haiku");
+        expect(classifyModel("claude-fable-5-20260101")).toBe("fable");
+        expect(classifyModel("CLAUDE-MYTHOS-5")).toBe("fable");
     });
 
     it("falls back an unrecognised model to the MOST expensive class", () => {
         expect(classifyModel("some-future-model-nobody-has-seen")).toBe(
             MOST_EXPENSIVE_WEIGHT_CLASS
         );
-        expect(MOST_EXPENSIVE_WEIGHT_CLASS).toBe("opus");
+        // fable/mythos ($10/$50 per MTok) is the most expensive KNOWN class —
+        // opus ($5/$25) is cheaper than that. An unknown model must fall back
+        // to whichever row is genuinely priciest, not to opus by habit.
+        expect(MOST_EXPENSIVE_WEIGHT_CLASS).toBe("fable");
     });
 
-    it("weights an unknown model as if it were opus, never as the cheapest class", () => {
+    it("weights an unknown model as if it were fable, never as a cheaper class (opus included)", () => {
         const unknownSum = {
             models: {
                 "brand-new-model-xyz": {
+                    input: 100,
+                    output: 100,
+                    cacheCreation: 100,
+                    cacheRead: 100,
+                },
+            },
+        };
+        const knownFableSum = {
+            models: {
+                "claude-fable-5": {
                     input: 100,
                     output: 100,
                     cacheCreation: 100,
@@ -288,7 +303,12 @@ describe("classifyModel / weightedTokens — unknown model fails expensive", () 
             },
         };
         const unknownWeighted = weightedTokens(unknownSum);
-        expect(unknownWeighted).toBe(weightedTokens(knownOpusSum));
+        expect(unknownWeighted).toBe(weightedTokens(knownFableSum));
+        // The load-bearing part of this fix: an unknown model must weight
+        // STRICTLY MORE than opus, not the same — opus is no longer the most
+        // expensive known class, so an unknown model landing on the opus
+        // weight (as it used to) would silently look cheaper than it should.
+        expect(unknownWeighted).toBeGreaterThan(weightedTokens(knownOpusSum));
         // Proof it fails EXPENSIVE, not cheap: strictly more than the sonnet
         // weighting of the identical raw counts.
         expect(unknownWeighted).toBeGreaterThan(weightedTokens(knownSonnetSum));
@@ -303,6 +323,38 @@ describe("classifyModel / weightedTokens — unknown model fails expensive", () 
         // fresh input token, for every class.
         for (const cls of Object.values(DEFAULT_WEIGHTS)) {
             expect(cls.cacheRead).toBeLessThan(cls.input);
+        }
+    });
+
+    it("opus is priced at $5/$25 (Opus 5), not $15/$75 (a stale Opus 4.1/4-era row)", () => {
+        // Regression pin: a prior fixup left this row at list-price ÷ 3 for
+        // $15/$75 output (5/25) while claiming in a comment it was "exact"
+        // against CURRENT list price — it wasn't, current Opus 5 list price
+        // is $5/$25. sonnet.input == 1 is $3/MTok, so opus at $5/MTok must
+        // land at 5/3 ≈ 1.67, not 5. Table values are rounded to 2-3 decimal
+        // places, so compare with a tolerance rather than bit-exact.
+        expect(DEFAULT_WEIGHTS.opus.input).toBeCloseTo(5 / 3, 1);
+        expect(DEFAULT_WEIGHTS.opus.output).toBeCloseTo(25 / 3, 1);
+    });
+
+    it("fable is priced at $10/$50 per MTok, the genuinely most expensive class", () => {
+        expect(DEFAULT_WEIGHTS.fable.input).toBeCloseTo(10 / 3, 1);
+        expect(DEFAULT_WEIGHTS.fable.output).toBeCloseTo(50 / 3, 1);
+        expect(DEFAULT_WEIGHTS.fable.input).toBeGreaterThan(
+            DEFAULT_WEIGHTS.opus.input
+        );
+        expect(DEFAULT_WEIGHTS.fable.output).toBeGreaterThan(
+            DEFAULT_WEIGHTS.opus.output
+        );
+    });
+
+    it("cache write is ~1.25x input and cache read is ~0.1x input for every class", () => {
+        // Sonnet/haiku are exact ÷3 rounding, so tight; opus/fable are
+        // rounded to fewer significant figures in the table, so a looser
+        // tolerance — the point is the RELATIONSHIP holds, not bit-exactness.
+        for (const cls of Object.values(DEFAULT_WEIGHTS)) {
+            expect(cls.cacheCreation).toBeCloseTo(cls.input * 1.25, 1);
+            expect(cls.cacheRead).toBeCloseTo(cls.input * 0.1, 1);
         }
     });
 });
