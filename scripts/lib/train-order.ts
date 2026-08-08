@@ -161,25 +161,40 @@ export function computeTrainOrder(
 
 /**
  * One receipt per issue: a `fixup` supersedes the `implement` receipt it
- * replaces, regardless of the order they arrive in.
+ * replaces, and among same-role receipts the highest `round` wins —
+ * regardless of the order any of them arrive in.
  *
  * The implement receipt describes the branch as it was when review blocked it;
  * the fixup receipt describes what will actually land. Both sit in the batch
  * directory forever, so preferring the wrong one orders the train against a
- * diff that no longer exists.
+ * diff that no longer exists. The same is true within a role once a second
+ * round exists: a round-1 fixup that review blocked again and a round-2 fixup
+ * that answers it both sit on disk forever, and only the round number says
+ * which one is current — an absent `round` is round 1.
  *
- * Extracted and exported deliberately: inline, the precedence held only because
- * `10-fixup.json` sorts before `10-implement.json`, which is an alphabetical
- * accident no test could distinguish from the rule.
+ * Extracted and exported deliberately: inline, the old precedence held only
+ * because `10-fixup.json` sorts before `10-implement.json`, an alphabetical
+ * accident no test could distinguish from the rule. Selecting by round is
+ * immune to that accident by construction — it never looks at iteration
+ * order or filename sort at all.
  */
 export function latestWorkReceipts(receipts: WorkReceipt[]): WorkReceipt[] {
+    const rank = (r: WorkReceipt) => (r.role === "fixup" ? 1 : 0);
     const latest = new Map<number, WorkReceipt>();
     for (const receipt of receipts) {
         const held = latest.get(receipt.issue);
-        if (!held || receipt.role === "fixup")
+        if (!held || supersedes(receipt, held)) {
             latest.set(receipt.issue, receipt);
+        }
     }
     return Array.from(latest.values());
+
+    /** `candidate` supersedes `held` iff it is a later role, or the same role
+     * at a higher round. */
+    function supersedes(candidate: WorkReceipt, held: WorkReceipt): boolean {
+        if (rank(candidate) !== rank(held)) return rank(candidate) > rank(held);
+        return (candidate.round ?? 1) > (held.round ?? 1);
+    }
 }
 
 function touches(restructures: string[] | undefined, path: string): boolean {

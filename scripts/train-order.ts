@@ -31,8 +31,10 @@ import * as path from "path";
 import {
     RECEIPTS_ROOT,
     readReceipts,
+    readReceiptsFromDir,
     type MissingReceipt,
     type Receipt,
+    type ReceiptFileError,
     type ReviewReceipt,
     type WorkReceipt,
 } from "./lib/receipt";
@@ -57,30 +59,68 @@ if (!batch && !dir) {
 }
 
 const root = process.cwd();
+
+// `--dir` names the receipt directory ITSELF (e.g. `.claude/receipts/<batch>`,
+// the same path §"Resuming an interrupted train" tells an orchestrator to
+// re-point at). The old code ran it through `readReceipts(projectRoot,
+// batchId)`, which always re-appends RECEIPTS_ROOT — so an already-complete
+// path resolved to `.claude/receipts/.claude/receipts/<batch>`, found
+// nothing, and printed an empty plan with exit 0. A resuming orchestrator
+// reads that as "this batch has nothing to merge" rather than "you passed
+// the wrong shape of path". `readReceiptsFromDir` reads the directory
+// exactly as given — no RECEIPTS_ROOT join — so `--dir` and `--batch` land on
+// the same files for the same batch.
 let receipts: Receipt[];
-try {
-    receipts = dir
-        ? readReceipts(path.dirname(path.resolve(dir)), path.basename(dir))
-        : readReceipts(root, batch!);
-} catch (error) {
-    // A corrupt receipt stops the train rather than being skipped: a batch
-    // silently short one PR looks exactly like a batch that was always that
-    // size, and the missing merge surfaces as a stale claim days later.
-    console.error(
-        `receipt read failed: ${error instanceof Error ? error.message : String(error)}`
-    );
-    process.exit(1);
+let readErrors: ReceiptFileError[];
+if (dir) {
+    const resolved = path.resolve(dir);
+    ({ receipts, errors: readErrors } = readReceiptsFromDir(resolved));
+    if (receipts.length === 0 && readErrors.length === 0) {
+        console.error(
+            `receipt read failed: --dir ${dir} (resolved ${resolved}) holds no receipts`
+        );
+        process.exit(1);
+    }
+} else {
+    ({ receipts, errors: readErrors } = readReceipts(root, batch!));
 }
 
-const work = receipts.filter(
+// A malformed or tampered receipt quarantines its OWN issue rather than the
+// batch: every issue named by an error is excluded from the plan below, but
+// every issue whose receipts are sound still gets an order. `readReceipts`
+// never throws for this reason — it hands back the errors so this quarantine
+// can happen, instead of the old behaviour where the first corrupt file made
+// `exit 1` for every PR in the pass.
+const quarantined = new Set(
+    readErrors.map((e) => e.issue).filter((n): n is number => n !== undefined)
+);
+const unreadable = readErrors.map((e) => ({
+    file: e.file,
+    message: e.message,
+}));
+
+const usable = receipts.filter((r) =>
+    r.role === "missing" ? true : !quarantined.has(r.issue)
+);
+
+const work = usable.filter(
     (r): r is WorkReceipt => r.role === "implement" || r.role === "fixup"
 );
-const reviews = new Map<number, ReviewReceipt>(
-    receipts
-        .filter((r): r is ReviewReceipt => r.role === "review")
-        .map((r) => [r.issue, r])
-);
-const missing = receipts.filter(
+
+// Review verdicts are selected by ROUND, not by iteration order over
+// filename-sorted disk reads — `12-review-2.json` sorts BEFORE
+// `12-review.json`, so a naive last-wins-by-iteration map let a superseded
+// round-1 blocking verdict beat the round-2 approve that supersedes it.
+const reviews = new Map<number, ReviewReceipt>();
+for (const r of usable) {
+    if (r.role !== "review") continue;
+    const held = reviews.get(r.issue);
+    if (!held || (r.round ?? 1) > (held.round ?? 1)) {
+        reviews.set(r.issue, r);
+    }
+}
+
+const missing = usable.filter(
     (r): r is MissingReceipt => r.role === "missing"
 ).length;
 
@@ -110,8 +150,19 @@ const blocked = ordered
 
 console.log(
     JSON.stringify(
-        { ...plan, entries, blocked, missing },
+        { ...plan, entries, blocked, missing, unreadable },
         null,
         pretty ? 2 : undefined
     )
 );
+
+// Non-zero whenever anything was unreadable — a pass cannot silently ship a
+// short batch. The plan above still printed every issue that WAS readable,
+// so a caller that only cares about `order` can still merge those; a caller
+// that checks exit code (every automated one) is stopped and shown why.
+if (unreadable.length > 0) {
+    for (const u of unreadable) {
+        console.error(`receipt unreadable: ${u.file}: ${u.message}`);
+    }
+    process.exit(1);
+}
