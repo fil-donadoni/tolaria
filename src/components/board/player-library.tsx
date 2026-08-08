@@ -10,6 +10,7 @@ import {
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePileActions, type PileAction } from "~/hooks/usePileActionsContext";
+import { usePileBrowseMenu } from "~/hooks/usePileBrowseMenu";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import CardsPile from "./cards-pile";
@@ -184,6 +185,15 @@ export default function PlayerLibrary({
               ]
             : [];
     const pileActions = usePileActions(player, "library", defaultActions);
+    // Issue #2345 — the collapsed tile's own click must defer to this menu
+    // (rather than opening the browse dialog itself) whenever the menu
+    // exists; browsing becomes the menu's own first item.
+    const {
+        menuActions,
+        open: pileBrowseOpen,
+        onOpenChange: pileBrowseOnOpenChange,
+        hasContextMenu,
+    } = usePileBrowseMenu(pileActions, open, onOpenChange);
 
     // Selection bounds for the active search (CR 701.19 puts a single card in
     // hand, but the primitive supports a range). Cap the buffer at `max` so the
@@ -266,8 +276,13 @@ export default function PlayerLibrary({
             onMinimize={isLibraryPick ? minimize : undefined}
             // Portrait chip control (#336) applies only to the normal browse —
             // never while a blocking library pick owns the modal via forceOpen.
-            open={isLibraryPick ? undefined : open}
-            onOpenChange={isLibraryPick ? undefined : onOpenChange}
+            // Issue #2345 — with pile actions present (and outside chip
+            // mode), `usePileBrowseMenu` lifts this open state so the menu's
+            // "Browse pile…" item can drive it, and `hasContextMenu` tells
+            // `CardsPile` to defer its own click to that menu.
+            open={isLibraryPick ? undefined : pileBrowseOpen}
+            onOpenChange={isLibraryPick ? undefined : pileBrowseOnOpenChange}
+            hasContextMenu={!isLibraryPick && hasContextMenu}
             // A full library has ~40-50 cards: the fan's 50% overlap merges
             // every amber selection ring into one solid strip and leaves only
             // thin slivers clickable. Lay the exposed cards out in a grid so
@@ -405,7 +420,7 @@ export default function PlayerLibrary({
                     <div className="relative cursor-pointer">{pile}</div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-48">
-                    {pileActions.map((action) => (
+                    {menuActions.map((action) => (
                         <ContextMenuItem
                             key={action.key}
                             inset

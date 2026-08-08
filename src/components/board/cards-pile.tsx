@@ -122,6 +122,20 @@ type CardsPileProps = {
      *  (grid layout only), the pile is split into one labelled section per
      *  category. Purely visual — legality is still the server-side matching. */
     categories?: PileCategory[];
+    /** An ancestor wraps this tile in its OWN context menu (issue #2345 — a
+     *  library / graveyard / exile tile with pile actions). Left click is
+     *  this app's context-menu gesture (`ContextMenuTrigger` synthesizes a
+     *  `contextmenu` from any un-`preventDefault`ed left click); the
+     *  collapsed stack's own `onClick` would fire FIRST and open the browse
+     *  dialog before that synthesis ever runs, opening both surfaces on one
+     *  click. When true, the collapsed stack renders with NO click handler
+     *  of its own — the click bubbles untouched to the ancestor's trigger,
+     *  which owns it. Browsing then requires `open`/`onOpenChange` to be
+     *  supplied (typically from the same "Browse pile…" menu item's
+     *  `onSelect`) — this flag also keeps the collapsed stack visible while
+     *  those are controlled, unlike the #336 chip mode below, whose whole
+     *  point is to suppress it. */
+    hasContextMenu?: boolean;
     /** Per-card caption printed UNDER the card in the reveal dialog. Used by the
      *  attachment cluster for the "Attached to: X" line (CR 303.4 / 301.5), where
      *  the pile TITLE names one host but individual cards may enchant each other
@@ -587,6 +601,7 @@ export default function CardsPile({
     topOnRight = false,
     categories,
     captionFor,
+    hasContextMenu = false,
 }: CardsPileProps) {
     // Controlled-open chip mode (#336): the owner drives `open` and supplies the
     // trigger, so this component renders only the dialog.
@@ -617,7 +632,11 @@ export default function CardsPile({
     // In controlled (chip) mode the owner renders the trigger; this component
     // contributes only the reveal dialog. An empty pile still needs a mounted
     // dialog so the chip can open it (e.g. an empty exile), so fall through.
-    if (!cards.length && !controlled) {
+    // `hasContextMenu` is controlled for a DIFFERENT reason (deferring the
+    // click, above) — it must still show the ordinary empty-zone placeholder
+    // here, exactly like the uncontrolled case, rather than fall through into
+    // an interactive-but-cardless collapsed stack.
+    if (!cards.length && (!controlled || hasContextMenu)) {
         return (
             <div
                 className={`group ${PILE_TILE_BOX} flex justify-center items-center text-center p-2 border border-border-subtle rounded-sm`}
@@ -730,8 +749,16 @@ export default function CardsPile({
                 `forceOpen` (a blocking picker modal) likewise hides it: the
                 collapsed trigger sits behind an undismissable dialog and is
                 unreachable, and rendering it would duplicate every card image. */}
-            {!controlled && !forceOpen && (
-                <div className="cursor-pointer" onClick={() => setIsOpen(true)}>
+            {!forceOpen && (!controlled || hasContextMenu) && (
+                <div
+                    className="cursor-pointer"
+                    // `hasContextMenu` — no handler at all, so the click
+                    // bubbles untouched to the ancestor's `ContextMenuTrigger`
+                    // (see the prop doc). Opening the browse dialog is then
+                    // the menu's own "Browse pile…" item, via the caller-
+                    // supplied `onOpenChange`.
+                    onClick={hasContextMenu ? undefined : () => setIsOpen(true)}
+                >
                     {pileCards}
                 </div>
             )}
