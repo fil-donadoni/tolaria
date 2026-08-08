@@ -236,6 +236,7 @@ import {
     canPayTapOtherCost,
     totalTapOtherPower,
     type TapOtherCandidate,
+    type TapOtherCostSpec,
 } from "./gre/tapOtherCost";
 import { buildActivationSacrificeSelection } from "./gre/activationCostPicks";
 // ADR 0091 / issue #1209 — the OWED-PAYMENT seam. The two commit gates below
@@ -2019,6 +2020,72 @@ function tapOtherCandidates(
             supertypesOf: liveSupertypesOf,
         });
     });
+}
+
+/** Pays a `cost.tapOtherFilter` component for a NON-stack (`useStack: false`)
+ *  mana ability (CR 602.1 / 118.8 — Urza, Lord High Artificer, issue #2371:
+ *  "Tap an untapped artifact you control: Add {U}."). Every OTHER
+ *  `tapOtherFilter` cost in the catalogue (Hand of Justice, Vodalian War
+ *  Machine, Earthcraft, Hecatomb, Karplusan Giant) is a `useStack: true`
+ *  ability paid through the deferred `pendingActivation.tapOtherChoice`
+ *  picker above (`selectActivationCostOnState`) — that machinery assumes a
+ *  stack item exists to defer onto. A mana ability resolves in ONE mutation
+ *  call with no deferred step (CR 605.3c), so `activateManaAbility` instead
+ *  passes the WHOLE pick set up front (`tapOtherIds`); this function
+ *  validates every pick — on the activating player's battlefield, untapped,
+ *  not the ability's own source, matching `spec.filter` — BEFORE tapping any
+ *  of them, so a rejected activation leaves the board untouched. Reuses the
+ *  SAME `tapOtherFilter` predicates (`gre/tapOtherCost.ts`) the picker above
+ *  and the bot's `pickTapOtherPayment` share. Exported so a test drives the
+ *  REAL validation branch order rather than a hand-mirrored copy (mirrors
+ *  `tapSourceIntoPayment`'s / `selectActivationCostOnState`'s own
+ *  rationale). */
+export function payTapOtherAbilityCost(
+    state: GameState,
+    player: PlayerState,
+    sourceId: string,
+    spec: TapOtherCostSpec,
+    tapOtherIds: readonly string[]
+): void {
+    const seen = new Set<string>();
+    const picks: CardInstanceState[] = [];
+    for (const id of tapOtherIds) {
+        if (id === sourceId) {
+            throw new Error("Cannot tap the ability's own source");
+        }
+        if (seen.has(id)) {
+            throw new Error("Permanent already selected to tap");
+        }
+        seen.add(id);
+        const perm = player.battlefield.find((c) => c.id === id);
+        if (!perm) {
+            throw new Error("Selected permanent not on your battlefield");
+        }
+        if (perm.isTapped) {
+            throw new Error("Selected permanent is already tapped");
+        }
+        const view = { ...perm, colors: STATIC_EFFECT_CTX.getColors(perm) };
+        if (
+            !matchesPermanentFilter(view, spec.filter, {
+                selfControllerId: player.id,
+                supertypesOf: liveSupertypesOf,
+            })
+        ) {
+            throw new Error(
+                "Selected permanent does not match the tap cost filter"
+            );
+        }
+        picks.push(perm);
+    }
+    if (
+        !canPayTapOtherCost(
+            spec,
+            picks.map((p) => tapOtherContribution(state, p))
+        )
+    ) {
+        throw new Error("Not enough untapped permanents to pay the tap cost");
+    }
+    for (const perm of picks) tapPermanent(state, perm);
 }
 
 /** A tap-other picker's current picks as weighed candidates, recomputed from
@@ -13701,6 +13768,12 @@ export const activateManaAbility = mutation({
         // split). Mirrors the TAP path's `manaChoiceIndex`
         // (`tapSourceIntoPayment` / `tapUntap`).
         manaChoiceIndex: v.optional(v.number()),
+        // CR 602.1 / 118.8 (issue #2371) — every permanent the caller is
+        // choosing to tap to pay a `cost.tapOtherFilter` component (Urza,
+        // Lord High Artificer's "Tap an untapped artifact you control: Add
+        // {U}."). Ignored/unused when the ability has no `tapOtherFilter`
+        // cost. See `payTapOtherAbilityCost`.
+        tapOtherIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         // SECURITY (issue #1645 review): seat-addressed mutation — the
@@ -13775,6 +13848,23 @@ export const activateManaAbility = mutation({
         // turn."). Mirrors the check every other activation entry point runs
         // before cost lock.
         assertActivationTimingLegal(state, card, ability);
+
+        // CR 602.1 / 118.8 (issue #2371) — "tap an untapped artifact you
+        // control" as this ability's own cost component (Urza, Lord High
+        // Artificer). Paid BEFORE the (possibly empty) `cost.mana` below, same
+        // relative order `tapSourceIntoPayment` uses elsewhere (narrow cost,
+        // then mana) — Urza's ability declares no `cost.mana` at all, so this
+        // is the whole cost. See `payTapOtherAbilityCost`'s own doc comment
+        // for why this can't reuse the STACK-ability `tapOtherChoice` picker.
+        if (ability.cost.tapOtherFilter) {
+            payTapOtherAbilityCost(
+                state,
+                player,
+                card.id,
+                ability.cost.tapOtherFilter,
+                args.tapOtherIds ?? []
+            );
+        }
 
         const manaCost = normalizeManaCost(ability.cost.mana ?? {});
         if (

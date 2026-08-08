@@ -1587,9 +1587,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // blocker once the exile arm is expressible. Net: total unchanged at
         // 476, FREE 309->311, AFK-ready 300->302, X-only 14->15, Op-blocked
         // 153->150. Partition: 311+15+150=476.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(476);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(311);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(302);
+        //
+        // Urza, Lord High Artificer (mh1/blue.ts, issue #2371) ADDS two
+        // `resolve()` closures: the ETB Construct-creation trigger
+        // (`createUrzaConstruct` — a protocol-like exception, the CDA token
+        // spec genuinely has no DSL skin) and the `{5}` shuffle/exile/free-
+        // cast activated ability (no Op skin for an unconditional top-of-
+        // library exile, same shape as Elkin Bottle's own long-standing
+        // closure). Both carry a per-card test (`mh1/__tests__/blue.test.ts`),
+        // so both land FREE/AFK-ready like every other tested empty-primitive-
+        // gap closure above. Net: total 476->478, FREE 311->313, AFK-ready
+        // 302->304; X-only unchanged at 15, Op-blocked unchanged at 150.
+        // Partition: 313+15+150=478.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(478);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(313);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(304);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
     });
