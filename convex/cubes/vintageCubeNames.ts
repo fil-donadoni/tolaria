@@ -307,6 +307,7 @@ export const VINTAGE_CUBE_NAMES: readonly string[] = [
     "Vaultborn Tyrant",
     "Woodfall Primus",
     "Worldspine Wurm",
+    "Craterhoof Behemoth",
     "Nissa, Who Shakes the World",
     "Once Upon a Time",
     "Force of Vigor",

@@ -2552,6 +2552,14 @@
         "firstPrintSet": "c18"
     },
     {
+        "name": "Craterhoof Behemoth",
+        "scryfallId": "a249be17-73ed-4108-89c0-f7e87939beb8",
+        "oracleId": "8c52bd39-0586-48ca-b263-17210cf9feb6",
+        "firstSet": "avr",
+        "firstPrintId": "a249be17-73ed-4108-89c0-f7e87939beb8",
+        "firstPrintSet": "avr"
+    },
+    {
         "name": "Craw Giant",
         "scryfallId": "707dadf0-735f-445d-9240-e49660913314",
         "oracleId": "152b621e-4c18-438c-9999-77e2685fda79",
