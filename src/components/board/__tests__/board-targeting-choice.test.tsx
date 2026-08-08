@@ -83,7 +83,13 @@ vi.mock("@convex/_generated/api", () => {
 // A plain creature def (no mana / activated abilities) so a click during
 // targeting / choice routes straight to the selection branch.
 const CREATURE_DEF = { id: "creature-def", name: "Grizzly Bears" };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, () => CREATURE_DEF),
     getDefinition: () => CREATURE_DEF,
     tryGetDefinition: () => CREATURE_DEF,
 }));

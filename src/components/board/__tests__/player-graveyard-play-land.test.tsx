@@ -59,7 +59,12 @@ vi.mock("@convex/_generated/api", () => ({
 // A def with no activatedAbilities (so getGraveyardStackAbilities never
 // offers an Activate button ahead of the Play/Flashback branch) and no X/
 // modes (so the commit fires in one click, no cost dialog).
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     getDefinition: () => ({ name: "Forest", types: ["Land"] }),
     tryGetDefinition: () => undefined,
 }));

@@ -88,7 +88,13 @@ const DEFS: Record<string, unknown> = {
     "filter-rock-def": FILTER_ROCK_DEF,
 };
 
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) => DEFS[id] ?? PLAIN_DEF),
     getDefinition: (id: string) => DEFS[id] ?? PLAIN_DEF,
     tryGetDefinition: (id: string) => DEFS[id] ?? PLAIN_DEF,
 }));

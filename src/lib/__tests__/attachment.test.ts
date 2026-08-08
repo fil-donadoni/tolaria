@@ -2,7 +2,21 @@ import { describe, it, expect, vi } from "vitest";
 import type { CardInstance, Player } from "~/types/game";
 import { attachmentLabel, findAttachmentHost } from "~/lib/attachment";
 
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(
+            c,
+            (id: string) =>
+                ({
+                    "def-bear": { id: "def-bear", name: "Grizzly Bears" },
+                    "def-armor": { id: "def-armor", name: "Holy Strength" },
+                    "def-leak": { id: "def-leak", name: "Power Leak" },
+                })[id]
+        ),
     tryGetDefinition: (id: string) =>
         ({
             "def-bear": { id: "def-bear", name: "Grizzly Bears" },

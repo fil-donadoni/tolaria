@@ -3936,6 +3936,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Emperor of Bones",
+        "scryfallId": "df9d9075-2d1e-4848-b661-816d539e05eb",
+        "oracleId": "cb70a360-898e-443a-b053-38e35ea2baa2",
+        "firstSet": "mh3",
+        "firstPrintId": "df9d9075-2d1e-4848-b661-816d539e05eb",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Empress Galina",
         "scryfallId": "6851dbc7-f072-41e7-a899-897445d99425",
         "oracleId": "ea2614bc-00ad-4859-98f5-689f33357fe6",

@@ -9,8 +9,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
     MANUAL_CONTROLLER_KEYS,
+    MANUAL_SWITCH_SEAT_KEY,
     makeManualControllerActions,
 } from "~/lib/manual-controller-actions";
+import type { ManualVerbRequest, RequestVerbInput } from "~/lib/manual-runtime";
 import {
     manualRuntime,
     manualSeat,
@@ -18,14 +20,18 @@ import {
     spyDispatch,
 } from "./manual-test-fixtures";
 
-function build() {
+function build(onSwitchSeat?: () => void) {
     const dispatch = spyDispatch();
+    const requestVerbInput = vi.fn() as unknown as RequestVerbInput & {
+        mock: { calls: unknown[][] };
+    };
     const state = manualState([manualSeat("me"), manualSeat("opp")]);
     const onOpenLog = vi.fn();
-    const source = makeManualControllerActions(manualRuntime(state, dispatch), {
-        onOpenLog,
-    });
-    return { dispatch, onOpenLog, controller: source() };
+    const source = makeManualControllerActions(
+        manualRuntime(state, dispatch, "me", requestVerbInput),
+        { onOpenLog, onSwitchSeat }
+    );
+    return { dispatch, onOpenLog, requestVerbInput, controller: source() };
 }
 
 describe("manual controller actions (#2169, #2172)", () => {
@@ -86,16 +92,59 @@ describe("manual controller actions (#2169, #2172)", () => {
 
         byKey.get("manual-shuffle")!.onClick();
         expect(dispatch.shuffle).toHaveBeenCalledWith({ playerId: "me" });
+    });
 
-        const confirm = vi
-            .spyOn(window, "confirm")
-            .mockImplementation(() => true);
+    it("Concede opens a CONFIRM popover request instead of window.confirm (#2170); confirming dispatches", () => {
+        const { controller, dispatch, requestVerbInput } = build();
+        const byKey = new Map(controller.actions.map((a) => [a.key, a]));
+
         byKey.get("manual-concede")!.onClick();
+        expect(requestVerbInput).toHaveBeenCalledTimes(1);
+        expect(dispatch.concede).not.toHaveBeenCalled();
+        const request = requestVerbInput.mock.calls[0][1] as ManualVerbRequest;
+        expect(request.kind).toBe("confirm");
+        if (request.kind !== "confirm") throw new Error("unreachable");
+        request.onConfirm();
         expect(dispatch.concede).toHaveBeenCalledWith({ playerId: "me" });
-        confirm.mockRestore();
     });
 
     it("never cues the player to wait on an opponent who is never asked", () => {
         expect(build().controller.cue).toBe("mine");
+    });
+
+    // Issue #2173 — the descriptor is the client-solo gate, not player count:
+    // `onSwitchSeat` is absent whenever the caller (the container, keyed off
+    // `game.solo`) has no seat for this client to switch to.
+    it("offers NO Switch seat descriptor when onSwitchSeat is not supplied (two-player)", () => {
+        const { controller } = build();
+        expect(
+            controller.actions.some((a) => a.key === MANUAL_SWITCH_SEAT_KEY)
+        ).toBe(false);
+        expect(controller.actions.map((a) => a.key)).toEqual([
+            ...MANUAL_CONTROLLER_KEYS,
+        ]);
+    });
+
+    it("offers Switch seat, with an S hotkey hint, between Concede and Log when onSwitchSeat is supplied (solo)", () => {
+        const onSwitchSeat = vi.fn();
+        const { controller } = build(onSwitchSeat);
+        const keys = controller.actions.map((a) => a.key);
+        expect(keys).toEqual([
+            "manual-end-turn",
+            "manual-untap-all",
+            "manual-draw",
+            "manual-shuffle",
+            "manual-concede",
+            MANUAL_SWITCH_SEAT_KEY,
+            "manual-open-log",
+        ]);
+        const switchSeatAction = controller.actions.find(
+            (a) => a.key === MANUAL_SWITCH_SEAT_KEY
+        )!;
+        expect(switchSeatAction.label).toBe("Switch seat");
+        expect(switchSeatAction.shortcut).toBe("S");
+
+        switchSeatAction.onClick();
+        expect(onSwitchSeat).toHaveBeenCalledTimes(1);
     });
 });

@@ -38,7 +38,13 @@ function lookupDef(id: string) {
                 manaCost: { X: "X", generic: 1, U: 1 },
             };
 }
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) => lookupDef(id)),
     getDefinition: (id: string) => lookupDef(id),
     tryGetDefinition: (id: string) => lookupDef(id),
 }));

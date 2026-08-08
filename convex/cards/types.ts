@@ -917,6 +917,27 @@ export interface ActivatedAbility {
          *  sacrifices THIS source from the battlefield). Used by every Cycling
          *  card. */
         discardThis?: boolean;
+        /** "Exile this card from your graveyard" as an activation cost
+         *  (CR 118.3 / 702.129a — the Eternalize cost's non-mana component;
+         *  CR 702.128a Embalm is the same shape). The SOURCE card itself moves
+         *  graveyard → exile as the ability goes on the stack. Only meaningful
+         *  together with `activateFromGraveyard: true` (the source lives in the
+         *  graveyard); the graveyard-source gate in `activateAbility` is what
+         *  makes the card findable, and this flag is what consumes it.
+         *
+         *  Deferred to COMMIT, never to announcement: a cancelled mana payment
+         *  must leave the graveyard untouched (CR 601.2h — an illegal/aborted
+         *  activation is rewound), so `PendingActivation.exileThisSource`
+         *  carries the intent and `commitPendingActivation` performs the move.
+         *
+         *  Distinct from `discardThis` (hand → graveyard, Cycling),
+         *  `exileFromGraveyard` (exile OTHER cards, chosen by the payer —
+         *  Night Soil) and `sacrifice` (this permanent from the battlefield).
+         *  The exiled source is still what the ability's script copies: an
+         *  eternalize script's `createTokenCopy { ref: "$source" }` recovers it
+         *  from exile, the same last-known-information shape `moveZone` uses
+         *  (CR 608.2b). */
+        exileThis?: boolean;
         /** "Discard N cards at random" cost (CR 118.3 / 701.8 — an additional
          *  cost paid by discarding randomly-chosen cards). The ability is only
          *  legal to activate while the activating player has at least one card
@@ -1968,6 +1989,37 @@ export interface CopyEffectOptions {
      *  this list on every application, same idempotency shape as
      *  `additionalTypes`/`additionalSubtypes`. */
     additionalTriggeredAbilityIds?: string[];
+    /** CR 707.2 "except its base power and toughness are N/N" — the copy's
+     *  BASE P/T (layer 7a) replaces the copied object's printed values.
+     *  Eternalize (CR 702.129a) makes a 4/4; Embalm (CR 702.128a) omits it and
+     *  keeps the printed body. A copiable value, so every later layer (7b–7e
+     *  anthems, counters) still applies on top. Both halves are independent so
+     *  a future "except its base power is 1" clause needs no new field. */
+    basePower?: number;
+    baseToughness?: number;
+    /** CR 707.2 "except it's [colour]" — an explicit colour SET on the copy
+     *  (Eternalize: black; Embalm: white). Written to the recipient's layer-5
+     *  `colorOverride`, the SAME field `getEffectiveColors` treats as
+     *  outranking every other derivation.
+     *
+     *  Distinct from `copyColor: false` + `ownColors`, which means "don't copy
+     *  the colour, keep your OWN" (Vesuvan Doppelganger, CR 707.9d). This one
+     *  names the colours outright, so it takes precedence when both are set. */
+    colorOverride?: Color[];
+    /** CR 707.2 "except it has no mana cost" (Eternalize / Embalm tokens; also
+     *  every CR 111.4 token, whose mana value is 0). Written to the recipient's
+     *  `manaCostOverride`, which `getInstanceManaCost` — the single authority
+     *  every mana-value and colour reader goes through — honours ahead of the
+     *  copied definition's printed cost. Mana value therefore reads 0. */
+    noManaCost?: boolean;
+    /** Scryfall print id for the copy's ART (CR 111 / 707.2 — cosmetic only,
+     *  never a characteristic). A copy normally presents the copied card's own
+     *  printing, which is right for Clone and Dance of Many; an Eternalize /
+     *  Embalm token has its OWN printed token card (Fanatic of Rhonas → tmh3
+     *  #15, a black Zombie Snake Druid frame) and must render that instead.
+     *  Written to `CardInstanceState.imagePrintId`, which the card renderer
+     *  prefers over the definition-derived art. */
+    imagePrintId?: string;
 }
 
 /** CR 615 / 510.1c — a SOURCE-scoped damage-prevention shield: it prevents
@@ -2114,7 +2166,19 @@ export interface SpellContext {
      *  state is independent of what gets copied). Meaningless for
      *  `becomeCopyOf` (a permanent already on the battlefield never
      *  "enters"), so those two fields live only on this function's `opts`,
-     *  not on the shared `CopyEffectOptions` interface itself. */
+     *  not on the shared `CopyEffectOptions` interface itself.
+     *
+     *  `lastKnownFromGraveyardOrExile` (CR 608.2b / 702.129a, issue #2339)
+     *  widens the source lookup — and ONLY for the caller that sets it — from
+     *  "on the battlefield" to "on the battlefield, or last known in a
+     *  graveyard or exile". Exactly one shape needs it: a keyword whose own
+     *  activation COST removed the source from the zone it was activated from
+     *  (Eternalize exiles the card from the graveyard to pay, then resolves by
+     *  copying it). Copiable values are printed values (CR 707.2), so the copy
+     *  is identical wherever the object now sits. Left unset — the default,
+     *  and every pre-existing caller — a source that has left the battlefield
+     *  still fizzles the copy. Hidden zones (hand, library) are never
+     *  searched: CR 400.2, no rules story copies a card nobody can see. */
     createTokenCopyOf: (
         sourceCreatureId: string,
         controllerId: string,
@@ -2122,6 +2186,7 @@ export interface SpellContext {
         opts?: CopyEffectOptions & {
             entersTapped?: boolean;
             entersAttacking?: boolean;
+            lastKnownFromGraveyardOrExile?: boolean;
         }
     ) => string | undefined;
     // --- Primitives ---
@@ -5183,6 +5248,13 @@ export interface PermanentView {
     chosenXOnCast?: number;
     /** Raw card definition reference — predicates read manaCost for color, etc. */
     card: Record<string, unknown>;
+    /** CR 707.2 / 202.3 — instance-level mana-cost override (an Eternalize /
+     *  Embalm token's "except it has no mana cost"). Carried on the VIEW because
+     *  the two derivations it changes — mana value and cost-derived colour —
+     *  are read here as well as server-side, and the wire projection forwards
+     *  the field. See {@link CardInstanceState.manaCostOverride} (`gre/state.ts`)
+     *  and `getInstanceManaCost` (`cards/registry.ts`), the single reader. */
+    manaCostOverride?: ManaCost;
 }
 
 /** Minimal read-only view of the battlefield used by characteristic-defining
@@ -10218,6 +10290,18 @@ export type EffectOp =
            *  bounce); a library shorter than the position puts the card on
            *  the bottom (the official Teferi ruling). */
           position?: number;
+          /** CR 400.7 / 607 (issue #1947, generalized #1323) — stamp
+           *  `linkExileToSource` on the moved card, valid ONLY alongside
+           *  `to: "exile"` (validator-enforced). The SINGLE-target twin of
+           *  the `cards`-shape's own `linkToSource` (issue #1947, Skyship
+           *  Weatherlight's arbitrary-count sweep): "exile up to one target
+           *  card from a graveyard" (Emperor of Bones) needs the ONE exiled
+           *  card linked back to the exiling permanent so its OWN later
+           *  ability can name exactly this card (`getCardsExiledWith` /
+           *  this Op's own `exiledWithSource` target shape below) — a
+           *  "generalize, don't add" parametrization of this EXISTING
+           *  announced-target shape rather than a new Op. */
+          linkToSource?: boolean;
       }
     /** CR 400.7 (issue #677) — the SEARCH half of a tutor/fetch effect: move
      *  the cards a `choice` Op picked (a bare picks ref, e.g.
@@ -10388,6 +10472,57 @@ export type EffectOp =
     | {
           op: "moveZone";
           target: EffectZonePositionSelector;
+          to: EffectMoveZone;
+          bind?: string;
+          controller?: EffectPlayerRef;
+          tapped?: boolean;
+      }
+    /** CR 607 (issue #1319 foundation, generalized #1323) — the SIXTH
+     *  `moveZone` shape: put "a[n] [X] card exiled with this permanent" onto
+     *  the battlefield (or another zone) — Emperor of Bones' "put a creature
+     *  card exiled with this creature onto the battlefield under your
+     *  control with a finality counter on it." Mirrors the FIFTH
+     *  (positional-graveyard) shape's own precedent exactly: `target` is the
+     *  existing `EffectExiledWithSourceSelector` (`{ exiledWithSource: true
+     *  }`, issue #783 — previously wired ONLY into `castDuringResolution`'s
+     *  `card` field, generalized here into `moveZone`'s own object-selecting
+     *  grammar), read at resolution from
+     *  `SpellContext.getCardsExiledWith(ctx.sourceInstanceId)` — every card
+     *  in ANY player's exile currently linked to the resolving ability's OWN
+     *  source (CR 400.7 — the pile may span owners; a card exiled from an
+     *  opponent's graveyard stays in THEIR exile).
+     *
+     *  Optional sibling `filter` (the SAME `EffectCardFilter` field the
+     *  FOURTH shape's `fromZones` sweep already carries — reused, not
+     *  duplicated) narrows by type ("a CREATURE card exiled with ~").
+     *  DELIBERATELY NOT a player choice when multiple cards qualify: the
+     *  topmost-of-an-ordered-pile precedent the FIFTH shape set (Shallow
+     *  Grave, "deliberately NOT a player choice: substituting one would
+     *  diverge from the modern oracle text") extends here the same way —
+     *  the first filter-matching entry in `getCardsExiledWith`'s stable
+     *  return order (players in seat order, then each player's exile in
+     *  insertion/link order) is used. An exile zone carries no CR-defined
+     *  order the way a graveyard does (CR 404.3), so this is a documented
+     *  simplification of the general CR 601.2c/608.2 "the appropriate
+     *  player chooses" default for an unresolved multi-candidate tie,
+     *  scoped to the shape this ticket introduces (issue #1323) — the
+     *  common case is 0 or 1 linked card at resolution time.
+     *
+     *  Once located, execution funnels into the EXACT SAME graveyard-card
+     *  branch every other `target`-carrying shape uses (`returnToBattlefield`
+     *  for `to: "battlefield"`, re-deriving the source pile as exile via the
+     *  branch's existing owner-lookup fallback — no new SpellContext
+     *  primitive); `bind` / `controller` / `tapped` keep their existing
+     *  meanings there. `controller` is the field Emperor actually needs
+     *  ("under YOUR control" — the linked card may be owned by either
+     *  player). An empty or filter-matching-nothing linked pile is a clean
+     *  CR 608.2b no-op. `from` / `position` are validator-rejected on this
+     *  shape (the source zone is intrinsic — always exile — and a positional
+     *  library insert is meaningless with no announced slot). */
+    | {
+          op: "moveZone";
+          target: EffectExiledWithSourceSelector;
+          filter?: EffectCardFilter;
           to: EffectMoveZone;
           bind?: string;
           controller?: EffectPlayerRef;
@@ -11373,6 +11508,35 @@ export type EffectOp =
            *  issue. */
           entersTapped?: boolean;
           entersAttacking?: boolean;
+          /** CR 707.2's "except" clause — the copiable values the copy effect
+           *  overrides on top of the copied object (issue #2339, Eternalize
+           *  CR 702.129a: "a copy of it, except it's a 4/4 black Zombie in
+           *  addition to its other types and it has no mana cost").
+           *
+           *  JSON-pure (ADR 0046) and purely declarative: every field maps 1:1
+           *  onto `CopyEffectOptions`, which `applyCopy` already interprets —
+           *  no new execution path. Omitted entirely by an unexceptional copy
+           *  (Dance of Many), which is every caller before this issue.
+           *
+           *  Parametrised rather than keyword-shaped on purpose: Embalm
+           *  (CR 702.128a — white Zombie, printed body kept) is the SAME Op
+           *  with a different `except`, so the seam hosts it with no
+           *  redesign. */
+          except?: {
+              /** "…it's a N/N" — base power/toughness (layer 7a). */
+              basePower?: number;
+              baseToughness?: number;
+              /** "…it's black" — an explicit colour set (layer 5). */
+              colors?: Color[];
+              /** "…a Zombie in addition to its other types" — appended
+               *  creature subtypes (CR 205.1b; Oracle-worded as a type). */
+              additionalSubtypes?: string[];
+              /** "…it has no mana cost" — mana value 0 (CR 202.3). */
+              noManaCost?: boolean;
+              /** Scryfall print id for the token's own printed art (CR 111).
+               *  Cosmetic; see `CopyEffectOptions.imagePrintId`. */
+              imagePrintId?: string;
+          };
       }
     /** CR 114 (issue #1221) — create an emblem in the command zone. A thin
      *  declarative skin over the single SpellContext primitive `createEmblem`,

@@ -118,7 +118,12 @@ function CardImageImpl({
     // Tokens (CR 111, 707.1) prefer a printed token's Scryfall id for art
     // when the card defines one (e.g. The Hive → 10E Wasp print). Tokens
     // without a printed image render the in-app TokenPlaceholder.
-    const imageId = resolveCardImageId(defId);
+    //
+    // An INSTANCE-level pin wins over both (CR 111 / 707.2): a token COPY
+    // presents the copied card's definition, so a definition-keyed lookup would
+    // render the creature's own printing — wrong for an Eternalize / Embalm
+    // token, which has its own printed token card (a black Zombie frame).
+    const imageId = cardInstance?.imagePrintId ?? resolveCardImageId(defId);
     // A transformed permanent's `defId` is swapped to its registered
     // back-face definition (CR 712, `gre/transform.ts`); resolve which
     // Scryfall CDN face segment that definition renders (issue #1595).

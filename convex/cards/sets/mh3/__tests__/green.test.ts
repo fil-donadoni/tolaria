@@ -13,8 +13,8 @@
 // and the Eldrazi Spawn token is created alongside.
 
 import { describe, it, expect } from "vitest";
-import { malevolentRumble } from "../green";
-import { island } from "../../lea/colorless";
+import { fanaticOfRhonas, malevolentRumble } from "../green";
+import { forest, island } from "../../lea/colorless";
 import {
     makeInstance,
     makePlayer,
@@ -24,7 +24,23 @@ import {
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition, registerTokenDefinition } from "../../..";
+import {
+    getDefinition,
+    getInstanceManaCost,
+    registerTokenDefinition,
+} from "../../..";
+import { getEffectiveColors } from "../../../effectiveColors";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
+import { manaValue } from "../../../../gre/constants";
+import {
+    abandonPendingPayment,
+    activateAbilityOnState,
+    buildPendingActivation,
+    tryAutoCommitPendingActivation,
+} from "../../../../game";
 
 // Two throwaway nonpermanent library-filler defs (mirrors Reviving Vapors'
 // `REVIVING_VAPORS_MV4_ID` pattern) — proves the filter actually EXCLUDES
@@ -168,5 +184,242 @@ describe("Malevolent Rumble (CR 401.4 reveal/dig, CR 707.2 token, issue #1531)",
         expect(projectedToken!.subtypes).toEqual(["Eldrazi", "Spawn"]);
         expect(projectedToken!.power).toBe(0);
         expect(projectedToken!.toughness).toBe(1);
+    });
+});
+
+// ===========================================================================
+// Fanatic of Rhonas — Eternalize {2}{G}{G} (CR 702.129, issue #2339)
+//
+// The keyword ships WHOLE here because every surface it touches is new or
+// newly reachable: the graveyard-only + sorcery-speed activation, the
+// exile-this-from-your-graveyard cost (and its cancel semantics), the CR 707.2
+// copy exceptions on the resulting token, and the wire projection of all four.
+// ===========================================================================
+describe("Fanatic of Rhonas — Eternalize (CR 702.129 / 707.2)", () => {
+    const eternalize = fanaticOfRhonas.activatedAbilities!.find(
+        (a) => a.id === "eternalize"
+    )!;
+    /** CR 111 — the card's own printed eternalize token (tmh3 #15). */
+    const TOKEN_PRINT_ID = "6ef58164-4155-4e5b-8c16-f16f2ab65baa";
+
+    /** Fanatic in p1's graveyard, {G}{G}{G}{G} floating, a main phase with an
+     *  empty stack — every gate CLEAR except the one under test. */
+    function graveyardScenario(
+        overrides: { phase?: GameState["phase"]; green?: number } = {}
+    ): GameState {
+        const card = makeInstance(fanaticOfRhonas.id, {
+            id: "fanatic",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        return makeState({
+            phase: overrides.phase ?? "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    graveyard: [card],
+                    manaPool: {
+                        W: 0,
+                        U: 0,
+                        B: 0,
+                        R: 0,
+                        G: overrides.green ?? 4,
+                        C: 0,
+                    },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    /** Drives the REAL deferred-commit path with the graveyard source (the
+     *  same one `activateAbility` funnels into once mana is covered). */
+    function activate(state: GameState): void {
+        state.pendingActivation = buildPendingActivation({
+            playerId: "p1",
+            cardInstanceId: "fanatic",
+            abilityId: eternalize.id,
+            ability: eternalize,
+            manaCost: { X: 2, G: 2 },
+            fromGraveyard: true,
+        });
+        tryAutoCommitPendingActivation(state, "p1");
+    }
+
+    it("declares the four CR 702.129a seams on the ability itself", () => {
+        // CR 702.129a — functions only from the owner's graveyard, only as a
+        // sorcery, costs the printed mana plus exiling this card, and uses the
+        // stack (it is not a mana ability, CR 605.1a).
+        expect(eternalize.activateFromGraveyard).toBe(true);
+        expect(eternalize.sorcerySpeedOnly).toBe(true);
+        expect(eternalize.cost.exileThis).toBe(true);
+        expect(eternalize.cost.mana).toEqual({ X: 2, G: 2 });
+        expect(eternalize.useStack).toBe(true);
+    });
+
+    it("pays by exiling the card from the graveyard as the ability goes on the stack (CR 702.129a / 118.3)", () => {
+        const state = graveyardScenario();
+        activate(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].abilityId).toBe(eternalize.id);
+        // The cost moved the CARD graveyard → exile; the stack item is a clone.
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["fanatic"]);
+        // {2}{G}{G} paid out of the four floating green.
+        expect(state.players[0].manaPool.G).toBe(0);
+    });
+
+    it("cancelling a part-paid activation leaves the graveyard untouched (CR 601.2h)", () => {
+        // Announced through the REAL entry point with the cost only partly
+        // covered, so the engine parks a `pendingActivation` instead of
+        // committing — the exact window a player cancels in. Paying the exile
+        // leg at ANNOUNCEMENT instead of at commit would strip the card out of
+        // the graveyard here and never put it back.
+        const state = graveyardScenario({ green: 1 });
+        state.players[0].battlefield.push(
+            makeInstance(forest.id, {
+                id: "f1",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "fanatic",
+            abilityId: eternalize.id,
+        });
+        expect(state.pendingActivation).toBeDefined();
+        expect(state.pendingActivation!.exileThisSource).toBe(true);
+        // Nothing paid yet: the card is still in the graveyard, off the stack.
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "fanatic",
+        ]);
+        expect(state.stack).toHaveLength(0);
+
+        abandonPendingPayment(state, "p1");
+        expect(state.pendingActivation).toBeUndefined();
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "fanatic",
+        ]);
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("resolves into a token copy carrying all four CR 707.2 exceptions", () => {
+        const state = graveyardScenario();
+        activate(state);
+        resolveTopOfStack(state);
+
+        const token = state.players[0].battlefield.find((c) => c.isToken);
+        expect(token).toBeDefined();
+        // "except it's a 4/4 …" — a BASE P/T override, so it reads through the
+        // layer system (CR 613.4a layer 7a), not just off the instance.
+        expect(getEffectivePower(state, token!)).toBe(4);
+        expect(getEffectiveToughness(state, token!)).toBe(4);
+        // "… black …" — layer 5 colour set, through the single colour
+        // authority (the printed cost is green).
+        expect(getEffectiveColors(token!)).toEqual(["B"]);
+        // "… Zombie in addition to its other types …" (CR 205.1b).
+        expect(token!.subtypes).toEqual(["Snake", "Druid", "Zombie"]);
+        expect(token!.types).toEqual(["Creature"]);
+        // "… with no mana cost" — mana value 0 (CR 202.3), read through the
+        // single mana-cost authority rather than off the copied definition.
+        expect(getInstanceManaCost(token!)).toEqual({});
+        expect(manaValue(getInstanceManaCost(token!))).toBe(0);
+        // CR 707.2 — the copy still presents the copied card otherwise: its
+        // name and its two mana abilities come from Fanatic's definition.
+        expect(getDefinition((token!.card as { id: string }).id).name).toBe(
+            "Fanatic of Rhonas"
+        );
+        // CR 111 — the card's OWN printed eternalize token art, not the
+        // creature printing the copy otherwise presents.
+        expect(token!.imagePrintId).toBe(TOKEN_PRINT_ID);
+    });
+
+    it("wire format: every exception survives projectPublicState", () => {
+        const state = graveyardScenario();
+        activate(state);
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find((c) => c.isToken);
+        expect(slim).toBeDefined();
+        // The projection rewrites `card` down to `{ id }`, so anything read off
+        // the fat instance's card object is gone by here — these four must be
+        // instance-level or they are silently wrong on the client.
+        expect(getEffectivePower(projected, slim!)).toBe(4);
+        expect(getEffectiveToughness(projected, slim!)).toBe(4);
+        expect(getEffectiveColors(slim!)).toEqual(["B"]);
+        expect(manaValue(getInstanceManaCost(slim!))).toBe(0);
+        expect(slim!.subtypes).toEqual(["Snake", "Druid", "Zombie"]);
+        expect(slim!.imagePrintId).toBe(TOKEN_PRINT_ID);
+        // The exiled card is public (CR 400.2) and reaches the client too.
+        expect(projected.players[0].exile.map((c) => c.id)).toEqual([
+            "fanatic",
+        ]);
+    });
+
+    it("full path: activateAbilityOnState → stack → resolution → token in the projected state", () => {
+        const state = graveyardScenario();
+        // The REAL mutation core, exactly as the graveyard Activate button
+        // calls it — no hand-built pendingActivation.
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "fanatic",
+            abilityId: eternalize.id,
+            keepPriority: true,
+        });
+        expect(state.stack).toHaveLength(1);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find((c) => c.isToken);
+        expect(slim).toBeDefined();
+        expect(getEffectivePower(projected, slim!)).toBe(4);
+        expect(getEffectiveColors(slim!)).toEqual(["B"]);
+    });
+
+    it("is illegal outside a sorcery window (CR 702.129a / 307.5)", () => {
+        const state = graveyardScenario({ phase: "DECLARE_ATTACKERS" });
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "fanatic",
+                abilityId: eternalize.id,
+            })
+        ).toThrow("Activate only as a sorcery");
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard).toHaveLength(1);
+    });
+
+    it("is illegal from the battlefield — it functions only in the graveyard (CR 113.6)", () => {
+        const state = graveyardScenario();
+        const [card] = state.players[0].graveyard.splice(0, 1);
+        card.zone = "battlefield";
+        state.players[0].battlefield.push(card);
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "fanatic",
+                abilityId: eternalize.id,
+            })
+        ).toThrow("can't be activated from the battlefield");
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("is illegal from an opponent's graveyard — only the owner may eternalize (CR 602.1)", () => {
+        const state = graveyardScenario();
+        state.priorityPlayerId = "p2";
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p2",
+                cardInstanceId: "fanatic",
+                abilityId: eternalize.id,
+            })
+        ).toThrow("You do not own this card");
+        expect(state.players[0].graveyard).toHaveLength(1);
     });
 });

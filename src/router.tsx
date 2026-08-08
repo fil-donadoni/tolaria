@@ -23,6 +23,7 @@ import AdminScenariosRoute from "./routes/admin/admin-scenarios.route";
 import AdminBanlistsRoute from "./routes/admin/admin-banlists.route";
 import AdminPickRatingsRoute from "./routes/admin/admin-pick-ratings.route";
 import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
+import AdminBugReportsRoute from "./routes/admin/admin-bug-reports.route";
 import AppShell from "./components/chrome/app-shell";
 import NotFoundPage from "./components/ui/not-found-page";
 
@@ -172,6 +173,16 @@ const adminCardProfilesRoute = createRoute({
     component: AdminCardProfilesRoute,
 });
 
+// Bug-report evidence (issue #2250, following PR #2243's public/private
+// split): reporter email, the full game state at the moment they filed, and
+// the attachment — previously reachable only via `bunx convex run
+// bugReports:getReport … --prod`.
+const adminBugReportsRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "bug-reports",
+    component: AdminBugReportsRoute,
+});
+
 // Draft Lab (PRD #1607 slices 5-6, issues #1612/#1613, ADR 0074): a
 // client-only developer surface that runs a whole Bot Drafter draft in the
 // browser and shows the scorer's per-candidate breakdown. Writes nothing.
@@ -207,6 +218,7 @@ const routeTree = rootRoute.addChildren([
         adminBanlistsRoute,
         adminPickRatingsRoute,
         adminCardProfilesRoute,
+        adminBugReportsRoute,
         adminDraftLabRoute,
         adminDesignSystemRoute,
     ]),

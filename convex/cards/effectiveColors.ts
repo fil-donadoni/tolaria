@@ -24,9 +24,9 @@
 // board, and the client-side Brain evaluated the wrong colours. Single
 // authority, so the copies cannot drift again.
 
-import { tryGetDefinition } from ".";
+import { getInstanceManaCost } from ".";
 import { getColorsFromCost } from "./colors";
-import type { Color, ManaCost, PermanentView } from "./types";
+import type { Color, PermanentView } from "./types";
 
 /** The instance-side layer-5 fields. Declared structurally rather than
  *  importing `CardInstanceState` (which lives in `gre/`) so this module stays
@@ -51,11 +51,11 @@ export function getEffectiveColors(card: PermanentView): Color[] {
     const layers = card as unknown as ColorLayerFields;
     const override = layers.colorOverride;
     if (override) return [...override] as Color[];
-    const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
-    const cardId = (card.card as { id?: string }).id;
-    const cost =
-        embedded ?? (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
-    const base = getColorsFromCost(cost);
+    // Single authority (`cards/registry.ts`): instance `manaCostOverride`
+    // (CR 707.2 "except it has no mana cost" — an Eternalize token, whose cost
+    // therefore contributes NO colour) → embedded fixture cost → registry
+    // definition.
+    const base = getColorsFromCost(getInstanceManaCost(card));
     const granted = layers.grantedColors;
     if (!granted?.length) return base;
     const all = new Set<Color>(base);

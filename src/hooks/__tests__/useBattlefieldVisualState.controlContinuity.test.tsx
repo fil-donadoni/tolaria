@@ -69,7 +69,13 @@ vi.mock("../../components/board/board-hand-card", () => ({
 
 // Definitions: every synthetic card is a plain vanilla creature.
 const PLAIN_DEF = { id: "plain-def", name: "Grizzly Bears", staticEffects: [] };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, () => PLAIN_DEF),
     getDefinition: () => PLAIN_DEF,
     tryGetDefinition: () => PLAIN_DEF,
 }));

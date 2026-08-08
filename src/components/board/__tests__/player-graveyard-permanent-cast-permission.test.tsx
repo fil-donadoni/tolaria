@@ -65,7 +65,12 @@ vi.mock("@convex/_generated/api", () => ({
 // announceCast in one click, no dialog) and no activatedAbilities (so
 // getGraveyardStackAbilities never offers an Activate button ahead of the
 // Cast branch).
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     getDefinition: () => ({
         name: "Savannah Lions",
         types: ["Creature"],

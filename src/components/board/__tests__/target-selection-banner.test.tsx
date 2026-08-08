@@ -27,7 +27,15 @@ const CARD_NAMES: Record<string, string> = {
     "some-spell": "Lightning Bolt",
 };
 
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) =>
+            CARD_NAMES[id] ? { id, name: CARD_NAMES[id] } : undefined
+        ),
     getDefinition: (id: string) => ({
         id,
         name: CARD_NAMES[id] ?? `Card ${id}`,

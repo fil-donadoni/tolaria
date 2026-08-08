@@ -412,13 +412,24 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
     return def;
 }
 
-/** Reads the mana cost off a `CardInstanceState`-shaped object. Production
- *  stores only `{id}` in `instance.card` and relies on the registry; legacy
- *  test fixtures inline the cost on the same field. Tries embedded first so
- *  fixtures keep working, then falls back to the registry lookup. */
+/** Reads the mana cost off a `CardInstanceState`-shaped object — the SINGLE
+ *  authority every mana-value and cost-derived-colour reader shares (the layer
+ *  context's `getManaValue`, `CAST_RESTRICTION_CTX`, `ATTACK_RESTRICTION_CTX`,
+ *  `getEffectiveColors`).
+ *
+ *  Resolution order:
+ *    1. `manaCostOverride` — an instance-level override (CR 707.2's "except it
+ *       has no mana cost", Eternalize/Embalm tokens: `{}` → mana value 0). It
+ *       outranks everything: a copy presents the COPIED card's definition, so
+ *       nothing below could express the exception.
+ *    2. the cost embedded on `instance.card` — production stores only `{id}`
+ *       there, but legacy test fixtures inline the cost, so this keeps working.
+ *    3. the registry definition for `instance.card.id`. */
 export function getInstanceManaCost(instance: {
     card: Record<string, unknown>;
+    manaCostOverride?: ManaCost;
 }): ManaCost | undefined {
+    if (instance.manaCostOverride) return instance.manaCostOverride;
     const embedded = (instance.card as { manaCost?: ManaCost }).manaCost;
     if (embedded) return embedded;
     const id = (instance.card as { id?: string }).id;

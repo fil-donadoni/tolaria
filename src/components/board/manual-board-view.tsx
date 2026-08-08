@@ -32,6 +32,7 @@ import { useViewportMode } from "~/hooks/useViewportMode";
 import { useViewportHeight } from "~/hooks/useViewportHeight";
 import { useManualDispatch } from "~/hooks/useManualDispatch";
 import { useManualDrag } from "~/hooks/useManualDrag";
+import { useManualSeatSwitchHotkey } from "~/hooks/useManualSeatSwitchHotkey";
 import { useFullCatalogue } from "~/lib/fullCatalogue";
 import {
     landscapeCardMetrics,
@@ -50,10 +51,12 @@ import {
     indexManualCards,
     type ManualRuntime,
 } from "~/lib/manual-runtime";
+import { useManualVerbPopoverState } from "~/hooks/useManualVerbPopover";
 import BoardBackground from "./board-background";
 import BoardSurface from "./board-surface";
 import Controller from "./controller";
 import ManualLogSurface from "./manual-log-surface";
+import ManualVerbPopover from "./manual-verb-popover";
 
 /** A Manual Game never re-points the client session at another game — that is
  *  the sideboarding flow's affordance and Manual Mode has no match structure
@@ -75,8 +78,9 @@ const NO_SWITCH_GAME = () => {};
  *  - the battlefield ROW classifier (#2166) — off the Full Catalogue type line
  *    plus the card's explicit lane (#2168), never a hydrated `CardDefinition`;
  *  - the controller's action descriptors (#2167) — the six manual verbs
- *    (including "Log", issue #2172), and explicitly no Pass, no Attack all,
- *    no auto-pass;
+ *    (including "Log", issue #2172; a seventh, "Switch seat" plus a hotkey,
+ *    solo-only — issue #2173), and explicitly no Pass, no Attack all, no
+ *    auto-pass;
  *  - the player-nameplate interaction (#2169) — life by wheel / click / typed
  *    total, the affordance the deleted `LifeBar` carried;
  *  - the pile verbs (#2169) — the library's draw / mill / exile / peek /
@@ -103,10 +107,20 @@ export default function ManualBoardView({
     gameId,
     viewerId,
     state,
+    onSwitchSeat,
 }: {
     gameId: Id<"games">;
     viewerId: string;
     state: ProjectedManualGameState;
+    /** Flips the steered seat (issue #2173) — client-local state owned by
+     *  `manual-board-container.tsx`, which re-queries `getManualState` for
+     *  the new seat and re-renders this view with the flipped `viewerId`;
+     *  `me`/`opponent` below are derived from `viewerId` alone, so the board
+     *  reorders for free. Present ONLY in a solo Manual Game: the container
+     *  passes `undefined` for two-player, which is what removes both the
+     *  controller descriptor and the hotkey — the viewer's seat there is
+     *  fixed and has no "other seat" to switch to. */
+    onSwitchSeat?: () => void;
 }) {
     // Same viewport plumbing `board.tsx` computes once for the GRE board, so
     // both boards agree about which of the three layouts is live.
@@ -130,6 +144,11 @@ export default function ManualBoardView({
     const closeLog = useCallback(() => setLogOpen(false), []);
 
     const dispatch = useManualDispatch(gameId);
+    // Issue #2170 — the ONE anchored popover every parameterised manual verb
+    // (pile AND battlefield card alike) collects its input through, replacing
+    // the native `window.prompt`/`window.confirm` calls the verb factories
+    // used to make inline.
+    const verbPopover = useManualVerbPopoverState();
     // The row classifier reads type lines off the Full Catalogue (#2168):
     // ADR 0080 forbids hydrating a `CardDefinition` for a manual card, so the
     // catalogue row IS the type oracle. While it loads, `rows` is undefined and
@@ -147,8 +166,14 @@ export default function ManualBoardView({
         [cardById]
     );
     const runtime = useMemo<ManualRuntime>(
-        () => ({ viewerId, state, cardById, dispatch }),
-        [viewerId, state, cardById, dispatch]
+        () => ({
+            viewerId,
+            state,
+            cardById,
+            dispatch,
+            requestVerbInput: verbPopover.requestVerbInput,
+        }),
+        [viewerId, state, cardById, dispatch, verbPopover.requestVerbInput]
     );
 
     const allPlayers = useMemo(() => adaptManualPlayers(state), [state]);
@@ -180,9 +205,14 @@ export default function ManualBoardView({
         [runtime]
     );
     const controllerActions = useMemo(
-        () => makeManualControllerActions(runtime, { onOpenLog: openLog }),
-        [runtime, openLog]
+        () =>
+            makeManualControllerActions(runtime, {
+                onOpenLog: openLog,
+                onSwitchSeat,
+            }),
+        [runtime, openLog, onSwitchSeat]
     );
+    useManualSeatSwitchHotkey(onSwitchSeat);
     const gameContext = useMemo(
         () =>
             makeManualGameContext({
@@ -321,6 +351,13 @@ export default function ManualBoardView({
                 gameId={gameId}
                 open={logOpen}
                 onClose={closeLog}
+            />
+            {/* Issue #2170 — mounted once, renders nothing while no
+                parameterised verb is pending. Portal-based (`popover.tsx`),
+                so its DOM position is irrelevant to layout. */}
+            <ManualVerbPopover
+                pending={verbPopover.pending}
+                onClose={verbPopover.closeVerbPopover}
             />
         </>
     );

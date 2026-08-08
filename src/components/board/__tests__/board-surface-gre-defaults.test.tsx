@@ -41,7 +41,13 @@ vi.mock("convex/react", () => ({
     useAction: () => async () => {},
 }));
 vi.mock("~/lib/image-preload", () => ({ preloadCardImages: () => {} }));
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) => ({ id, name: id })),
     getDefinition: (id: string) => ({ id, name: id }),
     tryGetDefinition: (id: string) => ({ id, name: id }),
     FACE_DOWN_CARD_ID: "__faceDownDef",

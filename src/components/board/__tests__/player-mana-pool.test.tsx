@@ -8,8 +8,16 @@ import { render, cleanup, within } from "@testing-library/react";
 import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 // Resolve the Ice-Cauldron exiled card name without loading the full registry.
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) =>
+            id === "brainstorm-def" ? { name: "Brainstorm" } : undefined
+        ),
     tryGetDefinition: (id: string) =>
         id === "brainstorm-def" ? { name: "Brainstorm" } : undefined,
 }));

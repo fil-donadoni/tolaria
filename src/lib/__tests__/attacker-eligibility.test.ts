@@ -17,7 +17,12 @@ const DEFS: Record<string, { staticEffects?: unknown[] }> = {
         ],
     },
 };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     getDefinition: (id: string) => DEFS[id] ?? { staticEffects: [] },
 }));
 let prohibition: string | undefined = undefined;

@@ -46,7 +46,13 @@ vi.mock("@convex/_generated/api", () => ({
         },
     },
 }));
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, () => ({ name: "Test Card" })),
     getDefinition: () => ({ name: "Test Card" }),
     tryGetDefinition: () => ({ name: "Test Card" }),
 }));
