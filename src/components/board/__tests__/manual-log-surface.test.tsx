@@ -18,7 +18,13 @@ vi.mock("convex/react", () => ({
     }),
 }));
 vi.mock("@convex/_generated/api", () => ({
-    api: { manualLog: { getManualLog: {} } },
+    api: { manualLog: { getManualLog: {} }, cardIndex: {} },
+}));
+// `ManualLog` resolves card names through the Full Catalogue (#2350) — a
+// bare `{ rows: undefined }` is enough for these tests, which only assert on
+// the surface's own mount/dismiss behaviour, not on log content.
+vi.mock("~/lib/fullCatalogue", () => ({
+    useFullCatalogue: () => ({ rows: undefined, error: null }),
 }));
 
 const { default: ManualLogSurface } = await import("../manual-log-surface");

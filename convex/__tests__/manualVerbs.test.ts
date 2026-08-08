@@ -117,6 +117,11 @@ describe("manual verbs - table driven", () => {
         expect(getPlayer(result.state, "p1").graveyard).toHaveLength(1);
         expect(result.log.text).toContain("Alice");
         expect(result.log.text).toContain("graveyard");
+        // #2350: the id is a `{{card:N}}` placeholder, not the raw instance
+        // id — `cards` carries the print id the client resolves to a name.
+        expect(result.log.text).toContain("{{card:0}}");
+        expect(result.log.text).not.toContain(card.id);
+        expect(result.log.cards).toEqual([card.card.id]);
     });
 
     it("moveCard: battlefield untaps on entry", () => {
@@ -146,6 +151,7 @@ describe("manual verbs - table driven", () => {
             true
         );
         expect(result.log.text).toContain("taps");
+        expect(result.log.cards).toEqual([card.card.id]);
     });
 
     it("setTapped: untaps a permanent", () => {
@@ -159,6 +165,7 @@ describe("manual verbs - table driven", () => {
             false
         );
         expect(result.log.text).toContain("untaps");
+        expect(result.log.cards).toEqual([card.card.id]);
     });
 
     it("untapAll: untaps every card owned by a player", () => {
@@ -217,6 +224,7 @@ describe("manual verbs - table driven", () => {
         const found = findCardInState(result.state, card.id)!;
         expect(found.card.counters!["damage"]).toBe(3);
         expect(result.log.text).toContain("damage");
+        expect(result.log.cards).toEqual([card.card.id]);
     });
 
     it("setFaceDown: sets card face down", () => {
@@ -228,6 +236,8 @@ describe("manual verbs - table driven", () => {
         expect(findCardInState(result.state, card.id)!.card.faceDown).toBe(
             true
         );
+        expect(result.log.text).toContain("{{card:0}}");
+        expect(result.log.cards).toEqual([card.card.id]);
     });
 
     it("setFaceDown: sets card face up (removes field)", () => {
@@ -251,6 +261,7 @@ describe("manual verbs - table driven", () => {
         expect(findCardInState(result.state, card.id)!.card.lane).toBe(
             "combat"
         );
+        expect(result.log.cards).toEqual([card.card.id]);
     });
 
     it("setLane: sets lane to main", () => {
@@ -274,6 +285,12 @@ describe("manual verbs - table driven", () => {
             target.id
         );
         expect(result.log.text).toContain("attaches");
+        expect(result.log.text).toContain("{{card:0}}");
+        expect(result.log.text).toContain("{{card:1}}");
+        // Two DIFFERENT cards — attach was previously interpolating the raw
+        // instance id for the acting card only; the target's print id was
+        // never looked up at all.
+        expect(result.log.cards).toEqual([card.card.id, target.card.id]);
     });
 
     it("setArrow: adds arrow from source to target", () => {
@@ -287,6 +304,7 @@ describe("manual verbs - table driven", () => {
         expect(findCardInState(result.state, card.id)!.card.arrows).toContain(
             target.id
         );
+        expect(result.log.cards).toEqual([card.card.id, target.card.id]);
     });
 
     it("setArrow: adds multiple arrows", () => {
@@ -354,6 +372,8 @@ describe("manual verbs - table driven", () => {
         expect(
             findCardInState(result.state, bolt.id)!.card.arrows
         ).toBeUndefined();
+        expect(result.log.text).toContain("{{card:0}}");
+        expect(result.log.cards).toEqual([bolt.card.id]);
         // The sibling card's own arrow survives — a per-card clear must not
         // reach for `manualClearArrows`' board-wide sweep.
         expect(findCardInState(result.state, other.id)!.card.arrows).toEqual([
@@ -418,6 +438,15 @@ describe("manual verbs - table driven", () => {
 
         expect(result.state).toEqual(state);
         expect(result.log.text).toContain("looks at top");
+        // #2350: peek previously interpolated the SCRYFALL PRINT id (a
+        // second, distinct variant of the bug from every other verb, which
+        // interpolated the instance id) — now it's placeholders + `cards`,
+        // one per looked-at card, same as everything else.
+        expect(result.log.text).toContain("{{card:0}}");
+        expect(result.log.text).toContain("{{card:1}}");
+        expect(result.log.text).toContain("{{card:2}}");
+        const top3 = getPlayer(state, "p1").library.slice(-3).reverse();
+        expect(result.log.cards).toEqual(top3.map((c) => c.card.id));
     });
 
     it("shuffle: preserves card count", () => {
@@ -441,6 +470,8 @@ describe("manual verbs - table driven", () => {
         expect(token.controllerId).toBe("p1");
         expect(token.ownerId).toBe("p1");
         expect(token.isTapped).toBe(false);
+        expect(result.log.text).toContain("{{card:0}}");
+        expect(result.log.cards).toEqual(["token-card-id"]);
     });
 
     it("roll: logs the roll result without changing state", () => {
@@ -459,6 +490,8 @@ describe("manual verbs - table driven", () => {
         expect(findCardInState(result.state, card.id)!.card.note).toBe(
             "Copied from GY"
         );
+        expect(result.log.text).toContain("{{card:0}}");
+        expect(result.log.cards).toEqual([card.card.id]);
     });
 
     it("setNote: clears a note with empty string", () => {
@@ -517,6 +550,11 @@ describe("manual verbs - table driven", () => {
         expect(revealed.card.revealedTo).toEqual(["p2"]);
         expect(result.log.text).toContain("Alice reveals");
         expect(result.log.text).toContain("Bob");
+        // #2350: `reveal` isn't in the issue's example list but is the same
+        // bug — it interpolated the raw instance id too.
+        expect(result.log.text).toContain("{{card:0}}");
+        expect(result.log.text).not.toContain(card.id);
+        expect(result.log.cards).toEqual([card.card.id]);
     });
 
     it("reveal: to multiple players accumulates revealedTo", () => {
