@@ -42,6 +42,7 @@ const CONTENT: PreviewBodyContent = {
     ownerName: null,
     attachedToName: null,
     milestones: null,
+    isManualGame: false,
 };
 
 describe("card preview art box (portrait art, e.g. a Saga)", () => {
