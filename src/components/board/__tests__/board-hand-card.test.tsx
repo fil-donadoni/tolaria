@@ -1115,6 +1115,34 @@ describe("BoardHandCard manual verb menu (issue #2347)", () => {
         expect(activateAbility).not.toHaveBeenCalled();
     });
 
+    // AC-1 ("on touch it opens the action sheet") — PR #2359 review: this was
+    // asserted nowhere. Every other test in this describe block fires a plain
+    // `click`, which reaches the verb menu via the DESKTOP path
+    // (`ContextMenuTrigger` synthesizes a `contextmenu` from the click) —
+    // dropping `onClick={manualAbilityClick.onClick}` /
+    // `onTouchStart={manualAbilityClick.onTouchStart}` from `ManualHandCard`
+    // left every one of them green. Only a `touchstart` THEN `click` exercises
+    // the touch branch, which opens the ActionSheet instead — a structurally
+    // different surface (plain `<button>`s, no `role="menuitem"`) — and
+    // suppresses the desktop menu via `stopPropagation`.
+    it("a touch tap opens the action sheet, not the desktop context menu (AC-1)", () => {
+        renderManual(manualHandCardInstance("hand1"));
+        fireEvent.touchStart(el());
+        fireEvent.click(el());
+
+        // The desktop ContextMenu's items carry role="menuitem" — none open.
+        expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+        // The action sheet's own items are plain buttons.
+        const sheetItem = screen.getByRole("button", {
+            name: "Play to battlefield",
+        });
+        fireEvent.click(sheetItem);
+        expect(manualActivate).toHaveBeenCalledWith(
+            "hand1",
+            "move:battlefield"
+        );
+    });
+
     it("selecting a verb dispatches through the injected `activate`, by instance id and ability id only", () => {
         renderManual(manualHandCardInstance("hand1"));
         fireEvent.click(el());

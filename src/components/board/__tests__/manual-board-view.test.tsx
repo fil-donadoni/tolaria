@@ -67,12 +67,17 @@ import {
 vi.mock("@convex/cards", () => ({
     getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     tryGetDefinition: () => undefined,
-    // Issue #2347: `handInteractive={true}` now mounts the real
-    // `BoardHandCard` for the manual hand, whose unconditional
-    // `useHandCardCommit` call reads a definition even though the manual
-    // branch never wires its returned overlays to the DOM. A vanilla stub (no
-    // modes/X/kicker) is enough — this suite never exercises the cast path.
-    getDefinition: () => ({ name: "Manual Test Card" }),
+    // Issue #2347 / PR #2359 review: `handInteractive={true}` now mounts the
+    // real `BoardHandCard` for the manual hand, but its manual branch
+    // (`ManualHandCard`) calls no GRE hook and never resolves a
+    // `CardDefinition` — so `getDefinition` is deliberately left UNSTUBBED
+    // here, throwing the same "Card not found" a real Full Catalogue print id
+    // would. If a future change reintroduces an unconditional
+    // `getDefinition` read on the manual hand path, this whole suite goes
+    // red instead of silently green (the bug PR #2359 fixed).
+    getDefinition: (id: string) => {
+        throw new Error(`Card not found: ${id}`);
+    },
     FACE_DOWN_CARD_ID: "__faceDownDef",
 }));
 // The Full Catalogue is a ~34k-row lazy asset; the row classifier's documented

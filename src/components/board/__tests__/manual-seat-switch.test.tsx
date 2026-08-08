@@ -101,12 +101,16 @@ import {
 vi.mock("@convex/cards", () => ({
     getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     tryGetDefinition: () => undefined,
-    // Issue #2347: `BoardHandCard` now mounts for the viewer's own manual
-    // hand, whose unconditional `useHandCardCommit` call reads a definition
-    // even though the manual branch never wires its returned overlays to the
-    // DOM. A vanilla stub is enough — this suite never exercises the cast
-    // path.
-    getDefinition: () => ({ name: "Manual Test Card" }),
+    // Issue #2347 / PR #2359 review: `BoardHandCard` now mounts for the
+    // viewer's own manual hand, but its manual branch (`ManualHandCard`)
+    // calls no GRE hook and never resolves a `CardDefinition` — so
+    // `getDefinition` is deliberately left UNSTUBBED here, throwing the same
+    // "Card not found" a real Full Catalogue print id (`def-p1`/`def-p2`
+    // below) would against the real registry. A regression that makes the
+    // manual hand path read a definition again turns this whole suite red.
+    getDefinition: (id: string) => {
+        throw new Error(`Card not found: ${id}`);
+    },
     FACE_DOWN_CARD_ID: "__faceDownDef",
 }));
 vi.mock("~/lib/fullCatalogue", () => ({
