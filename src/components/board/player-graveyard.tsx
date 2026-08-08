@@ -10,6 +10,7 @@ import GraveyardIcon from "../icons/graveyard-icon";
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePileActions, NO_PILE_ACTIONS } from "~/hooks/usePileActionsContext";
+import { usePileBrowseMenu } from "~/hooks/usePileBrowseMenu";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { isGraveyardChoiceActive } from "~/lib/graveyard-choice";
@@ -51,6 +52,15 @@ export default function PlayerGraveyard({
     // the fallback is the empty set, so absent a `PileActionsProvider` the
     // markup below is byte-for-byte what it was (issue #2169).
     const pileActions = usePileActions(player, "graveyard", NO_PILE_ACTIONS);
+    // Issue #2345 — the collapsed tile's own click must defer to this menu
+    // (rather than opening the browse dialog itself) whenever the menu
+    // exists; browsing becomes the menu's own first item.
+    const {
+        menuActions,
+        open: pileBrowseOpen,
+        onOpenChange: pileBrowseOnOpenChange,
+        hasContextMenu,
+    } = usePileBrowseMenu(pileActions, open, onOpenChange);
 
     // CR 400.7 / 109.2: this graveyard accepts target clicks only when (a) a
     // target selection is in progress, (b) it's targeting the graveyard zone,
@@ -218,9 +228,16 @@ export default function PlayerGraveyard({
                     : undefined
             }
             // Portrait chip control only drives the normal browse — never
-            // while a blocking graveyard pick owns the modal.
-            open={isGraveyardChoice ? undefined : open}
-            onOpenChange={isGraveyardChoice ? undefined : onOpenChange}
+            // while a blocking graveyard pick owns the modal. Issue #2345 —
+            // with pile actions present (and outside chip mode),
+            // `usePileBrowseMenu` lifts this open state so the menu's
+            // "Browse pile…" item can drive it, and `hasContextMenu` tells
+            // `CardsPile` to defer its own click to that menu.
+            open={isGraveyardChoice ? undefined : pileBrowseOpen}
+            onOpenChange={
+                isGraveyardChoice ? undefined : pileBrowseOnOpenChange
+            }
+            hasContextMenu={!isGraveyardChoice && hasContextMenu}
         />
     );
 
@@ -241,7 +258,7 @@ export default function PlayerGraveyard({
                         <div className="relative cursor-pointer">{pile}</div>
                     </ContextMenuTrigger>
                     <ContextMenuContent className="w-56">
-                        {pileActions.map((action) => (
+                        {menuActions.map((action) => (
                             <ContextMenuItem
                                 key={action.key}
                                 inset
