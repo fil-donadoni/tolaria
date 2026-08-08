@@ -45,6 +45,39 @@ function PileCounterChips({ card }: { card: CardInstance }) {
     );
 }
 
+/** The ordinary empty-zone placeholder (icon or label, no interaction of its
+ *  own) — shared by CardsPile's two empty-pile renders: the fully
+ *  uncontrolled early return (no dialog needed, nothing to browse) and the
+ *  `hasContextMenu` collapsed-stack slot (issue #2345 follow-up, PR #2356),
+ *  which keeps the dialog mounted below it so the menu's "Browse pile…" item
+ *  has something to open even at zero cards. */
+function EmptyPilePlaceholder({
+    zoneIcon,
+    emptyLabel,
+}: {
+    zoneIcon?: React.ReactNode;
+    emptyLabel?: string;
+}) {
+    return (
+        <div
+            className={`group ${PILE_TILE_BOX} flex justify-center items-center text-center p-2 border border-border-subtle rounded-sm`}
+        >
+            {zoneIcon ? (
+                <span
+                    aria-label={emptyLabel}
+                    className="opacity-90 transition duration-200 group-hover:opacity-100 group-hover:scale-110"
+                >
+                    {zoneIcon}
+                </span>
+            ) : (
+                <span className="text-text-muted text-xs">
+                    {emptyLabel || "No cards"}
+                </span>
+            )}
+        </div>
+    );
+}
+
 function seededRandom(seed: number) {
     const x = Math.sin(seed + 1) * 10000;
     return x - Math.floor(x);
@@ -629,31 +662,24 @@ export default function CardsPile({
     const gameCtx = useContext(GameContext);
     const recentArrivals = gameCtx?.recentArrivals;
 
-    // In controlled (chip) mode the owner renders the trigger; this component
-    // contributes only the reveal dialog. An empty pile still needs a mounted
-    // dialog so the chip can open it (e.g. an empty exile), so fall through.
-    // `hasContextMenu` is controlled for a DIFFERENT reason (deferring the
-    // click, above) — it must still show the ordinary empty-zone placeholder
-    // here, exactly like the uncontrolled case, rather than fall through into
-    // an interactive-but-cardless collapsed stack.
-    if (!cards.length && (!controlled || hasContextMenu)) {
+    // Fully uncontrolled (no `open`/`onOpenChange`, no menu): there is no
+    // dialog anything could drive open, so an empty pile stops here — the
+    // ordinary placeholder, no dialog mounted at all.
+    //
+    // `controlled && hasContextMenu` is NOT included here (PR #2356 follow-up
+    // — a review of #2345 found the previous, broader `!controlled ||
+    // hasContextMenu` condition early-returned this case too, skipping the
+    // `<GameDialog>` at the bottom of this component entirely: the pile
+    // menu's "Browse pile…" item lifts `open`/`onOpenChange` state
+    // (`usePileBrowseMenu`) that then had nothing to mount against, so
+    // clicking it did nothing on an empty library — see
+    // `pile-empty-browse.test.tsx`). That case instead falls through below,
+    // where the collapsed-stack slot renders the SAME placeholder but the
+    // dialog still mounts, so the menu item stays functional.
+    const isEmpty = cards.length === 0;
+    if (isEmpty && !controlled) {
         return (
-            <div
-                className={`group ${PILE_TILE_BOX} flex justify-center items-center text-center p-2 border border-border-subtle rounded-sm`}
-            >
-                {zoneIcon ? (
-                    <span
-                        aria-label={emptyLabel}
-                        className="opacity-90 transition duration-200 group-hover:opacity-100 group-hover:scale-110"
-                    >
-                        {zoneIcon}
-                    </span>
-                ) : (
-                    <span className="text-text-muted text-xs">
-                        {emptyLabel || "No cards"}
-                    </span>
-                )}
-            </div>
+            <EmptyPilePlaceholder zoneIcon={zoneIcon} emptyLabel={emptyLabel} />
         );
     }
 
@@ -759,7 +785,14 @@ export default function CardsPile({
                     // supplied `onOpenChange`.
                     onClick={hasContextMenu ? undefined : () => setIsOpen(true)}
                 >
-                    {pileCards}
+                    {isEmpty ? (
+                        <EmptyPilePlaceholder
+                            zoneIcon={zoneIcon}
+                            emptyLabel={emptyLabel}
+                        />
+                    ) : (
+                        pileCards
+                    )}
                 </div>
             )}
 
