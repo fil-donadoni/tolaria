@@ -62,8 +62,12 @@ type DragMeta = {
 /** The Manual Board's zone-to-zone drag (PRD #2162, issue #2169).
  *
  *  The shared spatial surface has no drag of its own on the battlefield (its
- *  hand owns a view-only reorder drag, which the Manual Board switches off via
- *  `handInteractive={false}`), so this is a single delegated gesture: one
+ *  hand owns a view-only reorder drag; the Manual Board mounts the same
+ *  `BoardHandCard` with `handInteractive={true}` but wraps it in
+ *  `ManualHandInteractionProvider`, issue #2347, so it renders `ManualHandCard`
+ *  — which binds no pointer handlers of its own, leaving the reorder drag
+ *  inert there without a separate opt-out flag). So this is a single delegated
+ *  gesture: one
  *  `pointerdown` on the manual root picks its source by hit-test handle,
  *  `pointermove` past {@link DRAG_THRESHOLD} arms the drag and floats a ghost,
  *  and `pointerup` resolves the drop against whatever the pointer is over.
