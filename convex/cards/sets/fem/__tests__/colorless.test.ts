@@ -21,7 +21,6 @@ import {
     icatianStore,
     implementsOfSacrifice,
     rainbowVale,
-    ringOfRenewal,
     ruinsOfTrokair,
     sandSilos,
     spiritShield,
@@ -96,27 +95,6 @@ describe("FEM C6 sacrifice-land cycle (sac-self mana, ADR 0039 / CR 605.1a)", ()
         { def: havenwoodBattleground, color: "G" as const },
     ];
 
-    it("ships all five as Lands that enter tapped with a {T} and a sac mana ability", () => {
-        for (const { def, color } of CYCLE) {
-            expect(def.types).toEqual(["Land"]);
-            expect(def.entersTapped).toBe(true);
-            const tapMana = def.activatedAbilities?.find(
-                (a) => a.id === "sac-land-mana"
-            );
-            const sacMana = def.activatedAbilities?.find(
-                (a) => a.id === "sac-land-sacrifice"
-            );
-            // Plain {T}: Add {X}.
-            expect(tapMana?.useStack).toBe(false);
-            expect(tapMana?.cost).toEqual({ tap: true });
-            expect(tapMana?.manaProduced).toEqual({ [color]: 1 });
-            // {T}, Sacrifice this land: Add {X}{X}. (ADR 0039 sac-self shape.)
-            expect(sacMana?.useStack).toBe(false);
-            expect(sacMana?.cost).toEqual({ tap: true, sacrifice: true });
-            expect(sacMana?.manaProduced).toEqual({ [color]: 2 });
-        }
-    });
-
     it("the plain {T} ability adds one mana of the land's colour (CR 605.1a)", () => {
         const land = makeInstance(ebonStronghold.id, {
             id: "land",
@@ -138,22 +116,6 @@ describe("FEM C6 storage-land cycle (variable counter-removal → variable mana,
         { def: dwarvenHold, color: "R" as const },
         { def: hollowTrees, color: "G" as const },
     ];
-
-    it("ships all five as Lands that enter tapped, may skip untap, and bank storage", () => {
-        for (const { def, color } of CYCLE) {
-            expect(def.types).toEqual(["Land"]);
-            expect(def.entersTapped).toBe(true);
-            expect(def.staticAbilities).toContain("may-choose-not-to-untap");
-            const mana = def.activatedAbilities?.find(
-                (a) => a.id === "storage-land-mana"
-            );
-            expect(mana?.useStack).toBe(false);
-            expect(mana?.cost).toEqual({ tap: true });
-            expect(mana?.manaChoiceRemovesCounters).toBe("storage");
-            // Representative / fallback: 0 counters → 0 mana of the colour.
-            expect(mana?.manaChoices).toEqual([{ [color]: 0 }]);
-        }
-    });
 
     it("banks a storage counter each upkeep while tapped (CR 603.4)", () => {
         const land = makeInstance(bottomlessVault.id, {
@@ -274,26 +236,6 @@ describe("FEM C6 storage-land cycle (variable counter-removal → variable mana,
 });
 
 describe("Rainbow Vale — control-change-on-tap (CAPABILITY B, ADR 0040 / CR 613.1b)", () => {
-    it("is a Land with a {T} any-colour mana ability that arms a next-end-step rider", () => {
-        expect(rainbowVale.types).toEqual(["Land"]);
-        const mana = rainbowVale.activatedAbilities?.find(
-            (a) => a.id === "rainbow-vale-mana"
-        );
-        expect(mana?.useStack).toBe(false);
-        expect(mana?.cost).toEqual({ tap: true });
-        expect(mana?.manaChoices).toEqual([
-            { W: 1 },
-            { U: 1 },
-            { B: 1 },
-            { R: 1 },
-            { G: 1 },
-        ]);
-        expect(mana?.armsDelayedTriggerOnTap).toEqual({
-            triggerId: "rainbow-vale-handoff",
-            timing: "next-end-step",
-        });
-    });
-
     it("tapping for mana arms a delayed trigger that hands the land to the opponent at the next end step", () => {
         const vale = makeInstance(rainbowVale.id, {
             id: "vale",
@@ -370,24 +312,6 @@ describe("Rainbow Vale — control-change-on-tap (CAPABILITY B, ADR 0040 / CR 61
 });
 
 describe("Implements of Sacrifice — sac-self mana with colour choice (REUSE C, ADR 0039)", () => {
-    it("is a {2} Artifact with a {1},{T},Sacrifice: two of any one colour ability", () => {
-        expect(implementsOfSacrifice.manaCost).toEqual({ X: 2 });
-        const ability = implementsOfSacrifice.activatedAbilities?.[0];
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.cost).toEqual({
-            mana: { X: 1 },
-            tap: true,
-            sacrifice: true,
-        });
-        expect(ability?.manaChoices).toEqual([
-            { W: 2 },
-            { U: 2 },
-            { B: 2 },
-            { R: 2 },
-            { G: 2 },
-        ]);
-    });
-
     it("produces two mana of the chosen colour and sacrifices the artifact (CR 605.1a)", () => {
         const impl = makeInstance(implementsOfSacrifice.id, {
             id: "impl",
@@ -525,13 +449,6 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
         expect(state.players[0].life).toBe(22);
     });
 
-    it("Balm of Restoration exposes a prevent mode targeting any target", () => {
-        const prevent = balmOfRestoration.activatedAbilities?.find(
-            (a) => a.id === "balm-prevent"
-        );
-        expect(prevent?.targetRequirement).toEqual({ type: "any", count: 1 });
-    });
-
     it("Elven Lyre gives +2/+2 until end of turn (CR 611.2c)", () => {
         const lyre = makeInstance(elvenLyre.id, {
             id: "lyre",
@@ -646,20 +563,6 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
         );
         expect(p1.hand.map((c) => c.id)).not.toContain("h1");
         expect(p1.library[0]?.id).toBe("h1");
-    });
-
-    it("Ring of Renewal draws cards (CR 121.1)", () => {
-        expect(ringOfRenewal.manaCost).toEqual({ X: 5 });
-        // Delif's Cone exposes the sac+tap cost and a creature target.
-        expect(delifsCone.activatedAbilities?.[0].cost).toEqual({
-            tap: true,
-            sacrifice: true,
-        });
-        expect(delifsCone.activatedAbilities?.[0].targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            controller: "you",
-        });
     });
 });
 

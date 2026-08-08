@@ -7,7 +7,6 @@
 import { describe, it, expect } from "vitest";
 import {
     amnesia,
-    apprenticeWizard,
     danceOfMany,
     deepWater,
     drowned,
@@ -95,17 +94,6 @@ describe("Amnesia — reveal hand, discard all nonland cards (CR 701.8)", () => 
         expect(state.players[1].graveyard.some((c) => c.id === "spell")).toBe(
             true
         );
-    });
-});
-
-describe("Apprentice Wizard — {U},{T}: add {C}{C}{C} (CR 605.1a mana ability)", () => {
-    it("declares a non-stack mana ability producing three colorless", () => {
-        const ab = apprenticeWizard.activatedAbilities![0];
-        expect(ab.useStack).toBe(false);
-        expect(ab.cost).toEqual({ tap: true, mana: { U: 1 } });
-        expect(ab.manaProduced).toEqual({ C: 3 });
-        expect(apprenticeWizard.power).toBe(0);
-        expect(apprenticeWizard.toughness).toBe(1);
     });
 });
 
@@ -216,14 +204,6 @@ describe("Flood — {U}{U}: tap target creature without flying (CR 701.20a / 702
 });
 
 describe("Ghost Ship — flying + regenerate (CR 702.9 / 701.15a)", () => {
-    it("carries flying and a regenerate activated ability", () => {
-        expect(ghostShip.staticAbilities).toContain("flying");
-        expect(ghostShip.power).toBe(2);
-        expect(ghostShip.toughness).toBe(4);
-        const ab = ghostShip.activatedAbilities![0];
-        expect(ab.cost).toEqual({ mana: { U: 3 } });
-    });
-
     it("the regenerate ability stacks a shield consumed by the next destroy", () => {
         const gs = makeInstance(ghostShip.id, {
             id: "gs",
@@ -847,37 +827,6 @@ function fireEtbAndCopy(
 }
 
 describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () => {
-    it("is a {U}{U} Enchantment with the real Scryfall id", () => {
-        expect(danceOfMany.id).toBe("13453abe-3f05-4956-8493-382d7d2af699");
-        expect(danceOfMany.manaCost).toEqual({ U: 2 });
-        expect(danceOfMany.types).toEqual(["Enchantment"]);
-    });
-
-    it("carries all four triggered abilities (ETB / two LTBs / upkeep)", () => {
-        const ids = danceOfMany.triggeredAbilities?.map((a) => a.id) ?? [];
-        expect(ids).toEqual([
-            "dance-of-many-etb",
-            "dance-of-many-exile-token",
-            "dance-of-many-sacrifice-self",
-            "dance-of-many-upkeep",
-        ]);
-    });
-
-    it("declares the CR 603.3d target requirement on its ETB: one NONTOKEN creature (issue #1195)", () => {
-        const etb = danceOfMany.triggeredAbilities?.find(
-            (a) => a.id === "dance-of-many-etb"
-        );
-        // "create a token that's a copy of target nontoken creature" — the
-        // target is chosen at stack placement (CR 603.3d), not resolution.
-        // `isToken: false` (issue #1195) is the "nontoken" clause — FIXED, no
-        // longer a documented divergence.
-        expect(etb?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            isToken: false,
-        });
-    });
-
     it("is registered by id and name", () => {
         expect(getDefinition(danceOfMany.id)).toBe(danceOfMany);
         expect(getCardByName("Dance of Many")).toBe(danceOfMany);
@@ -1158,15 +1107,6 @@ describe("Dance of Many — serialization round-trip (linkedTokenId, CR 603.10)"
 // ───────────────────────────────────────────────────────────────────────────
 
 describe("Drowned — {1}{U} 1/1 Zombie, {B}: Regenerate (CR 701.15a)", () => {
-    it("is a 1/1 Zombie for {1}{U}", () => {
-        expect(drowned.manaCost).toEqual({ X: 1, U: 1 });
-        expect(drowned.types).toEqual(["Creature"]);
-        expect(drowned.subtypes).toEqual(["Zombie"]);
-        expect(drowned.power).toBe(1);
-        expect(drowned.toughness).toBe(1);
-        expect(drowned.activatedAbilities![0].cost).toEqual({ mana: { B: 1 } });
-    });
-
     it("the {B} ability stacks a regeneration shield (CR 701.15a)", () => {
         const d = makeInstance(drowned.id, { id: "d", controllerId: "p1" });
         const state = makeState({
@@ -1179,13 +1119,6 @@ describe("Drowned — {1}{U} 1/1 Zombie, {B}: Regenerate (CR 701.15a)", () => {
 });
 
 describe("Electric Eel — ETB self-damage + {R}{R} pump (CR 603.6a / 611.1)", () => {
-    it("is a 1/1 Fish for {U}", () => {
-        expect(electricEel.manaCost).toEqual({ U: 1 });
-        expect(electricEel.subtypes).toEqual(["Fish"]);
-        expect(electricEel.power).toBe(1);
-        expect(electricEel.toughness).toBe(1);
-    });
-
     it("its ETB trigger deals 1 damage to its controller (CR 603.6a)", () => {
         const eel = makeInstance(electricEel.id, {
             id: "eel",

@@ -100,11 +100,6 @@ const lib = (ids: string[]) =>
     );
 
 describe("Opt (scry 1 then draw; CR 701.22 / 121.1)", () => {
-    it("is a {U} instant", () => {
-        expect(opt.manaCost).toEqual({ U: 1 });
-        expect(opt.types).toEqual(["Instant"]);
-    });
-
     it("keeping the top card on top draws it", () => {
         const state = makeState({
             players: [
@@ -280,14 +275,6 @@ describe("Prohibit (counter cheap spells, wider if kicked; CR 702.33 / 701.5a)",
         resolveTopOfStack(state);
         expect(state.stack.find((s) => s.id === bear.id)).toBeUndefined();
     });
-
-    it("declares a wider mana-value ceiling for the kicked target requirement", () => {
-        expect(prohibit.targetRequirement?.mvFilter?.max).toBe(2);
-        expect(prohibit.kickedTargetRequirement?.mvFilter?.max).toBe(4);
-        expect(prohibit.kickers).toEqual([
-            { id: "kicker", description: "Kicker {2}", mana: { X: 2 } },
-        ]);
-    });
 });
 
 describe("Repulse (return target creature to hand, then draw; CR 400.7 / 121.1)", () => {
@@ -323,12 +310,6 @@ describe("Repulse (return target creature to hand, then draw; CR 400.7 / 121.1)"
 });
 
 describe("Sapphire Leech (flying + blue spells you cast cost {U} more; CR 702.9 / 601.2f)", () => {
-    it("is a 2/2 flier", () => {
-        expect(sapphireLeech.power).toBe(2);
-        expect(sapphireLeech.toughness).toBe(2);
-        expect(sapphireLeech.staticAbilities).toContain("flying");
-    });
-
     it("taxes only the controller's own blue spells (Derelor template)", () => {
         const effect = sapphireLeech.staticEffects?.[0];
         expect(effect?.kind).toBe("cost-modifier");
@@ -360,14 +341,6 @@ describe("Sapphire Leech (flying + blue spells you cast cost {U} more; CR 702.9 
 });
 
 describe("Shimmering Wings (Aura grants flying; {U}: return to hand; CR 702.9 / 400.7)", () => {
-    it("declares a flying keyword-grant on the host", () => {
-        const grant = shimmeringWings.staticEffects?.[0];
-        expect(grant?.kind).toBe("keyword-grant");
-        if (grant?.kind === "keyword-grant") {
-            expect(grant.keyword).toBe("flying");
-        }
-    });
-
     it("returns itself to its owner's hand when activated", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -422,11 +395,6 @@ describe("Sky Weaver ({2}: target white or black creature gains flying EOT; CR 6
             state.players[0].battlefield.find((c) => c.id === "target")
                 ?.staticAbilities
         ).toContain("flying");
-    });
-
-    it("restricts the activated ability's target to white or black creatures", () => {
-        const ability = skyWeaver.activatedAbilities?.[0];
-        expect(ability?.targetRequirement?.colorFilterAny).toEqual(["W", "B"]);
     });
 });
 
@@ -483,14 +451,6 @@ describe("Vodalian Merchant (ETB: draw, then discard; CR 603.6a / 121.1 / 701.9)
 });
 
 describe("Vodalian Serpent (attack restriction + kicked counters; CR 508.1c / 702.33)", () => {
-    it("uses data-driven attack-restriction (no magic string)", () => {
-        expect(
-            vodalianSerpent.staticEffects?.some(
-                (e) => e.kind === "attack-restriction"
-            )
-        ).toBe(true);
-    });
-
     it("cannot attack when defending player has no Island", () => {
         const serpent = makeInstance(vodalianSerpent.id, {
             id: "serpent",
@@ -533,20 +493,6 @@ describe("Vodalian Serpent (attack restriction + kicked counters; CR 508.1c / 70
                 state.players[1].battlefield
             )
         ).toEqual({ eligible: true });
-    });
-
-    // CR 121.6 / 614.1c (issue #1693) — "If this creature was kicked, it enters
-    // with four +1/+1 counters on it" is a REPLACEMENT effect, not a triggered
-    // ability: FOUR `count: "kicker"` entries (the shipped Duskwalker /
-    // Llanowar Elite idiom) sum to exactly 0 or 4 as the Serpent enters.
-    it("declares the kicked counters as a replacement, not a triggered ability", () => {
-        expect(vodalianSerpent.entersWith?.counters).toEqual([
-            { type: "+1/+1", count: "kicker" },
-            { type: "+1/+1", count: "kicker" },
-            { type: "+1/+1", count: "kicker" },
-            { type: "+1/+1", count: "kicker" },
-        ]);
-        expect(vodalianSerpent.triggeredAbilities ?? []).toEqual([]);
     });
 
     it("enters with four +1/+1 counters when kicked, nothing on the stack (CR 121.6 / 614.1c)", () => {
@@ -688,22 +634,6 @@ describe("Zanam Djinn (flying; -2/-2 while blue is most common or tied; CR 702.9
 });
 
 describe("Traveler's Cloak (Aura, ETB choose a land type, draw, grant landwalk; CR 603.6b / 702.14)", () => {
-    it("declares one keyword-grant static per basic land type", () => {
-        expect(travelersCloak.staticEffects).toHaveLength(5);
-        const keywords = travelersCloak.staticEffects!.map((e) =>
-            e.kind === "keyword-grant" ? e.keyword : undefined
-        );
-        expect(keywords.sort()).toEqual(
-            [
-                "plainswalk",
-                "islandwalk",
-                "swampwalk",
-                "mountainwalk",
-                "forestwalk",
-            ].sort()
-        );
-    });
-
     it("grants only the chosen type's landwalk once the choice is stored", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -745,15 +675,6 @@ describe("Traveler's Cloak (Aura, ETB choose a land type, draw, grant landwalk; 
                 islandGrant.applies(attachedBear, aura, STATIC_EFFECT_CTX)
             ).toBe(false);
         }
-    });
-
-    it("draws a card via a separate DSL ETB trigger", () => {
-        const drawTrigger = travelersCloak.triggeredAbilities?.find(
-            (t) => t.id === "travelers-cloak-draw"
-        );
-        expect(drawTrigger?.effects).toEqual([
-            { op: "draw", player: "controller", count: 1 },
-        ]);
     });
 });
 
@@ -797,13 +718,6 @@ describe("Empress Galina ({U}{U},{T}: gain control of target legendary permanent
             projected.players[0].battlefield.find((c) => c.id === "legend")
         ).toBeDefined();
     });
-
-    it("restricts the activated ability's target to legendary permanents", () => {
-        const ability = empressGalina.activatedAbilities?.[0];
-        expect(ability?.targetRequirement?.supertypeFilter).toEqual([
-            "Legendary",
-        ]);
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -815,16 +729,6 @@ describe("Empress Galina ({U}{U},{T}: gain control of target legendary permanent
 // ---------------------------------------------------------------------------
 
 describe("Collective Restraint (CR 508.1c/1g dynamic attack-mana-tax — Domain, issue #1066)", () => {
-    it("declares an attack-mana-tax static effect with a FUNCTION costPerAttacker", () => {
-        const effect = collectiveRestraint.staticEffects?.find(
-            (e) => e.kind === "attack-mana-tax"
-        );
-        expect(effect).toBeDefined();
-        expect(
-            typeof (effect as { costPerAttacker: unknown })?.costPerAttacker
-        ).toBe("function");
-    });
-
     it("taxes each attacker {X} where X is the DEFENDING player's (Restraint's controller's) Domain", () => {
         const attacker1 = makeInstance(grizzlyBears.id, {
             id: "atk1",

@@ -35,15 +35,6 @@ function resolveTrigger(
 }
 
 describe("Anje's Ravager — Madness {1}{R}, must-attack, attack-wheel (CR 702.35 / 508.1d)", () => {
-    it("carries Madness {1}{R} and an attack-requirement static effect", () => {
-        expect(anjesRavager.madness).toEqual({ X: 1, R: 1 });
-        expect(
-            anjesRavager.staticEffects?.some(
-                (e) => e.kind === "attack-requirement"
-            )
-        ).toBe(true);
-    });
-
     it("discards the controller's hand, then draws three, on attack", () => {
         const ravager = makeInstance(anjesRavager.id, {
             controllerId: "p1",

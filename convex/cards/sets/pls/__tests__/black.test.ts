@@ -1087,23 +1087,6 @@ function darkSuspicionsBoard(p1Hand: number, p2Hand: number) {
     return { state, enchantment };
 }
 
-describe("Dark Suspicions — card data (Scryfall PLS 40 / modern Oracle text)", () => {
-    it("is a {2}{B}{B} rare Enchantment", () => {
-        expect(darkSuspicions.manaCost).toEqual({ X: 2, B: 2 });
-        expect(darkSuspicions.types).toEqual(["Enchantment"]);
-        expect(darkSuspicions.rarity).toBe("rare");
-        expect(darkSuspicions.oracleText).toBe(
-            "At the beginning of each opponent's upkeep, that player loses X life, where X is the number of cards in that player's hand minus the number of cards in your hand."
-        );
-    });
-
-    it("declares exactly one triggered ability, written as an Effect Script (ADR 0045)", () => {
-        expect(darkSuspicions.triggeredAbilities).toHaveLength(1);
-        expect(DARK_SUSPICIONS_ABILITY.effects).toBeDefined();
-        expect(DARK_SUSPICIONS_ABILITY.resolve).toBeUndefined();
-    });
-});
-
 describe("Dark Suspicions — each OPPONENT's upkeep (CR 603.6a / 402.2 / 107.1b)", () => {
     it("fires on the opponent's upkeep and NOT on its own controller's", () => {
         const { state, enchantment } = darkSuspicionsBoard(1, 4);

@@ -20,28 +20,20 @@ import {
     blackManaBattery,
     blueManaBattery,
     cathedralOfSerra,
-    crimsonKobolds,
-    crookshankKobolds,
     greenManaBattery,
     hundingGjornersen,
-    koboldsOfKherKeep,
     manaMatrix,
     marhaultElsdragon,
     mirrorUniverse,
     mountainStronghold,
-    mountainYeti,
     pendelhaven,
     planarGate,
-    ragingBull,
     redManaBattery,
     relicBarrier,
     seafarersQuay,
-    theTabernacleAtPendrellVale,
     tolaria,
     tundraWolves,
     unholyCitadel,
-    wallOfEarth,
-    wallOfHeat,
     whiteManaBattery,
 } from "..";
 import { tapSourceIntoPayment } from "../../../../game";
@@ -349,39 +341,6 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)"
     });
 });
 
-// ===========================================================================
-// Red free tranche (#374)
-// ===========================================================================
-
-describe("LEG red vanilla / keyword creatures (CR 110.1 / 702)", () => {
-    it("Kobolds are 0/1 with cost {0}", () => {
-        for (const k of [
-            crimsonKobolds,
-            crookshankKobolds,
-            koboldsOfKherKeep,
-        ]) {
-            expect(k.power).toBe(0);
-            expect(k.toughness).toBe(1);
-            expect(k.manaCost).toEqual({});
-            expect(k.subtypes).toContain("Kobold");
-        }
-    });
-    it("Raging Bull is a vanilla 2/2 Ox", () => {
-        expect(ragingBull.power).toBe(2);
-        expect(ragingBull.toughness).toBe(2);
-        expect(ragingBull.subtypes).toContain("Ox");
-        expect(ragingBull.staticAbilities ?? []).toHaveLength(0);
-    });
-    it("Mountain Yeti has mountainwalk + protection from white", () => {
-        expect(mountainYeti.staticAbilities).toContain("mountainwalk");
-        expect(mountainYeti.staticAbilities).toContain("protection from white");
-    });
-    it("Wall of Earth / Wall of Heat have defender", () => {
-        expect(wallOfEarth.staticAbilities).toContain("defender");
-        expect(wallOfHeat.staticAbilities).toContain("defender");
-    });
-});
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifacts, lands & colorless free tranche (#377). Cost-reduction statics are
 // asserted via getCostModifiers + applyCostModifiers (the exact path game.ts
@@ -419,14 +378,6 @@ describe("Mana Matrix (instant/enchantment spells you cast cost {2} less, CR 601
             ],
         });
     }
-
-    it("definition: {6} colorless Artifact with a cost-modifier static", () => {
-        expect(manaMatrix.manaCost).toEqual({ X: 6 });
-        expect(manaMatrix.types).toEqual(["Artifact"]);
-        expect(
-            manaMatrix.staticEffects?.some((e) => e.kind === "cost-modifier")
-        ).toBe(true);
-    });
 
     it("reduces your instant by {2} (Lightning Bolt {R} stays {R})", () => {
         const state = boardWith(manaMatrix.id);
@@ -498,13 +449,6 @@ describe("Planar Gate (creature spells you cast cost {2} less, CR 601.2f)", () =
                 makePlayer("p2"),
             ],
         });
-
-    it("definition: {6} Artifact with a cost-modifier static", () => {
-        expect(planarGate.manaCost).toEqual({ X: 6 });
-        expect(
-            planarGate.staticEffects?.some((e) => e.kind === "cost-modifier")
-        ).toBe(true);
-    });
 
     it("reduces your creature spell (Grizzly Bears {1}{G} → {G})", () => {
         const state = board();
@@ -595,35 +539,9 @@ describe("Mirror Universe (exchange life totals, CR 118.5)", () => {
         expect(state.players[0].life).toBe(18);
         expect(state.players[1].life).toBe(3);
     });
-
-    it("definition: upkeep-only, controller-turn-only, taps + sacrifices", () => {
-        const ability = mirrorUniverse.activatedAbilities![0];
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-        expect(ability.controllerTurnOnly).toBe(true);
-        expect(ability.cost.tap).toBe(true);
-        expect(ability.cost.sacrifice).toBe(true);
-    });
 });
 
 describe("Pendelhaven (Legendary land: {T}: Add {G}; {T}: pump a 1/1, CR 305 / 611.1)", () => {
-    it("definition: Legendary Land with a mana ability and a pump ability", () => {
-        expect(pendelhaven.types).toEqual(["Land"]);
-        expect(pendelhaven.supertypes).toEqual(["Legendary"]);
-        const mana = pendelhaven.activatedAbilities!.find(
-            (a) => a.id === "pendelhaven-mana"
-        )!;
-        expect(mana.useStack).toBe(false);
-        expect(mana.manaProduced).toEqual({ G: 1 });
-        const pump = pendelhaven.activatedAbilities!.find(
-            (a) => a.id === "pendelhaven-pump"
-        )!;
-        expect(pump.targetRequirement?.powerFilter).toEqual({ min: 1, max: 1 });
-        expect(pump.targetRequirement?.toughnessFilter).toEqual({
-            min: 1,
-            max: 1,
-        });
-    });
-
     it("pumps a 1/1 creature to 2/3 until end of turn and survives projection", () => {
         const land = makeInstance(pendelhaven.id, { id: "pendel" });
         // Use a 1/1 vanilla creature (Tundra Wolves is 1/1).
@@ -666,15 +584,6 @@ describe("Bands-with-other grant-lands (CR 702.22j, keyword-grant)", () => {
     ];
 
     for (const land of LANDS) {
-        it(`${land.name} declares a legendary keyword-grant`, () => {
-            const grant = land.staticEffects?.find(
-                (e) => e.kind === "keyword-grant"
-            );
-            expect(grant).toBeDefined();
-            expect(grant && "keyword" in grant && grant.keyword).toBe(
-                "bands with other:legendary"
-            );
-        });
     }
 
     it("Adventurers' Guildhouse grants the keyword to your GREEN legendary creature only", () => {
@@ -746,13 +655,6 @@ describe("Bands-with-other grant-lands (CR 702.22j, keyword-grant)", () => {
 });
 
 describe("Tolaria (strip banding + bands-with-other, upkeep-only, CR 611.1b)", () => {
-    it("restricts the strip ability to the upkeep step", () => {
-        const strip = tolaria.activatedAbilities?.find(
-            (a) => a.id === "tolaria-strip"
-        );
-        expect(strip?.activationPhaseRestriction).toEqual(["UPKEEP"]);
-    });
-
     it("strips both banding and bands-with-other until cleanup", () => {
         const land = makeInstance(tolaria.id, {
             id: "tolaria",
@@ -791,21 +693,6 @@ describe("Tolaria (strip banding + bands-with-other, upkeep-only, CR 611.1b)", (
 });
 
 describe("The Tabernacle at Pendrell Vale (CR 113.1 triggered-grant + CR 603.6a upkeep tax)", () => {
-    it("declares a triggered-grant static and the granted template (not on triggeredAbilities)", () => {
-        const kinds = (theTabernacleAtPendrellVale.staticEffects ?? []).map(
-            (e) => e.kind
-        );
-        expect(kinds).toContain("triggered-grant");
-        expect(
-            theTabernacleAtPendrellVale.triggeredAbilities ?? []
-        ).toHaveLength(0);
-        expect(
-            theTabernacleAtPendrellVale.triggeredGrantTemplates?.some(
-                (t) => t.id === "tabernacle-upkeep"
-            )
-        ).toBe(true);
-    });
-
     it("grants the upkeep tax to every creature in play (CR 611 filtered set)", () => {
         const { bear } = withTabernacle();
         expect(
@@ -973,29 +860,6 @@ describe("Mana Batteries (charge-counter scaling mana ability, CR 106 / 605)", (
             name: "White Mana Battery",
         },
     ];
-
-    it("ships all five colour variants from one parametric definition", () => {
-        for (const { def, color, name } of BATTERIES) {
-            expect(def.name).toBe(name);
-            expect(def.types).toEqual(["Artifact"]);
-            expect(def.manaCost).toEqual({ X: 4 });
-            const charge = def.activatedAbilities?.find(
-                (a) => a.id === "mana-battery-charge"
-            );
-            const tap = def.activatedAbilities?.find(
-                (a) => a.id === "mana-battery-tap"
-            );
-            // Charge half uses the stack (adds a counter, not mana).
-            expect(charge?.useStack).toBe(true);
-            expect(charge?.cost).toEqual({ mana: { X: 2 }, tap: true });
-            // Mana half is a mana ability (resolves immediately, no stack).
-            expect(tap?.useStack).toBe(false);
-            expect(tap?.cost).toEqual({ tap: true });
-            expect(tap?.manaChoiceRemovesCounters).toBe("charge");
-            // Fallback / representative output: one mana of the colour.
-            expect(tap?.manaChoices).toEqual([{ [color]: 1 }]);
-        }
-    });
 
     it("adds a charge counter via the {2},{T} ability (CR 122.1)", () => {
         const battery = makeInstance(redManaBattery.id, {

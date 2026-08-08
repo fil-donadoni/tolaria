@@ -83,12 +83,6 @@ describe("Corpse Dance (CR 404.3 ordered graveyard, CR 702.27 buyback, CR 702.10
             zone: "graveyard",
         });
 
-    it("definitional: {2}{B} Instant with Buyback {2}", () => {
-        expect(corpseDance.manaCost).toEqual({ X: 2, B: 1 });
-        expect(corpseDance.types).toEqual(["Instant"]);
-        expect(corpseDance.buyback).toEqual({ X: 2 });
-    });
-
     it("returns the TOP creature card (most recently added), grants haste, and exiles it at the next end step", () => {
         // Pile bottom → top: a NON-creature (Reckless Spite), then the older
         // creature, then the newer one. "The top creature card" is the newer

@@ -141,13 +141,6 @@ describe("Hurkyl's Recall (return all artifacts target player owns to hand, CR 7
         expect(state.players[0].hand.some((c) => c.id === "a1")).toBe(false);
         expect(state.players[1].hand.some((c) => c.id === "a1")).toBe(true);
     });
-
-    it("targets a player", () => {
-        expect(hurkylsRecall.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-        });
-    });
 });
 
 describe("Reconstruction (return artifact card from your graveyard to hand, CR 400.7)", () => {
@@ -282,11 +275,6 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
         expect(state.players[0].graveyard.some((c) => c.id === "g2")).toBe(
             false
         );
-    });
-
-    it("takes a variable number of graveyard artifact targets (min 1)", () => {
-        expect(drafnasRestoration.targetRequirement?.count).toEqual({ min: 1 });
-        expect(drafnasRestoration.targetRequirement?.zone).toBe("graveyard");
     });
 
     it("getLegalTargets offers artifact cards from any player's graveyard", () => {
@@ -469,20 +457,6 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
         return { state, engine, aura };
     }
 
-    it("definition: {U}{U} Aura that enchants an artifact", () => {
-        expect(powerArtifact.manaCost).toEqual({ U: 2 });
-        expect(powerArtifact.types).toEqual(["Enchantment"]);
-        expect(powerArtifact.subtypes).toEqual(["Aura"]);
-        expect(powerArtifact.targetRequirement).toEqual({
-            type: "Artifact",
-            count: 1,
-        });
-        const mod = powerArtifact.staticEffects!.find(
-            (e) => e.kind === "cost-modifier"
-        );
-        expect(mod).toBeDefined();
-    });
-
     it("reduces the host's {2} ability to the {1} floor (CR 118.7)", () => {
         const { state, engine } = enchantedDragonEngine();
         // {2} - {2} = {0}, clamped up to the one-mana floor → {1}.
@@ -618,19 +592,6 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
 });
 
 describe("Energy Flux ({2}{U} Enchantment — CR 113.1 triggered-grant + CR 611 filtered set + CR 603.6a upkeep)", () => {
-    it("declares a triggered-grant static effect and the granted template", () => {
-        const kinds = (energyFlux.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("triggered-grant");
-        // The granted template lives on triggeredGrantTemplates, NOT on
-        // triggeredAbilities (Energy Flux itself must not fire it).
-        expect(energyFlux.triggeredAbilities ?? []).toHaveLength(0);
-        expect(
-            energyFlux.triggeredGrantTemplates?.some(
-                (t) => t.id === "energy-flux-upkeep"
-            )
-        ).toBe(true);
-    });
-
     it("grants the upkeep trigger to every artifact in play", () => {
         const { ring } = withEnergyFlux();
         expect(

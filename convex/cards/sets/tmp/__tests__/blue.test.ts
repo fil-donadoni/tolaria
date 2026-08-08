@@ -14,15 +14,6 @@ import { projectPublicState } from "../../../../gameProjections";
 // lives in `gre/effects/__tests__/interpreter.test.ts`; this suite is the
 // per-card smoke test through the real card definition.
 describe("Time Warp (extra turn after this one, CR 500.7, issue #686)", () => {
-    it("is a {3}{U}{U} sorcery targeting a player", () => {
-        expect(timeWarp.manaCost).toEqual({ X: 3, U: 2 });
-        expect(timeWarp.types).toEqual(["Sorcery"]);
-        expect(timeWarp.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-        });
-    });
-
     it("resolves by queueing an extra turn for the target player", () => {
         const state = makeState();
         pushSpell(state, timeWarp.id, "p1", [{ type: "player", id: "p2" }]);

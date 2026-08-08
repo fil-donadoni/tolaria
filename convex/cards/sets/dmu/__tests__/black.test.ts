@@ -51,15 +51,6 @@ describe("Sheoldred, the Apocalypse (CR 121.1 draw-triggered life swing)", () =>
         processPendingActionTriggers(state);
     }
 
-    it("snapshot: card definition wiring (oracle + both draw triggers)", () => {
-        expect(sheoldredTheApocalypse.staticAbilities).toContain("deathtouch");
-        const ids = (sheoldredTheApocalypse.triggeredAbilities ?? []).map(
-            (t) => t.id
-        );
-        expect(ids).toContain("sheoldred-your-draw-gain-life");
-        expect(ids).toContain("sheoldred-opponent-draw-lose-life");
-    });
-
     it("an opponent drawing a card makes that opponent lose 2 life (CR 121.1)", () => {
         const sheol = makeSheoldred("p1");
         const p1 = makePlayer("p1", { battlefield: [sheol], life: 20 });

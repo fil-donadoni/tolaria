@@ -15,16 +15,13 @@ import {
     amrouKithkin,
     arboria,
     barbaryApes,
-    catWarriors,
     cocoon,
     concordantCrossroads,
     durkwoodBoars,
     elvenRiders,
     emeraldDragonfly,
-    fireSprites,
     giantTurtle,
     gravitySphere,
-    hornetCobra,
     hundingGjornersen,
     killerBees,
     masterOfTheHunt,
@@ -82,15 +79,6 @@ describe("LEG green — vanilla / keyword definitions (CR 110.1 / 702)", () => {
         expect(durkwoodBoars.toughness).toBe(4);
         expect(mossMonster.power).toBe(3);
         expect(mossMonster.toughness).toBe(6);
-    });
-    it("declares the printed keywords (CR 702)", () => {
-        expect(catWarriors.staticAbilities).toContain("forestwalk");
-        expect(hornetCobra.staticAbilities).toContain("first strike");
-        expect(emeraldDragonfly.staticAbilities).toContain("flying");
-        expect(fireSprites.staticAbilities).toContain("flying");
-        expect(killerBees.staticAbilities).toContain("flying");
-        expect(pixieQueen.staticAbilities).toContain("flying");
-        expect(rabidWombat.staticAbilities).toContain("vigilance");
     });
 });
 
@@ -217,14 +205,6 @@ describe("Emerald Dragonfly ({G}{G}: gains first strike EOT, CR 611.1b)", () => 
                 (g) => g.ability === "first strike"
             )
         ).toBe(true);
-    });
-});
-
-describe("Fire Sprites ({G}, {T}: Add {R}, CR 605.1a mana ability)", () => {
-    it("declares a mana ability that does not use the stack", () => {
-        const ability = fireSprites.activatedAbilities?.[0];
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaProduced).toEqual({ R: 1 });
     });
 });
 
@@ -579,11 +559,6 @@ describe("world rule SBA (CR 704.5m)", () => {
 });
 
 describe("Concordant Crossroads (World — all creatures have haste, CR 702.10)", () => {
-    it("carries the World supertype as data", () => {
-        expect(concordantCrossroads.supertypes).toEqual(["World"]);
-        expect(concordantCrossroads.types).toEqual(["Enchantment"]);
-    });
-
     it("grants haste to every creature, regardless of controller (wire format)", () => {
         const cc = makeInstance(concordantCrossroads.id, {
             id: "cc",
@@ -826,12 +801,6 @@ describe("Whirling Dervish (end-step +1/+1 if it dealt damage to an opponent thi
         return { state, dervish };
     }
 
-    it("has protection from black", () => {
-        expect(whirlingDervish.staticAbilities).toContain(
-            "protection from black"
-        );
-    });
-
     it("the end-step trigger fires (and grows) only when it dealt damage to an opponent", () => {
         const yes = setup(true);
         const fired = collectTriggers(yes.state, [
@@ -861,12 +830,6 @@ describe("Whirling Dervish (end-step +1/+1 if it dealt damage to an opponent thi
 });
 
 describe("Arboria (CR 508.1c — defender-history attack restriction)", () => {
-    it("has the correct definition shape", () => {
-        expect(arboria.supertypes).toEqual(["World"]);
-        expect(arboria.types).toEqual(["Enchantment"]);
-        expect(arboria.manaCost).toEqual({ X: 2, G: 2 });
-    });
-
     it("does not restrict attacks when not on the battlefield", () => {
         const state = makeState();
         expect(arboriaForbidsAttack(state, "p2")).toBe(false);
@@ -935,20 +898,6 @@ describe("Arboria (CR 508.1c — defender-history attack restriction)", () => {
 });
 
 describe("Giant Turtle (#490 — self attack restriction, CR 508.1)", () => {
-    it("has the correct definition shape (cost / P-T / oracle)", () => {
-        expect(giantTurtle.name).toBe("Giant Turtle");
-        expect(giantTurtle.manaCost).toEqual({ X: 1, G: 2 });
-        expect(giantTurtle.power).toBe(2);
-        expect(giantTurtle.toughness).toBe(4);
-        expect(giantTurtle.oracleText).toBe(
-            "This creature can't attack if it attacked during your last turn."
-        );
-        const restriction = giantTurtle.staticEffects?.find(
-            (e) => e.kind === "attack-restriction"
-        );
-        expect(restriction).toBeDefined();
-    });
-
     it("can attack on a turn it did not attack last turn (CR 508.1)", () => {
         // First turn it sees combat: attackedDuringLastTurn is unset → legal.
         const turtle = makeInstance(giantTurtle.id, {

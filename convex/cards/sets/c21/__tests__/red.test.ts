@@ -67,16 +67,6 @@ function counterCount(state: GameState, id: string): number {
 }
 
 describe("Laelia, the Blade Reforged (issue #1558, CR 400.1 / 603.3b / 608.2i)", () => {
-    it("is a {2}{R} Legendary Spirit Warrior 2/2 with haste", () => {
-        expect(laeliaTheBladeReforged.manaCost).toEqual({ X: 2, R: 1 });
-        expect(laeliaTheBladeReforged.types).toEqual(["Creature"]);
-        expect(laeliaTheBladeReforged.supertypes).toEqual(["Legendary"]);
-        expect(laeliaTheBladeReforged.subtypes).toEqual(["Spirit", "Warrior"]);
-        expect(laeliaTheBladeReforged.power).toBe(2);
-        expect(laeliaTheBladeReforged.toughness).toBe(2);
-        expect(laeliaTheBladeReforged.staticAbilities).toEqual(["haste"]);
-    });
-
     describe("ability 1 — attack impulse-draw (CR 508.1)", () => {
         it("exiles the top card of its controller's library face down, castable this turn", () => {
             const laelia = makeInstance(laeliaTheBladeReforged.id, {

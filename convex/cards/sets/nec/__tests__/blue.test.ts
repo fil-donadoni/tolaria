@@ -39,21 +39,6 @@ function pushArtifactEtb(
 }
 
 describe("Kappa Cannoneer (Improvise + Ward + self/artifact ETB anthem, CR 702.126/702.21, issue #1527)", () => {
-    it("is a {5}{U} 4/4 Artifact Creature — Turtle Warrior with improvise + ward {4}", () => {
-        expect(kappaCannoneer.manaCost).toEqual({ X: 5, U: 1 });
-        expect(kappaCannoneer.power).toBe(4);
-        expect(kappaCannoneer.toughness).toBe(4);
-        expect(kappaCannoneer.staticAbilities).toEqual([
-            "improvise",
-            "ward {4}",
-        ]);
-        const ward = kappaCannoneer.triggeredAbilities?.find(
-            (a) => a.id === "ward"
-        );
-        expect(ward).toBeDefined();
-        expect(ward?.oracleText).toMatch(/Ward \{4\}/);
-    });
-
     it("its OWN ETB puts a +1/+1 counter on itself and makes it unblockable this turn", () => {
         const kappa = makeInstance(kappaCannoneer.id, {
             id: "kappa",

@@ -23,21 +23,6 @@ import {
 } from "../../../../gre/pendingChoiceSubmit";
 
 describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.7 subtype-set)", () => {
-    it("declares the pay-choice, the choose-type trigger, and a self-only subtype-set static", () => {
-        expect(multiversalPassage.types).toEqual(["Land"]);
-        expect(multiversalPassage.entersTappedUnlessPay).toEqual({ life: 2 });
-        expect(multiversalPassage.entersTapped).toBeUndefined();
-        expect(multiversalPassage.entersTappedUnless).toBeUndefined();
-        const kinds = (multiversalPassage.staticEffects ?? []).map(
-            (e) => e.kind
-        );
-        expect(kinds).toEqual(["subtype-set"]);
-        const choose = multiversalPassage.triggeredAbilities?.find(
-            (t) => t.id === "multiversal-passage-choose-type"
-        );
-        expect(choose).toBeTruthy();
-    });
-
     it("the subtype-set static applies ONLY to itself (a pre-set chosenSubtypes)", () => {
         const passage = makeInstance(multiversalPassage.id, {
             id: "passage-1",

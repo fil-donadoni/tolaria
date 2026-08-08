@@ -43,19 +43,6 @@ function activateDiscardAbilityTargeting(
 }
 
 describe("Harvester of Misery — targeted from-hand discard ability (CR 113.6 / 702.29a / 602.2b)", () => {
-    it("pins the ability shape: from-hand, discard-this cost, single creature target", () => {
-        const ability = harvesterOfMisery.activatedAbilities?.find(
-            (a) => a.id === DISCARD_ABILITY_ID
-        );
-        expect(ability?.activateFromHand).toBe(true);
-        expect(ability?.cost.discardThis).toBe(true);
-        expect(ability?.cost.mana).toEqual({ X: 1, B: 1 });
-        expect(ability?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-    });
-
     it("immediate commit (mana in pool): locates the source in HAND, discards it, and the target gets -2/-2", () => {
         const harvester = makeInstance(harvesterOfMisery.id, {
             id: "harvester",

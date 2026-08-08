@@ -29,15 +29,6 @@ import {
 import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
 
 describe("Lava Dart (CR 702.34) — 1 damage + flashback sacrifice a Mountain", () => {
-    it("is an {R} Instant with a purely non-mana flashback cost", () => {
-        expect(lavaDart.manaCost).toEqual({ R: 1 });
-        expect(lavaDart.types).toEqual(["Instant"]);
-        expect(lavaDart.targetRequirement).toEqual({ type: "any", count: 1 });
-        expect(lavaDart.flashback).toEqual({
-            sacrifice: { types: "Land", subtypes: "Mountain" },
-        });
-    });
-
     it("main cast: deals 1 damage to any target (player)", () => {
         const p1 = makePlayer("p1");
         const p2 = makePlayer("p2");

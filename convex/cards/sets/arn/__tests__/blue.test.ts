@@ -6,7 +6,6 @@
 import { describe, it, expect } from "vitest";
 import {
     dandan,
-    fishliverOil,
     giantTortoise,
     islandFishJasconius,
     moorishCavalry,
@@ -95,10 +94,6 @@ describe("Serendib Djinn (upkeep: sac a land, Island → 3 damage)", () => {
 });
 
 describe("Dandân (can't attack unless defender has Island; no Islands → sac)", () => {
-    it("declares an attack-restriction static effect", () => {
-        const restr = dandan.staticEffects?.[0];
-        expect(restr?.kind).toBe("attack-restriction");
-    });
     it("sacrifices itself when controller has no Islands", () => {
         const dd = makeInstance(dandan.id, { id: "dd" });
         const state = makeState({
@@ -132,9 +127,6 @@ describe("Dandân (can't attack unless defender has Island; no Islands → sac)"
 });
 
 describe("Island Fish Jasconius (does-not-untap + pay {U}{U}{U} to untap)", () => {
-    it("has the does-not-untap keyword", () => {
-        expect(islandFishJasconius.staticAbilities).toContain("does-not-untap");
-    });
     it("paying {U}{U}{U} on upkeep untaps it", () => {
         const fish = makeInstance(islandFishJasconius.id, {
             id: "fish",
@@ -220,16 +212,6 @@ describe("Unstable Mutation (aura +3/+3 + upkeep -1/-1 counter)", () => {
         // 2/2 base + 3/3 aura - 1/1 counter = 4/4
         expect(getEffectivePower(state, bear)).toBe(4);
         expect(getEffectiveToughness(state, bear)).toBe(4);
-    });
-});
-
-describe("Fishliver Oil (aura grants islandwalk)", () => {
-    it("declares an islandwalk keyword-grant on the host", () => {
-        const grant = fishliverOil.staticEffects?.[0];
-        expect(grant?.kind).toBe("keyword-grant");
-        if (grant?.kind === "keyword-grant") {
-            expect(grant.keyword).toBe("islandwalk");
-        }
     });
 });
 

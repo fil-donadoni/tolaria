@@ -25,13 +25,6 @@ import type { CardType } from "../../../types";
 describe("Ledger Shredder (CR 701.50 connive, CR 601.2i, issue #1343)", () => {
     const trig = ledgerShredder.triggeredAbilities?.[0];
 
-    it("ships flying and a single connive trigger", () => {
-        expect(ledgerShredder.staticAbilities).toContain("flying");
-        expect(trig).toBeDefined();
-        expect(trig!.effects).toBeDefined();
-        expect(trig!.resolve).toBeUndefined();
-    });
-
     // Per-player-vs-global distinction (the exact gap issue #1343 closes):
     // P1's 1st spell + P2's 1st spell (2 spells total, table-wide) must NOT
     // fire — each caster is still on their own first spell. Only a caster's

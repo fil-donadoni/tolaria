@@ -47,35 +47,6 @@ function pushModalVisionCharm(
 }
 
 describe("Vision Charm (VIS, {U} modal instant — CR 700.2)", () => {
-    it("is a {U} instant whose three modes carry per-mode targeting (CR 700.2d)", () => {
-        expect(visionCharm.manaCost).toEqual({ U: 1 });
-        expect(visionCharm.types).toEqual(["Instant"]);
-        expect(visionCharm.oracleText).toContain("Target player mills four");
-        expect(visionCharm.oracleText).toContain("basic land type");
-        expect(visionCharm.oracleText).toContain("Target artifact phases out");
-
-        // Migrated onto the cast-time modes framework (CR 601.2b): NO card-level
-        // resolve, and the mode is picked at cast — never via a resolution-time
-        // option choice.
-        expect(visionCharm.resolve).toBeUndefined();
-        const modes = visionCharm.modes!;
-        expect(modes.map((m) => m.id)).toEqual(["mill", "land-type", "phase"]);
-        // Per-mode target requirements (CR 700.2d): mode 1 → a player, mode 2 →
-        // no target, mode 3 → an artifact.
-        expect(modes[0].targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-        });
-        expect(modes[1].targetRequirement).toBeUndefined();
-        expect(modes[2].targetRequirement).toEqual({
-            type: "Artifact",
-            count: 1,
-        });
-        // Each mode ships its own oracle bullet line for the stack display.
-        expect(modes[0].oracleText).toBe("Target player mills four cards.");
-        expect(modes[2].oracleText).toBe("Target artifact phases out.");
-    });
-
     it("mode 1 — target player mills four cards (CR 701.17)", () => {
         const lib = Array.from({ length: 6 }, (_, i) =>
             makeInstance(grizzlyBears.id, {

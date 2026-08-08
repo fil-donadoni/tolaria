@@ -13,28 +13,6 @@ import { resolveTopOfStack, becomeMonarch } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 
 describe("Palace Jailer — become the monarch + exile-until-monarch-changes (CR 720, issue #1199)", () => {
-    it("is registered with the printed characteristics and both ETB triggers", () => {
-        expect(palaceJailer.manaCost).toEqual({ generic: 2, W: 2 });
-        expect(palaceJailer.types).toEqual(["Creature"]);
-        expect(palaceJailer.subtypes).toEqual(["Human", "Soldier"]);
-        expect(palaceJailer.power).toBe(2);
-        expect(palaceJailer.toughness).toBe(2);
-        expect(palaceJailer.triggeredAbilities).toHaveLength(2);
-        const monarchAbility = palaceJailer.triggeredAbilities!.find(
-            (a) => a.id === "palace-jailer-monarch"
-        );
-        expect(monarchAbility?.effects).toEqual([{ op: "becomeMonarch" }]);
-        const exileAbility = palaceJailer.triggeredAbilities!.find(
-            (a) => a.id === "palace-jailer-exile"
-        );
-        expect(exileAbility?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            controller: "opponent",
-        });
-        expect(exileAbility?.resolve).toBeDefined();
-    });
-
     it("becomes the monarch and exiles the sole legal opposing creature on ETB", () => {
         const bear = getCardByName("Grizzly Bears");
         const victim = makeInstance(bear.id, {

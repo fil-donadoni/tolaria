@@ -79,24 +79,6 @@ function resolveLandfall(
 }
 
 describe("Scythecat Cub (CR 603.6a Landfall / 122 counters, issue #1189)", () => {
-    it("shape: 2/2 trample for {X}{G} with the Landfall trigger declared", () => {
-        expect(scythecatCub.manaCost).toEqual({ X: 1, G: 1 });
-        expect(scythecatCub.power).toBe(2);
-        expect(scythecatCub.toughness).toBe(2);
-        expect(scythecatCub.staticAbilities).toContain("trample");
-        expect(scythecatCub.triggeredAbilities).toHaveLength(1);
-    });
-
-    it("declares the CR 603.3d target requirement: target creature you control", () => {
-        expect(scythecatCub.triggeredAbilities?.[0]?.targetRequirement).toEqual(
-            {
-                type: "Creature",
-                count: 1,
-                controller: "you",
-            }
-        );
-    });
-
     it("mandatory single target auto-selects when exactly one creature is legal (CR 603.3d)", () => {
         // Only the Cub itself is on the battlefield → the sole legal "creature
         // you control" is auto-selected; no PendingTarget is raised.

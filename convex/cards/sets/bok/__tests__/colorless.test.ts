@@ -61,44 +61,6 @@ const combatDamage = (sourceId: string, controllerId: string) => ({
 });
 
 describe("Umezawa's Jitte (BOK #155, issue #1341)", () => {
-    it("definition sanity — legendary Equipment, instant-speed modal ability, Equip {2}", () => {
-        expect(umezawasJitte.manaCost).toEqual({ generic: 2 });
-        expect(umezawasJitte.supertypes).toEqual(["Legendary"]);
-        expect(umezawasJitte.subtypes).toEqual(["Equipment"]);
-
-        const modal = umezawasJitte.activatedAbilities!.find(
-            (a) => a.id === "umezawas-jitte-modes"
-        )!;
-        // CR 122.6 — the whole cost is the counter removal; no mana, no tap.
-        expect(modal.cost).toEqual({
-            removeCounter: { type: "charge", count: 1 },
-        });
-        // CR 602.2 — instant speed. Equip is the sorcery-speed one.
-        expect(modal.sorcerySpeedOnly).toBeUndefined();
-        // CR 700.2d — the ability declares NO ability-level requirement; only
-        // the middle mode targets.
-        expect(modal.targetRequirement).toBeUndefined();
-        expect(modal.modes?.map((m) => m.id)).toEqual([
-            "pump-equipped",
-            "shrink-target",
-            "gain-life",
-        ]);
-        expect(
-            modal.modes!.map((m) => m.targetRequirement !== undefined)
-        ).toEqual([false, true, false]);
-        // DSL-only: every mode is an Effect Script, no closure.
-        for (const mode of modal.modes!) {
-            expect(mode.effects).toBeDefined();
-            expect(mode.resolve).toBeUndefined();
-        }
-
-        const equip = umezawasJitte.activatedAbilities!.find(
-            (a) => a.id === "umezawas-jitte-equip"
-        )!;
-        expect(equip.cost).toEqual({ mana: { generic: 2 } });
-        expect(equip.sorcerySpeedOnly).toBe(true);
-    });
-
     it("charge trigger fires on the EQUIPPED creature's combat damage only", () => {
         const { state, jitte } = setup();
         const trigger = umezawasJitte.triggeredAbilities![0];

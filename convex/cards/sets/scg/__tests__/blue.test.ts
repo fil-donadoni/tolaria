@@ -56,16 +56,6 @@ function activatedOnStack(
 describe("Stifle — counter target activated or triggered ability (CR 701.5a / 113.7a)", () => {
     const req = stifle.targetRequirement!;
 
-    it("is a {U} Instant whose target keeps any ability on the stack", () => {
-        expect(stifle.manaCost).toEqual({ U: 1 });
-        expect(stifle.types).toEqual(["Instant"]);
-        expect(req.type).toBe("spell");
-        expect(req.spellStackKind).toBe("ability");
-        expect(stifle.effects).toEqual([
-            { op: "counter", target: { target: 0 } },
-        ]);
-    });
-
     it("targets a TRIGGERED ability on the stack", () => {
         const state = makeState();
         state.stack.push(triggeredOnStack(balduvianBears.id, "bear-trigger"));

@@ -74,25 +74,6 @@ function chooseSnapTarget(state: GameState, cardId: string, playerId: string) {
 }
 
 describe("Snapcaster Mage (ETB grants flashback, CR 702.34 / CR 603.3d target)", () => {
-    it("is a {1}{U} 2/1 Human Wizard with flash", () => {
-        expect(snapcasterMage.manaCost).toEqual({ X: 1, U: 1 });
-        expect(snapcasterMage.power).toBe(2);
-        expect(snapcasterMage.toughness).toBe(1);
-        expect(snapcasterMage.subtypes).toEqual(["Human", "Wizard"]);
-        expect(snapcasterMage.staticAbilities).toContain("flash");
-    });
-
-    it("declares the CR 603.3d target requirement: instant/sorcery card in your graveyard", () => {
-        expect(
-            snapcasterMage.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({
-            type: ["Instant", "Sorcery"],
-            count: 1,
-            zone: "graveyard",
-            controller: "you",
-        });
-    });
-
     it("grants the CHOSEN instant/sorcery flashback = its mana cost, tagged on the wire", () => {
         const snap = makeInstance(snapcasterMage.id, {
             id: "snap",

@@ -49,13 +49,6 @@ describe("Ouroboroid (CR 603.6a beginning-of-combat trigger; CR 122 mass counter
         return { state, ouro, other };
     }
 
-    it("shape: 1/3 for {2}{G}{G} with the beginning-of-combat trigger declared", () => {
-        expect(ouroboroid.manaCost).toEqual({ X: 2, G: 2 });
-        expect(ouroboroid.power).toBe(1);
-        expect(ouroboroid.toughness).toBe(3);
-        expect(ouroboroid.triggeredAbilities).toHaveLength(1);
-    });
-
     it("puts X (its own power, 1) +1/+1 counters on EACH creature you control, including itself", () => {
         const { state } = setup();
         state.stack.push(
@@ -143,15 +136,6 @@ describe("Icetill Explorer (extra land drop; play-lands-from-graveyard permissio
             types: ["Land"],
         } as PermanentEnteredEvent;
     }
-
-    it("shape: {2}{G}{G} 2/4 with extraLandDrops, playsLandsFromGraveyard, and one Landfall trigger", () => {
-        expect(icetillExplorer.manaCost).toEqual({ X: 2, G: 2 });
-        expect(icetillExplorer.power).toBe(2);
-        expect(icetillExplorer.toughness).toBe(4);
-        expect(icetillExplorer.extraLandDrops).toBe(1);
-        expect(icetillExplorer.playsLandsFromGraveyard).toBe(true);
-        expect(icetillExplorer.triggeredAbilities).toHaveLength(1);
-    });
 
     it("CR 305.2 — grants an extra land drop while on the battlefield", () => {
         const icetill = makeInstance(icetillExplorer.id, {

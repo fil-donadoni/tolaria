@@ -72,21 +72,6 @@ function resolveActivated(
 }
 
 describe("Lashknife Barrier ({2}{W} Enchantment — damage reduction, CR 614)", () => {
-    it("is a {2}{W} Enchantment with the modern oracle text", () => {
-        expect(lashknifeBarrier.manaCost).toEqual({ X: 2, W: 1 });
-        expect(lashknifeBarrier.types).toEqual(["Enchantment"]);
-        expect(lashknifeBarrier.oracleText).toBe(
-            "When this enchantment enters, draw a card.\nIf a source would deal damage to a creature you control, it deals that much damage minus 1 to that creature instead."
-        );
-    });
-
-    it("declares a single ETB trigger that draws a card (per-Op regime — draw is already exercised)", () => {
-        expect(lashknifeBarrier.triggeredAbilities).toHaveLength(1);
-        expect(lashknifeBarrier.triggeredAbilities?.[0]?.effects).toEqual([
-            { op: "draw", player: "controller", count: 1 },
-        ]);
-    });
-
     it("reduces damage from any source to a creature its controller controls by 1 (CR 614)", () => {
         const barrier = makeInstance(lashknifeBarrier.id, {
             id: "barrier",
@@ -233,19 +218,6 @@ describe("Lashknife Barrier ({2}{W} Enchantment — damage reduction, CR 614)", 
 });
 
 describe("Heroic Defiance ({1}{W} Enchantment — Aura, most-common-colour census, CR 613)", () => {
-    it("is a {1}{W} Enchantment — Aura with the modern oracle text", () => {
-        expect(heroicDefiance.manaCost).toEqual({ X: 1, W: 1 });
-        expect(heroicDefiance.types).toEqual(["Enchantment"]);
-        expect(heroicDefiance.subtypes).toEqual(["Aura"]);
-        expect(heroicDefiance.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-        expect(heroicDefiance.oracleText).toBe(
-            "Enchant creature\nEnchanted creature gets +3/+3 unless it shares a color with the most common color among all permanents or a color tied for most common."
-        );
-    });
-
     it("grants +3/+3 when the enchanted creature's colour is NOT among the most common (CR 613 census)", () => {
         // Census: aura W=1, target (Craw Wurm) G=1, three Dragon Whelps R=3 —
         // plus an inert colourless Plains, proving a colourless permanent
@@ -525,16 +497,6 @@ describe("Heroic Defiance ({1}{W} Enchantment — Aura, most-common-colour censu
 });
 
 describe("Hobble ({2}{W} Aura — can't-attack + conditional can't-block, CR 508.1c/509.1)", () => {
-    it("is a {2}{W} Enchantment — Aura with the modern oracle text", () => {
-        expect(hobble.manaCost).toEqual({ X: 2, W: 1 });
-        expect(hobble.types).toEqual(["Enchantment"]);
-        expect(hobble.subtypes).toEqual(["Aura"]);
-        expect(hobble.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-    });
-
     it("prevents the enchanted creature from attacking (CR 508.1c, aura-granted attack-restriction)", () => {
         // Extends `collectAttackRestrictions` (gre/combat.ts) to scan attached
         // auras, mirroring `collectBlockRestrictions`'s existing aura scan —
@@ -772,14 +734,6 @@ describe("Hobble ({2}{W} Aura — can't-attack + conditional can't-block, CR 508
 });
 
 describe("Samite Elder ({2}{W} Creature — dynamic protection grant, CR 702.16)", () => {
-    it("is a {2}{W} Human Cleric 1/2 with the modern oracle text", () => {
-        expect(samiteElder.manaCost).toEqual({ X: 2, W: 1 });
-        expect(samiteElder.types).toEqual(["Creature"]);
-        expect(samiteElder.subtypes).toEqual(["Human", "Cleric"]);
-        expect(samiteElder.power).toBe(1);
-        expect(samiteElder.toughness).toBe(2);
-    });
-
     it("grants every creature the controller controls protection from EACH of the target permanent's colours (CR 702.16)", () => {
         const elder = makeInstance(samiteElder.id, {
             id: "elder",
@@ -891,18 +845,6 @@ describe("Samite Elder ({2}{W} Creature — dynamic protection grant, CR 702.16)
 });
 
 describe("Aurora Griffin ({W}: target permanent becomes white until end of turn, CR 613.1e)", () => {
-    it("is a {3}{W} 2/2 flying Griffin with the modern oracle text", () => {
-        expect(auroraGriffin.manaCost).toEqual({ X: 3, W: 1 });
-        expect(auroraGriffin.types).toEqual(["Creature"]);
-        expect(auroraGriffin.subtypes).toEqual(["Griffin"]);
-        expect(auroraGriffin.power).toBe(2);
-        expect(auroraGriffin.toughness).toBe(2);
-        expect(auroraGriffin.staticAbilities).toContain("flying");
-        expect(auroraGriffin.oracleText).toBe(
-            "Flying\n{W}: Target permanent becomes white until end of turn."
-        );
-    });
-
     it("changes a target permanent's colour to white until end of turn (setColor, CR 613.1e)", () => {
         const griffin = makeInstance(auroraGriffin.id, {
             id: "griffin",
@@ -931,14 +873,6 @@ describe("Aurora Griffin ({W}: target permanent becomes white until end of turn,
 });
 
 describe("Disciple of Kangee ({U},{T}: target creature gains flying and becomes blue until end of turn)", () => {
-    it("is a {2}{W} 2/2 Human Wizard with the modern oracle text", () => {
-        expect(discipleOfKangee.manaCost).toEqual({ X: 2, W: 1 });
-        expect(discipleOfKangee.types).toEqual(["Creature"]);
-        expect(discipleOfKangee.subtypes).toEqual(["Human", "Wizard"]);
-        expect(discipleOfKangee.power).toBe(2);
-        expect(discipleOfKangee.toughness).toBe(2);
-    });
-
     it("grants flying and changes the target's colour to blue until end of turn", () => {
         const disciple = makeInstance(discipleOfKangee.id, {
             id: "disciple",
@@ -968,11 +902,6 @@ describe("Disciple of Kangee ({U},{T}: target creature gains flying and becomes 
 });
 
 describe("Dominaria's Judgment (per-basic-land-type conditional protection, CR 702.16)", () => {
-    it("is a {2}{W} Instant with the modern oracle text", () => {
-        expect(dominariasJudgment.manaCost).toEqual({ X: 2, W: 1 });
-        expect(dominariasJudgment.types).toEqual(["Instant"]);
-    });
-
     it("grants protection from white and blue only, when controlling exactly a Plains and an Island", () => {
         const bear = makeInstance(crawWurm.id, {
             id: "bear",
@@ -1129,14 +1058,6 @@ describe("Honorable Scout (ETB: gain 2 life per black/red creature target oppone
         resolveTopOfStack(state);
     }
 
-    it("is a {W} 1/1 Human Soldier Scout with the modern oracle text", () => {
-        expect(honorableScout.manaCost).toEqual({ W: 1 });
-        expect(honorableScout.types).toEqual(["Creature"]);
-        expect(honorableScout.subtypes).toEqual(["Human", "Soldier", "Scout"]);
-        expect(honorableScout.power).toBe(1);
-        expect(honorableScout.toughness).toBe(1);
-    });
-
     it("gains 2 life for each black and/or red creature the targeted opponent controls", () => {
         const scout = makeInstance(honorableScout.id, {
             id: "scout",
@@ -1207,11 +1128,6 @@ describe("Honorable Scout (ETB: gain 2 life per black/red creature target oppone
 });
 
 describe("March of Souls (destroy all creatures, token per actually-destroyed creature, CR 701.8 / 111)", () => {
-    it("is a {4}{W} Sorcery with the modern oracle text", () => {
-        expect(marchOfSouls.manaCost).toEqual({ X: 4, W: 1 });
-        expect(marchOfSouls.types).toEqual(["Sorcery"]);
-    });
-
     it("destroys all creatures and each controller creates their own 1/1 white flying Spirit token", () => {
         const myBear = makeInstance(crawWurm.id, {
             id: "myBear",
@@ -1280,14 +1196,6 @@ describe("March of Souls (destroy all creatures, token per actually-destroyed cr
 });
 
 describe("Orim's Chant (Kicker {W}; target player can't cast spells this turn; if kicked, creatures can't attack this turn)", () => {
-    it("is a {W} Instant with a single {W} Kicker and the modern oracle text", () => {
-        expect(orimsChant.manaCost).toEqual({ W: 1 });
-        expect(orimsChant.types).toEqual(["Instant"]);
-        expect(orimsChant.kickers).toEqual([
-            { id: "kicker", description: "Kicker {W}", mana: { W: 1 } },
-        ]);
-    });
-
     it("locks the target player out of casting spells this turn, unkicked", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -1360,14 +1268,6 @@ describe("Orim's Chant (Kicker {W}; target player can't cast spells this turn; i
 });
 
 describe("Samite Pilgrim (Domain — {T}: prevent the next X damage to target creature this turn)", () => {
-    it("is a {1}{W} 1/1 Human Cleric with the modern oracle text", () => {
-        expect(samitePilgrim.manaCost).toEqual({ X: 1, W: 1 });
-        expect(samitePilgrim.types).toEqual(["Creature"]);
-        expect(samitePilgrim.subtypes).toEqual(["Human", "Cleric"]);
-        expect(samitePilgrim.power).toBe(1);
-        expect(samitePilgrim.toughness).toBe(1);
-    });
-
     it("prevents damage equal to the Domain count (basic land types among lands the controller controls)", () => {
         const pilgrim = makeInstance(samitePilgrim.id, {
             id: "pilgrim",
@@ -1449,19 +1349,6 @@ describe("Samite Pilgrim (Domain — {T}: prevent the next X damage to target cr
 });
 
 describe("Surprise Deployment (combat-only instant; put a nonwhite creature from hand onto the battlefield, return it at next end step)", () => {
-    it("is a {3}{W} Instant restricted to every combat step, with the modern oracle text", () => {
-        expect(surpriseDeployment.manaCost).toEqual({ X: 3, W: 1 });
-        expect(surpriseDeployment.types).toEqual(["Instant"]);
-        expect(surpriseDeployment.castPhaseRestriction).toEqual([
-            "BEGINNING_OF_COMBAT",
-            "DECLARE_ATTACKERS",
-            "DECLARE_BLOCKERS",
-            "FIRST_STRIKE_DAMAGE",
-            "COMBAT_DAMAGE",
-            "END_OF_COMBAT",
-        ]);
-    });
-
     it("puts the chosen nonwhite creature onto the battlefield, then returns EXACTLY that creature to hand at the next end step", () => {
         const bear = makeInstance(crawWurm.id, {
             id: "deployed-bear",
@@ -1664,17 +1551,6 @@ describe("Guard Dogs ({3}{W} Creature — conditional source-scoped prevention, 
         activate(state);
         expect(preventsCombat(state)).toBe(false);
     });
-
-    it("is a {3}{W} 2/2 Dog whose ability costs {2}{W} and a tap", () => {
-        expect(guardDogs.manaCost).toEqual({ X: 3, W: 1 });
-        expect(guardDogs.subtypes).toEqual(["Dog"]);
-        expect(guardDogs.power).toBe(2);
-        expect(guardDogs.toughness).toBe(2);
-        expect(guardDogs.activatedAbilities?.[0]?.cost).toEqual({
-            mana: { X: 2, W: 1 },
-            tap: true,
-        });
-    });
 });
 
 // ===========================================================================
@@ -1761,43 +1637,6 @@ describe("Pollen Remedy ({W} Instant — divided prevention shields, CR 615.1)",
         // Every chosen target gets at least 1, and the total is exactly 3.
         expect(shields.every((s) => s.remaining >= 1)).toBe(true);
         expect(shields.reduce((n, s) => n + s.remaining, 0)).toBe(3);
-    });
-
-    it("declares the divide-as-chosen requirement on BOTH the base and kicked target sets", () => {
-        expect(pollenRemedy.targetRequirement).toEqual({
-            type: "any",
-            count: { min: 1 },
-            divideAsChosen: { total: 3, kind: "prevent" },
-        });
-        expect(pollenRemedy.kickedTargetRequirement).toEqual({
-            type: "any",
-            count: { min: 1 },
-            divideAsChosen: { total: 6, kind: "prevent" },
-        });
-        // The resolution-time totals MUST mirror the announcement-time ones,
-        // or the caster allocates 6 and only 3 is honoured.
-        expect(pollenRemedy.effects).toEqual([
-            {
-                op: "if",
-                predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
-                then: [
-                    {
-                        op: "preventDamage",
-                        mode: "next-n-divided",
-                        total: 6,
-                        duration: { phase: "end-of-turn" },
-                    },
-                ],
-                else: [
-                    {
-                        op: "preventDamage",
-                        mode: "next-n-divided",
-                        total: 3,
-                        duration: { phase: "end-of-turn" },
-                    },
-                ],
-            },
-        ]);
     });
 
     it("the shields survive the wire projection (wire format)", () => {

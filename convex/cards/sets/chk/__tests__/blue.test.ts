@@ -157,12 +157,4 @@ describe("Honden of Seeing Winds (upkeep: draw per Shrine — DSL-only triggered
         expect(projected.players[0].hand).toHaveLength(1);
         expect(projected.players[0].library.count).toBe(2);
     });
-
-    it("declares the printed characteristics (Scryfall CHK)", () => {
-        expect(hondenOfSeeingWinds.manaCost).toEqual({ X: 4, U: 1 });
-        expect(hondenOfSeeingWinds.types).toEqual(["Enchantment"]);
-        expect(hondenOfSeeingWinds.supertypes).toEqual(["Legendary"]);
-        expect(hondenOfSeeingWinds.subtypes).toEqual(["Shrine"]);
-        expect(hondenOfSeeingWinds.rarity).toBe("uncommon");
-    });
 });

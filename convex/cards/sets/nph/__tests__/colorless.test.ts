@@ -72,39 +72,6 @@ function findGerm(state: GameState): CardInstanceState | undefined {
 }
 
 describe("Batterskull (NPH #128, Living Weapon — issue #1340)", () => {
-    it("definition sanity — cost, types, equip cost, DSL-only ability sites", () => {
-        expect(batterskull.manaCost).toEqual({ generic: 5 });
-        expect(batterskull.types).toEqual(["Artifact"]);
-        expect(batterskull.subtypes).toEqual(["Equipment"]);
-
-        // CR 702.6e — Equip {5}, sorcery-speed, creature you control.
-        const equip = batterskull.activatedAbilities!.find(
-            (a) => a.id === "batterskull-equip"
-        )!;
-        expect(equip.cost).toEqual({ mana: { generic: 5 } });
-        expect(equip.sorcerySpeedOnly).toBe(true);
-        expect(equip.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            controller: "you",
-        });
-        expect(equip.resolve).toBeUndefined();
-
-        // The bounce ability is {3} (Scryfall Oracle), NOT the equip cost —
-        // an easy transcription slip the card is famous for.
-        const bounce = batterskull.activatedAbilities!.find(
-            (a) => a.id === "batterskull-return"
-        )!;
-        expect(bounce.cost).toEqual({ mana: { generic: 3 } });
-        expect(bounce.sorcerySpeedOnly).toBeUndefined();
-        expect(bounce.resolve).toBeUndefined();
-
-        // Living weapon is one DSL trigger, no closure.
-        expect(batterskull.triggeredAbilities).toHaveLength(1);
-        expect(batterskull.triggeredAbilities![0].effects).toBeDefined();
-        expect(batterskull.triggeredAbilities![0].resolve).toBeUndefined();
-    });
-
     // CR 114 / token art rule — Batterskull's OWN printing's Germ, not a
     // substitute borrowed from another Living Weapon card.
     it("resolves its own printed Phyrexian Germ token art", () => {

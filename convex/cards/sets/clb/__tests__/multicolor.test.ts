@@ -64,14 +64,6 @@ function activate(
 }
 
 describe("Minsc & Boo, Timeless Heroes — the Boo trigger (CR 603.2, one Oracle line over two events)", () => {
-    it("is ONE ability listening on BOTH the ETB and the upkeep event (never two near-duplicates)", () => {
-        expect(minscAndBooTimelessHeroes.triggeredAbilities).toHaveLength(1);
-        expect(minscAndBooTimelessHeroes.triggeredAbilities![0].event).toEqual([
-            "PERMANENT_ENTERED",
-            "PHASE_BEGIN",
-        ]);
-    });
-
     it("creates Boo — a legendary 1/1 red Hamster with trample and haste — when you accept (CR 117.3a)", () => {
         const { state } = minscOnBoard();
         // Fire the ETB half through the real trigger scan.

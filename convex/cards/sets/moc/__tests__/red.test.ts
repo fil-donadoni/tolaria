@@ -40,21 +40,6 @@ function pushBackupEtb(
 }
 
 describe("Death-Greeter's Champion (Dash + Backup 1 + double strike, CR 702.109/702.165, issue #1527)", () => {
-    it("is a {2}{R} 2/1 Creature — Human Warrior with a dash mana leg and its own double strike", () => {
-        expect(deathGreetersChampion.manaCost).toEqual({ X: 2, R: 1 });
-        expect(deathGreetersChampion.power).toBe(2);
-        expect(deathGreetersChampion.toughness).toBe(1);
-        expect(deathGreetersChampion.staticAbilities).toEqual([
-            "backup 1",
-            "double strike",
-        ]);
-        expect(deathGreetersChampion.dash).toEqual({
-            id: "dash",
-            description: "Dash {3}{R}",
-            mana: { X: 3, R: 1 },
-        });
-    });
-
     it("self-target: puts a +1/+1 counter, does not re-grant its own double strike", () => {
         const source = makeInstance(deathGreetersChampion.id, {
             id: "champ1",

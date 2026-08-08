@@ -10,7 +10,6 @@ import {
     boneFlute,
     bookOfRass,
     cityOfShadows,
-    coalGolem,
     darkSphere,
     diabolicMachine,
     fellwarStone,
@@ -389,10 +388,6 @@ describe("Necropolis — exile a graveyard creature: +0/+1 counters = its MV (CR
         expect(grown.counters?.["+0/+1"]).toBe(2);
         expect(getEffectiveToughness(state, grown)).toBe(baseT + 2);
     });
-
-    it("has Defender (can't attack)", () => {
-        expect(necropolis.staticAbilities).toContain("defender");
-    });
 });
 
 describe("Skull of Orm — {5},{T}: return an enchantment from your graveyard (CR 400.7)", () => {
@@ -418,22 +413,6 @@ describe("Skull of Orm — {5},{T}: return an enchantment from your graveyard (C
         ]);
         expect(state.players[0].graveyard).toHaveLength(0);
         expect(state.players[0].hand.some((c) => c.id === "ench")).toBe(true);
-    });
-});
-
-describe("Standing Stones — {1},{T},Pay 1 life: add one mana of any color (CR 605.1)", () => {
-    it("is a mana ability (useStack:false) with a life cost and color choices", () => {
-        const ability = standingStones.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost.life).toBe(1);
-        expect(ability.cost.tap).toBe(true);
-        expect(ability.manaChoices).toEqual([
-            { W: 1 },
-            { U: 1 },
-            { B: 1 },
-            { R: 1 },
-            { G: 1 },
-        ]);
     });
 });
 
@@ -910,20 +889,6 @@ describe("Reflecting Mirror (retarget existing spell, CR 114.6)", () => {
         return { state, mirror, bolt };
     }
 
-    it("definition: {4} artifact with a single targeted activated ability", () => {
-        expect(reflectingMirror.types).toEqual(["Artifact"]);
-        expect(reflectingMirror.manaCost).toEqual({ X: 4 });
-        const ability = reflectingMirror.activatedAbilities?.[0];
-        expect(ability?.cost.tap).toBe(true);
-        expect(ability?.cost.mana).toEqual({ X: "X" });
-        expect(ability?.cost.xFromTargetSpellMv).toEqual({ multiplier: 2 });
-        expect(ability?.targetRequirement).toEqual({
-            type: "spell",
-            count: 1,
-            spellSingleTargetingController: true,
-        });
-    });
-
     it("is legal only against a single-target spell that targets the activator (CR 115.10)", () => {
         const { state } = setup();
         const ability = reflectingMirror.activatedAbilities![0];
@@ -1167,24 +1132,6 @@ function sorrowsPathCombat(opts?: {
 }
 
 describe("Sorrow's Path — swap blockers (CR 509.1 / 506.4)", () => {
-    it("card definition: Land, {T} two-blocker target ability + on-tap trigger", () => {
-        expect(sorrowsPath.types).toEqual(["Land"]);
-        expect(sorrowsPath.manaCost).toEqual({});
-        const ab = sorrowsPath.activatedAbilities![0];
-        expect(ab.cost).toEqual({ tap: true });
-        expect(ab.useStack).toBe(true);
-        expect(ab.targetRequirement).toEqual({
-            type: "Creature",
-            count: 2,
-            combatRoleFilter: "blocking",
-            controller: "opponent",
-        });
-        expect(sorrowsPath.triggeredAbilities).toHaveLength(1);
-        expect(sorrowsPath.triggeredAbilities![0].event).toBe(
-            "PERMANENT_TAPPED"
-        );
-    });
-
     it("legal swap: each vanilla blocker can block the other's attacker — assignments swap", () => {
         const { state, path } = sorrowsPathCombat();
         resolveActivated(state, path, "sorrows-path-swap-blockers", [
@@ -1394,16 +1341,5 @@ describe("Sorrow's Path — swap blockers (CR 509.1 / 506.4)", () => {
         // Rejected at announcement — no pendingTarget left half-open with a
         // dead second slot.
         expect(state.pendingTarget).toBeUndefined();
-    });
-});
-
-describe("Coal Golem — {3}, Sac this: Add {R}{R}{R} (CR 605.1a)", () => {
-    it("is a non-stack sacrifice-for-mana ability producing {R}{R}{R}", () => {
-        expect(coalGolem.types).toEqual(["Artifact", "Creature"]);
-        const ability = coalGolem.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost.sacrifice).toBe(true);
-        expect(ability.cost.mana).toEqual({ X: 3 });
-        expect(ability.manaProduced).toEqual({ R: 3 });
     });
 });

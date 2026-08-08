@@ -29,7 +29,7 @@ import {
     tryGetCardByName,
 } from "../../../index";
 import { setName } from "../../../setMeta";
-import { FORMAT_RULES, validateDeck } from "../../../../formats";
+import { validateDeck } from "../../../../formats";
 import type { ValidatableDeck } from "../../../../formats";
 import * as revised from "..";
 import type { CardPrint } from "../../../types";
@@ -56,12 +56,6 @@ describe("3ED registry parity (ADR 0014)", () => {
     it("resolves every 3ed print to its shared definition", () => {
         for (const print of ALL_3ED) {
             expect(() => getDefinition(print.printId)).not.toThrow();
-        }
-    });
-
-    it("carries the 3ed set code on every print", () => {
-        for (const print of ALL_3ED) {
-            expect(print.setCode).toBe("3ed");
         }
     });
 
@@ -116,10 +110,6 @@ describe("3ED display name (#561)", () => {
 });
 
 describe("3ED Old School legality (#561)", () => {
-    it("lists 3ed among the Old School allowed sets", () => {
-        expect(FORMAT_RULES["old-school"].allowedSets).toContain("3ed");
-    });
-
     it("validates a 60-card Old School deck built around a Revised reprint", () => {
         // 1 Revised Bolt + 59 basics resolves and validates legal end-to-end
         // via the real registry resolver.

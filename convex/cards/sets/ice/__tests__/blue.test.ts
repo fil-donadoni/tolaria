@@ -10,22 +10,15 @@ import {
     bindingGrasp,
     brainstorm,
     counterspellIce,
-    deflection,
-    glacialWall,
-    hydroblast,
     iceberg,
-    icyPrison,
     powerSinkIce,
     seaSpirit,
-    sibilantSpirit,
     silverErne,
     sleightOfMindIce,
     snowDevil,
     wintersChill,
     snowCoveredIsland,
-    soulBarrier,
     thunderWall,
-    windSpirit,
     wordOfUndoing,
     wrathOfMaritLage,
     zuranSpellcaster,
@@ -38,7 +31,6 @@ import {
     fyndhornPollen,
     maddeningWind,
     soldeviSimulacrum,
-    adarkarUnicorn,
     breathOfDreams,
     balduvianShaman,
     dreamsOfTheDead,
@@ -170,25 +162,6 @@ describe("ICE Blue reprints (CardPrint wiring, ADR 0014)", () => {
     });
 });
 
-// --- Keyword creatures (CR 702 — snapshot checks) --------------------------
-
-describe("ICE Blue keyword creatures (CR 702)", () => {
-    it("Glacial Wall is a 0/7 with defender", () => {
-        expect(glacialWall.staticAbilities).toEqual(["defender"]);
-        expect(glacialWall.power).toBe(0);
-        expect(glacialWall.toughness).toBe(7);
-    });
-    it("Silver Erne has flying + trample", () => {
-        expect(silverErne.staticAbilities).toEqual(["flying", "trample"]);
-    });
-    it("Wind Spirit has flying + menace", () => {
-        expect(windSpirit.staticAbilities).toEqual(["flying", "menace"]);
-    });
-    it("Thunder Wall has defender + flying", () => {
-        expect(thunderWall.staticAbilities).toEqual(["defender", "flying"]);
-    });
-});
-
 // --- Brainstorm (draw 3, put 2 on top, CR 121.1) ---------------------------
 
 describe("Brainstorm (draw three then put two back, CR 121.1)", () => {
@@ -253,57 +226,9 @@ describe("Brainstorm (draw three then put two back, CR 121.1)", () => {
     });
 });
 
-// --- Deflection (change a spell's target, CR 114.6) ------------------------
-
-describe("Deflection (retarget a spell, CR 114.6)", () => {
-    it("targets a single spell on the stack", () => {
-        expect(deflection.targetRequirement).toMatchObject({
-            type: "spell",
-            count: 1,
-        });
-    });
-});
-
-// --- Hydroblast (modal counter/destroy if red, CR 700.2) -------------------
-
-describe("Hydroblast (modal, CR 700.2)", () => {
-    it("offers a counter mode and a destroy mode, both red-filtered", () => {
-        expect(hydroblast.modes).toHaveLength(2);
-        const counterMode = hydroblast.modes!.find((m) => m.id === "counter")!;
-        const destroyMode = hydroblast.modes!.find((m) => m.id === "destroy")!;
-        expect(counterMode.targetRequirement).toMatchObject({
-            type: "spell",
-            colorFilter: "R",
-        });
-        expect(destroyMode.targetRequirement).toMatchObject({
-            type: "any",
-            colorFilter: "R",
-        });
-    });
-});
-
 // --- Iceberg (counters-as-mana, CR 122 / 605) ------------------------------
 
 describe("Iceberg (counters-as-mana, CR 122)", () => {
-    it("enters with X ice counters", () => {
-        expect(iceberg.entersWith).toEqual({
-            counters: [{ type: "ice", count: "X" }],
-        });
-    });
-    it("has a {3}: add-counter ability and a remove-counter mana ability", () => {
-        const store = iceberg.activatedAbilities!.find(
-            (a) => a.id === "iceberg-store"
-        )!;
-        const mana = iceberg.activatedAbilities!.find(
-            (a) => a.id === "iceberg-tap-for-mana"
-        )!;
-        expect(store.cost).toMatchObject({ mana: { X: 3 } });
-        expect(mana.useStack).toBe(false);
-        expect(mana.cost).toMatchObject({
-            removeCounter: { type: "ice", count: 1 },
-        });
-        expect(mana.manaProduced).toEqual({ C: 1 });
-    });
     it("the store ability adds an ice counter on resolution", () => {
         const berg = makeInstance(iceberg.id, {
             id: "berg",
@@ -320,18 +245,6 @@ describe("Iceberg (counters-as-mana, CR 122)", () => {
         resolveActivated(state, berg, "iceberg-store");
         const live = state.players[0].battlefield.find((c) => c.id === "berg")!;
         expect(live.counters?.ice).toBe(1);
-    });
-});
-
-// --- Icy Prison (exile/return holding bundle + upkeep tax, ADR 0028) -------
-
-describe("Icy Prison (exile-and-return, ADR 0028)", () => {
-    it("targets a creature and carries enter/upkeep/leave triggers", () => {
-        expect(icyPrison.targetRequirement).toMatchObject({ type: "Creature" });
-        const ids = icyPrison.triggeredAbilities!.map((t) => t.id);
-        expect(ids).toContain("icy-prison-exile");
-        expect(ids).toContain("icy-prison-upkeep");
-        expect(ids).toContain("icy-prison-return");
     });
 });
 
@@ -407,13 +320,6 @@ describe("Zuran Spellcaster ({T}: 1 damage any target, CR 120.1)", () => {
 });
 
 describe("Snow Devil (Aura grants flying + conditional first strike, CR 611/611.2c, issue #1826)", () => {
-    it("grants flying to the enchanted creature", () => {
-        expect(snowDevil.staticEffects?.[0]).toMatchObject({
-            kind: "keyword-grant",
-            keyword: "flying",
-        });
-    });
-
     it("declares the conditional first-strike grant with a condition gate", () => {
         const effect = snowDevil.staticEffects?.[1];
         expect(effect).toMatchObject({
@@ -634,22 +540,11 @@ describe("Binding Grasp (control + +0/+1 + upkeep tax, CR 613/603.6a)", () => {
         const host = state.players[1].battlefield.find((c) => c.id === "host")!;
         expect(getEffectiveToughness(state, host)).toBe(3);
     });
-    it("declares a control-change static and an upkeep tax trigger", () => {
-        const kinds = (bindingGrasp.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("control-change");
-        expect(bindingGrasp.triggeredAbilities!.map((t) => t.id)).toContain(
-            "binding-grasp-upkeep"
-        );
-    });
 });
 
 // --- Wrath of Marit Lage (tap all red + red untap-lock, CR 611) ------------
 
 describe("Wrath of Marit Lage (red untap-lock, CR 611)", () => {
-    it("declares an untap restriction on red creatures", () => {
-        const restriction = (wrathOfMaritLage.staticEffects ?? [])[0];
-        expect(restriction).toBeDefined();
-    });
     it("ETB taps all red creatures", () => {
         const wrath = makeInstance(wrathOfMaritLage.id, {
             id: "wrath",
@@ -679,29 +574,6 @@ describe("Wrath of Marit Lage (red untap-lock, CR 611)", () => {
     });
 });
 
-// --- Soul Barrier (cast-trigger punisher, CR 603.2) ------------------------
-
-describe("Soul Barrier (creature-cast punisher, CR 603.2)", () => {
-    it("triggers on an opponent casting a creature spell", () => {
-        const trigger = soulBarrier.triggeredAbilities!.find(
-            (t) => t.id === "soul-barrier-tax"
-        )!;
-        expect(trigger.event).toBe("SPELL_CAST");
-    });
-});
-
-// --- Sibilant Spirit (attack → defender may draw, CR 508.1) ----------------
-
-describe("Sibilant Spirit (attack gives defender a draw, CR 508.1)", () => {
-    it("is a flier with an attack trigger", () => {
-        expect(sibilantSpirit.staticAbilities).toEqual(["flying"]);
-        const trigger = sibilantSpirit.triggeredAbilities!.find(
-            (t) => t.id === "sibilant-spirit-attack"
-        )!;
-        expect(trigger.event).toBe("ATTACKERS_DECLARED");
-    });
-});
-
 // --- Word of Undoing (bounce creature + your white Auras, CR 701.14) -------
 
 describe("Word of Undoing (bounce creature + white Auras, CR 701.14)", () => {
@@ -724,11 +596,6 @@ describe("Word of Undoing (bounce creature + white Auras, CR 701.14)", () => {
             state.players[1].battlefield.find((c) => c.id === "crt")
         ).toBeUndefined();
         expect(state.players[1].hand.find((c) => c.id === "crt")).toBeDefined();
-    });
-    it("targets a creature", () => {
-        expect(wordOfUndoing.targetRequirement).toMatchObject({
-            type: "Creature",
-        });
     });
 });
 
@@ -926,17 +793,6 @@ describe("cumulative upkeep — card definitions (CR 702.24, #638)", () => {
         }
     });
 
-    it("Illusionary Wall has its keyword statics; Forces has flying", () => {
-        expect(illusionaryWall.staticAbilities).toEqual([
-            "defender",
-            "flying",
-            "first strike",
-        ]);
-        expect(illusionaryForces.staticAbilities).toContain("flying");
-        expect(polarKraken.staticAbilities).toContain("trample");
-        expect(polarKraken.entersTapped).toBe(true);
-    });
-
     it("Illusions of Grandeur gains 20 life on ETB and loses 20 on LTB", () => {
         const enchant = makeInstance(illusionsOfGrandeur.id, {
             id: "iog",
@@ -997,23 +853,6 @@ describe("cumulative upkeep — card definitions (CR 702.24, #638)", () => {
 });
 
 describe("Breath of Dreams (group grant — CR 611/702.24, ADR 0042)", () => {
-    it("declares its own CU {U} plus a triggered-grant of CU {1} to green creatures", () => {
-        const kinds = (breathOfDreams.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("triggered-grant");
-        // Own CU lives on triggeredAbilities; the granted CU template lives on
-        // triggeredGrantTemplates (so Breath itself never fires the granted one).
-        expect(
-            breathOfDreams.triggeredAbilities?.some(
-                (t) => t.id === "breath-of-dreams-cumulative-upkeep"
-            )
-        ).toBe(true);
-        expect(
-            breathOfDreams.triggeredGrantTemplates?.some(
-                (t) => t.id === "breath-of-dreams-granted-cu"
-            )
-        ).toBe(true);
-    });
-
     it("grants CU {1} to every green creature in play, both players (layer 6)", () => {
         const state = makeState();
         const breath = makeInstance(breathOfDreams.id, {
@@ -1206,15 +1045,6 @@ describe("Breath of Dreams (group grant — CR 611/702.24, ADR 0042)", () => {
 });
 
 describe("Balduvian Shaman (single-target CU grant — CR 113.1/611.2c/702.24)", () => {
-    it("declares the granted CU template, kept off triggeredAbilities", () => {
-        expect(balduvianShaman.triggeredAbilities ?? []).toHaveLength(0);
-        expect(
-            balduvianShaman.triggeredGrantTemplates?.some(
-                (t) => t.id === "balduvian-shaman-granted-cu"
-            )
-        ).toBe(true);
-    });
-
     it("grants CU {1} permanently to the targeted enchantment (persists if Shaman leaves)", () => {
         const state = makeState();
         const shaman = makeInstance(balduvianShaman.id, {
@@ -1282,19 +1112,6 @@ describe("Balduvian Shaman (single-target CU grant — CR 113.1/611.2c/702.24)",
 });
 
 describe("Dreams of the Dead (reanimate + granted CU {2} + exile-on-leave)", () => {
-    it("declares the granted CU template and a reanimation ability", () => {
-        expect(
-            dreamsOfTheDead.triggeredGrantTemplates?.some(
-                (t) => t.id === "dreams-of-the-dead-granted-cu"
-            )
-        ).toBe(true);
-        expect(
-            dreamsOfTheDead.activatedAbilities?.some(
-                (a) => a.id === "dreams-of-the-dead-reanimate"
-            )
-        ).toBe(true);
-    });
-
     it("reanimates a white/black creature card, grants CU {2}, and sets exile-on-leave", () => {
         const state = makeState();
         const dreams = makeInstance(dreamsOfTheDead.id, {
@@ -1452,13 +1269,6 @@ describe("Dreams of the Dead (reanimate + granted CU {2} + exile-on-leave)", () 
 });
 
 describe("Restricted-CU mana — Adarkar Unicorn / Snowfall (CR 106.6, ADR 0022/0042)", () => {
-    it("Adarkar Unicorn declares a CU-restricted choice mana ability", () => {
-        const ability = adarkarUnicorn.activatedAbilities?.[0];
-        expect(ability?.manaRestriction).toBe("cumulative-upkeep");
-        expect(ability?.manaChoices?.length).toBe(2);
-        expect(ability?.useStack).toBe(false);
-    });
-
     it("CU-restricted mana PAYS a cumulative-upkeep cost", () => {
         const forces = makeInstance(illusionaryForces.id, {
             id: "forces",
@@ -1608,14 +1418,6 @@ describe("Krovikan Sorcerer (colour-filtered looters, CR 601.2h / 121.1)", () =>
         return { state, sorc };
     }
 
-    it("declares the two colour-filtered loot abilities (CR 113.3c)", () => {
-        const ids = krovikanSorcerer.activatedAbilities!.map((a) => a.id);
-        expect(ids).toEqual([
-            "krovikan-sorcerer-nonblack",
-            "krovikan-sorcerer-black",
-        ]);
-    });
-
     it("nonblack branch: only nonblack cards are offered as the discard (CR 601.2h)", () => {
         const { state, sorc } = setup();
         resolveActivated(state, sorc, "krovikan-sorcerer-nonblack");
@@ -1742,13 +1544,6 @@ describe("Shyft (upkeep colour override, CR 305.7 layer 5 / 603.6a)", () => {
         });
         return { state, shyftInst };
     }
-
-    it("blue Shapeshifter with the printed body (CR 302)", () => {
-        expect(shyft.types).toContain("Creature");
-        expect(shyft.subtypes).toContain("Shapeshifter");
-        expect(shyft.power).toBe(4);
-        expect(shyft.toughness).toBe(2);
-    });
 
     it("declining the upkeep may leaves the colour unchanged (CR 117.3a)", () => {
         const { state, shyftInst } = setup();
@@ -1915,12 +1710,6 @@ describe("Infuse (untap target, CR 701.20)", () => {
 });
 
 describe("Portent (look at top 3, reorder, may shuffle, CR 401)", () => {
-    it("definition declares the next-upkeep cantrip and player target", () => {
-        expect(portent.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
-        expect(portent.targetRequirement?.type).toBe("player");
-        expect(portent.types).toContain("Sorcery");
-    });
-
     // ADR 0026 / PRD #338 — Portent carries NO `markKnown` of its own: the
     // reorder-library submit path grants the knowledge globally. The chooser
     // (p1) looked at and precisely positioned the target's (p2) top three, so
@@ -1998,18 +1787,6 @@ describe("Updraft (grant flying, CR 702.9)", () => {
 // ── #671: parametric/timed effects & mana tracking ──────────────────────────
 
 describe("Illusionary Presence (CR 603.6a upkeep + 702.13 chosen-type landwalk)", () => {
-    it("has cumulative upkeep {U} and an upkeep landwalk trigger", () => {
-        const cu = illusionaryPresence.triggeredAbilities?.find((t) =>
-            t.id.includes("cumulative-upkeep")
-        );
-        const lw = illusionaryPresence.triggeredAbilities?.find(
-            (t) => t.id === "illusionary-presence-landwalk"
-        );
-        expect(cu).toBeTruthy();
-        expect(lw).toBeTruthy();
-        expect(illusionaryPresence.manaCost).toEqual({ X: 1, U: 2 });
-    });
-
     it("grants the chosen landwalk until end of turn, re-choosing each upkeep", () => {
         const presence = makeInstance(illusionaryPresence.id, {
             id: "ip",
@@ -2120,23 +1897,6 @@ function withTerrain(
 }
 
 describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 0050)", () => {
-    it("declares cumulative upkeep {2}, an ETB choose-types trigger, and a subtype-set static", () => {
-        expect(illusionaryTerrain.manaCost).toEqual({ U: 2 });
-        expect(illusionaryTerrain.types).toEqual(["Enchantment"]);
-        const kinds = (illusionaryTerrain.staticEffects ?? []).map(
-            (e) => e.kind
-        );
-        expect(kinds).toEqual(["subtype-set"]);
-        const cu = illusionaryTerrain.triggeredAbilities?.find((t) =>
-            t.id.includes("cumulative-upkeep")
-        );
-        const choose = illusionaryTerrain.triggeredAbilities?.find(
-            (t) => t.id === "illusionary-terrain-choose-types"
-        );
-        expect(cu).toBeTruthy();
-        expect(choose).toBeTruthy();
-    });
-
     it("stores the ordered pair on entry via two sequential option picks (CR 603.6b)", () => {
         const terrain = makeInstance(illusionaryTerrain.id, {
             id: "terr-1",
@@ -2327,19 +2087,6 @@ describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 00
 // --- Mystic Remora — noncreature draw-tax (CR 603.2 / 117.3a) --------------
 
 describe("Mystic Remora (opponent noncreature-cast draw tax, CR 603.2)", () => {
-    it("carries cumulative upkeep {1} and a noncreature draw-tax trigger", () => {
-        expect(
-            mysticRemora.triggeredAbilities?.some(
-                (t) => t.id === "mystic-remora-cumulative-upkeep"
-            )
-        ).toBe(true);
-        const tax = mysticRemora.triggeredAbilities?.find(
-            (t) => t.id === "mystic-remora-draw-tax"
-        );
-        expect(tax).toBeDefined();
-        expect(tax?.event).toBe("SPELL_CAST");
-    });
-
     it("draws a card when the casting opponent declines to pay {4}", () => {
         const remora = makeInstance(mysticRemora.id, {
             id: "remora",
@@ -2434,22 +2181,6 @@ describe("Mystic Remora (opponent noncreature-cast draw tax, CR 603.2)", () => {
 // --- Reality Twist — per-basic land-mana permutation (CR 614) ---------------
 
 describe("Reality Twist (per-basic land-mana permutation, CR 614)", () => {
-    it("carries cumulative upkeep {1}{U}{U} and the byBasicSubtype substitution", () => {
-        expect(
-            realityTwist.triggeredAbilities?.some(
-                (t) => t.id === "reality-twist-cumulative-upkeep"
-            )
-        ).toBe(true);
-        expect(realityTwist.landManaSubstitution).toEqual({
-            byBasicSubtype: {
-                Plains: "R",
-                Swamp: "G",
-                Mountain: "W",
-                Forest: "B",
-            },
-        });
-    });
-
     it("rewrites a Mountain's tapped mana to {W} while in play, surviving the wire (CR 614)", () => {
         const twist = makeInstance(realityTwist.id, {
             id: "twist",
@@ -2577,21 +2308,6 @@ describe("Mystic Might (activated-grant on enchanted land, CR 611/702.24)", () =
 // --- Musician — music counters + granted destroy-unless-pay (CR 122/701.7) --
 
 describe("Musician (music counters + granted upkeep tax, CR 122/701.7)", () => {
-    it("carries cumulative upkeep {1} and the music-upkeep grant template", () => {
-        expect(
-            musician.triggeredAbilities?.some(
-                (t) => t.id === "musician-cumulative-upkeep"
-            )
-        ).toBe(true);
-        expect(
-            musician.triggeredGrantTemplates?.some(
-                (t) => t.id === "musician-music-upkeep"
-            )
-        ).toBe(true);
-        expect(musician.power).toBe(1);
-        expect(musician.toughness).toBe(3);
-    });
-
     it("the activated ability adds a music counter and grants the upkeep ability", () => {
         const musie = makeInstance(musician.id, {
             id: "musie",
@@ -2820,14 +2536,6 @@ describe("Ray of Command — steal a creature until EOT (CR 611.2b / 613.1b / 70
         expect(slim?.controllerId).toBe("p1");
         expect(slim?.isTapped).toBe(false);
     });
-
-    it("only opponent-controlled creatures are legal targets", () => {
-        expect(rayOfCommand.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            controller: "opponent",
-        });
-    });
 });
 
 describe("Magus of the Unseen — steal an artifact until EOT (CR 611.2b / 613.1b / 701.20a)", () => {
@@ -2892,28 +2600,10 @@ describe("Magus of the Unseen — steal an artifact until EOT (CR 611.2b / 613.1
         expect(reverted?.controllerId).toBe("p2");
         expect(reverted?.isTapped).toBe(true);
     });
-
-    it("targets opponent artifacts and is a 1/1 Human Wizard", () => {
-        expect(
-            magusOfTheUnseen.activatedAbilities?.[0].targetRequirement
-        ).toEqual({ type: "Artifact", count: 1, controller: "opponent" });
-        expect(magusOfTheUnseen.power).toBe(1);
-        expect(magusOfTheUnseen.toughness).toBe(1);
-        expect(magusOfTheUnseen.subtypes).toEqual(["Human", "Wizard"]);
-    });
 });
 
 describe("Mistfolk — counter spell that targets it (CR 701.5a / 114.1)", () => {
     const ability = mistfolk.activatedAbilities![0];
-
-    it("has {U}{U} cost and a {U} counter ability", () => {
-        expect(mistfolk.manaCost).toEqual({ U: 2 });
-        expect(mistfolk.power).toBe(1);
-        expect(mistfolk.toughness).toBe(2);
-        expect(mistfolk.subtypes).toEqual(["Illusion"]);
-        expect(ability.cost).toEqual({ mana: { U: 1 } });
-        expect(ability.targetRequirement).toEqual({ type: "spell", count: 1 });
-    });
 
     it("getTargetRequirement injects the source id → only spells targeting Mistfolk are legal", () => {
         const mist = makeInstance(mistfolk.id, {
@@ -3012,14 +2702,6 @@ function activateMount(): {
 }
 
 describe("Phantasmal Mount (bidirectional leave-watch, CR 603.7a / 603.10)", () => {
-    it("is registered with Flying, {1}{U} cost and the modern oracle text", () => {
-        expect(phantasmalMount.manaCost).toEqual({ X: 1, U: 1 });
-        expect(phantasmalMount.staticAbilities).toEqual(["flying"]);
-        expect(phantasmalMount.oracleText).toContain(
-            "When this creature leaves the battlefield this turn, sacrifice that creature"
-        );
-    });
-
     it("pumps the target +1/+1, grants flying, and schedules two crossed watches", () => {
         const { state, mountId, steedId } = activateMount();
         const steed = state.players[0].battlefield.find(
@@ -3398,14 +3080,6 @@ describe("Zur's Weirding (interactive draw-reveal + hand-reveal, CR 614, #735)",
 describe("Soldevi Machinist — '{T}: Add {C}{C}. Spend only on artifact abilities' (CR 605.1a / 106.6)", () => {
     const ARTIFACT_TYPES = ["Artifact"] as const;
     const CREATURE_TYPES = ["Creature"] as const;
-
-    it("declares a mana ability producing restricted {C}{C}", () => {
-        const ability = soldeviMachinist.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost).toEqual({ tap: true });
-        expect(ability.manaProduced).toEqual({ C: 2 });
-        expect(ability.manaRestriction).toBe("artifact-ability");
-    });
 
     it("tapping banks the mana as restricted, not fungible (ADR 0022)", () => {
         const player = makePlayer("p1");

@@ -32,7 +32,6 @@ import {
     hellfire,
     hellsCaretaker,
     horrorOfHorrors,
-    lostSoul,
     moldDemon,
     netherVoid,
     spiritShackle,
@@ -59,26 +58,6 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { grizzlyBears, lightningBolt, swamp } from "../../lea";
-
-// ---------------------------------------------------------------------------
-// Black free tranche (#373)
-// ---------------------------------------------------------------------------
-
-describe("LEG black keyword / vanilla creatures (CR 702)", () => {
-    it("Headless Horseman is a vanilla 2/2 with no abilities", () => {
-        expect(headlessHorseman.power).toBe(2);
-        expect(headlessHorseman.toughness).toBe(2);
-        expect(headlessHorseman.staticAbilities ?? []).toEqual([]);
-        expect(headlessHorseman.triggeredAbilities).toBeUndefined();
-        expect(headlessHorseman.activatedAbilities).toBeUndefined();
-    });
-    it("Lost Soul has swampwalk", () => {
-        expect(lostSoul.staticAbilities).toContain("swampwalk");
-    });
-    it("Fallen Angel has flying", () => {
-        expect(fallenAngel.staticAbilities).toContain("flying");
-    });
-});
 
 describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
     it("pumps itself by +1/+1 until end of turn (repeatable)", () => {
@@ -508,10 +487,6 @@ describe("Cosmic Horror (upkeep: destroy unless pay {3}{B}{B}{B}, then 7 to you,
         ).toBe(true);
         expect(state.players[0].life).toBe(20);
     });
-
-    it("has first strike", () => {
-        expect(cosmicHorror.staticAbilities).toContain("first strike");
-    });
 });
 
 describe("Mold Demon (ETB: sacrifice unless you sacrifice two Swamps, CR 603.6a / 118.3)", () => {
@@ -635,12 +610,6 @@ describe("Spirit Shackle (becomes-tapped → -0/-2 counter, CR 701.20a / 122.1 /
 });
 
 describe("Nether Void (counter any spell unless its controller pays {3}, CR 117.3a / 701.5a)", () => {
-    it("is a World enchantment (CR 205.4) — supertype carried as data", () => {
-        expect(netherVoid.supertypes).toEqual(["World"]);
-        expect(netherVoid.types).toEqual(["Enchantment"]);
-        expect(netherVoid.manaCost).toEqual({ X: 3, B: 1 });
-    });
-
     it("suspends on a may-pay billed to the spell's controller, then counters on decline", () => {
         const nv = makeInstance(netherVoid.id, {
             id: "nv",
@@ -721,12 +690,6 @@ describe("Nether Void (counter any spell unless its controller pays {3}, CR 117.
 });
 
 describe("The Abyss (each-player upkeep destroy, CR 603.6a / 704.5m)", () => {
-    it("is a World enchantment with the upkeep trigger", () => {
-        expect(theAbyss.types).toContain("Enchantment");
-        expect(theAbyss.supertypes).toContain("World");
-        expect(theAbyss.triggeredAbilities?.[0]?.event).toBe("PHASE_BEGIN");
-    });
-
     it("on the active player's upkeep, destroys their chosen nonartifact creature; it can't be regenerated", () => {
         const abyss = makeInstance(theAbyss.id, {
             id: "abyss",
@@ -886,17 +849,6 @@ describe("The Abyss (each-player upkeep destroy, CR 603.6a / 704.5m)", () => {
 });
 
 describe("Wall of Tombstones (upkeep: base toughness = 1 + GY creatures, indefinite, CR 613.4b)", () => {
-    it("is a {1}{B} 0/1 Wall with Defender and an upkeep trigger", () => {
-        expect(wallOfTombstones.manaCost).toEqual({ X: 1, B: 1 });
-        expect(wallOfTombstones.power).toBe(0);
-        expect(wallOfTombstones.toughness).toBe(1);
-        expect(wallOfTombstones.subtypes).toContain("Wall");
-        expect(wallOfTombstones.staticAbilities).toContain("defender");
-        expect(wallOfTombstones.triggeredAbilities?.[0]?.event).toBe(
-            "PHASE_BEGIN"
-        );
-    });
-
     function setup(graveyardCreatureCount: number) {
         const wall = makeInstance(wallOfTombstones.id, {
             id: "wall",

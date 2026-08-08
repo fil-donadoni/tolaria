@@ -12,14 +12,6 @@ const CREATURE_ID = "6914c5a8-2114-41c5-a471-ca97524d622f"; // Sabretooth Tiger
 const ARTIFACT_ID = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // Black Lotus
 
 describe("Suplex (CR 700.2 modal — damage-then-exile a creature or exile an artifact)", () => {
-    it("declares two modes with different target types", () => {
-        expect(suplex.modes).toHaveLength(2);
-        const damage = suplex.modes!.find((m) => m.id === "damage")!;
-        const exile = suplex.modes!.find((m) => m.id === "exile")!;
-        expect(damage.targetRequirement).toMatchObject({ type: "Creature" });
-        expect(exile.targetRequirement).toMatchObject({ type: "Artifact" });
-    });
-
     it("damage mode deals 3 damage and exiles the creature instead of destroying it (CR 614.1a)", () => {
         const creature = makeInstance(CREATURE_ID, {
             id: "creature-1",

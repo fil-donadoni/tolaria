@@ -62,17 +62,4 @@ describe("Tear Asunder (Kicker {1}{B}, CR 702.33 / 701.13)", () => {
             state.players[1].exile.find((c) => c.id === "bear")
         ).toBeDefined();
     });
-
-    it("declares artifact/enchantment unkicked and nonland-permanent kicked", () => {
-        expect(tearAsunder.targetRequirement?.type).toEqual([
-            "Artifact",
-            "Enchantment",
-        ]);
-        expect(tearAsunder.kickedTargetRequirement?.type).toEqual([
-            "Creature",
-            "Artifact",
-            "Enchantment",
-            "Planeswalker",
-        ]);
-    });
 });

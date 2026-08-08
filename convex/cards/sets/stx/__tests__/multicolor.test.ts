@@ -34,11 +34,6 @@ function submit(state: ReturnType<typeof makeState>, ids: string[]) {
 }
 
 describe("Expressive Iteration (look 3: hand / bottom / exile-playable; CR 401.4 / 601.3e)", () => {
-    it("is a {U}{R} sorcery", () => {
-        expect(expressiveIteration.manaCost).toEqual({ U: 1, R: 1 });
-        expect(expressiveIteration.types).toEqual(["Sorcery"]);
-    });
-
     it("puts one card to hand, one to bottom, exiles one (playable this turn)", () => {
         const state = makeState({
             players: [

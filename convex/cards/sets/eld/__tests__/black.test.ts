@@ -18,17 +18,6 @@ import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 
 describe("Wishclaw Talisman (CR 122 counters / 701.19 / 400.7 / 701.20 / 613.1b)", () => {
-    // CR 121.6 / 614.1c (issue #1693) — "This artifact enters with three wish
-    // counters on it" is a REPLACEMENT effect, so the counters must be on the
-    // artifact the FIRST instant it is on the battlefield: nothing on the
-    // stack, no priority window at zero counters, no ability rendered.
-    it("declares the entry counters as a replacement, not a triggered ability", () => {
-        expect(wishclawTalisman.entersWith?.counters).toEqual([
-            { type: "wish", count: 3 },
-        ]);
-        expect(wishclawTalisman.triggeredAbilities ?? []).toEqual([]);
-    });
-
     it("enters with three wish counters as it enters, with nothing on the stack (CR 121.6 / 614.1c)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

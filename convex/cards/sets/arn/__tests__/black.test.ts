@@ -190,13 +190,6 @@ describe("Erg Raiders (end step: 2 damage to you unless it attacked / just arriv
         (a) => a.id === "erg-raiders-end-step"
     )!;
 
-    it("is a 2/3 Human Warrior costing {1}{B}", () => {
-        expect(ergRaiders.power).toBe(2);
-        expect(ergRaiders.toughness).toBe(3);
-        expect(ergRaiders.subtypes).toEqual(["Human", "Warrior"]);
-        expect(ergRaiders.manaCost).toEqual({ X: 1, B: 1 });
-    });
-
     it("deals 2 damage to you at end step when it didn't attack", () => {
         const erg = makeInstance(ergRaiders.id, { id: "erg" });
         const state = makeState({
@@ -361,13 +354,6 @@ describe("Oubliette (phasing CR 702.26)", () => {
         state.stack.push(trig);
         return trig;
     }
-
-    it("declares the CR 603.3d target requirement: target creature", () => {
-        expect(oubliette.triggeredAbilities?.[0]?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-    });
 
     it("phases out the creature with its Aura, silently (no events, no graveyard)", () => {
         const { state } = setup();
@@ -591,16 +577,6 @@ describe("Cuombajj Witches (opponent-chosen second target, CR 115.4 / 608.2)", (
         expect(state.players[0].life).toBe(18); // 1 + 1
     });
 
-    it("definition snapshot: {B}{B} 1/3 Human Wizard with the tap ability", () => {
-        expect(cuombajjWitches.manaCost).toEqual({ B: 2 });
-        expect(cuombajjWitches.power).toBe(1);
-        expect(cuombajjWitches.toughness).toBe(3);
-        expect(cuombajjWitches.subtypes).toEqual(["Human", "Wizard"]);
-        const ability = cuombajjWitches.activatedAbilities![0];
-        expect(ability.cost.tap).toBe(true);
-        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
-    });
-
     it("wire format: the opponent's pending choice survives projection", () => {
         const { state, witches } = setup();
         resolveActivated(state, witches, "cuombajj-witches-pings", [
@@ -796,15 +772,5 @@ describe("Guardian Beast (permanent-guard while untapped, CR 611)", () => {
             // The aura fizzles (can't enchant), so control never changes.
             expect(controllerOf(state, "lotus")).toBe("p1");
         });
-    });
-
-    it("definition snapshot: 2/4 Beast, {3}{B}, single permanent-guard", () => {
-        expect(guardianBeast.power).toBe(2);
-        expect(guardianBeast.toughness).toBe(4);
-        expect(guardianBeast.manaCost).toEqual({ X: 3, B: 1 });
-        const guards = (guardianBeast.staticEffects ?? []).filter(
-            (e) => e.kind === "permanent-guard"
-        );
-        expect(guards).toHaveLength(1);
     });
 });

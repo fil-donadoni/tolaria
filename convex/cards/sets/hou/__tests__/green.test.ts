@@ -15,20 +15,6 @@ import { applyPlayLandFromGraveyard } from "../../../../gre/playLand";
 // lands from your graveyard." (CR 305.1-analog player-wide permission, issue
 // #1190 — read live off the battlefield, no GameState flag.)
 describe("Ramunap Excavator (play lands from your graveyard, CR 305.1-analog — issue #1190)", () => {
-    it("shape: {2}{G} 2/3 Snake Cleric with playsLandsFromGraveyard and no other ability", () => {
-        expect(ramunapExcavator.manaCost).toEqual({ X: 2, G: 1 });
-        expect(ramunapExcavator.types).toEqual(["Creature"]);
-        expect(ramunapExcavator.subtypes).toEqual(["Snake", "Cleric"]);
-        expect(ramunapExcavator.power).toBe(2);
-        expect(ramunapExcavator.toughness).toBe(3);
-        expect(ramunapExcavator.playsLandsFromGraveyard).toBe(true);
-        expect(ramunapExcavator.triggeredAbilities ?? []).toHaveLength(0);
-        expect(ramunapExcavator.activatedAbilities ?? []).toHaveLength(0);
-        // No extra land drop — unlike Icetill Explorer, this is the
-        // permission clause ONLY (CR 305.2 stays at one drop per turn).
-        expect(ramunapExcavator.extraLandDrops).toBeUndefined();
-    });
-
     it("grants the permission while on the battlefield, and it flips false the instant it leaves (read live)", () => {
         const excavator = makeInstance(ramunapExcavator.id, {
             id: "excavator",

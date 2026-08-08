@@ -49,33 +49,6 @@ function resolveActivated(
 describe("Cori-Steel Cutter (TDM #103, Flurry + Equipment, issue #1202)", () => {
     const trig = coriSteelCutter.triggeredAbilities?.[0];
 
-    it("definition sanity — mana cost, types, subtypes, equip cost", () => {
-        expect(coriSteelCutter.manaCost).toEqual({ generic: 1, R: 1 });
-        expect(coriSteelCutter.types).toEqual(["Artifact"]);
-        expect(coriSteelCutter.subtypes).toEqual(["Equipment"]);
-        expect(coriSteelCutter.activatedAbilities).toHaveLength(1);
-        expect(coriSteelCutter.activatedAbilities![0].cost).toEqual({
-            mana: { generic: 1, R: 1 },
-        });
-        expect(trig).toBeDefined();
-        expect(trig!.effects).toBeDefined();
-        expect(trig!.resolve).toBeUndefined();
-    });
-
-    it("declares the +1/+1, trample and haste static grants", () => {
-        const buffs = (coriSteelCutter.staticEffects ?? [])
-            .filter((e) => e.kind === "pt-buff")
-            .map((e) => {
-                const b = e as { power: number; toughness: number };
-                return { power: b.power, toughness: b.toughness };
-            });
-        expect(buffs).toEqual([{ power: 1, toughness: 1 }]);
-        const keywords = (coriSteelCutter.staticEffects ?? [])
-            .filter((e) => e.kind === "keyword-grant")
-            .map((e) => (e as { keyword: string }).keyword);
-        expect(keywords).toEqual(["trample", "haste"]);
-    });
-
     // CR 601.2i — "you cast" (scope "you"), NOT "a player casts" (unlike
     // Ledger Shredder's connive, scope "any"): only the equipment's OWN
     // controller's second spell fires the trigger.

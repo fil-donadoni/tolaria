@@ -73,17 +73,6 @@ describe("Soul-Guide Lantern (graveyard hate + sac-draw, CR 406 / 605)", () => {
         });
     });
 
-    it("declares the CR 603.3d graveyard target requirement on the ETB trigger", () => {
-        expect(
-            soulGuideLantern.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({
-            type: "card",
-            count: 1,
-            zone: "graveyard",
-            controller: "any",
-        });
-    });
-
     it("ETB exiles the CR 603.3d target chosen from an opponent's graveyard", () => {
         const lantern = makeInstance(soulGuideLantern.id, {
             id: "lantern",

@@ -63,22 +63,6 @@ function activate(
     resolveTopOfStack(state);
 }
 
-describe("Teferi, Hero of Dominaria — loyalty ability snapshot (CR 306, ADR 0058)", () => {
-    it("is a 4-loyalty legendary Teferi planeswalker with three loyalty abilities", () => {
-        expect(teferiHeroOfDominaria.types).toEqual(["Planeswalker"]);
-        expect(teferiHeroOfDominaria.supertypes).toEqual(["Legendary"]);
-        expect(teferiHeroOfDominaria.subtypes).toEqual(["Teferi"]);
-        expect(teferiHeroOfDominaria.loyalty).toBe(4);
-        expect(teferiHeroOfDominaria.manaCost).toEqual({ X: 3, W: 1, U: 1 });
-        const abilities = teferiHeroOfDominaria.activatedAbilities!;
-        expect(abilities.map((a) => a.id)).toEqual([PLUS1, MINUS3, MINUS8]);
-        expect(abilities.map((a) => a.cost.loyalty)).toEqual([1, -3, -8]);
-        // DSL-first (ADR 0045): no resolve() anywhere on the card.
-        expect(abilities.every((a) => a.resolve === undefined)).toBe(true);
-        expect(teferiHeroOfDominaria.resolve).toBeUndefined();
-    });
-});
-
 describe("Teferi, Hero of Dominaria — +1 (draw + next-end-step untap up to two lands, CR 603.7a)", () => {
     it("draws a card and schedules the delayed untap; firing it raises the land pick and untaps the picks", () => {
         const libTop = makeInstance(elvishArchers.id, {

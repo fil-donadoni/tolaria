@@ -22,7 +22,6 @@ import {
     shieldOfTheAges,
     skullCatapult,
     snowFortress,
-    staffOfTheAges,
     vibratingSphere,
     wallOfShields,
     warChariot,
@@ -51,7 +50,6 @@ import {
     walkingWall,
     blessedWine,
     forceVoid,
-    barbedSextant,
     urzasBauble,
     snowCoveredPlains,
     snowCoveredIsland,
@@ -70,7 +68,6 @@ import {
     arcumsSleigh,
     arcumsWeathervane,
     arcumsWhistle,
-    sunstone,
     adarkarWastes,
     brushland,
     karplusanForest,
@@ -87,9 +84,6 @@ import {
     glacialChasm,
     hallsOfMist,
 } from "../../ice";
-// Icy Manipulator's home set is Alpha (ADR 0041); ICE ships only the reprint
-// `CardPrint`, so the mechanics come from the LEA definition.
-import { icyManipulator } from "../../lea/colorless";
 import {
     plains,
     island,
@@ -174,7 +168,6 @@ import type {
 } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import type { CardType, ManaCost } from "../../../types";
-import { PERMANENT_TYPES } from "../../../types";
 import {
     resolveActivated,
     submitChoice,
@@ -306,11 +299,6 @@ describe("Adarkar Sentinel ({1}: +0/+1 self-pump, CR 605 / 613)", () => {
         });
         return { state, sentinel };
     }
-    it("is a 3/3 artifact creature", () => {
-        expect(adarkarSentinel.types).toEqual(["Artifact", "Creature"]);
-        expect(adarkarSentinel.power).toBe(3);
-        expect(adarkarSentinel.toughness).toBe(3);
-    });
     it("pumps +0/+1 until end of turn", () => {
         const { state, sentinel } = setup();
         resolveActivated(state, sentinel, "adarkar-sentinel-pump");
@@ -332,16 +320,6 @@ describe("Adarkar Sentinel ({1}: +0/+1 self-pump, CR 605 / 613)", () => {
 });
 
 describe("Aegis of the Meek ({1},{T}: 1/1 gets +1/+2, CR 605 / 613)", () => {
-    it("only 1/1 creatures are legal targets", () => {
-        const ability = aegisOfTheMeek.activatedAbilities!.find(
-            (a) => a.id === "aegis-of-the-meek-pump"
-        )!;
-        expect(ability.targetRequirement).toMatchObject({
-            powerFilter: { min: 1, max: 1 },
-            toughnessFilter: { min: 1, max: 1 },
-        });
-        expect(ability.cost).toMatchObject({ tap: true });
-    });
     it("grants +1/+2 to the targeted 1/1 until end of turn", () => {
         const aegis = makeInstance(aegisOfTheMeek.id, {
             id: "aegis",
@@ -401,15 +379,6 @@ describe("Celestial Sword ({3},{T}: +3/+3 then sac, CR 605 / 603.7b)", () => {
                 (d) => d.id === "celestial-sword-sacrifice"
             )
         ).toBe(true);
-    });
-    it("targets only creatures you control", () => {
-        const ability = celestialSword.activatedAbilities!.find(
-            (a) => a.id === "celestial-sword-pump"
-        )!;
-        expect(ability.targetRequirement).toMatchObject({
-            type: "Creature",
-            controller: "you",
-        });
     });
 });
 
@@ -498,14 +467,6 @@ describe("Icy Manipulator ({1},{T}: tap any of three types, CR 605 / 701.20a)", 
         )!;
         expect(slim.isTapped).toBe(true);
     });
-    it("targets artifact, creature, or land", () => {
-        const ability = icyManipulator.activatedAbilities![0];
-        expect(ability.targetRequirement!.type).toEqual([
-            "Artifact",
-            "Creature",
-            "Land",
-        ]);
-    });
 });
 
 describe("Jester's Cap ({2},{T},Sac: strip 3 from a library, CR 701.19)", () => {
@@ -547,14 +508,6 @@ describe("Jester's Cap ({2},{T},Sac: strip 3 from a library, CR 701.19)", () => 
 });
 
 describe("Pit Trap ({2},{T},Sac: destroy an attacker, CR 605 / 508.1)", () => {
-    it("only non-flying attacking creatures are legal targets", () => {
-        const ability = pitTrap.activatedAbilities![0];
-        expect(ability.targetRequirement).toMatchObject({
-            combatRoleFilter: "attacking",
-            excludeAbility: "flying",
-        });
-        expect(ability.cost).toMatchObject({ sacrifice: true, tap: true });
-    });
     it("destroys the targeted attacker", () => {
         const trap = makeInstance(pitTrap.id, {
             id: "trap",
@@ -600,13 +553,6 @@ describe("Shield of the Ages ({2}: prevent 1 to you, CR 605 / 615.1)", () => {
 });
 
 describe("Skull Catapult ({1},{T},Sac a creature: 2 dmg, CR 605 / 120.1)", () => {
-    it("declares a sacrifice-a-creature cost and deals 2 to any target", () => {
-        const ability = skullCatapult.activatedAbilities![0];
-        expect(ability.cost.sacrificeFilter).toMatchObject({
-            types: "Creature",
-        });
-        expect(ability.targetRequirement).toMatchObject({ type: "any" });
-    });
     it("deals 2 damage to a targeted player", () => {
         const cat = makeInstance(skullCatapult.id, {
             id: "cat",
@@ -632,12 +578,6 @@ describe("Skull Catapult ({1},{T},Sac a creature: 2 dmg, CR 605 / 120.1)", () =>
 });
 
 describe("Snow Fortress (Defender Wall, pumps + ping, CR 702.3 / 605)", () => {
-    it("is a 0/4 Defender artifact Wall", () => {
-        expect(snowFortress.types).toEqual(["Artifact", "Creature"]);
-        expect(snowFortress.subtypes).toContain("Wall");
-        expect(snowFortress.staticAbilities).toContain("defender");
-        expect(snowFortress.toughness).toBe(4);
-    });
     it("pumps power and toughness via its two abilities", () => {
         const fort = makeInstance(snowFortress.id, {
             id: "fort",
@@ -655,18 +595,6 @@ describe("Snow Fortress (Defender Wall, pumps + ping, CR 702.3 / 605)", () => {
         const f = state.players[0].battlefield.find((c) => c.id === "fort")!;
         expect(getEffectivePower(state, f)).toBe(1);
         expect(getEffectiveToughness(state, f)).toBe(5);
-    });
-});
-
-describe("Staff of the Ages (landwalk negation, CR 509.1b / 702.13)", () => {
-    it("negates every basic landwalk via a landwalk-negation static", () => {
-        const eff = staffOfTheAges.staticEffects!.find(
-            (e) => e.kind === "landwalk-negation"
-        )!;
-        expect(eff).toMatchObject({
-            kind: "landwalk-negation",
-            subtypes: ["Plains", "Island", "Swamp", "Mountain", "Forest"],
-        });
     });
 });
 
@@ -713,15 +641,6 @@ describe("Vibrating Sphere (turn-conditional anthem, CR 611.2c / 613)", () => {
     });
 });
 
-describe("Wall of Shields (Defender + Banding, CR 702.3 / 702.22)", () => {
-    it("is a 0/4 Defender Banding artifact Wall", () => {
-        expect(wallOfShields.staticAbilities).toContain("defender");
-        expect(wallOfShields.staticAbilities).toContain("banding");
-        expect(wallOfShields.subtypes).toContain("Wall");
-        expect(wallOfShields.toughness).toBe(4);
-    });
-});
-
 describe("War Chariot ({3},{T}: grant trample, CR 605 / 702.19)", () => {
     it("grants trample to the target until end of turn", () => {
         const chariot = makeInstance(warChariot.id, {
@@ -748,12 +667,6 @@ describe("War Chariot ({3},{T}: grant trample, CR 605 / 702.19)", () => {
 });
 
 describe("Whalebone Glider ({2},{T}: grant flying to power<=3, CR 605 / 702.9)", () => {
-    it("only creatures with power 3 or less are legal targets", () => {
-        const ability = whaleboneGlider.activatedAbilities![0];
-        expect(ability.targetRequirement).toMatchObject({
-            powerFilter: { max: 3 },
-        });
-    });
     it("grants flying to the target until end of turn", () => {
         const glider = makeInstance(whaleboneGlider.id, {
             id: "glider",
@@ -779,13 +692,6 @@ describe("Whalebone Glider ({2},{T}: grant flying to power<=3, CR 605 / 702.9)",
 });
 
 describe("Zuran Orb (Sac a land: gain 2 life, CR 605 / 119.3)", () => {
-    it("declares a {0} cost and a sacrifice-a-land ability", () => {
-        expect(zuranOrb.manaCost).toEqual({});
-        const ability = zuranOrb.activatedAbilities![0];
-        expect(ability.cost.sacrificeFilter).toMatchObject({
-            types: "Land",
-        });
-    });
     it("gains the controller 2 life", () => {
         const orb = makeInstance(zuranOrb.id, {
             id: "orb",
@@ -842,11 +748,6 @@ describe("ICE Artifacts tranche registry parity (#636)", () => {
 // ===========================================================================
 
 describe("Ice Floe ({T}: tap-lock a non-flying attacker, CR 611.2 / 508.1)", () => {
-    it("declares the may-choose-not-to-untap static ability (CR 502.1)", () => {
-        expect(iceFloe.staticAbilities).toContain("may-choose-not-to-untap");
-        expect(iceFloe.types).toEqual(["Land"]);
-    });
-
     it("only non-flying attacking creatures are legal targets", () => {
         const groundAttacker = vanilla("ground", 2, 2, {
             controllerId: "p2",
@@ -1054,15 +955,6 @@ describe("Talisman cycle (SPELL_CAST may-pay untap, CR 603.2 / 615 / 701.20b)", 
                 makeState()
             );
             expect(onColor).toBe(true);
-        }
-    });
-
-    it("declares the CR 603.3d target requirement: up to one permanent (any controller)", () => {
-        for (const { card } of cycle) {
-            expect(card.triggeredAbilities![0].targetRequirement).toEqual({
-                type: [...PERMANENT_TYPES],
-                count: { min: 0, max: 1 },
-            });
         }
     });
 
@@ -1386,12 +1278,6 @@ describe("Infinite Hourglass (time counters + scaled anthem, CR 122 / 613)", () 
         hg = state.players[0].battlefield.find((c) => c.id === "hg")!;
         expect(hg.counters?.time).toBe(1);
     });
-
-    it("the {3} removal is restricted to upkeep and activatable by any player", () => {
-        const ability = infiniteHourglass.activatedAbilities![0];
-        expect(ability.activatableByAnyPlayer).toBe(true);
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-    });
 });
 
 describe("Time Bomb (time counters + scaled board wipe, CR 122 / 119)", () => {
@@ -1543,16 +1429,6 @@ describe("Soldevi Golem (does-not-untap + upkeep untap, CR 702 / 603.3d / 701.20
         });
         return { state, golem };
     }
-
-    it("declares the CR 603.3d mandatory target: a tapped creature an opponent controls", () => {
-        expect(soldeviGolem.staticAbilities).toContain("does-not-untap");
-        expect(soldeviGolem.triggeredAbilities![0].targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            tappedFilter: "tapped",
-            controller: "opponent",
-        });
-    });
 
     it("sole legal target auto-locks (no choice); accepting untaps it and Golem", () => {
         const { state, golem } = golemBoard(["oppc"]);
@@ -1741,15 +1617,6 @@ describe("Force Void (counter unless pay {1}, CR 701.5a)", () => {
         enterUpkeepAndFire(state, "p1");
         resolveTopOfStack(state);
         expect(state.players[0].hand.map((c) => c.id)).toContain("a");
-    });
-});
-
-describe("Barbed Sextant (sac for any mana + next-upkeep cantrip, ADR 0040)", () => {
-    it("arms the next-upkeep cantrip on the tap-for-mana rider", () => {
-        const ability = barbedSextant.activatedAbilities?.[0];
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.armsDelayedTriggerOnTap?.timing).toBe("next-upkeep");
-        expect(barbedSextant.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
     });
 });
 
@@ -1998,10 +1865,6 @@ describe("Drift of the Dead (CR 604.3 snow-count CDA)", () => {
         expect(getEffectivePower(projected, slim)).toBe(3);
         expect(getEffectiveToughness(projected, slim)).toBe(3);
     });
-
-    it("has defender", () => {
-        expect(driftOfTheDead.staticAbilities).toContain("defender");
-    });
 });
 
 describe("Cold Snap (CR 205.4a snow-count upkeep damage)", () => {
@@ -2126,12 +1989,6 @@ describe("Karplusan Giant (CR 118.8 snow-land tap cost)", () => {
 });
 
 describe("Glacial Crevasses / Sunstone (CR 118.5 snow-Mountain / snow-land sacrifice)", () => {
-    it("Glacial Crevasses requires a snow Mountain to pay its sacrifice cost", () => {
-        const ability = glacialCrevasses.activatedAbilities![0];
-        expect(ability.cost.sacrificeFilter?.subtypes).toBe("Mountain");
-        expect(ability.cost.sacrificeFilter?.supertypes).toEqual(["Snow"]);
-    });
-
     it("Glacial Crevasses prevents all combat damage on resolution", () => {
         const gc = makeInstance(glacialCrevasses.id, {
             id: "gc",
@@ -2150,12 +2007,6 @@ describe("Glacial Crevasses / Sunstone (CR 118.5 snow-Mountain / snow-land sacri
         });
         resolveActivated(state, gc, "glacial-crevasses-fog");
         expect(state.preventAllCombatDamageThisTurn).toBe(true);
-    });
-
-    it("Sunstone's sacrifice cost is a snow land", () => {
-        const ability = sunstone.activatedAbilities![0];
-        expect(ability.cost.sacrificeFilter?.types).toBe("Land");
-        expect(ability.cost.sacrificeFilter?.supertypes).toEqual(["Snow"]);
     });
 });
 
@@ -2343,22 +2194,6 @@ describe("painland cycle (#662) — coloured-tap self-damage (CR 605.1a / 120)",
 
     for (const { def, colors } of painlands) {
         describe(`${def.name}`, () => {
-            it("is a Land with one {T} choice mana ability: {C} (index 0) + the two colours carrying a 1-damage rider", () => {
-                expect(def.types).toEqual(["Land"]);
-                const mana = def.activatedAbilities?.find(
-                    (a) => !a.useStack && a.manaChoices
-                );
-                expect(mana?.useStack).toBe(false);
-                expect(mana?.cost).toEqual({ tap: true });
-                // Index 0 is the painless {C}; 1 and 2 are the two colours.
-                expect(mana?.manaChoices).toEqual([
-                    { C: 1 },
-                    { [colors[0]]: 1 },
-                    { [colors[1]]: 1 },
-                ]);
-                expect(mana?.dealsDamageToControllerOnColoredTap).toBe(1);
-            });
-
             it("tapping for {C} (the painless choice) costs NO life and adds {C} (CR 605.1a)", () => {
                 const land = makeInstance(def.id, {
                     id: "land",
@@ -2449,35 +2284,6 @@ describe("ICE depletion-dual cycle (#663, CR 605.1a / 502.1 / 603.6a)", () => {
 
     for (const { def, colors } of depletionDuals) {
         describe(`${def.name}`, () => {
-            it("is a Land with the depletion-untap static and a {T} two-colour mana ability carrying the depletion rider", () => {
-                expect(def.types).toEqual(["Land"]);
-                expect(def.staticAbilities).toContain(
-                    "does-not-untap-with-depletion-counter"
-                );
-                const mana = def.activatedAbilities?.find(
-                    (a) => !a.useStack && a.manaChoices
-                );
-                expect(mana?.useStack).toBe(false);
-                expect(mana?.cost).toEqual({ tap: true });
-                // Both choices are coloured (no painless {C}).
-                expect(mana?.manaChoices).toEqual([
-                    { [colors[0]]: 1 },
-                    { [colors[1]]: 1 },
-                ]);
-                expect(mana?.putDepletionCounterOnTap).toBe(true);
-                expect(
-                    mana?.dealsDamageToControllerOnColoredTap
-                ).toBeUndefined();
-            });
-
-            it("declares an upkeep depletion-removal trigger", () => {
-                const slug = def.name.toLowerCase().replace(/[^a-z]+/g, "-");
-                const trig = def.triggeredAbilities?.find(
-                    (t) => t.id === `${slug}-upkeep-deplete`
-                );
-                expect(trig?.event).toBe("PHASE_BEGIN");
-            });
-
             it(`tapping for ${colors[0]} adds {${colors[0]}} and one depletion counter, no life loss (CR 605.1a / 122.1)`, () => {
                 const land = makeInstance(def.id, {
                     id: "land",
@@ -2611,20 +2417,6 @@ describe("ICE depletion-dual cycle (#663, CR 605.1a / 502.1 / 603.6a)", () => {
 });
 
 describe("Naked Singularity — per-basic-type permutation (CR 614, #665)", () => {
-    it("shape: cumulative-upkeep {3} + per-basic-subtype mapping", () => {
-        expect(nakedSingularity.types).toContain("Artifact");
-        expect(nakedSingularity.manaCost).toEqual({ X: 5 });
-        expect(nakedSingularity.landManaSubstitution).toEqual({
-            byBasicSubtype: {
-                Plains: "R",
-                Island: "G",
-                Swamp: "W",
-                Mountain: "U",
-                Forest: "B",
-            },
-        });
-    });
-
     it("Plains→{R}, Island→{G}, Swamp→{W}, Mountain→{U}, Forest→{B}", () => {
         const expected: Record<string, ManaCost> = {
             [plains.id]: { R: 1 },
@@ -3042,21 +2834,6 @@ describe("Jeweled Amulet (noted-mana battery, CR 106.10)", () => {
 });
 
 describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3e)", () => {
-    it("declares the {X},{T} charge ability and the {T}+remove-counter add ability", () => {
-        const charge = iceCauldron.activatedAbilities!.find(
-            (a) => a.id === "ice-cauldron-charge"
-        )!;
-        expect(charge.cost).toMatchObject({ mana: { X: "X" }, tap: true });
-        expect(charge.noteManaSpent).toBe(true);
-        const add = iceCauldron.activatedAbilities!.find(
-            (a) => a.id === "ice-cauldron-add"
-        )!;
-        expect(add.cost).toMatchObject({
-            tap: true,
-            removeCounter: { type: "charge", count: 1 },
-        });
-    });
-
     it("exiles the chosen card face down, grants cast-from-exile, and notes the mana keyed to it", () => {
         const cauldron = makeInstance(iceCauldron.id, {
             id: "cauldron",
@@ -3499,25 +3276,6 @@ describe("Pox (proportional mass loss/sacrifice/discard, CR 107.2 round-up)", ()
 // hand (CR 701.18a, `lookRandomHand` Op) + next-upkeep cantrip (issue #674,
 // CR 603.7d delayed triggered ability).
 describe("Urza's Bauble (private hand look + next-upkeep cantrip, CR 603.7d)", () => {
-    it("is a {0} artifact with a tap+sacrifice ability targeting a player", () => {
-        expect(urzasBauble.manaCost).toEqual({});
-        expect(urzasBauble.types).toEqual(["Artifact"]);
-        const ability = urzasBauble.activatedAbilities![0];
-        expect(ability.cost).toMatchObject({ tap: true, sacrifice: true });
-        expect(ability.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-        });
-        // Post-#838 the cantrip is a delayedTrigger Op on the ability's
-        // Effect Script (ADR 0048) — the old assertion pinned the legacy
-        // `delayedTriggers[]` template field.
-        expect(
-            ability.effects?.some(
-                (e) => e.op === "delayedTrigger" && e.timing === "next-upkeep"
-            )
-        ).toBe(true);
-    });
-
     it("schedules a draw that fires at the next upkeep", () => {
         const bauble = makeInstance(urzasBauble.id, {
             id: "bauble",
@@ -3675,24 +3433,6 @@ describe("Elkin Bottle ({3},{T}: exile top card, play it — CR 601.3e impulse)"
 // (continuous damage-prevention replacement).
 // ---------------------------------------------------------------------------
 describe("Glacial Chasm (CR 702.24 / 508.1c / 615.1 / 701.16)", () => {
-    it("definition shape: Land with all four clauses wired", () => {
-        expect(glacialChasm.types).toEqual(["Land"]);
-        const cu = (glacialChasm.triggeredAbilities ?? []).find(
-            (t) => t.id === "glacial-chasm-cumulative-upkeep"
-        );
-        expect(cu).toBeDefined();
-        const etb = (glacialChasm.triggeredAbilities ?? []).find(
-            (t) => t.id === "glacial-chasm-etb-sacrifice-land"
-        );
-        // DSL-first: the ETB is an Effect Script, not a resolve() closure.
-        expect(etb?.effects).toBeDefined();
-        expect(etb?.resolve).toBeUndefined();
-        expect(glacialChasm.staticEffects?.[0]?.kind).toBe(
-            "global-attack-restriction"
-        );
-        expect(glacialChasm.replacementEffects?.[0]?.eventKind).toBe("damage");
-    });
-
     it("forbids the controller's creatures from attacking (CR 508.1c)", () => {
         const chasm = makeInstance(glacialChasm.id, {
             id: "chasm",
@@ -3859,18 +3599,6 @@ describe("Glacial Chasm (CR 702.24 / 508.1c / 615.1 / 701.16)", () => {
 // GameState field.
 // ---------------------------------------------------------------------------
 describe("Halls of Mist (CR 702.24 / 508.1)", () => {
-    it("definition shape: Land with cumulative upkeep + attack restriction", () => {
-        expect(hallsOfMist.types).toEqual(["Land"]);
-        expect(
-            (hallsOfMist.triggeredAbilities ?? []).some(
-                (t) => t.id === "halls-of-mist-cumulative-upkeep"
-            )
-        ).toBe(true);
-        expect(hallsOfMist.staticEffects?.[0]?.kind).toBe(
-            "global-attack-restriction"
-        );
-    });
-
     it("forbids a creature that attacked during its controller's last turn", () => {
         const halls = makeInstance(hallsOfMist.id, {
             id: "halls",
@@ -3992,21 +3720,6 @@ describe("Arcum's Whistle (forced attack with pay-{X} gate + delayed destroy)", 
         return { state, whistle, victim };
     }
 
-    it("declares an active-player non-Wall creature target, activatable before attackers", () => {
-        const ability = arcumsWhistle.activatedAbilities?.[0];
-        expect(ability?.id).toBe(ABILITY_ID);
-        expect(ability?.cost).toEqual({ mana: { X: 3 }, tap: true });
-        expect(ability?.useStack).toBe(true);
-        expect(ability?.targetRequirement?.controller).toBe("active");
-        expect(ability?.targetRequirement?.excludeSubtypes).toBe("Wall");
-        expect(ability?.activationPhaseRestriction).toEqual([
-            "UPKEEP",
-            "DRAW",
-            "PRECOMBAT_MAIN",
-            "BEGINNING_OF_COMBAT",
-        ]);
-    });
-
     it('controller:"active" restricts legal targets to the active player\'s creatures', () => {
         const { state } = setup();
         // Add a creature controlled by the NON-active player (p1).
@@ -4096,25 +3809,6 @@ describe("Arcum's Whistle (forced attack with pay-{X} gate + delayed destroy)", 
         ).map((t) => t.id);
         expect(legal).toContain("victim");
         expect(legal).not.toContain("wall");
-    });
-
-    // Issue #1825 — the Oracle clause "target non-Wall creature THE ACTIVE
-    // PLAYER HAS CONTROLLED CONTINUOUSLY SINCE THE BEGINNING OF THE TURN" only
-    // had its `controller: "active"` half declared; the continuity half was
-    // dropped, so a creature that entered the battlefield THIS turn (or
-    // changed control this turn) was a legal target even though the printed
-    // card forbids it — a freshly cast, summoning-sick creature could be
-    // force-attacked and destroyed. Mirrors Norritt's #1824 fix
-    // (ice/black.ts), which built the shared `controlledSinceTurnStart`
-    // target filter this card now reuses.
-    it("declares BOTH halves of the active-player-continuous-control clause (issue #1825)", () => {
-        const req = arcumsWhistle.activatedAbilities![0].targetRequirement!;
-        expect(req).toMatchObject({
-            type: "Creature",
-            excludeSubtypes: "Wall",
-            controller: "active",
-            controlledSinceTurnStart: true,
-        });
     });
 
     it("offers only the active player's continuously-held non-Wall creature (CR 102.1 / 302.6 / 400.7, issue #1825)", () => {

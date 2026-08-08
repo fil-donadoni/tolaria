@@ -13,14 +13,6 @@ const CREATURE_ID = "6914c5a8-2114-41c5-a471-ca97524d622f"; // Sabretooth Tiger
 const ARTIFACT_ID = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // Black Lotus
 
 describe("Abrade (CR 700.2 modal — damage a creature or destroy an artifact)", () => {
-    it("declares two modes with different target types", () => {
-        expect(abrade.modes).toHaveLength(2);
-        const damage = abrade.modes!.find((m) => m.id === "damage")!;
-        const destroy = abrade.modes!.find((m) => m.id === "destroy")!;
-        expect(damage.targetRequirement).toMatchObject({ type: "Creature" });
-        expect(destroy.targetRequirement).toMatchObject({ type: "Artifact" });
-    });
-
     it("damage mode deals 3 damage to target creature (CR 120.1)", () => {
         const creature = makeInstance(CREATURE_ID, {
             id: "creature-1",

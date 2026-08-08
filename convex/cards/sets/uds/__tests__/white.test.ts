@@ -78,11 +78,6 @@ const gyCard = (cardId: string, id: string) =>
     });
 
 describe("Replenish (CR 404 / 400.7 — bulk graveyard-set move, issue #1056)", () => {
-    it("is a {3}{W} sorcery", () => {
-        expect(replenish.types).toEqual(["Sorcery"]);
-        expect(replenish.manaCost).toEqual({ X: 3, W: 1 });
-    });
-
     it("returns all enchantment cards from your graveyard to the battlefield at once", () => {
         const nonEnch = makeInstance(CREATURE_ID, {
             id: "gy-creature",

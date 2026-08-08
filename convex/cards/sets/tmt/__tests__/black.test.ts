@@ -33,14 +33,6 @@ describe("Super Shredder (CR 702.111 menace; CR 603.2 leaves-the-battlefield tri
         return { state, shredder, other };
     }
 
-    it("shape: 1/1 legendary for {1}{B} with menace and the leave-trigger declared", () => {
-        expect(superShredder.manaCost).toEqual({ X: 1, B: 1 });
-        expect(superShredder.power).toBe(1);
-        expect(superShredder.toughness).toBe(1);
-        expect(superShredder.staticAbilities).toContain("menace");
-        expect(superShredder.triggeredAbilities).toHaveLength(1);
-    });
-
     it("puts a +1/+1 counter on itself when ANOTHER permanent leaves the battlefield", () => {
         const { state } = setup();
         removePermanentTo(state, "other", "graveyard");

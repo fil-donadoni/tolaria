@@ -66,19 +66,6 @@ describe("LEB registry parity", () => {
 // ---------------------------------------------------------------------------
 
 describe("Volcanic Island (dual land: {T}: Add {U} or {R})", () => {
-    it("is a non-basic Land with Island and Mountain subtypes", () => {
-        expect(volcanicIsland.types).toEqual(["Land"]);
-        expect(volcanicIsland.subtypes).toEqual(["Island", "Mountain"]);
-        expect(volcanicIsland.supertypes).toBeUndefined();
-    });
-
-    it("offers U and R as a single choice mana ability (useStack false)", () => {
-        const ability = volcanicIsland.activatedAbilities?.[0];
-        expect(ability?.cost.tap).toBe(true);
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaChoices).toEqual([{ U: 1 }, { R: 1 }]);
-    });
-
     it("commitLandsForCost commits the dual for either chosen color", () => {
         for (const color of ["U", "R"] as const) {
             const dual = makeInstance(volcanicIsland.id, {

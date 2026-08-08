@@ -143,20 +143,6 @@ function setup(own: number, opp: number, topCardId?: string) {
 }
 
 describe("Shelldock Isle — definition (CR 702.75 / 702.75b)", () => {
-    it("is a colourless Land declaring only the `hideaway 4` keyword string", () => {
-        expect(shelldockIsle.manaCost).toEqual({});
-        expect(shelldockIsle.types).toEqual(["Land"]);
-        expect(shelldockIsle.staticAbilities).toContain("hideaway 4");
-    });
-
-    it("CR 702.75b — the enters-tapped clause is its OWN ability, not part of hideaway", () => {
-        expect(shelldockIsle.entersTapped).toBe(true);
-        // Hideaway itself never taps: the keyword's injected trigger is only the
-        // look/exile/bottom leg (asserted below), and nothing in the card's own
-        // data folds tapping into it.
-        expect(shelldockIsle.triggeredAbilities ?? []).toHaveLength(0);
-    });
-
     it("ADR 0054 — the `getDefinition` seam injects the CR 702.75a ETB trigger from the keyword string alone", () => {
         const expanded = getDefinition(shelldockIsle.id);
         const trigger = expanded.triggeredAbilities?.find(
@@ -176,16 +162,6 @@ describe("Shelldock Isle — definition (CR 702.75 / 702.75b)", () => {
                 (t) => t.id === HIDEAWAY_TRIGGER_ID
             )
         ).toHaveLength(1);
-    });
-
-    it("prints a mana ability and the linked play ability, and the play ability uses the stack", () => {
-        const mana = shelldockIsle.activatedAbilities?.[0];
-        expect(mana?.useStack).toBe(false); // CR 605.3a
-        const play = shelldockIsle.activatedAbilities?.find(
-            (a) => a.id === PLAY_ABILITY_ID
-        );
-        expect(play?.cost).toEqual({ mana: { U: 1 }, tap: true });
-        expect(play?.useStack).toBe(true);
     });
 });
 

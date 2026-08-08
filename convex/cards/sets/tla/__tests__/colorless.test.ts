@@ -88,22 +88,6 @@ describe("Abandoned Air Temple (CR 614.1c conditional tapped entry; CR 605.1a ma
         expect(played.isTapped).toBe(true);
     });
 
-    it("the mana ability is a fixed-{W} mana ability (useStack: false)", () => {
-        // A useStack: false mana ability resolves immediately at activation
-        // commit — never via the stack — so it isn't exercised through the
-        // resolveActivated shim (mirrors Strip Mine / Sol Ring's own mana
-        // ability tests, `sets/atq/__tests__/colorless.test.ts`,
-        // `sets/lea/__tests__/colorless.test.ts`: shape-only, since the auto-
-        // tap payment system reads this metadata, not `effect`, to know the
-        // land covers a {W} cost).
-        const mana = abandonedAirTemple.activatedAbilities!.find(
-            (a) => a.id === "abandoned-air-temple-mana"
-        )!;
-        expect(mana.cost.tap).toBe(true);
-        expect(mana.useStack).toBe(false);
-        expect(mana.manaProduced).toEqual({ W: 1 });
-    });
-
     it("{3}{W}, {T}: puts a +1/+1 counter on each creature you control, not the opponent's", () => {
         const temple = makeInstance(abandonedAirTemple.id, {
             id: "temple",

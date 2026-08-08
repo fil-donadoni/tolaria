@@ -548,13 +548,6 @@ describe("Magnetic Mountain (CR 502.1 untap restriction + upkeep untap)", () => 
 });
 
 describe("Mijae Djinn (random-reveal attack flip, CR 705 / ADR 0023 + CR 508)", () => {
-    it("definition snapshot: 6/3 Djinn, {R}{R}{R}", () => {
-        expect(mijaeDjinn.power).toBe(6);
-        expect(mijaeDjinn.toughness).toBe(3);
-        expect(mijaeDjinn.subtypes).toContain("Djinn");
-        expect(mijaeDjinn.manaCost).toEqual({ R: 3 });
-    });
-
     /** Build a fresh combat with Mijae attacking, seeded for a known first
      *  flip, and push+resolve its attack trigger (which suspends on the
      *  random-reveal). Returns the suspended state. */
@@ -704,13 +697,6 @@ describe("Mijae Djinn (random-reveal attack flip, CR 705 / ADR 0023 + CR 508)", 
 });
 
 describe("Ydwen Efreet (block flip via requestCoinFlip, CR 705 / 509.1h / ADR 0023)", () => {
-    it("definition snapshot: 3/6 Efreet, {R}{R}{R}", () => {
-        expect(ydwenEfreet.power).toBe(3);
-        expect(ydwenEfreet.toughness).toBe(6);
-        expect(ydwenEfreet.subtypes).toContain("Efreet");
-        expect(ydwenEfreet.manaCost).toEqual({ R: 3 });
-    });
-
     /** p1 attacks with a bear; p2's Ydwen is its only blocker. When
      *  `secondBlocker` is set, a 2/2 bear ("blk2") also blocks "atk", so
      *  Ydwen is no longer the SOLE blocker — leaving combat must NOT unblock

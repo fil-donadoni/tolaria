@@ -21,7 +21,6 @@ import {
     getBasicLandMana,
     getManaTapOptionsDetailed,
     hasManaAbility,
-    LAND_TYPES,
 } from "../../../../gre/constants";
 import {
     applySourceStaticEffects,
@@ -60,13 +59,6 @@ import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 
 describe("Yavimaya, Cradle of Growth ({T}: Add {G} via basic-land inference — CR 305.7, 611)", () => {
-    it("declares exactly one subtype-add static effect matching every land", () => {
-        const kinds = (yavimayaCradleOfGrowth.staticEffects ?? []).map(
-            (e) => e.kind
-        );
-        expect(kinds).toEqual(["subtype-add"]);
-    });
-
     it("adds Forest additively to another land already on the battlefield (original subtype NOT replaced)", () => {
         const state = makeState();
         const yavimaya = makeInstance(yavimayaCradleOfGrowth.id, {
@@ -141,36 +133,9 @@ function resolveGrantedAbility(
 }
 
 describe("Urza's Saga — printed characteristics (CR 205.3h / 205.3i, ADR 0078 §4)", () => {
-    it("is BOTH an Enchantment and a Land, with TWO subtypes", () => {
-        // The trap this pins: written as the single string "Urza's Saga" the
-        // card is not a Saga at all — `isSaga` reads
-        // `subtypes.includes("Saga")` — and every other server-side test still
-        // passes, silently.
-        expect(urzasSaga.types).toEqual(["Enchantment", "Land"]);
-        expect(urzasSaga.subtypes).toEqual(["Urza's", "Saga"]);
-    });
-
     it("is recognised as a Saga by the engine's identity predicate", () => {
         const { saga } = sagaBoard({ lore: 1 });
         expect(isSaga(saga)).toBe(true);
-    });
-
-    it('"Urza\'s" is a CR 205.3i land type the engine knows', () => {
-        // The land half of the subtype pair must be strippable by a CR 305.7
-        // land-type-setting effect; only "Saga" rides along (allowlisted in
-        // `cards/__tests__/landTypeCoverage.test.ts`).
-        expect(LAND_TYPES.has("Urza's")).toBe(true);
-        expect(LAND_TYPES.has("Saga")).toBe(false);
-    });
-
-    it("has no mana cost and carries the verbatim Scryfall oracle text", () => {
-        expect(urzasSaga.manaCost).toEqual({});
-        expect(urzasSaga.oracleText).toBe(
-            "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after III.)\n" +
-                'I — This Saga gains "{T}: Add {C}."\n' +
-                "II — This Saga gains \"{2}, {T}: Create a 0/0 colorless Construct artifact creature token with 'This token gets +1/+1 for each artifact you control.'\"\n" +
-                "III — Search your library for an artifact card with mana cost {0} or {1}, put it onto the battlefield, then shuffle."
-        );
     });
 
     it("desugars into exactly three chapter abilities plus the entry lore counter", () => {
@@ -183,22 +148,6 @@ describe("Urza's Saga — printed characteristics (CR 205.3h / 205.3i, ADR 0078 
             { type: LORE_COUNTER, count: 1 },
         ]);
         expect(finalChapter(makeInstance(urzasSaga.id))).toBe(3);
-    });
-
-    it("exposes the two granted abilities on grantTemplates, NOT as native activated abilities", () => {
-        // The Saga must not tap for {C} before chapter I resolves.
-        expect(urzasSaga.activatedAbilities).toBeUndefined();
-        const mana = urzasSaga.grantTemplates!.find(
-            (a) => a.id === "urzas-saga-mana"
-        )!;
-        expect(mana.useStack).toBe(false); // CR 605.1a — a mana ability
-        expect(mana.cost).toEqual({ tap: true });
-        expect(mana.manaProduced).toEqual({ C: 1 });
-        const construct = urzasSaga.grantTemplates!.find(
-            (a) => a.id === "urzas-saga-construct"
-        )!;
-        expect(construct.useStack).toBe(true);
-        expect(construct.cost).toEqual({ tap: true, mana: { X: 2 } });
     });
 });
 

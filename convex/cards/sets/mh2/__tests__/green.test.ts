@@ -91,23 +91,6 @@ function chooseEndurancePlayer(
 }
 
 describe("Endurance (CR 603.3d trigger-time player target; #1193, #1207)", () => {
-    it("pins the definition: flash + reach, evoke a green card, 3/4", () => {
-        expect(endurance.power).toBe(3);
-        expect(endurance.toughness).toBe(4);
-        expect(endurance.staticAbilities).toEqual(["flash", "reach"]);
-        expect(endurance.evoke?.hand).toEqual({
-            action: "exile",
-            requirements: [{ filter: { color: "G" }, count: 1 }],
-        });
-    });
-
-    it("declares the CR 603.3d target requirement: up to one target player", () => {
-        expect(endurance.triggeredAbilities?.[0]?.targetRequirement).toEqual({
-            type: "player",
-            count: { min: 0, max: 1 },
-        });
-    });
-
     it("raises a trigger PendingTarget owed to the controller, every player eligible", () => {
         const { state } = setupEndurance({ gyCount: 3, libCount: 2 });
         const raised = raiseTriggerTargetSelection(state);

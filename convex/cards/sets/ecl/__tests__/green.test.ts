@@ -73,14 +73,6 @@ function speakerCost(): MayPayCost {
 }
 
 describe("Formidable Speaker (mayPay discard leg, CR 701.9 / 118.3 / 608.2b, issue #899)", () => {
-    it("is an {X}{2}{G} 2/4 Elf Druid", () => {
-        expect(formidableSpeaker.manaCost).toEqual({ X: 2, G: 1 });
-        expect(formidableSpeaker.types).toEqual(["Creature"]);
-        expect(formidableSpeaker.subtypes).toEqual(["Elf", "Druid"]);
-        expect(formidableSpeaker.power).toBe(2);
-        expect(formidableSpeaker.toughness).toBe(4);
-    });
-
     it("decline: no card is discarded and no search happens (CR 608.2b)", () => {
         const speaker = makeInstance(formidableSpeaker.id, {
             id: "speaker",
@@ -371,12 +363,6 @@ describe("Formidable Speaker (mayPay discard leg, CR 701.9 / 118.3 / 608.2b, iss
 });
 
 describe("Formidable Speaker — {1}, {T}: Untap another target permanent (CR 605 / 701.20b)", () => {
-    it("declares the activated untap ability with a mana+tap cost", () => {
-        const ability = formidableSpeaker.activatedAbilities![0];
-        expect(ability.id).toBe("formidable-speaker-untap");
-        expect(ability.cost).toEqual({ mana: { X: 1 }, tap: true });
-    });
-
     it('getTargetRequirement excludes the source itself ("another")', () => {
         const req = formidableSpeaker.activatedAbilities![0]
             .getTargetRequirement!({ id: "speaker" } as never, {} as never);

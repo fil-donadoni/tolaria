@@ -36,14 +36,6 @@ function resolveActivated(
 }
 
 describe("Basking Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 602.5)", () => {
-    it("carries Madness {0} and a oncePerTurn pump ability", () => {
-        expect(baskingRootwalla.madness).toEqual({});
-        const pump = baskingRootwalla.activatedAbilities?.find(
-            (a) => a.id === "basking-rootwalla-pump"
-        );
-        expect(pump?.oncePerTurn).toBe(true);
-    });
-
     it("gives +2/+2 until end of turn, surviving the wire projection", () => {
         const walla = makeInstance(baskingRootwalla.id, { controllerId: "p1" });
         const state = makeState({

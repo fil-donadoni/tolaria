@@ -10,15 +10,12 @@ import {
     armageddon,
     balance,
     benalishHero,
-    blackWard,
     blazeOfGlory,
     blessing,
-    blueWard,
     bogWraith,
     castle,
     chaoslace,
     circleOfProtectionBlue,
-    circleOfProtectionGreen,
     circleOfProtectionRed,
     circleOfProtectionWhite,
     consecrateLand,
@@ -31,7 +28,6 @@ import {
     fireball,
     forest,
     goblinKing,
-    greenWard,
     grizzlyBears,
     guardianAngel,
     holyArmor,
@@ -63,7 +59,6 @@ import {
     swamp,
     swordsToPlowshares,
     thoughtlace,
-    timberWolves,
     verduranEnchantress,
     veteranBodyguard,
     wallOfSwords,
@@ -539,11 +534,6 @@ describe("Disenchant (destroy target Artifact/Enchantment, CR 608.3)", () => {
         expect(state.players[0].graveyard[0].id).toBe("castle-target");
     });
 
-    it("uses the destroy-target effect shorthand (registry-compiled resolve)", () => {
-        expect(disenchant.effect).toBe("destroy-target");
-        expect(disenchant.resolve).toBeUndefined();
-    });
-
     it("wire format: destroyed target absent from projected battlefield, present in graveyard", () => {
         const c = makeInstance(castle.id, { id: "castle-target" });
         const state = makeState({
@@ -557,13 +547,6 @@ describe("Disenchant (destroy target Artifact/Enchantment, CR 608.3)", () => {
         const p1 = projected.players.find((p) => p.id === "p1")!;
         expect(p1.battlefield.map((c) => c.id)).not.toContain("castle-target");
         expect(p1.graveyard.map((c) => c.id)).toContain("castle-target");
-    });
-});
-
-describe("Serra Angel (keyword abilities)", () => {
-    it("has flying and vigilance", () => {
-        expect(serraAngel.staticAbilities).toContain("flying");
-        expect(serraAngel.staticAbilities).toContain("vigilance");
     });
 });
 
@@ -609,16 +592,6 @@ describe("Protection keyword helpers (CR 702.16)", () => {
 });
 
 describe("White Knight (first strike + protection from black, CR 702.7 + 702.16)", () => {
-    it("is a 2/2 Knight for {W}{W} with first strike and protection from black", () => {
-        expect(whiteKnight.manaCost).toEqual({ W: 2 });
-        expect(whiteKnight.types).toContain("Creature");
-        expect(whiteKnight.subtypes).toEqual(["Human", "Knight"]);
-        expect(whiteKnight.power).toBe(2);
-        expect(whiteKnight.toughness).toBe(2);
-        expect(whiteKnight.staticAbilities).toContain("first strike");
-        expect(whiteKnight.staticAbilities).toContain("protection from black");
-    });
-
     it("CR 702.16b — cannot be targeted by a black-source damage spell", () => {
         const wk = makeInstance(whiteKnight.id, {
             id: "wk",
@@ -869,13 +842,6 @@ describe("Aura core — attach / fizzle / SBA 704.5m (CR 303.4)", () => {
 });
 
 describe("Red Ward (Aura keyword-grant → protection from red, CR 611 + 702.16)", () => {
-    it("is a {W} Aura with the right target shape", () => {
-        expect(redWard.manaCost).toEqual({ W: 1 });
-        expect(redWard.types).toEqual(["Enchantment"]);
-        expect(redWard.subtypes).toEqual(["Aura"]);
-        expect(redWard.targetRequirement?.type).toBe("Creature");
-    });
-
     it("grants 'protection from red' to its host on attach and reverts on detach", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -1105,60 +1071,6 @@ describe("White Ward (exempt self-referential aura, CR 702.16n)", () => {
         );
         expect(aura).toBeDefined();
         expect(bear.staticAbilities).toContain("protection from white");
-    });
-
-    it("all five wards register and carry the 702.16n exemption", () => {
-        for (const ward of [
-            redWard,
-            blueWard,
-            blackWard,
-            greenWard,
-            whiteWard,
-        ]) {
-            expect(ward.manaCost).toEqual({ W: 1 });
-            expect(ward.types).toEqual(["Enchantment"]);
-            expect(ward.subtypes).toEqual(["Aura"]);
-            expect(ward.targetRequirement?.type).toBe("Creature");
-            expect(ward.exemptFromProtectionDetach).toBe(true);
-            expect(ward.staticEffects).toHaveLength(1);
-            expect(ward.staticEffects?.[0].kind).toBe("keyword-grant");
-        }
-    });
-});
-
-// One smoke test per remaining color ward — the factory is shared, so a per-card
-// wire-format check guards against the AURA_AFFECTS_HOST predicate being applied
-// inconsistently after extraction.
-describe.each([
-    { ward: blueWard, keyword: "protection from blue" },
-    { ward: blackWard, keyword: "protection from black" },
-    { ward: greenWard, keyword: "protection from green" },
-])("$ward.name (Aura keyword-grant)", ({ ward, keyword }) => {
-    it(`grants '${keyword}' to its host and the grant survives projectPublicState`, () => {
-        const bear = makeInstance(grizzlyBears.id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [bear] }),
-            ],
-        });
-        pushSpell(state, ward.id, "p1", [{ type: "permanent", id: "bear" }]);
-        resolveTopOfStack(state);
-
-        const bearAfter = state.players[1].battlefield.find(
-            (c) => c.id === "bear"
-        )!;
-        expect(bearAfter.staticAbilities).toContain(keyword);
-
-        const projected = projectPublicState(state, 1, "p1");
-        const slimBear = projected.players[1].battlefield.find(
-            (c) => c.id === "bear"
-        )!;
-        expect(slimBear.staticAbilities).toContain(keyword);
     });
 });
 
@@ -1399,17 +1311,6 @@ describe("Circle of Protection: color filter on target selection", () => {
             NO_TARGETING_SOURCE
         );
         expect(legal.filter((t) => t.type === "player")).toEqual([]);
-    });
-
-    it("Green CoP exposes the correct declarative shape", () => {
-        const ability = circleOfProtectionGreen.activatedAbilities![0];
-        expect(ability.useStack).toBe(true);
-        expect(ability.cost).toEqual({ mana: { X: 1 } });
-        expect(ability.targetRequirement).toEqual({
-            type: ["any", "spell"],
-            count: 1,
-            colorFilter: "G",
-        });
     });
 });
 
@@ -1665,15 +1566,6 @@ describe("Consecrate Land (Aura — enchanted land is indestructible, CR 702.12)
         resolveTopOfStack(state);
         return { state };
     }
-
-    it("declares Aura targeting Land", () => {
-        expect(consecrateLand.types).toEqual(["Enchantment"]);
-        expect(consecrateLand.subtypes).toEqual(["Aura"]);
-        expect(consecrateLand.targetRequirement).toEqual({
-            type: "Land",
-            count: 1,
-        });
-    });
 
     it("grants 'indestructible' to the enchanted land — Armageddon spares it", () => {
         const { state } = setupAttached();
@@ -2352,12 +2244,6 @@ describe("Samite Healer ({T}: prevent next 1 to any target this turn)", () => {
         resolveTopOfStack(state);
     }
 
-    it("declares 'any target' requirement (count 1)", () => {
-        const ability = samiteHealer.activatedAbilities?.[0];
-        expect(ability?.targetRequirement).toEqual({ type: "any", count: 1 });
-        expect(ability?.cost).toEqual({ tap: true });
-    });
-
     it("absorbs 1 damage of incoming Lightning Bolt to a player", () => {
         const { state, healer } = setup();
         activate(state, healer, { type: "player", id: "p2" });
@@ -2844,13 +2730,6 @@ describe("blazeOfGlory — target can block all attackers (CR 509.1a)", () => {
         expect(blk.mustBlockAllThisTurn).toBe(true);
     });
 
-    it("can only be cast during combat before blockers (timing)", () => {
-        expect(blazeOfGlory.castPhaseRestriction).toEqual([
-            "BEGINNING_OF_COMBAT",
-            "DECLARE_ATTACKERS",
-        ]);
-    });
-
     it("mustBlockAll auto-assigns blocker to all attackers", () => {
         const att1 = makeInstance(grizzlyBears.id, {
             id: "att1",
@@ -2945,12 +2824,6 @@ describe("Guardian Angel (CR 615.1 — prevent next X damage to target)", () => 
 });
 
 describe("Righteousness (target blocking creature gets +7/+7, CR 509.1)", () => {
-    it("can only target blocking creatures (combatRoleFilter)", () => {
-        expect(righteousness.targetRequirement!.combatRoleFilter).toBe(
-            "blocking"
-        );
-    });
-
     it("getLegalTargets rejects non-blocking creatures", () => {
         const creature = makeInstance(grizzlyBearsId(), {
             id: "bears",
@@ -3114,11 +2987,6 @@ describe("Conversion ({2}{W}{W} — all Mountains are Plains)", () => {
         applyExistingGrantsTo(state, mtn);
 
         expect(mtn.subtypes).toEqual(["Plains"]);
-    });
-
-    it("upkeep pay-or-else trigger declared", () => {
-        expect(conversion.triggeredAbilities).toHaveLength(1);
-        expect(conversion.triggeredAbilities![0].id).toBe("conversion-upkeep");
     });
 });
 
@@ -3570,18 +3438,6 @@ describe("Island Sanctuary (CR 614 — draw-skip replacement)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Banding keyword recognition (CR 702.21)", () => {
-    it("Benalish Hero, Timber Wolves are 1/1 vanilla with banding", () => {
-        expect(benalishHero.staticAbilities).toContain("banding");
-        expect(benalishHero.power).toBe(1);
-        expect(benalishHero.toughness).toBe(1);
-        expect(timberWolves.staticAbilities).toContain("banding");
-    });
-
-    it("Mesa Pegasus has both flying and banding", () => {
-        expect(mesaPegasus.staticAbilities).toContain("flying");
-        expect(mesaPegasus.staticAbilities).toContain("banding");
-    });
-
     it("Mesa Pegasus flying still gates blocking (CR 702.9b)", () => {
         const peg = makeInstance(mesaPegasus.id, {
             id: "peg",

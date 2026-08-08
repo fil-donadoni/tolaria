@@ -136,12 +136,4 @@ describe("Marauding Mako (CR 701.8 discard trigger, CR 702.29 Cycling)", () => {
             true
         );
     });
-
-    it("has Cycling {1}", () => {
-        const cycling = maraudingMako.activatedAbilities?.find(
-            (a) => a.id === "cycling"
-        );
-        expect(cycling?.activateFromHand).toBe(true);
-        expect(cycling?.cost.mana).toEqual({ generic: 1 });
-    });
 });

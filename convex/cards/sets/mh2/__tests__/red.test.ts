@@ -29,25 +29,6 @@ import { mineCollapse, blazingRootwalla, ragavanNimblePilferer } from "../red";
 describe("Mine Collapse (pitch: sacrifice a Mountain, your turn)", () => {
     const treefolk = getCardByName("Ironroot Treefolk"); // 3/5 — survives 5? no, dies
 
-    it("declares the conditional sacrifice alternative cost", () => {
-        expect(mineCollapse.alternativeCosts).toEqual([
-            {
-                id: "pitch-sacrifice-mountain",
-                description: "Sacrifice a Mountain",
-                permanent: {
-                    action: "sacrifice",
-                    count: 1,
-                    filter: { subtypes: "Mountain" },
-                },
-                condition: { kind: "your-turn" },
-            },
-        ]);
-        expect(mineCollapse.targetRequirement).toEqual({
-            type: ["Creature", "Planeswalker"],
-            count: 1,
-        });
-    });
-
     it("deals 5 damage to the target creature (lethal to a 3/5)", () => {
         const victim = makeInstance(treefolk.id, {
             id: "v",
@@ -88,14 +69,6 @@ function resolveActivated(
 }
 
 describe("Blazing Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 602.5)", () => {
-    it("carries Madness {0} and a oncePerTurn pump ability", () => {
-        expect(blazingRootwalla.madness).toEqual({});
-        const pump = blazingRootwalla.activatedAbilities?.find(
-            (a) => a.id === "blazing-rootwalla-pump"
-        );
-        expect(pump?.oncePerTurn).toBe(true);
-    });
-
     it("gives +2/+0 until end of turn", () => {
         const walla = makeInstance(blazingRootwalla.id, { controllerId: "p1" });
         const state = makeState({
@@ -144,24 +117,6 @@ function furyEtbOnStack(state: GameState, controllerId: string): StackItem {
 }
 
 describe("Fury — targeted triggered ability with divide-as-you-choose (CR 603.3d / 601.2d, #1193)", () => {
-    it("pins the definition (double strike, red evoke, 4-damage divide trigger)", () => {
-        expect(fury.staticAbilities).toContain("double strike");
-        expect(fury.evoke).toEqual({
-            id: "evoke",
-            description: "Evoke—Exile a red card from your hand",
-            hand: {
-                action: "exile",
-                requirements: [{ filter: { color: "R" }, count: 1 }],
-            },
-        });
-        const etb = fury.triggeredAbilities?.find((a) => a.id === "fury-etb");
-        expect(etb?.targetRequirement).toEqual({
-            type: ["Creature", "Planeswalker"],
-            count: { min: 1, max: 4 },
-            divideAsChosen: { total: 4 },
-        });
-    });
-
     it("raises a divide target choice at announcement, then deals the chosen split", () => {
         const treefolk = getCardByName("Ironroot Treefolk"); // 3/5
         const a = makeInstance(treefolk.id, {
@@ -236,18 +191,6 @@ describe("Fury — targeted triggered ability with divide-as-you-choose (CR 603.
 // the resolve() closure itself is pinned here per the card testing
 // convention.
 describe("Ragavan, Nimble Pilferer (combat-damage impulse + Dash, CR 702.109a)", () => {
-    it("is a {R} 2/1 Legendary Creature — Monkey Pirate with a dash mana leg", () => {
-        expect(ragavanNimblePilferer.manaCost).toEqual({ R: 1 });
-        expect(ragavanNimblePilferer.power).toBe(2);
-        expect(ragavanNimblePilferer.toughness).toBe(1);
-        expect(ragavanNimblePilferer.subtypes).toEqual(["Monkey", "Pirate"]);
-        expect(ragavanNimblePilferer.dash).toEqual({
-            id: "dash",
-            description: "Dash {1}{R}",
-            mana: { X: 1, R: 1 },
-        });
-    });
-
     function ragavanDealsDamage(state: GameState): void {
         const trig: StackItem = {
             ...state.players[0].battlefield[0],

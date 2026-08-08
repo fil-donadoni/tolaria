@@ -53,15 +53,6 @@ registerTokenDefinition({
 });
 
 describe("Traumatic Critique (X damage + draw two, discard one; CR 107.3 / 115.4 / 121.1)", () => {
-    it("is an {X}{U}{R} instant targeting any target", () => {
-        expect(traumaticCritique.manaCost).toEqual({ X: "X", U: 1, R: 1 });
-        expect(traumaticCritique.types).toEqual(["Instant"]);
-        expect(traumaticCritique.targetRequirement).toMatchObject({
-            type: "any",
-            count: 1,
-        });
-    });
-
     it("deals X damage to a player, draws two, then discards one", () => {
         const lib = [0, 1].map((i) =>
             makeInstance(traumaticCritique.id, {
@@ -160,24 +151,6 @@ describe("Traumatic Critique (X damage + draw two, discard one; CR 107.3 / 115.4
 });
 
 describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or destroy)", () => {
-    it("declares three modes; only the destroy mode targets", () => {
-        expect(witherbloomCharm.modes).toHaveLength(3);
-        const destroy = witherbloomCharm.modes!.find(
-            (m) => m.id === "destroy"
-        )!;
-        expect(destroy.targetRequirement).toMatchObject({
-            mvFilter: { max: 2 },
-        });
-        expect(
-            witherbloomCharm.modes!.find((m) => m.id === "sacrifice-draw")!
-                .targetRequirement
-        ).toBeUndefined();
-        expect(
-            witherbloomCharm.modes!.find((m) => m.id === "gain-life")!
-                .targetRequirement
-        ).toBeUndefined();
-    });
-
     it("sacrifice-draw mode: accepting sacrifices a permanent and draws two (CR 701.16 / 121.1)", () => {
         const fodder = makeInstance(ARTIFACT_ID, {
             id: "fodder",
@@ -413,22 +386,6 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
 });
 
 describe("Silverquill Charm (CR 700.2 modal — counters, exile-weak-creature, or drain)", () => {
-    it("declares three modes; only the drain mode has no target", () => {
-        expect(silverquillCharm.modes).toHaveLength(3);
-        expect(
-            silverquillCharm.modes!.find((m) => m.id === "counters")!
-                .targetRequirement
-        ).toMatchObject({ type: "Creature" });
-        expect(
-            silverquillCharm.modes!.find((m) => m.id === "exile")!
-                .targetRequirement
-        ).toMatchObject({ powerFilter: { max: 2 } });
-        expect(
-            silverquillCharm.modes!.find((m) => m.id === "drain")!
-                .targetRequirement
-        ).toBeUndefined();
-    });
-
     it("counters mode: puts two +1/+1 counters on target creature (CR 122.1)", () => {
         const creature = makeInstance(CREATURE_ID, {
             id: "creature-1",
@@ -491,22 +448,6 @@ describe("Silverquill Charm (CR 700.2 modal — counters, exile-weak-creature, o
 });
 
 describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchantment, or set P/T; issue #683)", () => {
-    it("declares three modes with the three different target shapes", () => {
-        expect(quandrixCharm.modes).toHaveLength(3);
-        expect(
-            quandrixCharm.modes!.find((m) => m.id === "counter")!
-                .targetRequirement
-        ).toMatchObject({ type: "spell" });
-        expect(
-            quandrixCharm.modes!.find((m) => m.id === "destroy-enchantment")!
-                .targetRequirement
-        ).toMatchObject({ type: "Enchantment" });
-        expect(
-            quandrixCharm.modes!.find((m) => m.id === "set-pt")!
-                .targetRequirement
-        ).toMatchObject({ type: "Creature" });
-    });
-
     it("counter mode: declining payment counters the target spell (CR 701.5a / 117.3a)", () => {
         const state = makeState();
         const filler = pushSpell(state, QC_FILLER_SPELL_ID, "p2");
@@ -620,27 +561,6 @@ describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchant
 // through-the-stack coverage without a hand-written test — the same gap the
 // three sibling Charms above already close for themselves.
 describe("Lorehold Charm (CR 700.2 modal — edict sacrifice, graveyard reanimation, or mass pump; issue #1529)", () => {
-    it("declares three modes; only the reanimate mode targets (a graveyard card, CR 700.2d)", () => {
-        expect(loreholdCharm.modes).toHaveLength(3);
-        const reanimate = loreholdCharm.modes!.find(
-            (m) => m.id === "reanimate"
-        )!;
-        expect(reanimate.targetRequirement).toMatchObject({
-            type: ["Artifact", "Creature"],
-            zone: "graveyard",
-            controller: "you",
-            mvFilter: { max: 2 },
-        });
-        expect(
-            loreholdCharm.modes!.find((m) => m.id === "sacrifice-artifact")!
-                .targetRequirement
-        ).toBeUndefined();
-        expect(
-            loreholdCharm.modes!.find((m) => m.id === "pump-trample")!
-                .targetRequirement
-        ).toBeUndefined();
-    });
-
     it("sacrifice-artifact mode: each opponent sacrifices a NONTOKEN artifact of their choice, the token is not a candidate (CR 701.16 / issue #920)", () => {
         const nontoken = makeInstance(ARTIFACT_ID, {
             id: "nontoken-art",

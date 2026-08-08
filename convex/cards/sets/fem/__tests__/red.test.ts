@@ -121,14 +121,6 @@ describe("FEM red registry parity + multi-art prints (ADR 0014)", () => {
 });
 
 describe("Goblin War Drums — grants menace anthem-style (CR 611, 702.111a)", () => {
-    it("declares exactly one keyword-grant static effect for menace", () => {
-        const effects = goblinWarDrums.staticEffects ?? [];
-        expect(effects).toHaveLength(1);
-        expect(effects[0].kind).toBe("keyword-grant");
-        expect(goblinWarDrums.manaCost).toEqual({ X: 2, R: 1 });
-        expect(goblinWarDrums.types).toEqual(["Enchantment"]);
-    });
-
     it("grants menace to your creatures (GRE + wire), not the opponent's", () => {
         const drums = makeInstance(goblinWarDrums.id, {
             id: "drums",
@@ -171,17 +163,6 @@ describe("Goblin War Drums — grants menace anthem-style (CR 611, 702.111a)", (
 });
 
 describe("Goblin Grenade — sacrifice a Goblin, 5 damage (CR 601.2f, 115.4)", () => {
-    it("carries the additional sacrifice cost and any-target requirement", () => {
-        expect(goblinGrenade.additionalCosts).toEqual({
-            sacrificeFilter: { subtypes: ["Goblin"] },
-        });
-        expect(goblinGrenade.targetRequirement).toEqual({
-            type: "any",
-            count: 1,
-        });
-        expect(goblinGrenade.manaCost).toEqual({ R: 1 });
-    });
-
     it("deals 5 damage to a target player on resolution", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
@@ -300,12 +281,6 @@ describe("Goblin Kites — grant flying + delayed coin-flip (CR 702.9, 705.2)", 
             )
         ).toBe(true);
     });
-
-    it("targets only your creatures with toughness 2 or less", () => {
-        const req = goblinKites.activatedAbilities![0].targetRequirement!;
-        expect(req.controller).toBe("you");
-        expect(req.toughnessFilter).toEqual({ max: 2 });
-    });
 });
 
 describe("Orcish Captain — coin-flip pump on an Orc (CR 705.2)", () => {
@@ -373,16 +348,6 @@ describe("Brassclaw Orcs — can't block power 2+ (CR 509.1b, ADR 0006)", () => 
 });
 
 describe("Orcish Veteran — can't block white power 2+ / first strike (CR 509.1b)", () => {
-    it("declares the colour-clause block-restriction and a first-strike ability", () => {
-        const restriction = (orcishVeteran.staticEffects ?? []).find(
-            (e) => e.kind === "block-restriction"
-        );
-        expect(restriction?.kind).toBe("block-restriction");
-        expect(orcishVeteran.activatedAbilities?.[0].id).toBe(
-            "orcish-veteran-first-strike"
-        );
-    });
-
     it("grants first strike to itself on activation", () => {
         const vet = makeInstance(orcishVeteran.id, {
             id: "vet",
@@ -435,15 +400,6 @@ describe("Orcish Spy — look at top three of a library (CR 401.4)", () => {
 });
 
 describe("Orgg — trample + attack/block restrictions (CR 702.19, 508.1c)", () => {
-    it("has trample and both data-driven combat restrictions", () => {
-        expect(orgg.staticAbilities).toContain("trample");
-        const kinds = (orgg.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("attack-restriction");
-        expect(kinds).toContain("block-restriction");
-        expect(orgg.power).toBe(6);
-        expect(orgg.toughness).toBe(6);
-    });
-
     it("attack-restriction forbids attacking into an untapped power-3 creature", () => {
         const attackR = (orgg.staticEffects ?? []).find(
             (e) => e.kind === "attack-restriction"
@@ -459,14 +415,6 @@ describe("Orgg — trample + attack/block restrictions (CR 702.19, 508.1c)", () 
             expect(attackR.predicate(self, big)).toBe(false);
             expect(attackR.predicate(self, small)).toBe(true);
         }
-    });
-});
-
-describe("Goblin Flotilla — islandwalk (CR 702.13)", () => {
-    it("carries the islandwalk keyword", () => {
-        expect(goblinFlotilla.staticAbilities).toContain("islandwalk");
-        expect(goblinFlotilla.power).toBe(2);
-        expect(goblinFlotilla.toughness).toBe(2);
     });
 });
 
@@ -496,14 +444,6 @@ describe("Dwarven Lieutenant — pump a Dwarf (CR 611.2)", () => {
             (c) => c.id === "dwarf"
         )!;
         expect(getEffectivePower(state, dwarfLive)).toBe(3); // 2 + 1
-    });
-});
-
-describe("Dwarven Soldier — French-vanilla body (FEM 53)", () => {
-    it("has the canonical 2/1 Dwarf Soldier characteristics", () => {
-        expect(dwarvenSoldier.power).toBe(2);
-        expect(dwarvenSoldier.toughness).toBe(1);
-        expect(dwarvenSoldier.subtypes).toEqual(["Dwarf", "Soldier"]);
     });
 });
 

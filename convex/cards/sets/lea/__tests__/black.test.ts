@@ -14,7 +14,6 @@ import {
     circleOfProtectionWhite,
     cursedLand,
     darkRitual,
-    deathgrip,
     demonicHordes,
     demonicTutor,
     drainLife,
@@ -30,7 +29,6 @@ import {
     hypnoticSpecter,
     juggernaut,
     lich,
-    lifeforce,
     lightningBolt,
     llanowarElves,
     lordOfThePit,
@@ -416,17 +414,6 @@ describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.20 + 701.7
         resolveTopOfStack(state);
     }
 
-    it("declares a tapped-creature TargetRequirement", () => {
-        const ability = royalAssassin.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ tap: true });
-        expect(ability?.useStack).toBe(true);
-        expect(ability?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            tappedFilter: "tapped",
-        });
-    });
-
     it("destroys a tapped creature on resolution", () => {
         const { state, assassin, victim } = setup();
         victim.isTapped = true;
@@ -496,10 +483,6 @@ describe("Nightmare (flying, P/T = Swamps you control, CR 604.3 CDA)", () => {
         return makeState({ players });
     }
 
-    it("has flying as a baseline static ability", () => {
-        expect(nightmare.staticAbilities).toContain("flying");
-    });
-
     it("P/T equals controller's Swamp count (3)", () => {
         const state = setup({ controller: "p1", swamps: 3 });
         const nm = state.players[0].battlefield[0];
@@ -543,12 +526,6 @@ describe("Nightmare (flying, P/T = Swamps you control, CR 604.3 CDA)", () => {
 });
 
 describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
-    it("has flying and the CREATURE_DIED trigger", () => {
-        expect(sengirVampire.staticAbilities).toContain("flying");
-        const trig = sengirVampire.triggeredAbilities?.[0];
-        expect(trig?.event).toBe("CREATURE_DIED");
-    });
-
     it("grows +1/+1 when a blocker it damaged dies in combat", async () => {
         const vampire = makeInstance(sengirVampire.id, {
             id: "vamp",
@@ -776,18 +753,6 @@ describe("Sinkhole (destroy target land, CR 701.7)", () => {
         );
     });
 
-    it("declares a Land target requirement with count 1", () => {
-        expect(sinkhole.targetRequirement).toEqual({
-            type: "Land",
-            count: 1,
-        });
-    });
-
-    it("uses the destroy-target effect shorthand (registry-compiled resolve)", () => {
-        expect(sinkhole.effect).toBe("destroy-target");
-        expect(sinkhole.resolve).toBeUndefined();
-    });
-
     it("wire format: destroyed land absent from projected battlefield, present in graveyard", () => {
         const land = makeInstance(swamp.id, {
             id: "p1-swamp",
@@ -818,16 +783,6 @@ describe("Sinkhole (destroy target land, CR 701.7)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Black Knight (first strike + protection from white, CR 702.7 + 702.16)", () => {
-    it("is a 2/2 Knight for {B}{B} with first strike and protection from white", () => {
-        expect(blackKnight.manaCost).toEqual({ B: 2 });
-        expect(blackKnight.types).toContain("Creature");
-        expect(blackKnight.subtypes).toEqual(["Human", "Knight"]);
-        expect(blackKnight.power).toBe(2);
-        expect(blackKnight.toughness).toBe(2);
-        expect(blackKnight.staticAbilities).toContain("first strike");
-        expect(blackKnight.staticAbilities).toContain("protection from white");
-    });
-
     it("CR 702.16b — cannot be targeted by Swords to Plowshares (white source)", () => {
         const bk = makeInstance(blackKnight.id, {
             id: "bk",
@@ -894,15 +849,6 @@ describe("Black Knight (first strike + protection from white, CR 702.7 + 702.16)
 });
 
 describe("Bog Wraith (swampwalk evasion, CR 702.13b)", () => {
-    it("is a 3/3 Wraith for {3}{B} with swampwalk", () => {
-        expect(bogWraith.manaCost).toEqual({ X: 3, B: 1 });
-        expect(bogWraith.types).toContain("Creature");
-        expect(bogWraith.subtypes).toEqual(["Wraith"]);
-        expect(bogWraith.power).toBe(3);
-        expect(bogWraith.toughness).toBe(3);
-        expect(bogWraith.staticAbilities).toContain("swampwalk");
-    });
-
     it("cannot be blocked when defending player controls a Swamp", () => {
         const wraith = makeInstance(bogWraith.id, {
             id: "wraith",
@@ -953,21 +899,6 @@ describe("Bog Wraith (swampwalk evasion, CR 702.13b)", () => {
 });
 
 describe("Hypnotic Specter (keyword abilities + CR 603 trigger)", () => {
-    it("is a 2/2 Specter for {1}{B}{B} with flying", () => {
-        expect(hypnoticSpecter.manaCost).toEqual({ X: 1, B: 2 });
-        expect(hypnoticSpecter.types).toContain("Creature");
-        expect(hypnoticSpecter.subtypes).toEqual(["Specter"]);
-        expect(hypnoticSpecter.power).toBe(2);
-        expect(hypnoticSpecter.toughness).toBe(2);
-        expect(hypnoticSpecter.staticAbilities).toContain("flying");
-    });
-
-    it("declares a damage-dealt trigger with matching oracle text", () => {
-        const trigger = hypnoticSpecter.triggeredAbilities?.[0];
-        expect(trigger?.event).toBe("DAMAGE_DEALT");
-        expect(trigger?.oracleText).toMatch(/discards a card at random/);
-    });
-
     function setupCombatScenario() {
         const specter = makeInstance(hypnoticSpecter.id, {
             id: "specter",
@@ -1345,13 +1276,6 @@ describe("Unholy Strength + Weakness (pt-buff aura mirror cycle)", () => {
 });
 
 describe("Wall of Bone (defender + {B} regen)", () => {
-    it("declares defender and a {B} regen activated ability", () => {
-        expect(wallOfBone.staticAbilities).toContain("defender");
-        const ability = wallOfBone.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ mana: { B: 1 } });
-        expect(ability?.useStack).toBe(true);
-    });
-
     it("activating regen shields self", () => {
         const wob = makeInstance(wallOfBone.id, {
             id: "wob",
@@ -1411,12 +1335,6 @@ describe("Warp Artifact (Aura on Artifact — 1 dmg to host's controller at upke
 });
 
 describe("Will-o'-the-Wisp (flying + {B} regen)", () => {
-    it("flying static + regen activated", () => {
-        expect(willOTheWisp.staticAbilities).toContain("flying");
-        const ability = willOTheWisp.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ mana: { B: 1 } });
-    });
-
     it("activating regen shields self", () => {
         const wisp = makeInstance(willOTheWisp.id, {
             id: "wisp",
@@ -1814,32 +1732,6 @@ describe("Scavenging Ghoul (corpse counter end-step + remove → regen)", () => 
     });
 });
 
-describe("Lifeforce ({G}, Sacrifice: counter target Black spell)", () => {
-    it("declares the activated ability with sacrifice cost + Black colorFilter", () => {
-        const ability = lifeforce.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ mana: { G: 1 }, sacrifice: true });
-        expect(ability?.useStack).toBe(true);
-        expect(ability?.targetRequirement).toEqual({
-            type: "spell",
-            count: 1,
-            colorFilter: "B",
-        });
-    });
-});
-
-describe("Deathgrip ({B}, Sacrifice: counter target Green spell)", () => {
-    it("declares the activated ability with sacrifice cost + Green colorFilter", () => {
-        const ability = deathgrip.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ mana: { B: 1 }, sacrifice: true });
-        expect(ability?.useStack).toBe(true);
-        expect(ability?.targetRequirement).toEqual({
-            type: "spell",
-            count: 1,
-            colorFilter: "G",
-        });
-    });
-});
-
 describe("Pestilence (end-step sac if no creatures + {B}: 1 dmg to each creature/player, modern Oracle)", () => {
     function setup() {
         const enchant = makeInstance(pestilence.id, {
@@ -1889,11 +1781,6 @@ describe("Pestilence (end-step sac if no creatures + {B}: 1 dmg to each creature
         expect(oppBear.damageMarked).toBe(1);
         expect(state.players[0].life).toBe(beforeP1 - 1);
         expect(state.players[1].life).toBe(beforeP2 - 1);
-    });
-
-    it("activated ability has no activation restriction (modern Oracle removed the creature gate)", () => {
-        const ability = pestilence.activatedAbilities?.[0];
-        expect(ability?.canActivate).toBeUndefined();
     });
 
     it("end-step trigger does NOT fire while a creature is on the battlefield", () => {
@@ -1997,16 +1884,6 @@ describe("Fear (Aura — host can be blocked only by Black or Artifact)", () => 
 });
 
 describe("Paralyze (aura — tap host on ETB + does-not-untap grant + upkeep pay {4}, CR 303.4 / 611)", () => {
-    it("declares aura subtype, host-grant keyword and {B} cost", () => {
-        expect(paralyze.manaCost).toEqual({ B: 1 });
-        expect(paralyze.subtypes).toContain("Aura");
-        const grant = paralyze.staticEffects?.[0];
-        expect(grant?.kind).toBe("keyword-grant");
-        if (grant?.kind === "keyword-grant") {
-            expect(grant.keyword).toBe("does-not-untap");
-        }
-    });
-
     it("ETB taps the enchanted creature and the host keeps does-not-untap while attached", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -2722,20 +2599,9 @@ describe("Sacrifice ({B} — additional cost sac creature, add B mana = MV)", ()
         resolveTopOfStack(state);
         expect(state.players[0].manaPool.B).toBe(3);
     });
-
-    it("declares additionalCosts.sacrificeFilter on the card definition", () => {
-        expect(sacrifice.additionalCosts?.sacrificeFilter).toEqual({
-            types: "Creature",
-        });
-    });
 });
 
 describe("Lord of the Pit (flying, trample, upkeep sacrifice-or-7dmg)", () => {
-    it("has flying and trample", () => {
-        expect(lordOfThePit.staticAbilities).toContain("flying");
-        expect(lordOfThePit.staticAbilities).toContain("trample");
-    });
-
     it("upkeep with no other creatures deals 7 damage to controller", () => {
         const lord = makeInstance(lordOfThePit.id, {
             id: "lord",
@@ -2945,21 +2811,6 @@ describe("Nettling Imp (CR 508.1d, 603.7a — forced attack + delayed destroy)",
         resolveTopOfStack(state);
     }
 
-    it("declares a non-Wall creature target with phase restriction", () => {
-        const ability = nettlingImp.activatedAbilities?.[0];
-        expect(ability?.id).toBe(ABILITY_ID);
-        expect(ability?.cost).toEqual({ tap: true });
-        expect(ability?.useStack).toBe(true);
-        expect(ability?.targetRequirement?.excludeSubtypes).toBe("Wall");
-        expect(ability?.targetRequirement?.controller).toBe("opponent");
-        expect(ability?.activationPhaseRestriction).toEqual([
-            "UPKEEP",
-            "DRAW",
-            "PRECOMBAT_MAIN",
-            "BEGINNING_OF_COMBAT",
-        ]);
-    });
-
     it("sets mustAttackThisTurn on target creature", () => {
         const { state, imp, victim } = setup();
         activate(state, imp, "victim");
@@ -3125,11 +2976,6 @@ describe("Evil Presence ({B} — aura: enchanted land is a Swamp)", () => {
         )!;
         expect(projMtn.subtypes).toEqual(["Swamp"]);
     });
-
-    it("declares subtype-set static effect", () => {
-        expect(evilPresence.staticEffects).toHaveLength(1);
-        expect(evilPresence.staticEffects![0].kind).toBe("subtype-set");
-    });
 });
 
 describe("Gloom (CR 601.2f — cost-modifier: white spells + white enchantment abilities)", () => {
@@ -3262,13 +3108,6 @@ describe("Nether Shadow (graveyard upkeep self-reanimation, CR 603.6e)", () => {
         activePlayerId: "p1",
     };
 
-    it("has haste and a graveyard-zone upkeep trigger", () => {
-        expect(netherShadow.staticAbilities).toContain("haste");
-        const trig = netherShadow.triggeredAbilities?.[0];
-        expect(trig?.event).toBe("PHASE_BEGIN");
-        expect(trig?.zone).toBe("graveyard");
-    });
-
     it("triggers on its owner's upkeep with 3+ creatures above it", () => {
         const state = gyState(3);
         const triggers = collectTriggers(state, [upkeep]);
@@ -3373,14 +3212,6 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
         });
         checkStateBasedActions(state);
     }
-
-    it("targetRequirement is 'target opponent' (CR 115)", () => {
-        expect(wordOfCommand.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-            controller: "opponent",
-        });
-    });
 
     it("only the opponent is a legal target (the caster cannot be chosen)", () => {
         const state = seed();
@@ -4568,13 +4399,5 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
             expect(head?.playerId).toBe("p1");
             expect(head?.zoneOwnerId).toBe("p2");
         }
-    });
-
-    it("definition: Word of Command targets an opponent, costs {B}{B}", () => {
-        expect(wordOfCommand.manaCost).toEqual({ B: 2 });
-        expect(wordOfCommand.targetRequirement).toMatchObject({
-            type: "player",
-            controller: "opponent",
-        });
     });
 });

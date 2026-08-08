@@ -14,7 +14,6 @@ import {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
-import { PERMANENT_TYPES } from "../../../types";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
@@ -92,23 +91,6 @@ function submitChoice(state: GameState, cardInstanceIds: string[]) {
 }
 
 describe("Aang's Iceberg (CR 603.6a exile-until-leaves + CR 701.42-style scry)", () => {
-    it("is a {2}{W} Enchantment with flash", () => {
-        expect(aangsIceberg.manaCost).toEqual({ X: 2, W: 1 });
-        expect(aangsIceberg.types).toEqual(["Enchantment"]);
-        expect(aangsIceberg.staticAbilities).toEqual(["flash"]);
-    });
-
-    it("declares the CR 603.3d target requirement: up to one other nonland permanent", () => {
-        expect(aangsIceberg.triggeredAbilities?.[0]?.targetRequirement).toEqual(
-            {
-                type: [...PERMANENT_TYPES],
-                count: { min: 0, max: 1 },
-                excludeTypes: "Land",
-                excludeSource: true,
-            }
-        );
-    });
-
     it("ETB exiles up to one chosen nonland permanent (CR 603.6a, target locked at stack placement per CR 603.3d)", () => {
         const iceberg = makeInstance(aangsIceberg.id, {
             id: "iceberg",

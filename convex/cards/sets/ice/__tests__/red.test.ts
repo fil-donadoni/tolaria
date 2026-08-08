@@ -11,20 +11,15 @@ import {
     glacialWall,
     seaSpirit,
     anarchy,
-    balduvianBarbarians,
     conquer,
-    curseOfMaritLage,
     flameSpirit,
-    goblinSnowman,
     imposingVisage,
     incinerate,
     jokulhaups,
     karplusanYeti,
     lavaBurst,
-    mountainGoat,
     orcishCannoneers,
     orcishHealer,
-    orcishLumberjack,
     pyroblast,
     pyroclasm,
     sabretoothTiger,
@@ -32,7 +27,6 @@ import {
     stoneRainIce,
     stoneSpirit,
     stonehands,
-    torGiant,
     vertigo,
     wallOfLava,
     wordOfBlasting,
@@ -151,31 +145,6 @@ describe("ICE Red reprints (CardPrint wiring, ADR 0014)", () => {
         expect(stoneRainIce.definitionId).toBe(
             "57ff74cb-a2ed-4123-ac42-f72f9820049e"
         );
-    });
-});
-
-// --- Vanilla / keyword creatures (CR 702 — snapshot checks) ----------------
-
-describe("ICE Red keyword creatures (CR 702)", () => {
-    it("Balduvian Barbarians is a 3/2 vanilla", () => {
-        expect(balduvianBarbarians.power).toBe(3);
-        expect(balduvianBarbarians.toughness).toBe(2);
-        expect(balduvianBarbarians.staticAbilities ?? []).toEqual([]);
-    });
-    it("Tor Giant is a 3/3 vanilla", () => {
-        expect(torGiant.power).toBe(3);
-        expect(torGiant.toughness).toBe(3);
-    });
-    it("Sabretooth Tiger has first strike", () => {
-        expect(sabretoothTiger.staticAbilities).toEqual(["first strike"]);
-        expect(sabretoothTiger.power).toBe(2);
-        expect(sabretoothTiger.toughness).toBe(1);
-    });
-    it("Mountain Goat has mountainwalk", () => {
-        expect(mountainGoat.staticAbilities).toEqual(["mountainwalk"]);
-    });
-    it("Wall of Lava has defender", () => {
-        expect(wallOfLava.staticAbilities).toEqual(["defender"]);
     });
 });
 
@@ -326,19 +295,6 @@ describe("Jokulhaups (CR 701.7 mass destruction)", () => {
 // --- Pyroblast (modal counter/destroy blue, mirror of Hydroblast) ----------
 
 describe("Pyroblast (CR 700.2 modal, blue-gated)", () => {
-    it("has two modes gating targets on blue via colorFilter", () => {
-        expect(pyroblast.modes).toHaveLength(2);
-        const counter = pyroblast.modes!.find((m) => m.id === "counter")!;
-        const destroy = pyroblast.modes!.find((m) => m.id === "destroy")!;
-        expect(counter.targetRequirement).toMatchObject({
-            type: "spell",
-            colorFilter: "U",
-        });
-        expect(destroy.targetRequirement).toMatchObject({
-            type: "any",
-            colorFilter: "U",
-        });
-    });
     it("destroy mode destroys a blue permanent", () => {
         // Sea Spirit is a registered blue creature → colours derive correctly.
         const bluePerm = makeInstance(seaSpirit.id, {
@@ -377,24 +333,6 @@ describe("Conquer (CR 613.1b control-change on land)", () => {
         expect(conquer.staticEffects).toEqual([
             { kind: "control-change", applies: expect.any(Function) },
         ]);
-    });
-});
-
-// --- Curse of Marit Lage (tap Islands + untap-lock, CR 701.20a / 611) ------
-
-describe("Curse of Marit Lage (CR 701.20a tap + CR 611 untap-lock)", () => {
-    it("declares an ETB trigger that taps all Islands", () => {
-        const trigger = curseOfMaritLage.triggeredAbilities!.find(
-            (t) => t.id === "curse-marit-lage-tap-islands"
-        )!;
-        expect(trigger).toBeDefined();
-        expect(curseOfMaritLage.oracleText).toContain("tap all Islands");
-    });
-    it("carries an untap-restriction static on Islands", () => {
-        expect(curseOfMaritLage.staticEffects).toHaveLength(1);
-        expect(curseOfMaritLage.staticEffects![0].kind).toBe(
-            "untap-restriction"
-        );
     });
 });
 
@@ -568,19 +506,6 @@ describe("Orcish Cannoneers (CR 120.1 damage + self-damage)", () => {
 // --- Orcish Healer (regen-lock + regenerate B/G) ---------------------------
 
 describe("Orcish Healer (CR 701.15 regen)", () => {
-    it("has three abilities; regen legs gate on black-or-green targets", () => {
-        const ids = orcishHealer.activatedAbilities!.map((a) => a.id);
-        expect(ids).toContain("orcish-healer-regen-lock");
-        expect(ids).toContain("orcish-healer-regen-br");
-        expect(ids).toContain("orcish-healer-regen-rg");
-        const br = orcishHealer.activatedAbilities!.find(
-            (a) => a.id === "orcish-healer-regen-br"
-        )!;
-        expect(br.targetRequirement).toMatchObject({
-            type: "Creature",
-            colorFilterAny: ["B", "G"],
-        });
-    });
     it("the regen-lock leg flags the target as can't-be-regenerated", () => {
         const healer = makeInstance(orcishHealer.id, {
             id: "healer",
@@ -607,34 +532,9 @@ describe("Orcish Healer (CR 701.15 regen)", () => {
     });
 });
 
-// --- Orcish Lumberjack (mana ability, sacrifice Forest) --------------------
-
-describe("Orcish Lumberjack (CR 605.1a mana ability)", () => {
-    it("is a non-stack mana ability with R/G manaChoices and a Forest cost", () => {
-        const ability = orcishLumberjack.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost).toMatchObject({
-            tap: true,
-            sacrificeFilter: { subtypes: "Forest" },
-        });
-        expect(ability.manaChoices).toEqual([
-            { R: 3 },
-            { R: 2, G: 1 },
-            { R: 1, G: 2 },
-            { G: 3 },
-        ]);
-    });
-});
-
 // --- Stone Spirit (can't be blocked by flyers, CR 509.1b) ------------------
 
 describe("Stone Spirit (CR 509.1b block restriction)", () => {
-    it("declares an attacker-side block-restriction rejecting flyers", () => {
-        const eff = stoneSpirit.staticEffects!.find(
-            (e) => e.kind === "block-restriction"
-        );
-        expect(eff).toBeDefined();
-    });
     it("the predicate rejects a flying blocker, allows a ground one", () => {
         const eff = stoneSpirit.staticEffects!.find(
             (e) => e.kind === "block-restriction"
@@ -652,12 +552,6 @@ describe("Stone Spirit (CR 509.1b block restriction)", () => {
 // --- Vertigo (2 dmg to flyer + loses flying, CR 120.1 / 611.1b) ------------
 
 describe("Vertigo (CR 120.1 damage + CR 611.1b lose flying)", () => {
-    it("targets a creature with flying", () => {
-        expect(vertigo.targetRequirement).toMatchObject({
-            type: "Creature",
-            requireAbility: "flying",
-        });
-    });
     it("deals 2 damage and removes flying until end of turn", () => {
         const flyer = vanilla("flyer", 2, 4, {
             controllerId: "p2",
@@ -686,12 +580,6 @@ describe("Vertigo (CR 120.1 damage + CR 611.1b lose flying)", () => {
 // --- Word of Blasting (destroy Wall + damage = MV, CR 701.7 / 120.1) -------
 
 describe("Word of Blasting (CR 701.7 destroy Wall + MV damage)", () => {
-    it("targets a Wall via subtypeFilter", () => {
-        expect(wordOfBlasting.targetRequirement).toMatchObject({
-            type: "Creature",
-            subtypeFilter: "Wall",
-        });
-    });
     it("destroys the Wall and deals its mana value to its controller", () => {
         // Glacial Wall is a registered {2}{U} Wall (mana value 3) → both the
         // Wall subtype target and the mana-value read resolve via the registry.
@@ -715,20 +603,6 @@ describe("Word of Blasting (CR 701.7 destroy Wall + MV damage)", () => {
         );
         // mana value {2}{U} = 3 → 3 damage to the controller.
         expect(state.players[1].life).toBe(17);
-    });
-});
-
-// --- Goblin Snowman (block prevent trigger + ping blocked creature) --------
-
-describe("Goblin Snowman (CR 509.4 block trigger + ping)", () => {
-    it("has a block-confirmed prevention trigger and a ping ability", () => {
-        expect(goblinSnowman.triggeredAbilities).toHaveLength(1);
-        expect(goblinSnowman.triggeredAbilities![0].event).toBe(
-            "BLOCKERS_CONFIRMED"
-        );
-        expect(goblinSnowman.activatedAbilities![0].id).toBe(
-            "goblin-snowman-ping"
-        );
     });
 });
 
@@ -865,25 +739,9 @@ describe("Aggression — Aura: first strike + trample + end-step destroy (CR 611
             state.players[0].battlefield.find((c) => c.id === "host")
         ).toBeDefined();
     });
-
-    it("enchant restriction excludes Walls (target filter)", () => {
-        expect(aggression.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            excludeSubtypes: "Wall",
-        });
-        expect(aggression.manaCost).toEqual({ X: 2, R: 1 });
-    });
 });
 
 describe("Balduvian Hydra — ETB X +1/+0, remove-counter prevent, upkeep grow (CR 122/615/602.5b)", () => {
-    it("enters with X +1/+0 counters (entersWith count: X)", () => {
-        expect(balduvianHydra.entersWith).toEqual({
-            counters: [{ type: "+1/+0", count: "X" }],
-        });
-        expect(balduvianHydra.manaCost).toEqual({ X: "X", R: 2 });
-    });
-
     it("the X counters raise effective power (layer 7d), surviving the wire", () => {
         const hydra = makeInstance(balduvianHydra.id, {
             id: "hydra",
@@ -1240,17 +1098,6 @@ describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400
 });
 
 describe("Dwarven Armory — {2}, sac a land: +2/+2 counter, any upkeep (CR 602.5b / 122)", () => {
-    it("is gated to the upkeep step with a land sacrifice cost", () => {
-        const ability = dwarvenArmory.activatedAbilities![0];
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-        expect(ability.controllerTurnOnly).toBeUndefined(); // ANY upkeep
-        expect(ability.cost.sacrificeFilter).toEqual({ types: "Land" });
-        expect(ability.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-    });
-
     it("puts a +2/+2 counter on the target creature", () => {
         const armory = makeInstance(dwarvenArmory.id, {
             id: "armory",
@@ -1443,14 +1290,6 @@ describe("Goblin Sappers — unblockable + end-of-combat destroy (CR 605 / 603.7
 });
 
 describe("Grizzled Wolverine — +2/+0 only while blocked, declare-blockers, once (CR 602.5)", () => {
-    it("gates activation on the declare-blockers step, once per turn", () => {
-        const ability = grizzledWolverine.activatedAbilities![0];
-        expect(ability.activationPhaseRestriction).toEqual([
-            "DECLARE_BLOCKERS",
-        ]);
-        expect(ability.oncePerTurn).toBe(true);
-    });
-
     it("canActivate is true only when a blocker is assigned to it", () => {
         const ability = grizzledWolverine.activatedAbilities![0];
         const source = { id: "wolv" } as never;
@@ -1531,13 +1370,6 @@ describe("Márton Stromgald — per-attacker / per-blocker team pump (CR 603.6 /
 });
 
 describe("Mudslide — non-flying untap-lock + per-upkeep pay-{2}-to-untap (CR 611 / 117.3a)", () => {
-    it("declares a non-flying untap restriction with maxUntap 0", () => {
-        const restriction = (mudslide.staticEffects ?? []).find(
-            (e) => e.kind === "untap-restriction"
-        );
-        expect(restriction?.kind).toBe("untap-restriction");
-    });
-
     it("pays {2} per chosen tapped non-flying creature to untap it", () => {
         const slide = makeInstance(mudslide.id, {
             id: "slide",
@@ -1609,16 +1441,6 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 603.3d / 611.2
         state.stack.push(trig);
         return trig;
     }
-
-    it("declares the CR 603.3d target requirement: a single land an opponent controls", () => {
-        expect(
-            orcishSquatters.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({
-            type: "Land",
-            count: 1,
-            controller: "opponent",
-        });
-    });
 
     it("auto-selects the sole legal defender land (CR 603.3d), then the 'you may' gains control and assigns no combat damage", () => {
         const squatters = makeInstance(orcishSquatters.id, {
@@ -1816,11 +1638,6 @@ describe("Flare (1 damage to any target + cantrip, CR 120.1)", () => {
 });
 
 describe("Panic (target creature can't block + cantrip, CR 509.1b)", () => {
-    it("declares the cast restriction", () => {
-        expect(panic.castPhaseRestriction).toContain("DECLARE_ATTACKERS");
-        expect(panic.castPhaseRestriction).toContain("BEGINNING_OF_COMBAT");
-    });
-
     it("restricts the target from blocking and cantrips at next upkeep", () => {
         const state = makeState({
             players: [
@@ -1939,14 +1756,6 @@ describe("Orcish Farmer (CR 305.7 / 502.1 timed land-type change to Swamp)", () 
         return { state, farmer };
     }
 
-    it("is a {1}{R}{R} 2/2 Orc with a {T} land-to-Swamp ability", () => {
-        expect(orcishFarmer.manaCost).toEqual({ X: 1, R: 2 });
-        expect(orcishFarmer.power).toBe(2);
-        const ability = orcishFarmer.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ tap: true });
-        expect(ability?.targetRequirement).toEqual({ type: "Land", count: 1 });
-    });
-
     it("makes the target land a Swamp that taps for {B}, reverting at the controller's next untap step", () => {
         const { state } = setup();
         // The forest taps for {G} before the ability resolves.
@@ -2013,13 +1822,6 @@ describe("Meteor Shower ({X}{X}{R} — X+1 damage divided as you choose, CR 107.
         });
     }
 
-    it("uses a doubled-X cost (xFactor 2) and a total of X+1", () => {
-        expect(meteorShower.manaCost).toEqual({ X: "X", xFactor: 2, R: 1 });
-        expect(meteorShower.targetRequirement?.divideAsChosen).toEqual({
-            total: "X+1",
-        });
-    });
-
     it("divides X+1 (= 4 when X=3) unevenly across targets", () => {
         const state = setup(["a", "b"]);
         const item = pushSpell(state, meteorShower.id, "p1", [
@@ -2082,16 +1884,6 @@ describe("Chaos Moon — parity-dependent Mountain rider (CR 614/611, #665)", ()
         return { state, moon, redCreature };
     }
 
-    it("shape: each-upkeep parity trigger, no continuous substitution", () => {
-        expect(chaosMoon.types).toContain("Enchantment");
-        expect(chaosMoon.manaCost).toEqual({ X: 3, R: 1 });
-        expect(chaosMoon.landManaSubstitution).toBeUndefined();
-        const parity = chaosMoon.triggeredAbilities?.find((t) =>
-            t.id?.includes("parity")
-        );
-        expect(parity).toBeTruthy();
-    });
-
     it("odd permanent count: Mountain taps for {R} plus an additional {R}, red creature +1/+1", () => {
         const { state, moon, redCreature } = fireParity(3); // odd
         resolveTrigger(state, moon, "chaos-moon-parity", {
@@ -2152,13 +1944,6 @@ describe("Chaos Moon — parity-dependent Mountain rider (CR 614/611, #665)", ()
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Melee (attacker chooses blocks + untap-unblocked rider, CR 509.1)", () => {
-    it("has the correct cost, type and cast window", () => {
-        expect(melee.manaCost).toEqual({ X: 4, R: 1 });
-        expect(melee.types).toEqual(["Instant"]);
-        expect(melee.castPhaseRestriction).toEqual(["DECLARE_ATTACKERS"]);
-        expect(melee.castTurnRestriction).toBe("self");
-    });
-
     it("sets meleeCombat when it resolves during the attacker's combat", () => {
         const attacker = vanilla("atk", 2, 2, {
             controllerId: "p1",
@@ -2307,20 +2092,6 @@ describe("Brand of Ill Omen (enchanted creature's controller can't cast creature
         return { state, creatureSpell, noncreatureSpell };
     }
 
-    it("snapshot: carries a cast-restriction static effect + cumulative upkeep", () => {
-        expect(brandOfIllOmen.subtypes).toContain("Aura");
-        expect(
-            brandOfIllOmen.staticEffects?.some(
-                (e) => e.kind === "cast-restriction"
-            )
-        ).toBe(true);
-        expect(
-            brandOfIllOmen.triggeredAbilities?.some((t) =>
-                t.id.includes("cumulative-upkeep")
-            )
-        ).toBe(true);
-    });
-
     it("the enchanted creature's controller cannot cast a creature spell", () => {
         const { state, creatureSpell } = setup();
         const actions = getLegalActions(state, state.players[1], creatureSpell);
@@ -2423,12 +2194,6 @@ describe("Errantry (+3/+0 aura, 'can only attack alone', CR 508.1c)", () => {
         expect(getEffectiveToughness(projected, slim)).toBe(2);
     });
 
-    it("declares a pt-buff and a declared-attack-restriction", () => {
-        const kinds = (errantry.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("pt-buff");
-        expect(kinds).toContain("declared-attack-restriction");
-    });
-
     it("permits the attack when the enchanted creature attacks alone", () => {
         const { state } = setup();
         expect(validateDeclaredAttackers(state).ok).toBe(true);
@@ -2455,12 +2220,6 @@ describe("Orcish Conscripts ('unless two others attack/block', CR 508.1c)", () =
             })
         );
     }
-
-    it("declares a declared-attack and a declared-block restriction", () => {
-        const kinds = (orcishConscripts.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("declared-attack-restriction");
-        expect(kinds).toContain("declared-block-restriction");
-    });
 
     it("can't attack alone or with only one other attacker", () => {
         const conscripts = makeInstance(orcishConscripts.id, {

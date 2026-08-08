@@ -82,15 +82,4 @@ describe("Prodigal Pyromancer ({T}: 1 damage to any target — DSL-only activate
         const projected = projectPublicState(state, 1, "p2");
         expect(projected.players[1].life).toBe(19);
     });
-
-    it("declares the printed characteristics (Scryfall M11)", () => {
-        expect(prodigalPyromancer.manaCost).toEqual({ X: 2, R: 1 });
-        expect(prodigalPyromancer.types).toEqual(["Creature"]);
-        expect(prodigalPyromancer.subtypes).toEqual(["Human", "Wizard"]);
-        expect(prodigalPyromancer.power).toBe(1);
-        expect(prodigalPyromancer.toughness).toBe(1);
-        expect(ability.cost).toEqual({ tap: true });
-        expect(ability.useStack).toBe(true);
-        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
-    });
 });

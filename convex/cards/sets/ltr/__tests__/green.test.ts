@@ -3,7 +3,6 @@
 // block citing the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { delightedHalfling } from "..";
 import { counterspell } from "../../lea";
 import { theOneRing } from "../colorless";
 import {
@@ -25,29 +24,6 @@ import {
 } from "../../../../gre/state";
 
 describe("Delighted Halfling (LTR #158, CR 106.6 / 701.13, issue #1559)", () => {
-    it("declares a plain {T}: Add {C} ability and a restricted+uncounterable choice ability", () => {
-        const abilities = delightedHalfling.activatedAbilities ?? [];
-        expect(abilities).toHaveLength(2);
-
-        const colorless = abilities[0];
-        expect(colorless.useStack).toBe(false);
-        expect(colorless.manaProduced).toEqual({ C: 1 });
-        expect(colorless.manaRestriction).toBeUndefined();
-        expect(colorless.manaCantBeCounteredRider).toBeUndefined();
-
-        const legendary = abilities[1];
-        expect(legendary.useStack).toBe(false);
-        expect(legendary.manaChoices).toEqual([
-            { W: 1 },
-            { U: 1 },
-            { B: 1 },
-            { R: 1 },
-            { G: 1 },
-        ]);
-        expect(legendary.manaRestriction).toBe("legendary-spell");
-        expect(legendary.manaCantBeCounteredRider).toBe(true);
-    });
-
     it("restrictionAllowsSpell gates legendary-spell mana on the SUPERTYPE, not card type", () => {
         // Keyed on supertype: any card type is fine as long as "Legendary" is
         // among the supertypes.

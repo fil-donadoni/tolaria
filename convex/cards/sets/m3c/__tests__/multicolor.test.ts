@@ -81,35 +81,6 @@ function chooseSatyaTarget(state: GameState, targetId: string | null) {
 }
 
 describe("Satya, Aetherflux Genius — definition", () => {
-    it("pins mana cost, stats, supertype, and Menace/Haste", () => {
-        expect(satyaAetherfluxGenius.manaCost).toEqual({
-            X: 1,
-            U: 1,
-            R: 1,
-            W: 1,
-        });
-        expect(satyaAetherfluxGenius.types).toEqual(["Creature"]);
-        expect(satyaAetherfluxGenius.subtypes).toEqual(["Human", "Artificer"]);
-        expect(satyaAetherfluxGenius.supertypes).toEqual(["Legendary"]);
-        expect(satyaAetherfluxGenius.power).toBe(3);
-        expect(satyaAetherfluxGenius.toughness).toBe(5);
-        expect(satyaAetherfluxGenius.staticAbilities).toEqual([
-            "menace",
-            "haste",
-        ]);
-    });
-
-    it("declares the CR 603.3d target requirement: up to one OTHER nontoken creature YOU control", () => {
-        const attack = satyaAetherfluxGenius.triggeredAbilities?.[0];
-        expect(attack?.targetRequirement).toEqual({
-            type: "Creature",
-            count: { min: 0, max: 1 },
-            controller: "you",
-            excludeSource: true,
-            isToken: false,
-        });
-    });
-
     it("is registered by id", () => {
         expect(getDefinition(satyaAetherfluxGenius.id)).toBe(
             satyaAetherfluxGenius

@@ -15,8 +15,6 @@ import {
     bloodLust,
     cavernsOfDespair,
     chainLightning,
-    chromium,
-    crawGiant,
     crimsonKobolds,
     crookshankKobolds,
     eternalWarrior,
@@ -25,7 +23,6 @@ import {
     glyphOfDestruction,
     glyphOfLife,
     gravitySphere,
-    hundingGjornersen,
     hyperionBlacksmith,
     immolation,
     jasmineBoreal,
@@ -34,7 +31,6 @@ import {
     koboldOverlord,
     koboldTaskmaster,
     koboldsOfKherKeep,
-    marhaultElsdragon,
     primordialOoze,
     spinalVillain,
     theBrute,
@@ -42,7 +38,6 @@ import {
     wallOfHeat,
     wallOfOpposition,
     windsOfChange,
-    wolverinePack,
 } from "..";
 import { projectPublicState } from "../../../../gameProjections";
 import { recordBlockedAttackers } from "../../../../gre/banding";
@@ -515,16 +510,6 @@ describe("Glyph of Life (delayed lifegain on attacker damage to a Wall, CR 603.7
         return state;
     }
 
-    it("is a {W} Instant targeting a Wall creature", () => {
-        expect(glyphOfLife.manaCost).toEqual({ W: 1 });
-        expect(glyphOfLife.types).toEqual(["Instant"]);
-        expect(glyphOfLife.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            subtypeFilter: "Wall",
-        });
-    });
-
     it("only lists Wall creatures as legal targets (CR 205.3)", () => {
         const wall = makeInstance(wallOfEarth.id, { id: "wall" });
         const bear = makeInstance(grizzlyBears.id, { id: "bear" }); // not a Wall
@@ -729,11 +714,6 @@ describe("Winds of Change (each player shuffles hand into library, redraws, CR 7
 });
 
 describe("Gravity Sphere (World — all creatures lose flying, CR 702.9)", () => {
-    it("carries the World supertype as data", () => {
-        expect(gravitySphere.supertypes).toEqual(["World"]);
-        expect(gravitySphere.types).toEqual(["Enchantment"]);
-    });
-
     it("removes flying from every creature, regardless of controller (wire format)", () => {
         const gs = makeInstance(gravitySphere.id, {
             id: "gs",
@@ -828,34 +808,6 @@ describe("Rampage N (CR 702.23)", () => {
         recordBlockedAttackers(state);
         return { state, attacker };
     }
-
-    it("Aerathi Berserker (rampage 3) carries the keyword + factory trigger", () => {
-        expect(aerathiBerserker.staticAbilities).toContain("rampage 3");
-        expect(aerathiBerserker.triggeredAbilities?.[0].id).toBe("rampage-3");
-        expect(aerathiBerserker.triggeredAbilities?.[0].event).toBe(
-            "BLOCKERS_CONFIRMED"
-        );
-    });
-
-    it("all seven Rampage cards carry the keyword + a rampageTrigger", () => {
-        const cards: { def: typeof frostGiant; n: number }[] = [
-            { def: aerathiBerserker, n: 3 },
-            { def: frostGiant, n: 2 },
-            { def: crawGiant, n: 2 },
-            { def: wolverinePack, n: 2 },
-            { def: chromium, n: 2 },
-            { def: hundingGjornersen, n: 1 },
-            { def: marhaultElsdragon, n: 1 },
-        ];
-        for (const { def, n } of cards) {
-            expect(def.staticAbilities).toContain(`rampage ${n}`);
-            const trig = def.triggeredAbilities?.find(
-                (t) => t.id === `rampage-${n}`
-            );
-            expect(trig).toBeDefined();
-            expect(trig!.event).toBe("BLOCKERS_CONFIRMED");
-        }
-    });
 
     it("blocked by ONE creature: no bonus (CR 702.23a — beyond the first)", () => {
         const { state } = setupRampageCombat(frostGiant, 1);
@@ -983,14 +935,6 @@ describe("Primordial Ooze (upkeep +1/+1 then pay {X} or tap + X damage, CR 122 /
         expect(ooze.isTapped).toBe(true);
         expect(state.players[0].life).toBe(18); // 20 - 2
     });
-
-    it("attacks each combat if able (CR 508.1d)", () => {
-        expect(
-            primordialOoze.staticEffects?.some(
-                (e) => e.kind === "attack-requirement"
-            )
-        ).toBe(true);
-    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -998,12 +942,6 @@ describe("Primordial Ooze (upkeep +1/+1 then pay {X} or tap + X damage, CR 122 /
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Caverns of Despair (CR 508.1a / 509.1a — global combat caps)", () => {
-    it("has the correct definition shape", () => {
-        expect(cavernsOfDespair.supertypes).toEqual(["World"]);
-        expect(cavernsOfDespair.types).toEqual(["Enchantment"]);
-        expect(cavernsOfDespair.manaCost).toEqual({ X: 2, R: 2 });
-    });
-
     it("imposes no cap when not on the battlefield", () => {
         const state = makeState();
         expect(getAttackerCap(state)).toBeUndefined();

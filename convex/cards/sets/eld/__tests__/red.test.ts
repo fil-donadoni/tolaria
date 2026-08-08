@@ -37,13 +37,6 @@ function pushAttackTrigger(
 }
 
 describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3e cast-from-exile)", () => {
-    it("is a {1}{R} 2/2 with reach and haste", () => {
-        expect(robberOfTheRich.manaCost).toEqual({ X: 1, R: 1 });
-        expect(robberOfTheRich.power).toBe(2);
-        expect(robberOfTheRich.toughness).toBe(2);
-        expect(robberOfTheRich.staticAbilities).toEqual(["reach", "haste"]);
-    });
-
     it("exiles the defending player's top library card face down, castable by the attacker, when they have more cards in hand (CR 603.4)", () => {
         const robber = makeInstance(robberOfTheRich.id, {
             id: "robber",

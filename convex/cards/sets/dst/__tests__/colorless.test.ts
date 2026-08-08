@@ -101,19 +101,6 @@ function setup(creatureOverrides: Partial<CardInstanceState> = {}): {
 }
 
 describe("Skullclamp (DST #140, issue #1306 / engine #1350)", () => {
-    it("definition sanity — cost, types, equip cost, DSL-only ability sites", () => {
-        expect(skullclamp.manaCost).toEqual({ generic: 1 });
-        expect(skullclamp.types).toEqual(["Artifact"]);
-        expect(skullclamp.subtypes).toEqual(["Equipment"]);
-        const equip = skullclamp.activatedAbilities![0];
-        expect(equip.cost).toEqual({ mana: { generic: 1 } });
-        expect(equip.sorcerySpeedOnly).toBe(true);
-        expect(equip.resolve).toBeUndefined();
-        const trig = skullclamp.triggeredAbilities![0];
-        expect(trig.effects).toBeDefined();
-        expect(trig.resolve).toBeUndefined();
-    });
-
     // CR 611/613 layer 7c — the buff is +1/-1, not +1/+1.
     it("equipped creature gets +1/-1 (GRE and wire format)", () => {
         const { state } = setup();

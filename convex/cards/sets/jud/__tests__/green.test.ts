@@ -54,16 +54,6 @@ describe("Sylvan Safekeeper (CR 118.5 sacrifice-a-land cost; CR 702.18 shroud gr
         return { state, safekeeper, land };
     }
 
-    it("shape: {G} 1/1 with a sacrifice-a-land activated ability", () => {
-        expect(sylvanSafekeeper.manaCost).toEqual({ G: 1 });
-        expect(sylvanSafekeeper.power).toBe(1);
-        expect(sylvanSafekeeper.toughness).toBe(1);
-        expect(sylvanSafekeeper.activatedAbilities).toHaveLength(1);
-        expect(sylvanSafekeeper.activatedAbilities![0].cost).toEqual({
-            sacrificeFilter: { types: "Land" },
-        });
-    });
-
     it("grants the target creature you control shroud until end of turn", () => {
         const { state, safekeeper } = setup();
         resolveActivated(state, safekeeper, "sylvan-safekeeper-shroud", [

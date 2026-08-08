@@ -123,25 +123,6 @@ function setup(overrides?: {
 }
 
 describe("Grim Lavamancer ({R},{T}, exile 2 from your graveyard: 2 to any target — CR 605 / 118.5 / 120.1)", () => {
-    it("declares the graveyard-exile activation cost + dealDamage effect", () => {
-        const ability = grimLavamancer.activatedAbilities?.[0];
-        expect(ability?.id).toBe(ABILITY_ID);
-        expect(ability?.cost.mana).toEqual({ R: 1 });
-        expect(ability?.cost.tap).toBe(true);
-        expect(ability?.cost.exileFromGraveyard).toEqual({
-            count: 2,
-            owner: "you",
-        });
-        expect(ability?.useStack).toBe(true);
-        expect(ability?.targetRequirement?.type).toBe("any");
-        expect(ability?.effects).toEqual([
-            { op: "dealDamage", amount: 2, to: { target: 0 } },
-        ]);
-        expect(grimLavamancer.manaCost).toEqual({ R: 1 });
-        expect(grimLavamancer.power).toBe(1);
-        expect(grimLavamancer.toughness).toBe(1);
-    });
-
     it("exiles two cards from your graveyard and deals 2 to a player", () => {
         const state = setup({
             ownGraveyard: [

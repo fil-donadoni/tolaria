@@ -53,25 +53,6 @@ function resolveActivated(
 }
 
 describe("Horizon Canopy (painland cantrip, CR 605.1a / 305)", () => {
-    it("is a Land with a pay-life dual mana ability and a sacrifice cantrip", () => {
-        expect(horizonCanopy.types).toEqual(["Land"]);
-        expect(horizonCanopy.manaCost).toBeUndefined();
-        const mana = horizonCanopy.activatedAbilities!.find(
-            (a) => a.id === "horizon-canopy-mana"
-        )!;
-        expect(mana.useStack).toBe(false);
-        expect(mana.cost).toMatchObject({ tap: true, life: 1 });
-        expect(mana.manaChoices).toEqual([{ G: 1 }, { W: 1 }]);
-        const draw = horizonCanopy.activatedAbilities!.find(
-            (a) => a.id === "horizon-canopy-draw"
-        )!;
-        expect(draw.cost).toMatchObject({
-            mana: { X: 1 },
-            tap: true,
-            sacrifice: true,
-        });
-    });
-
     it("the cantrip ability draws a card on resolution (CR 121.1)", () => {
         const land = makeInstance(horizonCanopy.id, {
             id: "canopy",

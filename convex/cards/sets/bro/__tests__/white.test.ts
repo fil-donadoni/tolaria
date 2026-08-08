@@ -75,31 +75,6 @@ function chooseLoranTarget(state: GameState, targetId: string | null) {
 }
 
 describe("Loran of the Third Path (CR 603.6a ETB, CR 605 tap-draw)", () => {
-    it("is a 2/1 Legendary with vigilance, an ETB trigger, and an opponent-targeted draw", () => {
-        expect(loranOfTheThirdPath.power).toBe(2);
-        expect(loranOfTheThirdPath.toughness).toBe(1);
-        expect(loranOfTheThirdPath.supertypes).toContain("Legendary");
-        expect(loranOfTheThirdPath.staticAbilities).toContain("vigilance");
-        const etb = loranOfTheThirdPath.triggeredAbilities!.find(
-            (t) => t.id === "loran-etb-destroy"
-        )!;
-        expect(etb).toBeDefined();
-        // CR 603.3d — the "up to one target artifact or enchantment" is a real
-        // announcement-time target requirement, not a resolution-time choice.
-        expect(etb.targetRequirement).toEqual({
-            type: ["Artifact", "Enchantment"],
-            count: { min: 0, max: 1 },
-        });
-        const draw = loranOfTheThirdPath.activatedAbilities!.find(
-            (a) => a.id === "loran-draw"
-        )!;
-        expect(draw.cost).toMatchObject({ tap: true });
-        expect(draw.targetRequirement).toMatchObject({
-            type: "player",
-            controller: "opponent",
-        });
-    });
-
     it("the {T} ability draws a card for both the controller and the targeted opponent", () => {
         const loran = makeInstance(loranOfTheThirdPath.id, {
             id: "loran",

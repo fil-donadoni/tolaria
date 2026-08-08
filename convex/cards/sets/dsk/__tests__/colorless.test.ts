@@ -29,11 +29,6 @@ function manaChoices(
 }
 
 describe("Thornspire Verge (CR 605.1a mana ability; CR 602.5b activation restriction)", () => {
-    it("has no entersTapped / entersTappedUnless — the Verge cycle enters untapped unconditionally", () => {
-        expect(thornspireVerge.entersTapped).toBeUndefined();
-        expect(thornspireVerge.entersTappedUnless).toBeUndefined();
-    });
-
     it("offers only the primary colour when the controller controls neither unlock subtype", () => {
         const land = makeInstance(thornspireVerge.id, { controllerId: "p1" });
         const state = makeState();

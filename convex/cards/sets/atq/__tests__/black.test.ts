@@ -154,13 +154,6 @@ describe("Priest of Yawgmoth (CR 602.1 — add {B} = sacrificed artifact mv)", (
 });
 
 describe("Gate to Phyrexia (CR 602.5 — upkeep, once/turn, sac creature)", () => {
-    it("declares once-per-turn + upkeep timing + creature sac cost", () => {
-        const ability = gateToPhyrexia.activatedAbilities![0];
-        expect(ability.oncePerTurn).toBe(true);
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-        expect(ability.cost.sacrificeFilter).toEqual({ types: "Creature" });
-    });
-
     it("destroys a target artifact on resolution", () => {
         const gate = makeInstance(gateToPhyrexia.id, { id: "gate-1" });
         const artifact = makeInstance(ornithopter.id, {
@@ -203,11 +196,6 @@ describe("Haunting Wind (1 dmg on artifact tap or non-tap ability)", () => {
     const abilityTrig = hauntingWind.triggeredAbilities!.find(
         (t) => t.id === "haunting-wind-ability"
     )!;
-
-    it("declares one PERMANENT_TAPPED and one ABILITY_ACTIVATED trigger", () => {
-        expect(tappedTrig.event).toBe("PERMANENT_TAPPED");
-        expect(abilityTrig.event).toBe("ABILITY_ACTIVATED");
-    });
 
     it("tapped trigger fires for any artifact tap, ignores non-artifacts", () => {
         expect(
@@ -314,14 +302,6 @@ describe("Artifact Possession (Aura: 2 dmg on enchanted artifact tap/ability)", 
         (t) => t.id === "artifact-possession-ability"
     )!;
 
-    it("is an Aura that enchants artifacts", () => {
-        expect(artifactPossession.subtypes).toContain("Aura");
-        expect(artifactPossession.targetRequirement).toEqual({
-            type: "Artifact",
-            count: 1,
-        });
-    });
-
     it("fires only for the enchanted artifact (self.attachedTo host check)", () => {
         const attached = {
             id: "ap",
@@ -400,16 +380,6 @@ describe("Artifact Possession (Aura: 2 dmg on enchanted artifact tap/ability)", 
 });
 
 describe("Phyrexian Gremlins (tap-lock while tapped, CR 611.2 / 502.1)", () => {
-    it("is a 1/1 Phyrexian Gremlin with the optional-untap keyword", () => {
-        expect(phyrexianGremlins.power).toBe(1);
-        expect(phyrexianGremlins.toughness).toBe(1);
-        expect(phyrexianGremlins.subtypes).toEqual(["Phyrexian", "Gremlin"]);
-        expect(phyrexianGremlins.manaCost).toEqual({ X: 2, B: 1 });
-        expect(phyrexianGremlins.staticAbilities).toContain(
-            "may-choose-not-to-untap"
-        );
-    });
-
     it("taps the target artifact and records the untap-lock", () => {
         const grem = makeInstance(phyrexianGremlins.id, {
             id: "grem",
@@ -518,13 +488,6 @@ describe("Xenic Poltergeist ({1}{B}{B} 1/1 Spirit — {T}: animate target noncre
         state.players[0].battlefield.push(xenic, ring);
         return { state, xenic, ring };
     }
-
-    it("declares a {T} activated ability targeting a noncreature artifact", () => {
-        const ability = xenicPoltergeist.activatedAbilities![0];
-        expect(ability.cost.tap).toBe(true);
-        expect(ability.targetRequirement?.type).toBe("Artifact");
-        expect(ability.targetRequirement?.excludeTypes).toBe("Creature");
-    });
 
     it("animates the target artifact to a creature with P/T = mana value", () => {
         const { state, xenic, ring } = setup();

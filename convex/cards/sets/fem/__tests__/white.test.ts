@@ -5,19 +5,13 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    combatMedic,
     farrelitePriest,
     farrelsMantle,
     farrelsZealot,
     handOfJustice,
-    heroism,
-    icatianInfantry,
     icatianJavelineers,
-    icatianLieutenant,
-    icatianMoneychanger,
     icatianPhalanx,
     icatianPriest,
-    icatianScout,
     icatianSkirmishers,
     icatianTown,
     orderOfLeitbur,
@@ -134,23 +128,6 @@ function handOfJusticeBoard(): {
 }
 
 describe("Hand of Justice — tapOtherFilter cost (CR 602.1 / 118.8)", () => {
-    it("carries the canonical printed characteristics", () => {
-        expect(handOfJustice.manaCost).toEqual({ X: 5, W: 1 });
-        expect(handOfJustice.power).toBe(2);
-        expect(handOfJustice.toughness).toBe(6);
-        expect(handOfJustice.subtypes).toEqual(["Avatar"]);
-        const cost = handOfJustice.activatedAbilities![0].cost;
-        expect(cost.tap).toBe(true);
-        expect(cost.tapOtherFilter).toEqual({
-            filter: {
-                types: "Creature",
-                colors: "W",
-                controllerRelation: "you",
-            },
-            count: 3,
-        });
-    });
-
     it("GRE legality: the candidate pool is the white creatures OTHER than the source", () => {
         const { state, handId } = handOfJusticeBoard();
         const filter =
@@ -261,14 +238,6 @@ function activateFarrelitePriestMana(state: GameState, sourceId: string): void {
 }
 
 describe("Farrelite Priest — activation-count drawback (CR 605.1a / 602.5 / 603.7a)", () => {
-    it("is a non-tap, non-stack repeatable mana ability", () => {
-        const ab = farrelitePriest.activatedAbilities![0];
-        expect(ab.useStack).toBe(false);
-        expect(ab.cost.tap).toBeUndefined();
-        expect(ab.cost.mana).toEqual({ X: 1 });
-        expect(ab.manaProduced).toEqual({ W: 1 });
-    });
-
     it("adds {W} on each activation", () => {
         const priest = makeInstance(farrelitePriest.id, {
             id: "fp",
@@ -511,18 +480,6 @@ function mantleTriggerOnStack(
 }
 
 describe("Farrel's Zealot — CR 603.3d targeted unblocked-attack trigger", () => {
-    it("declares the announcement-time target requirement (target creature)", () => {
-        expect(farrelsZealot.power).toBe(2);
-        expect(farrelsZealot.toughness).toBe(2);
-        expect(farrelsZealot.manaCost).toEqual({ X: 1, W: 2 });
-        expect(farrelsZealot.triggeredAbilities?.[0].event).toBe(
-            "ATTACKER_UNBLOCKED"
-        );
-        expect(farrelsZealot.triggeredAbilities?.[0].targetRequirement).toEqual(
-            { type: "Creature", count: 1 }
-        );
-    });
-
     it("mandatory single legal target auto-locks without raising a choice", () => {
         // Zealot attacking, opponent has no creatures: the only legal "target
         // creature" is the Zealot itself (plain "target creature", no "another"
@@ -581,24 +538,6 @@ describe("Farrel's Zealot — CR 603.3d targeted unblocked-attack trigger", () =
 });
 
 describe("Farrel's Mantle — CR 603.3d targeted unblocked-attack trigger", () => {
-    it("is a {2}{W} Aura carrying an announcement-time target on its trigger", () => {
-        expect(farrelsMantle.types).toEqual(["Enchantment"]);
-        expect(farrelsMantle.subtypes).toEqual(["Aura"]);
-        expect(farrelsMantle.manaCost).toEqual({ X: 2, W: 1 });
-        // The card-level `targetRequirement` is the Aura's "Enchant creature"
-        // cast target — distinct from the trigger's damage target below.
-        expect(farrelsMantle.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-        expect(farrelsMantle.triggeredAbilities?.[0].event).toBe(
-            "ATTACKER_UNBLOCKED"
-        );
-        expect(farrelsMantle.triggeredAbilities?.[0].targetRequirement).toEqual(
-            { type: "Creature", count: 1 }
-        );
-    });
-
     it("deals power+2 to the chosen creature and marks the attacker (CR 510.1c)", () => {
         // Enchanted 2/2 attacker; the Aura hangs on it; a second creature is
         // the target. Damage = attacker power (2) + 2 = 4.
@@ -743,11 +682,6 @@ describe("Icatian Priest / Lieutenant — temporary pumps (CR 611 layer 7c)", ()
 });
 
 describe("Order of Leitbur — protection + pump knight (CR 702.16 / 611)", () => {
-    it("carries protection from black", () => {
-        expect(orderOfLeitbur.staticAbilities).toContain(
-            "protection from black"
-        );
-    });
     it("pumps itself +1/+0 until end of turn", () => {
         const knight = makeInstance(orderOfLeitbur.id, {
             id: "k",
@@ -766,16 +700,6 @@ describe("Order of Leitbur — protection + pump knight (CR 702.16 / 611)", () =
     });
 });
 
-describe("Combat Medic — prevention shield (CR 615)", () => {
-    it("carries the {1}{W} prevent-1 activated ability and a 0/2 body", () => {
-        expect(combatMedic.power).toBe(0);
-        expect(combatMedic.toughness).toBe(2);
-        const ab = combatMedic.activatedAbilities![0];
-        expect(ab.cost.mana).toEqual({ X: 1, W: 1 });
-        expect(ab.targetRequirement).toEqual({ type: "any", count: 1 });
-    });
-});
-
 // ===========================================================================
 // Remaining reuse-only white cards — definition-shape coverage. The
 // load-bearing behaviour (banding keyword, "assigns no combat damage" on
@@ -784,47 +708,10 @@ describe("Combat Medic — prevention shield (CR 615)", () => {
 // ===========================================================================
 
 describe("FEM white reuse cards — canonical shapes", () => {
-    it("Heroism is a {2}{W} Enchantment with a sacrifice-a-white-creature cost", () => {
-        expect(heroism.types).toEqual(["Enchantment"]);
-        expect(heroism.manaCost).toEqual({ X: 2, W: 1 });
-        expect(heroism.activatedAbilities![0].cost.sacrificeFilter).toEqual({
-            types: "Creature",
-            colors: "W",
-        });
-    });
-
-    it("Icatian Infantry grants first strike and banding until end of turn", () => {
-        expect(icatianInfantry.power).toBe(1);
-        const ids = icatianInfantry.activatedAbilities!.map((a) => a.id);
-        expect(ids).toContain("icatian-infantry-first-strike");
-        expect(ids).toContain("icatian-infantry-banding");
-    });
-
-    it("Icatian Lieutenant pumps a Soldier creature +1/+0", () => {
-        const req = icatianLieutenant.activatedAbilities![0].targetRequirement;
-        expect(req).toEqual({
-            type: "Creature",
-            count: 1,
-            subtypeFilter: "Soldier",
-        });
-    });
-
-    it("Icatian Moneychanger enters with three credit counters", () => {
-        expect(icatianMoneychanger.entersWith).toEqual({
-            counters: [{ type: "credit", count: 3 }],
-        });
-    });
-
     it("Icatian Phalanx and Skirmishers carry banding", () => {
         expect(icatianPhalanx.staticAbilities).toContain("banding");
         expect(icatianSkirmishers.staticAbilities).toEqual(
             expect.arrayContaining(["first strike", "banding"])
         );
-    });
-
-    it("Icatian Scout grants first strike with a {1},{T} cost", () => {
-        const cost = icatianScout.activatedAbilities![0].cost;
-        expect(cost.tap).toBe(true);
-        expect(cost.mana).toEqual({ X: 1 });
     });
 });

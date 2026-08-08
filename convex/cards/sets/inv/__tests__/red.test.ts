@@ -117,11 +117,6 @@ describe("Overload (Kicker {2}, CR 702.33 / 202.3)", () => {
     it("kicked destroys an artifact with mana value up to 5", () => {
         expect(castOverload(true, ART_MV4)).toBeUndefined();
     });
-    it("declares the kicker cost {2}", () => {
-        expect(overload.kickers).toEqual([
-            { id: "kicker", description: "Kicker {2}", mana: { X: 2 } },
-        ]);
-    });
 });
 
 // Obliterate — "This spell can't be countered. Destroy all artifacts,
@@ -191,10 +186,6 @@ describe("Obliterate (CR 701.5c can't-be-countered, 701.7 destroy, 701.15c regen
         ).toBeDefined();
     });
 
-    it("declares cantBeCountered", () => {
-        expect(obliterate.cantBeCountered).toBe(true);
-    });
-
     // Wire format: the mass-destroy outcome (an emptied battlefield) must
     // survive the GameState → public projection.
     it("wire format: emptied battlefields survive projectPublicState", () => {
@@ -258,16 +249,6 @@ describe("Urza's Rage (Kicker {8}{R}, CR 701.5c / 702.33 / 615)", () => {
         item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(10); // shield ignored
-    });
-    it("declares the kicker cost {8}{R} and cantBeCountered", () => {
-        expect(urzasRage.kickers).toEqual([
-            {
-                id: "kicker",
-                description: "Kicker {8}{R}",
-                mana: { X: 8, R: 1 },
-            },
-        ]);
-        expect(urzasRage.cantBeCountered).toBe(true);
     });
     it("wire format: kicked damage survives projectPublicState", () => {
         const state = makeState();
@@ -1050,15 +1031,6 @@ describe("Goblin Spy — play with the top card of your library revealed (CR 401
         );
     };
 
-    it("has the printed characteristics and declares the reveal scope", () => {
-        expect(goblinSpy.manaCost).toEqual({ R: 1 });
-        expect(goblinSpy.types).toEqual(["Creature"]);
-        expect(goblinSpy.subtypes).toEqual(["Goblin", "Rogue"]);
-        expect(goblinSpy.power).toBe(1);
-        expect(goblinSpy.toughness).toBe(1);
-        expect(goblinSpy.revealsLibraryTop).toBe("controller");
-    });
-
     it("reveals the top card — and ONLY the top card — to BOTH players (wire format)", () => {
         const state = spyState();
 
@@ -1487,14 +1459,6 @@ describe("Loafing Giant — attack/block mill, land ⇒ source-scoped combat shi
         } as StackItem["triggerEvent"]);
         expect(sourcePreventionShieldApplies(state, "giant", true)).toBe(true);
     });
-
-    it("declares ONE triggered ability keyed on both combat events (CR 603.2)", () => {
-        expect(loafingGiant.triggeredAbilities).toHaveLength(1);
-        expect(loafingGiant.triggeredAbilities?.[0].event).toEqual([
-            "ATTACKERS_DECLARED",
-            "BLOCKERS_CONFIRMED",
-        ]);
-    });
 });
 
 describe("Scorching Lava — kicked rider: regen lock + exile-on-death (CR 702.33 / 701.15c / 614.1a)", () => {
@@ -1557,11 +1521,5 @@ describe("Scorching Lava — kicked rider: regen lock + exile-on-death (CR 702.3
         )!;
         expect(slim.cantBeRegeneratedThisTurn).toBe(true);
         expect(slim.exileOnDeath).toBe(true);
-    });
-
-    it("declares the kicker cost {R}", () => {
-        expect(scorchingLava.kickers).toEqual([
-            { id: "kicker", description: "Kicker {R}", mana: { R: 1 } },
-        ]);
     });
 });

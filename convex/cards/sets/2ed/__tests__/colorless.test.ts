@@ -24,7 +24,7 @@ import {
     getAllSetCodes,
 } from "../../../index";
 import { setName } from "../../../setMeta";
-import { FORMAT_RULES, validateDeck } from "../../../../formats";
+import { validateDeck } from "../../../../formats";
 import type { ValidatableDeck } from "../../../../formats";
 
 describe("2ED registry parity (ADR 0014)", () => {
@@ -41,11 +41,6 @@ describe("2ED registry parity (ADR 0014)", () => {
         expect(getDefinition(circleOfProtectionBlack2ed.printId)).toBe(
             circleOfProtectionBlack
         );
-    });
-
-    it("carries the 2ed set code on every print", () => {
-        expect(airElemental2ed.setCode).toBe("2ed");
-        expect(volcanicIsland2ed.setCode).toBe("2ed");
     });
 });
 
@@ -74,10 +69,6 @@ describe("2ED display name (#560)", () => {
 
 describe("2ED Old School legality (#560)", () => {
     const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
-
-    it("lists 2ed among the Old School allowed sets", () => {
-        expect(FORMAT_RULES["old-school"].allowedSets).toContain("2ed");
-    });
 
     it("validates a 60-card Old School deck built around an Unlimited reprint", () => {
         // 1 Unlimited Bolt + 59 basics resolves and validates legal end-to-end

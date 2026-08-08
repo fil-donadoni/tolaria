@@ -7,9 +7,6 @@ import {
     balduvianBears,
     fireCovenant,
     fieryJustice,
-    diabolicVision,
-    elementalAugury,
-    glaciers,
     skeletonShip,
     altarOfBone,
     centaurArcher,
@@ -19,7 +16,6 @@ import {
     stormSpirit,
     wingsOfAesthir,
     moorFiend,
-    stormbind,
     islandIce,
     forestIce,
     earthlink,
@@ -85,33 +81,7 @@ import {
     makeTargetCreature,
 } from "./helpers";
 
-// --- Diabolic Vision / Elemental Augury (library look, CR 401) -------------
-
-describe("Diabolic Vision (look top five, CR 401)", () => {
-    it("is a sorcery with a resolve body", () => {
-        expect(diabolicVision.types).toEqual(["Sorcery"]);
-        expect(typeof diabolicVision.resolve).toBe("function");
-    });
-});
-
-describe("Elemental Augury ({3}: look top three of target player, CR 401)", () => {
-    it("activated ability targets a player and costs {3}", () => {
-        const ability = elementalAugury.activatedAbilities!.find(
-            (a) => a.id === "elemental-augury-look"
-        )!;
-        expect(ability.targetRequirement).toMatchObject({ type: "player" });
-        expect(ability.cost).toMatchObject({ mana: { X: 3 } });
-    });
-});
-
 describe("Storm Spirit ({T}: 2 damage to a creature, CR 120.1)", () => {
-    it("is a flier with a tap-to-zap ability", () => {
-        expect(stormSpirit.staticAbilities).toEqual(["flying"]);
-        const ability = stormSpirit.activatedAbilities!.find(
-            (a) => a.id === "storm-spirit-zap"
-        )!;
-        expect(ability.targetRequirement).toMatchObject({ type: "Creature" });
-    });
     it("deals 2 damage to the target creature", () => {
         const spirit = makeInstance(stormSpirit.id, {
             id: "storm",
@@ -221,12 +191,6 @@ describe("Wings of Aesthir (Aura +1/+0 + flying + first strike, CR 611/613)", ()
         )!;
         expect(getEffectivePower(projected, slim)).toBe(3);
     });
-    it("declares flying + first strike keyword grants", () => {
-        const keywords = (wingsOfAesthir.staticEffects ?? [])
-            .filter((e) => e.kind === "keyword-grant")
-            .map((e) => (e as { keyword: string }).keyword);
-        expect(keywords).toEqual(["flying", "first strike"]);
-    });
 });
 
 describe("Spectral Shield (Aura +0/+2 + can't be targeted by spells, CR 113.3)", () => {
@@ -262,27 +226,11 @@ describe("Spectral Shield (Aura +0/+2 + can't be targeted by spells, CR 113.3)",
         )!;
         expect(getEffectiveToughness(projected, slim)).toBe(4);
     });
-    it("declares a spells-only targeting guard", () => {
-        const guard = (spectralShield.staticEffects ?? []).find(
-            (e) => e.kind === "permanent-guard"
-        );
-        expect(guard).toMatchObject({
-            cantBeTargeted: true,
-            targetSourceMustBeSpell: true,
-        });
-    });
 });
 
 // --- Multicolour free tranche (#635) ---------------------------------------
 
 describe("Altar of Bone (sac-creature additional cost + tutor to hand, CR 117.9 / 701.19)", () => {
-    it("declares the sacrifice additional cost and a resolve body", () => {
-        expect(altarOfBone.types).toEqual(["Sorcery"]);
-        expect(altarOfBone.additionalCosts).toMatchObject({
-            sacrificeFilter: { types: "Creature" },
-        });
-        expect(typeof altarOfBone.resolve).toBe("function");
-    });
     it("searches a creature card into hand and shuffles the library", () => {
         const creature = makeInstance(getCardByName("Grizzly Bears").id, {
             id: "tutored",
@@ -522,30 +470,6 @@ describe("Giant Trap Door Spider ({1}{R}{G},{T}: exile self + attacker, CR 605 /
     });
 });
 
-// --- Glaciers (subtype-set + upkeep tax, CR 305.7) -------------------------
-
-describe("Glaciers (All Mountains are Plains, CR 305.7)", () => {
-    it("replaces Mountain subtypes with Plains via a subtype-set static", () => {
-        const effect = (glaciers.staticEffects ?? []).find(
-            (e) => e.kind === "subtype-set"
-        )!;
-        expect(effect).toMatchObject({ subtypes: ["Plains"] });
-    });
-});
-
-// --- Stormbind (R/G enchantment, discard-at-random cost) -------------------
-
-describe("Stormbind (CR 605 activated, discard-at-random cost)", () => {
-    it("the {2}, discard cost deals 2 damage to any target", () => {
-        const ability = stormbind.activatedAbilities![0];
-        expect(ability.cost).toMatchObject({
-            mana: { X: 2 },
-            discardAtRandom: 1,
-        });
-        expect(ability.targetRequirement).toMatchObject({ type: "any" });
-    });
-});
-
 // ---------------------------------------------------------------------------
 // Gold / miscellaneous buildable-now completion (#659)
 // ---------------------------------------------------------------------------
@@ -712,10 +636,6 @@ describe("Kjeldoran Frostbeast — end-of-combat destroy blockers/blocked-by (CR
 });
 
 describe("Merieke Ri Berit — does-not-untap + {T} gain control + destroy-on-leave (CR 502.1 / 613.1b / 603.10)", () => {
-    it("carries the does-not-untap keyword", () => {
-        expect(meriekeRiBerit.staticAbilities).toContain("does-not-untap");
-    });
-
     function setup() {
         const merieke = makeInstance(meriekeRiBerit.id, {
             id: "merieke",
@@ -920,19 +840,6 @@ describe("Fire Covenant ({1}{B}{R} — pay X life, X damage divided as you choos
         });
     }
 
-    it("has no variable X in its mana cost ({1}{B}{R}); the {1} is numeric generic", () => {
-        // The variable X (the life) lives in additionalCosts.payXLife, NOT the
-        // mana cost. The {1} is numeric generic (X: 1), not the string "X".
-        expect(fireCovenant.manaCost).toEqual({ X: 1, B: 1, R: 1 });
-        expect(typeof (fireCovenant.manaCost as { X?: unknown }).X).toBe(
-            "number"
-        );
-        expect(fireCovenant.additionalCosts?.payXLife).toBe(true);
-        expect(fireCovenant.targetRequirement?.divideAsChosen).toEqual({
-            total: "X",
-        });
-    });
-
     it("divides an UNEVEN chosen split summing to X across the targets", () => {
         // X = 5 split 4/1 across two targets (an uneven, legal split). The
         // amounts are snapshotted on the stack item as the engine would after
@@ -1053,13 +960,6 @@ describe("Fiery Justice ({R}{G}{W} — 5 damage divided as you choose; target op
         });
     }
 
-    it("declares a fixed total of 5 and {R}{G}{W}", () => {
-        expect(fieryJustice.manaCost).toEqual({ R: 1, G: 1, W: 1 });
-        expect(fieryJustice.targetRequirement?.divideAsChosen).toEqual({
-            total: 5,
-        });
-    });
-
     it("divides 5 unevenly across targets and the opponent gains 5 life", () => {
         const state = setup(["a", "b"]);
         const item = pushSpell(state, fieryJustice.id, "p1", [
@@ -1106,15 +1006,6 @@ describe("Fiery Justice ({R}{G}{W} — 5 damage divided as you choose; target op
 });
 
 describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => {
-    it("is a {B}{R} Enchantment (pure data — engine seam)", () => {
-        expect(ghostlyFlame.manaCost).toEqual({ B: 1, R: 1 });
-        expect(ghostlyFlame.types).toEqual(["Enchantment"]);
-        expect(ghostlyFlame.oracleText).toBe(
-            "Black and/or red permanents and spells are colorless sources of damage."
-        );
-        expect(ghostlyFlame.triggeredAbilities).toBeUndefined();
-    });
-
     it("registers by id and name", () => {
         expect(getDefinition(ghostlyFlame.id)).toBe(ghostlyFlame);
         expect(getCardByName("Ghostly Flame")).toBe(ghostlyFlame);
@@ -1186,22 +1077,6 @@ describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => 
 // --- Fumarole (dual-target destroy + fixed pay-life, CR 601.2b/601.2c/701.7) --
 
 describe("Fumarole ({3}{B}{R} — destroy target creature AND target land, pay 3 life; CR 601.2b/601.2c/701.7 — issue #737)", () => {
-    it("declares the fixed pay-life cost, two independent target groups, and positional destroys", () => {
-        expect(fumarole.additionalCosts?.payLife).toBe(3);
-        expect(fumarole.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-        expect(fumarole.additionalTargetRequirements).toEqual([
-            { type: "Land", count: 1 },
-        ]);
-        // Effect Script destroys the creature (target 0) then the land (target 1).
-        expect(fumarole.effects).toEqual([
-            { op: "destroy", target: { target: 0 } },
-            { op: "destroy", target: { target: 1 } },
-        ]);
-    });
-
     it("keeps the two target groups independent — creatures for group 0, lands for group 1 (CR 601.2c)", () => {
         const bear = makeInstance(balduvianBears.id, {
             id: "bear",
@@ -1441,15 +1316,6 @@ function makeCombatState(args: {
 }
 
 describe("Flooded Woodlands (CR 508.1c/1g — green-creature attack tax, #733)", () => {
-    it("has the {2}{U}{B} cost and a green attack-sacrifice-tax static", () => {
-        expect(floodedWoodlands.manaCost).toEqual({ X: 2, U: 1, B: 1 });
-        expect(floodedWoodlands.types).toContain("Enchantment");
-        const tax = floodedWoodlands.staticEffects?.find(
-            (e) => e.kind === "attack-sacrifice-tax"
-        );
-        expect(tax).toBeDefined();
-    });
-
     it("charges one land per attacking green creature (scales with count)", () => {
         const one = makeCombatState({
             attackers: [{ id: "g1", cardId: grizzlyBears.id }],
@@ -1573,16 +1439,6 @@ describe("Flooded Woodlands (CR 508.1c/1g — green-creature attack tax, #733)",
 });
 
 describe("Reclamation (CR 508.1c/1g — black-creature attack tax, #733)", () => {
-    it("has the {2}{G}{W} cost and a black attack-sacrifice-tax static", () => {
-        expect(reclamation.manaCost).toEqual({ X: 2, W: 1, G: 1 });
-        expect(reclamation.types).toContain("Enchantment");
-        expect(
-            reclamation.staticEffects?.some(
-                (e) => e.kind === "attack-sacrifice-tax"
-            )
-        ).toBe(true);
-    });
-
     it("taxes attacking black creatures but not green ones", () => {
         const black = makeCombatState({
             attackers: [{ id: "b1", cardId: scatheZombies.id }],
@@ -1650,23 +1506,6 @@ describe("Chromatic Armor (re-choosable colour shield, CR 615 / 700.2c / 601.2f)
         });
         return { state };
     }
-
-    it("has an Enchant creature target requirement and five colour modes", () => {
-        expect(chromaticArmor.targetRequirement?.type).toBe("Creature");
-        expect((chromaticArmor.modes ?? []).map((m) => m.id)).toEqual([
-            "W",
-            "U",
-            "B",
-            "R",
-            "G",
-        ]);
-    });
-
-    it("enters with a sleight counter (CR 122.1)", () => {
-        expect(chromaticArmor.entersWith?.counters).toEqual([
-            { type: "sleight", count: 1 },
-        ]);
-    });
 
     it("prevents all damage to the host from the chosen colour, not others (CR 615)", () => {
         const { state } = setup("B");

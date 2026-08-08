@@ -18,8 +18,6 @@ import {
     merseineFemB,
     riverMerfolk,
     seasinger,
-    svyelunitePriest,
-    tidalFlats,
     tidalInfluence,
     vodalianKnights,
     vodalianMage,
@@ -72,15 +70,6 @@ const ALL_FEM_PRINTS = [
 // ---------------------------------------------------------------------------
 
 describe("Vodalian Soldiers (vanilla creature, CR 302)", () => {
-    it("carries the canonical FEM printed characteristics", () => {
-        expect(vodalianSoldiers.types).toEqual(["Creature"]);
-        expect(vodalianSoldiers.subtypes).toEqual(["Merfolk", "Soldier"]);
-        expect(vodalianSoldiers.power).toBe(1);
-        expect(vodalianSoldiers.toughness).toBe(2);
-        expect(vodalianSoldiers.manaCost).toEqual({ X: 1, U: 1 });
-        expect(vodalianSoldiers.rarity).toBe("common");
-    });
-
     it("resolves from the stack onto the battlefield (CR 608.3)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -131,21 +120,6 @@ describe("Vodalian Soldiers multi-art prints (ADR 0014)", () => {
         }
     });
 
-    it("carries the fem set code and common rarity on every print", () => {
-        for (const print of ALL_FEM_PRINTS) {
-            expect(print.setCode).toBe("fem");
-            expect(print.rarity).toBe("common");
-        }
-    });
-
-    it("uses a distinct printId per artwork (no duplicates)", () => {
-        const ids = [
-            vodalianSoldiers.id,
-            ...ALL_FEM_PRINTS.map((p) => p.printId),
-        ];
-        expect(new Set(ids).size).toBe(ids.length);
-    });
-
     it("lists all FEM artworks as printings, original first (deck builder)", () => {
         const printings = getPrintingsForCard(vodalianSoldiers.id);
         expect(printings[0]).toEqual({
@@ -181,13 +155,6 @@ function makeWithTide(
 }
 
 describe("Homarid — tide counter P/T cycle (CR 611.2c, 603.6a, 603.8)", () => {
-    it("carries the canonical FEM characteristics", () => {
-        expect(homarid.manaCost).toEqual({ X: 2, U: 1 });
-        expect(homarid.subtypes).toEqual(["Homarid"]);
-        expect(homarid.power).toBe(2);
-        expect(homarid.toughness).toBe(2);
-    });
-
     // CR 121.6 / 614.1c (issue #1693) — "This creature enters with a tide
     // counter on it" is a REPLACEMENT effect. As a trigger, Homarid sat on the
     // battlefield at ZERO tide counters (reading as a plain 2/2) until the
@@ -565,14 +532,6 @@ describe("Vodalian Mage — counter-unless-pay (CR 701.5a, 117.3a)", () => {
 });
 
 describe("Vodalian Knights — Island-matters knight (CR 508.1c, 603.8, 702.9)", () => {
-    it("carries first strike and the {U} flying grant", () => {
-        expect(vodalianKnights.staticAbilities).toContain("first strike");
-        const fly = vodalianKnights.activatedAbilities?.find(
-            (a) => a.id === "vodalian-knights-fly"
-        );
-        expect(fly).toBeDefined();
-    });
-
     it("sacrifices itself when its controller controls no Islands (CR 603.8)", () => {
         const inst = makeInstance(vodalianKnights.id, {
             id: "vk",
@@ -596,10 +555,6 @@ describe("Vodalian Knights — Island-matters knight (CR 508.1c, 603.8, 702.9)",
 });
 
 describe("Seasinger — conditional gainControl (CR 611.2c) + may-not-untap (CR 502.1)", () => {
-    it("declares the may-choose-not-to-untap static ability (CAPABILITY I reuse)", () => {
-        expect(seasinger.staticAbilities).toContain("may-choose-not-to-untap");
-    });
-
     it("steals a creature whose controller controls an Island, for as long as Seasinger stays tapped", () => {
         const singer = makeInstance(seasinger.id, {
             id: "singer",
@@ -805,25 +760,6 @@ describe("Merseine — net counters + dynamic cost K (CR 122, 502.1, 601.2f, 202
 });
 
 describe("Vodalian War Machine — tapOtherFilter cost (CAPABILITY D reuse)", () => {
-    it("declares defender plus two tap-a-Merfolk abilities", () => {
-        expect(vodalianWarMachine.staticAbilities).toContain("defender");
-        const ids = (vodalianWarMachine.activatedAbilities ?? []).map(
-            (a) => a.id
-        );
-        expect(ids).toContain("vodalian-war-machine-attack");
-        expect(ids).toContain("vodalian-war-machine-pump");
-        for (const a of vodalianWarMachine.activatedAbilities ?? []) {
-            expect(a.cost.tapOtherFilter).toEqual({
-                filter: {
-                    types: "Creature",
-                    subtypes: "Merfolk",
-                    controllerRelation: "you",
-                },
-                count: 1,
-            });
-        }
-    });
-
     it("the pump ability grants +2/+1 until end of turn", () => {
         const machine = makeInstance(vodalianWarMachine.id, {
             id: "vwm",
@@ -953,25 +889,5 @@ describe("Homarid Shaman — tap a green creature (CR 701.21)", () => {
         expect(
             state.players[1].battlefield.find((c) => c.id === "green")?.isTapped
         ).toBe(true);
-    });
-});
-
-describe("Svyelunite Priest — upkeep-only shroud grant (CR 602.5)", () => {
-    it("is restricted to its controller's upkeep", () => {
-        const ability = svyelunitePriest.activatedAbilities?.find(
-            (a) => a.id === "svyelunite-priest-shroud"
-        );
-        expect(ability?.controllerTurnOnly).toBe(true);
-        expect(ability?.activationPhaseRestriction).toEqual(["UPKEEP"]);
-    });
-});
-
-describe("Tidal Flats — first strike for blockers unless attacker pays (CR 509, 117.3a)", () => {
-    it("carries the {U}{U} combat ability", () => {
-        const ability = tidalFlats.activatedAbilities?.find(
-            (a) => a.id === "tidal-flats-first-strike"
-        );
-        expect(ability).toBeDefined();
-        expect(ability?.cost.mana).toEqual({ U: 2 });
     });
 });

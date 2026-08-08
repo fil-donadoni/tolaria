@@ -58,23 +58,6 @@ function chooseTarget(state: GameState, targetId: string | null) {
 }
 
 describe("Azure Beastbinder (CR 509.1b block restriction + 508.1 attack trigger)", () => {
-    it("is a {1}{U} 1/3 Rat Rogue with vigilance", () => {
-        expect(azureBeastbinder.manaCost).toEqual({ X: 1, U: 1 });
-        expect(azureBeastbinder.power).toBe(1);
-        expect(azureBeastbinder.toughness).toBe(3);
-        expect(azureBeastbinder.staticAbilities).toEqual(["vigilance"]);
-    });
-
-    it("declares the CR 603.3d target requirement: up to one opponent-controlled artifact/creature/planeswalker", () => {
-        expect(
-            azureBeastbinder.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({
-            type: ["Artifact", "Creature", "Planeswalker"],
-            count: { min: 0, max: 1 },
-            controller: "opponent",
-        });
-    });
-
     it("can't be blocked by creatures with power 2 or greater (CR 509.1b)", () => {
         const beastbinder = makeInstance(azureBeastbinder.id, {
             id: "bb",

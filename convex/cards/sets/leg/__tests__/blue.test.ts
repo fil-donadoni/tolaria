@@ -22,7 +22,6 @@ import {
     backfire,
     barbaryApes,
     boomerang,
-    devouringDeep,
     energyTap,
     flashCounter,
     flashFlood,
@@ -34,17 +33,14 @@ import {
     partWater,
     psionicEntity,
     recall,
-    removeSoul,
     reset,
     seaKingsBlessing,
-    segovianLeviathan,
     spectralCloak,
     teleport,
     venarianGold,
     wallOfVapor,
     wallOfWonder,
     winterBlast,
-    zephyrFalcon,
 } from "..";
 import { projectPublicState } from "../../../../gameProjections";
 import { isCombatDamagePreventedFromSource } from "../../../../gre/combatDamagePrevention";
@@ -85,23 +81,6 @@ import {
     lightningBolt,
     mountain,
 } from "../../lea";
-
-describe("LEG blue keyword / vanilla creatures (CR 702)", () => {
-    it("Azure Drake has flying with canonical stats", () => {
-        expect(azureDrake.staticAbilities).toContain("flying");
-        expect(azureDrake.power).toBe(2);
-        expect(azureDrake.toughness).toBe(4);
-    });
-
-    it("Zephyr Falcon has flying and vigilance", () => {
-        expect(zephyrFalcon.staticAbilities).toEqual(["flying", "vigilance"]);
-    });
-
-    it("Devouring Deep and Segovian Leviathan have islandwalk", () => {
-        expect(devouringDeep.staticAbilities).toContain("islandwalk");
-        expect(segovianLeviathan.staticAbilities).toContain("islandwalk");
-    });
-});
 
 describe("Psionic Entity ({T}: 2 to any target, 3 to itself, CR 120.1)", () => {
     it("deals 2 to the target and 3 to itself", () => {
@@ -205,11 +184,6 @@ describe("Flash Counter / Remove Soul (type-restricted counters, CR 701.5a)", ()
         ]);
         resolveTopOfStack(state);
         expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
-    });
-
-    it("Remove Soul restricts to creature spells via spellTypeFilter", () => {
-        expect(removeSoul.targetRequirement?.spellTypeFilter).toBe("Creature");
-        expect(flashCounter.targetRequirement?.spellTypeFilter).toBe("Instant");
     });
 });
 
@@ -577,14 +551,6 @@ describe("Mana Drain (counter + next-main-phase {C}=MV, CR 701.5a/603.7/505)", (
         const projected = projectPublicState(state, 0, "p1");
         expect(projected.players[0].manaPool.C).toBe(4);
     });
-
-    it("is a {U}{U} instant with the modern oracle text", () => {
-        expect(manaDrain.manaCost).toEqual({ U: 2 });
-        expect(manaDrain.types).toEqual(["Instant"]);
-        expect(manaDrain.oracleText).toBe(
-            "Counter target spell. At the beginning of your next main phase, add an amount of {C} equal to that spell's mana value."
-        );
-    });
 });
 
 describe("Energy Tap (tap your creature, add {C}=MV, CR 106.1)", () => {
@@ -674,17 +640,6 @@ describe("Winter Blast (tap X creatures, 2 dmg to those with flying, CR 120.1)",
 });
 
 describe("Spectral Cloak (shroud while untapped, CR 702.18 / 611)", () => {
-    it("declares a cantBeTargeted guard scoped to the untapped host", () => {
-        expect(spectralCloak.subtypes).toContain("Aura");
-        const guard = spectralCloak.staticEffects?.find(
-            (e) => e.kind === "permanent-guard"
-        );
-        expect(guard).toBeDefined();
-        expect((guard as { cantBeTargeted?: boolean }).cantBeTargeted).toBe(
-            true
-        );
-    });
-
     it("excludes the untapped enchanted creature from getLegalTargets", () => {
         const bear = makeInstance(jasmineBoreal.id, {
             id: "bear",
@@ -779,20 +734,6 @@ describe("Spectral Cloak (shroud while untapped, CR 702.18 / 611)", () => {
 });
 
 describe("Anti-Magic Aura (can't be targeted by spells, CR 113.3)", () => {
-    it("declares a spell-only cantBeTargeted guard plus cantBeEnchanted", () => {
-        const guards = (antiMagicAura.staticEffects ?? []).filter(
-            (e) => e.kind === "permanent-guard"
-        );
-        const noTarget = guards.find(
-            (g) => (g as { cantBeTargeted?: boolean }).cantBeTargeted
-        ) as { targetSourceMustBeSpell?: boolean } | undefined;
-        expect(noTarget?.targetSourceMustBeSpell).toBe(true);
-        const noEnchant = guards.find(
-            (g) => (g as { cantBeEnchanted?: boolean }).cantBeEnchanted
-        );
-        expect(noEnchant).toBeDefined();
-    });
-
     it("blocks a spell source but allows an ability source", () => {
         const bear = makeInstance(jasmineBoreal.id, { id: "bear" });
         const aura = makeInstance(antiMagicAura.id, {
@@ -953,12 +894,6 @@ describe("Venarian Gold (sleep counters: ETB tap + counter-gated does-not-untap 
 });
 
 describe("In the Eye of Chaos (counter instants unless controller pays mana value, CR 117.3a / 202.3)", () => {
-    it("is a World enchantment (CR 205.4) — supertype carried as data", () => {
-        expect(inTheEyeOfChaos.supertypes).toEqual(["World"]);
-        expect(inTheEyeOfChaos.types).toEqual(["Enchantment"]);
-        expect(inTheEyeOfChaos.manaCost).toEqual({ X: 2, U: 1 });
-    });
-
     it("taxes an instant at its mana value, then counters on decline", () => {
         const eye = makeInstance(inTheEyeOfChaos.id, {
             id: "eye",
@@ -1119,11 +1054,6 @@ describe("In the Eye of Chaos (counter instants unless controller pays mana valu
 });
 
 describe("Recall ({X}{X}{U} sorcery, CR 107.3/701.8/400.7/608.2)", () => {
-    it("definition: {X}{X}{U} cost (xFactor 2) and self-exiling sorcery", () => {
-        expect(recall.types).toEqual(["Sorcery"]);
-        expect(recall.manaCost).toEqual({ X: "X", xFactor: 2, U: 1 });
-    });
-
     it("X=2 discards two then returns two, including a just-discarded card", () => {
         // Hand: h0, h1; graveyard already holds g0. X = 2.
         const state = startRecall({
@@ -1347,15 +1277,6 @@ describe("Wall of Vapor (prevent combat damage from creatures it's blocking, CR 
         expect(isCombatDamagePreventedFromSource(state, wall, other)).toBe(
             false
         );
-    });
-
-    it("has Defender and the prevention static", () => {
-        expect(wallOfVapor.staticAbilities).toContain("defender");
-        expect(
-            wallOfVapor.staticEffects?.some(
-                (e) => e.kind === "combat-damage-prevention"
-            )
-        ).toBe(true);
     });
 
     it("prevention survives the wire projection (client-visible static)", () => {

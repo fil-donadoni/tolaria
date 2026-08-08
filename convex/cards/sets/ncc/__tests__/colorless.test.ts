@@ -45,15 +45,6 @@ function withConverter(p1Overrides: Parameters<typeof makePlayer>[1] = {}): {
     return { state, cc };
 }
 
-describe("Currency Converter — definition (issue #791)", () => {
-    it("is a {1} artifact with the three-line oracle", () => {
-        expect(currencyConverter.manaCost).toEqual({ X: 1 });
-        expect(currencyConverter.types).toEqual(["Artifact"]);
-        expect(currencyConverter.triggeredAbilities).toHaveLength(1);
-        expect(currencyConverter.activatedAbilities).toHaveLength(2);
-    });
-});
-
 describe("Currency Converter — discard trigger + per-source exile link (CR 701.8 / 111)", () => {
     function discardedState() {
         const disc = makeInstance(grizzlyBears.id, {

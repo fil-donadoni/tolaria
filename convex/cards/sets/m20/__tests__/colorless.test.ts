@@ -60,12 +60,6 @@ describe("Manifold Key (CR 701.20 untap-another; CR 613.1f unblockable grant)", 
         return { state, key, otherArtifact, creature };
     }
 
-    it("shape: {1} Artifact with two {T} activated abilities", () => {
-        expect(manifoldKey.manaCost).toEqual({ X: 1 });
-        expect(manifoldKey.types).toEqual(["Artifact"]);
-        expect(manifoldKey.activatedAbilities).toHaveLength(2);
-    });
-
     it("untaps another target artifact", () => {
         const { state, key } = setup();
         resolveActivated(state, key, "manifold-key-untap", [

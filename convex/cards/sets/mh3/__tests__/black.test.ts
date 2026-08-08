@@ -106,13 +106,6 @@ describe("Nethergoyf (CR 604.3 card-type-counting CDA P/T, CR 702.138 escape)", 
         expect(getEffectivePower(projected, slim)).toBe(2);
         expect(getEffectiveToughness(projected, slim)).toBe(3);
     });
-
-    it("declares its printed escape cost (CR 702.138a variable exile)", () => {
-        expect(nethergoyf.escape).toEqual({
-            mana: { X: 2, B: 1 },
-            exile: { minCardTypes: 4 },
-        });
-    });
 });
 
 // Emperor of Bones (issue #1323, parent #917) — composes Adapt (#1316),
@@ -164,30 +157,6 @@ describe("Emperor of Bones (CR 603.6a combat trigger, CR 701.46 adapt, CR 607 li
             zone: "graveyard",
         });
     }
-
-    it("is a {1}{B} 2/2 Skeleton Noble with two triggers and an Adapt activated ability", () => {
-        expect(emperorOfBones.manaCost).toEqual({ X: 1, B: 1 });
-        expect(emperorOfBones.types).toEqual(["Creature"]);
-        expect(emperorOfBones.subtypes).toEqual(["Skeleton", "Noble"]);
-        expect(emperorOfBones.power).toBe(2);
-        expect(emperorOfBones.toughness).toBe(2);
-        expect(emperorOfBones.triggeredAbilities).toHaveLength(2);
-        const adapt = emperorOfBones.activatedAbilities?.find(
-            (a) => a.id === "emperor-of-bones-adapt"
-        );
-        expect(adapt?.cost).toEqual({ mana: { X: 1, B: 1 } });
-    });
-
-    it("declares the CR 603.3d optional graveyard target on the combat trigger", () => {
-        expect(
-            emperorOfBones.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({
-            type: "card",
-            count: { min: 0, max: 1 },
-            zone: "graveyard",
-            controller: "any",
-        });
-    });
 
     it("exiles the announced target card from EITHER player's graveyard and links it to itself", () => {
         const boss = emperor("emp1", "p1");

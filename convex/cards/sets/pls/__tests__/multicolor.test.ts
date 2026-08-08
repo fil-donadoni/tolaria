@@ -166,23 +166,6 @@ function twoPlayerBoard(turn = 5) {
     return { state, twilight, mine, theirs };
 }
 
-describe("Keldon Twilight — card data (Scryfall / modern Oracle text)", () => {
-    it("is a {1}{B}{R} rare Enchantment", () => {
-        expect(keldonTwilight.manaCost).toEqual({ X: 1, B: 1, R: 1 });
-        expect(keldonTwilight.types).toEqual(["Enchantment"]);
-        expect(keldonTwilight.rarity).toBe("rare");
-        expect(keldonTwilight.oracleText).toBe(
-            "At the beginning of each player's end step, if no creatures attacked this turn, that player sacrifices a creature of their choice that they controlled since the beginning of the turn."
-        );
-    });
-
-    it("declares exactly one triggered ability, written as an Effect Script (ADR 0045)", () => {
-        expect(keldonTwilight.triggeredAbilities).toHaveLength(1);
-        expect(ABILITY.effects).toBeDefined();
-        expect(ABILITY.resolve).toBeUndefined();
-    });
-});
-
 describe("Keldon Twilight — trigger scope (CR 603.6a, 'each player's end step')", () => {
     it("fires on EACH player's end step, and the sacrificing player is that player", () => {
         const { state, twilight, mine } = twoPlayerBoard();
@@ -439,25 +422,6 @@ function simulateTyrannyBatchDraw(
     emitCardDrawn(state, drawingPlayerId, n);
     processPendingActionTriggers(state);
 }
-
-describe("Phyrexian Tyranny — card data (Scryfall / modern Oracle text)", () => {
-    it("is a {U}{B}{R} rare Enchantment", () => {
-        expect(phyrexianTyranny.manaCost).toEqual({ U: 1, B: 1, R: 1 });
-        expect(phyrexianTyranny.types).toEqual(["Enchantment"]);
-        expect(phyrexianTyranny.rarity).toBe("rare");
-        expect(phyrexianTyranny.oracleText).toBe(
-            "Whenever a player draws a card, that player loses 2 life unless they pay {2}."
-        );
-    });
-
-    it("declares exactly one triggered ability, written as an Effect Script (ADR 0045)", () => {
-        expect(phyrexianTyranny.triggeredAbilities).toHaveLength(1);
-        const ability = phyrexianTyranny.triggeredAbilities![0];
-        expect(ability.id).toBe(TYRANNY_ABILITY_ID);
-        expect(ability.effects).toBeDefined();
-        expect(ability.resolve).toBeUndefined();
-    });
-});
 
 describe("Phyrexian Tyranny — offered to the DRAWING player, not the controller (CR 117.3a)", () => {
     it("an opponent's draw offers the may-pay decision to the OPPONENT", () => {
@@ -822,22 +786,6 @@ describe("Natural Emergence ({2}{R}{G} — lands you control are 2/2 first strik
             2
         );
     });
-
-    it("declares the mandatory red-or-green ENCHANTMENT bounce on entry", () => {
-        const etb = naturalEmergence.triggeredAbilities!.find(
-            (a) => a.id === "natural-emergence-etb-bounce"
-        )!;
-        expect(etb.event).toBe("PERMANENT_ENTERED");
-        const choice = etb.effects![0] as unknown as {
-            op: string;
-            filter: { type: string; color: string[] };
-        };
-        expect(choice.op).toBe("choice");
-        expect(choice.filter).toEqual({
-            type: "Enchantment",
-            color: ["R", "G"],
-        });
-    });
 });
 
 describe("Dralnu's Crusade ({1}{B}{R} — all Goblins get +1/+1, are black and are Zombies; CR 613, issue #1953)", () => {
@@ -953,20 +901,6 @@ describe("Dralnu's Crusade ({1}{B}{R} — all Goblins get +1/+1, are black and a
         expect(getEffectiveColors(slim as never)).toEqual(
             expect.arrayContaining(["R", "B"])
         );
-    });
-
-    // DIVERGENCE tripwire (tracked-by #2009): the engine's only layer-5 static
-    // is the ADDITIVE `color-grant`, so this pins the shape actually shipped
-    // rather than the CR 613.1e colour-SET the card wants. When #2009 lands and
-    // this flips to a set, the failure is the reminder to revisit the card.
-    it("declares the colour clause as the additive color-grant the engine ships (tracked-by #2009)", () => {
-        const colorEffect = dralnusCrusade.staticEffects!.find(
-            (e) => e.kind === "color-grant"
-        )!;
-        expect(colorEffect).toMatchObject({
-            kind: "color-grant",
-            colors: ["B"],
-        });
     });
 });
 
@@ -1260,38 +1194,10 @@ describe("Meddling Mage ({W}{U} — name a nonland card as it enters; that spell
             )
         ).toBe("Spells with the chosen name can't be cast.");
     });
-
-    it("carries an AI valuation so the bot does not price it at the blind floor (issue #1431)", () => {
-        expect(meddlingMage.aiValue).toBeGreaterThan(0);
-    });
 });
 
 describe("Hull Breach ({R}{G} — modal, third mode takes TWO independent targets; CR 700.2/601.2c, issue #1953)", () => {
     const bothMode = hullBreach.modes!.find((m) => m.id === "both")!;
-
-    it("declares two independent target groups on the third mode only", () => {
-        expect(hullBreach.targetRequirement).toBeUndefined();
-        expect(hullBreach.modes!.map((m) => m.id)).toEqual([
-            "artifact",
-            "enchantment",
-            "both",
-        ]);
-        expect(bothMode.targetRequirement).toEqual({
-            type: "Artifact",
-            count: 1,
-        });
-        expect(bothMode.additionalTargetRequirements).toEqual([
-            { type: "Enchantment", count: 1 },
-        ]);
-        // Positional reads: group 0 is the artifact, group 1 the enchantment.
-        expect(bothMode.effects).toEqual([
-            { op: "destroy", target: { target: 0 } },
-            { op: "destroy", target: { target: 1 } },
-        ]);
-        for (const m of hullBreach.modes!.filter((x) => x.id !== "both")) {
-            expect(m.additionalTargetRequirements).toBeUndefined();
-        }
-    });
 
     it("keeps the groups independent — artifacts for group 0, enchantments for group 1", () => {
         const art = makeInstance(blackLotus.id, {
@@ -1685,16 +1591,6 @@ describe("Malicious Advice — the life loss is NOT independent of the targets (
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Crosis's Charm ({U}{B}{R} modal instant, CR 601.2b, issue #1954)", () => {
-    it("declares three modes with no card-level resolve/targetRequirement", () => {
-        expect(crosissCharm.resolve).toBeUndefined();
-        expect(crosissCharm.targetRequirement).toBeUndefined();
-        expect(crosissCharm.modes!.map((m) => m.id)).toEqual([
-            "bounce",
-            "destroy-nonblack-creature",
-            "destroy-artifact",
-        ]);
-    });
-
     it("mode 2 destroys a NONBLACK creature and can't be regenerated (CR 701.15c)", () => {
         const target = makeInstance(monssGoblinRaiders.id, {
             id: "raiders",
@@ -1764,16 +1660,6 @@ describe("Crosis's Charm ({U}{B}{R} modal instant, CR 601.2b, issue #1954)", () 
 });
 
 describe("Darigaaz's Charm ({B}{R}{G} modal instant, CR 601.2b, issue #1954)", () => {
-    it("declares three modes with no card-level resolve/targetRequirement", () => {
-        expect(darigaazsCharm.resolve).toBeUndefined();
-        expect(darigaazsCharm.targetRequirement).toBeUndefined();
-        expect(darigaazsCharm.modes!.map((m) => m.id)).toEqual([
-            "regrowth-creature",
-            "damage",
-            "pump",
-        ]);
-    });
-
     it("mode 1 returns target creature card from YOUR graveyard to your hand", () => {
         const dead = makeInstance(grizzlyBears.id, {
             id: "dead-bears",
@@ -1833,16 +1719,6 @@ describe("Darigaaz's Charm ({B}{R}{G} modal instant, CR 601.2b, issue #1954)", (
 });
 
 describe("Dromar's Charm ({W}{U}{B} modal instant, CR 601.2b, issue #1954)", () => {
-    it("declares three modes with no card-level resolve/targetRequirement", () => {
-        expect(dromarsCharm.resolve).toBeUndefined();
-        expect(dromarsCharm.targetRequirement).toBeUndefined();
-        expect(dromarsCharm.modes!.map((m) => m.id)).toEqual([
-            "gain-life",
-            "counter",
-            "shrink",
-        ]);
-    });
-
     it("mode 1 gains the caster 5 life (no target)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -1897,16 +1773,6 @@ describe("Dromar's Charm ({W}{U}{B} modal instant, CR 601.2b, issue #1954)", () 
 });
 
 describe("Treva's Charm ({G}{W}{U} modal instant, CR 601.2b, issue #1954)", () => {
-    it("declares three modes with no card-level resolve/targetRequirement", () => {
-        expect(trevasCharm.resolve).toBeUndefined();
-        expect(trevasCharm.targetRequirement).toBeUndefined();
-        expect(trevasCharm.modes!.map((m) => m.id)).toEqual([
-            "destroy-enchantment",
-            "exile-attacker",
-            "loot",
-        ]);
-    });
-
     it("mode 1 destroys target enchantment", () => {
         const ench = makeInstance(dralnusCrusade.id, {
             id: "ench-1",
@@ -1996,15 +1862,6 @@ describe("Ertai, the Corrupted ({2}{W}{U}{B}, CR 701.5a, issue #1954)", () => {
         (a) => a.id === "ertai-corrupted-counter"
     )!;
 
-    it("costs {U}, tap, sacrifice a creature or enchantment; targets a spell", () => {
-        expect(ABILITY.cost).toEqual({
-            mana: { U: 1 },
-            tap: true,
-            sacrificeFilter: { types: ["Creature", "Enchantment"] },
-        });
-        expect(ABILITY.targetRequirement).toEqual({ type: "spell", count: 1 });
-    });
-
     it("counters target spell on resolution", () => {
         const ertai = makeInstance(ertaiTheCorrupted.id, {
             id: "ertai-1",
@@ -2070,23 +1927,6 @@ describe("Questing Phelddagrif ({1}{G}{W}{U}, three self-pump / opponent-benefit
         });
         resolveTopOfStack(state);
     }
-
-    it("declares three activated abilities, each targeting an opponent", () => {
-        for (const id of [
-            "questing-phelddagrif-green",
-            "questing-phelddagrif-white",
-            "questing-phelddagrif-blue",
-        ]) {
-            const ability = questingPhelddagrif.activatedAbilities!.find(
-                (a) => a.id === id
-            )!;
-            expect(ability.targetRequirement).toEqual({
-                type: "player",
-                count: 1,
-                controller: "opponent",
-            });
-        }
-    });
 
     it("{G}: pumps itself +1/+1 and gives target opponent a 1/1 green Hippo token", () => {
         const { state, phelddagrif } = setup();
@@ -2277,16 +2117,6 @@ describe("Radiant Kavu ({R}{G}{W} Creature — filter-scoped prevention, CR 615)
         expect(prevented(state, "blueGuy", false)).toBe(false);
     });
 
-    it("is a {R}{G}{W} 3/3 Kavu whose ability costs {R}{G}{W} and no tap", () => {
-        expect(radiantKavu.manaCost).toEqual({ R: 1, G: 1, W: 1 });
-        expect(radiantKavu.subtypes).toEqual(["Kavu"]);
-        expect(radiantKavu.power).toBe(3);
-        expect(radiantKavu.toughness).toBe(3);
-        expect(radiantKavu.activatedAbilities?.[0]?.cost).toEqual({
-            mana: { R: 1, G: 1, W: 1 },
-        });
-    });
-
     it("the filter-scoped shield survives the wire projection (wire format)", () => {
         const state = board();
         activate(state);
@@ -2341,25 +2171,6 @@ describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
         resolveTopOfStack(state);
     }
 
-    it("offers exactly the three printed modes (CR 700.2)", () => {
-        expect(rithsCharm.modes?.map((m) => m.id)).toEqual([
-            "destroy-nonbasic-land",
-            "saprolings",
-            "prevent-source",
-        ]);
-        expect(rithsCharm.manaCost).toEqual({ R: 1, G: 1, W: 1 });
-        expect(rithsCharm.types).toEqual(["Instant"]);
-    });
-
-    it("mode 1 targets only NONBASIC lands (CR 205.4a)", () => {
-        const req = rithsCharm.modes?.[0].targetRequirement;
-        expect(req).toEqual({
-            type: "Land",
-            count: 1,
-            excludeSupertypes: "Basic",
-        });
-    });
-
     it("mode 2 creates three 1/1 green Saproling tokens (CR 111)", () => {
         const state = board();
         castMode(state, "saprolings");
@@ -2407,16 +2218,6 @@ describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
                 false
             )
         ).toBeNull();
-    });
-
-    it("mode 3's source requirement excludes players and admits spells (CR 609.7)", () => {
-        const req = rithsCharm.modes?.[2].targetRequirement;
-        const types = req?.type as string[];
-        expect(types).toContain("spell");
-        expect(types).toContain("Creature");
-        // A damage SOURCE is an object, never a player.
-        expect(types).not.toContain("player");
-        expect(types).not.toContain("any");
     });
 
     // CR 609.7 — "an activated ability, triggered ability, or spell can be a

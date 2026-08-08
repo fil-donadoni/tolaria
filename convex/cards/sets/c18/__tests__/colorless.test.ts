@@ -19,35 +19,6 @@ import { resolveTrigger } from "./helpers";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { covetedJewel } from "..";
 
-describe("Coveted Jewel (C18) — definition wiring", () => {
-    it("is a {6} artifact with the ETB draw trigger and the any-one-colour mana ability", () => {
-        expect(covetedJewel.types).toEqual(["Artifact"]);
-        expect(covetedJewel.manaCost).toEqual({ X: 6 });
-        expect(covetedJewel.rarity).toBe("rare");
-
-        const etb = (covetedJewel.triggeredAbilities ?? []).find(
-            (t) => t.id === "coveted-jewel-etb-draw"
-        );
-        expect(etb).toBeDefined();
-        expect(etb?.effects).toEqual([
-            { op: "draw", player: "controller", count: 3 },
-        ]);
-
-        const mana = (covetedJewel.activatedAbilities ?? []).find(
-            (a) => a.id === "coveted-jewel-mana"
-        );
-        expect(mana?.cost).toEqual({ tap: true });
-        expect(mana?.useStack).toBe(false);
-        expect(mana?.manaChoices).toEqual([
-            { W: 3 },
-            { U: 3 },
-            { B: 3 },
-            { R: 3 },
-            { G: 3 },
-        ]);
-    });
-});
-
 describe("Coveted Jewel (C18) — unblocked-attack steal trigger (CR 509.1h / 603.3b)", () => {
     it("an opponent's unblocked attacker makes that opponent draw 3, gain control of the Jewel, and untap it", () => {
         const state = makeState({

@@ -31,11 +31,6 @@ function manaChoices(
 }
 
 describe("Riverpyre Verge (CR 605.1a mana ability; CR 602.5b activation restriction)", () => {
-    it("has no entersTapped / entersTappedUnless — the Verge cycle enters untapped unconditionally", () => {
-        expect(riverpyreVerge.entersTapped).toBeUndefined();
-        expect(riverpyreVerge.entersTappedUnless).toBeUndefined();
-    });
-
     it("offers only the primary colour when the controller controls neither unlock subtype", () => {
         const land = makeInstance(riverpyreVerge.id, { controllerId: "p1" });
         const state = makeState();

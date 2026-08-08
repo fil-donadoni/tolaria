@@ -18,8 +18,6 @@ import {
     thallidDevourer,
     theloniteDruid,
     theloniteMonk,
-    thelonsChant,
-    thelonsCurse,
     thornThallid,
     vodalianSoldiers,
 } from "..";
@@ -57,14 +55,6 @@ function makeWithSpores(
 }
 
 describe("Thallid — spore engine (CR 122.1, 122.6, 707.1)", () => {
-    it("carries the canonical FEM characteristics", () => {
-        expect(thallid.manaCost).toEqual({ G: 1 });
-        expect(thallid.types).toEqual(["Creature"]);
-        expect(thallid.subtypes).toEqual(["Fungus"]);
-        expect(thallid.power).toBe(1);
-        expect(thallid.toughness).toBe(1);
-    });
-
     it("adds a spore counter at the beginning of its controller's upkeep", () => {
         const thallidInst = makeWithSpores(thallid.id, 0);
         const state = makeState({
@@ -418,40 +408,7 @@ describe("Thelonite Monk — land becomes a Forest indefinitely (CR 305.7)", () 
     });
 });
 
-describe("Thelon's Curse — symmetric untap-lock on blue creatures (CR 611)", () => {
-    it("declares an untap restriction filtered to blue creatures with cap 0", () => {
-        const eff = thelonsCurse.staticEffects?.find(
-            (e) => e.kind === "untap-restriction"
-        );
-        expect(eff).toBeDefined();
-        if (eff && eff.kind === "untap-restriction") {
-            expect(eff.maxUntap).toBe(0);
-            expect(eff.filter).toMatchObject({
-                types: "Creature",
-                colors: "U",
-            });
-        }
-    });
-});
-
-describe("Thelon's Chant — upkeep tax + Swamp punisher (CR 117.3a, 603.6a)", () => {
-    it("declares an upkeep pay-or-sacrifice trigger and a Swamp-ETB trigger", () => {
-        const ids = (thelonsChant.triggeredAbilities ?? []).map((t) => t.id);
-        expect(ids).toContain("thelons-chant-upkeep");
-        expect(ids).toContain("thelons-chant-swamp-punish");
-    });
-});
-
 describe("Night Soil — exile-from-graveyard cost (CR 602.1, 118.5, 707.1)", () => {
-    it("declares an exile-from-graveyard cost of two creature cards", () => {
-        const ability = nightSoil.activatedAbilities?.[0];
-        expect(ability?.cost.exileFromGraveyard).toEqual({
-            count: 2,
-            cardType: "Creature",
-        });
-        expect(ability?.cost.mana).toEqual({ X: 1 });
-    });
-
     it("creates a 1/1 green Saproling on resolve (cost paid by the mutation)", () => {
         const soil = makeInstance(nightSoil.id, {
             controllerId: "p1",

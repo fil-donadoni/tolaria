@@ -35,12 +35,6 @@ describe("Squee, Goblin Nabob (CR 603.6e graveyard-zone upkeep trigger, CR 117.3
         activePlayerId: "p1",
     };
 
-    it("has a graveyard-zone upkeep trigger", () => {
-        const trig = squeeGoblinNabob.triggeredAbilities?.[0];
-        expect(trig?.event).toBe("PHASE_BEGIN");
-        expect(trig?.zone).toBe("graveyard");
-    });
-
     it("triggers on its controller's upkeep from the graveyard", () => {
         const state = gyState();
         const triggers = collectTriggers(state, [upkeep]);

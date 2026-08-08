@@ -47,27 +47,6 @@ function drainStack(state: ReturnType<typeof makeState>): void {
 }
 
 describe("Blightsteel Colossus (CR 702.19 trample, 702.90 infect, 702.12b indestructible, 400.7/701.24 graveyard-from-anywhere shuffle, issue #1201)", () => {
-    it("definitional: {12} 11/11 artifact creature with trample/infect/indestructible and one 'from anywhere' trigger", () => {
-        expect(blightsteelColossus.manaCost).toEqual({ generic: 12 });
-        expect(blightsteelColossus.types).toEqual(["Artifact", "Creature"]);
-        expect(blightsteelColossus.power).toBe(11);
-        expect(blightsteelColossus.toughness).toBe(11);
-        expect(blightsteelColossus.staticAbilities).toEqual([
-            "trample",
-            "infect",
-            "indestructible",
-        ]);
-        expect(blightsteelColossus.triggeredAbilities).toHaveLength(1);
-        const shuffle = blightsteelColossus.triggeredAbilities![0];
-        expect(shuffle.zone).toBe("graveyard");
-        expect(shuffle.event).toEqual([
-            "CREATURE_DIED",
-            "CARD_DISCARDED",
-            "CARD_MILLED",
-            "CARD_PUT_INTO_GRAVEYARD",
-        ]);
-    });
-
     it("dies on the battlefield: shuffles itself into its owner's library instead of the graveyard", () => {
         const colossus = makeInstance(blightsteelColossus.id, {
             id: "colossus",

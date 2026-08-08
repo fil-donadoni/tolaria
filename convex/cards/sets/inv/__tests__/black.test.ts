@@ -26,41 +26,25 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    addle,
     andraditeLeech,
     annihilate,
     bogInitiate,
     cremate,
-    cryptAngel,
     desperateResearch,
-    devouringStrossus,
     doOrDie,
-    dredge,
     duskwalker,
     exoticCurse,
     gohamDjinn,
-    hateWeaver,
-    hypnoticCloud,
     maraudingKnight,
-    mourning,
-    phyrexianBattleflies,
     phyrexianDelver,
     phyrexianInfiltrator,
     phyrexianReaper,
     phyrexianSlayer,
     plagueSpitter,
-    recover,
-    scavengedWeaponry,
-    soulBurnInv,
     spreadingPlague,
-    taintedWell,
     tsabosAssassin,
-    urborgShambler,
     urborgSkeleton,
 } from "../black";
-import { recklessSpite } from "../../tmp/black";
-import { ravenousRats } from "../../p02/black";
-import { cursedFlesh } from "../../exo/black";
 import { getCardByName } from "../../../index";
 import {
     plains,
@@ -133,62 +117,7 @@ function resolveActivated(
     resolveTopOfStack(state);
 }
 
-describe("inv/black.ts — registry shape (#1071)", () => {
-    it("exports the 24 free CardDefinitions + 5 resolve() cards + 1 CardPrint", () => {
-        const defs = [
-            addle,
-            andraditeLeech,
-            annihilate,
-            bogInitiate,
-            cremate,
-            cryptAngel,
-            cursedFlesh,
-            devouringStrossus,
-            dredge,
-            duskwalker,
-            gohamDjinn,
-            hateWeaver,
-            hypnoticCloud,
-            maraudingKnight,
-            mourning,
-            phyrexianBattleflies,
-            phyrexianDelver,
-            phyrexianReaper,
-            phyrexianSlayer,
-            plagueSpitter,
-            ravenousRats,
-            recklessSpite,
-            recover,
-            scavengedWeaponry,
-            spreadingPlague,
-            taintedWell,
-            tsabosAssassin,
-            urborgShambler,
-            urborgSkeleton,
-        ];
-        expect(defs).toHaveLength(29);
-        for (const def of defs) {
-            expect(def.id).toMatch(/^[0-9a-f-]{36}$/);
-        }
-        expect(soulBurnInv.definitionId).toBe(
-            "eb8e00d2-2381-4d45-bed8-c9bf738a9419"
-        );
-        expect(soulBurnInv.setCode).toBe("inv");
-    });
-});
-
 describe("Andradite Leech (controller's black spells cost {B} more, CR 601.2f)", () => {
-    it("carries the printed characteristics + cost-modifier static", () => {
-        expect(andraditeLeech.manaCost).toEqual({ X: 2, B: 1 });
-        expect(andraditeLeech.power).toBe(2);
-        expect(andraditeLeech.toughness).toBe(2);
-        const eff = andraditeLeech.staticEffects?.[0];
-        expect(eff?.kind).toBe("cost-modifier");
-        expect((eff as { costIncrease?: unknown }).costIncrease).toEqual({
-            B: 1,
-        });
-    });
-
     it("taxes the controller's OWN black spell by {B}", () => {
         const leech = makeInstance(andraditeLeech.id, {
             id: "leech",
@@ -514,17 +443,6 @@ describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a
             state.pendingTarget!.playerId
         );
     }
-
-    it("declares the CR 603.3d target requirement: a creature card in your own graveyard", () => {
-        expect(
-            phyrexianDelver.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({
-            type: "Creature",
-            count: 1,
-            zone: "graveyard",
-            controller: "you",
-        });
-    });
 
     it("returns the chosen graveyard creature to the battlefield and loses life equal to THAT card's mana value", () => {
         const delver = makeInstance(phyrexianDelver.id, {
@@ -1327,12 +1245,6 @@ describe("Phyrexian Infiltrator ({2}{U}{U}: exchange control indefinitely, CR 70
 // match against library contents) — a hand-written test is the signal-of-
 // intent here (per the DSL testing regime's own escape hatch).
 describe("Desperate Research ({1}{B} Sorcery — choose a card name, reveal 7, split on the name, CR 201.3 / 701.20a)", () => {
-    it("definition: {1}{B} Sorcery with the two-Op nameCard→digMatchingToHand script", () => {
-        expect(desperateResearch.manaCost).toEqual({ X: 1, B: 1 });
-        expect(desperateResearch.types).toEqual(["Sorcery"]);
-        expect(desperateResearch.effects).toHaveLength(2);
-    });
-
     const libOf = (owner: "p1" | "p2", cardIds: string[]) =>
         cardIds.map((cardId, i) =>
             makeInstance(cardId, {

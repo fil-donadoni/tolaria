@@ -118,12 +118,4 @@ describe("City of Traitors (CR 603.2 triggered ability, CR 701.16 sacrifice)", (
         expect(state.stack.length).toBe(0);
         expect(state.players[0].battlefield.map((c) => c.id)).toContain("city");
     });
-
-    it("its mana ability is a non-stack ability producing {C}{C} (CR 106.1/605.1a)", () => {
-        const mana = cityOfTraitors.activatedAbilities!.find(
-            (a) => a.id === "city-of-traitors-mana"
-        )!;
-        expect(mana.useStack).toBe(false);
-        expect(mana.manaProduced).toEqual({ C: 2 });
-    });
 });

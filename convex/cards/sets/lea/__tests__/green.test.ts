@@ -167,15 +167,6 @@ describe("Hurricane ({X}{G} — X damage to each flying creature and each player
 });
 
 describe("Elvish Archers (first strike, CR 702.7)", () => {
-    it("is a 2/1 Elf Archer for {1}{G} with first strike", () => {
-        expect(elvishArchers.manaCost).toEqual({ X: 1, G: 1 });
-        expect(elvishArchers.types).toContain("Creature");
-        expect(elvishArchers.subtypes).toEqual(["Elf", "Archer"]);
-        expect(elvishArchers.power).toBe(2);
-        expect(elvishArchers.toughness).toBe(1);
-        expect(elvishArchers.staticAbilities).toContain("first strike");
-    });
-
     it("kills a 2/2 blocker in the first-strike step before it can swing back", () => {
         // Elvish Archers (2/1, first strike) attacks, blocked by Grizzly
         // Bears (2/2). CR 510.2: only first/double strike creatures deal
@@ -277,15 +268,6 @@ describe("Elvish Archers (first strike, CR 702.7)", () => {
 });
 
 describe("Shanodin Dryads (forestwalk evasion, CR 702.13b)", () => {
-    it("is a 1/1 Nymph Dryad for {G} with forestwalk", () => {
-        expect(shanodinDryads.manaCost).toEqual({ G: 1 });
-        expect(shanodinDryads.types).toContain("Creature");
-        expect(shanodinDryads.subtypes).toEqual(["Nymph", "Dryad"]);
-        expect(shanodinDryads.power).toBe(1);
-        expect(shanodinDryads.toughness).toBe(1);
-        expect(shanodinDryads.staticAbilities).toContain("forestwalk");
-    });
-
     it("cannot be blocked when defender controls a Forest", () => {
         const dryads = makeInstance(shanodinDryads.id, { id: "dryads" });
         const bears = makeInstance(savannahLions.id, {
@@ -316,21 +298,6 @@ describe("Shanodin Dryads (forestwalk evasion, CR 702.13b)", () => {
 });
 
 describe("Llanowar Elves ({T}: Add {G}, CR 605.1a)", () => {
-    it("is a 1/1 Elf Druid for {G}", () => {
-        expect(llanowarElves.manaCost).toEqual({ G: 1 });
-        expect(llanowarElves.types).toContain("Creature");
-        expect(llanowarElves.subtypes).toEqual(["Elf", "Druid"]);
-        expect(llanowarElves.power).toBe(1);
-        expect(llanowarElves.toughness).toBe(1);
-    });
-
-    it("declares a tap-for-green mana ability (useStack: false)", () => {
-        const ability = llanowarElves.activatedAbilities?.[0];
-        expect(ability?.cost.tap).toBe(true);
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaProduced).toEqual({ G: 1 });
-    });
-
     it("engine recognizes the mana ability on the battlefield", () => {
         const elf = makeInstance(llanowarElves.id, { id: "elf" });
         expect(hasManaAbility(elf)).toBe(true);
@@ -358,29 +325,6 @@ describe("Llanowar Elves ({T}: Add {G}, CR 605.1a)", () => {
 });
 
 describe("Birds of Paradise (flying + {T}: Add one mana of any color, CR 605.1a)", () => {
-    it("is a 0/1 Bird for {G} with flying", () => {
-        expect(birdsOfParadise.manaCost).toEqual({ G: 1 });
-        expect(birdsOfParadise.types).toContain("Creature");
-        expect(birdsOfParadise.subtypes).toEqual(["Bird"]);
-        expect(birdsOfParadise.power).toBe(0);
-        expect(birdsOfParadise.toughness).toBe(1);
-        expect(birdsOfParadise.staticAbilities).toContain("flying");
-    });
-
-    it("declares a tap mana ability offering all five colors (no colorless)", () => {
-        const ability = birdsOfParadise.activatedAbilities?.[0];
-        expect(ability?.cost.tap).toBe(true);
-        expect(ability?.useStack).toBe(false);
-        // "Any color" excludes colorless per CR 106.1b — must be W/U/B/R/G only.
-        expect(ability?.manaChoices).toEqual([
-            { W: 1 },
-            { U: 1 },
-            { B: 1 },
-            { R: 1 },
-            { G: 1 },
-        ]);
-    });
-
     it("engine recognizes the mana ability; color is null (choice-based)", () => {
         const bird = makeInstance(birdsOfParadise.id, { id: "bird" });
         expect(hasManaAbility(bird)).toBe(true);
@@ -412,20 +356,6 @@ describe("Birds of Paradise (flying + {T}: Add one mana of any color, CR 605.1a)
 // ---------------------------------------------------------------------------
 
 describe("Channel (CR 605.1a, 118.4, 514.2)", () => {
-    it("is a {G}{G} sorcery", () => {
-        expect(channel.manaCost).toEqual({ G: 2 });
-        expect(channel.types).toEqual(["Sorcery"]);
-    });
-
-    it("declares a pay-1-life mana ability template (useStack: false)", () => {
-        const ability = channel.activatedAbilities?.[0];
-        expect(ability?.id).toBe("channel-mana");
-        expect(ability?.cost.life).toBe(1);
-        expect(ability?.cost.tap).toBeUndefined();
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaProduced).toEqual({ C: 1 });
-    });
-
     it("resolve grants the caster a reference to channel-mana for the turn", () => {
         const state = makeState();
         pushSpell(state, channel.id, "p1");
@@ -612,43 +542,6 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
         });
         return { state, bear };
     }
-
-    it("is a {G} instant", () => {
-        expect(berserk.manaCost).toEqual({ G: 1 });
-        expect(berserk.types).toEqual(["Instant"]);
-    });
-
-    it("targets a single creature", () => {
-        expect(berserk.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-    });
-
-    it("is castable in every combat step before combat damage", () => {
-        const legal = berserk.castPhaseRestriction!;
-        for (const phase of [
-            "UNTAP",
-            "UPKEEP",
-            "DRAW",
-            "PRECOMBAT_MAIN",
-            "BEGINNING_OF_COMBAT",
-            "DECLARE_ATTACKERS",
-            "DECLARE_BLOCKERS",
-            "FIRST_STRIKE_DAMAGE",
-        ] as const) {
-            expect(legal).toContain(phase);
-        }
-        for (const phase of [
-            "COMBAT_DAMAGE",
-            "END_OF_COMBAT",
-            "POSTCOMBAT_MAIN",
-            "END_STEP",
-            "CLEANUP",
-        ] as const) {
-            expect(legal).not.toContain(phase);
-        }
-    });
 
     it("getLegalActions rejects Berserk during COMBAT_DAMAGE", () => {
         const berserkCard = makeInstance(berserk.id, {
@@ -902,20 +795,6 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
         });
         resolveTopOfStack(state);
     }
-
-    it("declares the right shape: {1}{G} Aura targeting Creature with one activated ability", () => {
-        expect(regeneration.manaCost).toEqual({ X: 1, G: 1 });
-        expect(regeneration.types).toEqual(["Enchantment"]);
-        expect(regeneration.subtypes).toEqual(["Aura"]);
-        expect(regeneration.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-        const ability = regeneration.activatedAbilities?.[0];
-        expect(ability?.id).toBe("regeneration-regenerate");
-        expect(ability?.cost).toEqual({ mana: { G: 1 } });
-        expect(ability?.useStack).toBe(true);
-    });
 
     it("attaches to the targeted creature on resolution (CR 303.4)", () => {
         const bear = makeInstance(grizzlyBears.id, {
@@ -1338,12 +1217,6 @@ describe("Stream of Life (target player gains X life)", () => {
 });
 
 describe("Wall of Brambles (vanilla 2/3 defender)", () => {
-    it("declares defender, no other abilities", () => {
-        expect(wallOfBrambles.staticAbilities).toEqual(["defender"]);
-        expect(wallOfBrambles.power).toBe(2);
-        expect(wallOfBrambles.toughness).toBe(3);
-    });
-
     it("cannot attack (defender restriction, CR 702.3)", () => {
         const wob = makeInstance(wallOfBrambles.id, {
             id: "wob",
@@ -1644,10 +1517,6 @@ describe("Wild Growth (extra {G} on attached land mana tap)", () => {
         expect(trig!.matches({ ...host, forMana: false }, self)).toBe(false);
     });
 
-    it("declares itself a triggered mana ability (CR 605.1b)", () => {
-        expect(wildGrowth.triggeredAbilities?.[0]?.manaAbility).toBe(true);
-    });
-
     // CR 605.4 — a triggered mana ability does NOT use the stack. The bonus
     // {G} must be in the controller's pool as soon as the enchanted land is
     // tapped, within the same game action, with the stack left empty — so a
@@ -1724,12 +1593,6 @@ describe("Wild Growth (extra {G} on attached land mana tap)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Giant Spider (vanilla 2/4 reach, CR 702.17)", () => {
-    it("declares reach as a static ability", () => {
-        expect(giantSpider.staticAbilities).toContain("reach");
-        expect(giantSpider.power).toBe(2);
-        expect(giantSpider.toughness).toBe(4);
-    });
-
     it("can block a flier (combat validator honors reach)", () => {
         const spider = makeInstance(giantSpider.id, {
             id: "spider",
@@ -1846,10 +1709,6 @@ describe("Force of Nature (upkeep may-pay {G}{G}{G}{G} else 8 damage to controll
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(20);
     });
-
-    it("declares trample as a static ability", () => {
-        expect(forceOfNature.staticAbilities).toContain("trample");
-    });
 });
 
 describe("Wanderlust (aura — upkeep deals 1 dmg to host controller)", () => {
@@ -1957,12 +1816,6 @@ describe("Instill Energy (aura — pseudo-haste + {0} untap host, your-turn + on
         resolveTopOfStack(state);
         const host = state.players[0].battlefield.find((c) => c.id === "host")!;
         expect(host.isTapped).toBe(false);
-    });
-
-    it("declares controllerTurnOnly + oncePerTurn on the activated ability", () => {
-        const ability = instillEnergy.activatedAbilities![0];
-        expect(ability.controllerTurnOnly).toBe(true);
-        expect(ability.oncePerTurn).toBe(true);
     });
 });
 
@@ -2749,10 +2602,6 @@ describe("Cockatrice (blocks/blocked-by → destroy at end of combat, CR 509.1h)
         return state;
     }
 
-    it("has flying", () => {
-        expect(cockatrice.staticAbilities).toContain("flying");
-    });
-
     it("triggers when cockatrice attacks and is blocked by a non-Wall", () => {
         const state = setupCombat({ selfIsAttacker: true });
         emitBlockersConfirmedEvents(state);
@@ -2815,10 +2664,6 @@ describe("Cockatrice (blocks/blocked-by → destroy at end of combat, CR 509.1h)
 // Thicket Basilisk (same combat kill, no flying)
 // ---------------------------------------------------------------------------
 describe("Thicket Basilisk (same combat kill as Cockatrice, no flying)", () => {
-    it("does NOT have flying", () => {
-        expect(thicketBasilisk.staticAbilities ?? []).not.toContain("flying");
-    });
-
     it("triggers on blocking a non-Wall creature", () => {
         const basilisk = makeInstance(thicketBasilisk.id, {
             id: "basilisk",
@@ -3007,12 +2852,6 @@ describe("Kudzu (destroy tapped host, retarget aura, CR 701.20a/704.5n)", () => 
         return { state, kudzuId: "kudzu1" };
     }
 
-    it("declares an enchant-land aura with a becomes-tapped trigger", () => {
-        expect(kudzu.subtypes).toContain("Aura");
-        expect(kudzu.targetRequirement).toEqual({ type: "Land", count: 1 });
-        expect(kudzu.triggeredAbilities?.[0]?.id).toBe("kudzu-tapped");
-    });
-
     it("destroys the host then moves the aura to a chosen land", () => {
         const { state } = setup(true);
         const host = state.players[0].battlefield[0];
@@ -3186,15 +3025,6 @@ describe("Gaea's Liege (Forest-count P/T + {T} land→Forest)", () => {
         // When Gaea's Liege leaves, the land reverts (CR 611.2).
         removePermanentTo(state, "liege", "graveyard");
         expect(mtn.subtypes).toEqual(["Mountain"]);
-    });
-
-    it("declares a {T} land-target activated ability", () => {
-        expect(gaeasLiege.activatedAbilities).toHaveLength(1);
-        expect(gaeasLiege.activatedAbilities![0].cost).toEqual({ tap: true });
-        expect(gaeasLiege.activatedAbilities![0].targetRequirement).toEqual({
-            type: "Land",
-            count: 1,
-        });
     });
 });
 

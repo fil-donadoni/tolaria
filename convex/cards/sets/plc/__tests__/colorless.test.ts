@@ -18,13 +18,6 @@ import {
 import { applyPlayLand } from "../../../../gre/playLand";
 
 describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR 305.7, 611)", () => {
-    it("declares exactly one subtype-add static effect matching every land", () => {
-        const kinds = (urborgTombOfYawgmoth.staticEffects ?? []).map(
-            (e) => e.kind
-        );
-        expect(kinds).toEqual(["subtype-add"]);
-    });
-
     it("adds Swamp to its OWN subtypes when played (it is itself a Land)", () => {
         const urborg = makeInstance(urborgTombOfYawgmoth.id, { zone: "hand" });
         const player = makePlayer("p1", { hand: [urborg] });

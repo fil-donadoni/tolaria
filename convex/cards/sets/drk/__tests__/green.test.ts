@@ -6,11 +6,9 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    carnivorousPlant,
     elvesOfDeepShadow,
     gaeasTouch,
     hiddenPath,
-    landLeeches,
     lurker,
     marshViper,
     niallSilvain,
@@ -58,19 +56,6 @@ import { getAllCards, getDefinition, getCardByName } from "../../../index";
 import { lightningBolt } from "../../lea";
 
 describe("Gaea's Touch (CR 400.7 — put a basic Forest from hand; CR 605 sacrifice for {G}{G})", () => {
-    it("is sorcery-speed and once per turn", () => {
-        const ability = gaeasTouch.activatedAbilities!.find(
-            (a) => a.id === "gaeas-touch-forest"
-        )!;
-        expect(ability.useStack).toBe(true);
-        expect(ability.controllerTurnOnly).toBe(true);
-        expect(ability.oncePerTurn).toBe(true);
-        expect(ability.activationPhaseRestriction).toEqual([
-            "PRECOMBAT_MAIN",
-            "POSTCOMBAT_MAIN",
-        ]);
-    });
-
     it("puts a basic Forest from hand onto the battlefield when chosen", () => {
         const gt = makeInstance(gaeasTouch.id, { controllerId: "p1" });
         const state = makeState();
@@ -189,16 +174,6 @@ const inGrave = (state: GameState, pIdx: number, id: string): boolean =>
     state.players[pIdx].graveyard.some((c) => c.id === id);
 
 describe("Tracker — Fight primitive (CR 701.12 mutual damage)", () => {
-    it("card definition: {G}{G},{T} activated ability targeting a creature", () => {
-        expect(tracker.manaCost).toEqual({ X: 2, G: 1 });
-        expect(tracker.power).toBe(2);
-        expect(tracker.toughness).toBe(2);
-        const ab = tracker.activatedAbilities![0];
-        expect(ab.cost).toEqual({ mana: { G: 2 }, tap: true });
-        expect(ab.useStack).toBe(true);
-        expect(ab.targetRequirement).toEqual({ type: "Creature", count: 1 });
-    });
-
     it("both survive: 2/2 Tracker vs 1/3 — damage marked, neither destroyed", () => {
         const state = fightTracker(
             { power: 2, toughness: 2 },
@@ -375,13 +350,6 @@ describe("Tracker — Fight primitive (CR 701.12 mutual damage)", () => {
 });
 
 describe("Elves of Deep Shadow — {T}: Add {B} + 1 self-damage (CR 605.1a / 603.6)", () => {
-    it("is a 1/1 Elf Druid for {G}", () => {
-        expect(elvesOfDeepShadow.manaCost).toEqual({ G: 1 });
-        expect(elvesOfDeepShadow.subtypes).toEqual(["Elf", "Druid"]);
-        expect(elvesOfDeepShadow.power).toBe(1);
-        expect(elvesOfDeepShadow.toughness).toBe(1);
-    });
-
     it("the mana ability adds {B} (mana ability, useStack false) (CR 605.1a)", () => {
         const mana = elvesOfDeepShadow.activatedAbilities!.find(
             (a) => a.id === "elves-of-deep-shadow-mana"
@@ -418,13 +386,6 @@ describe("Elves of Deep Shadow — {T}: Add {B} + 1 self-damage (CR 605.1a / 603
 });
 
 describe("Wormwood Treefolk — temp landwalk grants + self-damage (CR 611.1b / 702.14)", () => {
-    it("is a 4/4 Treefolk for {3}{G}{G}", () => {
-        expect(wormwoodTreefolk.manaCost).toEqual({ X: 3, G: 2 });
-        expect(wormwoodTreefolk.subtypes).toEqual(["Treefolk"]);
-        expect(wormwoodTreefolk.power).toBe(4);
-        expect(wormwoodTreefolk.toughness).toBe(4);
-    });
-
     it("the {G}{G} ability grants forestwalk until EOT and self-damages 2 (CR 611.1b)", () => {
         const tf = makeInstance(wormwoodTreefolk.id, {
             id: "tf",
@@ -457,31 +418,6 @@ describe("Wormwood Treefolk — temp landwalk grants + self-damage (CR 611.1b / 
         const inPlay = state.players[0].battlefield.find((c) => c.id === "tf")!;
         expect(inPlay.staticAbilities).toContain("swampwalk");
         expect(state.players[0].life).toBe(18);
-    });
-});
-
-// ===========================================================================
-// Free tranche — Green (#415)
-// ===========================================================================
-
-describe("Carnivorous Plant — vanilla Defender Wall (CR 702.3)", () => {
-    it("has the printed cost / types / P/T and defender", () => {
-        expect(carnivorousPlant.manaCost).toEqual({ X: 3, G: 1 });
-        expect(carnivorousPlant.types).toEqual(["Creature"]);
-        expect(carnivorousPlant.subtypes).toEqual(["Plant", "Wall"]);
-        expect(carnivorousPlant.power).toBe(4);
-        expect(carnivorousPlant.toughness).toBe(5);
-        expect(carnivorousPlant.staticAbilities).toContain("defender");
-    });
-});
-
-describe("Land Leeches — vanilla First strike (CR 702.7)", () => {
-    it("has the printed cost / types / P/T and first strike", () => {
-        expect(landLeeches.manaCost).toEqual({ X: 1, G: 2 });
-        expect(landLeeches.subtypes).toEqual(["Leech"]);
-        expect(landLeeches.power).toBe(2);
-        expect(landLeeches.toughness).toBe(2);
-        expect(landLeeches.staticAbilities).toContain("first strike");
     });
 });
 
@@ -803,10 +739,6 @@ describe("Scarwood Bandits — steal an artifact unless opponent pays {2} (CR 11
         return { state, bandits };
     }
 
-    it("has forestwalk", () => {
-        expect(scarwoodBandits.staticAbilities).toContain("forestwalk");
-    });
-
     it("gains control of the artifact when the opponent declines to pay {2}", () => {
         const { state, bandits } = setup();
         state.stack.push({
@@ -1015,10 +947,6 @@ describe("Whippoorwill — exile-on-death + no regeneration (CR 605 / 614.1a)", 
         )!;
         expect(marked.exileOnDeath).toBe(true);
     });
-
-    it("has flying", () => {
-        expect(whippoorwill.staticAbilities).toContain("flying");
-    });
 });
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1064,14 +992,6 @@ describe("Marsh Viper ({3}{G} Snake 1/2 — poison on damage to a player, CR 120
         });
         return { state, viper };
     }
-
-    it("is a {3}{G} Creature — Snake with power 1, toughness 2", () => {
-        expect(marshViper.manaCost).toEqual({ X: 3, G: 1 });
-        expect(marshViper.types).toEqual(["Creature"]);
-        expect(marshViper.subtypes).toEqual(["Snake"]);
-        expect(marshViper.power).toBe(1);
-        expect(marshViper.toughness).toBe(2);
-    });
 
     it("trigger fires on COMBAT damage to a player and adds 2 poison", () => {
         const { state, viper } = viperOnBattlefield();

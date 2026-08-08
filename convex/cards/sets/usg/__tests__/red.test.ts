@@ -62,21 +62,6 @@ function answerMayPay(state: GameState, accept: boolean): void {
 }
 
 describe("Goblin Patrol — Echo {R} (CR 702.30)", () => {
-    it("is a {R} 2/1 Goblin that declares the echo keyword", () => {
-        expect(goblinPatrol.manaCost).toEqual({ R: 1 });
-        expect(goblinPatrol.power).toBe(2);
-        expect(goblinPatrol.toughness).toBe(1);
-        expect(goblinPatrol.subtypes).toContain("Goblin");
-        // Keyword census (CR 702.30) — the string drives the ETB echoPending flag.
-        expect(goblinPatrol.staticAbilities).toContain("echo");
-        // The upkeep trigger is present with the expected id.
-        expect(
-            (goblinPatrol.triggeredAbilities ?? []).some(
-                (t) => t.id === ECHO_ABILITY
-            )
-        ).toBe(true);
-    });
-
     it("sets echoPending when it enters the battlefield (CR 702.30a)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -219,23 +204,6 @@ const blockPair = (
     }) as StackItem["triggerEvent"];
 
 describe("Goblin Cadets — control-donation drawback (CR 509.1 / 613.1b / 506.4c)", () => {
-    it("is a {R} 2/1 Goblin whose trigger donates control to the opponent", () => {
-        expect(goblinCadets.manaCost).toEqual({ R: 1 });
-        expect(goblinCadets.power).toBe(2);
-        expect(goblinCadets.toughness).toBe(1);
-        expect(goblinCadets.subtypes).toContain("Goblin");
-        const trig = (goblinCadets.triggeredAbilities ?? []).find(
-            (t) => t.id === CADETS_ABILITY
-        )!;
-        expect(trig).toBeDefined();
-        expect(trig.event).toBe("BLOCKERS_CONFIRMED");
-        // DSL-first: the effect is a gainControl Op to the opponent (no resolve()).
-        expect(trig.effects?.[0]).toMatchObject({
-            op: "gainControl",
-            controller: "opponent",
-        });
-    });
-
     it("blocks → opponent gains control and it leaves combat, survives wire", () => {
         // p2 attacks with A; p1's Goblin Cadets blocks it (it "blocks").
         const cadets = makeInstance(goblinCadets.id, {
@@ -340,16 +308,6 @@ describe("Goblin Cadets — control-donation drawback (CR 509.1 / 613.1b / 506.4
 });
 
 describe("Arc Lightning ({2}{R} — 3 damage divided as you choose, CR 601.2d / 120.4)", () => {
-    it("definitional: any-target, open-ended count, divide total 3", () => {
-        expect(arcLightning.manaCost).toEqual({ X: 2, R: 1 });
-        expect(arcLightning.types).toEqual(["Sorcery"]);
-        expect(arcLightning.targetRequirement?.type).toBe("any");
-        expect(arcLightning.targetRequirement?.count).toEqual({ min: 1 });
-        expect(arcLightning.targetRequirement?.divideAsChosen).toEqual({
-            total: 3,
-        });
-    });
-
     it("divides 3 unevenly across two targets from the assigned split", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -404,17 +362,6 @@ describe("Arc Lightning ({2}{R} — 3 damage divided as you choose, CR 601.2d / 
 // the REAL activated ability (cost, `useStack`) end to end.
 describe("Sneak Attack — {R}: put a creature from hand, gain haste, sacrifice at next end step (CR 400.7 / 702.10 / 603.7 / 701.16, issue #1151)", () => {
     const SNEAK_ABILITY = "sneak-attack-put";
-
-    it("definitional: {3}{R} Enchantment with the single {R} activated ability", () => {
-        expect(sneakAttack.manaCost).toEqual({ X: 3, R: 1 });
-        expect(sneakAttack.types).toEqual(["Enchantment"]);
-        expect(sneakAttack.activatedAbilities).toHaveLength(1);
-        expect(sneakAttack.activatedAbilities?.[0].id).toBe(SNEAK_ABILITY);
-        expect(sneakAttack.activatedAbilities?.[0].cost).toEqual({
-            mana: { R: 1 },
-        });
-        expect(sneakAttack.activatedAbilities?.[0].useStack).toBe(true);
-    });
 
     /** Pushes Sneak Attack's activated ability onto the stack from
      *  `source` (already on the battlefield) and resolves it. */

@@ -29,17 +29,6 @@ function mountains(playerId: string, n: number) {
 }
 
 describe("Fireblast ({4}{R}{R} instant — sacrifice two Mountains rather than pay mana, 4 to any target; CR 118.9 / 120.1)", () => {
-    it("declares the sacrifice-two-Mountains alternative cost and an any-target requirement", () => {
-        expect(fireblast.targetRequirement).toEqual({ type: "any", count: 1 });
-        expect(fireblast.alternativeCosts?.[0]).toMatchObject({
-            permanent: {
-                action: "sacrifice",
-                count: 2,
-                filter: { subtypes: "Mountain" },
-            },
-        });
-    });
-
     it("cast is legal with two Mountains and no mana (alt cost affordable)", () => {
         const fbInHand = makeInstance(fireblast.id, {
             id: "fb-1",

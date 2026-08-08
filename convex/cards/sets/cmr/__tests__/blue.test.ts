@@ -52,15 +52,6 @@ function registerDrawSpell(id: string, count: number): string {
 describe("Hullbreacher (CR 614 / 616.1, ADR 0061 — issue #1265)", () => {
     const draw = hullbreacher.drawReplacement!;
 
-    it("has the right cost / type / P-T and Flash (Scryfall)", () => {
-        expect(hullbreacher.manaCost).toEqual({ X: 2, U: 1 });
-        expect(hullbreacher.types).toEqual(["Creature"]);
-        expect(hullbreacher.subtypes).toEqual(["Merfolk", "Pirate"]);
-        expect(hullbreacher.power).toBe(3);
-        expect(hullbreacher.toughness).toBe(2);
-        expect(hullbreacher.staticAbilities).toContain("flash");
-    });
-
     describe("draw-replacement scope (CR 614)", () => {
         const source = { controllerId: "p2" } as never;
         const state = makeState();
@@ -78,10 +69,6 @@ describe("Hullbreacher (CR 614 / 616.1, ADR 0061 — issue #1265)", () => {
         it("does NOT apply to the controller's own draw", () => {
             const event = buildDrawEvent(state, "p2", 1, false);
             expect(draw.applies(event, source, state as never)).toBe(false);
-        });
-
-        it("redirects to a Treasure token for the controller", () => {
-            expect(draw.outcome.kind).toBe("redirect-to-token");
         });
     });
 

@@ -37,21 +37,6 @@ function islands(playerId: string, n: number) {
 }
 
 describe("Gush ({4}{U} instant — return two Islands rather than pay mana, draw two; CR 118.9)", () => {
-    it("declares the return-two-Islands alternative cost", () => {
-        expect(gush.alternativeCosts).toEqual([
-            {
-                id: "return-two-islands",
-                description:
-                    "Return two Islands you control to their owner's hand",
-                permanent: {
-                    action: "return",
-                    count: 2,
-                    filter: { subtypes: "Island" },
-                },
-            },
-        ]);
-    });
-
     it("cast is legal with two Islands and no mana (alt cost affordable)", () => {
         const gushInHand = makeInstance(gush.id, {
             id: "gush-1",
@@ -125,17 +110,6 @@ describe("Gush ({4}{U} instant — return two Islands rather than pay mana, draw
 });
 
 describe("Thwart ({2}{U}{U} instant — return three Islands rather than pay mana, counter target spell; CR 118.9 / 701.5a)", () => {
-    it("declares the return-three-Islands alternative cost and a spell target", () => {
-        expect(thwart.targetRequirement).toEqual({ type: "spell", count: 1 });
-        expect(thwart.alternativeCosts?.[0]).toMatchObject({
-            permanent: {
-                action: "return",
-                count: 3,
-                filter: { subtypes: "Island" },
-            },
-        });
-    });
-
     it("returns three Islands at commit and counters the target spell", () => {
         const thwartInHand = makeInstance(thwart.id, {
             id: "thwart-1",

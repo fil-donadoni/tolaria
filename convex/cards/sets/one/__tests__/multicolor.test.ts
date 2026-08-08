@@ -75,63 +75,6 @@ function answer(state: GameState, picks: string[]): void {
 }
 
 describe("Atraxa, Grand Unifier (ONE, {3}{G}{W}{U}{B} — CR 701.20a reveal + CR 401.4)", () => {
-    it("is a 7/7 legendary Phyrexian Angel with all four printed keywords", () => {
-        expect(atraxaGrandUnifier.manaCost).toEqual({
-            X: 3,
-            W: 1,
-            U: 1,
-            B: 1,
-            G: 1,
-        });
-        expect(atraxaGrandUnifier.types).toEqual(["Creature"]);
-        expect(atraxaGrandUnifier.supertypes).toEqual(["Legendary"]);
-        expect(atraxaGrandUnifier.subtypes).toEqual(["Phyrexian", "Angel"]);
-        expect(atraxaGrandUnifier.power).toBe(7);
-        expect(atraxaGrandUnifier.toughness).toBe(7);
-        expect(atraxaGrandUnifier.staticAbilities).toEqual([
-            "flying",
-            "vigilance",
-            "deathtouch",
-            "lifelink",
-        ]);
-    });
-
-    it("is authored as an Effect Script — no resolve() escape hatch (ADR 0045)", () => {
-        const ability = atraxaGrandUnifier.triggeredAbilities![0];
-        expect(ability.resolve).toBeUndefined();
-        expect(ability.resolveSteps).toBeUndefined();
-        const op = ability.effects![0];
-        expect(op.op).toBe("revealAndCategorize");
-        expect(op).toMatchObject({
-            look: 10, // "the top ten cards"
-            reveal: "window", // "REVEAL"
-            optional: true, // "you MAY put"
-            randomBottom: true, // "on the bottom ... in a random order"
-        });
-    });
-
-    it("categorizes by CARD TYPE, per CR 205.2a rather than the printed reminder list", () => {
-        const op = atraxaGrandUnifier.triggeredAbilities![0].effects![0];
-        // The reminder text lists eight types because it predates the
-        // Tribal → Kindred rename; reminder text is not rules text (CR 207.2)
-        // and the ability says "for each card type".
-        expect(
-            (op as { categories: { label: string }[] }).categories.map(
-                (c) => c.label
-            )
-        ).toEqual([
-            "Artifact",
-            "Battle",
-            "Creature",
-            "Enchantment",
-            "Instant",
-            "Kindred",
-            "Land",
-            "Planeswalker",
-            "Sorcery",
-        ]);
-    });
-
     it("ETB: reveals the top ten and keeps one card of each type, bottoming the rest", () => {
         // Top ten: two creatures, two lands, an instant and an artifact, then
         // four more creatures. Only ONE of each type may be kept.

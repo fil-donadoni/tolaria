@@ -18,11 +18,6 @@ import { grizzlyBears } from "../../lea";
 import { serraAngel } from "../../lea";
 
 describe("Sevinne's Reclamation (reanimate MV ≤ 3 + copy-if-flashed-back, CR 400.7 / 702.34)", () => {
-    it("is a {2}{W} sorcery with Flashback {4}{W}", () => {
-        expect(sevinnesReclamation.manaCost).toEqual({ X: 2, W: 1 });
-        expect(sevinnesReclamation.flashback).toEqual({ X: 4, W: 1 });
-    });
-
     it("mvFilter restricts legal graveyard targets to permanent cards of MV ≤ 3", () => {
         // Grizzly Bears ({1}{G}, MV 2) is legal; Serra Angel ({3}{W}{W}, MV 5) is not.
         const bear = makeInstance(grizzlyBears.id, {

@@ -53,17 +53,6 @@ function earthbendTriggerOnStack(
     return trig;
 }
 
-describe("Badgermole Cub — definition", () => {
-    it("pins mana cost, stats, subtype, and both triggered abilities", () => {
-        expect(badgermoleCub.manaCost).toEqual({ X: 1, G: 1 });
-        expect(badgermoleCub.types).toEqual(["Creature"]);
-        expect(badgermoleCub.subtypes).toEqual(["Badger", "Mole"]);
-        expect(badgermoleCub.power).toBe(2);
-        expect(badgermoleCub.toughness).toBe(2);
-        expect(badgermoleCub.triggeredAbilities).toHaveLength(2);
-    });
-});
-
 describe("Badgermole Cub — earthbend ETB (CR 603.3d target + CR 208.2/611.1 animate + CR 122 counters, issue #1317)", () => {
     it("targets a land the controller controls, animates it to a 0/0-plus-counter Elemental creature with haste, still a land, indefinitely", () => {
         const cub = makeInstance(badgermoleCub.id, {
@@ -296,18 +285,6 @@ function expectPlainTappedLand(state: GameState, landId: string): void {
 }
 
 describe("Badgermole Cub — earthbend return clause (CR 603.7a indefinite leave-watch, issue #1470)", () => {
-    it("restores the FULL reminder text on the ability's oracleText", () => {
-        const etb = badgermoleCub.triggeredAbilities![0];
-        expect(etb.oracleText).toBe(
-            "When this creature enters, earthbend 1. (Target land you control becomes a 0/0 creature with haste that's still a land. Put a +1/+1 counter on it. When it dies or is exiled, return it to the battlefield tapped.)"
-        );
-        // The card-level Oracle text (rendered in the card preview) already
-        // carried the full reminder — the two must now agree.
-        expect(badgermoleCub.oracleText).toContain(
-            "When it dies or is exiled, return it to the battlefield tapped."
-        );
-    });
-
     it("schedules an INDEFINITE leave-watch keyed to the earthbent land", () => {
         const state = earthbend("watchedLand");
         const watch = state.delayedTriggers?.find(

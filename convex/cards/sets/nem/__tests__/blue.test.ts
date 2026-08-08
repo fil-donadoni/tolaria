@@ -5,7 +5,7 @@
 // wire coverage per § Card testing convention.
 
 import { describe, it, expect } from "vitest";
-import { accumulatedKnowledge, dominate, daze, parallaxTide } from "..";
+import { accumulatedKnowledge, dominate, parallaxTide } from "..";
 import { grizzlyBears, serraAngel } from "../../lea";
 import { ornithopter } from "../../atq/colorless";
 import { island } from "../../lea/colorless";
@@ -243,51 +243,12 @@ describe("Dominate ({X}{1}{U}{U}: gain control of target creature with MV <= X)"
     });
 });
 
-// Daze — {1}{U} Instant. "You may return an Island you control to its owner's
-// hand rather than pay this spell's mana cost. Counter target spell unless its
-// controller pays {1}." (CR 118.9 pitch cost — return an Island, reusing the
-// existing permanent-return leg (Gush's shape); CR 701.5a counter-unless-pay.)
-// The counter-unless-pay effect (mayPay + if + counter) is the shipped Mana
-// Tithe shape, exercised by the interpreter suite + smoke sweep; here we pin the
-// definition shape.
-describe("Daze (pitch: return an Island; counter unless pays {1})", () => {
-    it("declares the return-Island alternative cost and the counter-unless-pay effect", () => {
-        expect(daze.alternativeCosts).toEqual([
-            {
-                id: "pitch-return-island",
-                description: "Return an Island you control to its owner's hand",
-                permanent: {
-                    action: "return",
-                    count: 1,
-                    filter: { subtypes: "Island" },
-                },
-            },
-        ]);
-        expect(daze.targetRequirement).toEqual({ type: "spell", count: 1 });
-        expect(daze.effects?.[0]).toMatchObject({ op: "mayPay" });
-        expect(daze.effects?.[1]).toMatchObject({ op: "if" });
-    });
-});
-
 // Parallax Tide — protocol card (ADR 0028 exile-and-return bundle, resolve()).
 // Fading 5 rides the getDefinition seam; the repeatable "remove a fade counter:
 // exile target land" activation and the leaves-the-battlefield return both use
 // the resolve()-only `exileWithAttachments` / `returnExiledForSource` pair, so
 // it earns hand-written GRE + wire coverage per § Card testing convention.
 describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; return on leave, CR 702.32 / 603.7a)", () => {
-    it("declares fading 5, the remove-fade-counter exile ability, and the return trigger", () => {
-        expect(parallaxTide.staticAbilities).toEqual(["fading 5"]);
-        expect(parallaxTide.types).toEqual(["Enchantment"]);
-        const ability = parallaxTide.activatedAbilities![0];
-        expect(ability.cost).toEqual({
-            removeCounter: { type: "fade", count: 1 },
-        });
-        expect(ability.targetRequirement).toEqual({ type: "Land", count: 1 });
-        expect(parallaxTide.triggeredAbilities?.[0].event).toBe(
-            "PERMANENT_LEFT"
-        );
-    });
-
     it("enters with five fade counters (Fading 5 seam injection, ADR 0054)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

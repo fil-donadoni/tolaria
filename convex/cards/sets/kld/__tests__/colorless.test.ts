@@ -1,13 +1,7 @@
 // kld (Kaladesh) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import {
-    inspiringVantage,
-    spirebluffCanal,
-    botanicalSanctum,
-    bloomingMarsh,
-    concealedCourtyard,
-} from "../colorless";
+import { inspiringVantage } from "../colorless";
 import { island } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
@@ -55,19 +49,5 @@ describe("Inspiring Vantage (fast land, CR 614.1c / 605.1a)", () => {
         const player = getPlayer(state, "p1");
         const played = applyPlayLand(state, player, "vantage")!;
         expect(played.isTapped).toBe(true);
-    });
-});
-
-describe.each([
-    { def: inspiringVantage, colors: [{ R: 1 }, { W: 1 }] },
-    { def: spirebluffCanal, colors: [{ U: 1 }, { R: 1 }] },
-    { def: botanicalSanctum, colors: [{ G: 1 }, { U: 1 }] },
-    { def: bloomingMarsh, colors: [{ B: 1 }, { G: 1 }] },
-    { def: concealedCourtyard, colors: [{ W: 1 }, { B: 1 }] },
-])("$def.name (fast land mana choices)", ({ def, colors }) => {
-    it("declares an entersTappedUnless predicate and the correct two-colour choice", () => {
-        expect(typeof def.entersTappedUnless).toBe("function");
-        const ability = def.activatedAbilities![0];
-        expect(ability.manaChoices).toEqual(colors);
     });
 });

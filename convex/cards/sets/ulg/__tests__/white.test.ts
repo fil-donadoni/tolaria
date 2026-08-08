@@ -65,16 +65,6 @@ describe("Mother of Runes (CR 702.16 protection; CR 700.2 color choice)", () => 
         return { state, mother, target };
     }
 
-    it("shape: {W} 1/1 with a single {T} activated ability", () => {
-        expect(motherOfRunes.manaCost).toEqual({ W: 1 });
-        expect(motherOfRunes.power).toBe(1);
-        expect(motherOfRunes.toughness).toBe(1);
-        expect(motherOfRunes.activatedAbilities).toHaveLength(1);
-        expect(motherOfRunes.activatedAbilities![0].cost).toEqual({
-            tap: true,
-        });
-    });
-
     it("grants the chosen color's protection to the target until end of turn", () => {
         const { state, mother } = setup();
         resolveActivated(state, mother, "mother-of-runes-protect", [

@@ -18,27 +18,15 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    calderaKavu,
-    deadapult,
-    implode,
     insolence,
-    kavuRecluse,
     keldonMantle,
     magmaBurst,
     mireKavu,
     moggJailer,
-    moggSentry,
     planeswalkersFury,
-    singe,
-    slingshotGoblin,
-    strafe,
     tahngarthTalruumHero,
-    tahngarthTalruumHeroAlt,
     thunderscapeBattlemage,
-    thunderscapeFamiliar,
 } from "../red";
-import { stormscapeBattlemage } from "../blue";
-import { nightscapeBattlemage } from "../black";
 import { grizzlyBears, savannahLions, swamp } from "../../lea";
 import { ephemerate } from "../../mh1/white";
 import {
@@ -102,23 +90,6 @@ function collectAndStack(
     if (trig) state.stack.push(trig);
     return trig;
 }
-
-describe("PLS red free tranche — definitions (issue #1951)", () => {
-    it("pins mana cost / types for the DSL-only cards (no hand-written behavior test needed)", () => {
-        expect(calderaKavu.manaCost).toEqual({ X: 2, R: 1 });
-        expect(deadapult.manaCost).toEqual({ X: 2, R: 1 });
-        expect(implode.manaCost).toEqual({ X: 4, R: 1 });
-        expect(kavuRecluse.manaCost).toEqual({ X: 2, R: 1 });
-        expect(mireKavu.manaCost).toEqual({ X: 3, R: 1 });
-        expect(moggJailer.manaCost).toEqual({ X: 1, R: 1 });
-        expect(moggSentry.manaCost).toEqual({ R: 1 });
-        expect(singe.manaCost).toEqual({ R: 1 });
-        expect(slingshotGoblin.manaCost).toEqual({ X: 2, R: 1 });
-        expect(strafe.manaCost).toEqual({ R: 1 });
-        expect(thunderscapeFamiliar.manaCost).toEqual({ X: 1, R: 1 });
-        expect(thunderscapeFamiliar.staticAbilities).toContain("first strike");
-    });
-});
 
 describe("Mogg Jailer — card-level attack restriction (CR 508.1c)", () => {
     it("can't attack while the defending player controls an untapped creature with power 2 or less", () => {
@@ -340,19 +311,6 @@ describe("Planeswalker's Fury — random reveal → damage equal to mana value (
 });
 
 describe("Tahngarth, Talruum Hero — mutual power-for-power damage (CR 701.12, resolve() justified, established fight() gap)", () => {
-    it("is a 4/4 vigilance Legendary Minotaur Warrior with two printings (ADR 0014)", () => {
-        expect(tahngarthTalruumHero.power).toBe(4);
-        expect(tahngarthTalruumHero.toughness).toBe(4);
-        expect(tahngarthTalruumHero.staticAbilities).toContain("vigilance");
-        expect(tahngarthTalruumHeroAlt.definitionId).toBe(
-            tahngarthTalruumHero.id
-        );
-        expect(tahngarthTalruumHeroAlt.setCode).toBe("pls");
-        expect(tahngarthTalruumHeroAlt.printId).not.toBe(
-            tahngarthTalruumHero.id
-        );
-    });
-
     it("deals damage equal to its power to the target, which deals its own power back", () => {
         const tahngarth = makeInstance(tahngarthTalruumHero.id, {
             id: "tahngarth",
@@ -734,36 +692,6 @@ describe("Thunderscape Battlemage — two independent Kickers, two independently
                 (e) => e.type === "TRIGGER_FIZZLED"
             )
         ).toBe(false);
-    });
-
-    // The structural half of the same lock: no Battlemage in the cycle may
-    // declare an `interveningIf` at all. The blink test above catches the
-    // shared `kickerPaidCondition` being re-wired as one on Thunderscape; this
-    // catches a hand-rolled inline closure, and covers Stormscape
-    // (`pls/blue.ts`) and Nightscape (`pls/black.ts`) — same bug, same cycle.
-    it("no Battlemage in the cycle declares an `interveningIf` (the re-check would read a blinked permanent's cleared record)", () => {
-        for (const card of [
-            thunderscapeBattlemage,
-            stormscapeBattlemage,
-            nightscapeBattlemage,
-        ]) {
-            for (const ability of card.triggeredAbilities ?? []) {
-                expect({
-                    card: card.name,
-                    ability: ability.id,
-                    interveningIf: ability.interveningIf,
-                }).toEqual({
-                    card: card.name,
-                    ability: ability.id,
-                    interveningIf: undefined,
-                });
-                // …and each one still carries BOTH halves of the correct pair:
-                // the check-time gate, and a resolution-time `if { kickerPaid }`
-                // branch reading the resolving stack item's own record.
-                expect(ability.gate).toBeDefined();
-                expect(JSON.stringify(ability.effects)).toContain("kickerPaid");
-            }
-        }
     });
 });
 

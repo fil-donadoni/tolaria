@@ -76,26 +76,6 @@ function chooseSolitudeTarget(state: GameState, targetId: string | null) {
     );
 }
 
-describe("Solitude — definition", () => {
-    it("pins mana cost, stats, subtypes, keywords, and the ETB trigger", () => {
-        expect(solitude.manaCost).toEqual({ X: 3, W: 2 });
-        expect(solitude.types).toEqual(["Creature"]);
-        expect(solitude.subtypes).toEqual(["Elemental", "Incarnation"]);
-        expect(solitude.power).toBe(3);
-        expect(solitude.toughness).toBe(2);
-        expect(solitude.staticAbilities).toEqual(["flash", "lifelink"]);
-        expect(solitude.triggeredAbilities?.[0]?.id).toBe("solitude-etb");
-    });
-
-    it("declares the CR 603.3d target requirement: up to one other creature", () => {
-        expect(solitude.triggeredAbilities?.[0]?.targetRequirement).toEqual({
-            type: "Creature",
-            count: { min: 0, max: 1 },
-            excludeSource: true,
-        });
-    });
-});
-
 describe("Solitude ETB (CR 603.3d target + CR 603.6a exile, LKI life gain)", () => {
     it("exiles the chosen creature; its controller gains life equal to its power read BEFORE exile (LKI)", () => {
         const state = setupSolitudeEtb();

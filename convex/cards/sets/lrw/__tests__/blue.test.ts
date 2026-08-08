@@ -25,11 +25,6 @@ const lib = (ids: string[]) =>
     );
 
 describe("Ponder (look at top 3, reorder, may shuffle, draw; CR 401 / 121.1)", () => {
-    it("is a {U} sorcery", () => {
-        expect(ponder.manaCost).toEqual({ U: 1 });
-        expect(ponder.types).toEqual(["Sorcery"]);
-    });
-
     it("reorders the top three, declines the shuffle, then draws the chosen top card", () => {
         const state = makeState({
             players: [

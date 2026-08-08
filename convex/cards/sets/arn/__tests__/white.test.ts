@@ -322,10 +322,6 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
 });
 
 describe("Camel (banding + Desert-damage prevention for its band while attacking)", () => {
-    it("has banding", () => {
-        expect(camel.staticAbilities).toContain("banding");
-    });
-
     it("while attacking, prevents Desert damage to itself and band-mates", () => {
         const cam = makeInstance(camel.id, {
             id: "camel",

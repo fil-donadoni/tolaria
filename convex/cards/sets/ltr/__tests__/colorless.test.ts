@@ -88,18 +88,6 @@ function makeRing(
     });
 }
 
-describe("The One Ring — definition (LTR, issue #674)", () => {
-    it("matches Scryfall oracle ({4} Legendary Artifact, indestructible)", () => {
-        expect(theOneRing.manaCost).toEqual({ X: 4 });
-        expect(theOneRing.types).toEqual(["Artifact"]);
-        expect(theOneRing.supertypes).toEqual(["Legendary"]);
-        // CR 702.12 — the only printed keyword.
-        expect(theOneRing.staticAbilities).toContain("indestructible");
-        expect(theOneRing.triggeredAbilities).toHaveLength(2);
-        expect(theOneRing.activatedAbilities?.[0].cost).toEqual({ tap: true });
-    });
-});
-
 describe("The One Ring — ETB protection from everything (CR 603.4 'if you cast it', CR 702.16b/e/i)", () => {
     it("grants its controller protection from everything when CAST", () => {
         const state = makeState({

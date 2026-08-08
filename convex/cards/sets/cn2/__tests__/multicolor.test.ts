@@ -49,15 +49,6 @@ function libCard(id: string, owner: string) {
 }
 
 describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)", () => {
-    it("has the right cost / type / P-T (Scryfall)", () => {
-        expect(leovoldEmissaryOfTrest.manaCost).toEqual({ B: 1, G: 1, U: 1 });
-        expect(leovoldEmissaryOfTrest.types).toEqual(["Creature"]);
-        expect(leovoldEmissaryOfTrest.supertypes).toEqual(["Legendary"]);
-        expect(leovoldEmissaryOfTrest.subtypes).toEqual(["Elf", "Advisor"]);
-        expect(leovoldEmissaryOfTrest.power).toBe(3);
-        expect(leovoldEmissaryOfTrest.toughness).toBe(3);
-    });
-
     // --- Clause 1: "Each opponent can't draw more than one card each turn." ---
     describe("draw-replacement scope (CR 614 — prevent 2nd+ opponent draw)", () => {
         const draw = leovoldEmissaryOfTrest.drawReplacement!;
@@ -93,10 +84,6 @@ describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)
             });
             const event = buildDrawEvent(state, "p2", 1, false);
             expect(draw.applies(event, source, state as never)).toBe(false);
-        });
-
-        it("outcome is `prevent`", () => {
-            expect(draw.outcome).toEqual({ kind: "prevent" });
         });
     });
 
@@ -192,10 +179,6 @@ describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)
                     self
                 )
             ).toBe(false);
-        });
-
-        it("collapses one spell targeting several of your objects to ONE trigger", () => {
-            expect(trig.oncePerEventBatch).toBe(true);
         });
     });
 

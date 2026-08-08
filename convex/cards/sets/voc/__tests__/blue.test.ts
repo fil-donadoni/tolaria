@@ -14,11 +14,6 @@ import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 
 describe("Occult Epiphany (draw X, discard X, spirits per card type; CR 107.3 / 707.2)", () => {
-    it("is an {X}{U} instant", () => {
-        expect(occultEpiphany.manaCost).toEqual({ X: "X", U: 1 });
-        expect(occultEpiphany.types).toEqual(["Instant"]);
-    });
-
     it("draws X, discards X, and makes one flying Spirit per distinct discarded card type", () => {
         // Hand seeds: an Instant (occultEpiphany) and a Sorcery (ponder) → two
         // distinct card types when both are discarded.

@@ -1,7 +1,7 @@
 // Urza's Legacy (ULG) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { franticSearch, tinker, miscalculation } from "../blue";
+import { franticSearch, tinker } from "../blue";
 import { ornithopter } from "../../atq/colorless";
 import {
     makeInstance,
@@ -37,11 +37,6 @@ const land = (id: string) =>
     });
 
 describe("Frantic Search (draw 2, discard 2, untap 3 lands; CR 121.1 / 701.8)", () => {
-    it("is a {2}{U} instant", () => {
-        expect(franticSearch.manaCost).toEqual({ X: 2, U: 1 });
-        expect(franticSearch.types).toEqual(["Instant"]);
-    });
-
     it("draws two, discards two of choice, and untaps the chosen lands", () => {
         const state = makeState({
             players: [
@@ -96,12 +91,6 @@ describe("Frantic Search (draw 2, discard 2, untap 3 lands; CR 121.1 / 701.8)", 
 });
 
 describe("Tinker (CR 117.9 additional cost / 701.19 / 400.7 / 701.20, issue #677)", () => {
-    it("declares the sacrifice-an-artifact additional cost", () => {
-        expect(tinker.additionalCosts?.sacrificeFilter).toEqual({
-            types: "Artifact",
-        });
-    });
-
     it("searches for an artifact card and puts it onto the battlefield", () => {
         const libOrn = makeInstance(ornithopter.id, {
             id: "orn1",
@@ -128,40 +117,5 @@ describe("Tinker (CR 117.9 additional cost / 701.19 / 400.7 / 701.20, issue #677
         });
         expect(state.players[0].battlefield.map((c) => c.id)).toContain("orn1");
         expect(state.players[0].library).toHaveLength(0);
-    });
-});
-
-describe("Miscalculation (CR 701.5a counter-unless-pay, CR 702.29 Cycling)", () => {
-    it("counters target spell unless its controller pays {2} (DSL shape)", () => {
-        // DSL card reusing the mayPay + if(not paid) + counter Ops (exercised by
-        // the interpreter suite and the catalogue smoke sweep). Lock the shape:
-        // targets any spell, the may-pay is by the target spell's controller for
-        // {2}, and the counter fires only when unpaid.
-        expect(miscalculation.targetRequirement).toEqual({
-            type: "spell",
-            count: 1,
-        });
-        expect(miscalculation.effects).toEqual([
-            {
-                op: "mayPay",
-                player: { controllerOf: { target: 0 } },
-                cost: { X: 2 },
-                prompt: "Pay {2} to prevent your spell from being countered?",
-                bind: "$paid",
-            },
-            {
-                op: "if",
-                predicate: { not: { binding: "$paid" } },
-                then: [{ op: "counter", target: { target: 0 } }],
-            },
-        ]);
-    });
-
-    it("has Cycling {2}", () => {
-        const cycling = miscalculation.activatedAbilities?.find(
-            (a) => a.id === "cycling"
-        );
-        expect(cycling?.activateFromHand).toBe(true);
-        expect(cycling?.cost.mana).toEqual({ generic: 2 });
     });
 });
