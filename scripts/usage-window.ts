@@ -126,6 +126,7 @@ function loadWeights(
         sonnet: { ...DEFAULT_WEIGHTS.sonnet },
         opus: { ...DEFAULT_WEIGHTS.opus },
         haiku: { ...DEFAULT_WEIGHTS.haiku },
+        fable: { ...DEFAULT_WEIGHTS.fable },
     };
     for (const cls of Object.keys(merged) as WeightClass[]) {
         const o = overrides[cls];

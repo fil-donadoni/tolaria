@@ -44,12 +44,6 @@ data/worklists/*.resolved.jsonl
 # with `bun run catalogue:build` when a set ships.
 data/full-catalogue.json.gz
 .claude/telemetry/
-# Explicit for the AFK driver (scripts/loop-drain.sh, ADR 0097) even though
-# the blanket .claude/telemetry/ rule above already covers all three —
-# spelled out because the PRD asked for them by name.
-.claude/telemetry/loop-drain/
-.claude/telemetry/loop-drain.log
-.claude/telemetry/loop-stop
 # Subagent receipts (issue #2182) — batch-scoped run artifacts, not source. The
 # durable record of a batch is the merged PRs; these are the telemetry the
 # merge-train (#2185) and the scorecard (#2187) read while the run is alive.
