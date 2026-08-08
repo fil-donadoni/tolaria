@@ -21,7 +21,7 @@ import type { ReactNode } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { urzaLordHighArtificer } from "@convex/cards/sets/mh1/blue";
-import { ornithopter } from "@convex/cards/sets/atq/colorless";
+import { ornithopter, millstone } from "@convex/cards/sets/atq/colorless";
 import { grizzlyBears } from "@convex/cards/sets/lea";
 
 type MutArgs = Record<string, unknown>;
@@ -118,6 +118,26 @@ function artifact(id: string, isTapped = false): CardInstance {
         staticAbilities: ["flying"],
         power: 0,
         toughness: 2,
+    } as CardInstance;
+}
+
+/** An artifact candidate that ALSO owns its own activated ability (Millstone),
+ *  unlike `artifact()` (Ornithopter, ability-less) — reproduces issue where a
+ *  candidate with abilities of its own stays in `getActivatable`'s own list
+ *  while the picker is open, so the board never binds its plain `onClick` and
+ *  a click opens Millstone's OWN menu instead of paying Urza's cost. */
+function millstoneCard(id: string, isTapped = false): CardInstance {
+    return {
+        id,
+        card: { id: millstone.id },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "battlefield",
+        isTapped,
+        isSummoningSick: false,
+        types: ["Artifact"],
+        subtypes: [],
+        staticAbilities: [],
     } as CardInstance;
 }
 
@@ -304,6 +324,47 @@ describe("useBattlefieldInteraction — tap-another-artifact mana ability (Urza,
         expect(ring(artifact("art1"))).toContain("ring-accent");
         expect(ring(artifact("art2"))).toContain("ring-accent");
         expect(ring(source)).not.toContain("ring-accent");
+    });
+
+    it("a candidate with its OWN activated ability (Millstone) is withheld from getActivatable while the picker is open, so the board binds a plain click to it (issue: dialog opens, click on the artifact does nothing / opens ITS menu instead)", () => {
+        const source = urza();
+        const rock = millstoneCard("mill1");
+        const me = player("me", [source, rock, artifact("art1")]);
+        const { handle } = renderInteraction(me);
+
+        // Before the picker opens, Millstone offers its own ability normally.
+        expect(handle.current!.getActivatable(rock).map((a) => a.id)).toContain(
+            "millstone-mill"
+        );
+
+        act(() => {
+            handle.current!.handleActivateAbility(
+                "urza1",
+                MANA_ABILITY_ID,
+                false
+            );
+        });
+        // Two legal artifacts (rock, art1) — a real choice, picker stays open.
+        expect(activateManaAbility).not.toHaveBeenCalled();
+
+        // Modal pick in progress: Millstone must NOT offer its own ability —
+        // otherwise the board withholds `onClick` from it (routes the click to
+        // the ability-menu gesture instead) and the pick can never land on it.
+        expect(handle.current!.getActivatable(rock)).toEqual([]);
+        expect(handle.current!.canInteract(rock)).toBe(true);
+
+        act(() => {
+            handle.current!.handleClick(rock);
+        });
+
+        expect(activateManaAbility).toHaveBeenCalledTimes(1);
+        expect(activateManaAbility).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "urza1",
+            abilityId: MANA_ABILITY_ID,
+            tapOtherIds: ["mill1"],
+        });
     });
 
     it("Cancel abandons the pick — nothing dispatched, the board unlocks", () => {

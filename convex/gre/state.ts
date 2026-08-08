@@ -13180,6 +13180,16 @@ export function buildSpellContext(
             const token = findOnBattlefield(state, tokenId)?.card;
             if (!token) return undefined;
             applyCopy(token, source, opts);
+            // `applyCopy` anchors `copiedFrom` to the recipient's PRE-copy
+            // printed id so a copy can revert to its true self later (CR
+            // 707.2). A token born via `createTokenCopyOf` never had a true
+            // self — its "pre-copy" state is the disposable 0/0 "Copy"
+            // placeholder above, never observed on the battlefield. Left in
+            // place, that placeholder id leaks out through `copiedFrom` as a
+            // bogus "original" identity (card preview's split view, revert
+            // path) — clear it so the token presents as what it IS, with
+            // nothing to revert to.
+            delete token.copiedFrom;
             // CR 121.6 / 706.2 / 707.2 (issue #1693) — the copied card's
             // "enters with N counters" self-replacement is a COPIABLE value,
             // so a token copy of Clockwork Beast enters with its +1/+0

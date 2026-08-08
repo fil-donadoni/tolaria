@@ -5,6 +5,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
 import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
 import { usePendingGameIntent } from "~/hooks/usePendingGameIntent";
+import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { isEditableTarget } from "~/lib/editable-target";
 import { eligibleAttackerIds } from "~/lib/attacker-eligibility";
 import { isPlaneswalker } from "~/lib/card-utils";
@@ -96,6 +97,12 @@ export function useControllerActions(): ControllerState {
     const cancelAttackTax = useMutation(api.game.cancelAttackTax);
     const endTurn = useMutation(api.game.endTurn);
     const cancelAutoPass = useMutation(api.game.cancelAutoPass);
+
+    // Fire-and-forget mutations below (keydown shortcuts, `runBusy`) don't own
+    // a toast of their own — a server-side legality rejection (e.g. CR 509.1b
+    // menace minimum-blocker) would otherwise surface only as an uncaught
+    // console rejection. Route it to the shared error toast instead.
+    const { reportError } = usePendingChoiceBuffer();
 
     // Non-null only when a mid-resolution choice (CR 608.2) is waiting on THIS
     // viewer — Space then mirrors the PendingChoicePrompt's affirmative button
@@ -298,13 +305,13 @@ export function useControllerActions(): ControllerState {
             if (e.key === "u" && !e.metaKey && !e.ctrlKey && !e.altKey) {
                 if (isPayingCast) {
                     e.preventDefault();
-                    cancelCast({ gameId, playerId });
+                    cancelCast({ gameId, playerId }).catch(reportError);
                 } else if (isPayingActivation) {
                     e.preventDefault();
-                    cancelActivation({ gameId, playerId });
+                    cancelActivation({ gameId, playerId }).catch(reportError);
                 } else if (isPayingAttackTax) {
                     e.preventDefault();
-                    cancelAttackTax({ gameId, playerId });
+                    cancelAttackTax({ gameId, playerId }).catch(reportError);
                 }
                 return;
             }
@@ -313,13 +320,15 @@ export function useControllerActions(): ControllerState {
                 if (isPayingCast || isPayingActivation) {
                     // While the PaymentBanner is up, Space mirrors its
                     // "Auto-tap" button instead of passing priority.
-                    autoTap({ gameId, playerId });
+                    autoTap({ gameId, playerId }).catch(reportError);
                 } else if (isPayingAttackTax) {
                     // AttackManaTaxBanner is up: Space mirrors its "Auto-tap"
                     // button. Must precede isSelectingAttackers — the engine is
                     // waiting on attack-mana-tax input, so confirmAttackers here
                     // is rejected (ADR 0047).
-                    autoTapForAttackTax({ gameId, playerId });
+                    autoTapForAttackTax({ gameId, playerId }).catch(
+                        reportError
+                    );
                 } else if (pendingChoiceAction) {
                     // A mid-resolution choice is waiting on this viewer: Space
                     // mirrors the prompt's affirmative button. When not yet
@@ -342,7 +351,7 @@ export function useControllerActions(): ControllerState {
                     // button, which reads the same way. Offering
                     // "Attack with all" here would silently widen a
                     // deliberate, hand-picked attack.
-                    confirmAttackers({ gameId, playerId });
+                    confirmAttackers({ gameId, playerId }).catch(reportError);
                 } else if (
                     isSelectingAttackers &&
                     eligibleIds.length > 0 &&
@@ -364,14 +373,14 @@ export function useControllerActions(): ControllerState {
                 } else if (isSelectingAttackers && !hasPendingIntent) {
                     // Nothing can attack, so the only thing Space can mean is
                     // skipping the attack step.
-                    confirmAttackers({ gameId, playerId });
+                    confirmAttackers({ gameId, playerId }).catch(reportError);
                 } else if (isSelectingBlockers) {
-                    confirmBlockers({ gameId, playerId });
+                    confirmBlockers({ gameId, playerId }).catch(reportError);
                 } else if (isAssigningDamage) {
                     // Mirror the Confirm Damage button: only fire once every
                     // attacker's damage has been legally assigned.
                     if (allDamageAssigned) {
-                        confirmDamage({ gameId, playerId });
+                        confirmDamage({ gameId, playerId }).catch(reportError);
                     }
                 } else if (!hasPendingIntent) {
                     // The fall-through — and ONLY the fall-through — is gated on
@@ -392,14 +401,14 @@ export function useControllerActions(): ControllerState {
                     // a stale cast the server later abandons — cancel cleanly
                     // here so the banner clears and no turn is accidentally
                     // passed in the same keystroke.
-                    cancelCast({ gameId, playerId });
+                    cancelCast({ gameId, playerId }).catch(reportError);
                 } else if (isPayingActivation) {
-                    cancelActivation({ gameId, playerId });
+                    cancelActivation({ gameId, playerId }).catch(reportError);
                 } else if (isPayingAttackTax) {
                     // Same rationale as cast/activation: ending the turn while an
                     // attack is parked on its tax is illegal (not priority), so
                     // Enter cancels the tax and drops the declaration cleanly.
-                    cancelAttackTax({ gameId, playerId });
+                    cancelAttackTax({ gameId, playerId }).catch(reportError);
                 } else if (isAutoPass || isQueuedEndTurn) {
                     handleCancelAutoPass();
                 } else if (!hasPendingIntent) {
@@ -440,6 +449,7 @@ export function useControllerActions(): ControllerState {
         confirmAttackers,
         confirmBlockers,
         confirmDamage,
+        reportError,
         gameId,
         playerId,
     ]);
@@ -463,11 +473,11 @@ export function useControllerActions(): ControllerState {
             e.preventDefault();
             e.stopPropagation();
             if (isPayingCast) {
-                cancelCast({ gameId, playerId });
+                cancelCast({ gameId, playerId }).catch(reportError);
             } else if (isPayingActivation) {
-                cancelActivation({ gameId, playerId });
+                cancelActivation({ gameId, playerId }).catch(reportError);
             } else if (isPayingAttackTax) {
-                cancelAttackTax({ gameId, playerId });
+                cancelAttackTax({ gameId, playerId }).catch(reportError);
             }
         }
         window.addEventListener("keydown", onKeyDown, true);
@@ -480,6 +490,7 @@ export function useControllerActions(): ControllerState {
         cancelCast,
         cancelActivation,
         cancelAttackTax,
+        reportError,
         gameId,
         playerId,
     ]);
@@ -491,6 +502,8 @@ export function useControllerActions(): ControllerState {
         setIsBusy(true);
         try {
             await fn();
+        } catch (e) {
+            reportError(e);
         } finally {
             setIsBusy(false);
         }

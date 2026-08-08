@@ -327,6 +327,28 @@ export default function BoardBattlefieldCard({
             : "cursor-pointer"
         : "";
 
+    // Base card chrome: a black hairline ring + drop shadow. The hairline and a
+    // state `ringClass` are the SAME CSS property (`--tw-ring-color`), so the
+    // one that wins is whichever Tailwind emits LATER in the stylesheet — not
+    // whichever is written last in this template. Tailwind orders those
+    // utilities by class name, and `ring-accent/40` sorts BEFORE `ring-black/40`
+    // (verified in the built CSS: byte 73433 vs 73695), so a candidate ring in
+    // accent was painted BLACK on a dark board — i.e. invisible. That silently
+    // erased every accent-coloured state on this board: the legal-choice ring
+    // and all four cost-picker candidate rings (sacrifice, additional cost,
+    // activation cost, and the mana tap-other pick this surfaced on — Urza,
+    // Lord High Artificer). Combat rings (`ring-danger`, `ring-signal-self`)
+    // sort AFTER black, which is why only some rings ever showed.
+    //
+    // So the hairline is dropped whenever a state ring is present: the state
+    // ring IS the card's outline for as long as it lasts. The drop shadow stays
+    // either way — it is a different property and never conflicted.
+    const baseChrome = vs.targetGlow
+        ? ""
+        : vs.ringClass
+          ? "shadow-[0_6px_16px_rgba(0,0,0,0.55)]"
+          : "ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]";
+
     const phasedBadge = phased ? (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none z-20">
             <span className="bg-black/75 px-1.5 py-0.5 rounded-xs text-[9px] font-bold uppercase tracking-wide text-white leading-none">
@@ -351,11 +373,7 @@ export default function BoardBattlefieldCard({
                 }}
             >
                 <div
-                    className={`relative w-full h-full rounded-sm overflow-hidden ${
-                        vs.targetGlow
-                            ? ""
-                            : "ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]"
-                    } ${vs.ringClass}`}
+                    className={`relative w-full h-full rounded-sm overflow-hidden ${baseChrome} ${vs.ringClass}`}
                     style={
                         vs.targetGlow
                             ? { boxShadow: `${TARGET_GLOW}, ${BASE_SHADOW}` }

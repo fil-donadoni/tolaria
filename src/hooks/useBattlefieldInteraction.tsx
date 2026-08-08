@@ -772,6 +772,7 @@ export function useBattlefieldInteraction(player: Player) {
             pendingCast ||
             pendingActivation ||
             pendingTarget ||
+            manaTapOtherPick ||
             (pendingChoices && pendingChoices.length > 0)
         ) {
             return [];
@@ -1221,16 +1222,27 @@ export function useBattlefieldInteraction(player: Player) {
 
     // Whether a per-instance battlefield SELECTION is active for THIS player's
     // board — a mid-resolution `choose-permanents` pick (Frantic Search's untap),
-    // a sacrifice cost (Fireblast's two Mountains), an exile additional cost, or
-    // an activated-ability tap-other cost. When true the board must UN-STACK
+    // a sacrifice cost (Fireblast's two Mountains), an exile additional cost, an
+    // activated-ability tap-other cost, or a NON-stack mana ability's tap-other
+    // cost (Urza, Lord High Artificer). When true the board must UN-STACK
     // identical permanents (like the divide-target case) so each candidate gets
     // its own slot and its selection ring is visible — a selected card can't read
     // as "picked" while buried in a fan of identical copies.
+    //
+    // `manaTapOtherPick` is the one member that is CLIENT-LOCAL state (every
+    // other picker is server-parked, so opening it also changes `player`, which
+    // re-renders the board's card nodes). `board-battlefield.tsx` bakes each
+    // card's `getVisualState` / `getActivatable` result into a memoised node
+    // keyed partly on this flag, so omitting it left the whole board frozen on
+    // its pre-picker nodes: no candidate ring, and every candidate keeping the
+    // ability-menu click binding it had before the picker opened (issue #2371
+    // follow-up — clicking the artifact opened ITS menu instead of paying).
     const isSelectingOnThisBoard =
         isSelectingChoice ||
         isPickingSacrifice ||
         isPickingAdditionalCost ||
-        isPickingActivationCost;
+        isPickingActivationCost ||
+        !!manaTapOtherPick;
 
     return {
         getVisualState,

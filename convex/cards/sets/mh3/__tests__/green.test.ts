@@ -325,6 +325,12 @@ describe("Fanatic of Rhonas — Eternalize (CR 702.129 / 707.2)", () => {
         // CR 111 — the card's OWN printed eternalize token art, not the
         // creature printing the copy otherwise presents.
         expect(token!.imagePrintId).toBe(TOKEN_PRINT_ID);
+        // The token was born AS a copy — it never had a printed identity of
+        // its own to preserve, so `copiedFrom` must stay unset. Left pointing
+        // at the disposable "Copy" 0/0 placeholder, it leaked into the card
+        // preview's "original" face as a nameless, imageless token (issue
+        // reported against this card's Chrome debug session).
+        expect(token!.copiedFrom).toBeUndefined();
     });
 
     it("wire format: every exception survives projectPublicState", () => {
