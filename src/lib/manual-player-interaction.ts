@@ -17,7 +17,7 @@ import type { ManualRuntime } from "./manual-runtime";
 export function makeManualPlayerInteraction(
     runtime: ManualRuntime
 ): PlayerInteractionHook {
-    const { viewerId, dispatch } = runtime;
+    const { viewerId, state, dispatch } = runtime;
     return (player) => ({
         isMe: player.id === viewerId,
         // A Manual Game has no priority (ADR 0080), so no seat ever wears the
@@ -45,5 +45,26 @@ export function makeManualPlayerInteraction(
                 playerId: player.id,
                 delta: life - player.life,
             }),
+        // Manual-mode QA round 3, item 4 — the − / + buttons. The wheel and
+        // the typed total shipped with the swap; neither exists on touch, and
+        // a wheel gesture advertises itself to nobody.
+        onLifeStep: (delta) =>
+            dispatch.adjustLife({ playerId: player.id, delta }),
+        // Manual-mode QA round 3, item 3 — "Reveal hand" had no surface at
+        // all. The nameplate is where a table action ABOUT a player belongs
+        // (the card verbs are about a card), so it is the menu's home.
+        menuActions: [
+            {
+                key: "reveal-hand",
+                label: "Reveal hand",
+                onSelect: () =>
+                    dispatch.revealHand({
+                        playerId: player.id,
+                        toPlayerIds: state.players
+                            .filter((p) => p.id !== player.id)
+                            .map((p) => p.id),
+                    }),
+            },
+        ],
     });
 }

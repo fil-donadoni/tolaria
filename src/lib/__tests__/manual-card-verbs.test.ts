@@ -9,10 +9,13 @@
 // covered end-to-end through the shared board in
 // `manual-battlefield-interaction.test.tsx`.
 import { describe, expect, it, vi } from "vitest";
+import type { ProjectedManualCard } from "@convex/manual";
 import {
     dispatchManualCardVerb,
     manualBattlefieldVerbs,
     manualHandVerbs,
+    manualPileCardVerbs,
+    manualVerbsForZone,
 } from "~/lib/manual-card-verbs";
 import type { ManualVerbRequest, RequestVerbInput } from "~/lib/manual-runtime";
 import { manualCard, spyDispatch } from "./manual-test-fixtures";
@@ -175,6 +178,132 @@ describe("manual hand card verbs (issue #2347)", () => {
         expect(dispatch.moveCard).toHaveBeenCalledWith({
             instanceId: "hand1",
             toZone: "battlefield",
+        });
+    });
+
+    // Manual-mode QA round 3, item 3 — `manualReveal` existed server-side with
+    // no client surface at all.
+    it("offers Reveal to opponent, between face and note, when there is someone to reveal to", () => {
+        const verbs = manualHandVerbs(manualCard("hand1", { zone: "hand" }), [
+            "opp",
+        ]);
+        expect(verbs.map((v) => v.id)).toEqual([
+            "move:battlefield",
+            "move:graveyard",
+            "move:exile",
+            "move:library",
+            "face",
+            "reveal",
+            "note",
+        ]);
+    });
+
+    it("offers NO reveal verb when there is nobody to reveal to", () => {
+        // Not merely disabled: a reveal to nobody would still write a log
+        // line saying a card was shown.
+        expect(
+            manualHandVerbs(manualCard("hand1", { zone: "hand" }), []).map(
+                (v) => v.id
+            )
+        ).not.toContain("reveal");
+    });
+
+    it("Reveal dispatches manualReveal for exactly the listed seats", () => {
+        const { dispatch, requestVerbInput } = build();
+        dispatchManualCardVerb(
+            manualCard("hand1", { zone: "hand" }),
+            "reveal",
+            dispatch,
+            requestVerbInput,
+            ["opp"]
+        );
+        expect(dispatch.reveal).toHaveBeenCalledWith({
+            instanceId: "hand1",
+            toPlayerIds: ["opp"],
+        });
+    });
+
+    it("a stale Reveal id with no seats behind it dispatches nothing", () => {
+        const { dispatch, requestVerbInput } = build();
+        dispatchManualCardVerb(
+            manualCard("hand1", { zone: "hand" }),
+            "reveal",
+            dispatch,
+            requestVerbInput
+        );
+        expect(dispatch.reveal).not.toHaveBeenCalled();
+    });
+});
+
+// Manual-mode QA round 3 — a card in a graveyard, an exile pile or the library
+// used to be inert art in the browse dialog: the only way to act on one was
+// the pile TILE's "Move top card to …", which reaches the top card and nothing
+// else.
+describe("manual pile card verbs", () => {
+    it("offers every move target EXCEPT the zone the card is already in", () => {
+        expect(
+            manualPileCardVerbs(manualCard("g", { zone: "graveyard" })).map(
+                (v) => v.id
+            )
+        ).toEqual([
+            "move:battlefield",
+            "move:hand",
+            "move:exile",
+            "move:library",
+            "face",
+            "note",
+        ]);
+        expect(
+            manualPileCardVerbs(manualCard("x", { zone: "exile" })).map(
+                (v) => v.id
+            )
+        ).not.toContain("move:exile");
+        expect(
+            manualPileCardVerbs(manualCard("l", { zone: "library" })).map(
+                (v) => v.id
+            )
+        ).not.toContain("move:library");
+    });
+
+    it("never offers tap or a counter verb — battlefield-only state", () => {
+        const ids = manualPileCardVerbs(
+            manualCard("g", { zone: "graveyard" })
+        ).map((v) => v.id);
+        for (const forbidden of [
+            "tap",
+            "counter:+1/+1",
+            "counter:custom",
+            "clear-damage",
+        ]) {
+            expect(ids).not.toContain(forbidden);
+        }
+    });
+
+    it("routes a card to the right verb list by its zone", () => {
+        const zoneIds = (zone: ProjectedManualCard["zone"]) =>
+            manualVerbsForZone(manualCard("c", { zone }), ["opp"]).map(
+                (v) => v.id
+            );
+        // Battlefield keeps its taps and counters…
+        expect(zoneIds("battlefield")).toContain("tap");
+        // …the hand leads with "play it"…
+        expect(zoneIds("hand")[0]).toBe("move:battlefield");
+        // …and a pile card can go anywhere but where it already is.
+        expect(zoneIds("graveyard")).not.toContain("move:graveyard");
+        expect(zoneIds("library")).toContain("move:hand");
+    });
+
+    it("a pile card's Move to hand dispatches the same move: branch as everywhere else", () => {
+        const { dispatch, requestVerbInput } = build();
+        dispatchManualCardVerb(
+            manualCard("gy1", { zone: "graveyard" }),
+            "move:hand",
+            dispatch,
+            requestVerbInput
+        );
+        expect(dispatch.moveCard).toHaveBeenCalledWith({
+            instanceId: "gy1",
+            toZone: "hand",
         });
     });
 });

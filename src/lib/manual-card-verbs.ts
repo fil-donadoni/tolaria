@@ -12,7 +12,7 @@
 // instead of `window.prompt` — anchored to THIS card's own element
 // (`permanentAnchorSelector`), never a native dialog.
 //
-// `ManualHandInteraction` (issue #2347) lives HERE rather than in
+// `ManualCardInteraction` (issue #2347) lives HERE rather than in
 // `board-hand-card.tsx`: that file's default export is a React component, and
 // `react-refresh/only-export-components` requires a component file to export
 // only components — a plain `createContext` value export there breaks the
@@ -26,6 +26,7 @@
 
 import { createContext, useContext } from "react";
 import type { ProjectedManualCard } from "@convex/manual";
+import type { CardInstance } from "~/types/game";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
 import type { ManualDispatch, RequestVerbInput } from "./manual-runtime";
 import {
@@ -45,31 +46,39 @@ import {
  *
  *  Looked up by instance id, never a `ProjectedManualCard` object, so
  *  `board-hand-card.tsx` never needs to know that manual-only shape. */
-export type ManualHandInteraction = {
-    /** The verb list for one hand card, by instance id. Absent/unknown id ⇒
-     *  no menu — the same fail-closed default `ActivatableAbilityMenu`
-     *  already applies to an empty list. */
-    getVerbs: (cardId: string) => ActivatableAbility[];
-    /** Dispatches one selected verb id for one hand card. */
-    activate: (cardId: string, abilityId: string) => void;
+export type ManualCardInteraction = {
+    /** The verb list for one card, wherever it is. An unknown card, or one in
+     *  a zone with no verbs, yields `[]` — the same fail-closed default
+     *  `ActivatableAbilityMenu` already applies to an empty list.
+     *
+     *  Takes the CARD, not its id: a card the projected state does not index
+     *  — a library card listed in the peek dialog, which the projection
+     *  deliberately renders as `{ count }` and never enumerates — still has
+     *  to get a menu. The board's implementation prefers its own indexed copy
+     *  and falls back to the passed card. */
+    getVerbs: (card: CardInstance) => ActivatableAbility[];
+    /** Dispatches one selected verb id for one card. */
+    activate: (card: CardInstance, abilityId: string) => void;
 };
 
 /** `null` (no provider) means "every GRE board" — see
- *  {@link useManualHandInteraction}. */
-const ManualHandInteractionContext =
-    createContext<ManualHandInteraction | null>(null);
+ *  {@link useManualCardInteraction}. */
+const ManualCardInteractionContext =
+    createContext<ManualCardInteraction | null>(null);
 
-/** Supplies the manual hand interaction to every `BoardHandCard` beneath it
- *  (`manual-board-view.tsx`). Absent, `BoardHandCard` runs its real GRE
- *  cast/play/Cycling pipeline, byte-for-byte today's behaviour. */
-export const ManualHandInteractionProvider =
-    ManualHandInteractionContext.Provider;
+/** Supplies the manual card interaction to every card surface beneath it
+ *  (`manual-board-view.tsx`) — the hand (`BoardHandCard`) and, since the QA
+ *  round-3 pass, the pile browse dialogs and the library peek. Absent,
+ *  `BoardHandCard` runs its real GRE cast/play/Cycling pipeline and the pile
+ *  dialogs render inert art, byte-for-byte today's behaviour. */
+export const ManualCardInteractionProvider =
+    ManualCardInteractionContext.Provider;
 
-/** Returns the injected manual hand interaction, or `null` on every GRE
+/** Returns the injected manual card interaction, or `null` on every GRE
  *  board — `BoardHandCard`'s own signal to fall through to its real cast/play
  *  pipeline. */
-export function useManualHandInteraction(): ManualHandInteraction | null {
-    return useContext(ManualHandInteractionContext);
+export function useManualCardInteraction(): ManualCardInteraction | null {
+    return useContext(ManualCardInteractionContext);
 }
 
 /** Zones a battlefield permanent can be sent to from its verb menu. */
@@ -103,6 +112,18 @@ export function manualBattlefieldVerbs(
     // at, matching `manualSetArrow`'s per-source `arrows[]` field.
     if (card.arrows && card.arrows.length > 0)
         verbs.push({ id: "clear-arrows", oracleText: "Remove arrow(s)" });
+    // The back row's two columns (the manual stand-in for the GRE board's
+    // automatic land/non-land split — see `ManualCardInstance.backColumn`).
+    // Offered as verbs as well as by drag, because the drag reads the drop's
+    // horizontal position and a precise sideways gesture is not something a
+    // touch device gives you. Pointless on a card in the combat lane: that
+    // card is not in the back row at all.
+    if (card.lane !== "combat") {
+        verbs.push(
+            { id: "column:left", oracleText: "Move to left column" },
+            { id: "column:right", oracleText: "Move to right column" }
+        );
+    }
     verbs.push(
         { id: "counter:custom", oracleText: "Custom counter…" },
         { id: "note", oracleText: "Set note…" }
@@ -136,7 +157,11 @@ const HAND_MOVE_TARGETS = [
  *  `clear-arrows` — all battlefield-only state a card sitting in hand cannot
  *  carry. */
 export function manualHandVerbs(
-    card: ProjectedManualCard
+    card: ProjectedManualCard,
+    /** Seats a reveal would open this card to — every OTHER player. Empty (the
+     *  default) drops the Reveal verb rather than offering one that reveals to
+     *  nobody. */
+    revealTo: readonly string[] = []
 ): ActivatableAbility[] {
     const verbs: ActivatableAbility[] = [];
     for (const target of HAND_MOVE_TARGETS) {
@@ -146,20 +171,100 @@ export function manualHandVerbs(
         id: "face",
         oracleText: card.faceDown ? "Turn face up" : "Turn face down",
     });
+    // Manual-mode QA round 3, item 3 — showing ONE card across the table
+    // (Duress, "look at this"), the per-card half of the nameplate's
+    // "Reveal hand". Additive and permanent, like the server verb: there is
+    // no un-reveal, because at a table a card that has been seen has been
+    // seen.
+    if (revealTo.length > 0) {
+        verbs.push({ id: "reveal", oracleText: "Reveal to opponent" });
+    }
     verbs.push({ id: "note", oracleText: "Set note…" });
     return verbs;
 }
 
-/** Applies one verb id from {@link manualBattlefieldVerbs} or
- *  {@link manualHandVerbs} to `card`. Unknown ids are ignored — the menu is
+/** Every zone a card can be sent to, in menu order — the source of
+ *  {@link manualPileCardVerbs}' move list, minus wherever the card already
+ *  is. */
+const ALL_MOVE_TARGETS = [
+    { zone: "battlefield", label: "Put onto battlefield" },
+    { zone: "hand", label: "Move to hand" },
+    { zone: "graveyard", label: "Move to graveyard" },
+    { zone: "exile", label: "Move to exile" },
+    { zone: "library", label: "Move to library (top)" },
+] as const;
+
+/**
+ * The verb list for a card sitting in a PILE — graveyard, exile, or the
+ * library as listed by the peek dialog.
+ *
+ * Those cards used to be inert art: the only way to act on one was the pile
+ * tile's own "Move top card to …", which reaches exactly one card and only
+ * the top one. Now every card in the browse dialog carries the same
+ * left-click verb menu the hand and the battlefield already had.
+ *
+ * The card's own zone is dropped from the move list — "Move to graveyard" on
+ * a card already in the graveyard is a no-op that still writes a log line.
+ * `tap` and the counter verbs stay battlefield-only, exactly as they are for
+ * a hand card.
+ */
+export function manualPileCardVerbs(
+    card: ProjectedManualCard,
+    revealTo: readonly string[] = []
+): ActivatableAbility[] {
+    const verbs: ActivatableAbility[] = [];
+    for (const target of ALL_MOVE_TARGETS) {
+        if (target.zone === card.zone) continue;
+        verbs.push({ id: `move:${target.zone}`, oracleText: target.label });
+    }
+    verbs.push({
+        id: "face",
+        oracleText: card.faceDown ? "Turn face up" : "Turn face down",
+    });
+    if (revealTo.length > 0) {
+        verbs.push({ id: "reveal", oracleText: "Reveal to opponent" });
+    }
+    verbs.push({ id: "note", oracleText: "Set note…" });
+    return verbs;
+}
+
+/** The verb list for a card in ANY zone — the one entry point every card
+ *  surface calls, so a card gets the same menu whether it is rendered on the
+ *  battlefield, in the hand, in a pile browse dialog or in the library peek.
+ *  A battlefield permanent's list carries no reveal verb: it is already
+ *  face-up to everyone unless it is face-down, which has its own verb. */
+export function manualVerbsForZone(
+    card: ProjectedManualCard,
+    revealTo: readonly string[] = []
+): ActivatableAbility[] {
+    if (card.zone === "battlefield") return manualBattlefieldVerbs(card);
+    if (card.zone === "hand") return manualHandVerbs(card, revealTo);
+    return manualPileCardVerbs(card, revealTo);
+}
+
+/** Applies one verb id from {@link manualBattlefieldVerbs},
+ *  {@link manualHandVerbs} or {@link manualPileCardVerbs} to `card`. Unknown ids are ignored — the menu is
  *  the only producer, so an unknown id can only mean a stale render, never a
  *  state change worth guessing at. */
 export function dispatchManualCardVerb(
     card: ProjectedManualCard,
     verbId: string,
     dispatch: ManualDispatch,
-    requestVerbInput: RequestVerbInput
+    requestVerbInput: RequestVerbInput,
+    /** Seats the `reveal` verb opens the card to — see {@link manualHandVerbs}.
+     *  Empty means the verb was never offered, so an id that reaches here
+     *  anyway (stale render) is dropped rather than dispatched to nobody. */
+    revealTo: readonly string[] = []
 ): void {
+    if (verbId === "reveal") {
+        if (revealTo.length > 0) {
+            dispatch.reveal({
+                instanceId: card.id,
+                toPlayerIds: [...revealTo],
+            });
+        }
+        return;
+    }
     if (verbId === "tap") {
         dispatch.setTapped({ instanceId: card.id, tapped: !card.isTapped });
         return;
@@ -180,6 +285,13 @@ export function dispatchManualCardVerb(
                 delta: -damage,
             });
         }
+        return;
+    }
+    if (verbId === "column:left" || verbId === "column:right") {
+        dispatch.setBackColumn({
+            instanceId: card.id,
+            column: verbId === "column:left" ? "left" : "right",
+        });
         return;
     }
     if (verbId === "clear-arrows") {

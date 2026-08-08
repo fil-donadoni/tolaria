@@ -35,12 +35,16 @@ function build(onSwitchSeat?: () => void) {
 }
 
 describe("manual controller actions (#2169, #2172)", () => {
-    it("offers exactly End Turn, Untap all, Draw, Shuffle, Concede and Log", () => {
+    it("offers exactly Next phase, End Turn, Untap all, Draw, Shuffle, Concede and Log", () => {
         const { controller } = build();
         expect(controller.actions.map((a) => a.key)).toEqual([
             ...MANUAL_CONTROLLER_KEYS,
         ]);
         expect(controller.actions.map((a) => a.label)).toEqual([
+            // Deliberately phase-less: the phase track above the controller
+            // already names the current phase, and spelling the target out
+            // ("Next: Beginning Of Combat") overflowed the pod button.
+            "Next Phase",
             "End Turn",
             "Untap all",
             "Draw",
@@ -48,6 +52,29 @@ describe("manual controller actions (#2169, #2172)", () => {
             "Concede",
             "Log",
         ]);
+    });
+
+    // Manual-mode QA round 3, item 5 — the phase marker was unreachable: the
+    // mutation existed with no caller, so the board sat on PRECOMBAT_MAIN for
+    // the whole game.
+    it("steps the phase marker forward, and binds Space to it", () => {
+        const { controller, dispatch } = build();
+        const nextPhase = controller.actions.find(
+            (a) => a.key === "manual-next-phase"
+        )!;
+        expect(nextPhase.shortcut).toBe("space");
+        nextPhase.onClick();
+        expect(dispatch.setPhase).toHaveBeenCalledWith({
+            phase: "BEGINNING_OF_COMBAT",
+        });
+    });
+
+    it("End Turn carries the Enter hotkey hint", () => {
+        const { controller } = build();
+        expect(
+            controller.actions.find((a) => a.key === "manual-end-turn")!
+                .shortcut
+        ).toBe("enter");
     });
 
     it("dispatches the injected onOpenLog callback for the Log action, not a manual verb (#2172)", () => {
@@ -130,6 +157,7 @@ describe("manual controller actions (#2169, #2172)", () => {
         const { controller } = build(onSwitchSeat);
         const keys = controller.actions.map((a) => a.key);
         expect(keys).toEqual([
+            "manual-next-phase",
             "manual-end-turn",
             "manual-untap-all",
             "manual-draw",

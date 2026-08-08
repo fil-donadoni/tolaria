@@ -37,6 +37,9 @@ const MANUAL_MUTATION_NAMES = [
     "manualPeek",
     "manualShuffle",
     "manualSetNote",
+    "manualSetPhase",
+    "manualReveal",
+    "manualRevealHand",
     "manualEndTurn",
     "manualConcede",
 ];
@@ -197,7 +200,7 @@ describe("the Manual Board on the shared board shell (#2169)", () => {
 // Issue #2347 — the hand card verb menu, end to end through the real board:
 // GRE `handInteractive` used to be one flag for two opt-outs ("no cast
 // dispatch" and "no ability menu"); the manual board now flips it to `true`
-// but injects `ManualHandInteractionProvider` so `BoardHandCard` shows ONLY
+// but injects `ManualCardInteractionProvider` so `BoardHandCard` shows ONLY
 // the manual verb menu, never the GRE cast pipeline that flag used to guard.
 describe("hand card manual verb menu (issue #2347)", () => {
     function handCardEl() {
@@ -271,5 +274,139 @@ describe("hand card manual verb menu (issue #2347)", () => {
             instanceId: "hand1",
             toZone: "battlefield",
         });
+    });
+});
+
+// Manual-mode QA round 3 — five verbs that were unreachable, unwired or
+// invisible on the real board. Every assertion here goes through the SHARED
+// board surface (the reducers + the injected seams), never a hand-built view:
+// each of these bugs was precisely a seam that existed server-side and had no
+// surface.
+describe("manual-mode QA round 3 — reveal, life steps, notes, hotkeys, peek", () => {
+    function nameplate(playerId: string) {
+        return document.querySelector<HTMLElement>(
+            `[data-arrow-anchor-player="${playerId}"]`
+        )!;
+    }
+
+    // Item 6 — `manualSetNote` and `ManualCardInstance.note` both shipped with
+    // the mode; nothing rendered the note, so setting one changed nothing a
+    // player could see.
+    it("renders a card's note on the battlefield permanent that carries it", () => {
+        render(
+            <ManualBoardView
+                gameId={"game-id" as never}
+                viewerId="me"
+                state={manualState([
+                    manualSeat("me", {
+                        battlefield: [
+                            manualCard("perm1", { note: "Copied from GY" }),
+                        ],
+                    }),
+                    manualSeat("opp"),
+                ])}
+            />
+        );
+        expect(screen.getByText("Copied from GY")).toBeTruthy();
+    });
+
+    it("renders no note chrome at all on a card without one", () => {
+        renderBoard();
+        expect(document.querySelector("[data-manual-note]")).toBeNull();
+    });
+
+    // Item 4 — the life total had a wheel gesture and a click-to-type editor.
+    // Neither exists on touch, and neither advertises itself.
+    it("the − / + buttons flanking a life total dispatch manualAdjustLife", () => {
+        renderBoard();
+        fireEvent.click(
+            nameplate("me").querySelector<HTMLElement>(
+                '[data-life-step="me:+"]'
+            )!
+        );
+        expect(MUTATIONS.manualAdjustLife).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            delta: 1,
+        });
+
+        fireEvent.click(
+            nameplate("me").querySelector<HTMLElement>(
+                '[data-life-step="me:-"]'
+            )!
+        );
+        expect(MUTATIONS.manualAdjustLife).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            delta: -1,
+        });
+    });
+
+    it("clicking the life NUMBER still opens the inline editor rather than the nameplate menu", () => {
+        renderBoard();
+        fireEvent.click(
+            nameplate("me").querySelector<HTMLElement>(
+                '[data-life-editable="me"]'
+            )!
+        );
+        expect(screen.getByLabelText("Life total")).toBeTruthy();
+        expect(screen.queryByText("Reveal hand")).toBeNull();
+    });
+
+    // Item 3 — "show me your hand" had no surface anywhere.
+    it("the nameplate menu reveals a whole hand to the other seat", () => {
+        renderBoard();
+        fireEvent.click(nameplate("me"));
+        fireEvent.click(screen.getByText("Reveal hand"));
+        expect(MUTATIONS.manualRevealHand).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            toPlayerIds: ["opp"],
+        });
+    });
+
+    it("a hand card's own Reveal verb opens just that card, to the other seat", () => {
+        renderBoard();
+        fireEvent.click(
+            document.querySelector<HTMLElement>(
+                '[data-board-hand-card="hand1"]'
+            )!
+        );
+        fireEvent.click(screen.getByText("Reveal to opponent"));
+        expect(MUTATIONS.manualReveal).toHaveBeenCalledWith({
+            gameId: "game-id",
+            instanceId: "hand1",
+            toPlayerIds: ["opp"],
+        });
+    });
+
+    // Item 5 — the phase marker's mutation had no caller at all, and neither
+    // key was bound: the manual board mounts no `useControllerActions`, so a
+    // descriptor's `shortcut` is display-only there.
+    it("Space steps the phase marker and Enter ends the turn", () => {
+        renderBoard();
+        fireEvent.keyDown(window, { key: " " });
+        expect(MUTATIONS.manualSetPhase).toHaveBeenCalledWith({
+            gameId: "game-id",
+            phase: "BEGINNING_OF_COMBAT",
+        });
+
+        fireEvent.keyDown(window, { key: "Enter" });
+        expect(MUTATIONS.manualEndTurn).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+        });
+    });
+
+    it("neither hotkey fires while a text field has focus", () => {
+        renderBoard();
+        const input = document.createElement("input");
+        document.body.appendChild(input);
+        input.focus();
+        fireEvent.keyDown(input, { key: " " });
+        fireEvent.keyDown(input, { key: "Enter" });
+        expect(MUTATIONS.manualSetPhase).not.toHaveBeenCalled();
+        expect(MUTATIONS.manualEndTurn).not.toHaveBeenCalled();
+        input.remove();
     });
 });

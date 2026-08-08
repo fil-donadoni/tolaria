@@ -39,11 +39,23 @@ export function makeManualRowClassifier(
     return {
         bandOf: (card): BandKey =>
             manualBandOf(
-                { card: card.card, lane: cardById.get(card.id)?.lane },
+                {
+                    card: card.card,
+                    name: cardById.get(card.id)?.name,
+                    lane: cardById.get(card.id)?.lane,
+                },
                 lookupRow
             ),
         backRowRank: (card): number => {
-            const row = lookupRow(card.card.id);
+            const manual = cardById.get(card.id);
+            // An explicit column always wins — the player dragged the card
+            // there, and that is the only signal a Manual Game has that is
+            // never wrong. The catalogue guess below is right whenever the
+            // catalogue resolves the card, and silently arbitrary when it does
+            // not (it misses a third of the print ids in play), which is what
+            // made the back row sort itself half-right.
+            if (manual?.backColumn) return manual.backColumn === "left" ? 0 : 1;
+            const row = lookupRow(card.card.id, manual?.name);
             if (!row) return 1;
             return parseTypeLine(row.typeLine).types.includes("Land") ? 0 : 1;
         },

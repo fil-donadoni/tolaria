@@ -54,6 +54,79 @@ describe("manual drop resolution (#2169)", () => {
         });
     });
 
+    // The back row's two columns. The GRE board derives that split from the
+    // card's types; a Manual Game cannot (the Full Catalogue misses the
+    // printing outright for a large share of the ids in play), so the drop
+    // position is the answer.
+    it("a horizontal drag inside the battlefield picks the back row's column, by drop position", () => {
+        const card = manualCard("c1", { lane: "main" });
+        const bf = {
+            permanentId: null,
+            zone: "battlefield" as const,
+            zoneOwnerId: "me",
+        };
+        expect(
+            resolveManualDrop({
+                card,
+                probe: { ...bf, zoneFraction: 0.2 },
+                dx: 140,
+                dy: 5,
+            })
+        ).toEqual({ kind: "column", instanceId: "c1", column: "left" });
+        const right = resolveManualDrop({
+            card,
+            probe: { ...bf, zoneFraction: 0.85 },
+            dx: -140,
+            dy: 5,
+        });
+        expect(right).toEqual({
+            kind: "column",
+            instanceId: "c1",
+            column: "right",
+        });
+
+        const dispatch = spyDispatch();
+        applyManualDrop(right, dispatch);
+        expect(dispatch.setBackColumn).toHaveBeenCalledWith({
+            instanceId: "c1",
+            column: "right",
+        });
+    });
+
+    it("a horizontal drag never re-columns a card in the COMBAT lane", () => {
+        // A combat-lane permanent is not in the back row at all — a sideways
+        // nudge there must not silently assign it a column it cannot show.
+        expect(
+            resolveManualDrop({
+                card: manualCard("c1", { lane: "combat" }),
+                probe: {
+                    permanentId: null,
+                    zone: "battlefield",
+                    zoneOwnerId: "me",
+                    zoneFraction: 0.1,
+                },
+                dx: 140,
+                dy: 5,
+            })
+        ).toBeNull();
+    });
+
+    it("a vertical drag still sets the lane, never the column", () => {
+        expect(
+            resolveManualDrop({
+                card: manualCard("c1", { lane: "main" }),
+                probe: {
+                    permanentId: null,
+                    zone: "battlefield",
+                    zoneOwnerId: "me",
+                    zoneFraction: 0.1,
+                },
+                dx: 5,
+                dy: -90,
+            })
+        ).toEqual({ kind: "lane", instanceId: "c1", lane: "combat" });
+    });
+
     it("a vertical drag up inside the battlefield sets the combat row", () => {
         const card = manualCard("c1", { lane: "main" });
         const drop = resolveManualDrop({

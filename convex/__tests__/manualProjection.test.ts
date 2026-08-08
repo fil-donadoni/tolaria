@@ -122,6 +122,31 @@ describe("projectManualState — faceDown outside knownTo", () => {
         expect(projectedCard!.faceDown).toBe(true);
     });
 
+    // Cards carry their printed NAME since manual-mode QA round 3 item 1
+    // (a print id is not a reliable name key — see `ManualCardInstance.name`).
+    // The name is as much of a card's identity as its id, so hiding one and
+    // shipping the other would put the card's name on the wire next to its
+    // own back.
+    it("face-down back carries no name either", () => {
+        const state = freshState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        const card = p1.hand[0];
+        expect(card.name).toBeDefined();
+        const moved = manualMoveCard(state, card.id, "battlefield");
+        const fd = manualSetFaceDown(moved.state, card.id, true);
+
+        const hidden = projectManualState(fd.state, "p2")
+            .players.find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === card.id)!;
+        expect(hidden.name).toBeUndefined();
+
+        // …and the controller, who knows it, still sees it.
+        const known = projectManualState(fd.state, "p1")
+            .players.find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === card.id)!;
+        expect(known.name).toBe(card.name);
+    });
+
     it("face-down back does not leak revealedTo or knownTo", () => {
         const state = freshState();
         const p1 = state.players.find((p) => p.id === "p1")!;

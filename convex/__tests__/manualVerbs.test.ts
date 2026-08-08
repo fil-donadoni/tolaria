@@ -8,6 +8,7 @@ import {
     manualAdjustCounter,
     manualSetFaceDown,
     manualSetLane,
+    manualSetBackColumn,
     manualAttach,
     manualSetArrow,
     manualClearArrows,
@@ -25,6 +26,8 @@ import {
     manualEndTurn,
     manualConcede,
     manualReveal,
+    manualRevealHand,
+    backfillManualCardNames,
 } from "../manual";
 
 function freshState() {
@@ -104,6 +107,59 @@ function getPlayer(state: ReturnType<typeof freshState>, playerId: string) {
     return state.players.find((p) => p.id === playerId)!;
 }
 
+// Manual-mode QA round 3, item 1 — a game STARTED before cards carried their
+// name has nameless instances, and those are exactly the games whose log reads
+// as a column of raw UUIDs. `manualVerbHandler` runs this on every verb off
+// the decklists already on the game row, so such a game repairs itself on the
+// next action instead of staying broken for its whole life.
+describe("backfillManualCardNames", () => {
+    function namelessState() {
+        const state = freshState();
+        for (const player of state.players) {
+            for (const zone of [
+                player.hand,
+                player.library,
+                player.battlefield,
+            ]) {
+                for (const card of zone) delete card.name;
+            }
+        }
+        return state;
+    }
+
+    it("names every card the decklists know, in every zone", () => {
+        const state = namelessState();
+        const changed = backfillManualCardNames(
+            state,
+            new Map([
+                ["c1", "Mountain"],
+                ["c11", "Swamp"],
+            ])
+        );
+
+        expect(changed).toBe(true);
+        const named = [
+            ...getPlayer(state, "p1").hand,
+            ...getPlayer(state, "p1").library,
+        ].filter((c) => c.name !== undefined);
+        expect(named).toHaveLength(1);
+        expect(named[0].card.id).toBe("c1");
+        expect(named[0].name).toBe("Mountain");
+    });
+
+    it("never overwrites a name a card already has", () => {
+        const state = freshState();
+        const card = getPlayer(state, "p1").hand[0];
+        const before = card.name;
+        backfillManualCardNames(state, new Map([[card.card.id, "Wrong Name"]]));
+        expect(findCardInState(state, card.id)!.card.name).toBe(before);
+    });
+
+    it("reports no change when there is nothing to repair", () => {
+        expect(backfillManualCardNames(freshState(), new Map())).toBe(false);
+    });
+});
+
 describe("manual verbs - table driven", () => {
     it("moveCard: moves card between zones", () => {
         const state = freshState();
@@ -117,11 +173,13 @@ describe("manual verbs - table driven", () => {
         expect(getPlayer(result.state, "p1").graveyard).toHaveLength(1);
         expect(result.log.text).toContain("Alice");
         expect(result.log.text).toContain("graveyard");
-        // #2350: the id is a `{{card:N}}` placeholder, not the raw instance
-        // id — `cards` carries the print id the client resolves to a name.
-        expect(result.log.text).toContain("{{card:0}}");
+        // #2350 made the log stop interpolating raw ids; manual-mode QA
+        // round 3 item 1 finished the job — an instance that knows its own
+        // name is interpolated as PLAIN TEXT, so `cards` (the client-side
+        // catalogue placeholder path) is not needed at all.
+        expect(result.log.text).toContain(card.name!);
         expect(result.log.text).not.toContain(card.id);
-        expect(result.log.cards).toEqual([card.card.id]);
+        expect(result.log.cards).toBeUndefined();
     });
 
     it("moveCard: battlefield untaps on entry", () => {
@@ -151,7 +209,7 @@ describe("manual verbs - table driven", () => {
             true
         );
         expect(result.log.text).toContain("taps");
-        expect(result.log.cards).toEqual([card.card.id]);
+        expect(result.log.cards).toBeUndefined();
     });
 
     it("setTapped: untaps a permanent", () => {
@@ -165,7 +223,7 @@ describe("manual verbs - table driven", () => {
             false
         );
         expect(result.log.text).toContain("untaps");
-        expect(result.log.cards).toEqual([card.card.id]);
+        expect(result.log.cards).toBeUndefined();
     });
 
     it("untapAll: untaps every card owned by a player", () => {
@@ -224,7 +282,7 @@ describe("manual verbs - table driven", () => {
         const found = findCardInState(result.state, card.id)!;
         expect(found.card.counters!["damage"]).toBe(3);
         expect(result.log.text).toContain("damage");
-        expect(result.log.cards).toEqual([card.card.id]);
+        expect(result.log.cards).toBeUndefined();
     });
 
     it("setFaceDown: sets card face down", () => {
@@ -236,8 +294,8 @@ describe("manual verbs - table driven", () => {
         expect(findCardInState(result.state, card.id)!.card.faceDown).toBe(
             true
         );
-        expect(result.log.text).toContain("{{card:0}}");
-        expect(result.log.cards).toEqual([card.card.id]);
+        expect(result.log.text).toContain(card.name!);
+        expect(result.log.cards).toBeUndefined();
     });
 
     it("setFaceDown: sets card face up (removes field)", () => {
@@ -261,7 +319,7 @@ describe("manual verbs - table driven", () => {
         expect(findCardInState(result.state, card.id)!.card.lane).toBe(
             "combat"
         );
-        expect(result.log.cards).toEqual([card.card.id]);
+        expect(result.log.cards).toBeUndefined();
     });
 
     it("setLane: sets lane to main", () => {
@@ -271,6 +329,32 @@ describe("manual verbs - table driven", () => {
         const result = manualSetLane(state, card.id, "main");
 
         expect(findCardInState(result.state, card.id)!.card.lane).toBe("main");
+    });
+
+    // The back row's two columns — the manual stand-in for the GRE board's
+    // automatic land/non-land split, which a Manual Game cannot derive (it
+    // never learns a card is a land).
+    it("setBackColumn: records the column the player put the card in", () => {
+        const state = freshState();
+        const card = getPlayer(state, "p1").hand[0];
+        moveToBattlefield(state, card.id);
+        const result = manualSetBackColumn(state, card.id, "left");
+
+        expect(findCardInState(result.state, card.id)!.card.backColumn).toBe(
+            "left"
+        );
+        expect(result.log.text).toContain("in the left column");
+        expect(result.log.text).toContain(card.name!);
+    });
+
+    it("setBackColumn: moving to the other column replaces the first", () => {
+        const state = freshState();
+        const card = getPlayer(state, "p1").hand[0];
+        moveToBattlefield(state, card.id);
+        const left = manualSetBackColumn(state, card.id, "left").state;
+        const right = manualSetBackColumn(left, card.id, "right").state;
+
+        expect(findCardInState(right, card.id)!.card.backColumn).toBe("right");
     });
 
     it("attach: sets attachedTo", () => {
@@ -285,12 +369,12 @@ describe("manual verbs - table driven", () => {
             target.id
         );
         expect(result.log.text).toContain("attaches");
-        expect(result.log.text).toContain("{{card:0}}");
-        expect(result.log.text).toContain("{{card:1}}");
+        expect(result.log.text).toContain(card.name!);
+        expect(result.log.text).toContain(target.name!);
         // Two DIFFERENT cards — attach was previously interpolating the raw
         // instance id for the acting card only; the target's print id was
         // never looked up at all.
-        expect(result.log.cards).toEqual([card.card.id, target.card.id]);
+        expect(result.log.cards).toBeUndefined();
     });
 
     it("setArrow: adds arrow from source to target", () => {
@@ -304,7 +388,7 @@ describe("manual verbs - table driven", () => {
         expect(findCardInState(result.state, card.id)!.card.arrows).toContain(
             target.id
         );
-        expect(result.log.cards).toEqual([card.card.id, target.card.id]);
+        expect(result.log.cards).toBeUndefined();
     });
 
     it("setArrow: adds multiple arrows", () => {
@@ -372,8 +456,8 @@ describe("manual verbs - table driven", () => {
         expect(
             findCardInState(result.state, bolt.id)!.card.arrows
         ).toBeUndefined();
-        expect(result.log.text).toContain("{{card:0}}");
-        expect(result.log.cards).toEqual([bolt.card.id]);
+        expect(result.log.text).toContain(bolt.name!);
+        expect(result.log.cards).toBeUndefined();
         // The sibling card's own arrow survives — a per-card clear must not
         // reach for `manualClearArrows`' board-wide sweep.
         expect(findCardInState(result.state, other.id)!.card.arrows).toEqual([
@@ -432,21 +516,28 @@ describe("manual verbs - table driven", () => {
         expect(getPlayer(result.state, "p2").exile[0].faceDown).toBe(true);
     });
 
-    it("peek: logs top N but does not change state", () => {
+    it("peek: names the top N in order, and does not change state", () => {
         const state = freshState();
-        const result = manualPeek(state, "p1", 3);
+        const result = manualPeek(state, "p1", 2);
 
         expect(result.state).toEqual(state);
-        expect(result.log.text).toContain("looks at top");
-        // #2350: peek previously interpolated the SCRYFALL PRINT id (a
-        // second, distinct variant of the bug from every other verb, which
-        // interpolated the instance id) — now it's placeholders + `cards`,
-        // one per looked-at card, same as everything else.
-        expect(result.log.text).toContain("{{card:0}}");
-        expect(result.log.text).toContain("{{card:1}}");
-        expect(result.log.text).toContain("{{card:2}}");
-        const top3 = getPlayer(state, "p1").library.slice(-3).reverse();
-        expect(result.log.cards).toEqual(top3.map((c) => c.card.id));
+        expect(result.log.text).toContain("looks at top 2 of library");
+        // Top first — `library`'s last entry is the top of the library (draw
+        // is a `pop`), so the entry reads in the order the player saw them.
+        const top2 = getPlayer(state, "p1").library.slice(-2).reverse();
+        expect(result.log.text).toContain(`${top2[0].name}, ${top2[1].name}`);
+        expect(result.log.cards).toBeUndefined();
+    });
+
+    it("peek: a peek as deep as the library reads as searching it", () => {
+        const state = freshState();
+        const size = getPlayer(state, "p1").library.length;
+        const result = manualPeek(state, "p1", size);
+
+        // What "Peek all" dispatches (`manual-pile-actions.ts` passes the
+        // library's own count) — "looks at top 3 of library" for a 3-card
+        // library is technically true and reads as a lie.
+        expect(result.log.text).toContain("looks at their whole library");
     });
 
     it("shuffle: preserves card count", () => {
@@ -490,8 +581,8 @@ describe("manual verbs - table driven", () => {
         expect(findCardInState(result.state, card.id)!.card.note).toBe(
             "Copied from GY"
         );
-        expect(result.log.text).toContain("{{card:0}}");
-        expect(result.log.cards).toEqual([card.card.id]);
+        expect(result.log.text).toContain(card.name!);
+        expect(result.log.cards).toBeUndefined();
     });
 
     it("setNote: clears a note with empty string", () => {
@@ -533,6 +624,40 @@ describe("manual verbs - table driven", () => {
         expect(found.card.counters).toEqual({ "+1/+1": 1 });
     });
 
+    // Manual-mode QA round 3, item 5 — "End Turn" used to clear damage and
+    // NOTHING else, so the turn counter read 1 all game and the active seat
+    // never moved. At a table that marker is set by hand; this is the verb
+    // that sets it.
+    it("endTurn: hands the turn to the next seat and resets the phase marker", () => {
+        const state = freshState();
+        state.phase = "END_STEP";
+        const result = manualEndTurn(state, "p1");
+
+        expect(result.state.turn).toBe(2);
+        expect(result.state.activePlayerId).toBe("p2");
+        expect(result.state.phase).toBe("UNTAP");
+        expect(result.log.text).toContain("turn 2");
+        expect(result.log.text).toContain("Bob is active");
+    });
+
+    it("endTurn: wraps back to the first seat", () => {
+        const state = freshState();
+        const afterP1 = manualEndTurn(state, "p1").state;
+        const afterP2 = manualEndTurn(afterP1, "p2").state;
+
+        expect(afterP2.activePlayerId).toBe("p1");
+        expect(afterP2.turn).toBe(3);
+    });
+
+    it("endTurn: passes from the ACTIVE seat, not from whoever pressed it", () => {
+        const state = freshState();
+        // Either player may end the turn at a table ("ok, you're done") —
+        // what moves is the active seat, which is not necessarily theirs.
+        const result = manualEndTurn(state, "p2");
+
+        expect(result.state.activePlayerId).toBe("p2");
+    });
+
     it("concede: sets concededBy", () => {
         const state = freshState();
         const result = manualConcede(state, "p2");
@@ -552,9 +677,47 @@ describe("manual verbs - table driven", () => {
         expect(result.log.text).toContain("Bob");
         // #2350: `reveal` isn't in the issue's example list but is the same
         // bug — it interpolated the raw instance id too.
-        expect(result.log.text).toContain("{{card:0}}");
+        expect(result.log.text).toContain(card.name!);
         expect(result.log.text).not.toContain(card.id);
-        expect(result.log.cards).toEqual([card.card.id]);
+        expect(result.log.cards).toBeUndefined();
+    });
+
+    // Manual-mode QA round 3, item 3 — "show me your hand" had no verb at
+    // all: the per-card reveal existed, the table action did not.
+    it("revealHand: opens EVERY card in the hand to the listed players", () => {
+        const state = freshState();
+        const hand = getPlayer(state, "p1").hand;
+        const result = manualRevealHand(state, "p1", ["p2"]);
+
+        for (const card of hand) {
+            expect(
+                findCardInState(result.state, card.id)!.card.revealedTo
+            ).toEqual(["p2"]);
+        }
+        // ONE line, not one per card — it is one action at the table.
+        expect(result.log.text).toBe(
+            `Alice reveals their hand (${hand.length} card(s)) to Bob`
+        );
+    });
+
+    it("revealHand: accumulates with a card's previous reveal", () => {
+        const state = freshState();
+        const card = getPlayer(state, "p1").hand[0];
+        card.revealedTo = ["p3"];
+        const result = manualRevealHand(state, "p1", ["p2"]);
+
+        expect(findCardInState(result.state, card.id)!.card.revealedTo).toEqual(
+            expect.arrayContaining(["p2", "p3"])
+        );
+    });
+
+    it("revealHand: leaves the OTHER player's hand alone", () => {
+        const state = freshState();
+        const result = manualRevealHand(state, "p1", ["p2"]);
+
+        for (const card of getPlayer(result.state, "p2").hand) {
+            expect(card.revealedTo).toBeUndefined();
+        }
     });
 
     it("reveal: to multiple players accumulates revealedTo", () => {

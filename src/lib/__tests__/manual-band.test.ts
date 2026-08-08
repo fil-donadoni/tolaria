@@ -76,6 +76,19 @@ describe("manualBandOf", () => {
             manualBandOf(card({ card: { id: UNKNOWN_PRINT } }), lookupRow)
         ).toBe("back");
     });
+
+    // Manual-mode QA round 3, item 1 (the same root cause as the log's raw
+    // ids): the catalogue asset keeps ONE representative printing per card,
+    // but a Tabletop deck may hold any Scryfall printing. Such a card missed
+    // the print-id lookup entirely and sat in the back row whatever it was.
+    it("classifies a printing the catalogue never censused, by NAME", () => {
+        expect(
+            manualBandOf(
+                card({ card: { id: UNKNOWN_PRINT }, name: "Goblin Guide" }),
+                lookupRow
+            )
+        ).toBe("creatures");
+    });
 });
 
 describe("makeCatalogueRowLookup", () => {
@@ -90,5 +103,24 @@ describe("makeCatalogueRowLookup", () => {
     it("degrades to an always-undefined lookup when rows are not loaded", () => {
         const empty = makeCatalogueRowLookup(undefined);
         expect(empty(GOBLIN_PRINT)).toBeUndefined();
+    });
+
+    it("falls back to an accent-folded, case-insensitive NAME match", () => {
+        expect(lookupRow(UNKNOWN_PRINT, "goblin  guide")).toBeUndefined();
+        expect(lookupRow(UNKNOWN_PRINT, "  GOBLIN GUIDE ")?.printId).toBe(
+            GOBLIN_PRINT
+        );
+    });
+
+    it("prefers the print id when it resolves — the name is only a fallback", () => {
+        // A name that points at a DIFFERENT row must not win over an exact
+        // print-id hit.
+        expect(lookupRow(PLAINS_PRINT, "Goblin Guide")?.typeLine).toBe(
+            "Basic Land — Plains"
+        );
+    });
+
+    it("returns undefined for a name the catalogue does not carry", () => {
+        expect(lookupRow(UNKNOWN_PRINT, "Not A Real Card")).toBeUndefined();
     });
 });

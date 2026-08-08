@@ -44,7 +44,7 @@ const STAGED_LIFT_PX = 18;
  * one mounted instance) — so the fix has to be a genuine component split,
  * not a conditional return before a hook call. `BoardHandCard` is now a thin
  * dispatcher (its own file) that calls exactly one hook
- * (`useManualHandInteraction`) and renders either this component or
+ * (`useManualCardInteraction`) and renders either this component or
  * `ManualHandCard` — never both, and never a hook from the other's
  * component tree.
  *

@@ -22,6 +22,7 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
     const adjustCounter = useMutation(api.game.manualAdjustCounter);
     const setFaceDown = useMutation(api.game.manualSetFaceDown);
     const setLane = useMutation(api.game.manualSetLane);
+    const setBackColumn = useMutation(api.game.manualSetBackColumn);
     const attach = useMutation(api.game.manualAttach);
     const setArrow = useMutation(api.game.manualSetArrow);
     const clearArrow = useMutation(api.game.manualClearArrow);
@@ -31,6 +32,9 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
     const peek = useMutation(api.game.manualPeek);
     const shuffle = useMutation(api.game.manualShuffle);
     const setNote = useMutation(api.game.manualSetNote);
+    const setPhase = useMutation(api.game.manualSetPhase);
+    const reveal = useMutation(api.game.manualReveal);
+    const revealHand = useMutation(api.game.manualRevealHand);
     const endTurn = useMutation(api.game.manualEndTurn);
     const concede = useMutation(api.game.manualConcede);
 
@@ -43,6 +47,7 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
             adjustCounter: (args) => void adjustCounter({ gameId, ...args }),
             setFaceDown: (args) => void setFaceDown({ gameId, ...args }),
             setLane: (args) => void setLane({ gameId, ...args }),
+            setBackColumn: (args) => void setBackColumn({ gameId, ...args }),
             attach: (args) => void attach({ gameId, ...args }),
             setArrow: (args) => void setArrow({ gameId, ...args }),
             clearArrow: (args) => void clearArrow({ gameId, ...args }),
@@ -52,6 +57,9 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
             peek: (args) => void peek({ gameId, ...args }),
             shuffle: (args) => void shuffle({ gameId, ...args }),
             setNote: (args) => void setNote({ gameId, ...args }),
+            setPhase: (args) => void setPhase({ gameId, ...args }),
+            reveal: (args) => void reveal({ gameId, ...args }),
+            revealHand: (args) => void revealHand({ gameId, ...args }),
             endTurn: (args) => void endTurn({ gameId, ...args }),
             concede: (args) => void concede({ gameId, ...args }),
         }),
@@ -64,6 +72,7 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
             adjustCounter,
             setFaceDown,
             setLane,
+            setBackColumn,
             attach,
             setArrow,
             clearArrow,
@@ -73,6 +82,9 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
             peek,
             shuffle,
             setNote,
+            setPhase,
+            reveal,
+            revealHand,
             endTurn,
             concede,
         ]

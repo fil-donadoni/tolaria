@@ -21,27 +21,19 @@
 
 import type { Id } from "@convex/_generated/dataModel";
 import type { Phase } from "@convex/gre/types";
+import { MANUAL_PHASE_ORDER } from "@convex/manual";
 import type { ProjectedManualGameState } from "@convex/manual";
 import type { Player } from "~/types/game";
 
 /** Phases the manual phase marker can name. It is a FREE marker (ADR 0080 —
  *  it enforces nothing), so an unrecognised or absent value simply reads as the
- *  main phase rather than being an error. */
-const MANUAL_PHASES = new Set<string>([
-    "UNTAP",
-    "UPKEEP",
-    "DRAW",
-    "PRECOMBAT_MAIN",
-    "BEGINNING_OF_COMBAT",
-    "DECLARE_ATTACKERS",
-    "DECLARE_BLOCKERS",
-    "FIRST_STRIKE_DAMAGE",
-    "COMBAT_DAMAGE",
-    "END_OF_COMBAT",
-    "POSTCOMBAT_MAIN",
-    "END_STEP",
-    "CLEANUP",
-]);
+ *  main phase rather than being an error.
+ *
+ *  Derived from `MANUAL_PHASE_ORDER` (`convex/manual.ts`) rather than
+ *  re-listed: the Space hotkey steps through that array and `manualEndTurn`
+ *  resets to its first entry, so a phase this validator rejected but the
+ *  stepper could reach would silently read as `PRECOMBAT_MAIN` on the board. */
+const MANUAL_PHASES = new Set<string>(MANUAL_PHASE_ORDER);
 
 export function manualPhase(phase: string | undefined): Phase {
     return phase && MANUAL_PHASES.has(phase)

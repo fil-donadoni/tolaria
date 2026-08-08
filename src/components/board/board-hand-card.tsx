@@ -1,5 +1,5 @@
 import type { CardInstance } from "~/types/game";
-import { useManualHandInteraction } from "~/lib/manual-card-verbs";
+import { useManualCardInteraction } from "~/lib/manual-card-verbs";
 import ManualHandCard from "./manual-hand-card";
 import GreHandCard from "./gre-hand-card";
 
@@ -60,8 +60,8 @@ export type BoardHandCardProps = {
  *  thin dispatcher between the two hand-card variants (issue #2347, split
  *  out on the PR #2359 review):
  *
- *  - `useManualHandInteraction()` present (only under
- *    `ManualHandInteractionProvider`, `manual-board-view.tsx`) → renders
+ *  - `useManualCardInteraction()` present (only under
+ *    `ManualCardInteractionProvider`, `manual-board-view.tsx`) → renders
  *    {@link ManualHandCard}, which calls NO GRE hook at all.
  *  - Absent (every GRE board, the default) → renders {@link GreHandCard},
  *    unchanged behaviour.
@@ -83,12 +83,12 @@ export type BoardHandCardProps = {
  *  whether the branch is provably stable for a given mounted instance (it
  *  is here: which provider wraps a `BoardHandCard` never changes across that
  *  instance's lifetime). So the fix is a genuine component split: THIS
- *  component calls exactly one hook (`useManualHandInteraction`,
+ *  component calls exactly one hook (`useManualCardInteraction`,
  *  unconditionally) and then renders one of two SEPARATE components, each of
  *  which calls its own hooks unconditionally in its own right — standard
  *  conditional rendering, not a conditional hook call. */
 export default function BoardHandCard(props: BoardHandCardProps) {
-    const manualInteraction = useManualHandInteraction();
+    const manualInteraction = useManualCardInteraction();
     if (manualInteraction) {
         return (
             <ManualHandCard

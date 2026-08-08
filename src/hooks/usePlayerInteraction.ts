@@ -74,6 +74,24 @@ export type PlayerInteraction = {
     /** Manual Board only — commit an exact life total typed into the inline
      *  field. Only consulted when {@link lifeEditable} is set. */
     onLifeCommit?: (life: number) => void;
+    /** Manual Board only — step the life total by `delta`, the − / + buttons
+     *  flanking it (manual-mode QA round 3, item 4). The wheel gesture and the
+     *  typed total both existed; neither is reachable on a touch device, and
+     *  the wheel is invisible affordance-wise even on a desktop. Absent ⇒ no
+     *  buttons render, so the GRE nameplate is untouched. */
+    onLifeStep?: (delta: number) => void;
+    /** Manual Board only — extra actions the nameplate offers on right-click /
+     *  long-press (manual-mode QA round 3, item 3: "Reveal hand"). Empty or
+     *  absent ⇒ the nameplate mounts no context menu whatsoever, which is what
+     *  keeps the GRE board's own right-click (the card preview) unaffected. */
+    menuActions?: readonly PlayerMenuAction[];
+};
+
+/** One entry of {@link PlayerInteraction.menuActions}. */
+export type PlayerMenuAction = {
+    key: string;
+    label: string;
+    onSelect: () => void;
 };
 
 export function usePlayerInteraction(player: Player): PlayerInteraction {

@@ -40,6 +40,12 @@ export type ManualDispatch = {
     }) => void;
     setFaceDown: (args: { instanceId: string; faceDown: boolean }) => void;
     setLane: (args: { instanceId: string; lane: "main" | "combat" }) => void;
+    /** Places a back-row permanent in one of the row's two columns — the
+     *  manual stand-in for the GRE board's automatic land/non-land split. */
+    setBackColumn: (args: {
+        instanceId: string;
+        column: "left" | "right";
+    }) => void;
     attach: (args: { instanceId: string; targetId: string }) => void;
     setArrow: (args: { instanceId: string; targetId: string }) => void;
     clearArrow: (args: { instanceId: string }) => void;
@@ -49,6 +55,12 @@ export type ManualDispatch = {
     peek: (args: { playerId: string; n: number }) => void;
     shuffle: (args: { playerId: string }) => void;
     setNote: (args: { instanceId: string; text: string }) => void;
+    setPhase: (args: { phase: string }) => void;
+    /** Opens ONE card's identity to the listed players (a hand card shown
+     *  across the table). */
+    reveal: (args: { instanceId: string; toPlayerIds: string[] }) => void;
+    /** Opens a whole hand at once — one table action, one log line. */
+    revealHand: (args: { playerId: string; toPlayerIds: string[] }) => void;
     endTurn: (args: { playerId: string }) => void;
     concede: (args: { playerId: string }) => void;
 };
@@ -108,7 +120,20 @@ export type ManualRuntime = {
      *  collects its input through, shared by the pile verbs and the
      *  battlefield card verbs alike. */
     requestVerbInput: RequestVerbInput;
+    /** Opens the library peek dialog (manual-mode QA round 3, item 2). A VIEW
+     *  action, not a verb: `dispatch.peek` writes the opponent-facing log
+     *  line, this shows the asking player the cards. Both fire for one menu
+     *  click — the log records that a peek happened, the dialog is the peek. */
+    requestPeek: RequestPeek;
 };
+
+/** Opens the peek dialog for one seat's library. `n` omitted = the whole
+ *  library ("Peek all"). */
+export type RequestPeek = (request: {
+    playerId: string;
+    playerName: string;
+    n?: number;
+}) => void;
 
 /** Indexes every visible card in a projected manual state by instance id.
  *  Hidden opponent hand slots project as `null` and are skipped. */

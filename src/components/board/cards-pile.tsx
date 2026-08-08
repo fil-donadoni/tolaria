@@ -16,6 +16,7 @@ import ArrivalGlow from "./arrival-glow";
 import CardTilt3D from "./card-tilt-3d";
 import CardBack from "../cards/card-back";
 import CardImage from "../cards/card-image";
+import ManualCardMenu from "./manual-card-menu";
 import { COUNTER_TONE_CLASS, getCounterDisplays } from "~/lib/counters";
 import {
     buildCategorySections,
@@ -342,7 +343,14 @@ function FanLayout({
                                     {inner}
                                 </div>
                             ) : (
-                                inner
+                                // Manual-mode QA round 3 — a pile card is
+                                // interactive here, carrying its own move
+                                // verbs. Passthrough on every GRE board and in
+                                // every picker (`clickable` above wins, so a
+                                // choice dialog's click is never hijacked).
+                                <ManualCardMenu card={cardInstance}>
+                                    {inner}
+                                </ManualCardMenu>
                             )}
                             <PileCounterChips card={cardInstance} />
                             {action}
@@ -459,7 +467,8 @@ function GridCard({
                         {inner}
                     </div>
                 ) : (
-                    inner
+                    // See the fan layout's own note — same seam, grid variant.
+                    <ManualCardMenu card={cardInstance}>{inner}</ManualCardMenu>
                 )}
                 <PileCounterChips card={cardInstance} />
                 {action}

@@ -97,11 +97,28 @@ because `src/lib/images.ts` and ~20 board components import `getDefinition`.
   (`id`, `card: { id }`, `zone`, `controllerId`, `ownerId`, `isTapped`,
   `faceDown`, `lane`, `counters`, `attachedTo`, `note`) so the presentational
   components take it as-is.
+- It also carries the card's printed **`name`**, copied off the decklist row at
+  setup. That is deck data, not a hydrated definition — no rule reads it, it is
+  a label. It exists because the print id alone is not a reliable name key:
+  the catalogue asset keeps one representative printing per card, while a
+  Tabletop deck may hold any Scryfall printing (the edition dropdown lists them
+  all, fetched live), so ~1/3 of the print ids in play miss the catalogue
+  lookup. Without the name they rendered as raw UUIDs in the action log and
+  fell to the back battlefield row whatever their type. The name projects like
+  any other identity field — a face-down card hidden from a viewer sheds its
+  name along with its print id.
 
 Deliberate non-goals, each rejected for a stated reason:
 
 - **No free x/y card positioning.** The battlefield keeps the automatic layout
-  plus one `lane: "main" | "combat"` field. Free coordinates look more expressive
+  plus two coarse placement fields the player sets by dragging:
+  `lane: "main" | "combat"` (which row) and `backColumn: "left" | "right"`
+  (which of the back row's two columns). The second exists because the GRE
+  board derives that column from the card's types — lands flush-left — and a
+  Manual Game cannot: it would have to know a card is a land, and the
+  catalogue misses the printing outright for a large share of the ids in play,
+  so the row sorted itself half-right and read as arbitrary. Two coarse
+  buckets, still not coordinates. Free coordinates look more expressive
   but produce a second layout system to maintain forever, against the premise
   that the real engine keeps evolving. Blocks and attachments are expressed by
   explicit verbs (arrow, attach), which read better than position anyway.

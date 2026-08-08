@@ -15,6 +15,10 @@
 //   1. dropped ON another permanent (no shift) → attach (Aura / Equipment),
 //   2. a clearly VERTICAL drag that starts AND lands on the battlefield → set
 //      the combat / main lane,
+//   2b. a clearly HORIZONTAL drag that starts AND lands on the battlefield,
+//      on a permanent NOT in the combat lane → place it in the left or the
+//      right column of the back row (the manual stand-in for the GRE board's
+//      automatic land/non-land split),
 //   3. otherwise, a drop over a different zone → move the card there.
 //
 // Rules 1 and 3 are the deleted `resolveDrop`'s. **Rule 2 deliberately
@@ -49,12 +53,17 @@ export type ManualDropProbe = {
     zone: ManualZone | null;
     /** Which seat owns that zone. */
     zoneOwnerId: string | null;
+    /** Where across the drop band the pointer landed, 0 (left edge) to 1
+     *  (right edge). `null` when the drop was over no band. Drives the back
+     *  row's two-column placement — see rule 2b. */
+    zoneFraction?: number | null;
 };
 
 export type ManualDrop =
     | { kind: "attach"; instanceId: string; targetId: string }
     | { kind: "arrow"; instanceId: string; targetId: string }
     | { kind: "lane"; instanceId: string; lane: "main" | "combat" }
+    | { kind: "column"; instanceId: string; column: "left" | "right" }
     | { kind: "move"; instanceId: string; toZone: ManualZone }
     | null;
 
@@ -95,6 +104,31 @@ export function resolveManualDrop(args: {
         };
     }
 
+    // 2b. Column — a HORIZONTAL drag that stays on the battlefield picks one
+    //    of the back row's two columns. The GRE board splits that row
+    //    automatically (lands flush-left, other noncreatures flush-right,
+    //    `splitRowLayout`); a Manual Game cannot, because that split needs to
+    //    know a card is a land and the Full Catalogue misses the printing
+    //    outright for a large share of the ids in play — the row sorted itself
+    //    half-right and read as arbitrary. So the player places it, with the
+    //    same gesture that already sets the lane, on the other axis. A card in
+    //    the COMBAT lane is unaffected: it is not in the back row at all, and
+    //    a sideways nudge there must not silently reassign it.
+    if (
+        !isVertical &&
+        card.zone === "battlefield" &&
+        card.lane !== "combat" &&
+        (probe.zone === null || probe.zone === "battlefield") &&
+        probe.zoneFraction !== undefined &&
+        probe.zoneFraction !== null
+    ) {
+        return {
+            kind: "column",
+            instanceId: card.id,
+            column: probe.zoneFraction < 0.5 ? "left" : "right",
+        };
+    }
+
     // 3. Zone move. A card may always go to its owner's own zones; the
     //    battlefield is the one zone another seat's card may be dropped on
     //    (a stolen permanent, a token handed over) — the same allowance the
@@ -132,6 +166,13 @@ export function applyManualDrop(
     }
     if (drop.kind === "lane") {
         dispatch.setLane({ instanceId: drop.instanceId, lane: drop.lane });
+        return;
+    }
+    if (drop.kind === "column") {
+        dispatch.setBackColumn({
+            instanceId: drop.instanceId,
+            column: drop.column,
+        });
         return;
     }
     dispatch.moveCard({ instanceId: drop.instanceId, toZone: drop.toZone });

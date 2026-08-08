@@ -32,7 +32,7 @@ function topOf(cards: ProjectedManualCard[]): ProjectedManualCard | undefined {
 export function makeManualPileActions(
     runtime: ManualRuntime
 ): PileActionsSource {
-    const { state, dispatch, requestVerbInput } = runtime;
+    const { state, dispatch, requestVerbInput, requestPeek } = runtime;
     return (player, zone: PileZone): PileAction[] => {
         const seat = state.players.find((p) => p.id === player.id);
         if (!seat) return [];
@@ -98,6 +98,11 @@ export function makeManualPileActions(
                         }),
                 },
                 {
+                    // Both peeks do the same two things (manual-mode QA round
+                    // 3, item 2): write the log line the opponent reads, and
+                    // OPEN the cards for the peeking player. Before, only the
+                    // first half existed, so the verb looked like it did
+                    // nothing.
                     key: "peek",
                     label: "Peek top N…",
                     onSelect: () =>
@@ -105,9 +110,32 @@ export function makeManualPileActions(
                             kind: "number",
                             title: "Peek how many?",
                             defaultValue: 3,
-                            onConfirm: (n) =>
-                                dispatch.peek({ playerId: seat.id, n }),
+                            onConfirm: (n) => {
+                                dispatch.peek({ playerId: seat.id, n });
+                                requestPeek({
+                                    playerId: seat.id,
+                                    playerName: seat.name,
+                                    n,
+                                });
+                            },
                         }),
+                },
+                {
+                    key: "peek-all",
+                    label: "Peek all",
+                    onSelect: () => {
+                        // The log verb takes a count, so "all" is the library's
+                        // own size — `manualPeek` renders that case as
+                        // "looks at their whole library".
+                        dispatch.peek({
+                            playerId: seat.id,
+                            n: seat.library.count,
+                        });
+                        requestPeek({
+                            playerId: seat.id,
+                            playerName: seat.name,
+                        });
+                    },
                 },
                 {
                     key: "shuffle",

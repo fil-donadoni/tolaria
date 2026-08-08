@@ -11,6 +11,7 @@ import type {
 import type {
     ManualDispatch,
     ManualRuntime,
+    RequestPeek,
     RequestVerbInput,
 } from "~/lib/manual-runtime";
 import { indexManualCards } from "~/lib/manual-runtime";
@@ -71,6 +72,7 @@ export function spyDispatch(): ManualDispatch {
         adjustCounter: vi.fn(),
         setFaceDown: vi.fn(),
         setLane: vi.fn(),
+        setBackColumn: vi.fn(),
         attach: vi.fn(),
         setArrow: vi.fn(),
         clearArrow: vi.fn(),
@@ -80,6 +82,9 @@ export function spyDispatch(): ManualDispatch {
         peek: vi.fn(),
         shuffle: vi.fn(),
         setNote: vi.fn(),
+        setPhase: vi.fn(),
+        reveal: vi.fn(),
+        revealHand: vi.fn(),
         endTurn: vi.fn(),
         concede: vi.fn(),
     };
@@ -97,7 +102,8 @@ export function manualRuntime(
     state: ProjectedManualGameState,
     dispatch: ManualDispatch,
     viewerId = "me",
-    requestVerbInput: RequestVerbInput = spyRequestVerbInput()
+    requestVerbInput: RequestVerbInput = spyRequestVerbInput(),
+    requestPeek: RequestPeek = vi.fn()
 ): ManualRuntime {
     return {
         viewerId,
@@ -105,5 +111,6 @@ export function manualRuntime(
         cardById: indexManualCards(state),
         dispatch,
         requestVerbInput,
+        requestPeek,
     };
 }

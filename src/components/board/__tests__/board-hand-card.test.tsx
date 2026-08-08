@@ -15,8 +15,8 @@ import {
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
 import {
-    ManualHandInteractionProvider,
-    type ManualHandInteraction,
+    ManualCardInteractionProvider,
+    type ManualCardInteraction,
 } from "~/lib/manual-card-verbs";
 
 // A no-op buffer so the hand card's unconditional `usePendingChoiceBuffer()`
@@ -1040,7 +1040,7 @@ describe("BoardHandCard touch-action (issue #1994)", () => {
 });
 
 // Manual Board variant (issue #2347) — the split seam. Under
-// `ManualHandInteractionProvider` the card must open ONLY the injected verb
+// `ManualCardInteractionProvider` the card must open ONLY the injected verb
 // menu and never touch the GRE cast/play/Cycling pipeline this same
 // component drives on every GRE board (proven above); the manual mode is
 // exercised through the real component, matching the AC's "tests through the
@@ -1051,7 +1051,7 @@ describe("BoardHandCard manual verb menu (issue #2347)", () => {
         { id: "move:battlefield", oracleText: "Play to battlefield" },
         { id: "move:graveyard", oracleText: "Move to graveyard" },
     ]);
-    const manualInteraction: ManualHandInteraction = {
+    const manualInteraction: ManualCardInteraction = {
         getVerbs: manualGetVerbs,
         activate: manualActivate,
     };
@@ -1092,9 +1092,9 @@ describe("BoardHandCard manual verb menu (issue #2347)", () => {
                 }
             >
                 <PendingChoiceBufferContext value={noopBuffer}>
-                    <ManualHandInteractionProvider value={manualInteraction}>
+                    <ManualCardInteractionProvider value={manualInteraction}>
                         <BoardHandCard card={card} />
-                    </ManualHandInteractionProvider>
+                    </ManualCardInteractionProvider>
                 </PendingChoiceBufferContext>
             </GameContext>
         );
@@ -1138,16 +1138,22 @@ describe("BoardHandCard manual verb menu (issue #2347)", () => {
         });
         fireEvent.click(sheetItem);
         expect(manualActivate).toHaveBeenCalledWith(
-            "hand1",
+            expect.objectContaining({ id: "hand1" }),
             "move:battlefield"
         );
     });
 
-    it("selecting a verb dispatches through the injected `activate`, by instance id and ability id only", () => {
+    it("selecting a verb dispatches through the injected `activate`, with the card and the ability id only", () => {
         renderManual(manualHandCardInstance("hand1"));
         fireEvent.click(el());
         fireEvent.click(screen.getByText("Move to graveyard"));
-        expect(manualActivate).toHaveBeenCalledWith("hand1", "move:graveyard");
+        // The CARD, not its id: a library card in the peek dialog is not in
+        // the projected state's index, so the interaction resolves from the
+        // object it is handed (`manual-board-view.tsx`).
+        expect(manualActivate).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "hand1" }),
+            "move:graveyard"
+        );
         expect(announceCast).not.toHaveBeenCalled();
         expect(playCard).not.toHaveBeenCalled();
         expect(activateAbility).not.toHaveBeenCalled();
@@ -1166,7 +1172,7 @@ describe("BoardHandCard manual verb menu (issue #2347)", () => {
     });
 });
 
-// The negative half of the split seam: with NO `ManualHandInteractionProvider`
+// The negative half of the split seam: with NO `ManualCardInteractionProvider`
 // (every GRE board, the default) the card must render NOTHING of the manual
 // verb menu — proof that adding the manual branch left the GRE path
 // untouched, per the issue's own acceptance criterion.

@@ -284,6 +284,7 @@ import {
     manualAdjustCounter as manualAdjustCounterFn,
     manualSetFaceDown as manualSetFaceDownFn,
     manualSetLane as manualSetLaneFn,
+    manualSetBackColumn as manualSetBackColumnFn,
     manualAttach as manualAttachFn,
     manualSetArrow as manualSetArrowFn,
     manualClearArrows as manualClearArrowsFn,
@@ -301,6 +302,8 @@ import {
     manualEndTurn as manualEndTurnFn,
     manualConcede as manualConcedeFn,
     manualReveal as manualRevealFn,
+    manualRevealHand as manualRevealHandFn,
+    backfillManualCardNames,
 } from "./manual";
 import { compactState, expandState } from "./gre/serialize";
 import {
@@ -3443,6 +3446,51 @@ export const getManualState = query({
         if (!latest) return null;
         const state = latest.state as ManualGameState;
         return projectManualState(state, args.viewerId);
+    },
+});
+
+/**
+ * The top N cards of one seat's library, TOP FIRST — what the "Peek top N…" /
+ * "Peek all" pile verbs actually show (manual-mode QA round 3, item 2).
+ *
+ * A dedicated query rather than a field on the projected state, because the
+ * library is projected as `{ count }` for EVERYONE (`projectManualState`) and
+ * must stay that way: peeking is an action a player takes, logged as such by
+ * `manualPeek`, not a standing view. Subscribing to it keeps the open dialog
+ * live — a card drawn or milled while it is up disappears from it.
+ *
+ * `n` omitted means the whole library ("Peek all" / searching). Private
+ * metadata (`knownTo` / `revealedTo`) is stripped exactly as the state
+ * projection strips it. Access follows `getManualState`'s convention (the
+ * caller names the seat): a Manual Game enforces nothing, and one user
+ * routinely steers both seats.
+ */
+export const getManualLibraryTop = query({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        n: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const latest = await getLatestManualState(ctx, args.gameId);
+        if (!latest) return null;
+        const state = latest.state as ManualGameState;
+        const player = state.players.find((p) => p.id === args.playerId);
+        if (!player) return null;
+        const count =
+            args.n === undefined
+                ? player.library.length
+                : Math.max(0, Math.min(args.n, player.library.length));
+        const top = player.library
+            .slice(player.library.length - count)
+            .reverse()
+            .map((card) => {
+                const { knownTo, revealedTo, ...rest } = card;
+                void knownTo;
+                void revealedTo;
+                return rest;
+            });
+        return { cards: top, libraryCount: player.library.length };
     },
 });
 
@@ -14453,7 +14501,20 @@ async function manualVerbHandler(
     const existing = await getLatestManualState(ctx, gameId);
     if (!existing) throw new Error("Manual state not found");
 
-    const result = apply(existing.state as ManualGameState);
+    const state = existing.state as ManualGameState;
+    // Self-repair for games started before cards carried their name (see
+    // `backfillManualCardNames`): the decklists are on the game row this
+    // handler already loaded, so this is a map build, not a read.
+    const nameByPrintId = new Map<string, string>();
+    for (const player of game.players) {
+        for (const card of player.deck.cards) {
+            if (!nameByPrintId.has(card.cardId))
+                nameByPrintId.set(card.cardId, card.cardName);
+        }
+    }
+    backfillManualCardNames(state, nameByPrintId);
+
+    const result = apply(state);
 
     await saveManualState(
         ctx,
@@ -14572,6 +14633,21 @@ export const manualSetLane = mutation({
     handler: async (ctx, args) => {
         await manualVerbHandler(ctx, args.gameId, (state) =>
             manualSetLaneFn(state, args.instanceId, args.lane)
+        );
+        return null;
+    },
+});
+
+export const manualSetBackColumn = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        column: v.union(v.literal("left"), v.literal("right")),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualSetBackColumnFn(state, args.instanceId, args.column)
         );
         return null;
     },
@@ -14939,6 +15015,21 @@ export const manualReveal = mutation({
     handler: async (ctx, args) => {
         await manualVerbHandler(ctx, args.gameId, (state) =>
             manualRevealFn(state, args.instanceId, args.toPlayerIds)
+        );
+        return null;
+    },
+});
+
+export const manualRevealHand = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        toPlayerIds: v.array(v.string()),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualRevealHandFn(state, args.playerId, args.toPlayerIds)
         );
         return null;
     },

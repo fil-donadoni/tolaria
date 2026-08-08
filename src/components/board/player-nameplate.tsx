@@ -1,6 +1,12 @@
 import { useState } from "react";
 import type { Player } from "~/types/game";
 import type { PlayerInteraction } from "~/hooks/usePlayerInteraction";
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from "~/components/ui/context-menu";
 import CornerFiligreeFrame from "~/components/ui/corner-filigree-frame";
 import AnimatedLifeTotal from "./animated-life-total";
 import PlayerPoisonCounters from "./player-poison-counters";
@@ -91,6 +97,8 @@ export default function PlayerNameplate({
     const onLifeCommit = interaction.onLifeCommit;
     const lifeEditable = interaction.lifeEditable === true && !!onLifeCommit;
     const onLifeWheel = interaction.onLifeWheel;
+    const onLifeStep = interaction.onLifeStep;
+    const menuActions = interaction.menuActions ?? [];
 
     function commitLife() {
         setEditing(false);
@@ -146,6 +154,46 @@ export default function PlayerNameplate({
         );
     }
 
+    /** One life-step button (manual-mode QA round 3, item 4). Deliberately
+     *  tiny and `leading-none`: on the compact (portrait) nameplate the whole
+     *  row's height IS its tallest child, and that height is mirrored as a
+     *  constant in `portrait-board-bands.ts` — a button taller than the life
+     *  glyph would silently grow the reserved band and shrink the
+     *  battlefield (#1814). */
+    function lifeStepButton(delta: number, isCompact: boolean) {
+        if (!onLifeStep) return null;
+        return (
+            <button
+                type="button"
+                aria-label={delta > 0 ? "Gain 1 life" : "Lose 1 life"}
+                data-life-step={`${player.id}:${delta > 0 ? "+" : "-"}`}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onLifeStep(delta);
+                }}
+                className={`shrink-0 rounded-sm px-1 leading-none text-text-muted transition-colors hover:bg-surface-strong hover:text-text ${
+                    isCompact ? "text-[11px]" : "text-base"
+                }`}
+            >
+                {delta > 0 ? "+" : "−"}
+            </button>
+        );
+    }
+
+    /** The life total with its − / + flanking buttons, when the injected
+     *  interaction offers stepping. Without `onLifeStep` this is exactly the
+     *  bare life total the GRE board has always rendered. */
+    function lifeRow(isCompact: boolean) {
+        if (!onLifeStep) return lifeTotal(isCompact);
+        return (
+            <span className="inline-flex items-center justify-center gap-1">
+                {lifeStepButton(-1, isCompact)}
+                {lifeTotal(isCompact)}
+                {lifeStepButton(1, isCompact)}
+            </span>
+        );
+    }
+
     const interactive =
         (isTargetable && !interaction.isDivideTarget) || isDamageTargetPickable;
     const boxShadow = nameplateShadow(
@@ -155,7 +203,7 @@ export default function PlayerNameplate({
         interaction.isPlayerPicked
     );
 
-    return (
+    const box = (
         <div
             data-arrow-anchor-player={player.id}
             onClick={interaction.handleClick}
@@ -194,7 +242,7 @@ export default function PlayerNameplate({
                 // that doesn't fit truncates instead via `truncate` + a max
                 // width, not by growing taller.
                 <div className="flex flex-nowrap items-center justify-center gap-1.5">
-                    {lifeTotal(true)}
+                    {lifeRow(true)}
                     <span className="max-w-16 truncate text-[9px] leading-none uppercase tracking-[0.15em] text-text-muted">
                         {player.name}
                     </span>
@@ -209,7 +257,7 @@ export default function PlayerNameplate({
                 </div>
             ) : (
                 <>
-                    {lifeTotal(false)}
+                    {lifeRow(false)}
                     <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
                         {player.name}
                     </div>
@@ -223,5 +271,28 @@ export default function PlayerNameplate({
              *  `isTargetable`) but the [−] N [+] stepper now lives inside the
              *  divide dialog (`divide-target-list.tsx`), not on the nameplate. */}
         </div>
+    );
+
+    // No injected menu actions ⇒ no menu chrome at all, so the GRE nameplate
+    // renders the exact element tree it always has. With actions (Manual
+    // Board), the box becomes a left-click menu trigger, the same gesture the
+    // battlefield cards and pile tiles already use for their verbs — a genuine
+    // right-click stays with the card preview (`ui/context-menu.tsx`). The
+    // life total's own click handler calls `stopPropagation`, so clicking the
+    // NUMBER still opens the inline editor rather than the menu.
+    if (menuActions.length === 0) return box;
+    return (
+        <ContextMenu>
+            <ContextMenuTrigger render={<span className="contents" />}>
+                {box}
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-56">
+                {menuActions.map((action) => (
+                    <ContextMenuItem key={action.key} onClick={action.onSelect}>
+                        {action.label}
+                    </ContextMenuItem>
+                ))}
+            </ContextMenuContent>
+        </ContextMenu>
     );
 }

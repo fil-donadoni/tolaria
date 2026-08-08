@@ -31,14 +31,29 @@ function sourceInstanceId(el: Element): string | null {
  *  (`manual-drop.ts`). */
 function probeDropTarget(clientX: number, clientY: number): ManualDropProbe {
     const el = document.elementFromPoint(clientX, clientY);
-    if (!el) return { permanentId: null, zone: null, zoneOwnerId: null };
+    if (!el)
+        return {
+            permanentId: null,
+            zone: null,
+            zoneOwnerId: null,
+            zoneFraction: null,
+        };
     const permanent = el.closest("[data-arrow-anchor-permanent]");
     const zoneEl = el.closest("[data-zone-drop]");
+    // Where across the band the drop landed, as a 0..1 fraction — the back
+    // row's two-column placement is a horizontal question, so the DOM step is
+    // the only place that can answer it (the decision itself stays pure).
+    const rect = zoneEl?.getBoundingClientRect();
+    const zoneFraction =
+        rect && rect.width > 0
+            ? Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+            : null;
     return {
         permanentId:
             permanent?.getAttribute("data-arrow-anchor-permanent") ?? null,
         zone: (zoneEl?.getAttribute("data-zone-drop") as ManualZone) ?? null,
         zoneOwnerId: zoneEl?.getAttribute("data-zone-owner") ?? null,
+        zoneFraction,
     };
 }
 
@@ -64,7 +79,7 @@ type DragMeta = {
  *  The shared spatial surface has no drag of its own on the battlefield (its
  *  hand owns a view-only reorder drag; the Manual Board mounts the same
  *  `BoardHandCard` with `handInteractive={true}` but wraps it in
- *  `ManualHandInteractionProvider`, issue #2347, so it renders `ManualHandCard`
+ *  `ManualCardInteractionProvider`, issue #2347, so it renders `ManualHandCard`
  *  — which binds no pointer handlers of its own, leaving the reorder drag
  *  inert there without a separate opt-out flag). So this is a single delegated
  *  gesture: one

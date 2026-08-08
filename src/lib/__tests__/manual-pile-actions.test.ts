@@ -22,12 +22,14 @@ function build(seats = [manualSeat("me"), manualSeat("opp")]) {
     const requestVerbInput = vi.fn() as unknown as RequestVerbInput & {
         mock: { calls: unknown[][] };
     };
+    const requestPeek = vi.fn();
     const state = manualState(seats);
     return {
         dispatch,
         requestVerbInput,
+        requestPeek,
         source: makeManualPileActions(
-            manualRuntime(state, dispatch, "me", requestVerbInput)
+            manualRuntime(state, dispatch, "me", requestVerbInput, requestPeek)
         ),
     };
 }
@@ -56,8 +58,46 @@ describe("manual pile actions (#2169)", () => {
             "Exile top 1",
             "Exile top N…",
             "Peek top N…",
+            "Peek all",
             "Shuffle",
         ]);
+    });
+
+    // Manual-mode QA round 3, item 2 — "Peek top N…" used to write a log line
+    // and nothing else, so the verb looked like it did nothing. Both halves
+    // must fire: the log line the opponent reads, and the dialog the peeking
+    // player looks at.
+    it("Peek top N logs the peek AND opens the peek dialog at that depth", () => {
+        const { source, dispatch, requestVerbInput, requestPeek } = build();
+        source(asPlayer("me"), "library")
+            .find((a) => a.key === "peek")!
+            .onSelect();
+        const request = lastRequest(requestVerbInput);
+        expect(request.kind).toBe("number");
+        if (request.kind !== "number") throw new Error("unreachable");
+        request.onConfirm(4);
+        expect(dispatch.peek).toHaveBeenCalledWith({ playerId: "me", n: 4 });
+        expect(requestPeek).toHaveBeenCalledWith({
+            playerId: "me",
+            playerName: "me-name",
+            n: 4,
+        });
+    });
+
+    it("Peek all opens the dialog with no depth, and logs a peek as deep as the library", () => {
+        const { source, dispatch, requestPeek } = build([
+            manualSeat("me", { library: { count: 37 } }),
+        ]);
+        source(asPlayer("me"), "library")
+            .find((a) => a.key === "peek-all")!
+            .onSelect();
+        // `manualPeek` renders an at-or-past-the-bottom peek as "looks at
+        // their whole library" — the count is what tells it so.
+        expect(dispatch.peek).toHaveBeenCalledWith({ playerId: "me", n: 37 });
+        expect(requestPeek).toHaveBeenCalledWith({
+            playerId: "me",
+            playerName: "me-name",
+        });
     });
 
     it("Draw 1 dispatches the manual draw verb for that pile's OWNER directly (no popover)", () => {

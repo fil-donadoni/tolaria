@@ -1,18 +1,19 @@
 import type { CardInstance } from "~/types/game";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 import { isSeenByOpponent } from "~/lib/hand-knowledge";
-import type { ManualHandInteraction } from "~/lib/manual-card-verbs";
+import type { ManualCardInteraction } from "~/lib/manual-card-verbs";
 import CardImage from "../cards/card-image";
 import SeenByOpponentBadge from "./seen-by-opponent-badge";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
+import ManualNoteBadge from "./manual-note-badge";
 
 type ManualHandCardProps = {
     /** The Manual Board hand card to render (issue #2347). */
     card: CardInstance;
     /** The injected verb source — always present for the caller (see
-     *  `useManualHandInteraction`); typed non-null here so this component
+     *  `useManualCardInteraction`); typed non-null here so this component
      *  never has to fall back to a GRE-hook branch of its own. */
-    manualInteraction: ManualHandInteraction;
+    manualInteraction: ManualCardInteraction;
     /** Forwarded to CardImage — see `BoardHandCard`'s own prop doc. */
     sizes?: string;
     includeThumb?: boolean;
@@ -37,7 +38,7 @@ type ManualHandCardProps = {
  * calls NO GRE hook — no `useGameContext`, no `useHandCardCommit`, no
  * `useMutation` — so there is no code path here that can read a
  * `CardDefinition` at all. `BoardHandCard` now renders this in place of
- * running its own body whenever `useManualHandInteraction()` returns
+ * running its own body whenever `useManualCardInteraction()` returns
  * non-null, checked as the FIRST thing it does, before any GRE hook. The
  * only card-aware read left is `CardImage`'s own `tryGetDefinition` (never
  * throws — art falls back to a placeholder) and `isSeenByOpponent`, which
@@ -48,12 +49,12 @@ export default function ManualHandCard({
     sizes = "120px",
     includeThumb = false,
 }: ManualHandCardProps) {
-    const manualAbilities = manualInteraction.getVerbs(card.id);
+    const manualAbilities = manualInteraction.getVerbs(card);
     const manualActivate = (abilityId: string, keepPriority: boolean) => {
         // Hand verbs never pay a cost — `keepPriority` only exists to match
         // `useAbilityCardClick`'s shared contract with the battlefield card.
         void keepPriority;
-        manualInteraction.activate(card.id, abilityId);
+        manualInteraction.activate(card, abilityId);
     };
     const manualAbilityClick = useAbilityCardClick(
         manualAbilities,
@@ -83,7 +84,9 @@ export default function ManualHandCard({
         >
             <div
                 data-board-hand-card={card.id}
-                className={manualAbilities.length > 0 ? "cursor-pointer" : ""}
+                className={`relative ${
+                    manualAbilities.length > 0 ? "cursor-pointer" : ""
+                }`}
                 onClick={manualAbilityClick.onClick}
                 onTouchStart={manualAbilityClick.onTouchStart}
             >
@@ -93,6 +96,11 @@ export default function ManualHandCard({
                     includeThumb={includeThumb}
                 />
                 {seen && <SeenByOpponentBadge />}
+                {/* The note verb is offered on hand cards too
+                    (`manualHandVerbs`), so the badge has to be here as well —
+                    `relative` above is what anchors its absolute placement.
+                    Manual-mode QA round 3, item 6. */}
+                <ManualNoteBadge card={card} />
             </div>
         </ActivatableAbilityMenu>
     );

@@ -1,7 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Id } from "@convex/_generated/dataModel";
-import type { ProjectedManualGameState } from "@convex/manual";
-import type { Player } from "~/types/game";
+import type {
+    ProjectedManualCard,
+    ProjectedManualGameState,
+} from "@convex/manual";
+import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
     SkipPhasePrefsContext,
@@ -43,25 +46,29 @@ import { makeCatalogueRowLookup } from "~/lib/manual-band";
 import { makeManualBattlefieldInteraction } from "~/lib/manual-battlefield-interaction";
 import {
     dispatchManualCardVerb,
-    manualHandVerbs,
-    ManualHandInteractionProvider,
-    type ManualHandInteraction,
+    manualVerbsForZone,
+    ManualCardInteractionProvider,
+    type ManualCardInteraction,
 } from "~/lib/manual-card-verbs";
 import { makeManualControllerActions } from "~/lib/manual-controller-actions";
 import { makeManualGameContext } from "~/lib/manual-game-context";
 import { makeManualPileActions } from "~/lib/manual-pile-actions";
 import { makeManualPlayerInteraction } from "~/lib/manual-player-interaction";
 import { makeManualRowClassifier } from "~/lib/manual-row-classifier";
+import { nextManualPhase } from "~/lib/manual-phase";
 import {
     buildManualArrowPairs,
     indexManualCards,
     type ManualRuntime,
+    type RequestPeek,
 } from "~/lib/manual-runtime";
 import { useManualVerbPopoverState } from "~/hooks/useManualVerbPopover";
+import { useManualHotkeys } from "~/hooks/useManualHotkeys";
 import BoardBackground from "./board-background";
 import BoardSurface from "./board-surface";
 import Controller from "./controller";
 import ManualLogSurface from "./manual-log-surface";
+import ManualPeekDialog, { type ManualPeekRequest } from "./manual-peek-dialog";
 import ManualVerbPopover from "./manual-verb-popover";
 
 /** A Manual Game never re-points the client session at another game — that is
@@ -103,8 +110,8 @@ const NO_SWITCH_GAME = () => {};
  *  does not need to opt out of (issue #2347 — the symptom was a hand with no
  *  menu at all, drag its only gesture). The seam is split now:
  *  `handInteractive={true}` mounts the SAME `BoardHandCard` a GRE board does,
- *  but `manualHandInteraction` below (injected through
- *  `ManualHandInteractionProvider`) makes it render ONLY the manual verb menu
+ *  but `manualCardInteraction` below (injected through
+ *  `ManualCardInteractionProvider`) makes it render ONLY the manual verb menu
  *  (`manualHandVerbs`/`dispatchManualCardVerb` — the same synthetic-ability
  *  encoding and dispatcher `manual-battlefield-interaction.tsx` already uses,
  *  just narrowed to a hand-appropriate list) and never wires its GRE cast/play
@@ -163,6 +170,19 @@ export default function ManualBoardView({
     const openLog = useCallback(() => setLogOpen(true), []);
     const closeLog = useCallback(() => setLogOpen(false), []);
 
+    // The library peek dialog (manual-mode QA round 3, item 2). Same shape as
+    // `logOpen`: a pure VIEW toggle, not a manual verb — the verb half
+    // (`dispatch.peek`, the log line the opponent reads) fires alongside it
+    // from the pile menu. `nonce` makes re-picking the SAME depth re-open the
+    // dialog rather than being a no-op state write.
+    const [peek, setPeek] = useState<ManualPeekRequest | null>(null);
+    const requestPeek = useCallback<RequestPeek>(
+        (request) =>
+            setPeek((prev) => ({ ...request, nonce: (prev?.nonce ?? 0) + 1 })),
+        []
+    );
+    const closePeek = useCallback(() => setPeek(null), []);
+
     const dispatch = useManualDispatch(gameId);
     // Issue #2170 — the ONE anchored popover every parameterised manual verb
     // (pile AND battlefield card alike) collects its input through, replacing
@@ -192,8 +212,16 @@ export default function ManualBoardView({
             cardById,
             dispatch,
             requestVerbInput: verbPopover.requestVerbInput,
+            requestPeek,
         }),
-        [viewerId, state, cardById, dispatch, verbPopover.requestVerbInput]
+        [
+            viewerId,
+            state,
+            cardById,
+            dispatch,
+            verbPopover.requestVerbInput,
+            requestPeek,
+        ]
     );
 
     const allPlayers = useMemo(() => adaptManualPlayers(state), [state]);
@@ -223,24 +251,48 @@ export default function ManualBoardView({
     // mounts a manual hand card for, degrades to "no menu" / "no-op" rather
     // than throwing), so `board-hand-card.tsx` never needs to know the manual
     // `ProjectedManualCard` shape.
-    const manualHandInteraction = useMemo<ManualHandInteraction>(
+    // Every seat but the card's own owner — who a hand card's "Reveal to
+    // opponent" verb opens it to (manual-mode QA round 3, item 3). Derived per
+    // card rather than "everyone but the viewer": in a solo game the viewer
+    // steers both seats, and revealing a card to its own controller is a
+    // no-op that would still write a log line.
+    const revealTargets = useCallback(
+        (ownerId: string) =>
+            state.players.filter((p) => p.id !== ownerId).map((p) => p.id),
+        [state.players]
+    );
+    // The board's own copy of a card, when it has one. A library card listed
+    // by the peek dialog is NOT in `cardById` — the projection renders the
+    // library as `{ count }` and never enumerates it — so the passed card is
+    // the fallback, which is exactly the shape the dialog got from
+    // `getManualLibraryTop`.
+    const resolveManualCard = useCallback(
+        (card: CardInstance): ProjectedManualCard =>
+            runtime.cardById.get(card.id) ??
+            (card as unknown as ProjectedManualCard),
+        [runtime.cardById]
+    );
+    const manualCardInteraction = useMemo<ManualCardInteraction>(
         () => ({
-            getVerbs: (cardId) => {
-                const manual = runtime.cardById.get(cardId);
-                return manual ? manualHandVerbs(manual) : [];
+            getVerbs: (card) => {
+                const manual = resolveManualCard(card);
+                return manualVerbsForZone(
+                    manual,
+                    revealTargets(manual.ownerId)
+                );
             },
-            activate: (cardId, abilityId) => {
-                const manual = runtime.cardById.get(cardId);
-                if (!manual) return;
+            activate: (card, abilityId) => {
+                const manual = resolveManualCard(card);
                 dispatchManualCardVerb(
                     manual,
                     abilityId,
                     runtime.dispatch,
-                    runtime.requestVerbInput
+                    runtime.requestVerbInput,
+                    revealTargets(manual.ownerId)
                 );
             },
         }),
-        [runtime]
+        [runtime, resolveManualCard, revealTargets]
     );
     const playerInteraction = useMemo(
         () => makeManualPlayerInteraction(runtime),
@@ -259,6 +311,23 @@ export default function ManualBoardView({
         [runtime, openLog, onSwitchSeat]
     );
     useManualSeatSwitchHotkey(onSwitchSeat);
+    // Manual-mode QA round 3, item 5 — Space steps the phase marker, Enter
+    // ends the turn. Suspended while the verb popover, the log overlay or the
+    // peek dialog owns the keyboard: each has a focusable Confirm/Close that
+    // Space and Enter already press.
+    const nextPhase = useCallback(
+        () => dispatch.setPhase({ phase: nextManualPhase(state.phase) }),
+        [dispatch, state.phase]
+    );
+    const endTurn = useCallback(
+        () => dispatch.endTurn({ playerId: viewerId }),
+        [dispatch, viewerId]
+    );
+    useManualHotkeys({
+        enabled: !logOpen && peek === null && verbPopover.pending === null,
+        onNextPhase: nextPhase,
+        onEndTurn: endTurn,
+    });
     const gameContext = useMemo(
         () =>
             makeManualGameContext({
@@ -300,8 +369,8 @@ export default function ManualBoardView({
                                     <BattlefieldInteractionProvider
                                         value={battlefieldInteraction}
                                     >
-                                        <ManualHandInteractionProvider
-                                            value={manualHandInteraction}
+                                        <ManualCardInteractionProvider
+                                            value={manualCardInteraction}
                                         >
                                             <PlayerInteractionProvider
                                                 value={playerInteraction}
@@ -393,7 +462,7 @@ export default function ManualBoardView({
                                                     </ControllerActionsContext>
                                                 </PileActionsProvider>
                                             </PlayerInteractionProvider>
-                                        </ManualHandInteractionProvider>
+                                        </ManualCardInteractionProvider>
                                     </BattlefieldInteractionProvider>
                                 </MinimizedChoiceContext>
                             </DivideBufferContext>
@@ -414,6 +483,13 @@ export default function ManualBoardView({
             <ManualVerbPopover
                 pending={verbPopover.pending}
                 onClose={verbPopover.closeVerbPopover}
+            />
+            {/* Manual-mode QA round 3, item 2 — what "Peek top N…" / "Peek
+                all" actually show. Renders nothing while no peek is open. */}
+            <ManualPeekDialog
+                gameId={gameId}
+                request={peek}
+                onClose={closePeek}
             />
         </>
     );

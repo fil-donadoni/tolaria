@@ -16,12 +16,45 @@ import type { DataModel, Id } from "./_generated/dataModel";
 export type ManualCardInstance = {
     id: string;
     card: { id: string };
+    /**
+     * The card's printed NAME, copied off the decklist row at setup
+     * (`ManualDeckCard.cardName`) — never derived from a `CardDefinition`,
+     * so ADR 0080's fourth invariant holds.
+     *
+     * It exists because a print id is NOT a reliable name key here: a manual
+     * deck may carry any Scryfall printing (the builder's edition dropdown
+     * lists every one of them, `result-card.tsx`), while the Full Catalogue
+     * asset keeps ONE representative printing per card. Roughly a third of
+     * the ids the app already produces are absent from it, and those rendered
+     * in the action log as a raw UUID. Carrying the name the decklist already
+     * knew fixes that for every printing, past and future, at zero asset
+     * cost.
+     *
+     * Optional because a state persisted before this field existed has none —
+     * those log entries keep resolving through the catalogue placeholder path
+     * (`ManualLogEntry.cards`). No backfill.
+     */
+    name?: string;
     zone: ManualZone;
     controllerId: string;
     ownerId: string;
     isTapped: boolean;
     faceDown?: boolean;
     lane?: "main" | "combat";
+    /**
+     * Which of the back row's TWO columns this permanent sits in — the manual
+     * counterpart of the GRE board's automatic "lands flush-left, other
+     * noncreatures flush-right" split (`splitRowLayout`).
+     *
+     * A Manual Game cannot derive that split: it would have to know a card is
+     * a land, and the Full Catalogue misses the printing outright for a third
+     * of the ids in play, so the row sorted itself half-right and looked
+     * arbitrary. So the player says it, by dragging — the same answer
+     * {@link lane} gives for the creature row. Unset means "the classifier may
+     * guess from the catalogue type line", which is still right whenever the
+     * catalogue does resolve the card.
+     */
+    backColumn?: "left" | "right";
     /** Counters carried by the card (any named type). */
     counters?: Record<string, number>;
     /** Instance id of the permanent this card is attached to (Aura / Equipment). */
@@ -101,7 +134,10 @@ function projectManualCard(
     if (!card.faceDown) return rest;
     if (card.knownTo?.includes(viewerId)) return rest;
     if (card.revealedTo?.includes(viewerId)) return rest;
-    return { ...rest, card: { id: MANUAL_FACE_DOWN_CARD_ID } };
+    // The name is as much of the card's identity as its print id — a hidden
+    // face-down card must shed BOTH, or the back renders with its own name
+    // beside it.
+    return { ...rest, name: undefined, card: { id: MANUAL_FACE_DOWN_CARD_ID } };
 }
 
 /**
@@ -192,6 +228,10 @@ export function setupManualGame(
         const library: ManualCardInstance[] = input.deck.map((c) => ({
             id: allocInstanceId(),
             card: { id: c.cardId },
+            // The decklist already knows the name — carrying it is what makes
+            // the action log readable for a printing the Full Catalogue never
+            // censused. See `ManualCardInstance.name`.
+            name: c.cardName,
             zone: "library",
             controllerId: input.id,
             ownerId: input.id,
@@ -222,6 +262,45 @@ export function setupManualGame(
         turn: 1,
         activePlayerId: players[0].id,
     };
+}
+
+/**
+ * Fills in `name` on every card that has none, from a print id → name map
+ * (the game's own decklists). Mutates `state` in place and reports whether it
+ * changed anything.
+ *
+ * A repair, not a feature: {@link ManualCardInstance.name} is written at setup,
+ * so only games STARTED before it existed have nameless cards — and those are
+ * exactly the games whose action log reads as a column of raw UUIDs. Running it
+ * on every verb (the game row is already loaded there for the mode check, so it
+ * costs one map build) means such a game fixes itself on its owner's next
+ * action instead of staying broken for its whole life. A card the decklists
+ * don't name — a token created mid-game — keeps no name and keeps falling back
+ * to the client-side catalogue lookup, which is the pre-existing behaviour.
+ */
+export function backfillManualCardNames(
+    state: ManualGameState,
+    nameByPrintId: ReadonlyMap<string, string>
+): boolean {
+    let changed = false;
+    for (const player of state.players) {
+        for (const zone of [
+            player.hand,
+            player.library,
+            player.battlefield,
+            player.graveyard,
+            player.exile,
+        ]) {
+            for (const card of zone) {
+                if (card.name !== undefined) continue;
+                const name = nameByPrintId.get(card.card.id);
+                if (name === undefined) continue;
+                card.name = name;
+                changed = true;
+            }
+        }
+    }
+    return changed;
 }
 
 // --- Database persistence (mirrors saveGameState / getLatestGameState) ------
@@ -317,11 +396,42 @@ export type ManualLogEntry = {
 
 type VerbResult = { state: ManualGameState; log: ManualLogEntry };
 
-/** Positional placeholder for the Nth entry of `ManualLogEntry.cards`,
- *  substituted client-side for the resolved card name (or the raw print id
- *  when unresolvable). See `resolveManualLogText` in `manual-log.tsx`. */
-function cardRef(index: number): string {
-    return `{{card:${index}}}`;
+/**
+ * Collects the card references of ONE log entry.
+ *
+ * Two ways a card can be named in an entry, in this order:
+ *
+ *   1. `card.name` — the decklist's own spelling, carried on the instance
+ *      since {@link ManualCardInstance.name}. Interpolated as PLAIN TEXT: it
+ *      cannot fail to resolve, and it is right for a printing the Full
+ *      Catalogue never carried (the majority failure mode — see that field's
+ *      doc).
+ *   2. `{{card:N}}` placeholder + the print id pushed onto `cards[]` — the
+ *      pre-existing client-side path (`resolveManualLogText` in
+ *      `manual-log.tsx`), still the only option for a state persisted before
+ *      instances carried a name, and for a token created from a bare card id.
+ *
+ * Indices stay consistent because a placeholder is emitted only when an id is
+ * pushed, so `{{card:N}}` always addresses `cards[N]`.
+ */
+function cardRefs(): {
+    of: (
+        card: Pick<ManualCardInstance, "name" | "card"> | null | undefined,
+        fallbackPrintId?: string
+    ) => string;
+    cards: () => string[] | undefined;
+} {
+    const collected: string[] = [];
+    return {
+        of(card, fallbackPrintId) {
+            if (card?.name) return card.name;
+            const printId = card?.card.id ?? fallbackPrintId;
+            if (printId === undefined) return "a card";
+            collected.push(printId);
+            return `{{card:${collected.length - 1}}}`;
+        },
+        cards: () => (collected.length > 0 ? collected : undefined),
+    };
 }
 
 function playerName(state: ManualGameState, playerId: string): string {
@@ -423,13 +533,15 @@ export function manualMoveCard(
         targetZone.push(card);
     }
     const pn = playerName(state, card.ownerId);
+    const refs = cardRefs();
+    const label = refs.of(card);
     return {
         state: s,
         log: {
-            text: `${pn} moves ${cardRef(0)} → ${toZone}`,
+            text: `${pn} moves ${label} → ${toZone}`,
             timestamp: Date.now(),
             playerId: card.ownerId,
-            cards: [card.card.id],
+            cards: refs.cards(),
         },
     };
 }
@@ -451,13 +563,15 @@ export function manualSetTapped(
         };
     found.card.isTapped = tapped;
     const pn = playerName(state, found.card.ownerId);
+    const refs = cardRefs();
+    const label = refs.of(found.card);
     return {
         state: s,
         log: {
-            text: `${pn} ${tapped ? "taps" : "untaps"} ${cardRef(0)}`,
+            text: `${pn} ${tapped ? "taps" : "untaps"} ${label}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
-            cards: [found.card.card.id],
+            cards: refs.cards(),
         },
     };
 }
@@ -545,13 +659,15 @@ export function manualAdjustCounter(
     found.card.counters =
         Object.keys(counters).length > 0 ? counters : undefined;
     const pn = playerName(state, found.card.ownerId);
+    const refs = cardRefs();
+    const label = refs.of(found.card);
     return {
         state: s,
         log: {
-            text: `${pn} adjusts ${type} counter on ${cardRef(0)}: ${before} → ${before + delta}`,
+            text: `${pn} adjusts ${type} counter on ${label}: ${before} → ${before + delta}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
-            cards: [found.card.card.id],
+            cards: refs.cards(),
         },
     };
 }
@@ -582,13 +698,15 @@ export function manualSetFaceDown(
         delete found.card.knownTo;
     }
     const pn = playerName(state, found.card.ownerId);
+    const refs = cardRefs();
+    const label = refs.of(found.card);
     return {
         state: s,
         log: {
-            text: `${pn} sets ${cardRef(0)} face ${faceDown ? "down" : "up"}`,
+            text: `${pn} sets ${label} face ${faceDown ? "down" : "up"}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
-            cards: [found.card.card.id],
+            cards: refs.cards(),
         },
     };
 }
@@ -610,13 +728,49 @@ export function manualSetLane(
         };
     found.card.lane = lane;
     const pn = playerName(state, found.card.ownerId);
+    const refs = cardRefs();
+    const label = refs.of(found.card);
     return {
         state: s,
         log: {
-            text: `${pn} puts ${cardRef(0)} on ${lane} lane`,
+            text: `${pn} puts ${label} on ${lane} lane`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
-            cards: [found.card.card.id],
+            cards: refs.cards(),
+        },
+    };
+}
+
+/** Places a permanent in one of the back row's two columns
+ *  ({@link ManualCardInstance.backColumn}) — the horizontal counterpart of
+ *  {@link manualSetLane}, and the only way a Manual Game can put lands in a
+ *  column of their own, since it never learns that a card IS a land. */
+export function manualSetBackColumn(
+    state: ManualGameState,
+    instanceId: string,
+    column: "left" | "right"
+): VerbResult {
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `setBackColumn(${instanceId}, ${column}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    found.card.backColumn = column;
+    const pn = playerName(state, found.card.ownerId);
+    const refs = cardRefs();
+    const label = refs.of(found.card);
+    return {
+        state: s,
+        log: {
+            text: `${pn} puts ${label} in the ${column} column`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
+            cards: refs.cards(),
         },
     };
 }
@@ -638,19 +792,20 @@ export function manualAttach(
         };
     found.card.attachedTo = targetId;
     const pn = playerName(state, found.card.ownerId);
-    // The target's print id, for name resolution (see `cardRef`) — falls
-    // back to the raw `targetId` in the (shouldn't-happen) case a caller
+    const refs = cardRefs();
+    const label = refs.of(found.card);
+    // Falls back to the raw `targetId` in the (shouldn't-happen) case a caller
     // attaches to an id with no matching card, same "never blank, never a
     // crash" contract the client-side lookup itself upholds for an
     // unresolvable print id.
-    const targetPrintId = findCard(s, targetId)?.card.card.id ?? targetId;
+    const targetLabel = refs.of(findCard(s, targetId)?.card, targetId);
     return {
         state: s,
         log: {
-            text: `${pn} attaches ${cardRef(0)} to ${cardRef(1)}`,
+            text: `${pn} attaches ${label} to ${targetLabel}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
-            cards: [found.card.card.id, targetPrintId],
+            cards: refs.cards(),
         },
     };
 }
@@ -681,14 +836,16 @@ export function manualSetArrow(
         ? existing
         : [...existing, targetId];
     const pn = playerName(state, found.card.ownerId);
-    const targetPrintId = findCard(s, targetId)?.card.card.id ?? targetId;
+    const refs = cardRefs();
+    const label = refs.of(found.card);
+    const targetLabel = refs.of(findCard(s, targetId)?.card, targetId);
     return {
         state: s,
         log: {
-            text: `${pn} points arrow from ${cardRef(0)} → ${cardRef(1)}`,
+            text: `${pn} points arrow from ${label} → ${targetLabel}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
-            cards: [found.card.card.id, targetPrintId],
+            cards: refs.cards(),
         },
     };
 }
@@ -751,13 +908,15 @@ export function manualClearArrow(
     const count = found.card.arrows?.length ?? 0;
     delete found.card.arrows;
     const pn = playerName(state, found.card.ownerId);
+    const refs = cardRefs();
+    const label = refs.of(found.card);
     return {
         state: s,
         log: {
-            text: `${pn} clears ${count} arrow(s) from ${cardRef(0)}`,
+            text: `${pn} clears ${count} arrow(s) from ${label}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
-            cards: [found.card.card.id],
+            cards: refs.cards(),
         },
     };
 }
@@ -887,13 +1046,21 @@ export function manualPeek(
         .slice(Math.max(0, player.library.length - n))
         .reverse();
     const pn = playerName(state, playerId);
+    const refs = cardRefs();
+    const labels = topN.map((c) => refs.of(c)).join(", ");
+    // "Peek all" (the pile verb passes the library's own size) reads as what
+    // it is at a table — searching the library — rather than "top 47".
+    const scope =
+        n >= player.library.length
+            ? "their whole library"
+            : `top ${n} of library`;
     return {
         state: cloneState(state),
         log: {
-            text: `${pn} looks at top ${n} of library: ${topN.map((_, i) => cardRef(i)).join(", ")}`,
+            text: `${pn} looks at ${scope}: ${labels}`,
             timestamp: Date.now(),
             playerId,
-            cards: topN.map((c) => c.card.id),
+            cards: refs.cards(),
         },
     };
 }
@@ -929,7 +1096,10 @@ export function manualCreateToken(
     state: ManualGameState,
     cardId: string,
     controllerId: string,
-    playerId: string
+    playerId: string,
+    /** The token's printed name, when the caller knows it (the token picker
+     *  does). Absent, the log falls back to the catalogue placeholder path. */
+    cardName?: string
 ): VerbResult {
     const s = cloneState(state);
     const player = s.players.find((p) => p.id === playerId);
@@ -945,6 +1115,7 @@ export function manualCreateToken(
     const token: ManualCardInstance = {
         id: instanceId,
         card: { id: cardId },
+        name: cardName,
         zone: "battlefield",
         controllerId,
         ownerId: playerId,
@@ -952,13 +1123,15 @@ export function manualCreateToken(
     };
     player.battlefield.push(token);
     const pn = playerName(state, playerId);
+    const refs = cardRefs();
+    const label = refs.of(token);
     return {
         state: s,
         log: {
-            text: `${pn} creates token ${cardRef(0)} (id: ${instanceId})`,
+            text: `${pn} creates token ${label} (id: ${instanceId})`,
             timestamp: Date.now(),
             playerId,
-            cards: [cardId],
+            cards: refs.cards(),
         },
     };
 }
@@ -992,16 +1165,50 @@ export function manualSetNote(
         delete found.card.note;
     }
     const pn = playerName(state, found.card.ownerId);
+    const refs = cardRefs();
+    const label = refs.of(found.card);
     return {
         state: s,
         log: {
-            text: `${pn} sets note on ${cardRef(0)}`,
+            text:
+                text.length > 0
+                    ? `${pn} notes "${text}" on ${label}`
+                    : `${pn} clears the note on ${label}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
-            cards: [found.card.card.id],
+            cards: refs.cards(),
         },
     };
 }
+
+/**
+ * The turn's phases and steps in CR 500.1 order — a FREE marker, not a
+ * structure the mode enforces (ADR 0080): nothing in a Manual Game consults
+ * it for legality, it only tells both players where they agreed they are.
+ *
+ * Single authority for the ordering, so the server's turn rollover
+ * ({@link manualEndTurn} → back to `UNTAP`) and the client's Space hotkey
+ * (`manual-phase.ts`) step through the SAME list. The client's phase-marker
+ * validator (`manual-game-context.ts`) is derived from it too — a phase this
+ * array does not name cannot be reached.
+ */
+export const MANUAL_PHASE_ORDER = [
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+    "PRECOMBAT_MAIN",
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+    "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
+    "COMBAT_DAMAGE",
+    "END_OF_COMBAT",
+    "POSTCOMBAT_MAIN",
+    "END_STEP",
+    "CLEANUP",
+] as const;
+
+export type ManualPhase = (typeof MANUAL_PHASE_ORDER)[number];
 
 export function manualSetPhase(
     state: ManualGameState,
@@ -1028,6 +1235,23 @@ export function manualSetActivePlayer(
     };
 }
 
+/**
+ * Ends the turn: clears damage, then HANDS THE TURN OVER — turn number up by
+ * one, the next seat becomes active, the phase marker back to `UNTAP`.
+ *
+ * The rollover half is new (manual-mode QA round 3, item 5). Before it, "End
+ * Turn" only wiped damage: `turn` and `activePlayerId` never moved, so the
+ * turn counter read 1 all game and nothing on the board said whose turn it
+ * was. That is not a rule the mode declines to enforce (ADR 0080) — it is a
+ * marker the players set by hand at a table, and this is the verb that sets
+ * it. Nothing else changes: no untap, no draw, no cleanup discard. Those stay
+ * the player's own verbs.
+ *
+ * Seat order is roster order, wrapping — the same "next player" a 2-player
+ * table has. `playerId` is who PRESSED the button (for the log), not
+ * necessarily the active player: at a table either player can say "ok, my
+ * turn's done".
+ */
 export function manualEndTurn(
     state: ManualGameState,
     playerId: string
@@ -1046,11 +1270,17 @@ export function manualEndTurn(
             }
         }
     }
+    const activeIndex = s.players.findIndex((p) => p.id === s.activePlayerId);
+    const next = s.players[(Math.max(activeIndex, 0) + 1) % s.players.length];
+    if (next) s.activePlayerId = next.id;
+    s.turn += 1;
+    s.phase = MANUAL_PHASE_ORDER[0];
     const pn = playerName(state, playerId);
+    const nextName = next ? playerName(state, next.id) : "—";
     return {
         state: s,
         log: {
-            text: `${pn} ends the turn (damage cleared)`,
+            text: `${pn} ends the turn (damage cleared) — turn ${s.turn}, ${nextName} is active`,
             timestamp: Date.now(),
             playerId,
         },
@@ -1089,13 +1319,61 @@ export function manualReveal(
     found.card.revealedTo = [...new Set([...existing, ...toPlayerIds])];
     const pn = playerName(state, found.card.ownerId);
     const toNames = toPlayerIds.map((id) => playerName(state, id)).join(", ");
+    const refs = cardRefs();
+    const label = refs.of(found.card);
     return {
         state: s,
         log: {
-            text: `${pn} reveals ${cardRef(0)} to ${toNames}`,
+            text: `${pn} reveals ${label} to ${toNames}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
-            cards: [found.card.card.id],
+            cards: refs.cards(),
+        },
+    };
+}
+
+/**
+ * Reveals a player's WHOLE HAND to the listed players (issue: manual-mode QA
+ * round 3, item 3) — the "I show you my hand" table action (Duress, Hymn to
+ * Tourach, or simply proving a hellbent).
+ *
+ * Not a loop over {@link manualReveal} at the call site, for two reasons: it
+ * is ONE table action and must be ONE log line and ONE state write, and the
+ * reveal must apply to the hand as it is NOW — a per-card client loop would
+ * race the projection it is reading its own card ids from.
+ *
+ * Reveals are additive and permanent for the cards involved, exactly as the
+ * per-card verb is: a card that later leaves the hand keeps its `revealedTo`
+ * (it was genuinely seen), and there is no un-reveal verb.
+ */
+export function manualRevealHand(
+    state: ManualGameState,
+    playerId: string,
+    toPlayerIds: string[]
+): VerbResult {
+    const s = cloneState(state);
+    const player = s.players.find((p) => p.id === playerId);
+    if (!player)
+        return {
+            state,
+            log: {
+                text: `revealHand(${playerId}): player not found`,
+                timestamp: Date.now(),
+            },
+        };
+    for (const card of player.hand) {
+        card.revealedTo = [
+            ...new Set([...(card.revealedTo ?? []), ...toPlayerIds]),
+        ];
+    }
+    const pn = playerName(state, playerId);
+    const toNames = toPlayerIds.map((id) => playerName(state, id)).join(", ");
+    return {
+        state: s,
+        log: {
+            text: `${pn} reveals their hand (${player.hand.length} card(s)) to ${toNames}`,
+            timestamp: Date.now(),
+            playerId,
         },
     };
 }

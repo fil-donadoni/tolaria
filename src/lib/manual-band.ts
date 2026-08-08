@@ -19,6 +19,7 @@
 //
 // Pure: no Convex, no React, no DOM.
 
+import { foldAccents } from "@convex/cards/textNormalize";
 import type { FullCatalogueRow } from "./fullCatalogue";
 import { parseTypeLine } from "./typeLine";
 
@@ -29,26 +30,58 @@ export type ManualBand = "creatures" | "back";
  *  either flows in without adaptation. */
 export interface ManualBandCard {
     card: { id: string };
+    /** The card's printed name, carried on every manual card dealt from a
+     *  decklist (`ManualCardInstance.name`). The print-id lookup alone is not
+     *  enough — see {@link makeCatalogueRowLookup}. */
+    name?: string;
     lane?: "main" | "combat";
 }
 
-/** Resolves a Full Catalogue print id to its row, or `undefined` when the
- *  catalogue doesn't carry it (not loaded, or a genuinely unknown id). */
+/** Resolves a Full Catalogue print id — or, failing that, a card NAME — to its
+ *  row. `undefined` when the catalogue doesn't carry it (not loaded, or a
+ *  genuinely unknown card). */
 export type CatalogueRowLookup = (
-    printId: string
+    printId: string,
+    name?: string
 ) => FullCatalogueRow | undefined;
 
-/** Builds a `CatalogueRowLookup` from Full Catalogue rows, mirroring the
- *  `Map<printId, row>` pattern `makeDeckCardShapeResolver` uses
- *  (`src/lib/deckCardShape.ts:70`). Rows are an INPUT, never fetched here —
- *  the caller owns the `useFullCatalogue` hook. */
+/**
+ * Builds a `CatalogueRowLookup` from Full Catalogue rows, mirroring the
+ * `Map<printId, row>` pattern `makeDeckCardShapeResolver` uses
+ * (`src/lib/deckCardShape.ts:70`). Rows are an INPUT, never fetched here —
+ * the caller owns the `useFullCatalogue` hook.
+ *
+ * Indexed by NAME as well as by print id, because a print id is a lossy key
+ * here: the catalogue asset keeps ONE representative printing per card
+ * (`scripts/fetch-full-catalogue.mjs` — it groups by `oracle_id` and emits the
+ * best print), while a Tabletop deck may hold ANY Scryfall printing (the
+ * builder's edition dropdown lists them all, fetched live —
+ * `result-card.tsx`). A card built from a non-representative printing
+ * therefore missed the lookup entirely and fell to the back row of the
+ * battlefield no matter its type. The name resolves it, and the name is
+ * already on the card.
+ *
+ * The name index is accent-folded and case-insensitive (`nameFold`), the same
+ * matching `makeCatalogueNameResolver` uses, and first row wins per name —
+ * printings of one card share the characteristics this lookup is consulted
+ * for.
+ */
 export function makeCatalogueRowLookup(
     rows: readonly FullCatalogueRow[] | undefined
 ): CatalogueRowLookup {
     if (!rows || rows.length === 0) return () => undefined;
     const byPrintId = new Map<string, FullCatalogueRow>();
-    for (const row of rows) byPrintId.set(row.printId, row);
-    return (printId) => byPrintId.get(printId);
+    const byNameFold = new Map<string, FullCatalogueRow>();
+    for (const row of rows) {
+        byPrintId.set(row.printId, row);
+        if (!byNameFold.has(row.nameFold)) byNameFold.set(row.nameFold, row);
+    }
+    return (printId, name) => {
+        const byId = byPrintId.get(printId);
+        if (byId) return byId;
+        if (name === undefined) return undefined;
+        return byNameFold.get(foldAccents(name.trim().toLowerCase()));
+    };
 }
 
 /** Classifies one manual card into its battlefield row.
@@ -66,7 +99,7 @@ export function manualBandOf(
     if (card.lane === "combat") return "creatures";
     if (card.lane === "main") return "back";
 
-    const row = lookupRow(card.card.id);
+    const row = lookupRow(card.card.id, card.name);
     if (!row) return "back";
 
     const { types } = parseTypeLine(row.typeLine);

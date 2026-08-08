@@ -4,9 +4,15 @@
 // The GRE controller's set is priority-shaped: Pass, Attack all, End turn,
 // auto-pass, the Space/Enter hotkeys. A Manual Game enforces no turn structure
 // (ADR 0080), so NONE of those belong: the descriptor set below is deliberately
-// the six manual verbs (seven in a solo game, with Switch seat — issue #2173)
-// and nothing else, and `manual-controller-actions.test` pins that
+// the seven manual verbs (eight in a solo game, with Switch seat — issue
+// #2173) and nothing else, and `manual-controller-actions.test` pins that
 // "nothing else" as data.
+//
+// Space and Enter ARE bound here (manual-mode QA round 3, item 5), but to
+// manual verbs, not GRE ones: Space steps the free phase marker, Enter ends
+// the turn. Both are display-only on this path until `useManualHotkeys`
+// binds them — see that hook for why the descriptor's `shortcut` field can't
+// bind itself.
 //
 // `cue` is fixed at "mine": with no priority to wait on, the pod would
 // otherwise cue the player to wait for an opponent who is never asked.
@@ -17,12 +23,14 @@
 import type { ControllerActionsSource } from "~/hooks/controllerActionsContext";
 import type { ControllerAction } from "~/hooks/useControllerActions";
 import type { ManualRuntime } from "./manual-runtime";
+import { nextManualPhase } from "./manual-phase";
 import { BOARD_ANCHOR_SELECTOR, findManualAnchor } from "./manual-verb-anchor";
 
 /** Descriptor keys the manual controller offers in a TWO-PLAYER Manual Game,
  *  in display order. Exported so the guard test asserts the set rather than
  *  re-deriving it. */
 export const MANUAL_CONTROLLER_KEYS = [
+    "manual-next-phase",
     "manual-end-turn",
     "manual-untap-all",
     "manual-draw",
@@ -61,13 +69,32 @@ export function makeManualControllerActions(
     runtime: ManualRuntime,
     log: ManualLogControls
 ): ControllerActionsSource {
-    const { viewerId, dispatch, requestVerbInput } = runtime;
+    const { viewerId, state, dispatch, requestVerbInput } = runtime;
     const actions: ControllerAction[] = [
+        {
+            // Manual-mode QA round 3, item 5 — the phase marker had a
+            // mutation and no caller, so the turn never moved off
+            // `PRECOMBAT_MAIN`. `nextManualPhase` owns the sequence.
+            //
+            // The label deliberately does NOT name the phase it steps to:
+            // "Next: Beginning Of Combat" overflowed the pod's fixed-width
+            // button, and the phase track directly above the controller
+            // already says where the turn is — a second, longer copy of the
+            // same fact was what broke the layout.
+            key: "manual-next-phase",
+            label: "Next Phase",
+            tone: "primary",
+            disabled: false,
+            shortcut: "space",
+            onClick: () =>
+                dispatch.setPhase({ phase: nextManualPhase(state.phase) }),
+        },
         {
             key: "manual-end-turn",
             label: "End Turn",
             tone: "primary",
             disabled: false,
+            shortcut: "enter",
             onClick: () => dispatch.endTurn({ playerId: viewerId }),
         },
         {
