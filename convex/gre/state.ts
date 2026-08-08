@@ -5322,18 +5322,26 @@ export function emitEntersWithCounterEvents(
  *  fields below split into two groups. (1) Genuine cast-time payment/choice
  *  snapshot (`kickerPayments`, `buybackPaid`, `chosenX`, `targetAmounts`,
  *  `chosenModeId`, `additionalSacrificeSnapshot`, `notedManaSpent`,
- *  `dynamicCantBeCountered`, `castById`, `targets`) plus the redirect flags a
- *  SPELL's own resolution can set on itself (`exileOnResolve`,
- *  `shuffleIntoLibraryOnResolve`, `castFromGraveyard`, `reboundFromHand`,
- *  `isCopy`) and multi-step resolve bookkeeping (`resolutionStep`,
- *  `collectedChoices`, `massRiderTargets`) — every one of these is stale by
- *  the time any call site below runs (the redirect flags have already been
- *  READ and branched on; resolution bookkeeping only matters mid-resolve,
- *  and every call site here runs AFTER resolution decided its destination or
- *  BEFORE it ever started, on a counter). (2) Fields that exist ONLY on an
- *  ABILITY stack item (`abilityId`, `triggeredAbilityId`, `triggerSourceId`,
- *  `triggerEvent`, `abilityResolutionRecorded`, `madnessTrigger`,
- *  `reboundTrigger`, `emblemSourceId`, `stormSnapshot`,
+ *  `dynamicCantBeCountered`, `castById`, `targets`) plus the one-shot
+ *  cast-fact markers a card's OWN cast can stamp onto the stack item
+ *  (`evoked`, `dashed`, `escaped` — CR 702.74a/702.109a/702.138e; declared on
+ *  `CardInstanceState` because the permanent-side ETB triggers/`EffectValue`s
+ *  that read them run AFTER the item leaves the stack, but stamped at the
+ *  SAME cast-commit seam as `buybackPaid`, so they are exactly as
+ *  cast-instance-scoped) plus the redirect flags a SPELL's own resolution can
+ *  set on itself (`exileOnResolve`, `shuffleIntoLibraryOnResolve`,
+ *  `castFromGraveyard`, `reboundFromHand`, `isCopy`) and multi-step resolve
+ *  bookkeeping (`resolutionStep`, `collectedChoices`, `massRiderTargets`) —
+ *  every one of these is stale by the time any call site below runs (the
+ *  redirect flags have already been READ and branched on; resolution
+ *  bookkeeping only matters mid-resolve; `evoked`/`dashed`/`escaped` are only
+ *  ever read on the BATTLEFIELD object — an ETB `condition`/`conditionOnSelf`
+ *  or the `escaped` `EffectValue` — never on a `StackItem` still on the
+ *  stack; and every call site here runs AFTER resolution decided its
+ *  destination or BEFORE it ever started, on a counter). (2) Fields that
+ *  exist ONLY on an ABILITY stack item (`abilityId`, `triggeredAbilityId`,
+ *  `triggerSourceId`, `triggerEvent`, `abilityResolutionRecorded`,
+ *  `madnessTrigger`, `reboundTrigger`, `emblemSourceId`, `stormSnapshot`,
  *  `stormCopiesRemaining`, `delayedTriggerId`, `delayedPayload`,
  *  `delayedEffects`, `grantedSourceCardId`, `actingPlayerId`) — an ability
  *  vanishes instead of moving to a zone (CR 701.5a/113.7a), and every call
@@ -5347,17 +5355,23 @@ export function emitEntersWithCounterEvents(
  *  cast-instance-scoped" rather than needing a second list kept in sync.
  *
  *  EXCLUDED (audited, judged out of scope, see
- *  `docs/findings/2137-battlefield-cast-flags.md` and
- *  `docs/findings/2137-reflexive-trigger-fields.md`): `evoked` / `dashed` /
- *  `escaped` — the SAME leak shape, but on `CardInstanceState` (the
- *  PERMANENT side, CR 400.7's OTHER gate, `resetBattlefieldTransientState`),
- *  never on `StackItem`; and `delayedOracleText` / `inlineTargetRequirement`
- *  / `reflexiveTrigger` / `designationId` / `designationImagePrintId`, which
- *  are set only on synthetic non-card ability/delayed-trigger stack items
- *  (`buildDelayedTriggerStackItem`, `buildMonarchDrawStackItem`,
- *  `reflexiveTrigger` Op — all in `triggers.ts`/here, ALWAYS alongside
- *  `delayedTriggerId`) that never reach a call site below in the first
- *  place (the same `delayedTriggerId` early-return covers them).
+ *  `docs/findings/2137-reflexive-trigger-fields.md`): `delayedOracleText` /
+ *  `inlineTargetRequirement` / `reflexiveTrigger` / `designationId` /
+ *  `designationImagePrintId`, which are set only on synthetic non-card
+ *  ability/delayed-trigger stack items (`buildDelayedTriggerStackItem`,
+ *  `buildMonarchDrawStackItem`, `reflexiveTrigger` Op — all in
+ *  `triggers.ts`/here, ALWAYS alongside `delayedTriggerId`) that never reach
+ *  a call site below in the first place (the same `delayedTriggerId`
+ *  early-return covers them). NOT excluded: `evoked`/`dashed`/`escaped` (see
+ *  group (1) above) — a prior version of this comment misclassified them as
+ *  `StackItem`-absent and permanent-side-only; they are stamped directly
+ *  onto the `StackItem` literal at cast commit (`convex/game.ts`) and a
+ *  COUNTERED evoked/dashed/escaped spell reproduces the exact `buybackPaid`
+ *  leak shape this function exists to close. `docs/findings/2137-battlefield-cast-flags.md`
+ *  documents the surviving SIBLING gap on the permanent-exit side
+ *  (`resetBattlefieldTransientState`, a permanent bounced directly off the
+ *  battlefield without ever re-entering the stack) — that half is real and
+ *  still open.
  *
  *  A TRAP THIS FUNCTION MUST NOT WALK INTO. `castById` is deleted here, but
  *  the `reboundFromHand` exit branch reads `item.castById` AFTER its own
@@ -5377,6 +5391,35 @@ function resetStackTransientState(item: StackItem): void {
     delete item.additionalSacrificeSnapshot;
     delete item.notedManaSpent;
     delete item.dynamicCantBeCountered;
+    // CR 702.74a / 702.109a / 702.138e (issue #2412 fixup) — `evoked`,
+    // `dashed`, `escaped` are declared on `CardInstanceState` so they survive
+    // resolution onto the permanent (the ETB triggers that read them run
+    // there), but every cast-commit site in `convex/game.ts` stamps them onto
+    // the `StackItem` literal at the SAME seam as `buybackPaid`
+    // (`finalizeTargetSelection`/`tryAutoCommitPendingCast`:
+    // `...(isEvokeCost ? { evoked: true } : {})` /
+    // `...(isDashCost ? { dashed: true } : {})`, and `escaped` via
+    // `graveyardCastStackFlags`) — a stack item IS its `CardInstanceState`,
+    // the same object. Left off this list, exactly the `buybackPaid` bug
+    // shape recurs: a COUNTERED evoked/dashed/escaped spell rides the flag
+    // into the graveyard/exile/library/hand untouched, and the next HARD
+    // recast's `{ ...card, ...(isEvokeCost ? {...} : {}) }` spread never
+    // CLEARS it because the new cast doesn't pay the alt cost — so
+    // `evokeTrigger`'s `conditionOnSelf: self.evoked === true`
+    // (`cards/abilities/evoke.ts`) sacrifices a hard-cast permanent, `dashed`
+    // bounces one that was never dashed, and an "unless it escaped" clause
+    // inverts. Safe to delete here: every read of these three fields is on
+    // the BATTLEFIELD object (an ETB `condition`/`conditionOnSelf`, or the
+    // `escaped` `EffectValue`) — never on a `StackItem` still resolving — so
+    // by the time any call site below runs, the value has already been read
+    // or was never set for this exit. See
+    // `docs/findings/2137-battlefield-cast-flags.md` for the SIBLING gap this
+    // does NOT close: a permanent bounced directly off the battlefield
+    // (never re-entering the stack) still isn't cleared by
+    // `resetBattlefieldTransientState`, the CR 400.7 gate on that side.
+    delete item.evoked;
+    delete item.dashed;
+    delete item.escaped;
     delete item.abilityId;
     delete item.grantedSourceCardId;
     delete item.triggeredAbilityId;

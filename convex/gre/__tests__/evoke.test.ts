@@ -25,6 +25,8 @@
 //   - the frontend wiring SURFACE: projectPublicState carries both fields
 import { describe, it, expect } from "vitest";
 import {
+    buildSpellContext,
+    getPlayer,
     normalizeManaCost,
     resolveTopOfStack,
     type GameState,
@@ -43,6 +45,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
     resolveTriggerOrder,
 } from "../../cards/__tests__/setup";
 import { registerTokenDefinition } from "../../cards";
@@ -51,6 +54,8 @@ import { grief } from "../../cards/sets/mh2/black";
 import { solitude } from "../../cards/sets/mh2/white";
 import { darkRitual } from "../../cards/sets/lea/black";
 import { forest, grizzlyBears, serraAngel } from "../../cards/sets/lea";
+import { counterspell } from "../../cards/sets/lea/blue";
+import { regrowth } from "../../cards/sets/lea/green";
 import { vibrance } from "../../cards/sets/ecl/multicolor";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 
@@ -763,5 +768,102 @@ describe("Evoke × guild-hybrid cost × spent-mana-colour (CR 202.1a / 106.4 / 7
         expect(ids).not.toContain("vibrance-etb-land");
         // Only the evoke sacrifice remains.
         expect(ids).toEqual(["evoke-sacrifice"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #2412 fixup round 2 (PR review finding): `evoked` was NOT cleared by
+// `resetStackTransientState` — the same shared STACK-exit chokepoint issue
+// #2137 fixed for `buybackPaid` — even though `convex/game.ts` stamps it
+// directly onto the `StackItem` literal at cast commit (the same seam as
+// `buybackPaid`), not just onto the eventual battlefield permanent. A
+// COUNTERED evoked spell rode `evoked: true` into the graveyard untouched,
+// and the next HARD recast's `{ ...card, ...(isEvokeCost ? {...} : {}) }`
+// spread in `finalizeTargetSelection` never CLEARED it (that conditional
+// spread is `{}` whenever the new cast doesn't pay evoke) — so a hard-cast
+// Grief/Solitude/Fury/Subtlety/Endurance would incorrectly sacrifice itself
+// on ETB. Reproduced with shipped cards only, driven through the real
+// `finalizeTargetSelection` cast-commit path, mirroring
+// `buyback.test.ts`'s "countered → graveyard → Regrowth → UNPAID recast"
+// regression exactly.
+// ---------------------------------------------------------------------------
+describe("Evoke — countered → graveyard → Regrowth → HARD recast does not leak (CR 400.7 / issue #2412 fixup)", () => {
+    it("a HARD recast after evoke+counter+Regrowth does not still read evoked:true and does not self-sacrifice", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+
+        // 1. Cast Grief EVOKED — stamp evoked:true directly on the stack item
+        //    (the cost-payment plumbing that produces this stamp is already
+        //    covered by the "cast commit tags the stack item" describe block
+        //    above; this test is about the EXIT, not the payment).
+        const grief1 = pushSpell(state, grief.id, "p1");
+        grief1.evoked = true;
+
+        // 2. Counter it — SpellContext.counter()'s default "graveyard"
+        //    destination, exactly like the buyback regression.
+        const counterer = pushSpell(state, counterspell.id, "p2");
+        const ctx = buildSpellContext(state, counterer);
+        ctx.counter({ type: "spell", id: grief1.id });
+
+        const afterCounter = getPlayer(state, "p1");
+        const inGraveyard = afterCounter.graveyard.find(
+            (c) => c.id === grief1.id
+        );
+        expect(inGraveyard).toBeDefined();
+        // The core assertion the fix guarantees: a COUNTERED evoked spell
+        // reaches the graveyard with no memory of having been evoked.
+        expect((inGraveyard as { evoked?: boolean }).evoked).toBe(undefined);
+
+        // 3. Regrowth returns it to hand.
+        pushSpell(state, regrowth.id, "p1", [
+            { type: "graveyard-card", id: grief1.id, playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const inHand = getPlayer(state, "p1").hand.find(
+            (c) => c.id === grief1.id
+        );
+        expect(inHand).toBeDefined();
+        expect((inHand as { evoked?: boolean }).evoked).toBe(undefined);
+
+        // 4. Recast, HARD (no evoke), through the real production cast-commit
+        //    path (`finalizeTargetSelection`). Grief costs {2}{B}{B} — fund
+        //    the pool (black covers both the coloured pips and the generic).
+        getPlayer(state, "p1").manaPool.B = 4;
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: grief1.id,
+                targetType: "any",
+                count: 0,
+                selected: [],
+            },
+            "p1"
+        );
+        const recast = state.stack.find((s) => s.id === grief1.id);
+        expect(recast).toBeDefined();
+        expect(recast?.evoked).toBe(undefined);
+
+        // 5. Resolve to the battlefield and re-run the real ETB trigger scan.
+        //    A hard-cast Grief must NOT offer the evoke-sacrifice trigger —
+        //    on pre-fix code the stale `evoked: true` survives step 4's
+        //    spread and this would incorrectly appear.
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === grief1.id)
+        ).toBe(true);
+        const triggers = collectTriggers(state, [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: grief1.id,
+                controllerId: "p1",
+                cardId: grief.id,
+                types: ["Creature"],
+            },
+        ]);
+        expect(triggers.map((t) => t.triggeredAbilityId)).not.toContain(
+            "evoke-sacrifice"
+        );
     });
 });

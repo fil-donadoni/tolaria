@@ -316,6 +316,59 @@ describe("Buyback — a COUNTERED spell drops buybackPaid at every SpellContext.
     });
 });
 
+// Non-blocking gap flagged in PR #2412 review round 2: `putSpellOnLibrary`
+// (`SpellContext.putSpellOnLibrary`, the Subtlety CR 701.5-adjacent "put
+// target spell on top/bottom of its owner's library" effect — NOT a counter,
+// CR 701.5c) shares `resetStackTransientState` with `counter()`'s
+// library-top/exile/hand branches but had no `buybackPaid` coverage of its
+// own. Genuinely reachable with a paid-buyback spell (Subtlety can target
+// any spell on the stack, including one cast with buyback paid), unlike the
+// resolve-side redirects (`exileOnResolve`/`shuffleIntoLibraryOnResolve`/
+// `reboundFromHand`) which are mutually exclusive with buyback by
+// construction (a spell mid-resolution already chose its own destination).
+describe("Buyback — putSpellOnLibrary (Subtlety) strips buybackPaid (CR 701.5-adjacent / issue #2137)", () => {
+    it("top — a paid-buyback spell put on top of its library carries no buybackPaid", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
+        probe.buybackPaid = true;
+        // A throwaway spell on the stack — only its presence is needed to
+        // obtain a `SpellContext`; `putSpellOnLibrary` reads no field of its
+        // OWN item, only the target's.
+        const subtletySource = pushSpell(state, counterspell.id, "p2");
+        const ctx = buildSpellContext(state, subtletySource);
+        ctx.putSpellOnLibrary({ type: "spell", id: probe.id }, "top");
+
+        const inLibrary = getPlayer(state, "p1").library.find(
+            (c) => c.id === probe.id
+        );
+        expect(inLibrary).toBeDefined();
+        expect((inLibrary as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+    });
+
+    it("bottom — a paid-buyback spell put on the bottom of its library carries no buybackPaid", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
+        probe.buybackPaid = true;
+        const subtletySource = pushSpell(state, counterspell.id, "p2");
+        const ctx = buildSpellContext(state, subtletySource);
+        ctx.putSpellOnLibrary({ type: "spell", id: probe.id }, "bottom");
+
+        const inLibrary = getPlayer(state, "p1").library.find(
+            (c) => c.id === probe.id
+        );
+        expect(inLibrary).toBeDefined();
+        expect((inLibrary as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+    });
+});
+
 describe("Buyback — countered → graveyard → Regrowth → UNPAID recast (issue #2137, proven to fail against pre-fix code)", () => {
     it("does NOT return to hand on resolution after a later recast that does not pay buyback", () => {
         // The full reproduction from the issue, shipped cards only:
