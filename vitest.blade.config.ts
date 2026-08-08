@@ -8,8 +8,13 @@ import path from "path";
  * real ISMCTS search over full game states, so it is orders of magnitude
  * slower per test than a GRE unit test, and its verdict answers a different
  * question ("is the bot still playing well?" vs "is the rule still correct?").
- * Its own config + its own CI job keeps `bun run test` fast and reports a
- * bot-quality regression as its own signal.
+ * Its own config keeps `test:app` / `test:bot` fast and reports a bot-quality
+ * regression as its own signal. It used to be gated by its own CI job
+ * (`.github/workflows/blade.yml`); since the Actions workflows were removed
+ * (no minutes on the plan, and with no branch protection they gated nothing)
+ * the must tier is the third leg of `bun run test` — the only gate left is the
+ * local one, so anything blocking has to live inside it. The stretch tier is
+ * report-only and stays manual: `bun run test:blade:stretch`.
  *
  * The spec files are named `*.spec.ts` (not `*.test.ts`) precisely so the root
  * `vitest.config.ts` node project — which includes `convex/**\/*.test.ts` —
