@@ -57,10 +57,17 @@ import {
     kjeldoranGuard,
     battleCry,
     enduringRenewal,
+    adarkarUnicorn,
+    orderOfTheSacredTorch,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition, getCardByName } from "../../../index";
-import { tryAutoCommitPendingCast, selectTarget } from "../../../../game";
+import {
+    tryAutoCommitPendingCast,
+    selectTarget,
+    tapSourceIntoPayment,
+} from "../../../../game";
+import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import { applyDamageReplacements } from "../../../../gre/replacements";
 import {
     resolveTopOfStack,
@@ -2950,5 +2957,133 @@ describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #7
         expect(p1View.hand).toHaveLength(1);
         expect(p1View.hand[0]).not.toBeNull();
         expect(p1View.hand[0]!.card.id).toBe(bearsId);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Adarkar Unicorn — "{T}: Add {U} or {C}{U}. Spend this mana only to pay
+// cumulative upkeep costs." (CR 106.6 restricted mana / 605.1a manaChoices).
+// The mana-ability catalogue sweep skips a `manaChoices` ability by design,
+// so the index → restricted-pool deposit earns a hand-written per-card test.
+// ---------------------------------------------------------------------------
+
+describe("Adarkar Unicorn ({T}: Add {U} or {C}{U}, CU-restricted, CR 106.6 / 605.1a)", () => {
+    it("offers both manaChoices options: {U} and {C}{U}", () => {
+        const unicorn = makeInstance(adarkarUnicorn.id, {
+            id: "unicorn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [unicorn] });
+        const options = getManaTapOptionsDetailed(unicorn, "p1", [
+            { playerId: "p1", battlefield: player.battlefield },
+        ]);
+        expect(options.map((o) => o.mana)).toEqual([{ U: 1 }, { C: 1, U: 1 }]);
+    });
+
+    it("tapping index 0 floats {U} into the CU-restricted pool, not the fungible pool", () => {
+        const unicorn = makeInstance(adarkarUnicorn.id, {
+            id: "unicorn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [unicorn] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, unicorn, 0, []);
+        expect(player.manaPool.U).toBe(0);
+        expect(player.restrictedMana).toEqual([
+            { color: "U", amount: 1, restriction: "cumulative-upkeep" },
+        ]);
+    });
+
+    it("tapping index 1 floats {C} AND {U}, both CU-restricted", () => {
+        const unicorn = makeInstance(adarkarUnicorn.id, {
+            id: "unicorn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [unicorn] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, unicorn, 1, []);
+        expect(player.manaPool).toEqual({
+            W: 0,
+            U: 0,
+            B: 0,
+            R: 0,
+            G: 0,
+            C: 0,
+        });
+        const byColor = Object.fromEntries(
+            (player.restrictedMana ?? []).map((r) => [r.color, r])
+        );
+        expect(byColor.C).toEqual({
+            color: "C",
+            amount: 1,
+            restriction: "cumulative-upkeep",
+        });
+        expect(byColor.U).toEqual({
+            color: "U",
+            amount: 1,
+            restriction: "cumulative-upkeep",
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Order of the Sacred Torch — {T}, Pay 1 life: Counter target black spell
+// (CR 701.5a). The smoke sweep skips it because the `counter` Op targets a
+// live spell on the stack, which the canned-scenario generator cannot seed.
+// ---------------------------------------------------------------------------
+
+describe("Order of the Sacred Torch ({T}, Pay 1 life: Counter target black spell, CR 701.5a)", () => {
+    function withOrder() {
+        const order = makeInstance(orderOfTheSacredTorch.id, {
+            id: "order",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [order], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, order };
+    }
+
+    it("counters the targeted black spell, sending it to its owner's graveyard", () => {
+        const { state, order } = withOrder();
+        const knight = pushSpell(state, knightOfStromgald.id, "p2");
+        resolveActivated(state, order, "order-sacred-torch-counter", [
+            { type: "spell", id: knight.id },
+        ]);
+        expect(state.stack.find((s) => s.id === knight.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === knight.id)).toBe(
+            true
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === knight.id)
+        ).toBe(false);
+    });
+
+    it("only offers BLACK spells as legal targets (colorFilter, CR 601.2c)", () => {
+        const { state } = withOrder();
+        const blackSpell = pushSpell(state, knightOfStromgald.id, "p2");
+        const whiteSpell = pushSpell(state, kjeldoranGuard.id, "p2");
+        const req =
+            orderOfTheSacredTorch.activatedAbilities![0].targetRequirement!;
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE);
+        expect(legal.map((t) => t.id)).toContain(blackSpell.id);
+        expect(legal.map((t) => t.id)).not.toContain(whiteSpell.id);
+    });
+
+    it("wire format: the countered spell is gone from the projected stack", () => {
+        const { state, order } = withOrder();
+        const knight = pushSpell(state, knightOfStromgald.id, "p2");
+        resolveActivated(state, order, "order-sacred-torch-counter", [
+            { type: "spell", id: knight.id },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack.find((s) => s.id === knight.id)).toBeUndefined();
     });
 });

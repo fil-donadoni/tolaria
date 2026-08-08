@@ -27,12 +27,15 @@ import {
     recoil,
     agonizingDemise,
     blazingSpecter,
+    bloodstoneCameo,
     firescreamer,
     hoodedKavu,
     plagueSpores,
     recklessAssault,
+    shivanOasis,
     smolderingTar,
     trenchWurm,
+    trollHornCameo,
     urborgVolcano,
     viciousKavu,
     artifactMutation,
@@ -85,7 +88,11 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
-import { finalizeTargetSelection } from "../../../../game";
+import {
+    finalizeTargetSelection,
+    tapSourceIntoPayment,
+} from "../../../../game";
+import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import {
     plains,
     island,
@@ -3434,3 +3441,67 @@ describe("Dueling Grounds (CR 508.1a / 509.1a — declared-set count caps)", () 
         });
     });
 });
+
+// Bloodstone Cameo / Troll-Horn Cameo / Shivan Oasis — three near-identical
+// two-color choice-of-color tap mana sources (CR 605.1a `manaChoices`), the
+// mana sweep's own skip list (`manaAbility.catalogue.test.ts`) explicitly
+// excludes `manaChoices` abilities since the board-dependent CHOICE index is
+// load-bearing. Mirrors the Talisman painland cycle pattern
+// (`sets/mrd/__tests__/colorless.test.ts`), minus the coloured-tap self-
+// damage rider — none of these three has one.
+describe.each([
+    { def: bloodstoneCameo, colors: ["B", "R"] as const },
+    { def: trollHornCameo, colors: ["R", "G"] as const },
+    { def: shivanOasis, colors: ["R", "G"] as const },
+])(
+    "$def.name ({T}: Add one of two colors; CR 605.1a manaChoices)",
+    ({ def, colors }) => {
+        it("offers both colors as tap options, in printed order", () => {
+            const source = makeInstance(def.id, {
+                id: `${def.id}-options`,
+                controllerId: "p1",
+            });
+            const player = makePlayer("p1", { battlefield: [source] });
+            const state = makeState({ players: [player, makePlayer("p2")] });
+            const battlefields = state.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield,
+            }));
+            const options = getManaTapOptionsDetailed(
+                source,
+                "p1",
+                battlefields
+            );
+            expect(options.map((o) => o.mana)).toEqual([
+                { [colors[0]]: 1 },
+                { [colors[1]]: 1 },
+            ]);
+        });
+
+        it(`tapping index 1 adds {${colors[1]}} to the pool, no life cost`, () => {
+            const source = makeInstance(def.id, {
+                id: `${def.id}-tap`,
+                controllerId: "p1",
+            });
+            const player = makePlayer("p1", { battlefield: [source] });
+            const state = makeState({ players: [player, makePlayer("p2")] });
+            state.activePlayerId = "p1";
+            tapSourceIntoPayment(state, player, source, 1, []);
+            expect(player.manaPool[colors[1]]).toBe(1);
+            expect(player.life).toBe(20);
+        });
+
+        it("wire format: the tapped-for mana pool survives the projection", () => {
+            const source = makeInstance(def.id, {
+                id: `${def.id}-wire`,
+                controllerId: "p1",
+            });
+            const player = makePlayer("p1", { battlefield: [source] });
+            const state = makeState({ players: [player, makePlayer("p2")] });
+            state.activePlayerId = "p1";
+            tapSourceIntoPayment(state, player, source, 0, []);
+            const projected = projectPublicState(state, 1, "p1");
+            expect(projected.players[0].manaPool[colors[0]]).toBe(1);
+        });
+    }
+);

@@ -6,10 +6,13 @@
 import { describe, it, expect } from "vitest";
 import {
     ankhOfMishra,
+    badlands,
     basaltMonolith,
+    bayou,
     benalishHero,
     blackVise,
     castle,
+    celestialPrism,
     clockworkBeast,
     conservator,
     copperTablet,
@@ -37,17 +40,26 @@ import {
     kormusBell,
     libraryOfLeng,
     lightningBolt,
+    livingWall,
     llanowarElves,
     manaVault,
     meekstone,
     mindTwist,
     monssGoblinRaiders,
     mountain,
+    moxEmerald,
+    moxJet,
+    moxPearl,
+    moxRuby,
+    moxSapphire,
     phantasmalTerrain,
     plains,
+    plateau,
     prodigalSorcerer,
     rodOfRuin,
+    savannah,
     savannahLions,
+    scrubland,
     sengirVampire,
     serraAngel,
     smoke,
@@ -55,11 +67,13 @@ import {
     soulNet,
     sunglassesOfUrza,
     swamp,
+    taiga,
     theHive,
     throneOfBone,
     timeVault,
     tropicalIsland,
     tundra,
+    undergroundSea,
     unholyStrength,
     wallOfSwords,
     weakness,
@@ -68,6 +82,7 @@ import {
 } from "..";
 import {
     commitLandsForCost,
+    regenerateOrDestroy,
     removePermanentTo,
     resolveTopOfStack,
     runDamageReplacement,
@@ -92,6 +107,7 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { tapSourceIntoPayment } from "../../../../game";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
@@ -547,6 +563,40 @@ describe("Sol Ring ({T}: Add {C}{C}, CR 605.1a)", () => {
     });
 });
 
+// All five Mox share the makeTapForMana factory; one parameterized describe
+// covers shape, GRE recognition, and wire-format projection per color.
+describe.each([
+    { card: moxPearl, color: "W" as const },
+    { card: moxSapphire, color: "U" as const },
+    { card: moxJet, color: "B" as const },
+    { card: moxRuby, color: "R" as const },
+    { card: moxEmerald, color: "G" as const },
+])("$card.name ({T}: Add {$color}, CR 605.1a)", ({ card, color }) => {
+    it("engine recognizes the mana ability and reports the correct color", () => {
+        const inst = makeInstance(card.id, { id: "mox" });
+        expect(hasManaAbility(inst)).toBe(true);
+        expect(getActivatedManaColor(inst)).toBe(color);
+        expect(getFixedManaAmount(inst, color)).toBe(1);
+    });
+
+    it("wire format: mana ability survives projectPublicState", () => {
+        const inst = makeInstance(card.id, { id: "mox" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [inst] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "mox"
+        )!;
+        expect(hasManaAbility(slim as CardInstanceState)).toBe(true);
+        expect(getActivatedManaColor(slim as CardInstanceState)).toBe(color);
+        expect(getFixedManaAmount(slim as CardInstanceState, color)).toBe(1);
+    });
+});
+
 describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
     it("resolving the ability draws one card for the controller", () => {
         const tome = makeInstance(jayemdaeTome.id, {
@@ -886,6 +936,59 @@ describe("Tundra (dual land: {T}: Add {W} or {U})", () => {
         expect(p1.battlefield[0].manaCommitted).toBe(true);
     });
 });
+
+// Per-dual GRE + wire-format coverage. After moving every dual to makeDualLand,
+// regression-guard each card's mana ability survives both fat-state inspection
+// (commitLandsForCost picks the chosen color) and projectPublicState (the
+// constants helpers must still resolve the slim instance to the right ability).
+describe.each([
+    { card: badlands, primary: "B" as const, secondary: "R" as const },
+    { card: bayou, primary: "B" as const, secondary: "G" as const },
+    { card: plateau, primary: "R" as const, secondary: "W" as const },
+    { card: savannah, primary: "G" as const, secondary: "W" as const },
+    { card: scrubland, primary: "W" as const, secondary: "B" as const },
+    { card: taiga, primary: "R" as const, secondary: "G" as const },
+    { card: tropicalIsland, primary: "G" as const, secondary: "U" as const },
+    { card: tundra, primary: "W" as const, secondary: "U" as const },
+    { card: undergroundSea, primary: "U" as const, secondary: "B" as const },
+])(
+    "$card.name (dual land mana ability — GRE + wire format)",
+    ({ card, primary, secondary }) => {
+        it("commitLandsForCost commits the dual for either chosen color", () => {
+            for (const color of [primary, secondary]) {
+                const dual = makeInstance(card.id, {
+                    id: `${card.id}-inst`,
+                    isTapped: true,
+                    chosenMana: { [color]: 1 },
+                });
+                const p1 = makePlayer("p1", { battlefield: [dual] });
+                commitLandsForCost(p1, { [color]: 1 });
+                expect(
+                    p1.battlefield[0].manaCommitted,
+                    `commit failed for ${card.name} chosen ${color}`
+                ).toBe(true);
+            }
+        });
+
+        it("wire format: mana ability resolvable via projectPublicState", () => {
+            const dual = makeInstance(card.id, { id: "dual-inst" });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [dual] }),
+                    makePlayer("p2"),
+                ],
+            });
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "dual-inst"
+            )!;
+            expect(hasManaAbility(slim as CardInstanceState)).toBe(true);
+            // Subtypes survive projection (engine reads them off the instance,
+            // not via card.card lookup).
+            expect(slim.subtypes).toEqual(card.subtypes);
+        });
+    }
+);
 
 describe("Copper Tablet (1 dmg to each player at their upkeep)", () => {
     function setup(activePlayerId: string = "p1") {
@@ -4481,3 +4584,107 @@ describe("Illusionary Mask — face-down turn-up (CR 708.9, ADR 0013, #124)", ()
 
 // Word of Command — Acting Player foundation + land branch (#576, ADR 0037)
 // ---------------------------------------------------------------------------
+
+describe("Celestial Prism ({2}, {T}: Add one mana of any color, CR 605.1a)", () => {
+    it("pays the {2} cost and taps for the chosen color", () => {
+        const prism = makeInstance(celestialPrism.id, {
+            id: "prism",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", {
+            battlefield: [prism],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        // manaChoices order is [W, U, B, R, G] — index 2 is black.
+        tapSourceIntoPayment(state, player, prism, 2, []);
+        expect(player.manaPool.B).toBe(1);
+        expect(player.manaPool.C).toBe(0); // the {2} generic cost was spent
+        expect(prism.isTapped).toBe(true);
+    });
+
+    it("wire format: tapped state and mana credit survive projectPublicState", () => {
+        const prism = makeInstance(celestialPrism.id, {
+            id: "prism",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", {
+            battlefield: [prism],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, prism, 4, []); // index 4 is green
+        expect(player.manaPool.G).toBe(1);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].manaPool.G).toBe(1);
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "prism"
+        )!;
+        expect(slim.isTapped).toBe(true);
+    });
+});
+
+describe("Living Wall (CR 701.15a regenerate)", () => {
+    it("activating the regenerate ability shields it from a destroy effect", () => {
+        const wall = makeInstance(livingWall.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...wall,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "living-wall-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(wall.regenerationShields).toBe(1);
+        // A destroy effect (e.g. Terror) now consults `regenerateOrDestroy`:
+        // the shield is consumed and the Wall survives instead of dying.
+        const destroyed = regenerateOrDestroy(state, "wall");
+        expect(destroyed).toBe(false);
+        const onBattlefield = state.players[0].battlefield.find(
+            (c) => c.id === "wall"
+        );
+        expect(onBattlefield).toBeDefined();
+        expect(onBattlefield?.regenerationShields ?? 0).toBe(0);
+        expect(state.players[0].graveyard).toHaveLength(0);
+    });
+
+    it("wire format: still on the battlefield (not the graveyard) after regenerating survives projection", () => {
+        const wall = makeInstance(livingWall.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...wall,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "living-wall-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        regenerateOrDestroy(state, "wall");
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.some((c) => c.id === "wall")
+        ).toBe(true);
+        expect(projected.players[0].graveyard).toHaveLength(0);
+    });
+});

@@ -14,6 +14,7 @@ import {
     circleOfProtectionWhite,
     cursedLand,
     darkRitual,
+    deathgrip,
     demonicHordes,
     demonicTutor,
     drainLife,
@@ -4399,5 +4400,59 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
             expect(head?.playerId).toBe("p1");
             expect(head?.zoneOwnerId).toBe("p2");
         }
+    });
+});
+
+describe("Deathgrip ({B}, Sacrifice: counter target green spell, CR 701.5a)", () => {
+    it("counters a green spell on the stack", () => {
+        const deathgripPerm = makeInstance(deathgrip.id, {
+            id: "deathgrip",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [deathgripPerm] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Grizzly Bears is a green creature spell — a legal Deathgrip target.
+        const bearsSpell = pushSpell(state, grizzlyBears.id, "p2");
+        state.stack.push({
+            ...deathgripPerm,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "deathgrip-counter",
+            targets: [{ type: "spell", id: bearsSpell.id }],
+        });
+        resolveTopOfStack(state); // resolves the ability, countering the bears
+        expect(state.stack.find((s) => s.id === bearsSpell.id)).toBeUndefined();
+    });
+
+    it("wire format: the countered spell is gone from the stack after projection", () => {
+        const deathgripPerm = makeInstance(deathgrip.id, {
+            id: "deathgrip",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [deathgripPerm] }),
+                makePlayer("p2"),
+            ],
+        });
+        const bearsSpell = pushSpell(state, grizzlyBears.id, "p2");
+        state.stack.push({
+            ...deathgripPerm,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "deathgrip-counter",
+            targets: [{ type: "spell", id: bearsSpell.id }],
+        });
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.stack.find((s) => s.id === bearsSpell.id)
+        ).toBeUndefined();
     });
 });

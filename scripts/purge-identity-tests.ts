@@ -28,10 +28,21 @@
  *     (`no-empty`, then `TABLE` goes unused in turn);
  *   - the import cascade those two release, one layer per round.
  *
- * The #2363 run left exactly 9 such errors across 6 files, cleared by hand and
- * by an eslint-driven loop over the unused-import cascade. Anyone re-running
- * this from the pre-purge tree should expect the same 9 and finish the same
- * way: `bunx eslint convex/cards/sets/` until it is silent.
+ * The #2363 run left a handful of such errors across 6 files, cleared by hand
+ * and by an eslint-driven loop over the unused-import cascade. Anyone
+ * re-running this from the pre-purge tree should expect the same shapes and
+ * finish the same way: `bunx eslint convex/cards/sets/` until it is silent.
+ *
+ * ── Fixed after review: the curried-`.each` over-deletion ────────────────────
+ * The first #2363 run deleted 9 BEHAVIOURAL blocks, which the issue puts out of
+ * scope. Cause: `describe.each(table)(name, fn)` parses as a call whose callee
+ * is itself a call, and `stripEmptySuites` treated the inner
+ * `describe.each(table)` head as a suite of its own. The head holds only the
+ * table, so it always "contains no test" — and its enclosing statement is the
+ * WHOLE wrapper, behavioural siblings included. `isCurriedCalleeHead` below
+ * excludes the head at both sites (the suite scan and `containsTest`), so a
+ * wrapper is now removed only when every block inside it was identity.
+ * Regression test: `scripts/__tests__/purge-identity-tests.test.ts`.
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -137,12 +148,27 @@ function applyRemovals(text: string, ranges: Range[]): string {
     return out;
 }
 
+/**
+ * `describe.each(table)(name, fn)` parses as a call whose CALLEE is itself a
+ * call: `CallExpression{ expression: CallExpression{ describe.each, [table] } }`.
+ * Only the OUTER call is the suite — the inner head holds nothing but the
+ * table. Treating the head as a suite in its own right is what deleted whole
+ * `describe.each` wrappers in the #2363 run: the head trivially "contains no
+ * test", and its enclosing statement is the entire suite.
+ */
+function isCurriedCalleeHead(node: ts.CallExpression): boolean {
+    const parent = node.parent;
+    return (
+        !!parent && ts.isCallExpression(parent) && parent.expression === node
+    );
+}
+
 /** Does this node contain a test-declaring call anywhere beneath it? */
 function containsTest(node: ts.Node): boolean {
     let found = false;
     const visit = (n: ts.Node) => {
         if (found) return;
-        if (ts.isCallExpression(n)) {
+        if (ts.isCallExpression(n) && !isCurriedCalleeHead(n)) {
             const kw = keywordOf(n.expression);
             if (kw && (BLOCK_FNS.has(kw) || SUITE_FNS.has(kw))) {
                 found = true;
@@ -167,7 +193,7 @@ function stripEmptySuites(file: string, text: string): string {
         );
         const ranges: Range[] = [];
         const visit = (node: ts.Node) => {
-            if (ts.isCallExpression(node)) {
+            if (ts.isCallExpression(node) && !isCurriedCalleeHead(node)) {
                 const kw = keywordOf(node.expression);
                 if (kw && SUITE_FNS.has(kw) && !containsTest(node)) {
                     const stmt = enclosingStatement(node);

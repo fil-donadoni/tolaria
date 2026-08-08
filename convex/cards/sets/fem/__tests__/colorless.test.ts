@@ -12,6 +12,7 @@ import {
     delifsCone,
     delifsCube,
     draconianCylix,
+    dwarvenHold,
     ebonStronghold,
     elvenLyre,
     hollowTrees,
@@ -211,6 +212,36 @@ describe("FEM C6 storage-land cycle (variable counter-removal → variable mana,
         tapSourceIntoPayment(state, player, land, 0, []);
         expect(player.manaPool.U ?? 0).toBe(0);
         expect(land.counters?.storage).toBe(2);
+    });
+});
+
+// Dwarven Hold — same storage-land factory as the cycle above, called out on
+// its own (the DSL smoke sweep skips it: the upkeep trigger's `counters` Op
+// targets `$source`, which the canned-scenario generator can't pre-seed).
+describe("Dwarven Hold (storage-land upkeep, counters Op targets $source, CR 122.6/603.4)", () => {
+    it("banks a storage counter each upkeep while tapped, visible through projectPublicState", () => {
+        const land = makeInstance(dwarvenHold.id, {
+            id: "dwarven-hold",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, land, "storage-land-upkeep", UPKEEP("p1"));
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "dwarven-hold"
+        )!;
+        expect(after.counters?.storage).toBe(1);
+
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "dwarven-hold"
+        )!;
+        expect(slim.counters?.storage).toBe(1);
     });
 });
 

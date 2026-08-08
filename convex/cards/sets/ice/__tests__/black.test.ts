@@ -61,8 +61,10 @@ import {
     soulBurn,
     ashenGhoul,
     dreadWight,
+    krovikanVampire,
+    stromgaldCabal,
 } from "../../ice";
-import { plains, island, swamp } from "../../lea";
+import { plains, island, swamp, benalishHero } from "../../lea";
 import { grizzlyBears } from "../../lea/green";
 import { applyLandManaReplacement, manaValue } from "../../../../gre/constants";
 import {
@@ -78,6 +80,7 @@ import {
     emitPermanentTapped,
     dealDamageFromPermanentToPlayer,
     applySourceStaticEffects,
+    removePermanentTo,
 } from "../../../../gre/state";
 import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import {
@@ -3227,5 +3230,140 @@ describe("Abyssal Specter (flying + damage-dealt discard trigger, CR 120.3 / 603
             isCombat: true,
         } as StackItem["triggerEvent"]);
         expect(state.pendingChoices ?? []).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Krovikan Vampire — imperative death-trigger + delayed-trigger reanimation
+// (CR 603.2 / 603.7c). `resolve()`-only (no catalogue sweep covers it):
+// `krovikan-vampire-mark` schedules a `next-end-step` delayed trigger which
+// itself reanimates the dead creature. Both `resolve()` bodies are exercised
+// through the REAL trigger-collection pipeline (`removePermanentTo` +
+// `collectAndStack`), not a hand-built event, so the `condition` gate
+// (`damagedBySources.includes(self.id)`) is genuinely proven.
+//
+// The card's own comment documents that `returnToBattlefield`'s pile-owner
+// arg is the VAMPIRE'S controller, not the dying creature's actual owner
+// (tracked-by #1600) — so this fixture places the dead creature in the
+// Vampire controller's own graveyard, the one call shape the current
+// implementation reliably supports.
+// ---------------------------------------------------------------------------
+
+describe("Krovikan Vampire (reanimates a creature it killed, CR 603.2 / 603.7c)", () => {
+    it("schedules a next-end-step reanimation when a creature damaged by it dies, then returns it under its control", () => {
+        const vamp = makeInstance(krovikanVampire.id, {
+            id: "vamp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dead = vanilla("dead", 2, 2, {
+            id: "dead",
+            controllerId: "p1",
+            ownerId: "p1",
+            damagedBySources: ["vamp"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vamp, dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        // CR 700.4 — the real death emitter, not a hand-built event: snapshots
+        // `damagedBySources` from the live instance onto CREATURE_DIED.
+        removePermanentTo(state, "dead", "graveyard");
+        const trig = collectAndStack(state, "krovikan-vampire-mark");
+        expect(trig).toBeDefined();
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].triggerId).toBe(
+            "krovikan-vampire-reanimate"
+        );
+
+        fireDelayedTriggers(state, "next-end-step");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+
+        expect(state.players[0].graveyard.some((c) => c.id === "dead")).toBe(
+            false
+        );
+        const reanimated = state.players[0].battlefield.find(
+            (c) => c.id === "dead"
+        );
+        expect(reanimated).toBeDefined();
+        expect(reanimated?.controllerId).toBe("p1");
+    });
+
+    it("does NOT fire the death trigger for a creature Krovikan Vampire never damaged this turn (CR 603.4 condition gate)", () => {
+        const vamp = makeInstance(krovikanVampire.id, {
+            id: "vamp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dead = vanilla("dead2", 2, 2, {
+            id: "dead2",
+            controllerId: "p1",
+            ownerId: "p1",
+            // No damagedBySources — this creature died some other way.
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vamp, dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        removePermanentTo(state, "dead2", "graveyard");
+        const trig = collectAndStack(state, "krovikan-vampire-mark");
+        expect(trig).toBeUndefined();
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Stromgald Cabal — {T}, Pay 1 life: Counter target white spell (CR 701.5a).
+// The smoke sweep skips it because the `counter` Op targets a live spell on
+// the stack, which the canned-scenario generator can't seed.
+// ---------------------------------------------------------------------------
+
+describe("Stromgald Cabal ({T}, Pay 1 life: Counter target white spell, CR 701.5a)", () => {
+    it("counters the targeted white spell, sending it to its owner's graveyard", () => {
+        const cabal = makeInstance(stromgaldCabal.id, {
+            id: "cabal",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cabal], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        const hero = pushSpell(state, benalishHero.id, "p2");
+        resolveActivated(state, cabal, "stromgald-cabal-counter", [
+            { type: "spell", id: hero.id },
+        ]);
+        expect(state.stack.find((s) => s.id === hero.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === hero.id)).toBe(
+            true
+        );
+    });
+
+    it("wire format: the countered spell disappears from the projected stack", () => {
+        const cabal = makeInstance(stromgaldCabal.id, {
+            id: "cabal",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cabal], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        const hero = pushSpell(state, benalishHero.id, "p2");
+        resolveActivated(state, cabal, "stromgald-cabal-counter", [
+            { type: "spell", id: hero.id },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack.find((s) => s.id === hero.id)).toBeUndefined();
     });
 });

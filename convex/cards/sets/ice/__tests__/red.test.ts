@@ -57,6 +57,7 @@ import {
     orcishConscripts,
     curseOfMaritLage,
     goblinSnowman,
+    orcishLumberjack,
 } from "../../ice";
 import {
     validateDeclaredAttackers,
@@ -67,6 +68,7 @@ import { plains, mountain, forest, island } from "../../lea";
 import {
     applyLandManaReplacement,
     getBasicLandMana,
+    getManaTapOptionsDetailed,
 } from "../../../../gre/constants";
 import { getDefinition, getCardByName } from "../../../index";
 import {
@@ -96,7 +98,11 @@ import {
     getLegalActions,
     raiseTriggerTargetSelection,
 } from "../../../../gre/rules";
-import { finalizeTargetSelection, toggleAttacker } from "../../../../game";
+import {
+    finalizeTargetSelection,
+    toggleAttacker,
+    tapSourceIntoPayment,
+} from "../../../../game";
 import {
     makeMutationCtx,
     runMutation,
@@ -2488,5 +2494,72 @@ describe("Goblin Snowman ({T}: 1 damage to the creature it's blocking, CR 509.1)
             (c) => c.id === "atk"
         )!;
         expect(atkAfter.damageMarked).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Orcish Lumberjack — "{T}, Sacrifice a Forest: Add three mana in any
+// combination of {R} and/or {G}." (CR 605.1a). The mana-ability catalogue
+// sweep skips a `manaChoices` ability by design (which index is "right" is
+// board-dependent, not generic), so the index → colour-combination mapping
+// earns a hand-written per-card test.
+// ---------------------------------------------------------------------------
+
+describe("Orcish Lumberjack ({T}, Sacrifice a Forest: Add three mana of R and/or G, CR 605.1a)", () => {
+    it("offers the four manaChoices combinations of {R}/{G}", () => {
+        const lj = makeInstance(orcishLumberjack.id, {
+            id: "lj",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aForest = makeInstance(forest.id, {
+            id: "forest1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lj, aForest] });
+        // Read the Lumberjack's OWN option list (not the Forest's) — the four
+        // manaChoices entries the card declares, in order.
+        const options = getManaTapOptionsDetailed(lj, "p1", [
+            { playerId: "p1", battlefield: player.battlefield },
+        ]);
+        expect(options.map((o) => o.mana)).toEqual([
+            { R: 3 },
+            { R: 2, G: 1 },
+            { R: 1, G: 2 },
+            { G: 3 },
+        ]);
+    });
+
+    it("tapping index 1 (2 red, 1 green) adds exactly that combination to the pool", () => {
+        const lj = makeInstance(orcishLumberjack.id, {
+            id: "lj",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lj] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, lj, 1, []);
+        expect(player.manaPool).toEqual({
+            W: 0,
+            U: 0,
+            B: 0,
+            R: 2,
+            G: 1,
+            C: 0,
+        });
+    });
+
+    it("tapping index 3 (all green) adds exactly {G}{G}{G}, none of it red", () => {
+        const lj = makeInstance(orcishLumberjack.id, {
+            id: "lj",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lj] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, lj, 3, []);
+        expect(player.manaPool.G).toBe(3);
+        expect(player.manaPool.R).toBe(0);
     });
 });

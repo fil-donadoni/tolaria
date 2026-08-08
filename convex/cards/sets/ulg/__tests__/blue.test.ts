@@ -1,8 +1,9 @@
 // Urza's Legacy (ULG) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { franticSearch, tinker } from "../blue";
+import { franticSearch, miscalculation, tinker } from "../blue";
 import { ornithopter } from "../../atq/colorless";
+import { lightningBolt } from "../../lea/red";
 import {
     makeInstance,
     makePlayer,
@@ -10,7 +11,11 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
+import { projectPublicState } from "../../../../gameProjections";
 
 const handCard = (id: string) =>
     makeInstance(franticSearch.id, {
@@ -87,6 +92,72 @@ describe("Frantic Search (draw 2, discard 2, untap 3 lands; CR 121.1 / 701.8)", 
             c.types.includes("Land")
         );
         expect(lands.every((l) => !l.isTapped)).toBe(true);
+    });
+});
+
+// Miscalculation — {1}{U} Instant. "Counter target spell unless its
+// controller pays {2}." Same `mayPay`-suspends-the-spell shape as Daze — the
+// smoke sweep runs the card's OTHER activation site (Cycling {2}) instead, so
+// the counter-unless-pay effect itself has zero coverage. Hand-written here
+// for both branches (CR 701.5a / 117.3a); the Cycling activated ability is
+// covered class-wide by the shared `cyclingAbility` factory's own tests.
+describe("Miscalculation (counter unless controller pays {2}, CR 701.5a / 117.3a)", () => {
+    it("declining the payment counters the target spell", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, miscalculation.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2"); // the TARGET's controller decides
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([bolt.id]);
+        expect(state.players[0].life).toBe(20); // bolt never resolved
+    });
+
+    it("paying {2} lets the spell resolve normally, spending the mana", () => {
+        const p2 = makePlayer("p2", {
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+        });
+        const state = makeState({ players: [makePlayer("p1"), p2] });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, miscalculation.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.players[1].manaPool.C).toBe(0);
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeDefined();
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
+    });
+
+    it("the countered-and-graveyarded outcome survives the wire-format projection", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, miscalculation.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].graveyard.map((c) => c.id)).toEqual([
+            bolt.id,
+        ]);
+        expect(projected.stack).toHaveLength(0);
     });
 });
 

@@ -1081,102 +1081,59 @@ describe("White Ward (exempt self-referential aura, CR 702.16n)", () => {
 
 // Black/Blue/Green Ward — the rest of the makeColorWard cycle (Red Ward and
 // White Ward above already exercise the shared attach/detach/exempt-SBA
-// machinery in full). Each gets its own focused test: the keyword-grant
-// materializes the CORRECT color's protection, and that protection excludes
-// the host from a same-colored source's legal targets (CR 702.16b) — the
-// part of the shared factory that actually varies per card.
-describe("Black Ward (Aura keyword-grant → protection from black, CR 611 + 702.16)", () => {
-    it("grants 'protection from black' and removes the host from a black source's legal targets", () => {
-        const bear = makeInstance(grizzlyBears.id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [bear] }),
-            ],
-        });
-        pushSpell(state, blackWard.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
-        resolveTopOfStack(state);
+// machinery in full). One parameterized smoke test per remaining colour: the
+// keyword-grant materializes the CORRECT colour's protection, that grant
+// survives the wire-format projection (the per-card check that guards against
+// the AURA_AFFECTS_HOST predicate being applied inconsistently after
+// extraction), and the protection excludes the host from a same-coloured
+// source's legal targets (CR 702.16b) — the part of the shared factory that
+// actually varies per card.
+describe.each([
+    { ward: blackWard, color: "B" as const, keyword: "protection from black" },
+    { ward: blueWard, color: "U" as const, keyword: "protection from blue" },
+    { ward: greenWard, color: "G" as const, keyword: "protection from green" },
+])(
+    "$ward.name (Aura keyword-grant, CR 611 + 702.16)",
+    ({ ward, color, keyword }) => {
+        it(`grants '${keyword}' to its host, the grant survives projectPublicState, and the host leaves a ${color} source's legal targets`, () => {
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", { battlefield: [bear] }),
+                ],
+            });
+            pushSpell(state, ward.id, "p1", [
+                { type: "permanent", id: "bear" },
+            ]);
+            resolveTopOfStack(state);
 
-        const bearAfter = state.players[1].battlefield.find(
-            (c) => c.id === "bear"
-        )!;
-        expect(bearAfter.staticAbilities).toContain("protection from black");
+            const bearAfter = state.players[1].battlefield.find(
+                (c) => c.id === "bear"
+            )!;
+            expect(bearAfter.staticAbilities).toContain(keyword);
 
-        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, {
-            ...NO_TARGETING_SOURCE,
-            colors: ["B"],
-        });
-        expect(legal.map((t) => t.id)).not.toContain("bear");
-    });
-});
+            // Wire format: the grant must still be on the slim instance the
+            // client actually renders (projection strips `card.card`).
+            const projected = projectPublicState(state, 1, "p1");
+            const slimBear = projected.players[1].battlefield.find(
+                (c) => c.id === "bear"
+            )!;
+            expect(slimBear.staticAbilities).toContain(keyword);
 
-describe("Blue Ward (Aura keyword-grant → protection from blue, CR 611 + 702.16)", () => {
-    it("grants 'protection from blue' and removes the host from a blue source's legal targets", () => {
-        const bear = makeInstance(grizzlyBears.id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
+            const legal = getLegalTargets(
+                state,
+                lightningBolt.targetRequirement!,
+                { ...NO_TARGETING_SOURCE, colors: [color] }
+            );
+            expect(legal.map((t) => t.id)).not.toContain("bear");
         });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [bear] }),
-            ],
-        });
-        pushSpell(state, blueWard.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
-        resolveTopOfStack(state);
-
-        const bearAfter = state.players[1].battlefield.find(
-            (c) => c.id === "bear"
-        )!;
-        expect(bearAfter.staticAbilities).toContain("protection from blue");
-
-        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, {
-            ...NO_TARGETING_SOURCE,
-            colors: ["U"],
-        });
-        expect(legal.map((t) => t.id)).not.toContain("bear");
-    });
-});
-
-describe("Green Ward (Aura keyword-grant → protection from green, CR 611 + 702.16)", () => {
-    it("grants 'protection from green' and removes the host from a green source's legal targets", () => {
-        const bear = makeInstance(grizzlyBears.id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [bear] }),
-            ],
-        });
-        pushSpell(state, greenWard.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
-        resolveTopOfStack(state);
-
-        const bearAfter = state.players[1].battlefield.find(
-            (c) => c.id === "bear"
-        )!;
-        expect(bearAfter.staticAbilities).toContain("protection from green");
-
-        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, {
-            ...NO_TARGETING_SOURCE,
-            colors: ["G"],
-        });
-        expect(legal.map((t) => t.id)).not.toContain("bear");
-    });
-});
+    }
+);
 
 describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
     function setupCoPOnBattlefield(copCard = circleOfProtectionRed) {

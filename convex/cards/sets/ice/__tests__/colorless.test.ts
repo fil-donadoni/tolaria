@@ -84,6 +84,8 @@ import {
     pox,
     glacialChasm,
     hallsOfMist,
+    barbedSextant,
+    sunstone,
 } from "../../ice";
 import {
     plains,
@@ -93,8 +95,16 @@ import {
     forest,
     grizzlyBears,
 } from "../../lea";
-import { applyLandManaReplacement } from "../../../../gre/constants";
-import { untapStep, fireDelayedTriggers } from "../../../../gre/phases";
+import {
+    applyLandManaReplacement,
+    getManaTapOptionsDetailed,
+} from "../../../../gre/constants";
+import {
+    untapStep,
+    fireDelayedTriggers,
+    buildAutoDamageAssignments,
+    applyAllCombatDamage,
+} from "../../../../gre/phases";
 import {
     validateAttackerEligibility,
     validateBlockerEligibility,
@@ -3969,6 +3979,123 @@ describe("Staff of the Ages (CR 509.1b / 702.13 landwalk-negation static, all ba
         const slimDefenderBattlefield = projected.players[1].battlefield;
         expect(negatedLandwalkSubtypes(slimDefenderBattlefield)).toContain(
             "Island"
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Barbed Sextant — "{1}, {T}, Sacrifice this artifact: Add one mana of any
+// color. Draw a card at the beginning of the next turn's upkeep." (CR
+// 605.1a). The mana-ability catalogue sweep skips a `manaChoices` ability by
+// design (the offered list is a board-dependent choice; which index is
+// "right" isn't generic), so the index → colour mapping earns a hand-written
+// per-card test.
+// ---------------------------------------------------------------------------
+
+describe("Barbed Sextant ({1},{T},Sac: Add one mana of any color, CR 605.1a)", () => {
+    it("offers a manaChoices tap option for each of the five colors", () => {
+        const sextant = makeInstance(barbedSextant.id, {
+            id: "sextant",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [sextant] });
+        const options = getManaTapOptionsDetailed(sextant, "p1", [
+            { playerId: "p1", battlefield: player.battlefield },
+        ]);
+        expect(options.map((o) => o.mana)).toEqual([
+            { W: 1 },
+            { U: 1 },
+            { B: 1 },
+            { R: 1 },
+            { G: 1 },
+        ]);
+    });
+
+    it("tapping index 2 (black) pays the {1} cost, adds {B}, and sacrifices the source", () => {
+        const sextant = makeInstance(barbedSextant.id, {
+            id: "sextant",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", {
+            battlefield: [sextant],
+            manaPool: { W: 1, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, sextant, 2, []);
+        expect(player.manaPool).toEqual({
+            W: 0,
+            U: 0,
+            B: 1,
+            R: 0,
+            G: 0,
+            C: 0,
+        });
+        expect(player.battlefield.some((c) => c.id === "sextant")).toBe(false);
+        expect(player.graveyard.some((c) => c.id === "sextant")).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Sunstone — "{2}, Sacrifice a snow land: Prevent all combat damage that
+// would be dealt this turn." (CR 615). The smoke sweep skips it: the
+// `preventDamage` Op's `all-combat` mode registers a dormant, no-target,
+// turn-scoped shield the canned-scenario generator can't seed/verify.
+// ---------------------------------------------------------------------------
+
+describe("Sunstone ({2}, Sacrifice a snow land: Prevent all combat damage this turn, CR 615)", () => {
+    it("resolving the ability sets the turn-scoped all-combat prevention flag", () => {
+        const stone = makeInstance(sunstone.id, {
+            id: "stone",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stone] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, stone, "sunstone-fog");
+        expect(state.preventAllCombatDamageThisTurn).toBe(true);
+    });
+
+    it("the flag actually prevents combat damage from being applied this turn", () => {
+        const stone = makeInstance(sunstone.id, {
+            id: "stone",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const attacker = vanilla("atk", 3, 3, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker = vanilla("blk", 1, 1, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            players: [
+                makePlayer("p1", { battlefield: [stone, attacker] }),
+                makePlayer("p2", { battlefield: [blocker], life: 20 }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { blk: ["atk"] },
+                blockersConfirmed: true,
+            },
+        });
+        resolveActivated(state, stone, "sunstone-fog");
+        const assignments = buildAutoDamageAssignments(state, "regular");
+        applyAllCombatDamage(state, assignments);
+        // No damage anywhere: the blocker survives and the defender's life is
+        // untouched, even though a 3/3 attacked into a 1/1 blocker.
+        expect(state.players[1].life).toBe(20);
+        expect(state.players[1].battlefield.some((c) => c.id === "blk")).toBe(
+            true
         );
     });
 });

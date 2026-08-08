@@ -57,6 +57,9 @@ import {
     phantasmalMount,
     zursWeirding,
     soldeviMachinist,
+    sibilantSpirit,
+    soulBarrier,
+    icyPrison,
 } from "../../ice";
 import { lightningBolt } from "../../lea";
 import { matchesSpellFilter } from "../../../filters";
@@ -125,6 +128,9 @@ import {
     enterUpkeepAndFire,
     makeLand,
     snowLand,
+    PHASE_EVENT,
+    ENTERED,
+    LEFT,
 } from "./helpers";
 import {
     applyLandManaReplacement,
@@ -3277,5 +3283,237 @@ describe("Deflection (retarget a single-target spell to any target, CR 114.6)", 
         resolveTopOfStack(state); // Bolt resolves at the NEW target.
         expect(state.players[1].life).toBe(17); // p2 took the 3 damage
         expect(state.players[0].life).toBe(20); // p1 untouched
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Sibilant Spirit — attack trigger, "defending player may draw a card"
+// (CR 508.4 / 121.1). The smoke sweep skips it: the `mayPay` Op suspends on a
+// real Pay/Skip decision the canned-scenario generator can't drive.
+// ---------------------------------------------------------------------------
+
+describe("Sibilant Spirit (attack trigger, defending player may draw, CR 508.4 / 121.1)", () => {
+    function setup() {
+        const spirit = makeInstance(sibilantSpirit.id, {
+            id: "spirit",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [spirit] }),
+                makePlayer("p2", {
+                    library: [
+                        vanilla("draw1", 1, 1, {
+                            id: "draw1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        return { state, spirit };
+    }
+
+    it("suspends on the DEFENDING player's (opponent's) may-pay decision", () => {
+        const { state, spirit } = setup();
+        resolveTrigger(state, spirit, "sibilant-spirit-attack", {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: ["spirit"],
+        } as StackItem["triggerEvent"]);
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+    });
+
+    it("accepting draws the defending player a card", () => {
+        const { state, spirit } = setup();
+        resolveTrigger(state, spirit, "sibilant-spirit-attack", {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: ["spirit"],
+        } as StackItem["triggerEvent"]);
+        answerMayPay(state, true);
+        expect(state.players[1].hand.map((c) => c.id)).toContain("draw1");
+    });
+
+    it("declining leaves the defending player's hand untouched", () => {
+        const { state, spirit } = setup();
+        resolveTrigger(state, spirit, "sibilant-spirit-attack", {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: ["spirit"],
+        } as StackItem["triggerEvent"]);
+        answerMayPay(state, false);
+        expect(state.players[1].hand).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Soul Barrier — "Whenever an opponent casts a creature spell, deal 2 damage
+// to that player unless they pay {2}" (CR 601.2i cast trigger + `mayPay`
+// tax). Same shape as Mystic Remora above; the smoke sweep skips it for the
+// same reason (`mayPay` suspends on a real decision).
+// ---------------------------------------------------------------------------
+
+describe("Soul Barrier (tax on an opponent's creature spell, CR 601.2i / 120.1)", () => {
+    it("declining to pay {2} deals 2 damage to the caster", () => {
+        const barrier = makeInstance(soulBarrier.id, {
+            id: "barrier",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [barrier] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        resolveTrigger(state, barrier, "soul-barrier-tax", {
+            type: "SPELL_CAST",
+            casterId: "p2",
+        } as StackItem["triggerEvent"]);
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("paying {2} avoids the damage", () => {
+        const barrier = makeInstance(soulBarrier.id, {
+            id: "barrier",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [barrier] }),
+                makePlayer("p2", { life: 20, manaPool: { C: 2 } }),
+            ],
+        });
+        resolveTrigger(state, barrier, "soul-barrier-tax", {
+            type: "SPELL_CAST",
+            casterId: "p2",
+        } as StackItem["triggerEvent"]);
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.players[1].life).toBe(20);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Icy Prison — ETB exile target creature + upkeep pay-{3}-or-sacrifice +
+// return-on-leave (CR 701.18 exile / 603.6a phase trigger / 603.7a leaves-
+// the-battlefield). The smoke sweep skips all three of its Op sites
+// (`exileWithAttachments`, `mayPay`, `returnExiledForSource`).
+// ---------------------------------------------------------------------------
+
+describe("Icy Prison (ETB exile + upkeep tax + return on leave, CR 701.18 / 603.6a / 603.7a)", () => {
+    function setup() {
+        const prison = makeInstance(icyPrison.id, {
+            id: "prison",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("victim", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [prison], life: 20 }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        return { state, prison, victim };
+    }
+
+    it("exiles the targeted creature on ETB, keyed to itself (CR 701.18 / ADR 0028)", () => {
+        const { state, prison } = setup();
+        resolveTrigger(
+            state,
+            prison,
+            "icy-prison-exile",
+            ENTERED("prison", "p1"),
+            [{ type: "permanent", id: "victim" }]
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim")
+        ).toBe(false);
+        expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
+            true
+        );
+        expect(state.exileHeld?.some((b) => b.sourceId === "prison")).toBe(
+            true
+        );
+    });
+
+    it("sacrifices itself at upkeep when the {3} tax goes unpaid (CR 117.3a / 603.6a)", () => {
+        const { state, prison } = setup();
+        resolveTrigger(
+            state,
+            prison,
+            "icy-prison-upkeep",
+            PHASE_EVENT("UPKEEP", "p1")
+        );
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        answerMayPay(state, false);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "prison")
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "prison")).toBe(
+            true
+        );
+    });
+
+    it("paying {3} at upkeep keeps it on the battlefield", () => {
+        const { state, prison } = setup();
+        state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 3 };
+        resolveTrigger(
+            state,
+            prison,
+            "icy-prison-upkeep",
+            PHASE_EVENT("UPKEEP", "p1")
+        );
+        answerMayPay(state, true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "prison")
+        ).toBe(true);
+    });
+
+    it("returns the exiled creature to the battlefield under its owner's control when Icy Prison leaves (CR 603.7a)", () => {
+        const { state, prison } = setup();
+        resolveTrigger(
+            state,
+            prison,
+            "icy-prison-exile",
+            ENTERED("prison", "p1"),
+            [{ type: "permanent", id: "victim" }]
+        );
+        resolveTrigger(state, prison, "icy-prison-return", LEFT("prison"));
+        expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
+            false
+        );
+        const returned = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(returned).toBeDefined();
+        expect(returned?.ownerId).toBe("p2");
+    });
+
+    it("wire format: the exiled creature is off every battlefield after projection", () => {
+        const { state, prison } = setup();
+        resolveTrigger(
+            state,
+            prison,
+            "icy-prison-exile",
+            ENTERED("prison", "p1"),
+            [{ type: "permanent", id: "victim" }]
+        );
+        const projected = projectPublicState(state, 1, "p1");
+        const onAnyBoard = projected.players.some((p) =>
+            p.battlefield.some((c) => c.id === "victim")
+        );
+        expect(onAnyBoard).toBe(false);
     });
 });

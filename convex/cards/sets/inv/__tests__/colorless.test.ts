@@ -30,12 +30,14 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveActivated, resolveTrigger } from "./helpers";
 import { getDefinition } from "../../../index";
 import { applyDrawCardOnTap, tapSourceIntoPayment } from "../../../../game";
+import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import {
     alloyGolem,
     chromaticSphere,
     juntuStakes,
     lotusGuardian,
     phyrexianAltar,
+    phyrexianLens,
     planarPortal,
     sparringGolem,
     tek,
@@ -846,5 +848,54 @@ describe("Urza's Filter (multicolored spells cost {2} less to cast, CR 601.2f / 
             W: 1,
             U: 1,
         });
+    });
+});
+
+describe("Phyrexian Lens ({T}, Pay 1 life: Add one mana of any color; CR 605.1a / 118.4)", () => {
+    it("offers all five colors as tap options, one per manaChoices entry", () => {
+        const lens = makeInstance(phyrexianLens.id, {
+            id: "lens",
+            controllerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lens] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        const battlefields = state.players.map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield,
+        }));
+        const options = getManaTapOptionsDetailed(lens, "p1", battlefields);
+        expect(options.map((o) => o.mana)).toEqual([
+            { W: 1 },
+            { U: 1 },
+            { B: 1 },
+            { R: 1 },
+            { G: 1 },
+        ]);
+    });
+
+    it("tapping for a chosen color pays 1 life and adds that color to the pool", () => {
+        const lens = makeInstance(phyrexianLens.id, {
+            id: "lens2",
+            controllerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lens] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        state.activePlayerId = "p1";
+        tapSourceIntoPayment(state, player, lens, 2, []); // index 2 = B
+        expect(player.manaPool.B).toBe(1);
+        expect(player.life).toBe(19);
+    });
+
+    it("wire format: the life payment survives the projection", () => {
+        const lens = makeInstance(phyrexianLens.id, {
+            id: "lens3",
+            controllerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lens] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        state.activePlayerId = "p1";
+        tapSourceIntoPayment(state, player, lens, 4, []); // index 4 = G
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(19);
     });
 });

@@ -33,6 +33,7 @@ import {
     partWater,
     psionicEntity,
     recall,
+    removeSoul,
     reset,
     seaKingsBlessing,
     spectralCloak,
@@ -1298,5 +1299,34 @@ describe("Wall of Vapor (prevent combat damage from creatures it's blocking, CR 
                 pAtk as never
             )
         ).toBe(true);
+    });
+});
+
+describe("Remove Soul (counter target creature spell, CR 701.5a)", () => {
+    it("counters a creature spell on the stack", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bearsSpell = pushSpell(state, grizzlyBears.id, "p2");
+        pushSpell(state, removeSoul.id, "p1", [
+            { type: "spell", id: bearsSpell.id },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === bearsSpell.id)).toBeUndefined();
+    });
+
+    it("wire format: the countered creature spell is gone from the stack after projection", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bearsSpell = pushSpell(state, grizzlyBears.id, "p2");
+        pushSpell(state, removeSoul.id, "p1", [
+            { type: "spell", id: bearsSpell.id },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.stack.find((s) => s.id === bearsSpell.id)
+        ).toBeUndefined();
     });
 });

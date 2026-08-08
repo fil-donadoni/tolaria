@@ -5,12 +5,15 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    combatMedic,
     farrelitePriest,
     farrelsMantle,
     farrelsZealot,
     handOfJustice,
     heroism,
+    icatianInfantry,
     icatianJavelineers,
+    icatianMoneychanger,
     icatianPhalanx,
     icatianPriest,
     icatianSkirmishers,
@@ -38,7 +41,7 @@ import {
     tryAutoCommitPendingActivation,
 } from "../../../../game";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { grizzlyBears, monssGoblinRaiders } from "../../lea";
+import { grizzlyBears, lightningBolt, monssGoblinRaiders } from "../../lea";
 import { matchesPermanentFilter } from "../../../filters";
 import {
     makeInstance,
@@ -46,7 +49,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { resolveActivated } from "./helpers";
+import { resolveActivated, resolveTrigger, UPKEEP } from "./helpers";
 
 // ===========================================================================
 // CAPABILITY D — tapOtherFilter activation cost (Hand of Justice, CR 602.1 /
@@ -613,6 +616,140 @@ describe("Farrel's Mantle — CR 603.3d targeted unblocked-attack trigger", () =
 // ===========================================================================
 // Reuse-only white cards — spell / ability outcomes (CR-cited per card).
 // ===========================================================================
+
+// Combat Medic — the DSL smoke sweep skips this script: `preventDamage`
+// registers a dormant shield that only matters when SOMETHING ELSE deals
+// damage later, so the canned-scenario generator can't score it in isolation.
+describe("Combat Medic (activated preventDamage next-n shield on an announced target, CR 615.1)", () => {
+    it("shields the target for 1: a later 3-damage spell is absorbed down to 2 marked", () => {
+        const medic = makeInstance(combatMedic.id, {
+            id: "medic",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(grizzlyBears.id, {
+            id: "tgt",
+            controllerId: "p2",
+            ownerId: "p2",
+            toughness: 5, // survives the post-prevention 2 damage (CR 704.5g)
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [medic] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        resolveActivated(state, medic, "combat-medic-prevent", [
+            { type: "permanent", id: "tgt" },
+        ]);
+
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "tgt" },
+        ]);
+        resolveTopOfStack(state);
+
+        const after = state.players[1].battlefield.find((c) => c.id === "tgt")!;
+        expect(after.damageMarked).toBe(2); // 3 dealt - 1 prevented
+    });
+});
+
+// Icatian Infantry — the DSL smoke sweep skips both scripts: `grantAbility`
+// targets `$source`, which the generator can't pre-resolve without a live
+// resolution context.
+describe("Icatian Infantry (self-granted activated keywords, grantAbility targets $source, CR 611.1b)", () => {
+    it("gains first strike until end of turn when its {1} ability resolves", () => {
+        const inf = makeInstance(icatianInfantry.id, {
+            id: "inf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [inf] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(inf.staticAbilities).not.toContain("first strike");
+
+        resolveActivated(state, inf, "icatian-infantry-first-strike");
+
+        const after = state.players[0].battlefield.find((c) => c.id === "inf")!;
+        expect(after.staticAbilities).toContain("first strike");
+    });
+
+    it("wire format: the first strike grant survives projectPublicState", () => {
+        const inf = makeInstance(icatianInfantry.id, {
+            id: "inf2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [inf] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, inf, "icatian-infantry-first-strike");
+
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "inf2"
+        )!;
+        expect(slim.staticAbilities).toContain("first strike");
+    });
+});
+
+// Icatian Moneychanger — the DSL smoke sweep skips both scripts: the upkeep
+// trigger's `counters` Op targets `$source`, and the sacrifice ability's
+// `gainLife` amount reads a "credit" counter COUNT off the (already
+// sacrificed) source via CR 608.2g last-known information.
+describe("Icatian Moneychanger (credit counters — upkeep counters Op targets $source, sac reads LKI count, CR 122.6 / 608.2g)", () => {
+    it("banks a credit counter each upkeep, visible through projectPublicState", () => {
+        const mc = makeInstance(icatianMoneychanger.id, {
+            id: "mc",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { credit: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mc] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(
+            state,
+            mc,
+            "icatian-moneychanger-upkeep-counter",
+            UPKEEP("p1")
+        );
+        const after = state.players[0].battlefield.find((c) => c.id === "mc")!;
+        expect(after.counters?.credit).toBe(4);
+
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "mc"
+        )!;
+        expect(slim.counters?.credit).toBe(4);
+    });
+
+    it("sacrifices to gain life equal to its credit counters, read as last-known information (CR 608.2g)", () => {
+        const mc = makeInstance(icatianMoneychanger.id, {
+            id: "mc2",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { credit: 5 },
+        });
+        // NOT placed on any battlefield — the sacrifice cost is already paid
+        // by the time this activated ability resolves (CR 602.5a); the
+        // resolving stack item is the only surviving snapshot of the counters.
+        const state = makeState({
+            players: [makePlayer("p1", { life: 20 }), makePlayer("p2")],
+        });
+        resolveActivated(state, mc, "icatian-moneychanger-cash-out");
+        expect(state.players[0].life).toBe(25); // 20 + 5 credit counters
+    });
+});
 
 describe("Icatian Town — token creation (CR 707.2)", () => {
     it("creates four 1/1 white Citizen tokens", () => {

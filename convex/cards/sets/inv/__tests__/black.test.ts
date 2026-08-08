@@ -26,17 +26,22 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    addle,
     andraditeLeech,
     annihilate,
     bogInitiate,
     cremate,
+    cryptAngel,
     desperateResearch,
     doOrDie,
+    dredge,
     duskwalker,
     exoticCurse,
     gohamDjinn,
+    hypnoticCloud,
     maraudingKnight,
     mourning,
+    phyrexianBattleflies,
     phyrexianDelver,
     phyrexianInfiltrator,
     phyrexianReaper,
@@ -1644,5 +1649,391 @@ describe("Desperate Research ({1}{B} Sorcery — choose a card name, reveal 7, s
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].hand).toHaveLength(1);
         expect(projected.players[0].exile).toHaveLength(1);
+    });
+});
+
+describe("Hypnotic Cloud (Kicker {4} → discard 1 card, or 3 if kicked; CR 702.33 / 701.9)", () => {
+    it("unkicked: the target player discards a single chosen card", () => {
+        const keep = makeInstance(savannahLions.id, {
+            id: "hc-keep",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const drop = makeInstance(grizzlyBears.id, {
+            id: "hc-drop",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [keep, drop] }),
+            ],
+        });
+        pushSpell(state, hypnoticCloud.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the discard choice
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        expect(head.playerId).toBe("p2"); // the TARGET player chooses (CR 701.9)
+        expect(head.count).toEqual({ min: 0, max: 1 });
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["hc-drop"],
+        });
+        expect(state.players[1].graveyard.some((c) => c.id === "hc-drop")).toBe(
+            true
+        );
+        expect(state.players[1].hand.some((c) => c.id === "hc-keep")).toBe(
+            true
+        );
+    });
+
+    it("kicked: the target player discards up to three chosen cards instead", () => {
+        const cards = ["a", "b", "c", "d"].map((id) =>
+            makeInstance(savannahLions.id, {
+                id: `hc-${id}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: cards })],
+        });
+        const item = pushSpell(state, hypnoticCloud.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.kickerPayments = { kicker: 1 };
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.count).toEqual({ min: 0, max: 3 });
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["hc-a", "hc-b", "hc-c"],
+        });
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["hc-d"]);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "hc-a",
+            "hc-b",
+            "hc-c",
+        ]);
+    });
+});
+
+describe("Crypt Angel (ETB → return target blue or red creature card from graveyard to hand; CR 702.9 / 702.16 / 603.6a)", () => {
+    it("offers only blue/red graveyard creatures and returns the chosen one to hand", () => {
+        const angel = makeInstance(cryptAngel.id, {
+            id: "angel",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Hill Giant — red, a legal target.
+        const redCreature = makeInstance(hillGiant.id, {
+            id: "gy-red",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        // Grizzly Bears — green, NOT a legal target (filter is blue/red only).
+        const offColor = makeInstance(grizzlyBears.id, {
+            id: "gy-green",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [angel],
+                    graveyard: [redCreature, offColor],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, angel, "crypt-angel-etb", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "angel",
+            controllerId: "p1",
+            types: ["Creature"],
+        });
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-graveyard-card");
+        expect(head.candidateIds).toEqual(["gy-red"]); // the off-color card is filtered out
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["gy-red"],
+        });
+        expect(state.players[0].hand.some((c) => c.id === "gy-red")).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "gy-red")).toBe(
+            false
+        );
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "gy-green")
+        ).toBe(true);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand.some((c) => c?.id === "gy-red")).toBe(
+            true
+        );
+    });
+});
+
+describe("Dredge (Instant — sacrifice a creature or land, draw a card; CR 701.16 / 121.1)", () => {
+    it("sacrifices the chosen permanent, then draws a card", () => {
+        const creature = makeInstance(savannahLions.id, {
+            id: "dredge-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(plains.id, {
+            id: "dredge-land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const topCard = makeInstance(grizzlyBears.id, {
+            id: "dredge-draw",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [creature, land],
+                    library: [topCard],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, dredge.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("sacrifice-permanents");
+        expect(head.zone).toBe("battlefield");
+        expect(head.count).toBe(1); // exactly one, not "up to"
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["dredge-land"],
+        });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "dredge-land")
+        ).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "dredge-land")
+        ).toBe(true);
+        // The un-sacrificed creature stays.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "dredge-creature")
+        ).toBe(true);
+        expect(state.players[0].hand.some((c) => c.id === "dredge-draw")).toBe(
+            true
+        );
+
+        // Wire format — the sacrificed permanent must actually disappear from
+        // the projected battlefield the client renders.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.some((c) => c.id === "dredge-land")
+        ).toBe(false);
+        expect(
+            projected.players[0].battlefield.some(
+                (c) => c.id === "dredge-creature"
+            )
+        ).toBe(true);
+    });
+
+    it("auto-clamps to zero sacrifices with nothing to sacrifice (CR 608.2b), still draws", () => {
+        const topCard = makeInstance(grizzlyBears.id, {
+            id: "dredge-draw-2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: [topCard] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, dredge.id, "p1");
+        expect(resolveTopOfStack(state)).not.toBeNull(); // no suspension at all
+        expect(
+            state.players[0].hand.some((c) => c.id === "dredge-draw-2")
+        ).toBe(true);
+    });
+});
+
+describe("Phyrexian Battleflies ({B}: +1/+0 EOT, activate no more than twice each turn; CR 702.9 / 602.5)", () => {
+    it("pumps power by 1 per activation, cumulative across two activations", () => {
+        const bug = makeInstance(phyrexianBattleflies.id, {
+            id: "bug",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bug] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bug, "phyrexian-battleflies-pump");
+        const afterOne = state.players[0].battlefield.find(
+            (c) => c.id === "bug"
+        )!;
+        expect(getEffectivePower(state, afterOne)).toBe(1);
+
+        resolveActivated(state, afterOne, "phyrexian-battleflies-pump");
+        const afterTwo = state.players[0].battlefield.find(
+            (c) => c.id === "bug"
+        )!;
+        expect(getEffectivePower(state, afterTwo)).toBe(2);
+        expect(getEffectiveToughness(state, afterTwo)).toBe(1); // toughness untouched
+
+        // Wire format — the pumped power survives the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bug"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+    });
+
+    it("canActivate rejects a third activation this turn (CR 602.5 activation cap), through the real server gate", () => {
+        const ability = phyrexianBattleflies.activatedAbilities!.find(
+            (a) => a.id === "phyrexian-battleflies-pump"
+        )!;
+        // Mirrors the production gate in game.ts:
+        // `if (ability.canActivate && !ability.canActivate(card, state)) throw`.
+        const cappedOut = makeInstance(phyrexianBattleflies.id, {
+            id: "bug-capped",
+            controllerId: "p1",
+            activationsThisTurn: { "phyrexian-battleflies-pump": 2 },
+        });
+        expect(ability.canActivate!(cappedOut as never, {} as never)).toBe(
+            false
+        );
+
+        const oneUsed = makeInstance(phyrexianBattleflies.id, {
+            id: "bug-one-used",
+            controllerId: "p1",
+            activationsThisTurn: { "phyrexian-battleflies-pump": 1 },
+        });
+        expect(ability.canActivate!(oneUsed as never, {} as never)).toBe(true);
+    });
+});
+
+describe("Addle (choose a color; target player reveals hand, you choose a card of that color, they discard it; CR 701.20a / 701.9)", () => {
+    it("reveals the target player's hand, then discards the chosen-color card, leaving the rest", () => {
+        const blackCard = makeInstance(bogInitiate.id, {
+            id: "p2-black",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const whiteCard = makeInstance(savannahLions.id, {
+            id: "p2-white",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [blackCard, whiteCard] }),
+            ],
+        });
+        pushSpell(state, addle.id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on "choose a color"
+        const colorPick = state.pendingChoices![0];
+        expect(colorPick.kind).toBe("option-pick");
+        // addleMode has no explicit `id`, so the option id is its position:
+        // 0=W, 1=U, 2=B, 3=R, 4=G.
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: colorPick.stackItemId,
+            step: colorPick.step,
+            choiceId: colorPick.choiceId,
+            cardInstanceIds: ["2"],
+        });
+
+        const cardPick = state.pendingChoices![0];
+        expect(cardPick.kind).toBe("choose-hand-card");
+        expect(cardPick.candidateIds).toEqual(["p2-black"]); // the white card is filtered out
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: cardPick.stackItemId,
+            step: cardPick.step,
+            choiceId: cardPick.choiceId,
+            cardInstanceIds: ["p2-black"],
+        });
+
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "p2-black")
+        ).toBe(true);
+        expect(state.players[1].hand.some((c) => c.id === "p2-white")).toBe(
+            true
+        );
+    });
+
+    it("wire format: the reveal keeps the opponent's remaining hand visible to the caster after resolution", () => {
+        const blackCard = makeInstance(bogInitiate.id, {
+            id: "p2-black-wire",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const whiteCard = makeInstance(savannahLions.id, {
+            id: "p2-white-wire",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [blackCard, whiteCard] }),
+            ],
+        });
+        pushSpell(state, addle.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const colorPick = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: colorPick.stackItemId,
+            step: colorPick.step,
+            choiceId: colorPick.choiceId,
+            cardInstanceIds: ["2"],
+        });
+        const cardPick = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: cardPick.stackItemId,
+            step: cardPick.step,
+            choiceId: cardPick.choiceId,
+            cardInstanceIds: ["p2-black-wire"],
+        });
+
+        // Before Addle, an opponent's hand card is null in a viewer's own
+        // projection; the reveal's `knownTo` stamp makes the surviving card
+        // visible to p1 even after the spell has fully resolved.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].hand.some((c) => c?.id === "p2-white-wire")
+        ).toBe(true);
     });
 });

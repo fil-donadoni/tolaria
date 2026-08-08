@@ -19,8 +19,10 @@ import {
     alchorsTomb,
     blackManaBattery,
     blueManaBattery,
+    cathedralOfSerra,
     greenManaBattery,
     hundingGjornersen,
+    ladyOrca,
     manaMatrix,
     marhaultElsdragon,
     mirrorUniverse,
@@ -29,8 +31,10 @@ import {
     planarGate,
     redManaBattery,
     relicBarrier,
+    seafarersQuay,
     tolaria,
     tundraWolves,
+    unholyCitadel,
     whiteManaBattery,
 } from "..";
 import { tapSourceIntoPayment } from "../../../../game";
@@ -637,6 +641,134 @@ describe("Bands-with-other grant-lands (CR 702.22j, keyword-grant)", () => {
         applySourceStaticEffects(state, land);
         // Both legendary, one grants the legendary quality → band is legal.
         expect(isLegalBandComposition([a, b])).toBe(true);
+    });
+});
+
+describe("Cathedral of Serra (CR 702.22j keyword-grant, white legendary creatures)", () => {
+    it("grants the keyword to your WHITE legendary creature only", () => {
+        // Hunding Gjornersen ({W}{U}) is white; Marhault Elsdragon ({R}{G}) is not.
+        const land = makeInstance(cathedralOfSerra.id, {
+            id: "cathedral",
+            controllerId: "p1",
+        });
+        const whiteLegend = makeInstance(hundingGjornersen.id, {
+            id: "white",
+            controllerId: "p1",
+        });
+        const nonWhiteLegend = makeInstance(marhaultElsdragon.id, {
+            id: "nonwhite",
+            controllerId: "p1",
+        });
+        const oppWhiteLegend = makeInstance(hundingGjornersen.id, {
+            id: "oppwhite",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land, whiteLegend, nonWhiteLegend],
+                }),
+                makePlayer("p2", { battlefield: [oppWhiteLegend] }),
+            ],
+        });
+        applySourceStaticEffects(state, land);
+
+        const kw = "bands with other:legendary";
+        expect(whiteLegend.staticAbilities).toContain(kw); // white + legendary + yours
+        expect(nonWhiteLegend.staticAbilities).not.toContain(kw); // not white
+        expect(oppWhiteLegend.staticAbilities).not.toContain(kw); // not yours
+
+        // Wire format: the granted keyword must survive projection so the band
+        // panel (which reads staticAbilities client-side) can offer the band.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "white"
+        )!;
+        expect(slim.staticAbilities).toContain(kw);
+    });
+});
+
+describe("Seafarer's Quay (CR 702.22j keyword-grant, blue legendary creatures)", () => {
+    it("grants the keyword to your BLUE legendary creature only", () => {
+        // Hunding Gjornersen ({W}{U}) is blue; Marhault Elsdragon ({R}{G}) is not.
+        const land = makeInstance(seafarersQuay.id, {
+            id: "quay",
+            controllerId: "p1",
+        });
+        const blueLegend = makeInstance(hundingGjornersen.id, {
+            id: "blue",
+            controllerId: "p1",
+        });
+        const nonBlueLegend = makeInstance(marhaultElsdragon.id, {
+            id: "nonblue",
+            controllerId: "p1",
+        });
+        const oppBlueLegend = makeInstance(hundingGjornersen.id, {
+            id: "oppblue",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land, blueLegend, nonBlueLegend],
+                }),
+                makePlayer("p2", { battlefield: [oppBlueLegend] }),
+            ],
+        });
+        applySourceStaticEffects(state, land);
+
+        const kw = "bands with other:legendary";
+        expect(blueLegend.staticAbilities).toContain(kw); // blue + legendary + yours
+        expect(nonBlueLegend.staticAbilities).not.toContain(kw); // not blue
+        expect(oppBlueLegend.staticAbilities).not.toContain(kw); // not yours
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "blue"
+        )!;
+        expect(slim.staticAbilities).toContain(kw);
+    });
+});
+
+describe("Unholy Citadel (CR 702.22j keyword-grant, black legendary creatures)", () => {
+    it("grants the keyword to your BLACK legendary creature only", () => {
+        // Lady Orca ({B}{R}) is black; Marhault Elsdragon ({R}{G}) is not.
+        const land = makeInstance(unholyCitadel.id, {
+            id: "citadel",
+            controllerId: "p1",
+        });
+        const blackLegend = makeInstance(ladyOrca.id, {
+            id: "black",
+            controllerId: "p1",
+        });
+        const nonBlackLegend = makeInstance(marhaultElsdragon.id, {
+            id: "nonblack",
+            controllerId: "p1",
+        });
+        const oppBlackLegend = makeInstance(ladyOrca.id, {
+            id: "oppblack",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land, blackLegend, nonBlackLegend],
+                }),
+                makePlayer("p2", { battlefield: [oppBlackLegend] }),
+            ],
+        });
+        applySourceStaticEffects(state, land);
+
+        const kw = "bands with other:legendary";
+        expect(blackLegend.staticAbilities).toContain(kw); // black + legendary + yours
+        expect(nonBlackLegend.staticAbilities).not.toContain(kw); // not black
+        expect(oppBlackLegend.staticAbilities).not.toContain(kw); // not yours
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "black"
+        )!;
+        expect(slim.staticAbilities).toContain(kw);
     });
 });
 

@@ -17,6 +17,7 @@ import {
     barbaryApes,
     cocoon,
     concordantCrossroads,
+    crawGiant,
     durkwoodBoars,
     elvenRiders,
     emeraldDragonfly,
@@ -36,9 +37,13 @@ import {
     typhoon,
     wallOfLight,
     whirlingDervish,
+    wolverinePack,
 } from "..";
 import { projectPublicState } from "../../../../gameProjections";
-import { isLegalBandComposition } from "../../../../gre/banding";
+import {
+    isLegalBandComposition,
+    recordBlockedAttackers,
+} from "../../../../gre/banding";
 import {
     arboriaForbidsAttack,
     validateAttackerEligibility,
@@ -49,12 +54,17 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { enumerateMoves, type Move } from "../../../../gre/moves";
-import { finalizeCleanup, untapStep } from "../../../../gre/phases";
+import {
+    emitBlockersConfirmedEvents,
+    finalizeCleanup,
+    untapStep,
+} from "../../../../gre/phases";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     applySourceStaticEffects,
     resolveTopOfStack,
     type CardInstanceState,
+    type GameState,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import {
@@ -1096,5 +1106,101 @@ describe("Giant Turtle (#490 — self attack restriction, CR 508.1)", () => {
             restriction?.kind === "attack-restriction" &&
                 restriction.predicate(slim as never, [])
         ).toBe(false);
+    });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Rampage N (CR 702.23) on Craw Giant / Wolverine Pack — the generic
+// mechanism is exercised catalogue-wide in leg/red.test.ts (frostGiant,
+// aerathiBerserker); these two prove the SPECIFIC cards actually carry the
+// matching `rampageTrigger(2)` and fire it through the real combat path
+// (`emitBlockersConfirmedEvents` → `resolveTopOfStack`), not just declare
+// the keyword.
+// ──────────────────────────────────────────────────────────────────────────
+
+/** Attacker (from `def`) blocked by `blockerCount` Grizzly Bears, all
+ *  assigned to it at DECLARE_BLOCKERS. */
+function setupRampageCombat(
+    def: { id: string },
+    blockerCount: number
+): { state: GameState; attackerId: string } {
+    const attacker = makeInstance(def.id, {
+        id: "rampager",
+        controllerId: "p1",
+        ownerId: "p1",
+        isAttacking: true,
+    });
+    const blockerIds = Array.from(
+        { length: blockerCount },
+        (_, i) => `blk${i}`
+    );
+    const blockers = blockerIds.map((id) =>
+        makeInstance(grizzlyBears.id, {
+            id,
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        })
+    );
+    const blockerAssignments: Record<string, string[]> = {};
+    for (const id of blockerIds) blockerAssignments[id] = ["rampager"];
+    const state = makeState({
+        players: [
+            makePlayer("p1", { battlefield: [attacker] }),
+            makePlayer("p2", { battlefield: blockers }),
+        ],
+        phase: "DECLARE_BLOCKERS",
+        combat: {
+            attackerIds: ["rampager"],
+            confirmed: true,
+            blockerAssignments,
+            blockersConfirmed: true,
+        },
+    });
+    recordBlockedAttackers(state);
+    return { state, attackerId: attacker.id };
+}
+
+describe("Craw Giant (CR 702.19 trample + CR 702.23 rampage 2)", () => {
+    it("blocked by two creatures: rampage fires once for +2/+2 (base 6/4 → 8/6)", () => {
+        const { state, attackerId } = setupRampageCombat(crawGiant, 2);
+        emitBlockersConfirmedEvents(state);
+        expect(
+            state.stack.filter((s) => s.triggeredAbilityId === "rampage-2")
+        ).toHaveLength(1);
+        resolveTopOfStack(state);
+        const atk = state.players[0].battlefield.find(
+            (c) => c.id === attackerId
+        )!;
+        expect(getEffectivePower(state, atk)).toBe(8);
+        expect(getEffectiveToughness(state, atk)).toBe(6);
+    });
+
+    it("wire format: pumped P/T survives projectPublicState", () => {
+        const { state, attackerId } = setupRampageCombat(crawGiant, 2);
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === attackerId
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(8);
+        expect(getEffectiveToughness(projected, slim)).toBe(6);
+    });
+});
+
+describe("Wolverine Pack (CR 702.23 rampage 2)", () => {
+    it("blocked by two creatures: rampage fires once for +2/+2 (base 2/4 → 4/6)", () => {
+        const { state, attackerId } = setupRampageCombat(wolverinePack, 2);
+        emitBlockersConfirmedEvents(state);
+        expect(
+            state.stack.filter((s) => s.triggeredAbilityId === "rampage-2")
+        ).toHaveLength(1);
+        resolveTopOfStack(state);
+        const atk = state.players[0].battlefield.find(
+            (c) => c.id === attackerId
+        )!;
+        expect(getEffectivePower(state, atk)).toBe(4);
+        expect(getEffectiveToughness(state, atk)).toBe(6);
     });
 });
