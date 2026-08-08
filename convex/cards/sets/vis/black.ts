@@ -79,7 +79,7 @@ export const vampiricTutor: CardDefinition = {
 // because it is PRINTED as an Aura with a cast-time `targetRequirement`;
 // giving Necromancy that shape would force a target at cast time and diverge
 // from modern Oracle text (ADR 0004). (b) no cleanup-step delayed-trigger
-// boundary — `DelayedTriggerTiming` (`convex/cards/types.ts:4882-4990`) has
+// boundary — `DelayedTriggerTiming` (`convex/cards/types.ts:4882-4958`) has
 // ten members and none is a cleanup one, and the `case "CLEANUP"` arm
 // (`convex/gre/phases.ts:2066-2075`) never calls `fireDelayedTriggers` at all,
 // unlike the five phase boundaries that do (`phases.ts:1919,1930,2019,2030,
