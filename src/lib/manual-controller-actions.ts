@@ -24,7 +24,6 @@ import type { ControllerActionsSource } from "~/hooks/controllerActionsContext";
 import type { ControllerAction } from "~/hooks/useControllerActions";
 import type { ManualRuntime } from "./manual-runtime";
 import { nextManualPhase } from "./manual-phase";
-import { BOARD_ANCHOR_SELECTOR, findManualAnchor } from "./manual-verb-anchor";
 
 /** Descriptor keys the manual controller offers in a TWO-PLAYER Manual Game,
  *  in display order. Exported so the guard test asserts the set rather than
@@ -128,11 +127,14 @@ export function makeManualControllerActions(
             label: "Concede",
             tone: "destructive",
             disabled: false,
-            // Issue #2170 — the confirm popover has no single card/pile to
-            // anchor to (Concede acts on the whole game), so it anchors to
-            // the board root instead of a native `window.confirm`.
+            // Issue #2170 — the confirm has no single card/pile to anchor to
+            // (Concede acts on the whole game), so it passes NO anchor and
+            // `ManualVerbPopover` renders it centred. It used to pass the
+            // board ROOT, and a popover anchored to a full-viewport element
+            // positions itself above that element — off-screen, with the
+            // board behind it inert. See that component for the measurement.
             onClick: () =>
-                requestVerbInput(findManualAnchor(BOARD_ANCHOR_SELECTOR), {
+                requestVerbInput(null, {
                     kind: "confirm",
                     title: "Concede this game?",
                     onConfirm: () => dispatch.concede({ playerId: viewerId }),

@@ -41,7 +41,7 @@ const MANUAL_MUTATION_NAMES = [
     "manualReveal",
     "manualRevealHand",
     "manualEndTurn",
-    "manualConcede",
+    "manualConcedeMatch",
 ];
 for (const n of MANUAL_MUTATION_NAMES) MUTATIONS[n] = vi.fn();
 

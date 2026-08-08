@@ -49,7 +49,7 @@ const MANUAL_MUTATION_NAMES = [
     "manualShuffle",
     "manualSetNote",
     "manualEndTurn",
-    "manualConcede",
+    "manualConcedeMatch",
 ];
 for (const n of MANUAL_MUTATION_NAMES) MUTATIONS[n] = vi.fn();
 

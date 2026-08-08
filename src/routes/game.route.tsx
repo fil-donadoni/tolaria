@@ -6,6 +6,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
 import ManualBoardContainer from "~/components/board/manual-board-container";
+import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import PregameDialog from "~/components/board/pregame-dialog";
 import DebugPanel from "~/components/debug/debug-panel";
 import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
@@ -97,6 +98,23 @@ export default function GameRoute() {
         // ADR 0080 — the ONLY consumer of games.mode: route the manual game
         // to its own board rather than the GRE board.
         if (game.mode === "manual") {
+            // A conceded Tabletop game has had its `manualStates` rows deleted
+            // by `manualConcedeMatch`, so the container would subscribe to a
+            // null state and sit on "Loading..." forever. The result screen
+            // replaces the board outright.
+            if (game.status === "finished") {
+                return (
+                    <div className="flex h-dvh flex-col">
+                        <ManualGameOverDialog
+                            players={game.players}
+                            winnerId={game.winner}
+                            matchId={game.matchId}
+                            viewerId={playerId}
+                            onSwitchGame={handleSwitchGame}
+                        />
+                    </div>
+                );
+            }
             return (
                 <div className="flex h-dvh flex-col">
                     <ManualBoardContainer

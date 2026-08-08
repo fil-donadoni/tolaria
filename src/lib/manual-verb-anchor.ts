@@ -44,12 +44,7 @@ export function pileAnchorSelector(zone: PileZone, ownerId: string): string {
     return `[data-zone-drop="${zone}"][data-zone-owner="${cssEscape(ownerId)}"]`;
 }
 
-/** Selector for the board root (`manual-board-view.tsx`'s `<main
- *  data-manual-board>`) — the fallback anchor for a verb with no natural
- *  card/pile referent (Concede: `manual-controller-actions.ts`). The
- *  controller's own action buttons render through THREE separate layout
- *  components (pod / bottom bar / landscape strip) with no shared anchor
- *  attribute of their own, so anchoring to the always-mounted board root
- *  avoids threading a new data attribute through all three just for one
- *  verb. */
-export const BOARD_ANCHOR_SELECTOR = "[data-manual-board]";
+// A "board root" anchor for verbs with no card/pile referent (Concede) used
+// to live here. It was removed, not replaced: an anchor spanning the whole
+// viewport puts the popover OFF-screen (`manual-verb-popover.tsx` measures
+// it). Such a verb now passes `null` and gets a centred dialog instead.

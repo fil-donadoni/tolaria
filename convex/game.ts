@@ -14877,19 +14877,12 @@ export const manualEndTurn = mutation({
     },
 });
 
-export const manualConcede = mutation({
-    args: {
-        gameId: v.id("games"),
-        playerId: v.string(),
-    },
-    returns: v.null(),
-    handler: async (ctx, args) => {
-        await manualVerbHandler(ctx, args.gameId, (state) =>
-            manualConcedeFn(state, args.playerId)
-        );
-        return null;
-    },
-});
+// `manualConcede` — a mutation that ran `manualConcedeFn` and stopped there —
+// was DELETED here. It stamped `concededBy` on the manual state and nothing,
+// client or server, ever read that field, so the board's Concede button
+// dispatched a write that ended no game: the whole visible symptom of the QA
+// report. There is exactly one concede in Manual Mode and it is
+// `manualConcedeMatch` below, which finishes the game row too.
 
 /**
  * Concede and finalize a manual game (ADR 0080 S12). The conceding player's

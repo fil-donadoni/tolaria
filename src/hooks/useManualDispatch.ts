@@ -36,7 +36,13 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
     const reveal = useMutation(api.game.manualReveal);
     const revealHand = useMutation(api.game.manualRevealHand);
     const endTurn = useMutation(api.game.manualEndTurn);
-    const concede = useMutation(api.game.manualConcede);
+    // `manualConcedeMatch`, NOT `manualConcede`: the latter only stamps
+    // `concededBy` on the manual state — a field NOTHING reads — so the
+    // button looked wired and ended nothing (QA: "concede is still inert").
+    // Conceding a Tabletop game is the ONLY terminator ADR 0080 gives it, so
+    // it must be the mutation that finishes the game row, awards the
+    // opponent and advances the Match.
+    const concede = useMutation(api.game.manualConcedeMatch);
 
     return useMemo<ManualDispatch>(
         () => ({

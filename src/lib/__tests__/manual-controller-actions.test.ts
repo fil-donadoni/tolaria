@@ -127,6 +127,11 @@ describe("manual controller actions (#2169, #2172)", () => {
 
         byKey.get("manual-concede")!.onClick();
         expect(requestVerbInput).toHaveBeenCalledTimes(1);
+        // NO anchor: Concede acts on the whole game. It used to pass the board
+        // root, and a popover anchored to a full-viewport element renders
+        // off-screen — the "the concede button is inert" report. A null anchor
+        // is what makes `ManualVerbPopover` use its centred dialog shell.
+        expect(requestVerbInput.mock.calls[0][0]).toBeNull();
         expect(dispatch.concede).not.toHaveBeenCalled();
         const request = requestVerbInput.mock.calls[0][1] as ManualVerbRequest;
         expect(request.kind).toBe("confirm");

@@ -173,6 +173,60 @@ describe("ManualVerbPopover (#2170)", () => {
     });
 });
 
+// The QA report this covers: "the concede button in manual is still inert".
+// Concede has no card or pile to point at, so it used to anchor its confirm to
+// the board ROOT — and base-ui positions a `side="top"` popover ABOVE its
+// anchor, which for a full-viewport anchor is off-screen (measured in Chrome:
+// `y: -94` on a 620px board) while `#root` still gets `data-base-ui-inert`.
+// An invisible prompt over a frozen board is indistinguishable from a dead
+// button. An anchorless request must therefore never take the popover shell.
+describe("ManualVerbPopover — no anchor", () => {
+    const request: ManualVerbRequest = {
+        kind: "confirm",
+        title: "Concede this game?",
+        onConfirm: () => {},
+    };
+
+    it("renders a centred dialog instead of an anchored popover", () => {
+        const rendered = render(
+            <ManualVerbPopover
+                pending={{ anchor: null, request, nonce: 1 }}
+                onClose={() => {}}
+            />
+        );
+
+        expect(
+            document.querySelector('[data-slot="popover-content"]')
+        ).toBeNull();
+        expect(document.querySelector('[role="dialog"]')).toBeTruthy();
+        expect(
+            rendered.getAllByText("Concede this game?").length
+        ).toBeGreaterThan(0);
+    });
+
+    it("confirms and cancels through the dialog shell", () => {
+        const onConfirm = vi.fn();
+        const onClose = vi.fn();
+        const rendered = render(
+            <ManualVerbPopover
+                pending={{
+                    anchor: null,
+                    request: { ...request, onConfirm },
+                    nonce: 1,
+                }}
+                onClose={onClose}
+            />
+        );
+
+        fireEvent.click(rendered.getByText("Cancel"));
+        expect(onConfirm).not.toHaveBeenCalled();
+        expect(onClose).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(rendered.getByText("Confirm"));
+        expect(onConfirm).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe("useManualVerbPopoverState (#2170)", () => {
     it("starts with nothing pending", () => {
         const { result } = renderHook(() => useManualVerbPopoverState());

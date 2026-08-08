@@ -1,17 +1,29 @@
-import { useState } from "react";
 import { Popover, PopoverContent } from "~/components/ui/popover";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import NumberStepper from "~/components/ui/number-stepper";
+import GameDialog from "~/components/ui/game-dialog";
+import ManualVerbForm from "./manual-verb-form";
 import type { PendingManualVerb } from "~/hooks/useManualVerbPopover";
 
-/** The anchored popover itself (issue #2170 AC): a numeric stepper for
- *  draw/mill/exile-top/peek N, a text field for the custom counter's name and
- *  a card's note, or an inline confirm for shuffle — never a native
- *  `window.prompt`/`window.confirm`/`window.alert`. Anchored to the pile tile
- *  or battlefield permanent the verb acts on, dismissible (ESC / outside
- *  click), and never blocks the board behind it. Renders nothing while no
- *  verb is pending. */
+/** The prompt surface for every parameterised manual verb (issue #2170) —
+ *  never a native `window.prompt`/`window.confirm`/`window.alert`. Renders
+ *  nothing while no verb is pending, and picks its shell from whether the verb
+ *  HAS an element to point at:
+ *
+ *  - **anchored popover** — the pile tile or battlefield permanent the verb
+ *    acts on, dismissible (ESC / outside click), board still visible behind it.
+ *  - **centred dialog** — when `anchor` is `null`. Concede acts on the whole
+ *    game and has no card or pile referent; it used to anchor to the board
+ *    ROOT, which is the bug this split fixes. A popover anchored to a
+ *    full-viewport element with `side="top"` positions itself ABOVE that
+ *    element, i.e. off-screen (measured: `y: -94` on a 620px-tall board) —
+ *    while Base UI still marks the rest of the page `data-base-ui-inert`. The
+ *    result is a button that opens an invisible prompt and freezes the board
+ *    behind it: indistinguishable from a dead button, which is exactly how it
+ *    was reported. The same fallback covers any anchor selector that misses
+ *    (a pile tile not currently mounted), where the old code positioned at an
+ *    arbitrary point too.
+ *
+ *  `key={pending.nonce}` remounts the body on every new request, so its inputs
+ *  reset even when two requests share the same title. */
 export default function ManualVerbPopover({
     pending,
     onClose,
@@ -19,44 +31,25 @@ export default function ManualVerbPopover({
     pending: PendingManualVerb | null;
     onClose: () => void;
 }) {
-    const [numberRaw, setNumberRaw] = useState("");
-    const [text, setText] = useState("");
-    // Render-time reset on a NEW request (`nonce` changed) — same pattern
-    // `CastCostDialog` uses for its `prevOpen` diff. `pending` is a fresh
-    // object per request, so this also covers "the same verb, picked twice
-    // in a row" (the raw text must not leak the previous entry).
-    const [prevNonce, setPrevNonce] = useState<number | undefined>(undefined);
-    if (pending && pending.nonce !== prevNonce) {
-        setPrevNonce(pending.nonce);
-        setNumberRaw(
-            pending.request.kind === "number"
-                ? String(pending.request.defaultValue)
-                : ""
-        );
-        setText(
-            pending.request.kind === "text" ? pending.request.defaultValue : ""
+    if (!pending) return null;
+    const { anchor, request, nonce } = pending;
+    const body = (
+        <ManualVerbForm key={nonce} request={request} onClose={onClose} />
+    );
+
+    if (!anchor) {
+        return (
+            <GameDialog
+                open
+                title={request.title}
+                onOpenChange={(next) => {
+                    if (!next) onClose();
+                }}
+            >
+                {body}
+            </GameDialog>
         );
     }
-
-    if (!pending) return null;
-    const { anchor, request } = pending;
-
-    const parsedNumber = Number.parseInt(numberRaw, 10);
-    const numberMin = request.kind === "number" ? (request.min ?? 1) : 1;
-    const numberValid =
-        Number.isFinite(parsedNumber) && parsedNumber >= numberMin;
-
-    const submit = () => {
-        if (request.kind === "number") {
-            if (!numberValid) return;
-            request.onConfirm(parsedNumber);
-        } else if (request.kind === "text") {
-            request.onConfirm(text);
-        } else {
-            request.onConfirm();
-        }
-        onClose();
-    };
 
     return (
         <Popover
@@ -71,57 +64,10 @@ export default function ManualVerbPopover({
                 align="center"
                 className="w-64"
             >
-                <form
-                    className="flex flex-col gap-2.5"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        submit();
-                    }}
-                >
-                    <p className="text-xs font-medium text-text">
-                        {request.title}
-                    </p>
-                    {request.kind === "confirm" && request.description && (
-                        <p className="text-xs text-text-muted">
-                            {request.description}
-                        </p>
-                    )}
-                    {request.kind === "number" && (
-                        <NumberStepper
-                            value={numberRaw}
-                            onChange={setNumberRaw}
-                            min={numberMin}
-                            autoFocus
-                            aria-label={request.title}
-                        />
-                    )}
-                    {request.kind === "text" && (
-                        <Input
-                            value={text}
-                            onChange={(e) => setText(e.target.value)}
-                            placeholder={request.placeholder}
-                            autoFocus
-                            aria-label={request.title}
-                        />
-                    )}
-                    <div className="mt-1 flex items-center justify-end gap-2">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={onClose}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            size="sm"
-                            disabled={request.kind === "number" && !numberValid}
-                        >
-                            Confirm
-                        </Button>
-                    </div>
-                </form>
+                <p className="mb-2.5 text-xs font-medium text-text">
+                    {request.title}
+                </p>
+                {body}
             </PopoverContent>
         </Popover>
     );
