@@ -10,6 +10,8 @@ import {
 } from "@convex/limited/poolArrangement";
 import {
     createColumnLayout,
+    parseColumnId,
+    type ColumnId,
     type ColumnLayout,
     type GroupingKind,
     type OrderingKind,
@@ -53,7 +55,12 @@ import { toZoneCards } from "~/components/deckbuilder/poolZoneCards";
  *   must not be confused.
  * - **no column add / rename / delete** (the trio simply not passed) — those
  *   are workbench gestures, and the vertical space belongs to the Booster and
- *   the timer.
+ *   the timer. Column PLACEMENT is a different matter: the draft already lets
+ *   a Pool card be dragged onto a Column (`limited-draft-table.tsx`'s own
+ *   `handleMoveArrangement`), so the touch-friendly `"move to…"` menu
+ *   (`onPin` below) is wired through here too — omitting it would make
+ *   narrow-screen Pool arrangement unreachable during a draft, exactly the
+ *   failure #1633 exists to fix (PR #2333 review, bundled finding 2).
  *
  * The Sideboard beside it is the same surface in `"pane"` drop mode, Grouping
  * `none` (one flat pile, as it has always looked) and no controls at all: a
@@ -133,6 +140,30 @@ export default function LimitedDraftPool({
         [setPoolArrangementEntry, eventId]
     );
 
+    // The `"move to…"` menu's pin (issue #1633 bundled finding 2) — the SAME
+    // shape `pool-deck-builder-form.tsx`'s own `handlePin` sends for its
+    // Pool/Maindeck zone (the build view's counterpart): `column` only, no
+    // `sideboard` field, so a pin can never itself move a card between the
+    // Pool and the Sideboard as a side effect (this menu only ever renders on
+    // Pool tiles — `dropModel: "columns"` — so the card pinned is always
+    // already main-side). `parseColumnId` mirrors `pinCardToColumn`'s own
+    // fail-closed rule; `DeckZoneSurface`'s `moveMenuColumns` already
+    // excludes non-pin-target ids (PR #2333 review, B1), so this is a second,
+    // cheap layer rather than the only one.
+    const handlePin = useCallback(
+        (_cardId: string, columnId: ColumnId, pinKey: string) => {
+            if (!parseColumnId(columnId)) return;
+            const poolIndex = Number(pinKey);
+            if (!Number.isInteger(poolIndex)) return;
+            void setPoolArrangementEntry({
+                eventId,
+                poolIndex,
+                column: columnId,
+            }).catch(() => {});
+        },
+        [setPoolArrangementEntry, eventId]
+    );
+
     const handleGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange(DRAFT_POOL_VIEW_ZONE, grouping);
         setView((v) => ({ ...v, grouping }));
@@ -170,6 +201,7 @@ export default function LimitedDraftPool({
                     onGroupingChange={handleGroupingChange}
                     onOrderingChange={handleOrderingChange}
                     onCardClick={(card) => setSideboard(card, true)}
+                    onPin={handlePin}
                     cardTitle={(card) =>
                         `Remove ${card.cardName} (double-click, drag, or click)`
                     }

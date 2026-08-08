@@ -258,6 +258,73 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
     });
 });
 
+describe("LimitedDraftPool — the `move to…` menu (issue #1633 bundled finding 2)", () => {
+    // Draft-time column MANAGEMENT is omitted from the reduced bar (no
+    // add/rename/delete), but column PLACEMENT is not: the Booster→Pool drag
+    // already persists a `columnId` (`limited-draft-table.tsx`'s
+    // `handleMoveArrangement`), so the touch-friendly menu — the same
+    // affordance the build view offers — must reach the SAME
+    // `setPoolArrangementEntry` write. Without it, narrow-screen Pool
+    // arrangement is unreachable during a timed draft, exactly what #1633
+    // exists to fix.
+    it("offers the `move to…` menu on a Pool tile, and picking a Column persists it via setPoolArrangementEntry", () => {
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+
+        const rendered = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+            />
+        );
+
+        // Both Bolts (poolIndex 0 and 1) default to the Pool/Main side, both
+        // in MV 1 — pick the FIRST rendered tile's menu (poolIndex 0).
+        const triggers = rendered.getAllByLabelText("Move Lightning Bolt to…");
+        expect(triggers.length).toBeGreaterThanOrEqual(1);
+        fireEvent.click(triggers[0]);
+
+        const menu = rendered.getByRole("menu", {
+            name: "Move Lightning Bolt to…",
+        });
+        fireEvent.click(within(menu).getByRole("menuitem", { name: "MV 6" }));
+
+        // No `sideboard` field (mirrors `pool-deck-builder-form.tsx`'s own
+        // `handlePin`): pinning a Column never itself moves a card between
+        // the Pool and the Sideboard.
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            column: "mv:6",
+        });
+    });
+
+    it("never offers the Catch-All as a `move to…` entry — it is not a pin target on the Pool either (PR #2333 review, B1)", () => {
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        const rendered = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+            />
+        );
+
+        fireEvent.click(
+            rendered.getAllByLabelText("Move Lightning Bolt to…")[0]
+        );
+        const menu = rendered.getByRole("menu", {
+            name: "Move Lightning Bolt to…",
+        });
+        expect(
+            within(menu)
+                .getAllByRole("menuitem")
+                .map((el) => el.textContent)
+        ).not.toContain("Catch-All");
+    });
+});
+
 // ────────────────────────────────────────────────────────────────────────────
 // The REDUCED draft bar (ADR 0075 §6, issue #1632). The draft Pool mounts the
 // same `DeckZoneSurface` as both build views; what makes it the draft is
@@ -315,15 +382,25 @@ describe("LimitedDraftPool — the reduced draft bar (ADR 0075 §6, issue #1632)
         expect(queryByLabelText("Sideboard ordering")).toBeNull();
     });
 
-    it("renders the Catch-All Column exactly as elsewhere — present when a card falls through, absent when none does", () => {
+    it("renders the Catch-All Column exactly as elsewhere — always present (issue #1633), holding a card only when one falls through", () => {
         // Under Grouping `mv` with a registry-resolvable Pool nothing falls
-        // through, so the draft grows no permanently-empty extra column…
-        expect(
-            renderPool().container.querySelector('[data-column="catch-all"]')
-        ).toBeNull();
+        // through, so the Catch-All renders empty rather than not at all
+        // (issue #1633 AC: "the Catch-All is always shown") — but it is
+        // never CSS-hidden either, unlike an empty GENERATED column.
+        {
+            const { container } = renderPool();
+            const catchAll = container.querySelector(
+                '[data-column="catch-all"]'
+            )!;
+            expect(catchAll).toBeTruthy();
+            expect(
+                within(catchAll as HTMLElement).queryByRole("button")
+            ).toBeNull();
+            expect(catchAll.className.split(/\s+/)).not.toContain("hidden");
+        }
         cleanup();
 
-        // …but a card no generated Column claims lands in it, visible, rather
+        // …and a card no generated Column claims lands in it, visible, rather
         // than vanishing — the whole guarantee the Catch-All exists for.
         const view = projectLimitedEvent(eventRow(undefined), "user1");
         const own = view.seats.find((s) => s.seatIndex === 0)!;

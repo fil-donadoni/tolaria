@@ -182,7 +182,8 @@ describe.each([constructed, limited])(
             expect(getByText(wrapper.title)).toBeTruthy();
 
             // Maindeck: the FULL fixed ladder, empty columns included, because
-            // an empty column is exactly where a card gets dropped.
+            // an empty column is exactly where a card gets dropped — plus the
+            // always-rendered Catch-All (issue #1633).
             expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
                 "Lands",
                 "MV 0",
@@ -193,6 +194,7 @@ describe.each([constructed, limited])(
                 "MV 5",
                 "MV 6",
                 "MV 7+",
+                "Catch-All",
             ]);
             expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
 

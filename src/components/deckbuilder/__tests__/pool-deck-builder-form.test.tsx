@@ -413,6 +413,7 @@ describe("PoolDeckBuilderForm — per-zone Grouping/Ordering controls (issue #16
             "MV 5",
             "MV 6",
             "MV 7+",
+            "Catch-All",
         ]);
     });
 
