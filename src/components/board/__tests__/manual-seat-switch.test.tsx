@@ -18,7 +18,11 @@
 // "Actionable" on this board means draggable: `board-card.tsx` documents
 // `data-board-card` as the Manual Board's own drag-source hit-test handle,
 // present only when a real (non-hidden) card is rendered — so its presence
-// keyed on an instance id IS the actionable signal here.
+// keyed on an instance id IS the actionable signal here. Issue #2347 gave the
+// viewer's OWN hand a second such handle: `data-board-hand-card`
+// (`BoardHandCard`, now mounted there instead of the presentational
+// `BoardCard`) — `realCardIdIn` below reads either, exactly like the manual
+// drag hit-test's own `DRAG_SOURCE_SELECTOR` does.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup, fireEvent, screen } from "@testing-library/react";
 import { projectManualState } from "@convex/manual";
@@ -97,6 +101,12 @@ import {
 vi.mock("@convex/cards", () => ({
     getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     tryGetDefinition: () => undefined,
+    // Issue #2347: `BoardHandCard` now mounts for the viewer's own manual
+    // hand, whose unconditional `useHandCardCommit` call reads a definition
+    // even though the manual branch never wires its returned overlays to the
+    // DOM. A vanilla stub is enough — this suite never exercises the cast
+    // path.
+    getDefinition: () => ({ name: "Manual Test Card" }),
     FACE_DOWN_CARD_ID: "__faceDownDef",
 }));
 vi.mock("~/lib/fullCatalogue", () => ({
@@ -129,11 +139,20 @@ function renderContainer(solo: boolean) {
 }
 
 /** Whichever instance id currently renders as a REAL (non-hidden) card in a
- *  named zone testid, or `undefined` if the zone renders no real card. */
+ *  named zone testid, or `undefined` if the zone renders no real card. Checks
+ *  BOTH hit-test handles: `data-board-card` (presentational — the opponent's
+ *  hand, always) and `data-board-hand-card` (the viewer's own hand, issue
+ *  #2347's `BoardHandCard`). */
 function realCardIdIn(zoneTestId: string): string | undefined {
     const zone = screen.getByTestId(zoneTestId);
-    const el = zone.querySelector<HTMLElement>("[data-board-card]");
-    return el?.getAttribute("data-board-card") ?? undefined;
+    const el = zone.querySelector<HTMLElement>(
+        "[data-board-card],[data-board-hand-card]"
+    );
+    return (
+        el?.getAttribute("data-board-card") ??
+        el?.getAttribute("data-board-hand-card") ??
+        undefined
+    );
 }
 
 describe("solo Manual Game seat switch (#2173)", () => {
