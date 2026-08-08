@@ -68,6 +68,20 @@ export default function LimitedDraftTimer({
     const reduceMotion = useReducedMotion();
     const [now, setNow] = useState(() => Date.now());
 
+    // Which `pickDeadline` the once-a-second interval has fired for at least
+    // once — the bar-lag fix below (blocking finding #2) only projects the
+    // fill ahead once there has been a prior tick to transition FROM; the
+    // very first paint of a fresh Pick has none. Storing the DEADLINE the
+    // tick fired for (rather than a plain boolean flipped back to `false` in
+    // the effect body) lets `tickedOnce` below derive its reset from a
+    // render-time comparison instead of a synchronous `setState` call inside
+    // the effect (`react-hooks/set-state-in-effect` forbids the latter —
+    // effects should synchronize with the interval, not double as the state
+    // transition itself).
+    const [tickedForDeadline, setTickedForDeadline] = useState<number | null>(
+        null
+    );
+
     // No synchronous `setNow(Date.now())` here on purpose (react-hooks/
     // set-state-in-effect) — the very first tick after `pickDeadline`
     // changes is at most `TICK_MS` stale, and staleness can only ever make
@@ -76,9 +90,14 @@ export default function LimitedDraftTimer({
     // beginning of every Pick" — the harmless direction to be wrong in.
     useEffect(() => {
         if (pickDeadline === null) return;
-        const id = setInterval(() => setNow(Date.now()), TICK_MS);
+        const id = setInterval(() => {
+            setTickedForDeadline(pickDeadline);
+            setNow(Date.now());
+        }, TICK_MS);
         return () => clearInterval(id);
     }, [pickDeadline]);
+
+    const tickedOnce = tickedForDeadline === pickDeadline;
 
     const remainingMs =
         pickDeadline === null ? 0 : Math.max(0, pickDeadline - now);
@@ -93,15 +112,29 @@ export default function LimitedDraftTimer({
     // every second for a 40s countdown is exactly the "announces on every
     // tick" failure mode the redesign is asked to avoid.
     const phaseRef = useRef<Phase>(phase);
+    const deadlineRef = useRef<number | null>(pickDeadline);
     const [announcement, setAnnouncement] = useState(() =>
         announcementFor(phase, remainingSeconds)
     );
     useEffect(() => {
-        if (phase !== phaseRef.current) {
+        // Re-sync on a PHASE change (existing behaviour: entering urgent,
+        // expiring) OR whenever a NEW PICK STARTS (`pickDeadline` changes),
+        // even when the phase doesn't change across that boundary. Without
+        // the second condition, a Pick born `urgent` (the allowance is
+        // <= URGENT_THRESHOLD_SECONDS at 6/5/4/3/2 cards remaining,
+        // `pickTimerSchedule.ts`) that follows another `urgent` Pick never
+        // fires a phase transition at all — `announcement` freezes on
+        // whatever it last said and the `role="timer"` live region, the
+        // ONLY thing a screen-reader user gets (the visible readout is
+        // `aria-hidden`), goes stale for the rest of the Booster (issue
+        // #2238 fixup round 2, blocking finding #1).
+        const deadlineChanged = deadlineRef.current !== pickDeadline;
+        if (deadlineChanged || phase !== phaseRef.current) {
             phaseRef.current = phase;
+            deadlineRef.current = pickDeadline;
             setAnnouncement(announcementFor(phase, remainingSeconds));
         }
-    }, [phase, remainingSeconds]);
+    }, [phase, remainingSeconds, pickDeadline]);
 
     if (pickDeadline === null) return null;
 
@@ -114,7 +147,31 @@ export default function LimitedDraftTimer({
         // rather than dividing by zero if the invariant is ever violated.
         Math.max(remainingSeconds, 1);
     const totalMs = totalSeconds * 1000;
-    const fraction = Math.min(1, Math.max(0, remainingMs / totalMs));
+
+    // The BAR's fill target — NOT the readout/phase/live-region above, which
+    // stay on the true `remainingMs` — is projected one tick AHEAD once a
+    // prior tick exists to transition from (`tickedOnce`) and a transition
+    // will actually carry it there (`!reduceMotion`). Reasoning
+    // (issue #2238 fixup round 2, blocking finding #2): each tick commits a
+    // scaleX target and `transition-transform duration-1000` then
+    // interpolates toward it over the FOLLOWING second. Committing the
+    // fraction that is true right now means the transition arrives at a
+    // value that was already true a tick ago — a uniform 1s visual lag (on a
+    // 5s Pick the bar is still ~20% full when the Auto-Pick actually fires).
+    // Because `fraction(t)` is linear in time, committing the fraction that
+    // will be true ONE TICK FROM NOW and letting a same-duration transition
+    // carry the bar there exactly retraces the true curve: the transition
+    // starting at this tick lands precisely when "one tick from now" becomes
+    // "now". The first paint of a Pick is exempt (no prior transition to
+    // correct — projecting ahead there would render less than full at the
+    // very start); reduced motion is exempt too (no transition exists, so
+    // there is no lag to correct, and projecting ahead would make a
+    // discrete step read ahead of the real countdown for no reason).
+    const barRemainingMs =
+        !reduceMotion && tickedOnce
+            ? Math.max(0, remainingMs - TICK_MS)
+            : remainingMs;
+    const fraction = Math.min(1, Math.max(0, barRemainingMs / totalMs));
 
     return (
         <div

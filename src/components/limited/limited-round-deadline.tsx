@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 
 /** How often the countdown re-renders. A round deadline runs minutes to
  *  days (`MIN_ROUND_DEADLINE_MINUTES`/`MAX_ROUND_DEADLINE_MINUTES`,
- *  `convex/limited/matchFormat.ts`), so — unlike the per-pick
- *  `LimitedDraftTimer`'s 250ms tick, tuned for a countdown measured in
- *  single-digit seconds — one second of jitter is invisible here. */
+ *  `convex/limited/matchFormat.ts`), so a coarse once-a-second tick — the
+ *  same cadence the per-pick `LimitedDraftTimer` uses, tuned there for a
+ *  countdown measured in single-digit seconds — is plenty here too; a round
+ *  deadline has no comparable precision requirement. */
 const TICK_MS = 1000;
 
 /** Below this remaining time the countdown reads as urgent (PRD #1628 story
