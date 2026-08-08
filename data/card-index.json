@@ -112,6 +112,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Adeline, Resplendent Cathar",
+        "scryfallId": "18092f68-b96e-4084-9eba-b240d2195d81",
+        "oracleId": "38515f89-348b-4cf3-b7bd-1f6fe4ce2fba",
+        "firstSet": "mid",
+        "firstPrintId": "18092f68-b96e-4084-9eba-b240d2195d81",
+        "firstPrintSet": "mid"
+    },
+    {
         "name": "Adun Oakenshield",
         "scryfallId": "60252226-a102-4d88-9b80-42d021b5184d",
         "oracleId": "aefd49a4-ecec-42cb-b882-e5db7f81eff8",

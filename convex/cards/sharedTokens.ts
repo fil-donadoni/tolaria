@@ -117,6 +117,30 @@ export const KNIGHT_TOKEN: EffectTokenSpec = {
     staticAbilities: ["vigilance"],
 };
 
+/** Human token (CR 111 / 707.2, issue #2370). "1/1 white Human creature
+ *  token" — created today by Adeline, Resplendent Cathar's attack trigger
+ *  (`sets/mid/white.ts`). Vanilla: no abilities, so `EffectTokenSpec`
+ *  (JSON-pure, ADR 0046) rather than `TokenSpec`. `entersTapped`/
+ *  `entersAttacking` are per-ability flags (Adeline's own "that's tapped and
+ *  attacking"), NOT baked into this shared spec — a future non-attacking
+ *  Human producer spreads this base spec without inheriting them, the same
+ *  split the `createToken` Op call site owns for every other card.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN`
+ *  treatment: Human is a printed token in many sets with different art, and
+ *  the art-match rule is "the token associated with the PRODUCING card's own
+ *  printing" — `SpellContext.createToken` resolves it per producer from
+ *  `generated/token-prints.json` (`tokenPrintIdFor`), reverse-linked from
+ *  Adeline's own MID #1 printing's `all_parts` Human token. */
+export const HUMAN_TOKEN: EffectTokenSpec = {
+    name: "Human",
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 1,
+    toughness: 1,
+    colors: ["W"],
+};
+
 /** Phyrexian Germ token (CR 707.2, issue #1340) — the "0/0 black Phyrexian
  *  Germ creature token" every Living Weapon Equipment creates (CR 702.92a:
  *  Batterskull, Kaldra Compleat, Nettlecyst, …). Vanilla: no abilities, no
