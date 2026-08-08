@@ -3283,6 +3283,12 @@ describe("Deflection (retarget a single-target spell to any target, CR 114.6)", 
         resolveTopOfStack(state); // Bolt resolves at the NEW target.
         expect(state.players[1].life).toBe(17); // p2 took the 3 damage
         expect(state.players[0].life).toBe(20); // p1 untouched
+
+        // Wire format: the retargeted bolt's damage must land on the same
+        // life totals for every client, not just raw GameState.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(17);
+        expect(projected.players[0].life).toBe(20);
     });
 });
 
@@ -3337,6 +3343,11 @@ describe("Sibilant Spirit (attack trigger, defending player may draw, CR 508.4 /
         } as StackItem["triggerEvent"]);
         answerMayPay(state, true);
         expect(state.players[1].hand.map((c) => c.id)).toContain("draw1");
+
+        // Wire format: the drawn card must show up in the defending
+        // player's own client, not just raw GameState.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].hand.map((c) => c?.id)).toContain("draw1");
     });
 
     it("declining leaves the defending player's hand untouched", () => {
@@ -3378,6 +3389,11 @@ describe("Soul Barrier (tax on an opponent's creature spell, CR 601.2i / 120.1)"
         expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
         applyMayPaySubmit(state, { playerId: "p2", accept: false });
         expect(state.players[1].life).toBe(18);
+
+        // Wire format: the tax damage must land on the life total every
+        // client reads, not just raw GameState.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(18);
     });
 
     it("paying {2} avoids the damage", () => {

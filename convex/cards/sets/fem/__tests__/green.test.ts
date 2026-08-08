@@ -468,6 +468,11 @@ describe("Thelon's Chant — punisher damage on a Swamp entering (CR 603.2, 117.
             swampEntered("p1")
         );
         expect(state.players[0].life).toBe(17);
+
+        // Wire format — life total must survive projection, or the client
+        // shows the punished player at their pre-damage total.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].life).toBe(17);
     });
 
     it("suspends on a put-a-counter-or-take-3 punisher choice when a creature is available, and deals 3 damage if declined", () => {
@@ -645,6 +650,14 @@ describe("Thelon's Curse — pay {U} at upkeep to untap a tapped blue creature (
             (c) => c.id === "blue-c"
         )!;
         expect(onBoard.isTapped).toBe(false);
+
+        // Wire format — the untap must survive projection, or the client
+        // still shows the creature as tapped.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "blue-c"
+        )!;
+        expect(slim.isTapped).toBe(false);
     });
 
     it("leaves the creature tapped when its controller declines to pay {U}", () => {

@@ -1693,6 +1693,17 @@ describe("Hypnotic Cloud (Kicker {4} → discard 1 card, or 3 if kicked; CR 702.
         expect(state.players[1].hand.some((c) => c.id === "hc-keep")).toBe(
             true
         );
+
+        // Wire projection: the discarding player's own view sees the kept
+        // card still in hand and the discard land publicly in the graveyard.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].hand.some((c) => c?.id === "hc-keep")).toBe(
+            true
+        );
+        expect(projected.players[1].hand.length).toBe(1);
+        expect(
+            projected.players[1].graveyard.some((c) => c.id === "hc-drop")
+        ).toBe(true);
     });
 
     it("kicked: the target player discards up to three chosen cards instead", () => {
@@ -1723,6 +1734,17 @@ describe("Hypnotic Cloud (Kicker {4} → discard 1 card, or 3 if kicked; CR 702.
         });
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["hc-d"]);
         expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "hc-a",
+            "hc-b",
+            "hc-c",
+        ]);
+
+        // Wire projection: from the discarding player's own viewpoint the
+        // remaining hand card is still visible and the three discards
+        // land in the (public) graveyard.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].hand.map((c) => c?.id)).toEqual(["hc-d"]);
+        expect(projected.players[1].graveyard.map((c) => c.id).sort()).toEqual([
             "hc-a",
             "hc-b",
             "hc-c",

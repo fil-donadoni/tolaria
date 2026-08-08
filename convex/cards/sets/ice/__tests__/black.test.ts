@@ -3207,6 +3207,12 @@ describe("Abyssal Specter (flying + damage-dealt discard trigger, CR 120.3 / 603
         submitChoice(state, ["h1"]);
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["h2"]);
         expect(state.players[1].graveyard.map((c) => c.id)).toContain("h1");
+
+        // Wire format: the discard is board-visible — the defending
+        // player's own client must see the shrunk hand too, not just raw
+        // GameState.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].hand.map((c) => c?.id)).toEqual(["h2"]);
     });
 
     it("no discard is prompted when the damaged player's hand is already empty", () => {
@@ -3291,6 +3297,15 @@ describe("Krovikan Vampire (reanimates a creature it killed, CR 603.2 / 603.7c)"
         );
         expect(reanimated).toBeDefined();
         expect(reanimated?.controllerId).toBe("p1");
+
+        // Wire format: the reanimated creature must actually show up on the
+        // battlefield the client renders, not just in raw GameState.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimReanimated = projected.players[0].battlefield.find(
+            (c) => c.id === "dead"
+        );
+        expect(slimReanimated).toBeDefined();
+        expect(slimReanimated?.controllerId).toBe("p1");
     });
 
     it("does NOT fire the death trigger for a creature Krovikan Vampire never damaged this turn (CR 603.4 condition gate)", () => {

@@ -13,6 +13,7 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { projectPublicState } from "../../../../gameProjections";
 
 /** Puts Ravenous Rats' ETB trigger on the stack (mirroring
  *  `oublietteTriggerOnStack`, `arn/__tests__/black.test.ts`) and resolves it.
@@ -86,6 +87,13 @@ describe("Ravenous Rats (ETB discard — choice Op suspends for player input, CR
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["h1"]);
         expect(state.stack).toHaveLength(0);
         expect(state.pendingChoices).toBeUndefined();
+
+        // Wire projection, from the discarding player's own viewpoint:
+        // their remaining hand card stays visible and the discard lands
+        // in the (public) graveyard.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].hand.map((c) => c?.id)).toEqual(["h2"]);
+        expect(projected.players[1].graveyard.map((c) => c.id)).toEqual(["h1"]);
     });
 
     it("skips the discard entirely against an empty hand (CR 608.2b)", () => {

@@ -1753,6 +1753,20 @@ describe("Diabolic Vision (look at top 5, keep 1, reorder the rest on top, CR 40
             "c2",
             "c1",
         ]);
+
+        // Wire format: the kept card's arrival in hand survives
+        // projectPublicState (the client never sees the raw library array —
+        // only a { count } plus the viewer-known top run, so the reorder
+        // itself is asserted through the same sparse `known` channel the
+        // reveal rides).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand.some((c) => c?.id === "c3")).toBe(
+            true
+        );
+        expect(projected.players[0].library.count).toBe(4);
+        expect(
+            projected.players[0].library.known.map((entry) => entry.card.id)
+        ).toEqual(["c5", "c4", "c2", "c1"]);
     });
 });
 

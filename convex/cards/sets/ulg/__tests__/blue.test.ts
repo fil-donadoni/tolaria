@@ -188,5 +188,15 @@ describe("Tinker (CR 117.9 additional cost / 701.19 / 400.7 / 701.20, issue #677
         });
         expect(state.players[0].battlefield.map((c) => c.id)).toContain("orn1");
         expect(state.players[0].library).toHaveLength(0);
+
+        // Re-assert the zone change through the wire projection: the client
+        // reads a slim battlefield entry ({ card: { id } }) and a library
+        // count, not the raw fat state.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBattlefield = projected.players[0].battlefield.map(
+            (c) => c.id
+        );
+        expect(slimBattlefield).toContain("orn1");
+        expect(projected.players[0].library.count).toBe(0);
     });
 });

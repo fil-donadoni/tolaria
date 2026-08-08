@@ -66,6 +66,7 @@ import { applyOneTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
 import { kickerPaidCondition } from "../../../abilities/triggers/shared";
+import { getEffectiveColors } from "../../../effectiveColors";
 import type { PermanentView } from "../../../types";
 
 /** Pushes an activated ability directly onto the stack with its cost assumed
@@ -1214,5 +1215,13 @@ describe("Caldera Kavu (self-pump activated ability + optionChoice color change,
             (c) => c.id === "kavu2"
         )!;
         expect(after.colorOverride).toEqual(["G"]);
+
+        // Re-assert the colour change through the wire projection: the client
+        // reads the slim battlefield entry, not the raw fat state.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "kavu2"
+        )!;
+        expect(getEffectiveColors(slim)).toEqual(["G"]);
     });
 });

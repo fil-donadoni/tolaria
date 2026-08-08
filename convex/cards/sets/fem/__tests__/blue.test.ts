@@ -949,6 +949,14 @@ describe("Tidal Flats — per-attacker may-pay first strike grant (CR 509, 117.3
             (c) => c.id === blocker.id
         )!;
         expect(onBoard.staticAbilities).toContain("first strike");
+
+        // Wire format — the granted keyword must survive projection, or the
+        // client never shows the blocker as having first strike.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === blocker.id
+        )!;
+        expect(slim.staticAbilities).toContain("first strike");
     });
 
     it("grants no first strike when the attacker's controller pays {1}", () => {

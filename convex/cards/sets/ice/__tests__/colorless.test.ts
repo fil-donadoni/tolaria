@@ -4034,6 +4034,23 @@ describe("Barbed Sextant ({1},{T},Sac: Add one mana of any color, CR 605.1a)", (
         });
         expect(player.battlefield.some((c) => c.id === "sextant")).toBe(false);
         expect(player.graveyard.some((c) => c.id === "sextant")).toBe(true);
+
+        // Wire format: the mana pool and the self-sacrifice both survive
+        // projectPublicState (card.card → {id}; battlefield/graveyard reshaped).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimPlayer = projected.players[0];
+        expect(slimPlayer.manaPool).toEqual({
+            W: 0,
+            U: 0,
+            B: 1,
+            R: 0,
+            G: 0,
+            C: 0,
+        });
+        expect(slimPlayer.battlefield.some((c) => c.id === "sextant")).toBe(
+            false
+        );
+        expect(slimPlayer.graveyard.some((c) => c.id === "sextant")).toBe(true);
     });
 });
 
@@ -4097,5 +4114,13 @@ describe("Sunstone ({2}, Sacrifice a snow land: Prevent all combat damage this t
         expect(state.players[1].battlefield.some((c) => c.id === "blk")).toBe(
             true
         );
+
+        // Wire format: the prevented damage's board-visible outcome (life
+        // total, surviving blocker) survives projectPublicState.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(20);
+        expect(
+            projected.players[1].battlefield.some((c) => c.id === "blk")
+        ).toBe(true);
     });
 });

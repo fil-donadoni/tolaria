@@ -650,6 +650,15 @@ describe("Combat Medic (activated preventDamage next-n shield on an announced ta
 
         const after = state.players[1].battlefield.find((c) => c.id === "tgt")!;
         expect(after.damageMarked).toBe(2); // 3 dealt - 1 prevented
+
+        // Wire format — the marked damage (the prevention's observable
+        // consequence) must survive projection, or the client shows the
+        // target undamaged.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "tgt"
+        )!;
+        expect(slim.damageMarked).toBe(2);
     });
 });
 
@@ -874,6 +883,16 @@ describe("Heroism — sacrifice-a-white-creature punisher prevention on red atta
         expect(head?.playerId).toBe("p2");
         applyMayPaySubmit(state, { playerId: "p2", accept: false });
         expect(sourcePreventionShieldApplies(state, "red-atk", true)).toBe(
+            true
+        );
+
+        // Wire format — `sourcePreventionShieldApplies` is deliberately
+        // structural (see its doc comment) so the SAME predicate runs against
+        // the wire-projected state; the client Brain's combat evaluation only
+        // ever sees the projection, so `sourcePreventionShields` dropping
+        // during projection would silently un-shield the attacker for the bot.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(sourcePreventionShieldApplies(projected, "red-atk", true)).toBe(
             true
         );
     });

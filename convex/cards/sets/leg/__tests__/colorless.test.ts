@@ -803,10 +803,29 @@ describe("Tolaria (strip banding + bands-with-other, upkeep-only, CR 611.1b)", (
         );
         expect(target.staticAbilities).toContain("flying"); // unrelated keyword kept
 
+        const strippedProjected = projectPublicState(state, 1, "p1");
+        const strippedSlim = strippedProjected.players[1].battlefield.find(
+            (c) => c.id === "legend"
+        )!;
+        expect(strippedSlim.staticAbilities).not.toContain("banding");
+        expect(strippedSlim.staticAbilities).not.toContain(
+            "bands with other:legendary"
+        );
+        expect(strippedSlim.staticAbilities).toContain("flying");
+
         state.phase = "CLEANUP";
         finalizeCleanup(state);
         expect(target.staticAbilities).toContain("banding");
         expect(target.staticAbilities).toContain("bands with other:legendary");
+
+        const restoredProjected = projectPublicState(state, 1, "p1");
+        const restoredSlim = restoredProjected.players[1].battlefield.find(
+            (c) => c.id === "legend"
+        )!;
+        expect(restoredSlim.staticAbilities).toContain("banding");
+        expect(restoredSlim.staticAbilities).toContain(
+            "bands with other:legendary"
+        );
     });
 });
 

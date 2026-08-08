@@ -2483,6 +2483,13 @@ describe("Goblin Snowman ({T}: 1 damage to the creature it's blocking, CR 509.1)
             (c) => c.id === "atk"
         )!;
         expect(atkAfter.damageMarked).toBe(1);
+
+        // Wire format: the marked damage survives projectPublicState.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimAtk = projected.players[1].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(slimAtk.damageMarked).toBe(1);
     });
 
     it("does nothing when it isn't blocking the targeted creature (CR 509.1 'it's blocking')", () => {
@@ -2537,7 +2544,16 @@ describe("Orcish Lumberjack ({T}, Sacrifice a Forest: Add three mana of R and/or
             controllerId: "p1",
             ownerId: "p1",
         });
-        const player = makePlayer("p1", { battlefield: [lj] });
+        // A Forest must be on the battlefield: the ability's cost is
+        // "{T}, Sacrifice a Forest" (CR 605.1a), so the fixture stays valid
+        // however the sacrifice-cost enforcement gap is eventually resolved
+        // (docs/findings/2363-sacrifice-cost-mana-abilities-diverge-by-tap-path.md).
+        const aForest = makeInstance(forest.id, {
+            id: "forest1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lj, aForest] });
         const state = makeState({ players: [player, makePlayer("p2")] });
         tapSourceIntoPayment(state, player, lj, 1, []);
         expect(player.manaPool).toEqual({
@@ -2556,7 +2572,15 @@ describe("Orcish Lumberjack ({T}, Sacrifice a Forest: Add three mana of R and/or
             controllerId: "p1",
             ownerId: "p1",
         });
-        const player = makePlayer("p1", { battlefield: [lj] });
+        // Same as above: the cost sacrifices a Forest, so one is on the
+        // battlefield — the assertion is about the manaChoices index → pool
+        // mapping and nothing else.
+        const aForest = makeInstance(forest.id, {
+            id: "forest1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lj, aForest] });
         const state = makeState({ players: [player, makePlayer("p2")] });
         tapSourceIntoPayment(state, player, lj, 3, []);
         expect(player.manaPool.G).toBe(3);
