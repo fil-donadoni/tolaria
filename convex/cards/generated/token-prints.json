@@ -39,6 +39,12 @@
             "name": "Golem"
         }
     ],
+    "18092f68-b96e-4084-9eba-b240d2195d81": [
+        {
+            "scryfallId": "7d13a93a-a43d-4cf5-8300-8341f3b7f1b1",
+            "name": "Human"
+        }
+    ],
     "187b6719-e5ed-4615-a00b-3313ceca055b": [
         {
             "scryfallId": "93116d98-2dad-4b80-a3af-9e36e34da6d4",
@@ -367,16 +373,16 @@
             "name": "Citizen"
         }
     ],
-    "d134385d-b01c-41c7-bb2d-30722b44dc5a": [
-        {
-            "scryfallId": "cc7d137c-f6c0-44e5-af9f-a8bbd52d3b2a",
-            "name": "Knight"
-        }
-    ],
     "cd114ec3-d286-4c70-a122-3043bc53cc88": [
         {
             "scryfallId": "65c65445-1016-4fd3-963e-1c9eb252d4a6",
             "name": "Phyrexian Germ"
+        }
+    ],
+    "d134385d-b01c-41c7-bb2d-30722b44dc5a": [
+        {
+            "scryfallId": "cc7d137c-f6c0-44e5-af9f-a8bbd52d3b2a",
+            "name": "Knight"
         }
     ],
     "d140c3b7-ca78-483d-baeb-307b624fea8b": [
