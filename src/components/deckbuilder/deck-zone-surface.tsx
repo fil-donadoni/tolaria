@@ -11,6 +11,7 @@ import {
     type GroupingKind,
     type OrderingKind,
 } from "@convex/deckLayout";
+import type { DeckCardMoveMenuColumn } from "./deck-card-move-menu";
 import { cn } from "~/lib/utils";
 import type { ZoneCard } from "~/types/game";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
@@ -46,17 +47,31 @@ import ZoneOrderingSelect from "./zone-ordering-select";
  * - **`"columns"`** (Maindeck) — every Column of the Layout renders and is its
  *   own drop target, INCLUDING the empty ones, because an empty Column is
  *   exactly where a player wants to drop a card. A drop records a Card Pin.
+ *   Below the `md` breakpoint an empty Column is CSS-hidden rather than
+ *   unmounted (issue #1633: "empty columns hidden" on narrow screens, so a
+ *   swipe never lands on nothing) — it stays mounted and registered as a drop
+ *   target at every viewport, which is what keeps every Column a legal
+ *   DESKTOP drop target above `md`, unchanged.
  * - **`"pane"`** (Sideboard) — the whole zone is one drop target (a card
  *   dropped in it leaves the deck; no Pin), so its Columns carry no affordance
- *   of their own and the empty ones are hidden. This is what keeps the Limited
- *   Sideboard looking exactly as it did before #1622, when it was grouped by
- *   `groupDeckIntoPiles` into its non-empty Mana-Value piles.
+ *   of their own and the empty ones are hidden (unmounted, at every
+ *   viewport — there is nothing to keep reachable as a drop target here).
+ *   This is what keeps the Limited Sideboard looking exactly as it did before
+ *   #1622, when it was grouped by `groupDeckIntoPiles` into its non-empty
+ *   Mana-Value piles.
  *
- * The Catch-All Column is never a pin target (`pinNamespace: null`), so it
- * only renders when it actually holds a card — under Grouping `mv` with a
- * registry-resolvable deck it never does, which is why neither builder grows a
- * permanently-empty tenth column. It is the successor of `groupDeckIntoPiles`'
- * trailing `Unknown` pile.
+ * The Catch-All Column is never a pin target (`pinNamespace: null`). Under
+ * `"pane"` it follows the same "hidden while empty" rule as every other
+ * Column there. Under `"columns"` it is the one Column ALWAYS rendered
+ * regardless of emptiness (issue #1633 AC: "the Catch-All is always shown") —
+ * the guaranteed landing spot a narrow-screen scroll can never run past. It is
+ * the successor of `groupDeckIntoPiles`' trailing `Unknown` pile.
+ *
+ * The `"move to…"` menu (below) deliberately EXCLUDES the Catch-All (and
+ * Grouping `none`'s single Column) — see `moveMenuColumns`'s own comment for
+ * why: `pinCardToColumn` (`convex/deckLayout.ts`) returns the layout
+ * unchanged for a `pinNamespace: null` id, so listing it would be a menu
+ * entry that silently does nothing (PR #2333 review, B1).
  *
  * Must render under an ancestor `DragDropProvider` — the BUILDER owns it, not
  * this component, because the Constructed builder's search results are
@@ -123,6 +138,15 @@ export interface DeckZoneSurfaceProps {
     onAddColumn?: (label: string) => void;
     onRenameColumn?: (columnId: ColumnId, label: string) => void;
     onDeleteColumn?: (columnId: ColumnId) => void;
+    /** Records a Card Pin (issue #1626, `deckZoneDrag.ts`'s
+     *  `DeckZoneDragHandlers.onPin`). Presence renders each tile's
+     *  `"move to…"` menu (issue #1633) — the touch analogue of dragging the
+     *  card onto a Column, since a precise drop into a narrow, snap-scrolling
+     *  Column is not a realistic touch gesture. The menu dispatches through
+     *  this SAME callback a drop resolves to, so the two gestures can never
+     *  diverge, and only on the `"columns"` drop model — the `"pane"` Zone
+     *  (Sideboard) has no Columns to pin into. */
+    onPin?: (cardId: string, columnId: ColumnId, pinKey: string) => void;
 }
 
 /** One card of a Zone, carrying the key its Card Pin is recorded under. The
@@ -156,6 +180,7 @@ export default function DeckZoneSurface({
     onAddColumn,
     onRenameColumn,
     onDeleteColumn,
+    onPin,
 }: DeckZoneSurfaceProps) {
     // The Zone build-time filter (issue #1625, ADR 0075 § "Filter is
     // momentary") lives ONLY in this component's own state — never lifted to
@@ -255,6 +280,52 @@ export default function DeckZoneSurface({
         [rawColumns, filterActive, filter, lookup]
     );
 
+    // The `"move to…"` menu's own column list (issue #1633) — id + label for
+    // every Column the `"columns"` drop model resolves that is actually a PIN
+    // TARGET, unfiltered by emptiness or by the Zone filter (same reasoning as
+    // `rawColumns` above: the Column SET a Pin can name must never depend on
+    // what's currently hidden). Built once per Zone rather than per tile, so
+    // every card's menu in this Zone shares one array. Empty on the `"pane"`
+    // model — the Sideboard has no Columns to pin into.
+    //
+    // `pinNamespace !== null` (the SAME predicate `:528` already gates
+    // `DeckColumnActions` on) excludes the Catch-All and, under Grouping
+    // `none`, its single Column: `onSelect` dispatches straight to `onPin` ->
+    // `pinCardToColumn` (`convex/deckLayout.ts:359-367`), which parses the id
+    // via `parseColumnId` and returns the layout UNCHANGED for any id with no
+    // namespace — the Catch-All's id (`catch-all`) always, and Grouping
+    // `none`'s (`all`) too. A menu entry that closes the popover and changes
+    // nothing is not "moving" the card anywhere (PR #2333 review, B1).
+    //
+    // The issue's AC does read "the menu lists manual columns and the
+    // Catch-All", but making that entry MEAN something ("move to Catch-All")
+    // would require the engine to be able to force a card into the Catch-All
+    // over a Grouping's own predicate match — `claimColumnId`
+    // (`convex/deckLayout.ts:719-751`) only ever lands a card there when NO
+    // Pin and NO generated Column claims it, which is true for almost no real
+    // card under `mv`/`color`/`type` (their generated ladders cover every
+    // definition). Simply clearing the card's active-namespace Pin does not
+    // reach the Catch-All, it just falls back to rule 3 — the SAME generated
+    // Column the card already sits in — so a Pin-clearing "move to Catch-All"
+    // would silently do nothing useful for the common case. Expressing the
+    // AC's Catch-All clause for real needs a new engine primitive (a Pin that
+    // outranks a predicate match), which is a `deckLayout.ts` data-model
+    // change, not something `onPin(cardId, columnId, pinKey)` can carry as-is
+    // — out of scope for this fixup; excluding the entry is preferred over
+    // shipping a dead one.
+    const moveMenuColumns = useMemo<DeckCardMoveMenuColumn[]>(
+        () =>
+            dropModel === "columns"
+                ? rawColumns
+                      .filter((column) => column.pinNamespace !== null)
+                      .map((column) => ({
+                          id: column.id,
+                          label: column.label,
+                      }))
+                : [],
+        [rawColumns, dropModel]
+    );
+
     // The featured affordance/indicator goes on the LAST (topmost, visible)
     // copy of each distinct card in its column — a lower copy's button would
     // sit behind the next card.
@@ -262,15 +333,23 @@ export default function DeckZoneSurface({
         () =>
             columns
                 .filter((column) =>
-                    dropModel === "columns"
-                        ? column.kind !== "catchAll" || column.items.length > 0
-                        : column.items.length > 0
+                    // `"columns"` (Maindeck): every Column renders, INCLUDING
+                    // every empty one — the Catch-All included (issue #1633
+                    // AC: "the Catch-All is always shown"). Narrow-screen
+                    // hiding of an empty non-Catch-All Column is a CSS class
+                    // below, not this filter — the Column stays MOUNTED (and
+                    // so a legal desktop drop target) at every viewport.
+                    // `"pane"` (Sideboard): unchanged, still unmounts an empty
+                    // Column outright — it is never a drop target there, so
+                    // there is nothing narrow screens need it to keep being.
+                    dropModel === "columns" ? true : column.items.length > 0
                 )
                 .map((column) => {
                     const topIndexByCardId = new Map<string, number>();
                     column.items.forEach((item, idx) =>
                         topIndexByCardId.set(item.card.cardId, idx)
                     );
+                    const empty = column.items.length === 0;
                     return {
                         id: column.id,
                         label: column.label,
@@ -290,6 +369,12 @@ export default function DeckZoneSurface({
                         // rule's whole guarantee ("deleting can never lose a
                         // card", ADR 0075 rationale §2).
                         deletable: canDeleteColumn(rawColumns, column.id),
+                        // CSS-hide below `md` while empty (issue #1633) — the
+                        // Catch-All is exempt, it always stays reachable.
+                        hiddenWhenEmpty:
+                            dropModel === "columns" &&
+                            empty &&
+                            column.kind !== "catchAll",
                         tiles: column.items.map(
                             ({ card, pinKey }, idx): DeckPileTile => ({
                                 key: `${column.id}:${card.cardId}:${idx}`,
@@ -315,6 +400,24 @@ export default function DeckZoneSurface({
                                     topIndexByCardId.get(card.cardId) === idx
                                         ? () => onSetFeatured(card.cardId)
                                         : undefined,
+                                // "Move to…" (issue #1633): only on the
+                                // `"columns"` model and only when the host
+                                // supplied `onPin` — dispatches through the
+                                // SAME callback a drop resolves to, with the
+                                // SAME `pinKey` derivation, so the menu can
+                                // never diverge from a drag.
+                                moveMenu:
+                                    dropModel === "columns" && onPin
+                                        ? {
+                                              columns: moveMenuColumns,
+                                              onSelect: (columnId: ColumnId) =>
+                                                  onPin(
+                                                      card.cardId,
+                                                      columnId,
+                                                      pinKey
+                                                  ),
+                                          }
+                                        : undefined,
                             })
                         ),
                     };
@@ -328,6 +431,8 @@ export default function DeckZoneSurface({
             onCardClick,
             featuredCardId,
             onSetFeatured,
+            onPin,
+            moveMenuColumns,
         ]
     );
 
@@ -436,7 +541,7 @@ export default function DeckZoneSurface({
                     No cards match this filter.
                 </div>
             )}
-            <div className="flex flex-1 items-start gap-3 overflow-auto p-3 md:gap-6 md:p-4">
+            <div className="flex flex-1 items-start gap-3 overflow-auto p-3 snap-x snap-mandatory md:snap-none md:gap-6 md:p-4">
                 {rendered.map((column) => (
                     <DeckColumnPile
                         key={column.id}
@@ -445,6 +550,7 @@ export default function DeckZoneSurface({
                         droppable={dropModel === "columns"}
                         dataColumn={column.id}
                         tiles={column.tiles}
+                        hiddenWhenEmpty={column.hiddenWhenEmpty}
                         actions={
                             // A Column that is not a pin target is never
                             // renameable and never deletable (ADR 0075 §2), so

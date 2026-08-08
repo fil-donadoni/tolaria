@@ -8,6 +8,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, within } from "@testing-library/react";
 import { DragDropProvider } from "@dnd-kit/react";
 import {
+    addManualColumn,
     createColumnLayout,
     pinCardToColumn,
     setGrouping,
@@ -89,6 +90,11 @@ describe("DeckZoneSurface — the Maindeck drop model (issue #1622)", () => {
             "MV 5",
             "MV 6",
             "MV 7+",
+            // Always last (issue #1633 AC: "the Catch-All is always shown"),
+            // regardless of emptiness — the guaranteed narrow-screen landing
+            // spot the CSS-hide of every OTHER empty column below `md` relies
+            // on existing.
+            "Catch-All",
         ]);
     });
 
@@ -133,12 +139,20 @@ describe("DeckZoneSurface — the Maindeck drop model (issue #1622)", () => {
             emptyMessage: "Click or drag cards here to add them.",
         });
         expect(getByText("Click or drag cards here to add them.")).toBeTruthy();
-        expect(columnLabels(container)).toHaveLength(9);
+        // The fixed ladder (9) plus the always-rendered Catch-All (issue
+        // #1633).
+        expect(columnLabels(container)).toHaveLength(10);
     });
 
-    it("never renders an empty Catch-All column", () => {
+    it("always renders the Catch-All column, even while empty (issue #1633: it always stays reachable)", () => {
         const { container } = renderZone({ cards: [BOLT] });
-        expect(columnLabels(container)).not.toContain("Catch-All");
+        expect(columnLabels(container)).toContain("Catch-All");
+        const catchAll = container.querySelector('[data-column="catch-all"]')!;
+        expect(catchAll).toBeTruthy();
+        // Empty, and CSS-hidden below `md` is deliberately NOT applied to
+        // it — no `hidden` class, unlike an empty generated Column (see the
+        // "empty columns hidden below md" describe block).
+        expect(catchAll.className.split(/\s+/)).not.toContain("hidden");
     });
 
     it("fires onCardClick with the clicked card", () => {
@@ -512,6 +526,7 @@ describe("DeckZoneSurface — filter narrows CONTENTS, never the Column SET (iss
             "Lands",
             "Creature",
             "Instant",
+            "Catch-All",
         ]);
 
         fireEvent.click(
@@ -526,6 +541,7 @@ describe("DeckZoneSurface — filter narrows CONTENTS, never the Column SET (iss
             "Lands",
             "Creature",
             "Instant",
+            "Catch-All",
         ]);
         expect(cardsIn(container, "type:instant")).toEqual([]);
         expect(cardsIn(container, "type:creature")).toEqual(["Serra Angel"]);
@@ -561,10 +577,11 @@ describe("DeckZoneSurface — filter narrows CONTENTS, never the Column SET (iss
 
         expect(columnLabels(container)).toContain("Instant");
         expect(cardsIn(container, "type:instant")).toEqual(["Serra Angel"]);
-        // Serra did NOT fall through to the Catch-All or to its predicate
-        // Column (Creature) — the Pin still names a Column that exists.
+        // Serra did NOT fall through to the Catch-All (which always renders,
+        // issue #1633, but must hold nothing here) or to its predicate Column
+        // (Creature) — the Pin still names a Column that exists.
         expect(cardsIn(container, "type:creature")).toEqual([]);
-        expect(columnLabels(container)).not.toContain("Catch-All");
+        expect(cardsIn(container, "catch-all")).toEqual([]);
     });
 
     it("Grouping `color`: a fixed-ladder Grouping stays correct under a filter, with a Pin in play", () => {
@@ -651,7 +668,9 @@ describe("DeckZoneSurface — column management (ADR 0075 §2, issue #1626)", ()
             </DragDropProvider>
         );
         expect(columnLabels(container)).not.toContain("MV 5");
-        expect(container.querySelector('[data-column="catch-all"]')).toBeNull();
+        // The Catch-All itself always renders (issue #1633), holding nothing
+        // yet.
+        expect(cardsIn(container, "catch-all")).toEqual([]);
 
         rerender(
             <DragDropProvider>
@@ -729,6 +748,226 @@ describe("DeckZoneSurface — column management (ADR 0075 §2, issue #1626)", ()
             "Lightning Bolt",
         ]);
         expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
+    });
+});
+
+describe("DeckZoneSurface — narrow-screen refinements (issue #1633)", () => {
+    it("CSS-hides an empty Column below `md`, but never a non-empty one or the Catch-All", () => {
+        // MV 1 holds Bolt (non-empty); MV 0 holds nothing (empty); the
+        // Catch-All holds nothing too, but is exempt.
+        const { container } = renderZone({ cards: [BOLT] });
+        const emptyGenerated = container.querySelector('[data-column="mv:0"]')!;
+        const nonEmpty = container.querySelector('[data-column="mv:1"]')!;
+        const catchAll = container.querySelector('[data-column="catch-all"]')!;
+
+        expect(emptyGenerated.className.split(/\s+/)).toEqual(
+            expect.arrayContaining(["hidden", "md:flex"])
+        );
+        expect(nonEmpty.className.split(/\s+/)).not.toContain("hidden");
+        expect(catchAll.className.split(/\s+/)).not.toContain("hidden");
+    });
+
+    it("the `pane` drop model (Sideboard) never emits the hide class — an empty column there is simply not mounted", () => {
+        const { container } = renderZone({ cards: [BOLT], dropModel: "pane" });
+        // `mv:0` never mounts at all under `pane` (unchanged pre-#1633
+        // behaviour) — nothing to CSS-hide.
+        expect(container.querySelector('[data-column="mv:0"]')).toBeNull();
+        const nonEmpty = container.querySelector('[data-column="mv:1"]')!;
+        expect(nonEmpty.className.split(/\s+/)).not.toContain("hidden");
+    });
+
+    it("the scroll strip and every Column carry the scroll-snap classes, scoped to BELOW `md` (AC 1) — desktop stays unsnapped (AC 3)", () => {
+        const { container } = renderZone({ cards: [BOLT] });
+        const strip = container.querySelector(
+            '[data-column="mv:1"]'
+        )!.parentElement!;
+        // Snap is armed below `md`...
+        expect(strip.className.split(/\s+/)).toEqual(
+            expect.arrayContaining(["snap-x", "snap-mandatory"])
+        );
+        // ...and explicitly disarmed AT `md` and above — desktop must not
+        // pick up a scroll-snap behaviour nobody asked for (PR #2333 review,
+        // B2), and it must not fight dnd-kit's own auto-scroll on the same
+        // container during a drag.
+        expect(strip.className.split(/\s+/)).toContain("md:snap-none");
+        const column = container.querySelector('[data-column="mv:1"]')!;
+        expect(column.className.split(/\s+/)).toContain("snap-start");
+        expect(column.className.split(/\s+/)).toContain("md:snap-align-none");
+    });
+
+    it("a card tile allows native horizontal panning — a quick swipe must still scroll the strip (issue #1633 bundled finding, ADR 0009)", () => {
+        // `touch-none` on the tile would block the browser from ever
+        // recognising a touch starting on a card as a scroll, regardless of
+        // the drag sensor's own 250ms Delay constraint (PR #2333 review,
+        // bundled finding 1) — the same class of bug `board-hand-card.tsx`'s
+        // `allowHorizontalPan` fixes for the portrait hand (issue #1994).
+        const { getByTitle } = renderZone({ cards: [BOLT] });
+        const tile = getByTitle(/Remove Lightning Bolt/);
+        const classes = tile.className.split(/\s+/);
+        expect(classes).toContain("touch-pan-x");
+        expect(classes).not.toContain("touch-none");
+    });
+
+    it("renders no `move to…` affordance when the host supplies no `onPin`", () => {
+        const { queryByLabelText } = renderZone({ cards: [BOLT] });
+        expect(queryByLabelText("Move Lightning Bolt to…")).toBeNull();
+    });
+
+    it("renders no `move to…` affordance on the `pane` drop model even with `onPin` supplied — the Sideboard has no Columns to pin into", () => {
+        const { queryByLabelText } = renderZone({
+            cards: [BOLT],
+            dropModel: "pane",
+            onPin: () => {},
+        });
+        expect(queryByLabelText("Move Lightning Bolt to…")).toBeNull();
+    });
+
+    it("the `move to…` menu lists EXACTLY the resolved Columns that are PIN TARGETS — generated and manual, EXCLUDING the Catch-All", () => {
+        const layout = addManualColumn(createColumnLayout(), {
+            id: "custom:removal",
+            label: "Removal",
+        });
+        const rendered = renderZone({ cards: [BOLT], layout, onPin: () => {} });
+        fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
+
+        const menu = rendered.getByRole("menu", {
+            name: "Move Lightning Bolt to…",
+        });
+        const offered = within(menu)
+            .getAllByRole("menuitem")
+            .map((el) => el.textContent);
+        // The full ladder this Zone resolves (`renderZone`'s default `layout`
+        // is Grouping `mv`) plus the manual Column — but NOT the Catch-All,
+        // which is rendered on the board (`columnLabels(container)` — see the
+        // sibling "renders the FULL fixed ladder…" test above — still lists
+        // it) yet is never offered here: `pinCardToColumn` returns the layout
+        // UNCHANGED for the Catch-All's unnamespaced id, so listing it would
+        // be a menu entry that silently does nothing (PR #2333 review, B1).
+        expect(offered).toEqual([
+            "Lands",
+            "MV 0",
+            "MV 1",
+            "MV 2",
+            "MV 3",
+            "MV 4",
+            "MV 5",
+            "MV 6",
+            "MV 7+",
+            "Removal",
+        ]);
+        expect(offered).not.toContain("Catch-All");
+    });
+
+    it("under Grouping `none` the menu is EMPTY — its single Column is not a pin target either", () => {
+        // Grouping `none` resolves to one whole-Zone Column (`all`) plus the
+        // Catch-All, and NEITHER is a pin target (`pinNamespaceForGrouping`
+        // returns `null` for `none`; the Catch-All is never one). Before the
+        // B1 fixup this was the shape where the ENTIRE menu was dead: two
+        // entries, both no-ops.
+        const layout = setGrouping(createColumnLayout(), "none");
+        const rendered = renderZone({ cards: [BOLT], layout, onPin: () => {} });
+        fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
+
+        const menu = rendered.getByRole("menu", {
+            name: "Move Lightning Bolt to…",
+        });
+        expect(within(menu).queryAllByRole("menuitem")).toEqual([]);
+    });
+
+    it("picking EVERY listed entry actually changes the layout — no entry is a reference-identical no-op", () => {
+        // Guards against exactly the defect B1 found: a menu entry whose
+        // `onSelect` -> `onPin` -> `pinCardToColumn` round-trip returns the
+        // SAME layout reference. Folds each captured `onPin` call through the
+        // real engine primitive rather than trusting the call args alone —
+        // the reviewer's own throwaway test for B1 found a menu that folded
+        // to a reference-identical layout; this is the shape that guards
+        // against it.
+        const layout = addManualColumn(createColumnLayout(), {
+            id: "custom:removal",
+            label: "Removal",
+        });
+        // Same fixture (Grouping `mv` + the "Removal" manual Column) as the
+        // "lists EXACTLY…" test above, so this is the SAME offered list —
+        // every generated Column plus the manual one, no Catch-All.
+        const labels = [
+            "Lands",
+            "MV 0",
+            "MV 1",
+            "MV 2",
+            "MV 3",
+            "MV 4",
+            "MV 5",
+            "MV 6",
+            "MV 7+",
+            "Removal",
+        ];
+        const calls: Array<[string, string]> = []; // [columnId, pinKey]
+        const rendered = renderZone({
+            cards: [BOLT],
+            layout,
+            onPin: (_cardId, columnId, pinKey) =>
+                calls.push([columnId, pinKey]),
+        });
+
+        // The popover unmounts its content on close (`onSelect` closes it
+        // after every pick), so each entry is exercised by reopening the
+        // menu fresh and picking it BY NAME rather than clicking a batch of
+        // now-detached `menuitem` nodes.
+        for (const label of labels) {
+            fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
+            fireEvent.click(
+                within(
+                    rendered.getByRole("menu", {
+                        name: "Move Lightning Bolt to…",
+                    })
+                ).getByRole("menuitem", { name: label })
+            );
+        }
+
+        expect(calls.length).toBe(labels.length);
+        for (const [columnId, pinKey] of calls) {
+            const next = pinCardToColumn(layout, pinKey, columnId);
+            expect(next).not.toBe(layout);
+            expect(next.pins[pinKey]).toBeDefined();
+        }
+    });
+
+    it("picking a menu entry calls `onPin` with the SAME (cardId, columnId, pinKey) a drag onto that column would resolve to", () => {
+        const onPin = vi.fn();
+        const rendered = renderZone({
+            cards: [{ ...BOLT, pinKey: "7" }],
+            onPin,
+        });
+        fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
+        fireEvent.click(
+            within(
+                rendered.getByRole("menu", {
+                    name: "Move Lightning Bolt to…",
+                })
+            ).getByRole("menuitem", { name: "MV 6" })
+        );
+
+        // `resolveDeckZoneDragAction` resolves a Maindeck-card-dropped-on-a-
+        // Maindeck-Column drag into `{ type: "pin", cardId, columnId, pinKey }`
+        // — `pinKey` defaulted from the SAME `card.pinKey ?? card.cardId` rule
+        // `DeckZoneSurface` itself applies to build its drag payload
+        // (`ZoneItem.pinKey`), never re-derived here.
+        expect(onPin).toHaveBeenCalledWith(BOLT.cardId, "mv:6", "7");
+    });
+
+    it("closes the menu after a pick", () => {
+        const rendered = renderZone({ cards: [BOLT], onPin: () => {} });
+        fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
+        fireEvent.click(
+            within(
+                rendered.getByRole("menu", {
+                    name: "Move Lightning Bolt to…",
+                })
+            ).getByRole("menuitem", { name: "MV 6" })
+        );
+        expect(
+            rendered.queryByRole("menu", { name: "Move Lightning Bolt to…" })
+        ).toBeNull();
     });
 });
 

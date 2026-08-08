@@ -79,6 +79,10 @@ export interface DeckZonesSurfaceProps {
     onAddColumn?: (label: string) => void;
     onRenameColumn?: (columnId: ColumnId, label: string) => void;
     onDeleteColumn?: (columnId: ColumnId) => void;
+    /** Records a Card Pin — presence renders the Maindeck's `"move to…"` card
+     *  menu (issue #1633). Threaded to the MAINDECK instance only: the
+     *  Sideboard is `dropModel: "pane"`, which has no Columns to pin into. */
+    onPin?: (cardId: string, columnId: ColumnId, pinKey: string) => void;
 }
 
 export default function DeckZonesSurface({
@@ -111,6 +115,7 @@ export default function DeckZonesSurface({
     onAddColumn,
     onRenameColumn,
     onDeleteColumn,
+    onPin,
 }: DeckZonesSurfaceProps) {
     const mainZoom = useCardZoom({
         zone: mainZoomZone,
@@ -162,6 +167,7 @@ export default function DeckZonesSurface({
                     onAddColumn={onAddColumn}
                     onRenameColumn={onRenameColumn}
                     onDeleteColumn={onDeleteColumn}
+                    onPin={onPin}
                     headerRight={
                         <CardZoomSlider
                             value={mainZoom.value}

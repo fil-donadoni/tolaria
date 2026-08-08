@@ -182,6 +182,7 @@ export default function DeckBuilderShell({
                             onAddColumn={actions.onAddColumn}
                             onRenameColumn={actions.onRenameColumn}
                             onDeleteColumn={actions.onDeleteColumn}
+                            onPin={actions.onPin}
                             cardBase={view.cardBase}
                             splitZone={view.splitZone}
                             splitDefault={view.splitDefault}

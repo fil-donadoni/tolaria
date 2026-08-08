@@ -1,9 +1,13 @@
 import { useDraggable } from "@dnd-kit/react";
+import type { ColumnId } from "@convex/deckLayout";
 import { cn } from "~/lib/utils";
 import { pileCardTop } from "~/lib/card-layout";
 import CardImage from "~/components/cards/card-image";
 import FeaturedCardButton from "~/components/lobby/deck-builder/featured-card-button";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
+import DeckCardMoveMenu, {
+    type DeckCardMoveMenuColumn,
+} from "./deck-card-move-menu";
 
 /** The ONE deckbuilder card tile (issue #1581, re-homed here by #1632) — a
  *  single draggable + clickable card face rendered by EVERY zone surface:
@@ -51,6 +55,16 @@ export interface DeckCardTileProps {
      *  it. Set on the TOPMOST (visible) copy of a card only — a lower copy's
      *  button would sit behind the next card. */
     onSetFeatured?: () => void;
+    /** "Move to…" menu (issue #1633): lists this Zone's Columns and pins the
+     *  card to whichever is picked — the touch-friendly analogue of a drag,
+     *  since a precise drop into a narrow column is not a realistic touch
+     *  gesture. Presence renders the affordance; absent on Sideboard tiles
+     *  (whose pane has no Columns to pin into) and wherever the host omits
+     *  `onPin` (`DeckZoneSurface`). */
+    moveMenu?: {
+        columns: readonly DeckCardMoveMenuColumn[];
+        onSelect: (columnId: ColumnId) => void;
+    };
 }
 
 export default function DeckCardTile({
@@ -63,6 +77,7 @@ export default function DeckCardTile({
     stackIndex,
     isFeatured,
     onSetFeatured,
+    moveMenu,
 }: DeckCardTileProps) {
     const { ref, isDragging } = useDraggable({ id: dragId, data: dragData });
     const stacked = stackIndex !== undefined;
@@ -76,7 +91,25 @@ export default function DeckCardTile({
             onDoubleClick={onDoubleClick}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
-                "group aspect-5/7 w-(--card-w) shrink-0 cursor-grab touch-none select-none outline-none transition hover:-translate-y-0.5 hover:z-10",
+                // `touch-pan-x`, not `touch-none` (issue #1633 bundled finding
+                // — a quick swipe starting on a card must still scroll the
+                // Column strip, ADR 0009). `useDeckDragSensors`' touch Delay
+                // constraint (250ms) does its own gesture disambiguation: it
+                // never calls `preventDefault` while waiting on the timer, and
+                // dnd-kit's `PointerSensor.handleStart` only registers its OWN
+                // `touchmove` `preventDefault` listener once the delay elapses
+                // WITHOUT the finger having moved past its 10px tolerance
+                // (`node_modules/@dnd-kit/dom`'s `DelayConstraint`/
+                // `_PointerSensor.handleStart`) — so a fast swipe is never
+                // seen as a drag at all and CSS is what decides whether the
+                // browser is even ALLOWED to treat it as a scroll. `touch-none`
+                // forecloses that at `touchstart`, before the JS delay ever
+                // gets a chance — the same bug `board-hand-card.tsx`'s
+                // `allowHorizontalPan` documents and fixes for the portrait
+                // hand (issue #1994). `pan-x` (not `auto`) still blocks native
+                // vertical panning starting on a card, which was never a
+                // gesture this surface used.
+                "group aspect-5/7 w-(--card-w) shrink-0 cursor-grab touch-pan-x select-none outline-none transition hover:-translate-y-0.5 hover:z-10",
                 stacked ? "absolute left-0" : "relative",
                 isDragging ? "opacity-30" : ""
             )}
@@ -92,6 +125,17 @@ export default function DeckCardTile({
                 <FeaturedCardButton
                     isFeatured={!!isFeatured}
                     onSetFeatured={onSetFeatured}
+                />
+            )}
+            {moveMenu && (
+                <DeckCardMoveMenu
+                    // The plain card name already rides on the drag payload
+                    // (`dragData.cardName`) — `title` is the tooltip's fuller
+                    // "Remove <name> (drag to move zone)" sentence, wrong shape
+                    // for "Move <name> to…".
+                    cardName={dragData.cardName}
+                    columns={moveMenu.columns}
+                    onSelect={moveMenu.onSelect}
                 />
             )}
         </div>
