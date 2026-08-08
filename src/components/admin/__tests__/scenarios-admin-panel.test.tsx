@@ -13,9 +13,16 @@ const setupScenario = vi.fn();
 const deleteScenario = vi.fn();
 const setGolden = vi.fn();
 const cleanup = vi.fn();
+const forfeitMatch = vi.fn();
+const manualConcedeMatch = vi.fn();
 /** Call order across the whole flow, so "create → apply → navigate" is
  *  asserted as a sequence rather than three independent facts. */
 let calls: string[] = [];
+/** `myActiveGame`'s current mock return — issue #2400's typed marker the
+ *  hook reads to distinguish an active-game block from any other
+ *  createSoloGame/debugSetupScenario failure. `undefined` (the default) is
+ *  "no active game", matching the real query's loading/absent states. */
+let activeGame: Record<string, unknown> | undefined;
 
 const SCENARIOS = [
     {
@@ -56,6 +63,7 @@ vi.mock("convex/react", () => ({
     useQuery: (query: { _name: string }) => {
         if (query._name === "listDebugScenarios") return SCENARIOS;
         if (query._name === "list") return PRESETS;
+        if (query._name === "myActiveGame") return activeGame;
         return undefined;
     },
     useMutation: (fn: { _name: string }) => {
@@ -64,6 +72,8 @@ vi.mock("convex/react", () => ({
         if (fn._name === "deleteDebugScenario") return deleteScenario;
         if (fn._name === "setDebugScenarioGolden") return setGolden;
         if (fn._name === "cleanupEphemeralScenarios") return cleanup;
+        if (fn._name === "forfeitMatch") return forfeitMatch;
+        if (fn._name === "manualConcedeMatch") return manualConcedeMatch;
         return vi.fn();
     },
     useAction: () => vi.fn(),
@@ -99,6 +109,7 @@ describe("ScenariosAdminPanel", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         calls = [];
+        activeGame = undefined;
         localStorage.clear();
         createSoloGame.mockImplementation(async () => {
             calls.push("create");
@@ -110,6 +121,8 @@ describe("ScenariosAdminPanel", () => {
         navigate.mockImplementation(() => {
             calls.push("navigate");
         });
+        forfeitMatch.mockResolvedValue(undefined);
+        manualConcedeMatch.mockResolvedValue(undefined);
     });
 
     it("lists every saved scenario", () => {
@@ -161,6 +174,196 @@ describe("ScenariosAdminPanel", () => {
         );
         expect(setupScenario).not.toHaveBeenCalled();
         expect(navigate).not.toHaveBeenCalled();
+    });
+
+    describe("active-game block (issue #2400)", () => {
+        const VS_AI_GAME = {
+            gameId: "g0",
+            matchId: "m0",
+            name: "Existing",
+            status: "playing",
+            solo: true,
+            vsAi: true,
+            mode: null,
+            opponentName: "Bot",
+        };
+
+        it("shows a confirm dialog naming the game's type/opponent, not the error banner", async () => {
+            activeGame = VS_AI_GAME;
+            createSoloGame.mockRejectedValueOnce(
+                new Error(
+                    "You already have an active game. Finish or leave it before starting another."
+                )
+            );
+            render(<ScenariosAdminPanel />);
+            fireEvent.click(screen.getAllByText("Test")[0]);
+
+            await waitFor(() =>
+                expect(screen.getByText("Concede active game?")).toBeTruthy()
+            );
+            // GameDialog renders the subtitle twice (visible `<p>` plus an
+            // sr-only `DialogDescription` mirror) — assert on the count.
+            expect(
+                screen.getAllByText(/active solo game vs Bot/).length
+            ).toBeGreaterThan(0);
+            expect(
+                screen.queryByText(
+                    "You already have an active game. Finish or leave it before starting another."
+                )
+            ).toBeNull();
+            // No mutation fired yet — only the dialog appeared.
+            expect(forfeitMatch).not.toHaveBeenCalled();
+        });
+
+        it("confirming concedes via forfeitMatch (never the per-Game concede) then retries the launch", async () => {
+            activeGame = VS_AI_GAME;
+            createSoloGame.mockRejectedValueOnce(new Error("blocked"));
+            render(<ScenariosAdminPanel />);
+            fireEvent.click(screen.getAllByText("Test")[0]);
+            await waitFor(() =>
+                expect(screen.getByText("Concede active game?")).toBeTruthy()
+            );
+
+            fireEvent.click(screen.getByText("Concede & Start"));
+
+            await waitFor(() => expect(navigate).toHaveBeenCalled());
+            expect(forfeitMatch).toHaveBeenCalledWith({
+                matchId: "m0",
+                playerId: "user-1-p1",
+            });
+            expect(createSoloGame).toHaveBeenCalledTimes(2);
+            expect(setupScenario).toHaveBeenCalledTimes(1);
+            expect(navigate).toHaveBeenCalledWith({ to: "/game" });
+            expect(screen.queryByText("Concede active game?")).toBeNull();
+        });
+
+        it("routes a manual-mode block through manualConcedeMatch as the P1 seat", async () => {
+            activeGame = {
+                ...VS_AI_GAME,
+                vsAi: false,
+                mode: "manual",
+                opponentName: null,
+            };
+            createSoloGame.mockRejectedValueOnce(new Error("blocked"));
+            render(<ScenariosAdminPanel />);
+            fireEvent.click(screen.getAllByText("Test")[0]);
+            await waitFor(() =>
+                expect(
+                    screen.getAllByText(/active manual game/).length
+                ).toBeGreaterThan(0)
+            );
+
+            fireEvent.click(screen.getByText("Concede & Start"));
+
+            await waitFor(() => expect(navigate).toHaveBeenCalled());
+            expect(manualConcedeMatch).toHaveBeenCalledWith({
+                gameId: "g0",
+                playerId: "user-1-p1",
+            });
+            expect(forfeitMatch).not.toHaveBeenCalled();
+        });
+
+        it("labels a non-solo block 2-player and forfeits the bare user-id seat", async () => {
+            activeGame = {
+                ...VS_AI_GAME,
+                solo: false,
+                vsAi: false,
+                opponentName: "Rival",
+            };
+            createSoloGame.mockRejectedValueOnce(new Error("blocked"));
+            render(<ScenariosAdminPanel />);
+            fireEvent.click(screen.getAllByText("Test")[0]);
+            await waitFor(() =>
+                expect(
+                    screen.getAllByText(/active 2-player game vs Rival/).length
+                ).toBeGreaterThan(0)
+            );
+
+            fireEvent.click(screen.getByText("Concede & Start"));
+
+            await waitFor(() =>
+                expect(forfeitMatch).toHaveBeenCalledWith({
+                    matchId: "m0",
+                    playerId: "user-1",
+                })
+            );
+        });
+
+        it("cancelling fires no mutation and leaves the active game untouched", async () => {
+            activeGame = VS_AI_GAME;
+            createSoloGame.mockRejectedValueOnce(new Error("blocked"));
+            render(<ScenariosAdminPanel />);
+            fireEvent.click(screen.getAllByText("Test")[0]);
+            await waitFor(() =>
+                expect(screen.getByText("Concede active game?")).toBeTruthy()
+            );
+
+            fireEvent.click(screen.getByText("Cancel"));
+
+            expect(screen.queryByText("Concede active game?")).toBeNull();
+            expect(forfeitMatch).not.toHaveBeenCalled();
+            expect(manualConcedeMatch).not.toHaveBeenCalled();
+            expect(createSoloGame).toHaveBeenCalledTimes(1);
+        });
+
+        it("disables the confirm button while the concede mutation is in flight", async () => {
+            activeGame = VS_AI_GAME;
+            createSoloGame.mockRejectedValueOnce(new Error("blocked"));
+            let resolveForfeit: () => void = () => {};
+            forfeitMatch.mockImplementation(
+                () =>
+                    new Promise<void>((resolve) => {
+                        resolveForfeit = resolve;
+                    })
+            );
+            render(<ScenariosAdminPanel />);
+            fireEvent.click(screen.getAllByText("Test")[0]);
+            await waitFor(() =>
+                expect(screen.getByText("Concede active game?")).toBeTruthy()
+            );
+
+            fireEvent.click(screen.getByText("Concede & Start"));
+
+            await waitFor(() =>
+                expect(
+                    (
+                        screen.getByRole("button", {
+                            name: "Conceding…",
+                        }) as HTMLButtonElement
+                    ).disabled
+                ).toBe(true)
+            );
+            expect(
+                (
+                    screen.getByRole("button", {
+                        name: "Cancel",
+                    }) as HTMLButtonElement
+                ).disabled
+            ).toBe(true);
+
+            resolveForfeit();
+            await waitFor(() => expect(navigate).toHaveBeenCalled());
+        });
+
+        it("still surfaces a non-active-game createSoloGame failure via the plain banner", async () => {
+            // No active game reported — this is some other rejection (e.g. a
+            // deck-legality error), so the typed marker never fires and the
+            // dialog must not appear.
+            activeGame = undefined;
+            createSoloGame.mockRejectedValueOnce(
+                new Error("Deck is not legal for this format.")
+            );
+            render(<ScenariosAdminPanel />);
+            fireEvent.click(screen.getAllByText("Test")[0]);
+
+            await waitFor(() =>
+                expect(
+                    screen.getByText("Deck is not legal for this format.")
+                ).toBeTruthy()
+            );
+            expect(screen.queryByText("Concede active game?")).toBeNull();
+            expect(forfeitMatch).not.toHaveBeenCalled();
+        });
     });
 
     it("filters the list by label", () => {

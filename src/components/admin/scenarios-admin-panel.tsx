@@ -25,6 +25,7 @@ import DebugScenarioPreview from "@/components/debug/debug-scenario-preview";
 import DebugSaveScenario, {
     type EditingScenario,
 } from "@/components/debug/debug-save-scenario";
+import ScenarioActiveGameDialog from "@/components/admin/scenario-active-game-dialog";
 import { useScenarioTestGame } from "~/hooks/useScenarioTestGame";
 
 /** A regenerated/varied spec awaiting the preview/save step. */
@@ -113,6 +114,15 @@ export default function ScenariosAdminPanel() {
         <>
             {(error || testGame.error) && (
                 <Banner tone="danger">{error ?? testGame.error}</Banner>
+            )}
+
+            {testGame.blockingActiveGame && (
+                <ScenarioActiveGameDialog
+                    activeGame={testGame.blockingActiveGame.activeGame}
+                    busy={testGame.resolvingActiveGame}
+                    onCancel={testGame.cancelBlockingActiveGame}
+                    onConfirm={testGame.resolveBlockingActiveGame}
+                />
             )}
 
             <Panel>

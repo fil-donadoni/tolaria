@@ -464,6 +464,23 @@ export function matchBelongsToUser(
     return match.players.some((p) => seatBelongsToUser(p.id, userId));
 }
 
+/** Opponent identity for `myActiveGame` (issue #2400 — the admin
+ *  scenario-test confirm dialog needs to name who it would concede
+ *  against): "Bot" for vs-AI; the other seat's stored Match `name` for a
+ *  genuine 2-player Match (including a 2-player manual table); `null` when
+ *  the SAME human occupies both seats (plain solo, or solo manual) — there
+ *  is no distinct opponent to name. */
+export function activeGameOpponentName(
+    match: { players: { id: string; name: string }[] },
+    userId: string,
+    solo: boolean,
+    vsAi: boolean
+): string | null {
+    if (vsAi) return "Bot";
+    if (solo) return null;
+    return match.players.find((p) => p.id !== userId)?.name ?? null;
+}
+
 /** The user's current active Match, or null. Scans only the small active set
  *  via the `by_status` index — finished Matches are never read. */
 export async function findActiveMatchForUser(

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import {
     ACTIVE_MATCH_STATUSES,
+    activeGameOpponentName,
     allSeatsReady,
     applySideboard,
     botIsChooser,
@@ -213,6 +214,45 @@ describe("matchBelongsToUser (#155 → single-active-match guard)", () => {
             "sideboarding",
         ]);
         expect(ACTIVE_MATCH_STATUSES).not.toContain("finished");
+    });
+});
+
+describe("activeGameOpponentName (issue #2400 — myActiveGame opponent identity)", () => {
+    const userId = "user_abc123";
+    const m = (players: { id: string; name: string }[]) => ({ players });
+
+    it("names the opponent 'Bot' for a vs-AI game, regardless of solo/seat names", () => {
+        const match = m([
+            { id: `${userId}-p1`, name: "Tester (P1)" },
+            { id: `${userId}-p2`, name: "Tester (P2)" },
+        ]);
+        expect(activeGameOpponentName(match, userId, true, true)).toBe("Bot");
+    });
+
+    it("returns null for a plain solo game — the same human occupies both seats", () => {
+        const match = m([
+            { id: `${userId}-p1`, name: "Tester (P1)" },
+            { id: `${userId}-p2`, name: "Tester (P2)" },
+        ]);
+        expect(activeGameOpponentName(match, userId, true, false)).toBeNull();
+    });
+
+    it("returns the other seat's stored name for a genuine 2-player Match", () => {
+        const match = m([
+            { id: userId, name: "Tester" },
+            { id: "user_other", name: "Rival" },
+        ]);
+        expect(activeGameOpponentName(match, userId, false, false)).toBe(
+            "Rival"
+        );
+    });
+
+    it("vsAi wins over solo/2-player when both are somehow set", () => {
+        const match = m([
+            { id: userId, name: "Tester" },
+            { id: "user_other", name: "Rival" },
+        ]);
+        expect(activeGameOpponentName(match, userId, false, true)).toBe("Bot");
     });
 });
 

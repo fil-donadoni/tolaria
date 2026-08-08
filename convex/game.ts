@@ -398,6 +398,7 @@ import {
     gameBelongsToUser,
 } from "./gameLifecycle";
 import {
+    activeGameOpponentName,
     allSeatsReady,
     applySideboard,
     assertNotEventBotSeat,
@@ -4628,14 +4629,18 @@ export const myActiveGame = query({
         if (!match || !match.currentGameId) return null;
         const game = await ctx.db.get(match.currentGameId);
         if (!game) return null;
+        const solo = game.solo === true;
+        const vsAi = game.vsAi === true;
+        const opponentName = activeGameOpponentName(match, userId, solo, vsAi);
         return {
             gameId: game._id,
             matchId: match._id,
             name: game.name,
             status: game.status,
-            solo: game.solo === true,
-            vsAi: game.vsAi === true,
+            solo,
+            vsAi,
             mode: game.mode ?? null,
+            opponentName,
         };
     },
 });
