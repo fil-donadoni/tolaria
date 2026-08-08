@@ -398,6 +398,7 @@ import {
     gameBelongsToUser,
 } from "./gameLifecycle";
 import {
+    activeGameOpponentName,
     allSeatsReady,
     applySideboard,
     assertNotEventBotSeat,
@@ -4628,14 +4629,18 @@ export const myActiveGame = query({
         if (!match || !match.currentGameId) return null;
         const game = await ctx.db.get(match.currentGameId);
         if (!game) return null;
+        const solo = game.solo === true;
+        const vsAi = game.vsAi === true;
+        const opponentName = activeGameOpponentName(match, userId, solo, vsAi);
         return {
             gameId: game._id,
             matchId: match._id,
             name: game.name,
             status: game.status,
-            solo: game.solo === true,
-            vsAi: game.vsAi === true,
+            solo,
+            vsAi,
             mode: game.mode ?? null,
+            opponentName,
         };
     },
 });
@@ -14885,9 +14890,26 @@ export const manualEndTurn = mutation({
 // `manualConcedeMatch` below, which finishes the game row too.
 
 /**
- * Concede and finalize a manual game (ADR 0080 S12). The conceding player's
- * opponent is the winner. For a Bo1 Match the Match finishes; for a Bo3 the
- * Match advances to "sideboarding" so the players can start the next game.
+ * Concede and finalize the WHOLE manual Match (ADR 0080 S12), regardless of
+ * `bestOf` — the ADR 0080 S12 twin of the `forfeitMatch` mutation for GRE
+ * Matches, and reuses the same pure transition (`computeForfeitMatch`) for
+ * exactly that reason. The conceding player's opponent is awarded the games
+ * they still need to win and the Match is marked "finished".
+ *
+ * Deliberately NOT `recordGameResult` (#2400 review round 2): that transition
+ * only ends the CURRENT Game, and for a Bo3 mid-Match it advances the Match to
+ * "sideboarding" — still an `ACTIVE_MATCH_STATUSES` member, so
+ * `findActiveMatchForUser` still finds it. `manualConcedeMatch` has exactly
+ * two callers today (the lobby's "Concede Match" banner and the Scenarios
+ * admin panel's active-game dialog) and both mean "abandon the whole Match so
+ * I'm free to start something else" — never "advance to the next Bo3 game",
+ * which has its own explicit action (`continueManualMatch`).
+ *
+ * `computeForfeitMatch` returning `null` (the seat named isn't actually in
+ * this Match) fails CLOSED — the mutation throws instead of silently
+ * attributing the win/loss to the wrong seat, the same fail-closed shape
+ * `forfeitMatch` already has.
+ *
  * The manual state persists for the completed game — the log is the only
  * artefact worth reading.
  */
@@ -14906,21 +14928,18 @@ export const manualConcedeMatch = mutation({
         if (!game) throw new ConvexError("Game not found");
         if (!game.matchId) throw new Error("Game has no Match");
 
-        const opponentId = game.players.find((p) => p.id !== args.playerId)?.id;
-        if (!opponentId) throw new Error("Opponent not found");
-
         const match = await ctx.db.get(game.matchId);
         if (!match) throw new Error("Match not found");
         if (match.status === "finished") return;
 
-        const patch = recordGameResult(match, opponentId);
-        if (!patch) return;
+        const patch = computeForfeitMatch(match, args.playerId);
+        if (!patch) throw new Error("Seat not found in this match");
 
         // Mark the game row finished BEFORE the match patch, so the status
         // subscription sees a finished game with a winner.
         await ctx.db.patch(args.gameId, {
             status: "finished",
-            winner: opponentId,
+            winner: patch.winner,
             updatedAt: now,
         });
 
