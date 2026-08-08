@@ -166,10 +166,19 @@ export interface CategoryWeights {
  * unattended loop running past its real budget. */
 export const MOST_EXPENSIVE_WEIGHT_CLASS: WeightClass = "opus";
 
+// sonnet and opus are exact against current list price ÷3 (the anchor is "1
+// unit == 1 sonnet input token", see the module comment above). haiku is
+// re-anchored to the same list, current tier (was pinned to Haiku 3.5
+// pricing — $0.80/$4/$1.00/$0.08 — a stale generation of the family).
 export const DEFAULT_WEIGHTS: Record<WeightClass, CategoryWeights> = {
     sonnet: { input: 1, output: 5, cacheCreation: 1.25, cacheRead: 0.1 },
     opus: { input: 5, output: 25, cacheCreation: 6.25, cacheRead: 0.5 },
-    haiku: { input: 0.27, output: 1.33, cacheCreation: 0.33, cacheRead: 0.03 },
+    haiku: {
+        input: 0.33,
+        output: 1.67,
+        cacheCreation: 0.42,
+        cacheRead: 0.033,
+    },
 };
 
 /** Map a raw model string (e.g. `claude-opus-4-5-20260101`) to a weight

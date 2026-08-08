@@ -106,8 +106,8 @@ describe("parseUsageLine — the iterations double-count trap", () => {
                 },
             })
         )!;
-        const wronglyDoubled = rec.input * 2;
-        expect(rec.input).not.toBe(wronglyDoubled);
+        // The real guard: if parseUsageLine ever regressed to also sum
+        // `iterations`, this would read 20, not 10.
         expect(rec.input).toBe(10);
     });
 });

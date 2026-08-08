@@ -1,16 +1,36 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
+// Every test here forks a real `sh` process, which itself spawns `mktemp`,
+// `tee`, `awk`, `grep`, and stub subprocesses per pass. The default 5s
+// per-test ceiling is tuned for pure in-process assertions, not this — under
+// shared-machine contention (several concurrent sessions, see CLAUDE.md §
+// Quality gates) that's enough to false-time-out a test doing nothing wrong.
+// Same reasoning as the bot suite's 60s allowance in vitest.config.ts.
+vi.setConfig({ testTimeout: 15_000 });
+
 /**
  * `scripts/loop-drain.sh` is the out-of-process AFK driver around
  * `claude -p "/process-gh-issues"` (ADR 0097). It is POSIX `sh`, run here
  * exactly the way `.claude/hooks/receipt-guard.sh` is driven in
- * `receipt.test.ts:567-` — a scratch cwd, stub `gh`/`claude`/`bun` placed
- * first on PATH so no real API/network call ever happens, assertions on exit
- * code, stop reason, and the log line the script writes.
+ * `receipt.test.ts:567-` — a scratch cwd, a `bin/` directory prepended onto
+ * PATH with stub `gh`/`claude`/`bun` executables, assertions on exit code,
+ * stop reason, and the log line the script writes.
+ *
+ * Isolation is NOT automatic just because `bin` precedes the real PATH: a
+ * test that forgets to stub a binary the driver calls falls through to the
+ * REAL one still later on PATH — confirmed empirically (a prior version of
+ * this suite invoked the real `claude` binary twice under the budget
+ * mutation, because none of the budget-adjacent tests installed a `claude`
+ * stub). `beforeEach` now installs a default `claude` stub that exits 99
+ * precisely to close that gap: every test either overrides it with its own
+ * stub, or gets the exit-99 stub, never the real `claude` CLI. (`gh` and
+ * `bun` are not defaulted the same way — every test that reaches them
+ * installs its own stub via `stubGhCountingFrom`/`stubGhTwoCounters` /
+ * `stubBunUsageWindow`, and a test that doesn't reach them never calls out.)
  *
  * Every one of these guards exists to stop an unattended process from
  * burning money at 3am — a guard that silently doesn't fire is exactly the
@@ -24,6 +44,7 @@ const DRIVER = path.join(REPO_ROOT, "scripts", "loop-drain.sh");
 let tmp: string;
 let bin: string;
 let queueFile: string;
+let totalFile: string;
 let greenShaFile: string;
 
 const writeStub = (name: string, script: string): void => {
@@ -35,10 +56,36 @@ const writeStub = (name: string, script: string): void => {
 /** `gh` stub: prints whatever integer currently sits in `queueFile`,
  * regardless of arguments — the driver's OWN wiring to `gh issue list` is
  * not what these tests are about; what matters is that it uses gh's stdout
- * as the count. */
+ * as the count. Under this stub, `count_unclaimed` and `count_total_open`
+ * both read the same file, so tests that don't care about the
+ * unclaimed-vs-total distinction see them move together. */
 const stubGhCountingFrom = (initialCount: number): void => {
     fs.writeFileSync(queueFile, String(initialCount));
     writeStub("gh", `cat "${queueFile}" 2>/dev/null || echo 0`);
+};
+
+/** `gh` stub that distinguishes the driver's two searches: the unclaimed
+ * count (`count_unclaimed`, search carries `-label:in-progress`) from the
+ * total open `ready-for-agent` count (`count_total_open`, no such
+ * negation). Lets a test simulate "claimed but not landed": the unclaimed
+ * count drops (a claim) while the total stays put (nothing actually
+ * landed). */
+const stubGhTwoCounters = (
+    unclaimedInitial: number,
+    totalInitial: number
+): void => {
+    fs.writeFileSync(queueFile, String(unclaimedInitial));
+    fs.writeFileSync(totalFile, String(totalInitial));
+    writeStub(
+        "gh",
+        [
+            `args="$*"`,
+            `case "$args" in`,
+            `  *"-label:in-progress"*) cat "${queueFile}" 2>/dev/null || echo 0 ;;`,
+            `  *) cat "${totalFile}" 2>/dev/null || echo 0 ;;`,
+            `esac`,
+        ].join("\n")
+    );
 };
 
 /** `claude` stub in "progress" mode: decrements the queue file and bumps
@@ -87,6 +134,23 @@ const stubBunUsageWindow = (pct: number, weighted = 1): void => {
     );
 };
 
+/** `bun` stub for the "reader is unreadable" family of tests: runs `body`
+ * for `bun run usage:window ...` and falls through to exit 1 for anything
+ * else, mirroring `stubBunUsageWindow`'s argument gate. `body` is
+ * responsible for its own exit code — that's the whole point, each test
+ * chooses a different broken shape. */
+const writeBunUsageWindowStub = (body: string): void => {
+    writeStub(
+        "bun",
+        [
+            `if [ "$1" = "run" ] && [ "$2" = "usage:window" ]; then`,
+            body,
+            `fi`,
+            `exit 1`,
+        ].join("\n")
+    );
+};
+
 interface RunOpts {
     args?: string[];
     env?: Record<string, string>;
@@ -126,7 +190,15 @@ beforeEach(() => {
     bin = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-loop-drain-bin-"));
     fs.mkdirSync(path.join(tmp, ".claude", "telemetry"), { recursive: true });
     queueFile = path.join(tmp, "queue-count");
+    totalFile = path.join(tmp, "total-count");
     greenShaFile = path.join(tmp, ".claude", "telemetry", "green-sha");
+    // Default `claude` stub — see the file docstring. Any test that actually
+    // needs `claude` to run a pass installs its own stub, which overwrites
+    // this one (writeStub always replaces the file).
+    writeStub(
+        "claude",
+        `echo "unstubbed claude invocation in test" >&2\nexit 99`
+    );
 });
 
 afterEach(() => {
@@ -214,6 +286,91 @@ describe("budget threshold", () => {
     });
 });
 
+describe("budget guard fails CLOSED when the usage reader is unreadable (BLOCKING fix)", () => {
+    // Before this fix, every one of these four shapes hit the same `-z
+    // "$pct"` branch, printed a warning, and ran the pass anyway — forever,
+    // on every subsequent pass too, since nothing about the broken reader
+    // self-heals. `bun` not being on PATH (the AFK/launchd case this driver
+    // exists for) and a budget written with a suffix (`--budget 2M`) both
+    // produced this exact shape in production.
+
+    it("stops with reason usage-error when `bun run usage:window` exits non-zero", () => {
+        stubGhCountingFrom(5);
+        writeBunUsageWindowStub(`echo "usage-window: crashed" 1>&2\n  exit 1`);
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--budget",
+                "10000",
+                "--max-pct",
+                "80",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=usage-error/);
+        expect(passLogCount()).toBe(0);
+        expect(r.stderr).toMatch(/FAILED CLOSED/);
+        expect(r.stderr).toMatch(/usage-window: crashed/);
+    });
+
+    it("stops with reason usage-error on non-JSON reader output", () => {
+        stubGhCountingFrom(5);
+        writeBunUsageWindowStub(`echo "not json at all {{{"\n  exit 0`);
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--budget",
+                "10000",
+                "--max-pct",
+                "80",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=usage-error/);
+        expect(passLogCount()).toBe(0);
+    });
+
+    it("stops with reason usage-error when pct is null", () => {
+        stubGhCountingFrom(5);
+        writeBunUsageWindowStub(`echo '{"pct":null,"weighted":123}'\n  exit 0`);
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--budget",
+                "10000",
+                "--max-pct",
+                "80",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=usage-error/);
+        expect(passLogCount()).toBe(0);
+    });
+
+    it("stops with reason usage-error when pct is present but not a valid number", () => {
+        stubGhCountingFrom(5);
+        writeBunUsageWindowStub(
+            `echo '{"pct":1.2.3,"weighted":123}'\n  exit 0`
+        );
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--budget",
+                "10000",
+                "--max-pct",
+                "80",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=usage-error/);
+        expect(passLogCount()).toBe(0);
+    });
+});
+
 describe("rate-limit detection", () => {
     it("stops after exactly one pass on a rate-limit-shaped message, even with exit 0", () => {
         stubGhCountingFrom(5);
@@ -228,20 +385,38 @@ describe("rate-limit detection", () => {
         expect(r.stderr).toMatch(/usage limit reached/i);
     });
 
-    it("also stops on a non-zero claude exit with no matching message (fail-safe fallback)", () => {
-        stubGhCountingFrom(5);
-        writeStub("claude", `echo "some unrelated crash"\nexit 17`);
-        const r = run({ args: ["--claude-args", "x"] });
-        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
-        expect(r.stdout).toMatch(/reason=rate-limit/);
-    });
-
     it("does NOT rate-limit-stop a normal, non-matching, exit-0 pass", () => {
         stubGhCountingFrom(1);
         stubClaudeProgress();
         const r = run({ args: ["--claude-args", "x"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).not.toMatch(/reason=rate-limit/);
+    });
+});
+
+describe("claude-error detection — distinct from rate-limit", () => {
+    it("stops with reason claude-error (not rate-limit) on a non-zero claude exit with no rate-limit-shaped message", () => {
+        stubGhCountingFrom(5);
+        writeStub("claude", `echo "some unrelated crash"\nexit 17`);
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=claude-error/);
+        expect(r.stdout).not.toMatch(/reason=rate-limit/);
+        const lines = logLines();
+        expect(lines).toHaveLength(1);
+        expect(lines[0].split(" ").pop()).toBe("claude-error");
+        // the exit code field (3rd of 7) carries the real code, not a
+        // stand-in — proves this isn't just rate-limit renamed.
+        expect(lines[0].split(/\s+/)[2]).toBe("17");
+    });
+
+    it("still stops as rate-limit, not claude-error, when the message matches even on a non-zero exit", () => {
+        stubGhCountingFrom(5);
+        writeStub("claude", `echo "Claude AI usage limit reached."\nexit 17`);
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=rate-limit/);
+        expect(r.stdout).not.toMatch(/reason=claude-error/);
     });
 });
 
@@ -283,6 +458,55 @@ describe("no-progress", () => {
         const r = run({ args: ["--claude-args", "x"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).toMatch(/reason=queue-empty/);
+    });
+});
+
+describe("progress is measured on the total open count, not the claim-adjusted unclaimed count", () => {
+    it("does NOT treat claiming issues (unclaimed drops, total doesn't) as progress", () => {
+        // Simulates a pass that claims work (adds `in-progress`, dropping
+        // the UNCLAIMED count) but lands nothing (TOTAL open ready-for-agent
+        // stays put, green-sha never moves). Before the fix, the no-progress
+        // check compared the unclaimed count and saw it drop every pass —
+        // "progress" — resetting the streak and never stopping, so a batch
+        // that claims-and-abandons could burn through the whole queue
+        // without landing a single PR.
+        stubGhTwoCounters(5, 5);
+        writeStub(
+            "claude",
+            [
+                `n=$(cat "${queueFile}" 2>/dev/null || echo 0)`,
+                `if [ "$n" -gt 0 ]; then n=$((n-1)); fi`,
+                `echo "$n" > "${queueFile}"`,
+                `echo "claimed one issue, landed nothing"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=no-progress/);
+        expect(passLogCount()).toBe(2);
+    });
+
+    it("DOES treat a real landing (total open count drops) as progress", () => {
+        stubGhTwoCounters(3, 3);
+        writeStub(
+            "claude",
+            [
+                `n=$(cat "${queueFile}" 2>/dev/null || echo 0)`,
+                `if [ "$n" -gt 0 ]; then n=$((n-1)); fi`,
+                `echo "$n" > "${queueFile}"`,
+                `t=$(cat "${totalFile}" 2>/dev/null || echo 0)`,
+                `if [ "$t" -gt 0 ]; then t=$((t-1)); fi`,
+                `echo "$t" > "${totalFile}"`,
+                `echo "sha-$t" > "${greenShaFile}"`,
+                `echo "landed a PR"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toMatch(/reason=queue-empty/);
+        expect(passLogCount()).toBe(3);
     });
 });
 
@@ -344,4 +568,67 @@ describe("bad arguments", () => {
         const r = run({ args: ["--not-a-real-flag"] });
         expect(r.status).toBe(2);
     });
+
+    it("rejects a non-numeric --max-passes instead of silently running unbounded", () => {
+        // Before the fix, `[ "$MAX_PASSES" -gt 0 ] 2>/dev/null` swallowed
+        // `test`'s error on a non-numeric value, the `if` read that as
+        // "false", and the driver ran with NO pass ceiling at all — exit 0,
+        // no error, just unbounded.
+        stubGhCountingFrom(1000);
+        stubClaudeProgress();
+        const r = run({
+            args: ["--claude-args", "x", "--max-passes", "abc"],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(2);
+        expect(r.stderr).toMatch(/--max-passes must be a non-negative integer/);
+        expect(passLogCount()).toBe(0);
+    });
+
+    it("rejects a non-numeric --max-pct instead of silently comparing against 0", () => {
+        // Before the fix, awk's `m+0` coerced "abc" to 0, so the guard
+        // tripped on pass 0 with reason=budget and exit 0 — a typo silently
+        // reported as a normal, successful stop.
+        stubGhCountingFrom(5);
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--budget",
+                "10000",
+                "--max-pct",
+                "abc",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(2);
+        expect(r.stderr).toMatch(/--max-pct must be numeric/);
+        expect(passLogCount()).toBe(0);
+    });
+
+    it("rejects a non-numeric --budget (suffix/separator shapes)", () => {
+        stubGhCountingFrom(5);
+        const r = run({ args: ["--claude-args", "x", "--budget", "2M"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(2);
+        expect(r.stderr).toMatch(/--budget must be a plain number/);
+        expect(passLogCount()).toBe(0);
+    });
+
+    it("accepts a valid numeric --max-passes/--max-pct/--budget combination", () => {
+        stubGhCountingFrom(1000);
+        stubClaudeProgress();
+        stubBunUsageWindow(10, 100);
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--max-passes",
+                "2",
+                "--max-pct",
+                "80",
+                "--budget",
+                "10000",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toMatch(/reason=max-passes/);
+    }, 15000);
 });

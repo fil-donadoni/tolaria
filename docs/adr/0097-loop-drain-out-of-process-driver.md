@@ -40,13 +40,20 @@ crosses a process boundary without help: the `in-progress` GitHub label, the
 branch/PR, and `.claude/telemetry/green-sha` (the same table SKILL.md § Running
 unattended already documents). The driver adds nothing to that table; it only
 decides, before each pass, whether to start another one, and stops on one of
-six named reasons: `stop-file` (a user kill switch — `touch
-.claude/telemetry/loop-stop`), `max-passes`, `budget`, `queue-empty`,
-`rate-limit` (detected from the pass output or a non-zero `claude` exit —
-reported rather than slept through, by explicit user choice), and
-`no-progress` (2 consecutive passes where neither the queue count nor
-`green-sha` moved — without this, a batch failing identically every time
-spins forever burning tokens).
+eight named reasons: `stop-file` (a user kill switch — `touch
+.claude/telemetry/loop-stop`), `max-passes`, `budget`, `usage-error` (the
+budget guard is configured but its pct reading came back unparsable — the
+guard FAILS CLOSED here, stopping exactly like `budget` rather than skipping
+the check and running the pass anyway), `queue-empty`, `rate-limit` (detected
+from the pass transcript matching a rate-limit-shaped message), `claude-error`
+(a non-zero `claude` exit with NO such message — a crash, a bad
+`--claude-args` string, a hook denial; kept distinct from `rate-limit` so the
+one telemetry field a human reads doesn't conflate an ordinary failure with a
+real usage limit), and `no-progress` (2 consecutive passes where neither the
+TOTAL open `ready-for-agent` count nor `green-sha` moved — measured on the
+total, not the unclaimed count, because claiming an issue alone drops the
+unclaimed count without landing anything, which would otherwise look like
+progress and reset the streak forever).
 
 This is the same shape ADR 0092 already accepted as a dependency, made
 concrete: a single orchestration layer per pass (the skill, model-driven,
@@ -86,6 +93,12 @@ than silently skipping it forever.
   cannot catch (a quota that resets on a schedule the proxy doesn't model, or
   simply being wrong) — the driver stops and reports rather than assuming its
   own estimate was right.
+- Once a budget IS configured, an unreadable pct reading is never treated as
+  "the guard is off for this pass" — it stops the run (`usage-error`), the
+  same as tripping the budget itself. A budget opted into and then silently
+  un-enforced (the reader missing from `PATH`, a malformed `--budget` value)
+  is a worse failure than a loud stop, because nothing else would have caught
+  it before the spend did.
 - A truly unattended run still needs an explicit permission mode
   (`--claude-args '--dangerously-skip-permissions'` or equivalent); the
   driver never defaults this, since it is a security-relevant choice, and
