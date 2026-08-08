@@ -1,8 +1,44 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePaginatedQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ManualLogEntry } from "@convex/manual";
+import { useFullCatalogue } from "~/lib/fullCatalogue";
+import {
+    makeCatalogueRowLookup,
+    type CatalogueRowLookup,
+} from "~/lib/manual-band";
+
+/** Matches a `{{card:N}}` placeholder `ManualLogEntry.text` embeds for the
+ *  Nth entry of `entry.cards` (`convex/manual.ts`). */
+const CARD_REF_PATTERN = /\{\{card:(\d+)\}\}/g;
+
+/**
+ * Renders a `ManualLogEntry`'s display text, substituting every
+ * `{{card:N}}` placeholder with the resolved name for `entry.cards[N]` (a
+ * Full Catalogue print id) — the server never hydrates a `CardDefinition`
+ * for a manual card (ADR 0080's fourth invariant), so name resolution is
+ * entirely client-side.
+ *
+ * - A print id the catalogue can't resolve renders as the raw id: never
+ *   blank, never a crash (matches the pre-#2350 behaviour for that one
+ *   card, even once every OTHER card in the same entry resolves fine).
+ * - An entry with no `cards` (every entry written before #2350) has no
+ *   placeholders in `text` either, so it renders exactly as before —
+ *   id-only. No backfill.
+ */
+function resolveManualLogText(
+    entry: ManualLogEntry,
+    lookupRow: CatalogueRowLookup
+): string {
+    const cards = entry.cards;
+    if (!cards || cards.length === 0) return entry.text;
+    return entry.text.replace(CARD_REF_PATTERN, (match, indexStr: string) => {
+        const printId = cards[Number(indexStr)];
+        if (printId === undefined) return match;
+        return lookupRow(printId)?.name ?? printId;
+    });
+}
 
 export default function ManualLog({ gameId }: { gameId: Id<"games"> }) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -12,6 +48,8 @@ export default function ManualLog({ gameId }: { gameId: Id<"games"> }) {
         { gameId },
         { initialNumItems: 50 }
     );
+    const { rows } = useFullCatalogue();
+    const lookupRow = useMemo(() => makeCatalogueRowLookup(rows), [rows]);
 
     const handleLoadMore = useCallback(
         (num: number) => {
@@ -57,7 +95,7 @@ export default function ManualLog({ gameId }: { gameId: Id<"games"> }) {
                         key={i}
                         className="text-xs text-white/70 py-0.5 font-mono leading-relaxed"
                     >
-                        {entry.text}
+                        {resolveManualLogText(entry, lookupRow)}
                     </div>
                 ))}
                 {reversed.length === 0 && status !== "LoadingFirstPage" && (

@@ -292,12 +292,37 @@ export async function appendManualLog(
 // --- Manual verbs (ADR 0080 S2) — pure reducers, zero validation ----------
 
 export type ManualLogEntry = {
+    /**
+     * Fallback / audit string. Legacy entries (written before #2350) have no
+     * `cards` field and no placeholders here — they render exactly as
+     * before, id and all (no backfill). New entries embed `{{card:N}}`
+     * placeholders where a card is referenced, positionally keyed to
+     * `cards[N]`.
+     */
     text: string;
     timestamp: number;
     playerId?: string;
+    /**
+     * Print ids (`card.card.id`) this entry refers to, one per `{{card:N}}`
+     * placeholder in `text` (N = array index). The server has no name to
+     * interpolate — `ManualCardInstance` carries only `card: { id }`
+     * (ADR 0080's fourth invariant forbids hydrating a `CardDefinition`
+     * here) — so the client resolves each id to a name through the Full
+     * Catalogue (`makeCatalogueRowLookup`, `src/lib/manual-band.ts`). An id
+     * the catalogue can't resolve renders as the raw id: never blank, never
+     * a crash.
+     */
+    cards?: string[];
 };
 
 type VerbResult = { state: ManualGameState; log: ManualLogEntry };
+
+/** Positional placeholder for the Nth entry of `ManualLogEntry.cards`,
+ *  substituted client-side for the resolved card name (or the raw print id
+ *  when unresolvable). See `resolveManualLogText` in `manual-log.tsx`. */
+function cardRef(index: number): string {
+    return `{{card:${index}}}`;
+}
 
 function playerName(state: ManualGameState, playerId: string): string {
     return state.players.find((p) => p.id === playerId)?.name ?? playerId;
@@ -401,9 +426,10 @@ export function manualMoveCard(
     return {
         state: s,
         log: {
-            text: `${pn} moves ${instanceId} → ${toZone}`,
+            text: `${pn} moves ${cardRef(0)} → ${toZone}`,
             timestamp: Date.now(),
             playerId: card.ownerId,
+            cards: [card.card.id],
         },
     };
 }
@@ -428,9 +454,10 @@ export function manualSetTapped(
     return {
         state: s,
         log: {
-            text: `${pn} ${tapped ? "taps" : "untaps"} ${instanceId}`,
+            text: `${pn} ${tapped ? "taps" : "untaps"} ${cardRef(0)}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
+            cards: [found.card.card.id],
         },
     };
 }
@@ -521,9 +548,10 @@ export function manualAdjustCounter(
     return {
         state: s,
         log: {
-            text: `${pn} adjusts ${type} counter on ${instanceId}: ${before} → ${before + delta}`,
+            text: `${pn} adjusts ${type} counter on ${cardRef(0)}: ${before} → ${before + delta}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
+            cards: [found.card.card.id],
         },
     };
 }
@@ -557,9 +585,10 @@ export function manualSetFaceDown(
     return {
         state: s,
         log: {
-            text: `${pn} sets ${instanceId} face ${faceDown ? "down" : "up"}`,
+            text: `${pn} sets ${cardRef(0)} face ${faceDown ? "down" : "up"}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
+            cards: [found.card.card.id],
         },
     };
 }
@@ -584,9 +613,10 @@ export function manualSetLane(
     return {
         state: s,
         log: {
-            text: `${pn} puts ${instanceId} on ${lane} lane`,
+            text: `${pn} puts ${cardRef(0)} on ${lane} lane`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
+            cards: [found.card.card.id],
         },
     };
 }
@@ -608,12 +638,19 @@ export function manualAttach(
         };
     found.card.attachedTo = targetId;
     const pn = playerName(state, found.card.ownerId);
+    // The target's print id, for name resolution (see `cardRef`) — falls
+    // back to the raw `targetId` in the (shouldn't-happen) case a caller
+    // attaches to an id with no matching card, same "never blank, never a
+    // crash" contract the client-side lookup itself upholds for an
+    // unresolvable print id.
+    const targetPrintId = findCard(s, targetId)?.card.card.id ?? targetId;
     return {
         state: s,
         log: {
-            text: `${pn} attaches ${instanceId} to ${targetId}`,
+            text: `${pn} attaches ${cardRef(0)} to ${cardRef(1)}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
+            cards: [found.card.card.id, targetPrintId],
         },
     };
 }
@@ -644,12 +681,14 @@ export function manualSetArrow(
         ? existing
         : [...existing, targetId];
     const pn = playerName(state, found.card.ownerId);
+    const targetPrintId = findCard(s, targetId)?.card.card.id ?? targetId;
     return {
         state: s,
         log: {
-            text: `${pn} points arrow from ${instanceId} → ${targetId}`,
+            text: `${pn} points arrow from ${cardRef(0)} → ${cardRef(1)}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
+            cards: [found.card.card.id, targetPrintId],
         },
     };
 }
@@ -715,9 +754,10 @@ export function manualClearArrow(
     return {
         state: s,
         log: {
-            text: `${pn} clears ${count} arrow(s) from ${instanceId}`,
+            text: `${pn} clears ${count} arrow(s) from ${cardRef(0)}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
+            cards: [found.card.card.id],
         },
     };
 }
@@ -850,9 +890,10 @@ export function manualPeek(
     return {
         state: cloneState(state),
         log: {
-            text: `${pn} looks at top ${n} of library: ${topN.map((c) => c.card.id).join(", ")}`,
+            text: `${pn} looks at top ${n} of library: ${topN.map((_, i) => cardRef(i)).join(", ")}`,
             timestamp: Date.now(),
             playerId,
+            cards: topN.map((c) => c.card.id),
         },
     };
 }
@@ -914,9 +955,10 @@ export function manualCreateToken(
     return {
         state: s,
         log: {
-            text: `${pn} creates token ${cardId} (id: ${instanceId})`,
+            text: `${pn} creates token ${cardRef(0)} (id: ${instanceId})`,
             timestamp: Date.now(),
             playerId,
+            cards: [cardId],
         },
     };
 }
@@ -953,9 +995,10 @@ export function manualSetNote(
     return {
         state: s,
         log: {
-            text: `${pn} sets note on ${instanceId}`,
+            text: `${pn} sets note on ${cardRef(0)}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
+            cards: [found.card.card.id],
         },
     };
 }
@@ -1049,9 +1092,10 @@ export function manualReveal(
     return {
         state: s,
         log: {
-            text: `${pn} reveals ${instanceId} to ${toNames}`,
+            text: `${pn} reveals ${cardRef(0)} to ${toNames}`,
             timestamp: Date.now(),
             playerId: found.card.ownerId,
+            cards: [found.card.card.id],
         },
     };
 }
