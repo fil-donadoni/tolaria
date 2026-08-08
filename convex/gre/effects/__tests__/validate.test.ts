@@ -1420,6 +1420,75 @@ describe("EffectCardFilter.controlledSinceTurnStart — rejected outside a live 
     });
 });
 
+// --- EffectCardFilter.excludeSource — battlefield-only (issue #2373) --------
+//
+// `excludeSource` ("another creature or an artifact", Gut, True Soul Zealot)
+// is `hasAbility`'s self-identity sibling: it propagates onto
+// `PermanentFilter.excludeInstanceIds` via `toPermanentFilter` — a hidden-zone
+// card shape (`matchesCardFilter`) has no source-identity comparison to make
+// at all, so the field is REJECTED there exactly like `hasAbility` is. Only
+// wired through the `choice` Op today (the site Gut needs); pins that one
+// site's accept/reject pair.
+describe("EffectCardFilter.excludeSource — rejected outside a live battlefield read (issue #2373)", () => {
+    it("accepts excludeSource on a choice Op scoped to zone: battlefield", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: { target: 0 },
+                zone: "battlefield",
+                filter: { type: "Creature", excludeSource: true },
+                count: { min: 0, max: 1 },
+                prompt: "Sacrifice another creature.",
+                bind: "$sac",
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects excludeSource on a choice Op scoped to zone: graveyard", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: { target: 0 },
+                zone: "graveyard",
+                filter: { type: "Creature", excludeSource: true },
+                count: 1,
+                prompt: "Choose a creature card.",
+                bind: "$picked",
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(
+            errors.some((e) =>
+                /filter\.excludeSource.*zone: "battlefield"/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("accepts excludeSource nested inside an `any` clause (Gut's own shape)", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: { target: 0 },
+                zone: "battlefield",
+                filter: {
+                    any: [
+                        { type: "Creature", excludeSource: true },
+                        { type: "Artifact" },
+                    ],
+                },
+                count: { min: 0, max: 1 },
+                prompt: "Sacrifice another creature or an artifact.",
+                bind: "$sac",
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+});
+
 // --- EffectCardFilter.manaCostEquals — REJECTED on a live battlefield read
 // (issue #1898 finding 3) ----------------------------------------------------
 //

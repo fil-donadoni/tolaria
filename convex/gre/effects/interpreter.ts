@@ -791,6 +791,17 @@ function toPermanentFilter(
         // constraint" — matching EVERY permanent (fail OPEN) at every
         // battlefield `choice`/`count`/`forEach` site.
         any,
+        // issue #2373 — "another creature or an artifact" (Gut, True Soul
+        // Zealot). Propagates onto `PermanentFilter.excludeInstanceIds`
+        // (`convex/cards/filters.ts`), the SAME field `TargetRequirement.
+        // excludeSource`/the `forEach` selector's own flag ultimately resolve
+        // onto — this is the `choice` Op's route there, since a `choice`'s
+        // `PermanentFilter` is checked at BOTH candidate-scan time
+        // (`choiceCandidates` above) and submit-time legality, unlike
+        // `forEach`'s post-hoc member-set drop.
+        excludeInstanceIds: filter.excludeSource
+            ? [ctx.sourceInstanceId]
+            : undefined,
     };
 }
 

@@ -9204,6 +9204,27 @@ export interface EffectCardFilter {
      *  attacking-OR-blocking forEach sweep yet (`any` already covers that
      *  disjunction if one ever does). */
     isAttacking?: boolean;
+    /** Reflexive self-EXCLUDE (issue #2373, Gut, True Soul Zealot —
+     *  "sacrifice ANOTHER creature or an artifact"): a battlefield permanent
+     *  matches only if it is NOT the resolving ability's own source
+     *  (`ctx.sourceInstanceId`). Mirrors `TargetRequirement.excludeSource` /
+     *  the `forEach { set: "permanents" }` selector's own `excludeSource`
+     *  (issue #1957, Waterspout Elemental) — the identical self-exclusion
+     *  primitive, generalized onto the third site that needed it (ADR 0045
+     *  "generalize, don't add"): a `choice` Op picking permanents off the
+     *  battlefield had no way to say "another" at all. Propagated by
+     *  `toPermanentFilter` onto `PermanentFilter.excludeInstanceIds`
+     *  (`convex/gre/effects/interpreter.ts`), which both the candidate scan
+     *  AND the submit-time legality re-check read — a `choice`'s
+     *  `PermanentFilter` is the single authority for its pick, unlike
+     *  `forEach`'s own flag (which only ever needs to drop the source once,
+     *  at member-set-freeze time — nothing re-validates a forEach member
+     *  against a player submission). Battlefield-only, like `isAttacking` /
+     *  `hasAbility` right above: `matchesCardFilter` (the hidden-zone
+     *  matcher) never reads it, so it is a no-op there, and the Effect
+     *  Script validator rejects it outside `zone: "battlefield"` rather than
+     *  silently accepting a field that would then match every card. */
+    excludeSource?: boolean;
     /** OR ACROSS filter dimensions (issue #897) — a disjunctive clause list.
      *  Every other field on this interface is ANDed together (and each of
      *  `type`/`subtype`/`color` is itself an OR-WITHIN-that-field array,

@@ -164,3 +164,29 @@ export const PHYREXIAN_GERM_TOKEN: EffectTokenSpec = {
     toughness: 0,
     colors: ["B"],
 };
+
+/** Skeleton token (CR 111 / 707.2, issue #2373). "4/1 black Skeleton creature
+ *  token with menace" — created today by Gut, True Soul Zealot's attack
+ *  trigger (`sets/clb/red.ts`). Vanilla apart from the keyword, the
+ *  `KNIGHT_TOKEN` shape: `EffectTokenSpec` (JSON-pure, ADR 0046) with a
+ *  `staticAbilities` entry. `entersTapped`/`entersAttacking` are per-ability
+ *  flags (Gut's own "that's tapped and attacking"), NOT baked into this
+ *  shared spec — the `HUMAN_TOKEN`/Adeline split: a future non-attacking
+ *  Skeleton producer spreads this base spec without inheriting them.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN`/
+ *  `HUMAN_TOKEN` treatment: Skeleton is a printed token in many sets with
+ *  different art, and the art-match rule is "the token associated with the
+ *  PRODUCING card's own printing" — `SpellContext.createToken` resolves it
+ *  per producer from `generated/token-prints.json` (`tokenPrintIdFor`),
+ *  reverse-linked from Gut's own CLB #180 printing's `all_parts` Skeleton
+ *  token. */
+export const SKELETON_TOKEN: EffectTokenSpec = {
+    name: "Skeleton",
+    types: ["Creature"],
+    subtypes: ["Skeleton"],
+    power: 4,
+    toughness: 1,
+    colors: ["B"],
+    staticAbilities: ["menace"],
+};
