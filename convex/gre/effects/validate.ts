@@ -222,6 +222,7 @@ function isCardFilter(
         allowHasAbility?: boolean;
         allowIsAttacking?: boolean;
         allowControlledSinceTurnStart?: boolean;
+        allowExcludeSource?: boolean;
         rejectManaCostEquals?: boolean;
     }
 ): boolean {
@@ -232,6 +233,7 @@ function isCardFilter(
     const allowIsAttacking = opts?.allowIsAttacking ?? false;
     const allowControlledSinceTurnStart =
         opts?.allowControlledSinceTurnStart ?? false;
+    const allowExcludeSource = opts?.allowExcludeSource ?? false;
     // issue #1898 finding 3 — `manaCostEquals` is honest ONLY on a hidden-zone
     // card shape (`matchesCardFilter`'s `card.cost`, read from the registry by
     // `getHandCards`/`getLibraryCards`/`getGraveyardCards`/`getExileCards`).
@@ -362,6 +364,7 @@ function isCardFilter(
                         allowHasAbility,
                         allowIsAttacking,
                         allowControlledSinceTurnStart,
+                        allowExcludeSource,
                         rejectManaCostEquals,
                     })
                 )
@@ -403,6 +406,14 @@ function isCardFilter(
         // validate and then match every card at runtime.
         if (k === "controlledSinceTurnStart") {
             if (!allowControlledSinceTurnStart) return false;
+            return typeof v === "boolean";
+        }
+        // Reflexive self-exclude (issue #2373, Gut, True Soul Zealot —
+        // "sacrifice ANOTHER creature or an artifact"). Same battlefield-only
+        // honesty rule as `hasAbility`/`isAttacking`/`controlledSinceTurnStart`
+        // above: a hidden-zone card has no source-identity to compare against.
+        if (k === "excludeSource") {
+            if (!allowExcludeSource) return false;
             return typeof v === "boolean";
         }
         return false;
@@ -462,6 +473,26 @@ function filterUsesControlledSinceTurnStart(value: unknown): boolean {
     return (
         Array.isArray(f.any) &&
         f.any.some((clause) => filterUsesControlledSinceTurnStart(clause))
+    );
+}
+
+/** Whether an `EffectCardFilter` uses `excludeSource`, directly or nested
+ *  inside an `any` clause (issue #2373) — the fourth sibling of
+ *  `filterUsesHasAbility`/`filterUsesIsAttacking`/
+ *  `filterUsesControlledSinceTurnStart`, same rationale (a hidden-zone card
+ *  has no source-identity to compare against) and same single call site (the
+ *  `choice` Op's cross-field `check`). */
+function filterUsesExcludeSource(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const f = value as Record<string, unknown>;
+    if (typeof f.excludeSource === "boolean") {
+        return true;
+    }
+    return (
+        Array.isArray(f.any) &&
+        f.any.some((clause) => filterUsesExcludeSource(clause))
     );
 }
 
@@ -3613,6 +3644,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     allowHasAbility: true,
                     allowIsAttacking: true,
                     allowControlledSinceTurnStart: true,
+                    allowExcludeSource: true,
                 }),
             zoneOwnerId: isPlayerRef,
             id: isNonEmptyString,
@@ -3666,6 +3698,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             ) {
                 errors.push(
                     '"filter.controlledSinceTurnStart" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card has no controller to have controlled it'
+                );
+            }
+            // `excludeSource` (issue #2373, Gut, True Soul Zealot) — the same
+            // battlefield-only rule again: a hidden-zone card has no
+            // source-identity to compare against.
+            if (
+                entry.zone !== "battlefield" &&
+                filterUsesExcludeSource(entry.filter)
+            ) {
+                errors.push(
+                    '"filter.excludeSource" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card has no source-identity to compare against'
                 );
             }
             // `manaCostEquals` (issue #1898 finding 3) is the INVERSE of
