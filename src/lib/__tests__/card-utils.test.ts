@@ -3351,6 +3351,37 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
     type AdapterCase = Case & { ctx?: FilterMatchContext };
 
     const MIRRORED_CASES: Partial<Record<keyof PermanentFilter, Case[]>> = {
+        // CR 109.2 "another" (issue #2373). `excludeSource` on an
+        // `EffectCardFilter` becomes `PermanentFilter.excludeInstanceIds` in
+        // `toPermanentFilter` and rides the wire on `PendingChoice.filter`,
+        // which the human battlefield picker evaluates through the CLIENT
+        // mirror. It was `"adapter-only"` — i.e. the mirror had no branch and
+        // failed OPEN — until a shipped card (Gut, True Soul Zealot) put it on
+        // a client-reachable filter. `instanceIds` is the positive twin.
+        excludeInstanceIds: [
+            {
+                card: makeCardInstance({ id: "source-1" }),
+                filter: { excludeInstanceIds: ["source-1"] },
+                expected: false,
+            },
+            {
+                card: makeCardInstance({ id: "another-1" }),
+                filter: { excludeInstanceIds: ["source-1"] },
+                expected: true,
+            },
+        ],
+        instanceIds: [
+            {
+                card: makeCardInstance({ id: "keep-me" }),
+                filter: { instanceIds: ["keep-me"] },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ id: "not-me" }),
+                filter: { instanceIds: ["keep-me"] },
+                expected: false,
+            },
+        ],
         // Keldon Twilight's "…that they controlled since the beginning of the
         // turn" (issue #1944). Both paths delegate to the ONE engine helper
         // `hasControlledSinceTurnStart`, so the board highlight and the
@@ -3502,10 +3533,9 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         ],
     };
 
-    // `id` is always populated on `MatchablePermanent`, so `instanceIds` /
-    // `excludeInstanceIds` already work correctly via the engine-matcher path
-    // with no `toMatchablePermanent` change. `power`/`toughness`/
-    // `isAttacking`/`isBlocking` are likewise already populated.
+    // `power`/`toughness`/`isAttacking`/`isBlocking` are always populated on
+    // `MatchablePermanent`, so these filters already work correctly via the
+    // engine-matcher path with no `toMatchablePermanent` change.
     const ADAPTER_ONLY_CASES: Partial<
         Record<keyof PermanentFilter, AdapterCase[]>
     > = {
@@ -3541,25 +3571,6 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 // reads as "did not enter this turn".
                 card: makeCardInstance({ id: "fresh", enteredOnTurn: 5 }),
                 filter: { enteredThisTurn: true },
-                expected: false,
-            },
-        ],
-        instanceIds: [
-            {
-                card: makeCardInstance({ id: "keep-me" }),
-                filter: { instanceIds: ["keep-me"] },
-                expected: true,
-            },
-            {
-                card: makeCardInstance({ id: "not-me" }),
-                filter: { instanceIds: ["keep-me"] },
-                expected: false,
-            },
-        ],
-        excludeInstanceIds: [
-            {
-                card: makeCardInstance({ id: "source-1" }),
-                filter: { excludeInstanceIds: ["source-1"] },
                 expected: false,
             },
         ],

@@ -589,6 +589,28 @@ export interface ClientPermanentFilter {
      *  `any` collapses to all-fields-undefined and fails OPEN (highlights
      *  every permanent as a legal pick). */
     any?: ClientPermanentFilter[];
+    /** Exclude these instance ids from the match set (CR 109.2 "another") —
+     *  mirrors `PermanentFilter.excludeInstanceIds`. This is how an effect
+     *  says "another creature you control" / "a permanent other than ~":
+     *  the interpreter's `toPermanentFilter` turns an `EffectCardFilter`'s
+     *  `excludeSource` into this field, carrying the SOURCE's own instance id
+     *  (Gut, True Soul Zealot's "sacrifice another creature or an artifact",
+     *  issue #2373). Without this branch the mirror fails OPEN and rings the
+     *  source itself as a legal pick; clicking it throws "Card does not match
+     *  the required filter" server-side. Typed `ReadonlyArray` to match the
+     *  engine field exactly — the wire `PendingChoice.filter` IS a
+     *  `PermanentFilter` and is passed here unchanged. */
+    excludeInstanceIds?: ReadonlyArray<string>;
+    /** Restrict the match set to exactly these instance ids — mirrors
+     *  `PermanentFilter.instanceIds`, the positive twin of the field above.
+     *  Same fail-OPEN shape when unmirrored, and it was ALSO already
+     *  reachable: the per-permanent optional-untap prompt
+     *  (`convex/gre/phases.ts`, `kind: "untap-pick"`, ATQ cluster E "you may
+     *  choose not to untap this") emits a battlefield choice scoped by
+     *  `filter: { instanceIds: [card.id] }` with no `candidateIds`
+     *  allow-list — so before this branch existed the mirror ringed EVERY
+     *  tapped permanent instead of the one the prompt is about. */
+    instanceIds?: ReadonlyArray<string>;
     /** "…that they controlled since the beginning of the turn" (Keldon
      *  Twilight, PLS). Mirrors `PermanentFilter.controlledSinceTurnStart`.
      *  Answering it needs the two turn-scoped `GameState` fields, so callers
@@ -679,6 +701,23 @@ export function matchesPermanentFilter(
         if (!wanted.some((c) => cardColors.includes(c as Color))) {
             return false;
         }
+    }
+    // CR 109.2 — instance-id scoping, the same two checks the engine matcher
+    // runs (`convex/cards/filters.ts`). `excludeInstanceIds` is what carries
+    // an effect's "another" clause to the client (`excludeSource` →
+    // `toPermanentFilter` → the wire `PendingChoice.filter`, issue #2373);
+    // without it the mirror rings the effect's own source as a legal pick.
+    if (
+        filter.excludeInstanceIds !== undefined &&
+        filter.excludeInstanceIds.includes(card.id)
+    ) {
+        return false;
+    }
+    if (
+        filter.instanceIds !== undefined &&
+        !filter.instanceIds.includes(card.id)
+    ) {
+        return false;
     }
     // "…that they controlled since the beginning of the turn" — delegated to
     // the ONE engine authority (`hasControlledSinceTurnStart`) rather than
@@ -3126,6 +3165,21 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     colors: "mirrored",
     tapped: "mirrored",
     any: "mirrored",
+    // Mirrored on BOTH paths (issue #2373 fixup). `id` is always populated on
+    // `MatchablePermanent`, so the engine-matcher path has always worked; the
+    // `ClientPermanentFilter` mirror gained the two branches only when a
+    // SHIPPED choice filter started carrying them. `excludeInstanceIds` is the
+    // wire form of an effect's "another" clause (CR 109.2) — an
+    // `EffectCardFilter.excludeSource` becomes `PermanentFilter.
+    // excludeInstanceIds` in `toPermanentFilter` and rides on
+    // `PendingChoice.filter`, which the human battlefield picker evaluates
+    // through THIS mirror. Unmirrored it failed OPEN: Gut, True Soul Zealot
+    // was ringed as a legal sacrifice to her own trigger, and clicking her
+    // threw "Card does not match the required filter" server-side.
+    // `instanceIds` is the positive twin, mirrored alongside it so the
+    // opposite scoping cannot fail open the same way.
+    excludeInstanceIds: "mirrored",
+    instanceIds: "mirrored",
     // — adapter-only: no ClientPermanentFilter field, but toMatchablePermanent
     // populates the underlying MatchablePermanent field so the engine-matcher
     // path (mayPaySacrificeCount / mayPaySacrificePower) matches correctly —
@@ -3133,10 +3187,6 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     // board-highlight filter needs it), but the engine path already reads the
     // same printed-supertypes fallback as `excludeSupertypes` above.
     supertypes: "adapter-only",
-    // `id` is always populated on MatchablePermanent, so both instance-id
-    // filters already work via the engine-matcher path.
-    instanceIds: "adapter-only",
-    excludeInstanceIds: "adapter-only",
     // `power`/`toughness` are always populated.
     powerAtLeast: "adapter-only",
     toughnessAtLeast: "adapter-only",
