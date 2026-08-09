@@ -71,6 +71,13 @@ function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
         supertypes: backFace.supertypes,
         power: backFace.power,
         toughness: backFace.toughness,
+        // CR 306.5b (issue #2380) — a PLANESWALKER back face's starting
+        // loyalty rides the spec (and therefore the content-derived id) so
+        // the CR 306.5b entry placement finds it on the synthesized
+        // definition, however that definition was obtained: the
+        // server-side registration below, or a decode-only rebuild
+        // (`maybeSynthesizeToken`) in a cold isolate / client engine run.
+        loyalty: backFace.loyalty,
         colors: backFace.colors,
         staticAbilities: backFace.staticAbilities,
         staticEffectKeys: backFace.staticEffectKeys,
@@ -114,6 +121,11 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
         ...(spec.supertypes ? { supertypes: [...spec.supertypes] } : {}),
         power: spec.power,
         toughness: spec.toughness,
+        // CR 306.5b — read back off `spec` (never re-derived from `backFace`
+        // here) for the same reason `imagePrintFace` is below: this is the
+        // SAME value `tokenDefinitionId(spec)` folded into `id`, so the
+        // server-side registration and a client-side decode of `id` agree.
+        ...(spec.loyalty !== undefined ? { loyalty: spec.loyalty } : {}),
         ...(spec.staticAbilities
             ? { staticAbilities: [...spec.staticAbilities] }
             : {}),
@@ -134,6 +146,58 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
         ...(spec.imagePrintFace ? { imagePrintFace: spec.imagePrintFace } : {}),
     });
     return id;
+}
+
+/** Stamps the BACK-face identity onto a card that is about to ENTER the
+ *  battlefield already transformed — the sibling of `transformPermanent`
+ *  below, for "exile it, then return it to the battlefield transformed"
+ *  (CR 712 / 400.7; the ORI flip-walker cycle, issue #2380).
+ *
+ *  Deliberately NOT a call into `transformPermanent`, and not a flag on it:
+ *  the two model DIFFERENT object identities. `transformPermanent` flips a
+ *  permanent that never left the battlefield (CR 712.8a) — the SAME object
+ *  keeps its counters, attachments, summoning-sickness clock and every
+ *  "leaves the battlefield" reference to it. This one runs on a card sitting
+ *  in EXILE, between a real zone change out of the battlefield and a real
+ *  zone change back in, so the permanent that appears is a NEW object (CR
+ *  400.7): its counters are already gone, its Auras/Equipment already
+ *  detached, its ETB triggers fire again, and anything that referenced the
+ *  old permanent no longer finds it. Collapsing the two would silently give
+ *  one of them the other's identity semantics.
+ *
+ *  `card` must NOT be on the battlefield — the caller (`SpellContext
+ *  .exileAndReturnTransformed`, `gre/state.ts`) has already moved it out
+ *  through the ordinary battlefield-departure funnel. Returns false (leaving
+ *  `card` untouched) when the current face declares no `backFace`, so the
+ *  caller still returns an untransformed card rather than losing it.
+ *
+ *  The identity swap itself goes through the SAME
+ *  `registerBackFaceDefinition` + `rebuildCopiableValuesAndReplayOverlays`
+ *  pair `transformPermanent` uses — one definition codec, one copiable-values
+ *  rebuild. There are no layer 2–7 overlays left to replay on a card that has
+ *  just left the battlefield (`resetBattlefieldTransientState` cleared them),
+ *  so the replay is a no-op here; it is called anyway rather than hand-rolling
+ *  a second, subtly-different field assignment. */
+export function stampBackFaceForEntry(card: CardInstanceState): boolean {
+    if (card.transformed) return false; // already showing its back face
+    const frontId = (card.card as { id?: string }).id;
+    if (!frontId) return false;
+    const backFace = tryGetDefinition(frontId)?.backFace;
+    if (!backFace) return false; // CR 712 — nothing to transform into.
+    const backId = registerBackFaceDefinition(backFace);
+    card.transformedFrom = frontId;
+    card.card = { id: backId };
+    rebuildCopiableValuesAndReplayOverlays(card, {
+        types: [...backFace.types],
+        subtypes: backFace.subtypes ? [...backFace.subtypes] : [],
+        power: backFace.power,
+        toughness: backFace.toughness,
+        staticAbilities: backFace.staticAbilities
+            ? [...backFace.staticAbilities]
+            : [],
+    });
+    card.transformed = true;
+    return true;
 }
 
 /** Transforms `card` in place (CR 701.27 / 712): flips it to its back face

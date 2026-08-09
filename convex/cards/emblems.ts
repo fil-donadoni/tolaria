@@ -123,6 +123,46 @@ registerEmblemDefinition({
     ],
 });
 
+/** Jace, Telepath Unbound −9 emblem (ORI, issue #2380). A TRIGGERED emblem
+ *  (CR 114.2a, 113.3) with a targeted trigger: "Whenever you cast a spell,
+ *  target opponent mills five cards." Same seam as the two emblems around it —
+ *  fires on the owner's own SPELL_CAST (CR 603.2, `casterId ===
+ *  self.controllerId` scopes it to "you") and the target opponent (CR 115.1c)
+ *  is chosen when the trigger goes on the stack, via the ability's
+ *  `targetRequirement` ridden onto the emblem trigger item as
+ *  `inlineTargetRequirement` (`buildEmblemTriggerItem`, triggers.ts). */
+export const JACE_TELEPATH_UNBOUND_EMBLEM_ID = "jace-telepath-unbound-emblem";
+
+registerEmblemDefinition({
+    id: JACE_TELEPATH_UNBOUND_EMBLEM_ID,
+    name: "Jace, Telepath Unbound emblem",
+    text: "Whenever you cast a spell, target opponent mills five cards.",
+    // Scryfall print of the emblem card (set `tori`, layout `emblem`) — the
+    // ORI-era emblem printing matching Jace's own set, per the token/emblem art
+    // rule (the card's own printing where present).
+    imagePrintId: "458e37b1-a849-41ae-b63c-3e09ffd814e4",
+    triggeredAbilities: [
+        {
+            id: "jace-telepath-unbound-emblem-cast",
+            oracleText:
+                "Whenever you cast a spell, target opponent mills five cards.",
+            event: "SPELL_CAST",
+            // CR 603.2 — "you cast a spell": the emblem's owner is the caster.
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                event.type === "SPELL_CAST" &&
+                event.casterId === self.controllerId,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            // CR 701.13 — the announced opponent slot mills five. An unfilled
+            // slot resolves to undefined and the Op skips (CR 608.2b).
+            effects: [{ op: "mill", player: { target: 0 }, count: 5 }],
+        },
+    ],
+});
+
 /** Teferi, Hero of Dominaria −8 emblem (DOM, issue #1726). A TRIGGERED emblem
  *  (CR 114.2a, 113.3) with a targeted trigger: "Whenever you draw a card,
  *  exile target permanent an opponent controls." Fires on the owner's own

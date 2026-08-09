@@ -98,6 +98,7 @@ import * as con from "./sets/con";
 import * as shm from "./sets/shm";
 import * as zen from "./sets/zen";
 import * as ons from "./sets/ons";
+import * as ori from "./sets/ori";
 import * as eld from "./sets/eld";
 import * as vis from "./sets/vis";
 import * as bbd from "./sets/bbd";
@@ -274,6 +275,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "shm", exports: shm },
     { code: "zen", exports: zen },
     { code: "ons", exports: ons },
+    { code: "ori", exports: ori },
     { code: "eld", exports: eld },
     { code: "vis", exports: vis },
     { code: "bbd", exports: bbd },

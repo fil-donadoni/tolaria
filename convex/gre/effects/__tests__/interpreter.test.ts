@@ -10546,6 +10546,296 @@ describe("Effect Script Op: transform (CR 701.27 / 712, issue #1210, ADR 0067)",
     });
 });
 
+// CR 712 / 400.7 / 306.5b (issue #2380) — exile a permanent and return it to
+// the battlefield transformed, under its OWNER's control: the ORI flip-walker
+// template (Jace, Vryn's Prodigy // Jace, Telepath Unbound). The whole point of
+// this Op existing beside `transform` is the OBJECT IDENTITY: `transform` flips
+// a permanent that never leaves the battlefield (same object — the block above
+// asserts its counters survive), whereas this one makes two real zone changes,
+// so what returns is a NEW object (CR 400.7). Every assertion below is about
+// which of the two identities an observable consequence follows.
+describe("Effect Script Op: exileAndReturnTransformed (CR 712 / 400.7 / 306.5b, issue #2380)", () => {
+    const FLIPWALKER_ID = "test-op-exile-return-transformed-front";
+    registerTokenDefinition({
+        id: FLIPWALKER_ID,
+        name: "Test Flipwalker",
+        rarity: "common",
+        manaCost: { U: 1 },
+        types: ["Creature"],
+        subtypes: ["Human", "Wizard"],
+        power: 0,
+        toughness: 2,
+        activatedAbilities: [
+            {
+                id: "test-flipwalker-flip",
+                oracleText:
+                    "{T}: Exile this creature, then return it to the battlefield transformed under its owner's control.",
+                cost: { tap: true },
+                useStack: true,
+                effects: [
+                    {
+                        op: "exileAndReturnTransformed",
+                        target: { ref: "$source" },
+                    },
+                ],
+            },
+        ],
+        backFace: {
+            name: "Test Flipwalker Unbound",
+            types: ["Planeswalker"],
+            subtypes: ["Jace"],
+            supertypes: ["Legendary"],
+            loyalty: 5,
+            colors: ["U"],
+            staticAbilities: [],
+        },
+    });
+
+    // A front face with NO back face — the Op still exiles and returns it (the
+    // Oracle clause's exile is unconditional), it simply comes back unflipped.
+    const NO_BACK_ID = "test-op-exile-return-transformed-noback";
+    registerTokenDefinition({
+        id: NO_BACK_ID,
+        name: "Test No Back Face",
+        rarity: "common",
+        manaCost: { U: 1 },
+        types: ["Creature"],
+        power: 1,
+        toughness: 1,
+    });
+
+    const AURA_ID = "test-op-exile-return-transformed-aura";
+    registerTokenDefinition({
+        id: AURA_ID,
+        name: AURA_ID,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+        subtypes: ["Aura"],
+        targetRequirement: { type: "Creature", count: 1 },
+    });
+
+    /** Activates the front face's own `{T}:` ability (the shipped shape — the
+     *  template always flips ITSELF via `$source`). */
+    function activateFlip(
+        state: GameState,
+        playerIdx: number,
+        sourceId: string
+    ): void {
+        const src = state.players[playerIdx].battlefield.find(
+            (c) => c.id === sourceId
+        )!;
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: src.controllerId,
+            abilityId: "test-flipwalker-flip",
+            targets: [],
+        });
+    }
+
+    it("returns the permanent showing its BACK face, with CR 306.5b starting loyalty", () => {
+        const jace = makeInstance(FLIPWALKER_ID, {
+            id: "fw1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jace] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateFlip(state, 0, "fw1");
+        resolveTopOfStack(state);
+
+        const back = state.players[0].battlefield.find((c) => c.id === "fw1")!;
+        expect(back).toBeDefined();
+        expect(back.transformed).toBe(true);
+        expect(back.transformedFrom).toBe(FLIPWALKER_ID);
+        expect(back.types).toEqual(["Planeswalker"]);
+        expect(back.subtypes).toEqual(["Jace"]);
+        // CR 306.5b — the returning permanent is a planeswalker ENTERING the
+        // battlefield, so it enters with its printed starting loyalty. Without
+        // this it would enter at 0 and die to the CR 704.5i SBA immediately.
+        expect(back.counters?.loyalty).toBe(5);
+        // CR 400.7 — a NEW object: the tapped state of the creature that left
+        // is not inherited by the permanent that entered.
+        expect(back.isTapped).toBeFalsy();
+        // The card sits on the battlefield, not in exile: the exile leg is a
+        // way-station inside one atomic effect, never an end state.
+        expect(state.players[0].exile).toHaveLength(0);
+    });
+
+    it("does NOT carry counters across the flip (CR 400.7 — unlike the in-place `transform` Op)", () => {
+        const jace = makeInstance(FLIPWALKER_ID, {
+            id: "fw2",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jace] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateFlip(state, 0, "fw2");
+        resolveTopOfStack(state);
+
+        const back = state.players[0].battlefield.find((c) => c.id === "fw2")!;
+        // The +1/+1 counters are gone (the object that had them left the
+        // battlefield); the ONLY counters on the new object are the loyalty
+        // counters it entered with. This is the exact assertion that separates
+        // this Op from `transform`, whose own test above asserts the opposite.
+        expect(back.counters?.["+1/+1"]).toBeUndefined();
+        expect(back.counters?.loyalty).toBe(5);
+    });
+
+    it("drops an attached Aura (CR 400.7 / 704.5m — the enchanted permanent is gone)", () => {
+        const jace = makeInstance(FLIPWALKER_ID, {
+            id: "fw3",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(AURA_ID, {
+            id: "aura3",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "fw3",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jace, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateFlip(state, 0, "fw3");
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+
+        const back = state.players[0].battlefield.find((c) => c.id === "fw3")!;
+        expect(back.transformed).toBe(true);
+        // CR 704.5m — the Aura's host left the battlefield, so it is put into
+        // its owner's graveyard. It must NOT re-attach to the returning object.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "aura3")
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.some((c) => c.id === "aura3")).toBe(
+            true
+        );
+    });
+
+    it("returns it under its OWNER's control, not the controller it had (CR 400.7)", () => {
+        // p2 has stolen p1's creature (control change, CR 613.1b layer 2).
+        const jace = makeInstance(FLIPWALKER_ID, {
+            id: "fw4",
+            controllerId: "p2",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [jace] }),
+            ],
+        });
+        activateFlip(state, 1, "fw4");
+        resolveTopOfStack(state);
+
+        // "under his OWNER's control" — the returning planeswalker belongs to
+        // p1, the owner, even though p2 controlled the creature and activated
+        // the ability.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "fw4")
+        ).toBeUndefined();
+        const back = state.players[0].battlefield.find((c) => c.id === "fw4")!;
+        expect(back).toBeDefined();
+        expect(back.controllerId).toBe("p1");
+        expect(back.transformed).toBe(true);
+        expect(back.counters?.loyalty).toBe(5);
+    });
+
+    it("still exiles and returns a permanent whose face declares no backFace", () => {
+        const id = registerScript("test-op-ret-transformed-noback-script", [
+            { op: "exileAndReturnTransformed", target: { target: 0 } },
+        ]);
+        const plain = makeInstance(NO_BACK_ID, {
+            id: "nb1",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [plain] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "nb1" }]);
+        resolveTopOfStack(state);
+
+        const back = state.players[0].battlefield.find((c) => c.id === "nb1")!;
+        expect(back).toBeDefined();
+        expect(back.transformed).toBeUndefined();
+        expect((back.card as { id: string }).id).toBe(NO_BACK_ID);
+        // Still a real CR 400.7 zone change — the counters did not survive it.
+        expect(back.counters?.["+1/+1"]).toBeUndefined();
+    });
+
+    // CR 608.2b — an announced target missing at resolution resolves to no
+    // object, so the Op is skipped without throwing.
+    it("is skipped when the target is gone (CR 608.2b)", () => {
+        const id = registerScript("test-op-ret-transformed-missing", [
+            { op: "exileAndReturnTransformed", target: { target: 0 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+
+    // Wire format (GRE testing convention): transform is ALWAYS PUBLIC (CR
+    // 712.1a), and the loyalty counters are what the client renders as the
+    // planeswalker's loyalty — an effect that only worked on the fat state
+    // would show an empty planeswalker on both boards.
+    it("projects the back face and its loyalty identically for both players (wire format)", () => {
+        const jace = makeInstance(FLIPWALKER_ID, {
+            id: "fw5",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jace] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateFlip(state, 0, "fw5");
+        resolveTopOfStack(state);
+        const back = state.players[0].battlefield.find((c) => c.id === "fw5")!;
+
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "fw5"
+            )!;
+            expect(slim).toBeDefined();
+            expect(slim.transformed).toBe(true);
+            expect(slim.types).toEqual(["Planeswalker"]);
+            expect(slim.subtypes).toEqual(["Jace"]);
+            expect(slim.counters?.loyalty).toBe(5);
+            expect(slim.card.id).toBe(back.card.id);
+            // The synthesized back-face definition rides the SHARED token
+            // codec, so a client that never saw the server-side registration
+            // decodes name/types/loyalty from the id string alone.
+            expect(slim.card.id).toMatch(/^token:/);
+            const decoded = getDefinition(slim.card.id);
+            expect(decoded.name).toBe("Test Flipwalker Unbound");
+            expect(decoded.loyalty).toBe(5);
+        }
+    });
+});
+
 describe("Effect Script Op: gainControl (CR 613.1b, layer 2, issue #848)", () => {
     // Indefinite reassignment (Ghazbán Ogre / Chaos Lord shape): no `duration`
     // → no condition, control never reverts on its own (CR 613.1b).

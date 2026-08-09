@@ -2558,6 +2558,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             window: (v: unknown) =>
                 v === "this-turn" || v === "while-in-graveyard",
             withoutPayingManaCost: isBoolean,
+            // issue #2380 — "If that spell would be put into your graveyard,
+            // exile it instead" (Jace, Telepath Unbound's −3).
+            exilesOnResolve: isBoolean,
         },
     },
     // CR 608.2g (issue #1477 / #1478 / #1961) — play a card as part of this
@@ -3121,6 +3124,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // determined at RESOLUTION time by the permanent's own `transformed`
     // flag, not declared on the Op.
     transform: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
+    // CR 712 / 400.7 / 306.5b (issue #2380) — exile a permanent and return it
+    // to the battlefield transformed, under its OWNER's control. `target` is an
+    // object selector (announced slot, `$source`, or a forEach `$each`). No
+    // other fields: "under its owner's control" is fixed by the Oracle template
+    // (never the resolving controller), and the face is fixed by the card's own
+    // `backFace` — neither is a per-card choice.
+    exileAndReturnTransformed: {
         required: {
             target: isObjectSelector,
         },

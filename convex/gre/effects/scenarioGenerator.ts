@@ -1022,6 +1022,17 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // regime).
             req.skip ??= `Op "transform" swaps a permanent's printed characteristic set (front/back) — covered by the Op's interpreter tests`;
             return;
+        case "exileAndReturnTransformed":
+            // CR 712 / 400.7 / 306.5b (issue #2380) — exiles a permanent and
+            // returns it showing its back face. Same reason as `transform`
+            // above (a characteristic swap the numeric assertion vocabulary
+            // cannot express), plus one more: the canned generator seeds a
+            // plain permanent with no `backFace`, so the scripted flip would
+            // have nothing to flip INTO and the run would assert nothing.
+            // Explicit skip — covered by the Op's own interpreter tests
+            // (per-Op regime).
+            req.skip ??= `Op "exileAndReturnTransformed" swaps a permanent's printed characteristic set across a CR 400.7 zone change — covered by the Op's interpreter tests`;
+            return;
         case "createToken":
             // createToken (issue #847) creates token permanents on the
             // controller's battlefield — a deterministic same-resolution
@@ -2219,6 +2230,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // vocabulary models). Kept for the 1:1 coverage guard; the front/back
     // definition swap is covered by the Op's own interpreter tests.
     transform() {
+        return null;
+    },
+    // `exileAndReturnTransformed` (CR 712 / 400.7, issue #2380) — never
+    // reached: `analyseOp` skips every script carrying it, for the same reason
+    // as `transform` above plus the absence of a `backFace` on any canned
+    // permanent. Kept for the 1:1 coverage guard; the exile/return round trip,
+    // the CR 400.7 new-object semantics and the CR 306.5b starting loyalty are
+    // covered by the Op's own interpreter tests.
+    exileAndReturnTransformed() {
         return null;
     },
     // `gainControl` (CR 613.1b, issue #848) — never reached: `analyseOp` skips

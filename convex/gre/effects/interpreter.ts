@@ -2009,14 +2009,14 @@ export const OP_EXECUTORS: {
             if (!ids || ids.length === 0) return;
             cardInstanceId = ids[0];
         }
-        ctx.grantCastFromGraveyard(
-            cardInstanceId,
-            playerId,
-            op.window,
-            op.withoutPayingManaCost
+        ctx.grantCastFromGraveyard(cardInstanceId, playerId, op.window, {
+            ...(op.withoutPayingManaCost
                 ? { withoutPayingManaCost: true }
-                : undefined
-        );
+                : {}),
+            // issue #2380 — "If that spell would be put into your graveyard,
+            // exile it instead" (Jace, Telepath Unbound's −3).
+            ...(op.exilesOnResolve ? { exilesOnResolve: true } : {}),
+        });
     },
     // CR 608.2g (issue #1477) — play a card as PART OF this resolution: a "you
     // may cast/play <card>" with no stated duration, which exists ONLY during
@@ -3744,6 +3744,19 @@ export const OP_EXECUTORS: {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
         ctx.transform(target);
+    },
+    // CR 712 / 400.7 / 306.5b (issue #2380) — exile a permanent and return it
+    // to the battlefield transformed, under its OWNER's control (the ORI
+    // flip-walker template). A thin declarative skin over the single
+    // SpellContext primitive `exileAndReturnTransformed`, ONE execution path
+    // (ADR 0045). The SIBLING of `transform` above — that one flips a
+    // permanent in place (same object, CR 712.8a), this one makes a NEW object
+    // via two real zone changes (CR 400.7). Skipped when the target is gone
+    // (CR 608.2b — `resolveObjectRef` returns undefined).
+    exileAndReturnTransformed(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.exileAndReturnTransformed(target);
     },
     // CR 111 / 701.7 (issue #847) — create token permanents. A thin declarative
     // skin over the single SpellContext primitive `createToken`, ONE execution
