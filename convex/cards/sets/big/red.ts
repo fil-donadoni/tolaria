@@ -33,16 +33,21 @@
 // may create a Treasure token. When you do, target opponent creates a
 // TAPPED Treasure token. Whenever this creature attacks, it deals damage to
 // defending player equal to the number of artifacts they control." Menace
-// (data) and the attack trigger (`dealDamage` sized off an `EffectCount` of
-// the defending player's artifacts) are DSL-free, but the upkeep clause's
-// "target opponent creates a TAPPED Treasure token" needs a token that
-// enters TAPPED — `createTokenPermanents` (`convex/gre/state.ts`) hardcodes
-// `isTapped: false` on every created token, and neither `TokenSpec` nor
-// `EffectTokenSpec` has an "enters tapped" flag; the `createToken` Op also
-// has no `bind` to snapshot a just-created token for a follow-up `tapUntap`
-// Op. No card can create a tapped token today. Stop-and-issue per
-// gre-development.md; shipping only the attack-trigger half would
-// misrepresent the card. tracked-by: #1357
+// (data), `reflexiveTrigger` for "When you do…", `EffectPlayerRef`'s
+// `{ target: N }` for "target opponent", `EffectTokenSpec.entersTapped`
+// (#1195 — the PRIOR blocker here, now shipped) and the attack trigger
+// (`dealDamage` sized off an `EffectCount` of the defending player's
+// artifacts) are all DSL-clean. STILL BLOCKED on a DIFFERENT, narrower gap:
+// the DSL `createToken` Op's `token: EffectTokenSpec` cannot carry a
+// Treasure's real "{T}, Sacrifice this artifact: Add one mana of any color"
+// ability — `isTokenActivatedAbility` (`convex/gre/effects/validate.ts`)
+// accepts no `manaChoices` field on a token-carried activated ability, only
+// a single fixed `addMana` amount, so the created Treasures would be inert
+// (no usable ability) or wrong (a fixed single color) if shipped today.
+// `sharedTokens.ts`'s `TREASURE_TOKEN` has the real ability but is reachable
+// only via `resolve()` + `ctx.createToken`, not this DSL Op. Stop-and-issue
+// per gre-development.md; shipping a Treasure with no/wrong ability would
+// misrepresent the card. tracked-by: #2423
 // export const generousPlunderer: CardDefinition = {
 //     id: "4c6cf93a-d073-48ac-88db-c46bf3e10beb",
 //     name: "Generous Plunderer",
