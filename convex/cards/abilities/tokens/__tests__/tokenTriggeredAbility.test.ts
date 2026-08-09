@@ -150,7 +150,7 @@ describe("Token-carried triggered abilities (CR 707.2, issue #2364)", () => {
     // write to hit. Proves the FULL claim the type doc makes: not just that
     // the ability's identity survives, but that it genuinely FIRES —
     // `resolveTokenTriggeredAbilities` (folded into `maybeSynthesizeToken`
-    // once the 14th segment carries `effects`) rebuilds a real, working
+    // once the 15th segment carries `effects`) rebuilds a real, working
     // trigger, not the display-only `matches: () => false` stub a
     // resolve()-authored ability still degrades to.
     it("a DSL-authored token trigger fires for REAL after a genuinely cold decode (never registered in this isolate)", () => {

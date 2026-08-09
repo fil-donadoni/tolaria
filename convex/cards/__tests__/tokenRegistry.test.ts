@@ -364,7 +364,43 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
         expect(withTrigger).not.toBe(withoutTrigger);
     });
 
-    // Review of #2426 (proven finding) — the 14th segment used to encode
+    // Merge-order regression guard (rebase of #2426 onto #2380) — `loyalty`
+    // claimed index 13 (the 14th segment) first; `triggeredAbilities` had to
+    // be renumbered to index 14 (the 15th segment) behind it. The two MUST
+    // land in the SAME relative order in both the `parts` array
+    // (`tokenDefinitionId`) and the destructure (`maybeSynthesizeToken`) — an
+    // order mismatch is either loud (a bare loyalty number fed to
+    // `JSON.parse(...).map` throws out of `getDefinition`, a client render
+    // crash on any flip-walker back-face id) or silent (swallowed as `NaN`).
+    // Neither #2380 nor #2364 alone ever exercised a spec carrying BOTH
+    // fields — this is that missing round trip, and it fails on either
+    // ordering mistake, not just an outright field-count drift.
+    it("a spec carrying BOTH loyalty and triggeredAbilities round-trips through tokenDefinitionId → getDefinition with neither reading the other's slot", () => {
+        const id = tokenDefinitionId({
+            name: "Flip Pest Walker",
+            types: ["Planeswalker"],
+            loyalty: 5,
+            triggeredAbilities: [
+                {
+                    id: "pest-walker-dies",
+                    oracleText: "When this token dies, you gain 1 life.",
+                    event: "CREATURE_DIED",
+                    matches: () => true,
+                },
+            ],
+        });
+        const def = getDefinition(id);
+        expect(def.loyalty).toBe(5);
+        expect(def.triggeredAbilities).toHaveLength(1);
+        const ability = def.triggeredAbilities![0];
+        expect(ability.id).toBe("pest-walker-dies");
+        expect(ability.oracleText).toBe(
+            "When this token dies, you gain 1 life."
+        );
+        expect(ability.event).toBe("CREATURE_DIED");
+    });
+
+    // Review of #2426 (proven finding) — the 15th segment used to encode
     // `id`/`oracleText`/`event` ONLY, so two specs whose triggers differ
     // ONLY in the ability BODY (`effects`) collided on the SAME content
     // hash: the second `createToken` call would silently share the FIRST
@@ -373,7 +409,7 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
     // first. `effects` is now folded into the hash (mirrors
     // `activatedAbilities`, which already encodes full JSON for the exact
     // same reason) so the two specs get DISTINCT definitions.
-    it("14th segment content-hashes on the triggered ability's EFFECTS BODY too — two specs differing only in the ability body get distinct ids (review of #2426)", () => {
+    it("15th segment content-hashes on the triggered ability's EFFECTS BODY too — two specs differing only in the ability body get distinct ids (review of #2426)", () => {
         const baseSpec = {
             name: "Pest",
             types: ["Creature"] as CardType[],
@@ -415,10 +451,10 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
     // Review of #2426 — once `effects` survives the encode, a cold decode can
     // rebuild a REAL, working trigger (via `resolveTokenTriggeredAbilities`)
     // instead of the permanently non-firing `matches: () => false` stub the
-    // 14th segment used to produce unconditionally. `matches` returns TRUE
+    // 15th segment used to produce unconditionally. `matches` returns TRUE
     // here (not the stub's hard-coded `false`), and the rebuilt ability's own
     // `effects` field survives too, matching what was encoded.
-    it("14th segment WITH an effects body decodes into a REAL trigger, not the non-firing stub (review of #2426)", () => {
+    it("15th segment WITH an effects body decodes into a REAL trigger, not the non-firing stub (review of #2426)", () => {
         const abilityId = "cold-decode-pest-dies";
         const effects = [
             {

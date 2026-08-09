@@ -109,7 +109,24 @@ export const sandstormSalvager: CardDefinition = {
 // `triggeredAbilities` field at all); now unblocked, it's `SpellContext.
 // createTokenCopyOf` (CR 707.2 — Dance of Many's own primitive) rather than a
 // hand-authored `createToken` spec: `opts.lastKnownFromGraveyardOrExile`
-// (issue #2339) finds the just-died creature in the graveyard by id, and
+// (`gre/state.ts`) looks the dead creature up by id in the CURRENT
+// graveyard/exile zone at resolution time — it is a live zone search, not a
+// last-known-information snapshot of the card as it existed on the
+// battlefield. The option was built for Eternalize (#2339), where the
+// ACTIVATION COST ("exile this card from your graveyard: …") guarantees the
+// source is still sitting in exile when the ability resolves; a triggered
+// dies ability has no such guarantee; a card carries no cost, and the dying
+// creature can legally leave the graveyard (shuffled into a library, e.g. by
+// an opponent's instant-speed Krosan Reclamation — `sets/jud/green.ts`)
+// before this trigger resolves. In that case the zone search finds nothing,
+// `source` is `undefined`, and `createTokenCopyOf` returns `undefined`
+// SILENTLY — no token, no error — which is a narrower behaviour than CR
+// 608.2b/707.2 call for (the token should still be created from the
+// creature's last-known battlefield characteristics). Known, tracked gap:
+// docs/findings/2364-createTokenCopyOf-graveyard-lookup-is-not-lki.md. Fixing
+// it for real needs an engine capability this PR does not add (a copy
+// source resolvable from a last-known definition id, not a live zone
+// lookup) —
 // `opts.additionalTypes: ["Artifact"]` supplies the "except it's an artifact
 // in addition to its other types" clause (the SAME `CopyEffectOptions` field
 // Copy Artifact documents). `applyCopy` overwrites the token's `card.id` with
