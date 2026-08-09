@@ -14784,6 +14784,14 @@
         "firstPrintSet": "vis"
     },
     {
+        "name": "Vaultborn Tyrant",
+        "scryfallId": "62b3f560-262b-4bc3-9aef-535fd7082c28",
+        "oracleId": "e8d0accc-b320-4c07-8a71-a09db860351e",
+        "firstSet": "big",
+        "firstPrintId": "62b3f560-262b-4bc3-9aef-535fd7082c28",
+        "firstPrintSet": "big"
+    },
+    {
         "name": "Veldt",
         "scryfallId": "987534fb-74a9-46a3-805f-fe2fe2df4a90",
         "oracleId": "10b9bfb3-c478-45c6-b227-9c66b63bc79b",

@@ -5,7 +5,7 @@
 // 1:1 correspondence.
 
 import { describe, it, expect } from "vitest";
-import type { EffectOp } from "../../../cards/types";
+import type { CardType, EffectOp } from "../../../cards/types";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
 import { OP_EXECUTORS } from "../interpreter";
 import {
@@ -4110,5 +4110,143 @@ describe("validateEffectScript — reserved $target<N>.name ref (issue #2065)", 
         );
         expect(errors.length).toBeGreaterThan(0);
         expect(errors.join("\n")).toMatch(/undefined binding/);
+    });
+});
+
+// A `createToken` Op's `token.triggeredAbilities[]` (CR 707.2, issue #2364) —
+// `isEffectTokenSpec`/`isTokenTriggeredAbility` shape checks, plus the
+// nested-`createToken` `effects[]` validation pass (mirrors the coverage
+// `token.activatedAbilities[]` gets structurally, one ability-kind later).
+describe("validateEffectScript — createToken token.triggeredAbilities[] (CR 707.2, issue #2364)", () => {
+    const validToken = {
+        name: "Pest",
+        types: ["Creature"] as CardType[],
+        subtypes: ["Pest"],
+        power: 1,
+        toughness: 1,
+    };
+
+    it("accepts a well-formed triggeredAbilities descriptor", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                ...validToken,
+                                triggeredAbilities: [
+                                    {
+                                        id: "pest-dies",
+                                        oracleText:
+                                            "When this token dies, you gain 1 life.",
+                                        event: "CREATURE_DIED",
+                                        effects: [
+                                            {
+                                                op: "gainLife",
+                                                player: "controller",
+                                                amount: 1,
+                                            },
+                                        ],
+                                    },
+                                ],
+                            },
+                            controller: "controller",
+                        } as EffectOp,
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects an unknown event kind", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "createToken",
+                        token: {
+                            ...validToken,
+                            triggeredAbilities: [
+                                {
+                                    id: "pest-dies",
+                                    oracleText: "When this token dies, ...",
+                                    event: "DAMAGE_DEALT",
+                                    effects: [
+                                        {
+                                            op: "gainLife",
+                                            player: "controller",
+                                            amount: 1,
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                        controller: "controller",
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("rejects a `resolve`/`effect` field — DSL-only, no closure escape hatch", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "createToken",
+                        token: {
+                            ...validToken,
+                            triggeredAbilities: [
+                                {
+                                    id: "pest-dies",
+                                    oracleText: "When this token dies, ...",
+                                    event: "CREATURE_DIED",
+                                    effects: [],
+                                    resolve: () => {},
+                                },
+                            ],
+                        },
+                        controller: "controller",
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("validates the ability's effects[] independently (bad ref inside the token trigger is caught)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "createToken",
+                        token: {
+                            ...validToken,
+                            triggeredAbilities: [
+                                {
+                                    id: "pest-dies",
+                                    oracleText: "When this token dies, ...",
+                                    event: "CREATURE_DIED",
+                                    effects: [
+                                        {
+                                            op: "gainLife",
+                                            player: "controller",
+                                            amount: { ref: "$neverBound" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                        controller: "controller",
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(
+            /createToken token\.triggeredAbilities/
+        );
     });
 });

@@ -16575,6 +16575,16 @@ export function createTokenPermanents(
         ...(spec.activatedAbilities
             ? { activatedAbilities: [...spec.activatedAbilities] }
             : {}),
+        // CR 707.2 (issue #2364) — a token's own triggered abilities (Pest
+        // Infestation's "when this token dies, you gain 1 life", Vaultborn
+        // Tyrant's death-created copy retaining its ETB/dies triggers).
+        // Registered on the def exactly like `activatedAbilities` above, so
+        // `effectiveTriggeredAbilities` (`gre/copy.ts`) picks it up through
+        // the ordinary `presented?.triggeredAbilities` read the trigger
+        // scanner already uses — no change needed at the scan site itself.
+        ...(spec.triggeredAbilities
+            ? { triggeredAbilities: [...spec.triggeredAbilities] }
+            : {}),
         ...(spec.imagePrintId ? { imagePrintId: spec.imagePrintId } : {}),
         // CR 611 — register the token's continuous static effects on its
         // synthesized definition so def-keyed readers (the layer system for a

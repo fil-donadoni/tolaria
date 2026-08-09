@@ -12,8 +12,8 @@
 import type {
     CardDefinition,
     CardPrint,
+    EffectTokenSpec,
     SpellContext,
-    TokenSpec,
 } from "../../types";
 import { AURA_AFFECTS_HOST } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -23,7 +23,9 @@ import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 const BREEDING_PIT_ID = "a0d7e85f-eba5-4fc5-9fc0-109109d368aa"; // FEM 35
 
-const THRULL_TOKEN: TokenSpec = {
+// `EffectTokenSpec` (not `TokenSpec`): only ever used at a DSL `createToken`
+// Op site (`op.token`) below, never through `ctx.createToken` directly.
+const THRULL_TOKEN: EffectTokenSpec = {
     name: "Thrull",
     types: ["Creature"],
     subtypes: ["Thrull"],

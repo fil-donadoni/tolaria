@@ -98,6 +98,7 @@ import type {
 } from "../../cards/types";
 import type { LibraryDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
+import { resolveTokenTriggeredAbilities } from "../../cards/tokenTriggeredAbilities";
 import { parseTargetNameRef } from "./targetRef";
 import {
     categorizedEligibleIds,
@@ -3785,7 +3786,20 @@ export const OP_EXECUTORS: {
         // counter that doesn't resolve (uncaptured binding) or resolves to
         // ≤0 is dropped — CR 122's "put N counters" with N ≤ 0 is a no-op,
         // mirroring the `counters` Op itself.
-        const { entersWith: rawEntersWith, ...restToken } = op.token;
+        // CR 707.2 (issue #2364) — `EffectTokenSpec.triggeredAbilities` is a
+        // RESTRICTED, JSON-pure descriptor array (`TokenTriggeredAbility[]`),
+        // NOT `TriggeredAbility[]` itself (`matches` is a required closure no
+        // JSON-pure literal can supply) — so unlike `activatedAbilities`
+        // (structurally compatible, spread through as-is), this field needs
+        // an EXPLICIT conversion step before it can satisfy `TokenSpec`.
+        // Destructured OUT of the spread for the same reason `entersWith` is:
+        // the resolved (real-`TriggeredAbility`) shape must replace the
+        // source descriptor shape, not sit alongside it.
+        const {
+            entersWith: rawEntersWith,
+            triggeredAbilities: rawTriggeredAbilities,
+            ...restToken
+        } = op.token;
         const resolvedCounters = rawEntersWith?.counters
             ?.map((c) => {
                 const n = resolveValue(ctx, c.count);
@@ -3800,6 +3814,13 @@ export const OP_EXECUTORS: {
             ...restToken,
             ...(resolvedCounters && resolvedCounters.length > 0
                 ? { entersWith: { counters: resolvedCounters } }
+                : {}),
+            ...(rawTriggeredAbilities && rawTriggeredAbilities.length > 0
+                ? {
+                      triggeredAbilities: resolveTokenTriggeredAbilities(
+                          rawTriggeredAbilities
+                      ),
+                  }
                 : {}),
         };
         const ids = ctx.createToken(token, controllerId, count);

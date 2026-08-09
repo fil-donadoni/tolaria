@@ -19,7 +19,7 @@ import {
     tokenDefinitionId,
     tryGetDefinition,
 } from "../index";
-import type { CardDefinition } from "../types";
+import type { CardDefinition, CardType } from "../types";
 
 describe("token CardDefinition lookup (regression — client lazy synthesis)", () => {
     const WASP_ID = "token:Wasp|Artifact,Creature|Insect||1|1||flying";
@@ -253,5 +253,257 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
         const def = getDefinition(id);
         expect(def.imagePrintId).toBe("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
         expect(def.imagePrintFace).toBe("back");
+    });
+
+    // CR 707.2 (issue #2364) — a token's OWN triggered ability (Pest
+    // Infestation's "when this token dies, you gain 1 life."). Unlike
+    // `activatedAbilities`, `TriggeredAbility.matches` is a REQUIRED closure
+    // and can never survive a JSON round trip regardless of how much else is
+    // encoded — so the 15th segment carries `id`/`oracleText`/`event` only,
+    // and a cold decode rebuilds a SAFE, NEVER-FIRING stub rather than a
+    // functioning ability (see `tokenDefinitionId`'s own doc comment). This
+    // still proves the ability's IDENTITY (id/oracleText/event) survives a
+    // registry miss for display, and that `matches` never crashes a trigger
+    // scan that happens to reach the stub.
+    it("15th segment is decoded as triggeredAbilities — id/oracleText/event survive, matches is a safe non-firing stub (issue #2364)", () => {
+        const descriptors = [
+            {
+                id: "pest-dies",
+                oracleText: "When this token dies, you gain 1 life.",
+                event: "CREATURE_DIED",
+            },
+        ];
+        const id = [
+            "token:Pest",
+            "Creature",
+            "Pest",
+            "",
+            "1",
+            "1",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "", // 14th segment (index 13): loyalty, not applicable here
+            encodeURIComponent(JSON.stringify(descriptors)),
+        ].join("|");
+        const def = getDefinition(id);
+        expect(def.name).toBe("Pest");
+        expect(def.triggeredAbilities).toHaveLength(1);
+        const ability = def.triggeredAbilities![0];
+        expect(ability.id).toBe("pest-dies");
+        expect(ability.oracleText).toBe(
+            "When this token dies, you gain 1 life."
+        );
+        expect(ability.event).toBe("CREATURE_DIED");
+        // Safe stub: never fires, never throws.
+        expect(
+            ability.matches(
+                {
+                    type: "CREATURE_DIED",
+                    creatureInstanceId: "x",
+                    creatureControllerId: "p1",
+                    creatureOwnerId: "p1",
+                    creatureTypes: ["Creature"],
+                    damagedBySources: [],
+                    creaturePower: 1,
+                    creatureToughness: 1,
+                } as unknown as Parameters<typeof ability.matches>[0],
+                {
+                    id: "x",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    types: [],
+                    subtypes: [],
+                    isTapped: false,
+                } as unknown as Parameters<typeof ability.matches>[1]
+            )
+        ).toBe(false);
+    });
+
+    it("missing/empty 15th segment leaves triggeredAbilities undefined (back-compat with pre-#2364 13-segment ids, which also predate #2380's loyalty segment)", () => {
+        const id =
+            "token:Wasp|Artifact,Creature|Insect||1|1||flying|09921372-126f-4c81-b6d8-ea50b1d0eb44||||";
+        const def = getDefinition(id);
+        expect(def.loyalty).toBeUndefined();
+        expect(def.triggeredAbilities).toBeUndefined();
+    });
+
+    // The exact round trip `createTokenPermanents` produces for a token whose
+    // spec carries `triggeredAbilities` (`TokenSpec.triggeredAbilities`,
+    // issue #2364) — server-side registration (via `registerTokenDefinition`)
+    // ALWAYS carries the real, functioning closures; this proves the id
+    // string it computes still folds the ability's identity in (a token WITH
+    // a trigger gets a distinct definition from one without).
+    it("tokenDefinitionId content-hashes on triggeredAbilities id (distinct def for a token with vs. without a trigger)", () => {
+        const withTrigger = tokenDefinitionId({
+            name: "Pest",
+            types: ["Creature"],
+            subtypes: ["Pest"],
+            power: 1,
+            toughness: 1,
+            triggeredAbilities: [
+                {
+                    id: "pest-dies",
+                    oracleText: "When this token dies, you gain 1 life.",
+                    event: "CREATURE_DIED",
+                    matches: () => true,
+                },
+            ],
+        });
+        const withoutTrigger = tokenDefinitionId({
+            name: "Pest",
+            types: ["Creature"],
+            subtypes: ["Pest"],
+            power: 1,
+            toughness: 1,
+        });
+        expect(withTrigger).not.toBe(withoutTrigger);
+    });
+
+    // Merge-order regression guard (rebase of #2426 onto #2380) — `loyalty`
+    // claimed index 13 (the 14th segment) first; `triggeredAbilities` had to
+    // be renumbered to index 14 (the 15th segment) behind it. The two MUST
+    // land in the SAME relative order in both the `parts` array
+    // (`tokenDefinitionId`) and the destructure (`maybeSynthesizeToken`) — an
+    // order mismatch is either loud (a bare loyalty number fed to
+    // `JSON.parse(...).map` throws out of `getDefinition`, a client render
+    // crash on any flip-walker back-face id) or silent (swallowed as `NaN`).
+    // Neither #2380 nor #2364 alone ever exercised a spec carrying BOTH
+    // fields — this is that missing round trip, and it fails on either
+    // ordering mistake, not just an outright field-count drift.
+    it("a spec carrying BOTH loyalty and triggeredAbilities round-trips through tokenDefinitionId → getDefinition with neither reading the other's slot", () => {
+        const id = tokenDefinitionId({
+            name: "Flip Pest Walker",
+            types: ["Planeswalker"],
+            loyalty: 5,
+            triggeredAbilities: [
+                {
+                    id: "pest-walker-dies",
+                    oracleText: "When this token dies, you gain 1 life.",
+                    event: "CREATURE_DIED",
+                    matches: () => true,
+                },
+            ],
+        });
+        const def = getDefinition(id);
+        expect(def.loyalty).toBe(5);
+        expect(def.triggeredAbilities).toHaveLength(1);
+        const ability = def.triggeredAbilities![0];
+        expect(ability.id).toBe("pest-walker-dies");
+        expect(ability.oracleText).toBe(
+            "When this token dies, you gain 1 life."
+        );
+        expect(ability.event).toBe("CREATURE_DIED");
+    });
+
+    // Review of #2426 (proven finding) — the 15th segment used to encode
+    // `id`/`oracleText`/`event` ONLY, so two specs whose triggers differ
+    // ONLY in the ability BODY (`effects`) collided on the SAME content
+    // hash: the second `createToken` call would silently share the FIRST
+    // token's definition — a Pest authored to gain 99 life would resolve as
+    // "gain 1 life" if a differently-worded-but-same-id Pest had registered
+    // first. `effects` is now folded into the hash (mirrors
+    // `activatedAbilities`, which already encodes full JSON for the exact
+    // same reason) so the two specs get DISTINCT definitions.
+    it("15th segment content-hashes on the triggered ability's EFFECTS BODY too — two specs differing only in the ability body get distinct ids (review of #2426)", () => {
+        const baseSpec = {
+            name: "Pest",
+            types: ["Creature"] as CardType[],
+            subtypes: ["Pest"],
+            power: 1,
+            toughness: 1,
+        };
+        const idGainOne = tokenDefinitionId({
+            ...baseSpec,
+            triggeredAbilities: [
+                {
+                    id: "pest-dies",
+                    oracleText: "When this token dies, you gain 1 life.",
+                    event: "CREATURE_DIED",
+                    matches: () => true,
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 1 },
+                    ],
+                },
+            ],
+        });
+        const idGainNinetyNine = tokenDefinitionId({
+            ...baseSpec,
+            triggeredAbilities: [
+                {
+                    id: "pest-dies",
+                    oracleText: "When this token dies, you gain 1 life.",
+                    event: "CREATURE_DIED",
+                    matches: () => true,
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 99 },
+                    ],
+                },
+            ],
+        });
+        expect(idGainOne).not.toBe(idGainNinetyNine);
+    });
+
+    // Review of #2426 — once `effects` survives the encode, a cold decode can
+    // rebuild a REAL, working trigger (via `resolveTokenTriggeredAbilities`)
+    // instead of the permanently non-firing `matches: () => false` stub the
+    // 15th segment used to produce unconditionally. `matches` returns TRUE
+    // here (not the stub's hard-coded `false`), and the rebuilt ability's own
+    // `effects` field survives too, matching what was encoded.
+    it("15th segment WITH an effects body decodes into a REAL trigger, not the non-firing stub (review of #2426)", () => {
+        const abilityId = "cold-decode-pest-dies";
+        const effects = [
+            {
+                op: "gainLife" as const,
+                player: "controller" as const,
+                amount: 7,
+            },
+        ];
+        const id = tokenDefinitionId({
+            name: "Pest",
+            types: ["Creature"],
+            subtypes: ["Pest"],
+            power: 1,
+            toughness: 1,
+            triggeredAbilities: [
+                {
+                    id: abilityId,
+                    oracleText: "When this token dies, you gain 7 life.",
+                    event: "CREATURE_DIED",
+                    matches: () => true,
+                    effects,
+                },
+            ],
+        });
+        const def = getDefinition(id);
+        const ability = def.triggeredAbilities![0];
+        expect(ability.id).toBe(abilityId);
+        expect(ability.effects).toEqual(effects);
+        expect(
+            ability.matches(
+                {
+                    type: "CREATURE_DIED",
+                    creatureInstanceId: "x",
+                    creatureControllerId: "p1",
+                    creatureOwnerId: "p1",
+                    creatureTypes: ["Creature"],
+                    damagedBySources: [],
+                    creaturePower: 1,
+                    creatureToughness: 1,
+                } as unknown as Parameters<typeof ability.matches>[0],
+                {
+                    id: "x",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    types: [],
+                    subtypes: [],
+                    isTapped: false,
+                } as unknown as Parameters<typeof ability.matches>[1]
+            )
+        ).toBe(true);
     });
 });
