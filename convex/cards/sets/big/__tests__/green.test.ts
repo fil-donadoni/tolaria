@@ -224,19 +224,41 @@ describe("Vaultborn Tyrant (dies → artifact token copy w/ own triggers, CR 707
 
         const token = state.players[0].battlefield.find((c) => c.isToken);
         expect(token).toBeDefined();
-        expect(token!.types).toEqual(["Artifact", "Creature"]);
+        // Type ORDER is not rules-relevant (CR 205.1a is a set, not a
+        // sequence) — `applyCopy` appends `additionalTypes` after the
+        // copied definition's own printed types, so this is `[Creature,
+        // Artifact]`, not the oracle-text presentation order.
+        expect(token!.types.slice().sort()).toEqual(
+            ["Artifact", "Creature"].sort()
+        );
         expect(token!.subtypes).toContain("Dinosaur");
         expect(token!.power).toBe(6);
         expect(token!.toughness).toBe(6);
         expect(token!.staticAbilities).toContain("trample");
 
-        const def = getDefinition((token!.card as { id: string }).id);
+        // CR 707.2 (issue #2426 review) — `createTokenCopyOf` id-swaps the
+        // token onto Vaultborn Tyrant's OWN registered definition id (NOT a
+        // synthesized `token:` id), which is exactly what gives the token
+        // its art for free: `resolveCardImageId` (`src/lib/images.ts`) only
+        // special-cases a `token:`-prefixed id, so a real printed id resolves
+        // straight to the card's own Scryfall art with no token-print
+        // lockfile entry needed.
+        const tokenCardId = (token!.card as { id: string }).id;
+        expect(tokenCardId).toBe(vaultbornTyrant.id);
+        expect(tokenCardId.startsWith("token:")).toBe(false);
+
+        const def = getDefinition(tokenCardId);
         expect(def.triggeredAbilities?.map((a) => a.id).sort()).toEqual(
             [
                 "vaultborn-tyrant-dies-copy",
                 "vaultborn-tyrant-etb-power-4",
             ].sort()
         );
+        // Real, working closures — literally the SAME ability objects the
+        // printed card carries (CR 707.2), not a JSON-encoded re-synthesis:
+        // the id-swap means `getDefinition` on the token returns the actual
+        // `vaultbornTyrant` definition.
+        expect(def).toBe(getDefinition(vaultbornTyrant.id));
 
         // Wire format: the token's own triggered abilities survive
         // projectPublicState (card.card strips to `{ id }`; the definition

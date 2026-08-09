@@ -1849,18 +1849,28 @@ export interface TokenSpec {
      *  through the ordinary `presented?.triggeredAbilities` read — no change
      *  needed at the trigger-scan site.
      *
-     *  Content-hashed into `tokenDefinitionId` by ability `id` ONLY (not full
-     *  JSON) — unlike `ActivatedAbility`, `TriggeredAbility.matches` is a
-     *  REQUIRED closure that can never survive a JSON round trip, so encoding
-     *  more than the id would imply a fidelity the codec can't deliver.
-     *  `maybeSynthesizeToken` decodes a registry MISS into a SAFE, NEVER-FIRING
-     *  stub (`matches: () => false`) rather than crashing on a missing
-     *  `matches` — this is a deliberate, narrower version of the "silently
-     *  drops the ability" gap `staticEffectKeys`' doc comment describes: the
-     *  ability's IDENTITY (id/oracleText/event) survives decode for display,
-     *  its FUNCTION only survives while the definition stays in the registry
-     *  that created it (the common/live-game case, since `createTokenPermanents`
-     *  registers the real closures in the SAME call that creates the token). */
+     *  Content-hashed into `tokenDefinitionId` by `id`/`oracleText`/`event`
+     *  ALWAYS, PLUS `effects` whenever the ability object happens to carry
+     *  one — `TriggeredAbility.matches` is a REQUIRED closure that can never
+     *  survive a JSON round trip, but `effects` (set when the ability was
+     *  built via `enteredTrigger`/`diedTrigger`'s `effects:` param rather
+     *  than `resolve:`) is plain data and rides the id string fine. A
+     *  RESOLVE()-built ability (`resolve:`, no `effects` field at all — the
+     *  common case for this closure-bearing surface, e.g. a card that reuses
+     *  a printed card's own ability objects verbatim) has nothing JSON-safe
+     *  to encode beyond identity, so `maybeSynthesizeToken` decodes a
+     *  registry MISS for THAT ability into a SAFE, NEVER-FIRING stub
+     *  (`matches: () => false`) rather than crashing on a missing `matches`
+     *  — a deliberate, narrower version of the "silently drops the ability"
+     *  gap `staticEffectKeys`' doc comment describes: the ability's IDENTITY
+     *  (id/oracleText/event) survives decode for display, its FUNCTION only
+     *  survives while the definition stays in the registry that created it
+     *  (the common/live-game case, since `createTokenPermanents` registers
+     *  the real closures in the SAME call that creates the token). An
+     *  `effects:`-built ability on THIS surface gets the same full-fidelity
+     *  cold-decode rebuild `EffectTokenSpec.triggeredAbilities` documents —
+     *  the codec doesn't care which surface an ability originated from, only
+     *  whether it carries `effects`. */
     triggeredAbilities?: TriggeredAbility[];
     /** Counters this token enters the battlefield WITH (CR 111.9/122.1 —
      *  "create an Incubator token ... with N +1/+1 counters on it", CR
@@ -2040,12 +2050,22 @@ export type TokenTriggeredEventKind = "PERMANENT_ENTERED" | "CREATURE_DIED";
  *  `EffectTokenSpec.triggeredAbilities` (issue #2364). Always CR 109.2
  *  SELF-scoped (the token's own printed ability) — the only semantics
  *  `resolveTokenTriggeredAbilities` can synthesize with full fidelity on
- *  BOTH registration and a cold-registry-miss decode, since `matches` is
- *  rebuilt fresh from `event` + `effects` every time rather than serialized.
- *  A token trigger needing a wider scope, a structural `filter`, or a
- *  `resolve()` body stays a `TokenSpec.triggeredAbilities` (`resolve()`
- *  card). No `resolve`/`effect` field at all — DSL-only by construction,
- *  mirroring `EffectTokenSpec.activatedAbilities`'s restriction. */
+ *  BOTH registration AND a cold-registry-miss decode: `id`/`oracleText`/
+ *  `event`/`effects` are ALL JSON-pure (this interface has no `matches`/
+ *  `resolve` field to lose), so `tokenDefinitionId` (`cards/registry.ts`)
+ *  encodes all four into the token's content-derived id, and
+ *  `maybeSynthesizeToken`'s decode calls the SAME `resolveTokenTriggered-
+ *  Abilities` factory the live registration path uses whenever it finds an
+ *  `effects` segment — registration and a cold decode literally cannot
+ *  disagree, because both run the same rebuild. (`TokenSpec.
+ *  triggeredAbilities` — the closure-bearing `resolve()` surface — has no
+ *  such guarantee: `matches`/`resolve` are real closures with nothing
+ *  JSON-safe to encode, so THAT surface still degrades to a non-firing stub
+ *  on a cold decode; see its own doc comment.) A token trigger needing a
+ *  wider scope, a structural `filter`, or a `resolve()` body stays a
+ *  `TokenSpec.triggeredAbilities` entry. No `resolve`/`effect` field at all
+ *  here — DSL-only by construction, mirroring `EffectTokenSpec.
+ *  activatedAbilities`'s restriction. */
 export interface TokenTriggeredAbility {
     /** Stable id, unique within the token's ability set. */
     id: string;

@@ -19,7 +19,7 @@ import {
     tokenDefinitionId,
     tryGetDefinition,
 } from "../index";
-import type { CardDefinition } from "../types";
+import type { CardDefinition, CardType } from "../types";
 
 describe("token CardDefinition lookup (regression — client lazy synthesis)", () => {
     const WASP_ID = "token:Wasp|Artifact,Creature|Insect||1|1||flying";
@@ -362,5 +362,112 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
             toughness: 1,
         });
         expect(withTrigger).not.toBe(withoutTrigger);
+    });
+
+    // Review of #2426 (proven finding) — the 14th segment used to encode
+    // `id`/`oracleText`/`event` ONLY, so two specs whose triggers differ
+    // ONLY in the ability BODY (`effects`) collided on the SAME content
+    // hash: the second `createToken` call would silently share the FIRST
+    // token's definition — a Pest authored to gain 99 life would resolve as
+    // "gain 1 life" if a differently-worded-but-same-id Pest had registered
+    // first. `effects` is now folded into the hash (mirrors
+    // `activatedAbilities`, which already encodes full JSON for the exact
+    // same reason) so the two specs get DISTINCT definitions.
+    it("14th segment content-hashes on the triggered ability's EFFECTS BODY too — two specs differing only in the ability body get distinct ids (review of #2426)", () => {
+        const baseSpec = {
+            name: "Pest",
+            types: ["Creature"] as CardType[],
+            subtypes: ["Pest"],
+            power: 1,
+            toughness: 1,
+        };
+        const idGainOne = tokenDefinitionId({
+            ...baseSpec,
+            triggeredAbilities: [
+                {
+                    id: "pest-dies",
+                    oracleText: "When this token dies, you gain 1 life.",
+                    event: "CREATURE_DIED",
+                    matches: () => true,
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 1 },
+                    ],
+                },
+            ],
+        });
+        const idGainNinetyNine = tokenDefinitionId({
+            ...baseSpec,
+            triggeredAbilities: [
+                {
+                    id: "pest-dies",
+                    oracleText: "When this token dies, you gain 1 life.",
+                    event: "CREATURE_DIED",
+                    matches: () => true,
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 99 },
+                    ],
+                },
+            ],
+        });
+        expect(idGainOne).not.toBe(idGainNinetyNine);
+    });
+
+    // Review of #2426 — once `effects` survives the encode, a cold decode can
+    // rebuild a REAL, working trigger (via `resolveTokenTriggeredAbilities`)
+    // instead of the permanently non-firing `matches: () => false` stub the
+    // 14th segment used to produce unconditionally. `matches` returns TRUE
+    // here (not the stub's hard-coded `false`), and the rebuilt ability's own
+    // `effects` field survives too, matching what was encoded.
+    it("14th segment WITH an effects body decodes into a REAL trigger, not the non-firing stub (review of #2426)", () => {
+        const abilityId = "cold-decode-pest-dies";
+        const effects = [
+            {
+                op: "gainLife" as const,
+                player: "controller" as const,
+                amount: 7,
+            },
+        ];
+        const id = tokenDefinitionId({
+            name: "Pest",
+            types: ["Creature"],
+            subtypes: ["Pest"],
+            power: 1,
+            toughness: 1,
+            triggeredAbilities: [
+                {
+                    id: abilityId,
+                    oracleText: "When this token dies, you gain 7 life.",
+                    event: "CREATURE_DIED",
+                    matches: () => true,
+                    effects,
+                },
+            ],
+        });
+        const def = getDefinition(id);
+        const ability = def.triggeredAbilities![0];
+        expect(ability.id).toBe(abilityId);
+        expect(ability.effects).toEqual(effects);
+        expect(
+            ability.matches(
+                {
+                    type: "CREATURE_DIED",
+                    creatureInstanceId: "x",
+                    creatureControllerId: "p1",
+                    creatureOwnerId: "p1",
+                    creatureTypes: ["Creature"],
+                    damagedBySources: [],
+                    creaturePower: 1,
+                    creatureToughness: 1,
+                } as unknown as Parameters<typeof ability.matches>[0],
+                {
+                    id: "x",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    types: [],
+                    subtypes: [],
+                    isTapped: false,
+                } as unknown as Parameters<typeof ability.matches>[1]
+            )
+        ).toBe(true);
     });
 });

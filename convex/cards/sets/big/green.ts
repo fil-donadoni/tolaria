@@ -106,18 +106,27 @@ export const sandstormSalvager: CardDefinition = {
 // `{ ref: "$event.controllerId" }`.
 //
 // The dies half was blocked on #2364 (`TokenSpec`/`EffectTokenSpec` had no
-// `triggeredAbilities` field at all): the copy's characteristics are static
-// (this card's own printed stats never vary), so a plain `resolve()`
-// `ctx.createToken` with a hand-authored spec matching Vaultborn Tyrant plus
-// the added Artifact type suffices — no need for `createTokenCopy`'s runtime
-// source lookup. The token's spec REUSES the SAME two `TriggeredAbility`
-// objects this card itself carries (CR 707.2 — a copy has the same abilities
-// the original had), rather than re-authoring them: `vaultbornTyrantDiesTrigger`'s
-// own `condition: (_event, self) => !self.isToken` now does real work once
-// it exists on the token too — it prevents a SECOND copy from being created
-// off the first token's own death, closing the exact gap the tracked stub
-// warned about ("no 'if it's not a token' self-check without the trigger
-// existing at all").
+// `triggeredAbilities` field at all); now unblocked, it's `SpellContext.
+// createTokenCopyOf` (CR 707.2 — Dance of Many's own primitive) rather than a
+// hand-authored `createToken` spec: `opts.lastKnownFromGraveyardOrExile`
+// (issue #2339) finds the just-died creature in the graveyard by id, and
+// `opts.additionalTypes: ["Artifact"]` supplies the "except it's an artifact
+// in addition to its other types" clause (the SAME `CopyEffectOptions` field
+// Copy Artifact documents). `applyCopy` overwrites the token's `card.id` with
+// Vaultborn Tyrant's OWN definition id (`gre/copy.ts`), so the token
+// presents the real printed definition: its art comes free (no token-print
+// lookup, no lockfile entry needed — `resolveCardImageId` only special-cases
+// `token:`-prefixed ids, and this one isn't), and `effectiveTriggeredAbilities`
+// reads the SAME `triggeredAbilities` array this card itself carries (CR
+// 707.2 — a copy has the same abilities the original had) with real,
+// working closures — not a re-authored duplicate. `vaultbornTyrantDiesTrigger`'s
+// own `condition: (_event, self) => !self.isToken` does real work once the
+// token presents it too: `applyCopy` never touches `isToken` (only
+// `card.id`/types/subtypes/P-T/staticAbilities/color/mana-cost/art), so the
+// condition still reads `true` on the token and the trigger's own `matches`
+// returns false for the token's own death — no infinite copy chain, closing
+// the exact gap the tracked stub warned about ("no 'if it's not a token'
+// self-check without the trigger existing at all").
 const vaultbornTyrantEtbTrigger = enteredTrigger({
     id: "vaultborn-tyrant-etb-power-4",
     oracleText:
@@ -146,28 +155,29 @@ const vaultbornTyrantDiesTrigger = diedTrigger({
         "When this creature dies, if it's not a token, create a token that's a copy of it, except it's an artifact in addition to its other types.",
     scope: "self",
     condition: (_event, self) => !self.isToken,
-    resolve: (ctx) => {
-        ctx.createToken(
-            {
-                name: "Vaultborn Tyrant",
-                types: ["Artifact", "Creature"],
-                subtypes: ["Dinosaur"],
-                power: 6,
-                toughness: 6,
-                staticAbilities: ["trample"],
-                triggeredAbilities: [
-                    vaultbornTyrantEtbTrigger,
-                    vaultbornTyrantDiesTrigger,
-                ],
-            },
+    // protocol card: CR 707.2's copy machinery (`applyCopy` id-swap onto the
+    // token, carrying the printed definition's real triggered-ability
+    // closures and art) has no Effect Script Op exposing `additionalTypes` +
+    // `lastKnownFromGraveyardOrExile` together — `createTokenCopy`'s DSL skin
+    // (`gre/effects/interpreter.ts`) only maps `except.additionalSubtypes`,
+    // not `additionalTypes`. Calling the `SpellContext` primitive directly
+    // is a straight one-line composition, not a card-shaped closure.
+    resolve: (ctx, _event, deadCreature) => {
+        ctx.createTokenCopyOf(
+            deadCreature.id,
             ctx.controller,
-            1
+            deadCreature.id,
+            {
+                lastKnownFromGraveyardOrExile: true,
+                additionalTypes: ["Artifact"],
+            }
         );
     },
     // aiEffects (PRD #1423, issue #1431/#2364) — bare `resolve()` closure
-    // (the token-copy body isn't a plain createToken skin: it reuses this
-    // card's own ability OBJECTS, which the DSL can't express), so the bot's
-    // value model has nothing to walk without a shadow script. Approximates
+    // (no Effect Op exposes `createTokenCopyOf`'s `additionalTypes` +
+    // `lastKnownFromGraveyardOrExile` combination, see the comment above), so
+    // the bot's value model has nothing to walk without a shadow script.
+    // Approximates
     // the real effect closely enough for valuation: a 6/6 trampler token
     // appears (the shadow omits the token's own triggeredAbilities — the
     // valuer doesn't need that fidelity to weigh "a 6/6 trample body
