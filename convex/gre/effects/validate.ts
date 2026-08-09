@@ -23,7 +23,11 @@
 // invented Op name or a dangling ref fails CI before any game ever loads the
 // card.
 
-import type { CardDefinition, EffectChoiceKind } from "../../cards/types";
+import type {
+    CardDefinition,
+    EffectChoiceKind,
+    TokenTriggeredEventKind,
+} from "../../cards/types";
 import { PERMANENT_TYPES } from "../../cards/types";
 import {
     getEventFieldRow,
@@ -654,6 +658,54 @@ function isTokenActivatedAbility(value: unknown): boolean {
     return true;
 }
 
+/** The event kinds a token-scoped triggered ability may name (issue #2364),
+ *  keyed by {@link TokenTriggeredEventKind} (`cards/types.ts`) so the two can
+ *  never drift — a new member added to the type without a row here (or vice
+ *  versa) is a COMPILE ERROR, the same exhaustiveness discipline
+ *  `resolveTokenTriggeredAbilities`'s switch and `TOKEN_STATIC_EFFECT_
+ *  FACTORIES`'s `Record<TokenStaticEffectKey, …>` use. A type-only import is
+ *  fine even though this module otherwise validates raw `unknown` — it costs
+ *  nothing at runtime. */
+const TOKEN_TRIGGERED_EVENT_KINDS: Record<TokenTriggeredEventKind, true> = {
+    PERMANENT_ENTERED: true,
+    CREATURE_DIED: true,
+};
+
+/** A token-scoped triggered ability (issue #2364, `EffectTokenSpec.
+ *  triggeredAbilities`): a RESTRICTED, JSON-pure descriptor — `id` /
+ *  `oracleText` / `event` (one of `TOKEN_TRIGGERED_EVENT_KINDS`) / `effects`
+ *  (required — this restricted surface has no `resolve()` escape hatch).
+ *  Unlike `isTokenActivatedAbility`, there is no `matches`/`resolve`/`effect`
+ *  field to reject in the first place: `TriggeredAbility.matches` is a
+ *  REQUIRED closure no JSON-pure literal could supply, so this shape was
+ *  never `TriggeredAbility` to begin with — `resolveTokenTriggeredAbilities`
+ *  (`cards/tokenTriggeredAbilities.ts`) synthesizes the real ability (always
+ *  CR 109.2 self-scoped) from exactly these four fields. The ability's
+ *  `effects[]` SHAPE is checked here; its deep ref/purity validity is
+ *  checked separately by `validateEffectOpList`'s nested-`createToken` pass,
+ *  in the ability's OWN scope (fresh `$source` = the token, `$event` legal
+ *  per its own `event`). */
+function isTokenTriggeredAbility(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const a = value as Record<string, unknown>;
+    const allowed = new Set(["id", "oracleText", "event", "effects"]);
+    if (!Object.keys(a).every((k) => allowed.has(k))) return false;
+    if (typeof a.id !== "string" || a.id.length === 0) return false;
+    if (typeof a.oracleText !== "string" || a.oracleText.length === 0) {
+        return false;
+    }
+    if (
+        typeof a.event !== "string" ||
+        !(a.event in TOKEN_TRIGGERED_EVENT_KINDS)
+    ) {
+        return false;
+    }
+    if (!isOpList(a.effects)) return false;
+    return true;
+}
+
 /** `EffectTokenSpec.entersWith` (CR 111.9/122.1, issue #1210) — counters a
  *  token enters WITH. A non-empty `counters` array of `{ type, count }`,
  *  `count` a full `EffectValue` (resolved by the `createToken` Op executor
@@ -763,6 +815,7 @@ function isEffectTokenSpec(value: unknown): boolean {
         "staticAbilities",
         "imagePrintId",
         "activatedAbilities",
+        "triggeredAbilities",
         "entersWith",
         "backFace",
         "entersTapped",
@@ -798,6 +851,15 @@ function isEffectTokenSpec(value: unknown): boolean {
             !Array.isArray(s.activatedAbilities) ||
             s.activatedAbilities.length === 0 ||
             !s.activatedAbilities.every(isTokenActivatedAbility)
+        ) {
+            return false;
+        }
+    }
+    if ("triggeredAbilities" in s) {
+        if (
+            !Array.isArray(s.triggeredAbilities) ||
+            s.triggeredAbilities.length === 0 ||
+            !s.triggeredAbilities.every(isTokenTriggeredAbility)
         ) {
             return false;
         }
@@ -5439,6 +5501,39 @@ function validateEffectOpList(
                     ABILITY_BINDINGS,
                     errors,
                     undefined
+                );
+            }
+        });
+    });
+
+    // 7 — a `createToken` Op's token may also carry `triggeredAbilities[]`
+    // (issue #2364, the token's OWN printed trigger — CR 707.2). Same
+    // independently-scoped-script treatment as `activatedAbilities` above,
+    // fresh `ABILITY_BINDINGS` ($source = the token), EXCEPT `triggerEventType`
+    // is threaded through as the descriptor's own `event` (not `undefined`)
+    // so `$event.<field>` refs are legal at this site exactly like an
+    // ordinary card's `TriggeredAbility.effects[]` gets via
+    // `validateAbilityEffectScript`.
+    nestedCreateTokenOps.forEach((op) => {
+        const token = op.token as Record<string, unknown> | undefined;
+        const triggeredAbilities = token?.triggeredAbilities;
+        if (!Array.isArray(triggeredAbilities)) return;
+        triggeredAbilities.forEach((raw, j) => {
+            const ability = raw as {
+                id?: unknown;
+                event?: unknown;
+                effects?: unknown;
+            };
+            const abilityLabel = `${label}: createToken token.triggeredAbilities[${j}] (id=${String(ability.id)})`;
+            if (ability.effects !== undefined) {
+                validateEffectOpList(
+                    ability.effects,
+                    abilityLabel,
+                    ABILITY_BINDINGS,
+                    errors,
+                    typeof ability.event === "string"
+                        ? ability.event
+                        : undefined
                 );
             }
         });

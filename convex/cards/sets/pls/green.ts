@@ -6,9 +6,9 @@
 import type {
     ActivatedAbilityContext,
     CardDefinition,
+    EffectTokenSpec,
     PermanentView,
     StaticEffectStateView,
-    TokenSpec,
 } from "../../types";
 import {
     AURA_AFFECTS_HOST,
@@ -462,7 +462,9 @@ export const multanisHarmony: CardDefinition = {
 // creates one (FEM's own Saproling stays local to `fem/green.ts` for the
 // same reason; a later cross-set promotion is a separate, non-blocking
 // cleanup).
-const NEMATA_SAPROLING_TOKEN: TokenSpec = {
+// `EffectTokenSpec` (not `TokenSpec`): only ever used at a DSL `createToken`
+// Op site (`op.token`) below, never through `ctx.createToken` directly.
+const NEMATA_SAPROLING_TOKEN: EffectTokenSpec = {
     name: "Saproling",
     types: ["Creature"],
     subtypes: ["Saproling"],

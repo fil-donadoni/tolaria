@@ -28,6 +28,7 @@
 import { getAllCards, tokenDefinitionId } from "./index";
 import * as SHARED_TOKENS from "./sharedTokens";
 import { tokenPrintIdFor } from "./tokenPrintLookup";
+import { resolveTokenTriggeredAbilities } from "./tokenTriggeredAbilities";
 import type {
     CardDefinition,
     EffectOp,
@@ -122,7 +123,7 @@ function toTokenSpec(
     spec: EffectTokenSpec,
     producerCardId: string | undefined
 ): TokenSpec {
-    const { entersWith, backFace, ...rest } = spec;
+    const { entersWith, backFace, triggeredAbilities, ...rest } = spec;
     const counters = entersWith?.counters
         ?.map((c) =>
             typeof c.count === "number" && c.count > 0
@@ -144,6 +145,17 @@ function toTokenSpec(
         // CR 712 — the JSON-pure back face is structurally the `CardBackFace`
         // subset `TokenSpec` declares.
         ...(backFace ? { backFace: backFace as TokenSpec["backFace"] } : {}),
+        // CR 707.2 (issue #2364) — same conversion the `createToken` Op
+        // executor does (`gre/effects/interpreter.ts`): the JSON-pure
+        // `TokenTriggeredAbility[]` descriptor is NOT a `TriggeredAbility[]`
+        // itself (`matches` is a required closure), so it must be synthesized
+        // through the SAME shared factory before it can satisfy `TokenSpec`.
+        ...(triggeredAbilities && triggeredAbilities.length > 0
+            ? {
+                  triggeredAbilities:
+                      resolveTokenTriggeredAbilities(triggeredAbilities),
+              }
+            : {}),
     };
 }
 

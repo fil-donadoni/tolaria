@@ -12,8 +12,8 @@
 import type {
     CardDefinition,
     CardPrint,
+    EffectTokenSpec,
     SpellContext,
-    TokenSpec,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -26,7 +26,9 @@ const THALLID_ID = "4caaf31b-86a9-485b-8da7-d5b526ed1233"; // FEM 74a (canonical
 // Shared by every Saproling-producing FEM card (Thallid, Thallid Devourer,
 // Elvish Farmer, Night Soil) — Scryfall links the SAME printed Saproling
 // token (10E art) to all of them, so one lookup covers the whole engine.
-const SAPROLING_TOKEN: TokenSpec = {
+// `EffectTokenSpec` (not `TokenSpec`): only ever used at a DSL `createToken`
+// Op site (`op.token`) below, never through `ctx.createToken` directly.
+const SAPROLING_TOKEN: EffectTokenSpec = {
     name: "Saproling",
     types: ["Creature"],
     subtypes: ["Saproling"],

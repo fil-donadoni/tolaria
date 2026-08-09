@@ -5,6 +5,7 @@
 
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 
 // Sandstorm Salvager — {2}{G} Creature — Human Artificer, 1/1 (Cube FREE
 // residue token-maker, issue #1304). "When this creature enters, create a
@@ -89,40 +90,119 @@ export const sandstormSalvager: CardDefinition = {
 };
 
 // Vaultborn Tyrant — {5}{G}{G} Creature — Dinosaur, 6/6 (Cube FREE wave 3,
-// issue #1531/#1525). "Trample\nWhenever this creature or another creature
-// you control with power 4 or greater enters, you gain 3 life and draw a
-// card.\nWhen this creature dies, if it's not a token, create a token that's
-// a copy of it, except it's an artifact in addition to its other types."
-// The ETB half is free (`enteredTrigger` scope "yours" + a power>=4
-// condition, the Kavu Lair/mh3 Fungusaur-style precedent already used
-// elsewhere in this file's sibling sets — the payout is always THIS
-// permanent's own controller, so it stays on the `effects[]` site, unlike
-// Kavu Lair's cross-player payout). The dies half is NOT free: since the
-// copy's characteristics are static (this card's own printed stats never
-// vary), it does not need `createTokenCopy`'s runtime source lookup — a
-// plain `createToken` with a hand-authored spec matching Vaultborn Tyrant
-// plus the added Artifact type would do, EXCEPT the token must also carry
-// this card's own two triggered abilities (CR 707.2 copies printed
-// abilities too) and `TokenSpec`/`EffectTokenSpec` have NO
-// `triggeredAbilities` field at all (`convex/cards/types.ts`) — the exact
-// gap already tracked for the Pest token (Pest Infestation,
-// `sets/c21/green.ts`). Shipping the token without its triggers would
-// silently drop "you gain 3 life and draw a card" on every subsequent ETB
-// and would let a SECOND copy fire off the first token's own death (no
-// "if it's not a token" self-check without the trigger existing at all) —
-// a partial ship that misrepresents the card. Stop-and-issue per
-// gre-development.md; tracked stub.
-// tracked-by: #1357
-// export const vaultbornTyrant: CardDefinition = {
-//     id: "62b3f560-262b-4bc3-9aef-535fd7082c28",
-//     name: "Vaultborn Tyrant",
-//     rarity: "mythic",
-//     manaCost: { X: 5, G: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Dinosaur"],
-//     power: 6,
-//     toughness: 6,
-// };
+// issue #1531/#1525, unblocked by #2364). "Trample\nWhenever this creature or
+// another creature you control with power 4 or greater enters, you gain 3
+// life and draw a card.\nWhen this creature dies, if it's not a token,
+// create a token that's a copy of it, except it's an artifact in addition to
+// its other types."
+//
+// The ETB half mirrors Kavu Lair's own power check (`sets/inv/green.ts`) —
+// the event payload carries no power field, so `condition` reads the
+// entering permanent's power off the `TriggerStateView` snapshot — but with
+// `scope: "yours"` (CR 109.2: "this creature or another creature you
+// control" = self ∪ any OTHER creature under the same controller) rather
+// than Kavu Lair's `"any"`; the payout is always THIS permanent's own
+// controller, so `effects[]` reads `"controller"` directly instead of
+// `{ ref: "$event.controllerId" }`.
+//
+// The dies half was blocked on #2364 (`TokenSpec`/`EffectTokenSpec` had no
+// `triggeredAbilities` field at all): the copy's characteristics are static
+// (this card's own printed stats never vary), so a plain `resolve()`
+// `ctx.createToken` with a hand-authored spec matching Vaultborn Tyrant plus
+// the added Artifact type suffices — no need for `createTokenCopy`'s runtime
+// source lookup. The token's spec REUSES the SAME two `TriggeredAbility`
+// objects this card itself carries (CR 707.2 — a copy has the same abilities
+// the original had), rather than re-authoring them: `vaultbornTyrantDiesTrigger`'s
+// own `condition: (_event, self) => !self.isToken` now does real work once
+// it exists on the token too — it prevents a SECOND copy from being created
+// off the first token's own death, closing the exact gap the tracked stub
+// warned about ("no 'if it's not a token' self-check without the trigger
+// existing at all").
+const vaultbornTyrantEtbTrigger = enteredTrigger({
+    id: "vaultborn-tyrant-etb-power-4",
+    oracleText:
+        "Whenever this creature or another creature you control with power 4 or greater enters, you gain 3 life and draw a card.",
+    scope: "yours",
+    filter: { types: "Creature" },
+    condition: (event, _self, state) => {
+        if (!state) return false;
+        for (const player of state.players) {
+            const entered = player.battlefield.find(
+                (c) => c.id === event.instanceId
+            );
+            if (entered) return (entered.power ?? 0) >= 4;
+        }
+        return false;
+    },
+    effects: [
+        { op: "gainLife", player: "controller", amount: 3 },
+        { op: "draw", player: "controller", count: 1 },
+    ],
+});
+
+const vaultbornTyrantDiesTrigger = diedTrigger({
+    id: "vaultborn-tyrant-dies-copy",
+    oracleText:
+        "When this creature dies, if it's not a token, create a token that's a copy of it, except it's an artifact in addition to its other types.",
+    scope: "self",
+    condition: (_event, self) => !self.isToken,
+    resolve: (ctx) => {
+        ctx.createToken(
+            {
+                name: "Vaultborn Tyrant",
+                types: ["Artifact", "Creature"],
+                subtypes: ["Dinosaur"],
+                power: 6,
+                toughness: 6,
+                staticAbilities: ["trample"],
+                triggeredAbilities: [
+                    vaultbornTyrantEtbTrigger,
+                    vaultbornTyrantDiesTrigger,
+                ],
+            },
+            ctx.controller,
+            1
+        );
+    },
+    // aiEffects (PRD #1423, issue #1431/#2364) — bare `resolve()` closure
+    // (the token-copy body isn't a plain createToken skin: it reuses this
+    // card's own ability OBJECTS, which the DSL can't express), so the bot's
+    // value model has nothing to walk without a shadow script. Approximates
+    // the real effect closely enough for valuation: a 6/6 trampler token
+    // appears (the shadow omits the token's own triggeredAbilities — the
+    // valuer doesn't need that fidelity to weigh "a 6/6 trample body
+    // re-enters", which is what the death of a 6/6 mythic actually costs the
+    // opponent).
+    aiEffects: [
+        {
+            op: "createToken",
+            token: {
+                name: "Vaultborn Tyrant",
+                types: ["Artifact", "Creature"],
+                subtypes: ["Dinosaur"],
+                power: 6,
+                toughness: 6,
+                staticAbilities: ["trample"],
+            },
+            controller: "controller",
+        },
+    ],
+});
+
+export const vaultbornTyrant: CardDefinition = {
+    id: "62b3f560-262b-4bc3-9aef-535fd7082c28",
+    name: "Vaultborn Tyrant",
+    rarity: "mythic",
+    oracleText:
+        "Trample\nWhenever this creature or another creature you control with power 4 or greater enters, you gain 3 life and draw a card.\nWhen this creature dies, if it's not a token, create a token that's a copy of it, except it's an artifact in addition to its other types.",
+    manaCost: { generic: 5, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Dinosaur"],
+    power: 6,
+    toughness: 6,
+    staticAbilities: ["trample"],
+    triggeredAbilities: [vaultbornTyrantEtbTrigger, vaultbornTyrantDiesTrigger],
+};
 
 // Ancient Cornucopia — "Whenever you cast a spell that's one or more colors,
 // you may gain 1 life for each of that spell's colors. Do this only once

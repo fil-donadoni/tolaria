@@ -87,6 +87,16 @@ export interface DiedTriggerArgs {
         event: CreatureDiedEvent,
         deadCreature: DeadCreatureLKI
     ) => void;
+    /** AI-only SHADOW Effect Script for a `resolve()` body (PRD #1423, issue
+     *  #1431/#2364) — never executed, only walked by `OP_VALUERS` so the
+     *  bot's value model has something to score for an imperative dies
+     *  trigger. Passed straight through to the built `TriggeredAbility`; see
+     *  `CardDefinition.aiEffects` for the full contract. Meaningless
+     *  alongside `effects` (a real script is already valued) — mirrors
+     *  `enteredTrigger`'s own `aiEffects` passthrough, added here to close
+     *  the same gap for death triggers (Vaultborn Tyrant's token-copy
+     *  `resolve()`, issue #2364). */
+    aiEffects?: EffectOp[];
 }
 
 /** Builds a `TriggeredAbility` listening for `CREATURE_DIED` events
@@ -166,6 +176,9 @@ export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
             if (event.type !== "CREATURE_DIED") return false;
             return userInterveningIf(event, self, state);
         };
+    }
+    if (args.aiEffects !== undefined) {
+        ability.aiEffects = args.aiEffects;
     }
     return withTriggerGate(ability, args);
 }

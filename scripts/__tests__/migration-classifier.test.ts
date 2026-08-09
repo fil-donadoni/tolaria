@@ -1599,9 +1599,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // gap closure above. Net: total 476->478, FREE 311->313, AFK-ready
         // 302->304; X-only unchanged at 15, Op-blocked unchanged at 150.
         // Partition: 313+15+150=478.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(478);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(313);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(304);
+        //
+        // Vaultborn Tyrant (big/green.ts, issue #2364) ADDS one `resolve()`
+        // closure: the dies trigger that creates its artifact token copy
+        // (`vaultborn-tyrant-dies-copy`). It calls ONLY the already-covered
+        // `createToken` Op (via `ctx.createToken`), so the classifier's
+        // primitive sweep counts it FREE — the reason it STAYS `resolve()`
+        // (reusing this card's own `TriggeredAbility` OBJECTS so the token
+        // copy keeps working closures, CR 707.2) is a DSL-expressivity
+        // nuance the classifier's coarse "does it call an uncovered
+        // primitive" heuristic doesn't model, not a missing Op. Carries a
+        // per-card test (`big/__tests__/green.test.ts`), so AFK-ready too.
+        // Net: total 478->479, FREE 313->314, AFK-ready 304->305; X-only
+        // unchanged at 15, Op-blocked unchanged at 150. Partition:
+        // 314+15+150=479.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(479);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(314);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(305);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
     });

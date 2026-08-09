@@ -1834,6 +1834,34 @@ export interface TokenSpec {
      *  #1191 — the gap that blocked Magda's Treasures / Voldaren Epicure's
      *  Blood token / Sunfall's Incubate). */
     activatedAbilities?: ActivatedAbility[];
+    /** Triggered abilities the token enters with (CR 707.2, issue #2364 —
+     *  a token's OWN printed triggered ability, independent of its creating
+     *  source: Pest Infestation's "When this token dies, you gain 1 life.",
+     *  Vaultborn Tyrant's death-created copy retaining its own ETB/dies
+     *  triggers). Full closure-bearing `TriggeredAbility[]` — the SAME shape
+     *  `CardDefinition.triggeredAbilities` and `EmblemDefinition.
+     *  triggeredAbilities` use, for `resolve()` callers that build the ability
+     *  via the ordinary trigger factories (`enteredTrigger`, `diedTrigger`,
+     *  …) or reuse a printed card's own ability objects verbatim (CR 707.2 —
+     *  a copy carries the same abilities the original had). Folded onto the
+     *  synthesized token `CardDefinition` exactly like `activatedAbilities`
+     *  above, so `effectiveTriggeredAbilities` (`gre/copy.ts`) picks it up
+     *  through the ordinary `presented?.triggeredAbilities` read — no change
+     *  needed at the trigger-scan site.
+     *
+     *  Content-hashed into `tokenDefinitionId` by ability `id` ONLY (not full
+     *  JSON) — unlike `ActivatedAbility`, `TriggeredAbility.matches` is a
+     *  REQUIRED closure that can never survive a JSON round trip, so encoding
+     *  more than the id would imply a fidelity the codec can't deliver.
+     *  `maybeSynthesizeToken` decodes a registry MISS into a SAFE, NEVER-FIRING
+     *  stub (`matches: () => false`) rather than crashing on a missing
+     *  `matches` — this is a deliberate, narrower version of the "silently
+     *  drops the ability" gap `staticEffectKeys`' doc comment describes: the
+     *  ability's IDENTITY (id/oracleText/event) survives decode for display,
+     *  its FUNCTION only survives while the definition stays in the registry
+     *  that created it (the common/live-game case, since `createTokenPermanents`
+     *  registers the real closures in the SAME call that creates the token). */
+    triggeredAbilities?: TriggeredAbility[];
     /** Counters this token enters the battlefield WITH (CR 111.9/122.1 —
      *  "create an Incubator token ... with N +1/+1 counters on it", CR
      *  701.53 Incubate; issue #1210/#924). SAME name/shape as
@@ -1957,6 +1985,25 @@ export interface EffectTokenSpec {
      *  `ActivatedAbility[]`, so the interpreter passes `token` straight to
      *  `SpellContext.createToken` with no conversion (ADR 0045, ADR 0046). */
     activatedAbilities?: ActivatedAbility[];
+    /** Triggered abilities the token enters with (CR 707.2, issue #2364 — the
+     *  Pest template: "When this token dies, you gain 1 life."). A RESTRICTED,
+     *  JSON-pure descriptor — {@link TokenTriggeredAbility} — NOT
+     *  `TriggeredAbility[]` itself: `TriggeredAbility.matches` is a REQUIRED
+     *  closure (unlike `ActivatedAbility`'s optional `effect`/`resolve`), so no
+     *  JSON-pure literal can satisfy that type at all. Each descriptor is
+     *  synthesized into a real, self-scoped `TriggeredAbility` by
+     *  `resolveTokenTriggeredAbilities` (`cards/tokenTriggeredAbilities.ts`) —
+     *  the SAME factory both the `createToken` Op executor (registration) and
+     *  a cold-decode rebuild would call, mirroring `tokenStaticEffects.ts`'s
+     *  "one table for encode and decode" pattern. Restricted to a token's OWN
+     *  ability, always CR 109.2 self-scoped (this restricted surface has no
+     *  `scope`/`filter` field — a token trigger needing "yours"/"any" scope
+     *  stays a `resolve()` card via `TokenSpec.triggeredAbilities`). Enforced
+     *  by `isEffectTokenSpec`/`isTokenTriggeredAbility` in
+     *  `gre/effects/validate.ts`; each ability's `effects[]` is validated as
+     *  its own independently-scoped script with a fresh `$source` = the token
+     *  (`validateEffectOpList`'s nested-`createToken` pass). */
+    triggeredAbilities?: TokenTriggeredAbility[];
     /** Counters this token enters the battlefield WITH (CR 111.9/122.1,
      *  issue #1210/#924 — Incubate N: "create an Incubator token ... with N
      *  +1/+1 counters on it", N possibly dynamic — "the number of creatures
@@ -1978,6 +2025,40 @@ export interface EffectTokenSpec {
     /** CR 508.4 (issue #1195) — see {@link TokenSpec.entersAttacking}. Passed
      *  verbatim to `SpellContext.createToken`. */
     entersAttacking?: boolean;
+}
+
+/** Event kinds a {@link TokenTriggeredAbility} descriptor can name — the
+ *  ENCODE/DECODE dispatch key `resolveTokenTriggeredAbilities`
+ *  (`cards/tokenTriggeredAbilities.ts`) maps to a real trigger factory
+ *  (`enteredTrigger` / `diedTrigger`). Deliberately a small, curated set
+ *  (not the full `GameEventType` union) — extend only when a card actually
+ *  needs a new self-scoped token trigger kind, mirroring how a new Effect
+ *  Op earns its place (ADR 0045), not upfront. */
+export type TokenTriggeredEventKind = "PERMANENT_ENTERED" | "CREATURE_DIED";
+
+/** JSON-pure, restricted triggered-ability descriptor for
+ *  `EffectTokenSpec.triggeredAbilities` (issue #2364). Always CR 109.2
+ *  SELF-scoped (the token's own printed ability) — the only semantics
+ *  `resolveTokenTriggeredAbilities` can synthesize with full fidelity on
+ *  BOTH registration and a cold-registry-miss decode, since `matches` is
+ *  rebuilt fresh from `event` + `effects` every time rather than serialized.
+ *  A token trigger needing a wider scope, a structural `filter`, or a
+ *  `resolve()` body stays a `TokenSpec.triggeredAbilities` (`resolve()`
+ *  card). No `resolve`/`effect` field at all — DSL-only by construction,
+ *  mirroring `EffectTokenSpec.activatedAbilities`'s restriction. */
+export interface TokenTriggeredAbility {
+    /** Stable id, unique within the token's ability set. */
+    id: string;
+    /** Oracle text shown on the stack / in the inspector. Survives a
+     *  cold-decode even when `matches` can't (see `TokenSpec.
+     *  triggeredAbilities`'s doc comment) — kept for display fidelity. */
+    oracleText: string;
+    /** Which event fires this ability — dispatches to the matching factory. */
+    event: TokenTriggeredEventKind;
+    /** Effect Script (ADR 0045) — the ability's resolution body. Required:
+     *  this restricted surface has no `resolve()` escape hatch, so an
+     *  ability with nothing to run is not expressible. */
+    effects: EffectOp[];
 }
 
 // --- Copy effects (CR 706, 707) ---

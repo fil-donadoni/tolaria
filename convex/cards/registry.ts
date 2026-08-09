@@ -7,9 +7,11 @@ import type {
     CardSupertype,
     CardType,
     Color,
+    GameEventType,
     ManaCost,
     StaticEffect,
     TokenSpec,
+    TriggeredAbility,
 } from "./types";
 import { resolveTokenStaticEffects } from "./tokenStaticEffects";
 // CR 114 (issue #1221) — side-effect import so the emblem registry
@@ -225,6 +227,32 @@ export function tokenDefinitionId(spec: TokenSpec): string {
         // loyalty. Empty when the spec has none (back-compat: a 13-segment id
         // without this trailing segment decodes as "no loyalty").
         spec.loyalty ?? "",
+        // 15th segment (index 14, issue #2364, CR 707.2) — the token's OWN
+        // triggered abilities (Pest Infestation's "when this token dies, you
+        // gain 1 life", Vaultborn Tyrant's death-created copy). Encoded by
+        // `id`/`oracleText`/`event` ONLY, not full JSON like
+        // `activatedAbilities` above — `TriggeredAbility.matches` is a
+        // REQUIRED closure (unlike `ActivatedAbility`'s optional
+        // `effect`/`resolve`), so it can never ride the id string regardless
+        // of how much else is encoded; encoding only what genuinely survives
+        // is honest about what the decode side can rebuild (see
+        // `maybeSynthesizeToken` below and `TokenSpec.triggeredAbilities`'s
+        // doc comment for the full fidelity tradeoff). Still distinguishes a
+        // token WITH a trigger from one without, and from one with a
+        // DIFFERENT trigger id, for content-hash purposes. Empty when the
+        // token has none (back-compat: a 14-segment id without this trailing
+        // segment decodes as "no triggered abilities").
+        spec.triggeredAbilities && spec.triggeredAbilities.length > 0
+            ? encodeURIComponent(
+                  JSON.stringify(
+                      spec.triggeredAbilities.map((a) => ({
+                          id: a.id,
+                          oracleText: a.oracleText,
+                          event: a.event,
+                      }))
+                  )
+              )
+            : "",
     ];
     return `token:${parts.join("|")}`;
 }
@@ -355,6 +383,12 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         // non-planeswalker spec and for ids predating #2380 (back-compat with
         // 13-segment ids, which decode as "no loyalty").
         loyaltyRaw,
+        // CR 707.2 (issue #2364) — the token's own triggered abilities,
+        // URI-escaped JSON of `{id, oracleText, event}` ONLY (see
+        // `tokenDefinitionId`). Trailing 15th segment; empty / absent for
+        // tokens without a triggered ability (back-compat with pre-#2364
+        // 14-segment ids).
+        triggeredAbilitiesRaw,
     ] = parts;
     const types = typesRaw.split(",").filter(Boolean) as CardType[];
     const subtypes = subtypesRaw.split(",").filter(Boolean);
@@ -408,6 +442,35 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         loyaltyRaw === undefined || loyaltyRaw === ""
             ? undefined
             : Number(loyaltyRaw);
+    // Rebuild the token's triggered abilities encoded in the id (CR 707.2,
+    // issue #2364) as SAFE, NEVER-FIRING stubs — `matches` is a REQUIRED
+    // closure and, unlike `staticEffects` above, there is no named factory
+    // that can rebuild it correctly here: the descriptor only carries
+    // `id`/`oracleText`/`event`, not the `effects[]` body or the scope the
+    // real ability matched on (both dropped at encode time — see
+    // `tokenDefinitionId`), so guessing either would risk a WRONG match
+    // (silently narrower or wider than the printed ability) rather than an
+    // absent one. `matches: () => false` keeps the ability structurally
+    // valid (no crash in a trigger scan that reaches it) while never firing,
+    // and `oracleText`/`event` still survive for display. This decode path
+    // is a fallback for a registry MISS only — the common, live-game path
+    // registers the REAL closures directly (`createTokenPermanents`), never
+    // going through this reconstruction at all.
+    const triggeredAbilities: TriggeredAbility[] | undefined =
+        triggeredAbilitiesRaw && triggeredAbilitiesRaw.length > 0
+            ? (
+                  JSON.parse(decodeURIComponent(triggeredAbilitiesRaw)) as {
+                      id: string;
+                      oracleText: string;
+                      event: GameEventType | GameEventType[];
+                  }[]
+              ).map((d) => ({
+                  id: d.id,
+                  oracleText: d.oracleText,
+                  event: d.event,
+                  matches: () => false,
+              }))
+            : undefined;
     const manaCost: ManaCost = {};
     for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
     const def: CardDefinition = {
@@ -429,6 +492,9 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         ...(staticEffects.length > 0 ? { staticEffects } : {}),
         ...(activatedAbilities && activatedAbilities.length > 0
             ? { activatedAbilities }
+            : {}),
+        ...(triggeredAbilities && triggeredAbilities.length > 0
+            ? { triggeredAbilities }
             : {}),
         ...(backFace ? { backFace } : {}),
     };
