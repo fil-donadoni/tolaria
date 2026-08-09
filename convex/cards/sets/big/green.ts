@@ -126,8 +126,7 @@ export const sandstormSalvager: CardDefinition = {
 // docs/findings/2364-createTokenCopyOf-graveyard-lookup-is-not-lki.md. Fixing
 // it for real needs an engine capability this PR does not add (a copy
 // source resolvable from a last-known definition id, not a live zone
-// lookup) —
-// `opts.additionalTypes: ["Artifact"]` supplies the "except it's an artifact
+// lookup). Separately, `opts.additionalTypes: ["Artifact"]` supplies the "except it's an artifact
 // in addition to its other types" clause (the SAME `CopyEffectOptions` field
 // Copy Artifact documents). `applyCopy` overwrites the token's `card.id` with
 // Vaultborn Tyrant's OWN definition id (`gre/copy.ts`), so the token

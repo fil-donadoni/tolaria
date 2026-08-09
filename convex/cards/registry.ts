@@ -229,6 +229,8 @@ export function tokenDefinitionId(spec: TokenSpec): string {
         // loyalty. Empty when the spec has none (back-compat: a 13-segment id
         // without this trailing segment decodes as "no loyalty").
         spec.loyalty ?? "",
+        // 15th segment (index 14, issue #2364, CR 707.2) — the token's OWN
+        // triggered abilities (Pest Infestation's "when this token dies, you
         // gain 1 life"). Encoded by `id`/`oracleText`/`event` ALWAYS, PLUS
         // `effects` whenever the built ability carries one (review of #2426 —
         // encoding only `id`/`oracleText`/`event` let two specs whose
