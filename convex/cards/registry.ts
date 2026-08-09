@@ -214,6 +214,17 @@ export function tokenDefinitionId(spec: TokenSpec): string {
         // (back-compat: a 12-segment id without this trailing segment
         // decodes as "front").
         spec.imagePrintFace ?? "",
+        // 14th segment (index 13, issue #2380, CR 306.5b) — the spec's
+        // PLANESWALKER starting loyalty. Reached only through
+        // `backFaceAsTokenSpec` (`gre/transform.ts`) today: the ORI flip-walker
+        // cycle's back face is a planeswalker, and CR 306.5b's entry placement
+        // reads `CardDefinition.loyalty` off the definition the entering
+        // permanent points at. That definition is the synthesized back face, so
+        // unless loyalty rides this id a decode-only rebuild (cold isolate,
+        // client-side engine run) hands back a planeswalker with no starting
+        // loyalty. Empty when the spec has none (back-compat: a 13-segment id
+        // without this trailing segment decodes as "no loyalty").
+        spec.loyalty ?? "",
     ];
     return `token:${parts.join("|")}`;
 }
@@ -339,6 +350,11 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         // absent for tokens predating #1595 (back-compat with pre-#1595
         // 12-segment ids, which decode as "front").
         imagePrintFaceRaw,
+        // CR 306.5b (issue #2380) — PLANESWALKER starting loyalty (see
+        // `tokenDefinitionId`). Trailing 14th segment; empty / absent for every
+        // non-planeswalker spec and for ids predating #2380 (back-compat with
+        // 13-segment ids, which decode as "no loyalty").
+        loyaltyRaw,
     ] = parts;
     const types = typesRaw.split(",").filter(Boolean) as CardType[];
     const subtypes = subtypesRaw.split(",").filter(Boolean);
@@ -385,6 +401,13 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
     // literal, no JSON/URI-escaping needed — mirrors `imagePrintIdRaw` above.
     const imagePrintFace: CardImageFace | undefined =
         imagePrintFaceRaw === "back" ? "back" : undefined;
+    // CR 306.5b (issue #2380) — starting loyalty for a planeswalker spec (a
+    // synthesized flip-walker back face). A bare number, no JSON/URI escaping,
+    // mirroring `powerRaw`/`toughnessRaw` above.
+    const loyalty =
+        loyaltyRaw === undefined || loyaltyRaw === ""
+            ? undefined
+            : Number(loyaltyRaw);
     const manaCost: ManaCost = {};
     for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
     const def: CardDefinition = {
@@ -399,6 +422,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         ...(supertypes.length > 0 ? { supertypes } : {}),
         power,
         toughness,
+        ...(loyalty !== undefined && !Number.isNaN(loyalty) ? { loyalty } : {}),
         ...(staticAbilities.length > 0 ? { staticAbilities } : {}),
         ...(imagePrintId ? { imagePrintId } : {}),
         ...(imagePrintFace ? { imagePrintFace } : {}),

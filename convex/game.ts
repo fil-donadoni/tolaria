@@ -2400,6 +2400,15 @@ export function graveyardCastStackFlags(
     if (hasFlashback(card)) {
         return flashbackStackFlags(zone);
     }
+    // CR 614.1 / 400.7 (issue #2380) — a per-card grant may carry an
+    // "if that spell would be put into your graveyard, exile it instead"
+    // rider (Jace, Telepath Unbound's −3). Checked BEFORE the plain-grant
+    // fallback below and routed through the SAME `exileOnResolve` flag
+    // Flashback uses, so there is exactly one exile-as-it-leaves-the-stack
+    // path rather than a second parallel one.
+    if (card.castFromGraveyardExilesOnResolve) {
+        return { castFromGraveyard: true, exileOnResolve: true };
+    }
     // CR 305.1-analog / 601 (issue #1149) / 117.6-analog (issue #1344) —
     // neither Escape nor Flashback: this is a plain cast under the BROAD
     // graveyard-cast permission (Yawgmoth's Will) or a per-card grant

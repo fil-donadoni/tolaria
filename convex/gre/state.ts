@@ -50,7 +50,11 @@ import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { turnFaceDown } from "./faceDown";
-import { transformPermanent } from "./transform";
+import {
+    revertTransform,
+    stampBackFaceForEntry,
+    transformPermanent,
+} from "./transform";
 import { applyIndefiniteSupertypeMutation, liveSupertypesOf } from "./snow";
 import {
     buildAutoTapSources,
@@ -1165,6 +1169,18 @@ export type CardInstanceState = {
      *  the CLEANUP turn-scoped expiry loop (`phases.ts`). Persisted so the
      *  grant survives a DB round-trip. */
     castFromGraveyardWithoutPayingManaCost?: boolean;
+    /** CR 614.1 / 400.7 (issue #2380) — a REPLACEMENT rider on {@link
+     *  castableFromGraveyardBy}: when both are set, a spell cast from the
+     *  graveyard under this grant is EXILED as it leaves the stack instead of
+     *  being put into its owner's graveyard (Jace, Telepath Unbound's −3: "You
+     *  may cast target instant or sorcery card from your graveyard this turn.
+     *  If that spell would be put into your graveyard, exile it instead.").
+     *  Stamps `exileOnResolve` onto the resulting stack item at cast-commit
+     *  (`graveyardCastStackFlags`, `convex/game.ts`) — the SAME flag Flashback
+     *  uses for its own CR 702.34a exile, so there is one exile-as-it-leaves-
+     *  the-stack path, not two. Cleared wherever `castableFromGraveyardBy` is
+     *  cleared. Persisted so the grant survives a DB round-trip. */
+    castFromGraveyardExilesOnResolve?: boolean;
     /** CR 111 / 400.7 provenance link (issue #791) — the battlefield permanent
      *  instance id that exiled this card "with it", set when a card is exiled
      *  by a specific source that later refers back to "the cards exiled with
@@ -8318,6 +8334,25 @@ export function removePermanentTo(
     // death triggers still read the copied P/T) so the card re-casts and
     // exists in other zones as its true printed self.
     revertCopy(creature);
+    // CR 712.8a — while a double-faced card is outside the game or in a zone
+    // other than the battlefield or the stack, it has only the characteristics
+    // of its FRONT face. The transform sibling of the CR 707.2 copy revert
+    // directly above, deliberately at the same site and for the same reason:
+    // this is the single battlefield-departure funnel, so it is where a
+    // transformed permanent stops being a back-face object. Without it a
+    // flipped planeswalker bounced to hand is a Legendary Planeswalker CARD in
+    // hand, a dead one is reanimatable straight into its back face, and a
+    // blinked one returns already flipped.
+    //
+    // DEPARTURE-side only, and it must stay here rather than in
+    // `resetBattlefieldTransientState` below: that helper also runs on
+    // battlefield ENTRY (`stageReanimatedOnBattlefield`), where it would wipe
+    // the back-face stamp `stampBackFaceForEntry` applies to a card sitting in
+    // EXILE for "exile it, then return it to the battlefield transformed"
+    // (`exileAndReturnTransformed`, issue #2380). That Op's two legs bracket
+    // this revert: it fires here on the way out, the stamp runs afterwards on
+    // the exiled card, and the stamp is what the returning permanent shows.
+    revertTransform(creature);
     if (toZone === "hand" || toZone === "library") {
         resetBattlefieldTransientState(creature);
     }
@@ -9975,6 +10010,23 @@ function stageReanimatedOnBattlefield(
     // deferred `finalizeLandEntry` completion does not re-apply it either, so
     // the counters would simply have been lost.
     applyEntersWithCounters(card, putDef ?? undefined, {}, state);
+    // CR 306.5b (issue #2380) — a planeswalker enters with its printed starting
+    // loyalty however it enters, not only when it resolves off the stack: a
+    // reanimated / tutored-onto-the-battlefield planeswalker, and the ORI
+    // flip-walker's "exile it, then return it transformed" (the definition it
+    // points at by this line is the synthesized PLANESWALKER back face, whose
+    // `loyalty` rides `CardBackFace.loyalty`). Without this a planeswalker
+    // entering by any non-cast path arrives with zero loyalty and dies to the
+    // CR 704.5i SBA on the next sweep. Sited beside `applyEntersWithCounters`
+    // above, mirroring `finalizeSpellResolution`'s own ordering: both are entry
+    // counter placements and both must land before the ETB trigger scan
+    // (`finishReanimatedEntry`) so nothing ever observes zero loyalty.
+    if (putDef?.loyalty !== undefined && putDef.loyalty > 0) {
+        card.counters = {
+            ...(card.counters ?? {}),
+            loyalty: (card.counters?.loyalty ?? 0) + putDef.loyalty,
+        };
+    }
     if (putDef?.entersTappedUnlessPay) {
         card.isTapped = true;
         getPlayer(state, controllerId).battlefield.push(card);
@@ -11979,6 +12031,67 @@ export function buildSpellContext(
             if (!found) return;
             transformPermanent(found.card);
         },
+        // CR 712 / 400.7 (issue #2380) — "exile it, then return it to the
+        // battlefield transformed under its owner's control": the ORI
+        // flip-walker template (Jace, Vryn's Prodigy; Kytheon; Liliana;
+        // Nissa; Chandra; Tamiyo, Inquisitive Student).
+        //
+        // Emphatically NOT `transform` above. That one flips a permanent that
+        // never leaves the battlefield, so CR 400.7 does not apply and the
+        // SAME object keeps its counters, its Auras/Equipment, its
+        // summoning-sickness clock, and every reference anything holds to it.
+        // This one performs TWO REAL zone changes, so the permanent that comes
+        // back is a NEW object: counters gone, attachments detached, ETB
+        // triggers fire again, targets on the stack that pointed at the
+        // creature no longer find it, and the planeswalker enters with its own
+        // CR 306.5b starting loyalty rather than inheriting anything.
+        //
+        // Both legs go through the ORDINARY funnels — `removePermanentTo` (the
+        // single battlefield-departure path, so leave-the-battlefield triggers,
+        // Aura unapplication and transient-state scrubbing all happen exactly
+        // as for a plain `exile`) and `putReanimatedOnBattlefield` (the single
+        // non-cast battlefield-ENTRY path, so CR 614 entry replacements,
+        // entry counters, starting loyalty, keyword grants and the ETB trigger
+        // scan all happen exactly as for a plain reanimation). The only thing
+        // between them is the face stamp (`stampBackFaceForEntry`), applied
+        // while the card sits in exile — that is what makes the returning
+        // object show its back face from the instant it enters, so no ETB
+        // trigger and no replacement effect ever observes the front face on
+        // the battlefield.
+        //
+        // No-ops when the target already left the battlefield (CR 608.2b).
+        //
+        // A permanent whose current face declares no `backFace` is still
+        // exiled AND still returned — it simply comes back showing the same
+        // face. The Oracle clause's exile-and-return is unconditional; only
+        // the "transformed" part has nothing to do, which is exactly what
+        // `stampBackFaceForEntry` returning false means (the caller ignores
+        // the result and returns the card either way).
+        //
+        // The RETURN leg is skipped in one case only: a replacement effect
+        // moved the card somewhere other than exile on the way out, so it is
+        // left where it landed rather than force-returned — a card that never
+        // reached exile was never exiled by this effect.
+        exileAndReturnTransformed(target: TargetSelection): void {
+            if (target.type === "player")
+                throw new Error("Cannot transform a player");
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            // "under its OWNER's control" — read BEFORE the move, though
+            // `ownerId` is immutable; the controller at the time of exile is
+            // deliberately NOT consulted (a stolen Jace flips back to its
+            // owner).
+            const ownerId = found.card.ownerId;
+            const cardId = found.card.id;
+            const moved = removePermanentTo(state, cardId, "exile");
+            emitCardsExiledFromBattlefield(state, moved);
+            const exileZone = getPlayer(state, ownerId).exile;
+            const idx = exileZone.findIndex((c) => c.id === cardId);
+            if (idx === -1) return; // never reached exile — nothing to return
+            const [returning] = exileZone.splice(idx, 1);
+            stampBackFaceForEntry(returning);
+            putReanimatedOnBattlefield(state, returning, ownerId);
+        },
         // CR 613.1b (layer 2): gain control of a permanent. The control change
         // is sourced by the resolving permanent (`item.id`) so it reverts when
         // that source leaves or its `condition` lapses (Aladdin, Old Man of the
@@ -12647,6 +12760,16 @@ export function buildSpellContext(
                  *  CardInstanceState.castFromGraveyardWithoutPayingManaCost}
                  *  alongside `castableFromGraveyardBy`. */
                 withoutPayingManaCost?: boolean;
+                /** CR 614.1 / 400.7 (issue #2380) — ALSO make the granted cast
+                 *  exile the card as it leaves the stack instead of putting it
+                 *  into its owner's graveyard (Jace, Telepath Unbound's −3:
+                 *  "If that spell would be put into your graveyard, exile it
+                 *  instead."), stamping {@link
+                 *  CardInstanceState.castFromGraveyardExilesOnResolve}
+                 *  alongside `castableFromGraveyardBy`. Orthogonal to
+                 *  `withoutPayingManaCost` — a grant can carry either, both or
+                 *  neither. */
+                exilesOnResolve?: boolean;
             }
         ): void {
             // CR 601.3e / 117.6-analog (issue #1344) — mark a card in
@@ -12694,6 +12817,11 @@ export function buildSpellContext(
                 card.castFromGraveyardWithoutPayingManaCost = true;
             } else {
                 delete card.castFromGraveyardWithoutPayingManaCost;
+            }
+            if (opts?.exilesOnResolve) {
+                card.castFromGraveyardExilesOnResolve = true;
+            } else {
+                delete card.castFromGraveyardExilesOnResolve;
             }
         },
         getX(): number {
@@ -17102,6 +17230,7 @@ export function removeFromZone(
     delete card.castableFromGraveyardBy;
     delete card.castableFromGraveyardUntilTurn;
     delete card.castFromGraveyardWithoutPayingManaCost;
+    delete card.castFromGraveyardExilesOnResolve;
     // CR 122.1 / 400.7 — a card put onto the stack is a NEW object with no
     // memory of any prior battlefield life. A card cast from hand carries none
     // of this, but a card recast from exile/graveyard (Dauthi Voidwalker's

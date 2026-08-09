@@ -6968,6 +6968,14 @@
         "firstPrintSet": "wwk"
     },
     {
+        "name": "Jace, Vryn's Prodigy",
+        "scryfallId": "02d6d693-f1f3-4317-bcc0-c21fa8490d38",
+        "oracleId": "594f6881-c059-46f8-aa4e-7151d502de73",
+        "firstSet": "ori",
+        "firstPrintId": "02d6d693-f1f3-4317-bcc0-c21fa8490d38",
+        "firstPrintSet": "ori"
+    },
+    {
         "name": "Jackal Pup",
         "scryfallId": "3707ab74-9aec-4d30-86e0-ffa5f72d5b4f",
         "oracleId": "993e41e6-0643-4a1f-8ada-b7a4aae486d9",

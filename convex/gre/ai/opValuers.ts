@@ -83,6 +83,13 @@ const EXILE_SELF_VALUE = -5; // opposite of shuffleSelfIntoLibrary — forfeits 
 const TAP_UNTAP_VALUE = 20; // Icy Manipulator-style tempo swing
 const SKIP_UNTAP_VALUE = 18; // a one-shot "doesn't untap" lock — a delayed tap
 const TRANSFORM_VALUE = 30; // a self-directed flip, assumed net-beneficial
+// CR 712 / 400.7 (issue #2380) — an exile-and-return-transformed flip is a
+// strictly bigger deal than the in-place one: the ORI template's back faces are
+// planeswalkers, so the controller trades a small creature for a loyalty engine.
+// Priced above TRANSFORM_VALUE but well below EMBLEM_VALUE — the upgrade is
+// real, but it is also a CR 400.7 zone change that sheds counters and
+// attachments, so it is not unambiguously free.
+const EXILE_RETURN_TRANSFORMED_VALUE = 45;
 const ANIMATE_DISCOUNT = 0.7; // an animated permanent isn't a "real" creature card
 const EMBLEM_VALUE = 150; // a durable, uncounterable ultimate-style effect
 const EXTRA_TURN_VALUE = 300; // CR 500.7 — an entire additional turn
@@ -998,6 +1005,13 @@ const transform: Valuer<"transform"> = (op) => ({
     tags: isAnnouncedTarget(op.target) ? ["pump", "targeted"] : ["pump"],
 });
 
+const exileAndReturnTransformed: Valuer<"exileAndReturnTransformed"> = (
+    op
+) => ({
+    points: EXILE_RETURN_TRANSFORMED_VALUE,
+    tags: isAnnouncedTarget(op.target) ? ["pump", "targeted"] : ["pump"],
+});
+
 const unattach: Valuer<"unattach"> = () => ZERO_OP_VALUE;
 
 const winGame: Valuer<"winGame"> = () => ({
@@ -1089,6 +1103,7 @@ export const OP_VALUERS: {
     skipNextUntap,
     skipDrawStepThisTurn,
     transform,
+    exileAndReturnTransformed,
     unattach,
     winGame,
 };
@@ -1227,6 +1242,12 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     setProtectionFromEverything: "beneficial",
     setIslandSanctuaryProtection: "beneficial",
     emblem: "beneficial",
+    // CR 712 / 400.7 (issue #2380) — the ORI flip-walker template: the
+    // permanent's OWNER gets it back, upgraded to its planeswalker face. Always
+    // a gift to the recipient, even though the intervening exile is a real zone
+    // change (the in-place `transform` Op stays unlisted/neutral — its sign is
+    // genuinely ambiguous, since a werewolf can be flipped either way).
+    exileAndReturnTransformed: "beneficial",
     digToHand: "beneficial",
     hideaway: "beneficial",
     digMatchingToHand: "beneficial",

@@ -411,6 +411,11 @@ function compactCard(
     // CR 601.3e / 117.6-analog (issue #1344) — Malcolm's free-cast waiver
     // rides `castableFromGraveyardBy`'s permission window and must survive a
     // save/load the same way.
+    // issue #2380 — the "exile it instead" rider on the same grant window;
+    // same round-trip requirement as the cost waiver above.
+    if (card.castFromGraveyardExilesOnResolve) {
+        out.castFromGraveyardExilesOnResolve = true;
+    }
     if (card.castFromGraveyardWithoutPayingManaCost) {
         out.castFromGraveyardWithoutPayingManaCost = true;
     }
@@ -781,6 +786,9 @@ function expandCard(
     if (compact.castableFromGraveyardUntilTurn !== undefined) {
         result.castableFromGraveyardUntilTurn =
             compact.castableFromGraveyardUntilTurn as number;
+    }
+    if (compact.castFromGraveyardExilesOnResolve) {
+        result.castFromGraveyardExilesOnResolve = true;
     }
     if (compact.castFromGraveyardWithoutPayingManaCost) {
         result.castFromGraveyardWithoutPayingManaCost = true;

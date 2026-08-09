@@ -1687,6 +1687,17 @@ export interface CardBackFace {
     power?: number;
     /** Toughness for a creature back face. */
     toughness?: number;
+    /** CR 306.5b (issue #2380) — starting loyalty for a PLANESWALKER back face
+     *  (Jace, Vryn's Prodigy // Jace, Telepath Unbound and the rest of the ORI
+     *  flip-walker cycle). The back-face twin of {@link CardDefinition.loyalty}:
+     *  the synthesized back-face `CardDefinition`
+     *  (`registerBackFaceDefinition`, `gre/transform.ts`) carries it through to
+     *  the SAME CR 306.5b entry placement every printed planeswalker uses, so a
+     *  permanent that ENTERS the battlefield already showing this face enters
+     *  with the right loyalty counters instead of 0 (and dying instantly to the
+     *  CR 704.5i SBA). Folded into the content-derived definition id
+     *  (`tokenDefinitionId`) so a client-side decode rebuilds it too. */
+    loyalty?: number;
     /** Colors of the back face (CR 712.2 — a back face's color is fixed by
      *  its own printed characteristics, independent of the front). */
     colors?: Color[];
@@ -1766,6 +1777,23 @@ export interface TokenSpec {
     power?: number;
     /** Toughness for creature tokens. */
     toughness?: number;
+    /** CR 306.5b (issue #2380) — starting loyalty for a PLANESWALKER spec. Not
+     *  authored on an ordinary `createToken` spec today (no card in the pool
+     *  creates a planeswalker token); it exists because `backFaceAsTokenSpec`
+     *  (`gre/transform.ts`) reshapes every {@link CardBackFace} through this
+     *  type, and a planeswalker BACK face (the ORI flip-walker cycle) must
+     *  carry its starting loyalty into the synthesized `CardDefinition` and
+     *  into the content-derived id `maybeSynthesizeToken` decodes.
+     *
+     *  SCOPE — the `createToken` path does NOT honour it. CR 306.5b loyalty
+     *  PLACEMENT lives on the two battlefield-entry funnels a token never uses
+     *  (`stageReanimatedOnBattlefield` and `finalizeSpellResolution`,
+     *  `gre/state.ts`); `createTokenPermanents` places no loyalty counters, so
+     *  a planeswalker token authored through this field today would enter at 0
+     *  loyalty and die to the CR 704.5i SBA. Shipping one means teaching
+     *  `createTokenPermanents` the same placement first — this field is a
+     *  back-face carrier until then. */
+    loyalty?: number;
     /** Colors of the token (CR 110.5 — colorless if omitted, else the listed
      *  set). Encoded as a synthetic mana cost so `hasColor` and projection
      *  read tokens identically to printed permanents. */
@@ -2570,6 +2598,27 @@ export interface SpellContext {
      *  permanent's own "{cost}: Transform this" activated ability (the
      *  Incubator token, CR 701.53). */
     transform: (target: TargetSelection) => void;
+    /** Exiles a permanent and immediately returns it to the battlefield showing
+     *  its BACK face, under its OWNER's control (CR 712 / 400.7, issue
+     *  #2380) — the ORI flip-walker template ("exile Jace, then return him to
+     *  the battlefield transformed under his owner's control").
+     *
+     *  The SIBLING of {@link SpellContext.transform}, never a mode of it: that
+     *  one flips a permanent in place (CR 712.8a) and the object's identity is
+     *  preserved, this one performs two real zone changes, so what comes back
+     *  is a NEW object (CR 400.7) — counters are gone, Auras/Equipment have
+     *  fallen off, "enters the battlefield" triggers fire again, existing
+     *  references (targets on the stack) no longer find it, and a planeswalker
+     *  back face enters with its own CR 306.5b starting loyalty
+     *  ({@link CardBackFace.loyalty}).
+     *
+     *  No-op when the target has already left the battlefield (CR 608.2b), and
+     *  the return leg is skipped when a replacement effect diverted the card to
+     *  some zone other than exile on its way out. A permanent whose current
+     *  face declares no `backFace` is still exiled and returned (it simply
+     *  comes back showing the same face) — the Oracle clause's exile is
+     *  unconditional. */
+    exileAndReturnTransformed: (target: TargetSelection) => void;
     /** Changes control of a target permanent to `newControllerId` (CR 613.1b,
      *  layer 2). Routes through the shared control-change machinery: the host
      *  moves into the new controller's battlefield array, summoning sickness is
@@ -2927,7 +2976,13 @@ export interface SpellContext {
         cardInstanceId: string,
         playerId: string,
         window?: "this-turn" | "while-in-graveyard" | "until-next-end-step",
-        opts?: { withoutPayingManaCost?: boolean }
+        opts?: {
+            withoutPayingManaCost?: boolean;
+            /** issue #2380 — the granted cast exiles the card as it leaves the
+             *  stack (Jace, Telepath Unbound's −3) rather than putting it into
+             *  its owner's graveyard. */
+            exilesOnResolve?: boolean;
+        }
     ) => void;
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */
@@ -10062,6 +10117,16 @@ export type EffectOp =
           player: EffectPlayerRef;
           window?: "this-turn" | "while-in-graveyard";
           withoutPayingManaCost?: boolean;
+          /** CR 614.1 / 400.7 (issue #2380) — the granted cast also EXILES the
+           *  card as it leaves the stack instead of putting it into its
+           *  owner's graveyard: Jace, Telepath Unbound's −3, "You may cast
+           *  target instant or sorcery card from your graveyard this turn. If
+           *  that spell would be put into your graveyard, exile it instead."
+           *  Routes through the SAME `exileOnResolve` stack-item flag
+           *  Flashback's CR 702.34a exile uses (`graveyardCastStackFlags`,
+           *  `convex/game.ts`) — one exile-as-it-leaves-the-stack path, not a
+           *  second parallel one. Orthogonal to `withoutPayingManaCost`. */
+          exilesOnResolve?: boolean;
       }
     /** CR 608.2g (issue #1477) — PLAY a card as PART OF THIS resolution: a
      *  "you may cast/play <card>" permission with NO stated duration, which per
@@ -11447,6 +11512,38 @@ export type EffectOp =
      *  scope. */
     | {
           op: "transform";
+          target: EffectObjectSelector;
+      }
+    /** CR 712 / 400.7 / 306.5b (issue #2380) — exile a permanent and
+     *  immediately return it to the battlefield showing its BACK face, under
+     *  its OWNER's control: "exile Jace, then return him to the battlefield
+     *  transformed under his owner's control" (the ORI flip-walker template —
+     *  Jace, Vryn's Prodigy; Kytheon; Liliana; Nissa; Chandra; and Tamiyo,
+     *  Inquisitive Student). A thin declarative skin over the single
+     *  SpellContext primitive `exileAndReturnTransformed`, one execution path
+     *  (ADR 0045).
+     *
+     *  DISTINCT from `transform` above, and deliberately not a flag on it: the
+     *  two model different OBJECT IDENTITIES. `transform` flips a permanent
+     *  that never leaves the battlefield (CR 712.8a) — same object, counters
+     *  and attachments and summoning-sickness clock all preserved. This Op
+     *  performs two real zone changes, so what returns is a NEW object (CR
+     *  400.7): counters are gone, Auras/Equipment have fallen off, "enters the
+     *  battlefield" triggers fire again, targets on the stack that pointed at
+     *  the old permanent no longer find it, and a PLANESWALKER back face
+     *  enters with its own CR 306.5b starting loyalty
+     *  ({@link CardBackFace.loyalty}). One Op rather than a
+     *  `exile` + `moveZone` pair because the Oracle clause is a single atomic
+     *  instruction — nothing may be interposed between the exile and the
+     *  return, and the returning object must already show its back face when
+     *  it enters, which no ordering of the existing zone Ops can express.
+     *
+     *  `target` is an object selector: almost always the implicit `$source`
+     *  (`{ ref: "$source" }` — every card in the template flips ITSELF), but an
+     *  announced target slot or a `forEach` `$each` member is accepted for
+     *  generality. Skipped when the target is gone (CR 608.2b). */
+    | {
+          op: "exileAndReturnTransformed";
           target: EffectObjectSelector;
       }
     /** CR 111 / 701.7 (issue #847) — create one or more token permanents. A
