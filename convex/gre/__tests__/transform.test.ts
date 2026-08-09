@@ -258,7 +258,7 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
 });
 
 // A front face whose BACK face is a planeswalker (the ORI flip-walker shape,
-// issue #2380) — the fixture that makes the CR 712.4a hole concrete: a
+// issue #2380) — the fixture that makes the CR 712.8a hole concrete: a
 // transformed permanent that leaves the battlefield without a front-face
 // revert is a Legendary Planeswalker CARD sitting in hand / graveyard, whose
 // synthesized definition rebuilds with a colour-derived mana cost and the back
@@ -284,7 +284,7 @@ registerTokenDefinition({
     },
 });
 
-describe("a transformed permanent reverts to its FRONT face on leaving the battlefield (CR 712.4a)", () => {
+describe("a transformed permanent reverts to its FRONT face on leaving the battlefield (CR 712.8a)", () => {
     /** A one-permanent board with `card` (already flipped) on p1's side. */
     function boardWithFlipped(instanceId: string) {
         const card = makeInstance(WALKER_FRONT_ID, {

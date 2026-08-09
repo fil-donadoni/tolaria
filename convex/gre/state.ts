@@ -8334,7 +8334,7 @@ export function removePermanentTo(
     // death triggers still read the copied P/T) so the card re-casts and
     // exists in other zones as its true printed self.
     revertCopy(creature);
-    // CR 712.4a — while a double-faced card is outside the game or in a zone
+    // CR 712.8a — while a double-faced card is outside the game or in a zone
     // other than the battlefield or the stack, it has only the characteristics
     // of its FRONT face. The transform sibling of the CR 707.2 copy revert
     // directly above, deliberately at the same site and for the same reason:

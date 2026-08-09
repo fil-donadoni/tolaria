@@ -200,7 +200,7 @@ export function stampBackFaceForEntry(card: CardInstanceState): boolean {
     return true;
 }
 
-/** Reverts a permanent showing its BACK face to its FRONT face (CR 712.4a —
+/** Reverts a permanent showing its BACK face to its FRONT face (CR 712.8a —
  *  while a double-faced card is outside the game or in a zone other than the
  *  battlefield or the stack, it has only the characteristics of its FRONT
  *  face).
@@ -280,7 +280,7 @@ export function transformPermanent(card: CardInstanceState): void {
         });
         card.transformed = true;
     } else {
-        // Back → front is exactly the CR 712.4a restore, so it IS that
+        // Back → front is exactly the CR 712.8a restore, so it IS that
         // function — one front-face rebuild, not two that can drift apart.
         revertTransform(card);
     }
