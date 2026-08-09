@@ -1783,7 +1783,16 @@ export interface TokenSpec {
      *  (`gre/transform.ts`) reshapes every {@link CardBackFace} through this
      *  type, and a planeswalker BACK face (the ORI flip-walker cycle) must
      *  carry its starting loyalty into the synthesized `CardDefinition` and
-     *  into the content-derived id `maybeSynthesizeToken` decodes. */
+     *  into the content-derived id `maybeSynthesizeToken` decodes.
+     *
+     *  SCOPE — the `createToken` path does NOT honour it. CR 306.5b loyalty
+     *  PLACEMENT lives on the two battlefield-entry funnels a token never uses
+     *  (`stageReanimatedOnBattlefield` and `finalizeSpellResolution`,
+     *  `gre/state.ts`); `createTokenPermanents` places no loyalty counters, so
+     *  a planeswalker token authored through this field today would enter at 0
+     *  loyalty and die to the CR 704.5i SBA. Shipping one means teaching
+     *  `createTokenPermanents` the same placement first — this field is a
+     *  back-face carrier until then. */
     loyalty?: number;
     /** Colors of the token (CR 110.5 — colorless if omitted, else the listed
      *  set). Encoded as a synthetic mana cost so `hasColor` and projection

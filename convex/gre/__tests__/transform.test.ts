@@ -6,7 +6,12 @@
 // `convex/gre/effects/__tests__/interpreter.test.ts`.
 
 import { describe, it, expect } from "vitest";
-import { transformPermanent } from "../transform";
+import {
+    revertTransform,
+    stampBackFaceForEntry,
+    transformPermanent,
+} from "../transform";
+import { removePermanentTo } from "../state";
 import { registerTokenDefinition, tryGetDefinition } from "../../cards";
 import { getCardColors } from "../../cards/colors";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
@@ -249,6 +254,148 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
         transformPermanent(card);
         const frontDef = tryGetDefinition((card.card as { id: string }).id);
         expect(frontDef!.imagePrintFace).toBeUndefined();
+    });
+});
+
+// A front face whose BACK face is a planeswalker (the ORI flip-walker shape,
+// issue #2380) — the fixture that makes the CR 712.4a hole concrete: a
+// transformed permanent that leaves the battlefield without a front-face
+// revert is a Legendary Planeswalker CARD sitting in hand / graveyard, whose
+// synthesized definition rebuilds with a colour-derived mana cost and the back
+// face's loyalty abilities.
+const WALKER_FRONT_ID = "test-transform-walker-front";
+registerTokenDefinition({
+    id: WALKER_FRONT_ID,
+    name: "Test Flip Wizard",
+    rarity: "common",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 0,
+    toughness: 2,
+    backFace: {
+        name: "Test Flip Walker",
+        types: ["Planeswalker"],
+        subtypes: ["Testwalker"],
+        supertypes: ["Legendary"],
+        loyalty: 5,
+        colors: ["U"],
+        staticAbilities: [],
+    },
+});
+
+describe("a transformed permanent reverts to its FRONT face on leaving the battlefield (CR 712.4a)", () => {
+    /** A one-permanent board with `card` (already flipped) on p1's side. */
+    function boardWithFlipped(instanceId: string) {
+        const card = makeInstance(WALKER_FRONT_ID, {
+            id: instanceId,
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        transformPermanent(card);
+        expect(card.transformed).toBe(true);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [card] }),
+                makePlayer("p2"),
+            ],
+        });
+        return state;
+    }
+
+    it("bounced to hand: the card in hand is the FRONT face, not a Legendary Planeswalker", () => {
+        const state = boardWithFlipped("f1");
+        removePermanentTo(state, "f1", "hand");
+
+        const inHand = state.players[0].hand.find((c) => c.id === "f1")!;
+        expect(inHand).toBeDefined();
+        expect(inHand.transformed).toBeUndefined();
+        expect(inHand.transformedFrom).toBeUndefined();
+        expect((inHand.card as { id: string }).id).toBe(WALKER_FRONT_ID);
+        expect(inHand.types).toEqual(["Creature"]);
+        expect(inHand.subtypes).toEqual(["Human", "Wizard"]);
+        expect(inHand.power).toBe(0);
+        expect(inHand.toughness).toBe(2);
+        // The definition the card in hand now resolves to is the printed
+        // front face — the whole point: it re-casts as a {1}{U} creature,
+        // never as a loyalty-5 planeswalker.
+        const def = tryGetDefinition((inHand.card as { id: string }).id);
+        expect(def!.name).toBe("Test Flip Wizard");
+        expect(def!.loyalty).toBeUndefined();
+    });
+
+    it("dies to the graveyard as its FRONT face, so reanimation cannot bring back the back face (wire format)", () => {
+        const state = boardWithFlipped("f2");
+        removePermanentTo(state, "f2", "graveyard", "destroy");
+
+        const inYard = state.players[0].graveyard.find((c) => c.id === "f2")!;
+        expect(inYard).toBeDefined();
+        expect(inYard.transformed).toBeUndefined();
+        expect((inYard.card as { id: string }).id).toBe(WALKER_FRONT_ID);
+        expect(inYard.types).toEqual(["Creature"]);
+
+        // The graveyard is a public zone — both players must see the front
+        // face there, through the real projection (never a hand-built view).
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const slim = projected.players[0].graveyard.find(
+                (c) => c.id === "f2"
+            )!;
+            expect(slim.transformed).toBeUndefined();
+            expect(slim.card.id).toBe(WALKER_FRONT_ID);
+            expect(slim.types).toEqual(["Creature"]);
+        }
+    });
+
+    it("exiled as its FRONT face too — every destination, not just the bounce zones", () => {
+        const state = boardWithFlipped("f3");
+        removePermanentTo(state, "f3", "exile");
+
+        const exiled = state.players[0].exile.find((c) => c.id === "f3")!;
+        expect(exiled.transformed).toBeUndefined();
+        expect((exiled.card as { id: string }).id).toBe(WALKER_FRONT_ID);
+    });
+
+    it("leaves an UNtransformed permanent completely alone", () => {
+        const card = makeInstance(WALKER_FRONT_ID, {
+            id: "f4",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [card] }),
+                makePlayer("p2"),
+            ],
+        });
+        removePermanentTo(state, "f4", "hand");
+
+        const inHand = state.players[0].hand.find((c) => c.id === "f4")!;
+        expect(inHand.transformed).toBeUndefined();
+        expect((inHand.card as { id: string }).id).toBe(WALKER_FRONT_ID);
+        expect(inHand.types).toEqual(["Creature"]);
+        expect(revertTransform(inHand)).toBe(false);
+    });
+
+    it("the departure revert does NOT undo a back-face stamp applied afterwards in exile (issue #2380 ordering)", () => {
+        // The other direction of the same seam: `exileAndReturnTransformed`
+        // brackets the revert — `removePermanentTo` fires it on the way out,
+        // then `stampBackFaceForEntry` runs on the card sitting in exile and
+        // is what the returning permanent shows. Putting the revert on the
+        // ENTRY side instead (`resetBattlefieldTransientState`, which
+        // `stageReanimatedOnBattlefield` also calls) would wipe this stamp.
+        const state = boardWithFlipped("f5");
+        removePermanentTo(state, "f5", "exile");
+        const exiled = state.players[0].exile.find((c) => c.id === "f5")!;
+        expect(exiled.transformed).toBeUndefined(); // reverted on the way out
+
+        expect(stampBackFaceForEntry(exiled)).toBe(true);
+        expect(exiled.transformed).toBe(true);
+        expect(exiled.transformedFrom).toBe(WALKER_FRONT_ID);
+        expect(exiled.types).toEqual(["Planeswalker"]);
+        const backDef = tryGetDefinition((exiled.card as { id: string }).id);
+        expect(backDef!.name).toBe("Test Flip Walker");
+        expect(backDef!.loyalty).toBe(5);
     });
 });
 

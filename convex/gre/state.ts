@@ -50,7 +50,11 @@ import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { turnFaceDown } from "./faceDown";
-import { stampBackFaceForEntry, transformPermanent } from "./transform";
+import {
+    revertTransform,
+    stampBackFaceForEntry,
+    transformPermanent,
+} from "./transform";
 import { applyIndefiniteSupertypeMutation, liveSupertypesOf } from "./snow";
 import {
     buildAutoTapSources,
@@ -8330,6 +8334,25 @@ export function removePermanentTo(
     // death triggers still read the copied P/T) so the card re-casts and
     // exists in other zones as its true printed self.
     revertCopy(creature);
+    // CR 712.4a — while a double-faced card is outside the game or in a zone
+    // other than the battlefield or the stack, it has only the characteristics
+    // of its FRONT face. The transform sibling of the CR 707.2 copy revert
+    // directly above, deliberately at the same site and for the same reason:
+    // this is the single battlefield-departure funnel, so it is where a
+    // transformed permanent stops being a back-face object. Without it a
+    // flipped planeswalker bounced to hand is a Legendary Planeswalker CARD in
+    // hand, a dead one is reanimatable straight into its back face, and a
+    // blinked one returns already flipped.
+    //
+    // DEPARTURE-side only, and it must stay here rather than in
+    // `resetBattlefieldTransientState` below: that helper also runs on
+    // battlefield ENTRY (`stageReanimatedOnBattlefield`), where it would wipe
+    // the back-face stamp `stampBackFaceForEntry` applies to a card sitting in
+    // EXILE for "exile it, then return it to the battlefield transformed"
+    // (`exileAndReturnTransformed`, issue #2380). That Op's two legs bracket
+    // this revert: it fires here on the way out, the stamp runs afterwards on
+    // the exiled card, and the stamp is what the returning permanent shows.
+    revertTransform(creature);
     if (toZone === "hand" || toZone === "library") {
         resetBattlefieldTransientState(creature);
     }
@@ -12036,11 +12059,18 @@ export function buildSpellContext(
         // trigger and no replacement effect ever observes the front face on
         // the battlefield.
         //
-        // No-ops when the target already left the battlefield (CR 608.2b). If
-        // the current face declares no `backFace`, or a replacement effect
-        // moved the card somewhere other than exile on the way out, the card
-        // is left where it landed rather than force-returned — the Oracle
-        // clause is a single "exile it, THEN return it", and a card that never
+        // No-ops when the target already left the battlefield (CR 608.2b).
+        //
+        // A permanent whose current face declares no `backFace` is still
+        // exiled AND still returned — it simply comes back showing the same
+        // face. The Oracle clause's exile-and-return is unconditional; only
+        // the "transformed" part has nothing to do, which is exactly what
+        // `stampBackFaceForEntry` returning false means (the caller ignores
+        // the result and returns the card either way).
+        //
+        // The RETURN leg is skipped in one case only: a replacement effect
+        // moved the card somewhere other than exile on the way out, so it is
+        // left where it landed rather than force-returned — a card that never
         // reached exile was never exiled by this effect.
         exileAndReturnTransformed(target: TargetSelection): void {
             if (target.type === "player")

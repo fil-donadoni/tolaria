@@ -200,6 +200,55 @@ export function stampBackFaceForEntry(card: CardInstanceState): boolean {
     return true;
 }
 
+/** Reverts a permanent showing its BACK face to its FRONT face (CR 712.4a —
+ *  while a double-faced card is outside the game or in a zone other than the
+ *  battlefield or the stack, it has only the characteristics of its FRONT
+ *  face).
+ *
+ *  The transform sibling of `revertCopy` (CR 707.2, `gre/copy.ts`), and
+ *  deliberately the same shape: it is called on the DEPARTURE side, from the
+ *  single battlefield-departure funnel (`removePermanentTo`, `gre/state.ts`),
+ *  so the card that lands in the graveyard / hand / library / exile is the
+ *  front-face card that a later reanimation, re-cast or blink must see.
+ *  Without it a flipped planeswalker bounced to hand stays a Legendary
+ *  Planeswalker CARD in hand, whose synthesized back-face definition rebuilds
+ *  with a colour-derived mana cost and the back face's loyalty abilities.
+ *
+ *  It must NOT move into `resetBattlefieldTransientState`: that helper also
+ *  runs on battlefield ENTRY (`stageReanimatedOnBattlefield`), where it would
+ *  wipe a back-face stamp `stampBackFaceForEntry` deliberately applied while
+ *  the card sat in exile ("exile it, then return it transformed", issue
+ *  #2380). Departure reverts; the stamp runs afterwards and wins.
+ *
+ *  Also the back → front leg of `transformPermanent` below (CR 701.27 — the
+ *  SAME toggle flips either direction), which is why this is one function and
+ *  not two.
+ *
+ *  Returns false, leaving `card` untouched, when it is not showing a back face
+ *  (the overwhelmingly common case) or when `transformedFrom` is
+ *  missing/unregistered — shouldn't happen in practice, since it is only ever
+ *  set to a definition id the transform machinery had just resolved. */
+export function revertTransform(card: CardInstanceState): boolean {
+    if (!card.transformed) return false;
+    const frontId = card.transformedFrom;
+    if (!frontId) return false;
+    const frontDef = tryGetDefinition(frontId);
+    if (!frontDef) return false;
+    card.card = { id: frontId };
+    rebuildCopiableValuesAndReplayOverlays(card, {
+        types: [...frontDef.types],
+        subtypes: frontDef.subtypes ? [...frontDef.subtypes] : [],
+        power: frontDef.power,
+        toughness: frontDef.toughness,
+        staticAbilities: frontDef.staticAbilities
+            ? [...frontDef.staticAbilities]
+            : [],
+    });
+    delete card.transformed;
+    delete card.transformedFrom;
+    return true;
+}
+
 /** Transforms `card` in place (CR 701.27 / 712): flips it to its back face
  *  if currently showing front, or back to front if already transformed (CR
  *  712.8a — the SAME primitive flips either direction). No-op when the
@@ -231,21 +280,8 @@ export function transformPermanent(card: CardInstanceState): void {
         });
         card.transformed = true;
     } else {
-        const frontId = card.transformedFrom;
-        if (!frontId) return;
-        const frontDef = tryGetDefinition(frontId);
-        if (!frontDef) return;
-        card.card = { id: frontId };
-        rebuildCopiableValuesAndReplayOverlays(card, {
-            types: [...frontDef.types],
-            subtypes: frontDef.subtypes ? [...frontDef.subtypes] : [],
-            power: frontDef.power,
-            toughness: frontDef.toughness,
-            staticAbilities: frontDef.staticAbilities
-                ? [...frontDef.staticAbilities]
-                : [],
-        });
-        delete card.transformed;
-        delete card.transformedFrom;
+        // Back → front is exactly the CR 712.4a restore, so it IS that
+        // function — one front-face rebuild, not two that can drift apart.
+        revertTransform(card);
     }
 }
