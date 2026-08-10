@@ -50,7 +50,18 @@ Three smaller, unrelated instances of the same class:
   …). `702.88c` is "Multiple instances of rebound are redundant"; the claim is a
   consequence of **`702.88a`** and has no rule of its own.
 
-Two more surfaced in the #2452 review round, both large enough to be their own
+- **`707.12` used for "copy a spell"** (26 sites, `convex/cards/sets/c19/white.ts`
+  and its tests, …). `707.12` is **cast** a copy ("An effect that instructs a
+  player to cast a copy of an object **and not just copy a spell**… follows the
+  rules for casting spells"); putting a copy on the stack without casting it is
+  **`707.10`** ("a copy of a spell isn't cast"). The two are not
+  interchangeable — a cast copy goes through 601.2a–h, so it can be countered
+  on cast triggers, pays costs and is affected by cast-restrictions. Needs
+  per-site classification, not a sed: a card that really says "cast a copy"
+  (Isochron-Scepter-style wording) cites `707.12` correctly. Surfaced in the
+  #2452 round-3 review.
+
+Three more surfaced in the #2452 review rounds, all large enough to be their own
 slice:
 
 - **`602.5b` used as the generic "activation restrictions are enforced" cite.**
@@ -62,10 +73,13 @@ slice:
   for "activate only as a sorcery/instant".
 
     **Count: 88 lines across 44 files** at the tip of #2452 —
-    `git grep -c '602\.5b' -- '*.ts' '*.tsx' '*.md' ':!docs/findings'`. Every one
-    of them is the misuse: grepping the same set for `controller chang|persist`
+    `git grep -c '602\.5b' -- '*.ts' '*.tsx' '*.md' ':!docs/findings'`. **86 of
+    the 88 are the misuse**: grepping the same set for `controller chang|persist`
     returns nothing outside this drawer file, so there is no correct-usage subset
-    to preserve — a fixer can treat the whole grep as the worklist. It spans
+    to preserve. The two exceptions are not citations at all but the illustrative
+    slash-list example `CR 205.4a / 602.5b / 603.3b` in `docs/adr/0098-*.md` and
+    in `scripts/check-cr-citations.ts`'s header — leave those alone, and take the
+    other 86 as the worklist. It spans
     `convex/gre/` (`constants.ts`, `autoTapDemands.ts`, `activationCostPicks.ts`),
     `convex/game.ts`, `convex/cards/types.ts`, `src/lib/card-utils.ts`, and most
     `convex/cards/sets/**` card headers with an activation-timing restriction.
@@ -95,7 +109,8 @@ slice:
 
     **How to tell the two apart without line numbers** (which rot — the two this
     entry used to name were already stale by one review round): start from
-    `git grep -n '704\.5m'` (59 hits repo-wide) and keep the hits whose subject is
+    `git grep -n '704\.5m'` (65 hits repo-wide, 60 outside `data/cr`) and keep the
+    hits whose subject is
     the **World supertype**, not an attachment. Mechanically that is
     `allWorldPermanents` / `checkWorldRuleSBA` and the `checkStateBasedActions`
     call site in `sba.ts`; the `worldSeq` / `nextWorldSeq` timestamp field, its
@@ -125,11 +140,22 @@ all — every bare `NNN.N[a-z]` token on it. #2429 found 167 occurrences of bad
 ids written bare inside a slash-list ("CR 205.4a / 602.5b / 603.3b", only the
 first id prefixed); that shape used to be invisible and is now covered (the
 widening was the round-2 review finding on #2452 — it is what would have caught
-`706.5c` and the nine `112.5` sites without a hand-rolled sweep). What is
-**still** out of reach is a citation **wrapped across two comment lines**, the
-prefix on one and the id on the next
-(`src/lib/ai/__tests__/flashback-exile-color.bot.test.ts` had the only one; it
-was rewritten onto a single line). Keep citations on one line.
+`706.5c` and the nine `112.5` sites without a hand-rolled sweep). Two shapes are
+**still** out of reach, both because `CR ` on the same line is what tells an id
+from an ordinary number:
+
+1. A citation **wrapped across two comment lines**, the prefix on one and the id
+   on the next (`src/lib/ai/__tests__/flashback-exile-color.bot.test.ts` had the
+   only one; it was rewritten onto a single line). Keep citations on one line.
+2. An id on a line with **no `CR ` anywhere on it** — 387 at the tip of #2452,
+   including all 188 `// 702.NN <Keyword>` section headers in
+   `mechanicsRegistry.ts`. All 387 resolve today, and this boundary is
+   deliberate, not an oversight: the #2452 round-3 review measured what happens
+   if you drop the `CR `-on-the-line condition, and the scan starts flagging
+   real non-citations — the blade eval margins `−951.0` / `−135.0`
+   (`gre/ai/blade/registry.ts`) and the value `168.1`
+   (`gre/ai/cardScriptValue.ts`). A gate that reds on arithmetic is worse than
+   one that misses a prefix-less header.
 
 **Why it may not deserve its own issue.** Two arguments against ticketing it as
 written:

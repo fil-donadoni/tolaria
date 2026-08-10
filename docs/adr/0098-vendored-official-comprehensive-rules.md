@@ -86,10 +86,16 @@ prefixed). That second pass is not decorative: #2429 fixed 167 slash-list
 occurrences by hand, and two of the unresolvable ids among them (in
 `gre/sba.ts`'s SBA roll-call and across nine copy-a-spell sites) were invisible
 to the prefix-only scan and surfaced only via an ad-hoc id-agnostic re-sweep.
-The remaining hole is a citation **wrapped across two comment lines** — prefix
-on one, id on the next. Both passes are anchored to a single line, and widening
-them to a window would start resolving ordinary prose numbers, so the rule is:
-**keep a citation on one line.**
+Both passes are anchored to a single line, and `CR ` on that line is the only
+thing separating a rule id from an ordinary number — so two shapes stay out of
+reach. One is a citation **wrapped across two comment lines**, prefix on one and
+id on the next; hence the rule **keep a citation on one line.** The other is an
+id on a line mentioning `CR ` nowhere — 387 at the time of writing, including all
+188 `// 702.NN <Keyword>` headers in `mechanicsRegistry.ts`. Dropping the
+`CR `-on-the-line condition to reach them was measured and rejected: the scan
+then flags real non-citations, among them the blade eval margins `−951.0` /
+`−135.0` and the value `168.1` in `convex/gre/ai/`. A gate that reds on
+arithmetic is worse than one that misses a prefix-less header.
 
 ## Consequences
 

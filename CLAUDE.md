@@ -371,9 +371,12 @@ resolved to nothing, and nearly all of them never existed in any revision; all
 so a new one cannot land **on a line of its own or in a slash-list** (the
 scanner resolves every bare `NNN.Nx` token on any line mentioning `CR ` — two of
 the 44 ids, 10 sites, hid in exactly that shape and survived the first
-correction pass). Two things still get past it: a citation **wrapped across
-two comment lines** — so keep one on a single line — and a **resolvable but
-wrong** id, since the scan only asks whether an id exists. A citation
+correction pass). Three things still get past it: a citation **wrapped across
+two comment lines** — so keep one on a single line; an id on a line mentioning
+`CR ` **nowhere** (387 today, incl. every `// 702.NN <Keyword>` header in
+`mechanicsRegistry.ts` — a deliberate boundary, since reaching them makes the
+scan red on real numbers like the blade eval margins in `convex/gre/ai/`); and a
+**resolvable but wrong** id, since the scan only asks whether an id exists. A citation
 "corrected" to a plausible-but-wrong number passes, which is why the correction
 has to come from `bun run cr <id>` printing text that matches the claim.
 Wizards
