@@ -16,18 +16,25 @@
 // TIMING (CR 117.1b/602.5d) — never on a card name, never on what the ability
 // does.
 //
-// NOT here: the BOARD-SIDE flexibility term (issue #1890 item 3 — an `evaluate`
-// bonus for a permanent that currently offers a live instant-speed activated
-// option, the mirror of the hand-side bonus for a holdable instant). It is
-// deliberately NOT shipped, and is blocked on issue #1920: `applyMoveInSearch`
-// applies an activation's COSTS only and never its effect, so in the search's
-// world spending an option has no payoff. A symmetric credit for holding it
-// therefore turns the pre-existing exact tie between "activate in response to
-// removal" and `pass` into a deterministic loss for the activation — a net
-// regression in exactly the REACTIVE window this module must never touch. No
-// scoping of the term repairs that while the payoff stays invisible (the leaf
-// reached after `pass` legitimately has the option unspent), so the term waits
-// for #1920 rather than shipping backwards.
+// NOT here, but SHIPPED: the BOARD-SIDE flexibility term (issue #1890 item 3 —
+// an `evaluate` bonus for a permanent that currently offers a live instant-speed
+// activated option, the mirror of the hand-side bonus for a holdable instant).
+// It lives in `gre/evaluate.ts` (`hasLiveInstantSpeedActivation`), reads THIS
+// module's `isDeferrableStackAbility` for the timing half, and landed with issue
+// #1920.
+//
+// It was held back from PR #1919 for a reason worth keeping in view. The credit
+// is SYMMETRIC — it pays for holding the option in every window, including the
+// REACTIVE one where the option should be spent — so while `applyMoveInSearch`
+// applied an activation's COSTS and never put its effect on the stack, spending
+// an option had no payoff at any depth and the term turned the exact tie between
+// "activate in response to removal" and `pass` into a deterministic
+// `W_FLEX`-sized loss for the activation. No scoping of the term repaired that
+// (the leaf reached after `pass` legitimately has the option unspent); closing
+// the payoff gap did. If the search ever stops resolving an activated ability
+// one ply deep, this term becomes a regression again — which is why the pin is a
+// MARGIN assertion, not an equality one
+// (`convex/gre/__tests__/activationPayoffInSearch.bot.test.ts`).
 //
 // PURE: reads state, mutates nothing.
 

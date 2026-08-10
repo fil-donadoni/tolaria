@@ -35,9 +35,15 @@ import {
     isLand,
     isUntappedManaSource,
     hasNonManaActivatedAbility,
+    isTapLockedBySummoningSickness,
     getProducibleColorsOnBoard,
     manaValue,
 } from "./constants";
+import type { ActivatedAbility } from "../cards/types";
+import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+// Issue #1890 item 3 — the single authority on whether an activation could just
+// as well happen in a later, better-informed window (CR 117.1b / 602.5d).
+import { isDeferrableStackAbility } from "./ai/abilityTiming";
 import {
     getInstanceManaCost,
     getInstanceAiValue,
@@ -71,13 +77,25 @@ const W_PERMANENT = 5; // board-presence bonus for every permanent in play
 // 1-ply selection and the ISMCTS tie-break both prefer the drop over passing.
 const W_MANA = 12;
 
-// --- Reactive flexibility (ADR 0021 slice 1, issue #221) -------------------
-// Option value of holding an instant-speed answer you can actually cast right
+// --- Reactive flexibility (ADR 0021 slice 1, issue #221; board half issue
+// --- #1890 item 3) ---------------------------------------------------------
+// Option value of holding an instant-speed answer you can actually use right
 // now. For each holdable instant / flash card in hand that the player has
-// enough open, untapped mana to cast THIS turn, `evaluate` adds a small,
-// bounded bonus. This gives the search a reason to KEEP the option rather than
-// spend it for no payoff — a hand that can respond is worth more than the same
-// hand tapped out (no response possible).
+// enough open, untapped mana to cast THIS turn — and, since issue #1890 item 3,
+// for each PERMANENT offering a live, affordable instant-speed ACTIVATED option
+// — `evaluate` adds a small, bounded bonus. This gives the search a reason to
+// KEEP the option rather than spend it for no payoff: a hand that can respond is
+// worth more than the same hand tapped out, and so is a board with an untapped
+// Mother of Runes over the same board with her tapped.
+//
+// The board half was blocked on issue #1920 and shipped with it. The credit is
+// symmetric — it pays for holding the option in EVERY window, including the
+// reactive one where the option should be spent — so while the search applied an
+// activation's costs without ever putting its effect on the stack, this term
+// priced an option whose payoff no depth of search could see, and turned the
+// exact tie between "activate in response to removal" and `pass` into a
+// deterministic decline. No scoping of the term repairs that: the leaf reached
+// after `pass` legitimately has the option unspent.
 //
 // Scoped strictly to "can I respond, and with what, right now". It is NOT a
 // second count of the card's body: ADR 0018's latent `cardValue` already counts
@@ -187,7 +205,9 @@ export type EvalTerms = {
     permanents: number;
     mana: number;
     /** Reactive flexibility (ADR 0021 slice 1): bounded option-value bonus for
-     *  holdable instants in hand the player can afford to cast this turn. */
+     *  holdable instants in hand the player can afford to cast this turn, PLUS
+     *  (issue #1890 item 3) permanents offering a live, affordable instant-speed
+     *  activated option. One shared cap across both halves. */
     flexibility: number;
 };
 
@@ -237,19 +257,190 @@ export function hasCastableInstant(
     );
 }
 
-/** The reactive-flexibility bonus for one player (ADR 0021 slice 1, issue #221).
- *  Counts holdable instants in hand the player has enough open mana to cast THIS
- *  turn (`availableMana` ≥ the card's mana value — the same color-blind proxy the
- *  `mana` term uses), capped at `FLEX_CARD_CAP`. Castability-gated so a tapped-out
- *  hand scores no flexibility, and additive to the latent `cardValue` already in
- *  the `hand` term so the two never double-count. */
-function flexibilityTerm(player: PlayerState, availableMana: number): number {
+/** Activation cost legs the board-side flexibility term is willing to price.
+ *
+ *  A permanent's activated ability is a "held option" in the same sense a held
+ *  instant is only when using it spends nothing but mana and the source's own
+ *  tap. Every other leg — a sacrifice, a discard, a graveyard exile, a counter
+ *  removal, life — is a real resource, so the ability is not free to hold and
+ *  its payability needs the activation cost planner (`enumerateActivationCostPicks`,
+ *  `moves.ts`), which this leaf-heuristic must not re-implement.
+ *
+ *  Expressed as an ALLOWLIST over the cost's own keys, deliberately: a cost leg
+ *  added to `ActivatedAbility` in future then drops the credit (fail closed)
+ *  instead of silently inflating it, which a hand-written list of `if
+ *  (cost.sacrifice) return false` checks would do. */
+const FLEX_FREE_COST_KEYS: ReadonlySet<string> = new Set(["mana", "tap"]);
+
+function isFreeToHoldCost(cost: ActivatedAbility["cost"]): boolean {
+    for (const [key, value] of Object.entries(cost)) {
+        if (value === undefined) continue;
+        if (!FLEX_FREE_COST_KEYS.has(key)) return false;
+    }
+    return true;
+}
+
+/** The ability ids of `perm` that `player` has ANNOUNCED and that are still on
+ *  the stack (CR 602.2a) — the option is in flight: neither still held, nor yet
+ *  realized into the position.
+ *
+ *  Identified by instance id because an activated ability's stack item IS a
+ *  snapshot of its source (`buildActivatedAbilityStackItem`, `gre/activationCommit.ts`),
+ *  carrying the same `id`; `abilityId` distinguishes it from a triggered ability's
+ *  item, and `castById` from an activation the OPPONENT made off this permanent
+ *  (CR 113.3c — "any player may activate"). */
+function activationsInFlight(
+    state: GameState,
+    player: PlayerState,
+    perm: CardInstanceState
+): ReadonlySet<string> {
+    const out = new Set<string>();
+    for (const item of state.stack) {
+        if (item.abilityId === undefined) continue;
+        if (item.id !== perm.id) continue;
+        if (item.castById !== player.id) continue;
+        out.add(item.abilityId);
+    }
+    return out;
+}
+
+/** Whether `perm` offers `player` an instant-speed activated option that is
+ *  still THEIRS — live and affordable, or already announced and awaiting
+ *  resolution. The board-side mirror of `hasInstantTiming` (issue #1890 item 3).
+ *
+ *  Per-card-agnostic by construction: the only inputs are the ability's declared
+ *  TIMING (through `isDeferrableStackAbility`, the shared authority), its cost
+ *  shape, and board state. `hasNonManaActivatedAbility` is the gate for "this
+ *  source does something beyond producing mana" — the same predicate the
+ *  auto-tapper uses to know a source is dual-purpose, so the two can never
+ *  disagree, and it already returns false for a permanent stripped of its
+ *  abilities (CR 613.1f, Titania's Song).
+ *
+ *  **Why an ANNOUNCED option still counts** (and this is load-bearing, not
+ *  generosity): the term prices whether the player still owns the option, and it
+ *  must price it exactly ONCE — at the moment the effect actually enters the
+ *  position. An ability on the stack has been paid for but has not resolved, so
+ *  the leaf shows the source tapped AND shows no payoff. Dropping the credit
+ *  there charges for the spend twice, and the second charge is an artefact of the
+ *  1-ply horizon rather than anything about the position.
+ *
+ *  That artefact is not hypothetical. `policyValue` resolves one stack item, and
+ *  a resolution that SUSPENDS on a mid-resolution choice (CR 601.2b / 608.2 —
+ *  Mother of Runes picks a colour) yields no payoff at that depth by
+ *  construction. Measured on the issue-#1890 reactive fixture (opponent's Bolt on
+ *  the stack aimed at Mother, the bot holding priority): without the in-flight
+ *  clause, `pass` scored 192.5 and the activation 186.5 — a deficit of exactly
+ *  `W_FLEX`, so `selectRolloutMove`'s exact-equality argmax dropped the
+ *  activation out of the bucket entirely and NO rng value could return it. That
+ *  is the regression this term was held back from PR #1919 to avoid, arriving
+ *  through the one door closing issue #1920 does not shut.
+ *
+ *  Every remaining check is FAIL CLOSED — an option this function cannot prove
+ *  is live scores no flexibility. The first four are properties of the ability
+ *  itself, so they apply announced or not:
+ *
+ *    * `activateFromHand` / `activateFromGraveyard` (CR 113.6) — the ability
+ *      functions from another zone, so it is not an option this permanent offers.
+ *    * `canActivate` / `getTargetRequirement` — a runtime predicate this leaf
+ *      heuristic does not evaluate, exactly as the move enumerator refuses to
+ *      (`moves.ts`).
+ *
+ *  The rest are AVAILABILITY, which an announced ability has already cleared —
+ *  it is on the stack, so re-testing them would reject the very state the
+ *  in-flight clause exists to credit (its `oncePerTurn` tally is already
+ *  incremented, its `{T}` source already tapped):
+ *
+ *    * `oncePerTurn` already used (CR 602.5) and an already-animated
+ *      `animatesSelf` manland (CR 611.1) — spent options, not held ones.
+ *    * `controllerTurnOnly` off-turn — not activatable in the very window the
+ *      credit is about.
+ *    * a `{T}` leg with the source tapped or summoning-locked (CR 302.1).
+ *    * a mana cost the player cannot currently cover. */
+function hasFlexibleActivation(
+    state: GameState,
+    player: PlayerState,
+    perm: CardInstanceState,
+    availableMana: number
+): boolean {
+    if (!hasNonManaActivatedAbility(perm)) return false;
+    const inFlight = activationsInFlight(state, player, perm);
+    for (const { ability } of getEffectiveActivatedAbilities(perm)) {
+        if (!isDeferrableStackAbility(ability)) continue;
+        if (ability.activateFromHand || ability.activateFromGraveyard) continue;
+        if (ability.canActivate || ability.getTargetRequirement) continue;
+        if (!isFreeToHoldCost(ability.cost)) continue;
+        if (inFlight.has(ability.id)) return true;
+        if (
+            ability.oncePerTurn &&
+            (perm.activationsThisTurn?.[ability.id] ?? 0) > 0
+        ) {
+            continue;
+        }
+        if (ability.animatesSelf && perm.animation) continue;
+        if (ability.controllerTurnOnly && state.activePlayerId !== player.id) {
+            continue;
+        }
+        if (ability.cost.tap) {
+            if (perm.isTapped) continue;
+            if (isTapLockedBySummoningSickness(perm)) continue;
+        }
+        if (manaValue(ability.cost.mana) > availableMana) continue;
+        return true;
+    }
+    return false;
+}
+
+/** The reactive-flexibility bonus for one player (ADR 0021 slice 1, issue #221;
+ *  board half issue #1890 item 3).
+ *
+ *  Two halves, one shared budget:
+ *
+ *    * HAND — holdable instants the player has enough open mana to cast THIS
+ *      turn (`availableMana` ≥ the card's mana value, the same color-blind proxy
+ *      the `mana` term uses).
+ *    * BOARD — permanents offering an instant-speed ACTIVATED option that is
+ *      still the player's, live or in flight (`hasFlexibleActivation`). The
+ *      mirror case: every seam that expressed option value read
+ *      `types.includes("Instant")`, so a battlefield Mother of Runes carried
+ *      none at all.
+ *
+ *  Both halves are additive to the latent worth already counted elsewhere (the
+ *  `hand` term's `cardValue`, the `permanents` term's board presence), so
+ *  neither double-counts a body — this term prices only "can I respond, and with
+ *  what, right now". Castability-gated, so a tapped-out player and a tapped-out
+ *  board both score zero.
+ *
+ *  ONE shared `FLEX_CARD_CAP` across both halves, not one cap each: the cap
+ *  exists to stop the term dominating genuine material, and two independent caps
+ *  would double the ceiling it was chosen to hold.
+ *
+ *  The board half only became safe to ship with issue #1920. The credit is
+ *  SYMMETRIC — it pays for holding the option in every window, the reactive one
+ *  included — so while the search could not see an activation's payoff, it
+ *  turned the exact tie between "activate in response to removal" and `pass`
+ *  into a deterministic `W_FLEX`-sized loss for the activation
+ *  (`selectRolloutMove`'s argmax is exact-equality). Now that the ability
+ *  reaches the stack and `policyValue` resolves it, spending the option pays for
+ *  itself; the pin is
+ *  `convex/gre/__tests__/activationPayoffInSearch.bot.test.ts`, which asserts
+ *  the activation beats `pass` by MORE than `W_FLEX` in that window. */
+function flexibilityTerm(
+    state: GameState,
+    player: PlayerState,
+    availableMana: number
+): number {
     let castable = 0;
     for (const card of player.hand) {
+        if (castable >= FLEX_CARD_CAP) break;
         if (!hasInstantTiming(card)) continue;
         if (manaValue(getInstanceManaCost(card)) > availableMana) continue;
         castable += 1;
-        if (castable === FLEX_CARD_CAP) break;
+    }
+    for (const perm of player.battlefield) {
+        if (castable >= FLEX_CARD_CAP) break;
+        if (!hasFlexibleActivation(state, player, perm, availableMana))
+            continue;
+        castable += 1;
     }
     return castable * W_FLEX;
 }
@@ -294,8 +485,9 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
     const availableMana = availableManaFor(player);
     terms.mana = availableMana * W_MANA;
     // Reactive flexibility uses the SAME available-mana count as the affordability
-    // gate, so it can only reward instants the player can actually cast now.
-    terms.flexibility = flexibilityTerm(player, availableMana);
+    // gate, so it can only reward instants the player can actually cast now — and
+    // activated options the player can actually pay for (issue #1890 item 3).
+    terms.flexibility = flexibilityTerm(state, player, availableMana);
     return terms;
 }
 

@@ -478,6 +478,25 @@ describe("field repro #2422 — Sylvan Safekeeper does not eat its own lands", (
             expect(chosen).not.toContain("Sylvan Safekeeper");
         }
     );
+
+    // Issue #1920 re-check. The repro above is pinned at DECLARE_ATTACKERS;
+    // this is the SAME position in the bot's own PRECOMBAT_MAIN, added because
+    // the payoff half of #1920 could plausibly reopen the shipped bug from the
+    // other side: the shroud grant is now visible material where it used to be
+    // invisible, so "sacrifice a land for nothing" acquired a payoff term it
+    // did not have when #2155 landed. It must still lose to `pass`.
+    it.each(SEEDS)(
+        "still scores below pass in the bot's own sorcery window (seed %i)",
+        (seed) => {
+            const { activation, pass, chosen } = rootRewards(
+                { ...position(), phase: "PRECOMBAT_MAIN" },
+                "keeper",
+                seed
+            );
+            expect(activation).toBeLessThan(pass);
+            expect(chosen).not.toContain("Sylvan Safekeeper");
+        }
+    );
 });
 
 describe("field repro #2415 — Iron-Shield Elf does not empty its own hand", () => {
@@ -516,6 +535,26 @@ describe("field repro #2415 — Iron-Shield Elf does not empty its own hand", ()
         (seed) => {
             const { activation, pass, chosen } = rootRewards(
                 position(),
+                "elf",
+                seed
+            );
+            expect(activation).toBeLessThan(pass);
+            expect(chosen).not.toContain("Iron-Shield Elf");
+        }
+    );
+
+    // Issue #1920 re-check, same reasoning as the Safekeeper sibling above and
+    // a sharper case: the Elf's indestructible grant is a KEYWORD, which
+    // `evaluateCreature` reads off `staticAbilities` and prices as material —
+    // unlike an until-end-of-turn P/T pump, which is invisible to it by
+    // construction. So of the two field repros this is the one whose payoff the
+    // 1-ply leaf now scores most generously (measured: +22 over `pass` at the
+    // policy level in this window), and the root must still decline it.
+    it.each(SEEDS)(
+        "still scores below pass in the bot's own sorcery window (seed %i)",
+        (seed) => {
+            const { activation, pass, chosen } = rootRewards(
+                { ...position(), phase: "PRECOMBAT_MAIN" },
                 "elf",
                 seed
             );

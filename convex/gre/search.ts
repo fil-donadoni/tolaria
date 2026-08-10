@@ -82,6 +82,13 @@ import {
     applyActivationCostsForSearch,
     applyDelveExileForSearch,
 } from "./applyMove";
+// CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
+// stack item and the shared activation tally, so the search's push is the same
+// object the mutation path commits.
+import {
+    buildActivatedAbilityStackItem,
+    recordActivation,
+} from "./activationCommit";
 import { resolvePlayLandSourceZone } from "./playLand";
 import {
     evaluate,
@@ -456,9 +463,16 @@ function passInSearch(state: GameState, passerId: string): void {
  *  machine — so the opponent gets real priority to respond and the tree can find
  *  instant responses / multi-step combat lines.
  *
+ *  An `activate-ability` move behaves the same way (issue #1920): its costs are
+ *  paid and the ability goes on the stack unresolved, so the opponent gets a real
+ *  response window and the tree sees the payoff a ply later. A MANA ability is
+ *  the one exception — it never uses the stack (CR 605.3c) and the search models
+ *  it through the tap plan instead.
+ *
  *  Documented simulation limits (server stays authoritative, so inexactness only
- *  costs move quality): coarse mana (tap-plan only), and `activate-ability`
- *  applies costs but does not put the ability's effect on the stack. */
+ *  costs move quality): coarse mana (tap-plan only), so an activation's
+ *  `notedManaSpent` (CR 106.10) and the mana-value snapshot of an additional
+ *  sacrifice (CR 601.2f) are not reconstructed on the search's stack item. */
 export function applyMoveInSearch(
     state: GameState,
     playerId: string,
@@ -708,14 +722,27 @@ export function applyMoveInSearch(
         }
 
         case "activate-ability": {
-            // KNOWN GAP — tracked by issue #1920. Unlike `cast-spell` above,
-            // this applies the COSTS only: the ability never reaches the stack,
-            // so no depth of search ever sees its PAYOFF (`policyValue`'s
-            // one-resolution lookahead has nothing to resolve). Every activation
-            // therefore evaluates at best equal to `pass`. Anything that makes
-            // holding an activation pay — the board-side flexibility term of
-            // issue #1890 item 3 — is blocked on closing this, or it converts
-            // that tie into a deterministic decline in the REACTIVE window.
+            // CR 602.2a (issue #1920) — the ability goes ON THE STACK, exactly
+            // as a cast spell does above, so the search can see its PAYOFF.
+            // Before this the case applied the COSTS only: the effect never
+            // reached the stack, `policyValue`'s one-resolution lookahead had
+            // nothing to resolve, and every activation evaluated at best equal
+            // to `pass` (strictly worse once any term could see the spent
+            // cost). That is also why the board-side flexibility term of issue
+            // #1890 item 3 was blocked — a symmetric credit for HOLDING an
+            // option, over an invisible payoff for SPENDING it, is a
+            // deterministic decline in the reactive window.
+            //
+            // The SOURCE is resolved BEFORE the costs are paid, because paying
+            // can remove it from its zone (a self-sacrifice cost, a
+            // graveyard-source `exileThis`) while the stack item must still be
+            // a snapshot of it — the same order, and the same retained
+            // reference, that the mutation path uses (`activateAbilityOnState`,
+            // `convex/game.ts`).
+            const source = findActivationSource(state, move.cardInstanceId);
+            const activated = source
+                ? effectiveAbilityOf(source, move.abilityId)
+                : undefined;
             applyTapPlan(state, playerId, move.tapPlan);
             // CR 602.1 / 118 (issue #2155) — every non-mana cost leg, paid
             // through the SAME helper the greedy sandbox
@@ -730,6 +757,59 @@ export function applyMoveInSearch(
             // the search also cannot see then tied `pass` exactly and won on
             // rollout noise (#2422 Sylvan Safekeeper, #2415 Iron-Shield Elf).
             applyActivationCostsForSearch(state, playerId, move);
+            // CR 605.3c — a MANA ability never uses the stack: it resolves
+            // immediately and is payment plumbing the search already models
+            // through the tap plan. Pushing one would park an item nothing ever
+            // resolves. `enumerateMoves` already refuses to emit a
+            // `!useStack` ability as a macro-move (`moves.ts`), so this gate is
+            // fail-closed defence for the hand-built moves this exported
+            // function also accepts (tests, blade setup steps).
+            if (source && activated?.useStack) {
+                // CR 602.2a — the item is built by the SAME authority the three
+                // mutation commit sites use (`activationCommit.ts`), so the
+                // fields `resolveTopOfStack` reads cannot drift between the
+                // tree and live play. The announcement data all rides on the
+                // move; the two fields that do NOT are derived server-side
+                // during payment and are deliberately absent here, matching
+                // what the search's coarse mana model can know:
+                // `notedManaSpent` (CR 106.10 — needs an exact pool delta, and
+                // `applyTapPlan` taps sources without draining the pool
+                // coin-exact) and `additionalSacrificeSnapshot` (CR 601.2f —
+                // the victim IS removed by the cost helper above, only its
+                // mana-value/power snapshot is not reconstructed).
+                state.stack.push(
+                    buildActivatedAbilityStackItem(source, {
+                        castById: playerId,
+                        abilityId: move.abilityId,
+                        ...(move.targets.length > 0
+                            ? { targets: move.targets }
+                            : {}),
+                        ...(move.chosenModeId
+                            ? { chosenModeId: move.chosenModeId }
+                            : {}),
+                        ...(move.chosenX !== undefined
+                            ? { chosenX: move.chosenX }
+                            : {}),
+                    })
+                );
+                // CR 602.5 — the per-turn activation tally, recorded at the same
+                // moment the mutation path records it. Without it a rollout
+                // re-activates an `oncePerTurn` ability without limit (the
+                // enumerator's gate reads this map) and over-rates it.
+                recordActivation(
+                    state,
+                    source,
+                    move.abilityId,
+                    !!activated.cost.tap
+                );
+                // CR 603.3 — flush the ABILITY_ACTIVATED queued above so a
+                // "non-tap ability activated" punisher lands ON TOP of the
+                // freshly pushed ability, exactly as the mutation path orders
+                // it. Must run BEFORE the auto-pass drain, which could
+                // otherwise start resolving the ability first. No-op for a {T}
+                // ability, and no-op when nothing is watching.
+                processPendingActionTriggers(state);
+            }
             state.passCount = 0;
             state.priorityPlayerId = playerId;
             state.singleShotAutoPass = playerId;
@@ -1055,6 +1135,31 @@ function findPermanentOnBattlefield(
     return undefined;
 }
 
+/** The card an `activate-ability` move names, in whichever zone the ability
+ *  functions from — the two zones `enumerateActivationMoves` scans (`moves.ts`):
+ *
+ *    * a BATTLEFIELD permanent, on EITHER battlefield (CR 113.3c — "any player
+ *      may activate" is enumerated off the opponent's board), and
+ *    * a GRAVEYARD card, for an ability that opts into functioning there
+ *      (CR 113.6 / 702.129a — Ashen Ghoul, Eternalize).
+ *
+ *  Deliberately NOT the hand: an `activateFromHand` ability (Cycling) is never
+ *  enumerated as a macro-move, so there is no hand-source activation for the
+ *  search to apply, and inventing one here would let a Cycling item reach the
+ *  stack while its `discardThis` cost went unpaid. */
+function findActivationSource(
+    state: GameState,
+    instanceId: string
+): CardInstanceState | undefined {
+    const permanent = findPermanentOnBattlefield(state, instanceId);
+    if (permanent) return permanent;
+    for (const p of state.players) {
+        const found = p.graveyard.find((c) => c.id === instanceId);
+        if (found) return found;
+    }
+    return undefined;
+}
+
 /** The combat-aware leaf value the rollout policy scores a probed move on, from
  *  `botId`'s view (ADR 0021 slice 2). Two reactive corrections over a plain
  *  `evaluate` of the post-move snapshot, both POLICY-only (the shared leaf
@@ -1065,13 +1170,36 @@ function findPermanentOnBattlefield(
  *     1-ply policy would never value a removal / answer. The policy looks one
  *     resolution deep so it can SEE the effect: a kill makes casting pay, while a
  *     no-payoff trick (a temporary buff, excluded from material) still scores
- *     below holding.
+ *     below holding. An ACTIVATED ability is the same object since issue #1920
+ *     (it now reaches the stack too), so it gets the same one-resolution
+ *     lookahead: without it a ping deals no damage and a protection grants
+ *     nothing at this depth, every activation is pure cost, and the board-side
+ *     flexibility term would price an option the policy can never see spent.
+ *     A resolution that SUSPENDS on a mid-resolution choice (CR 608.2 / 101.4 —
+ *     Mother of Runes' colour pick) leaves the item on the stack and the choice
+ *     queued; `resolveTopOfStack` already handles that, the probe is discarded
+ *     right after, and the deeper tree answers the choice as an in-tree decision
+ *     node. So the lookahead simply sees no payoff in that case — it never
+ *     stalls the rollout, and needs no bail-out of its own.
  *   * A just-declared block is scored on the pre-damage snapshot, so every block
  *     assignment looks identical. `declaredBlockDelta` folds the actual exchange
  *     in so the policy can tell a sane block from a bad one (the attacker side
- *     already gets this from `evaluate`'s `declaredCombatDelta`, ADR 0020 §3). */
-function policyValue(probe: GameState, botId: string, move: Move): number {
-    if (move.kind === "cast-spell" && probe.stack.length > 0) {
+ *     already gets this from `evaluate`'s `declaredCombatDelta`, ADR 0020 §3).
+ *
+ *  Exposed as a named seam (like `selectRolloutMove` / `selectRootMove` /
+ *  `isDiscouragedRolloutMove`) so the MARGIN between two candidates is
+ *  assertable directly. A test that re-derived it — clone, apply, resolve,
+ *  `evaluate` — would be asserting its own copy of the policy rather than the
+ *  policy, and would stay green if this function stopped resolving. */
+export function policyValue(
+    probe: GameState,
+    botId: string,
+    move: Move
+): number {
+    if (
+        (move.kind === "cast-spell" || move.kind === "activate-ability") &&
+        probe.stack.length > 0
+    ) {
         resolveTopOfStack(probe);
     }
     let v = evaluate(probe, botId);
