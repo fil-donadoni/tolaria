@@ -161,7 +161,7 @@ describe("Miscalculation (counter unless controller pays {2}, CR 701.5a / 117.3a
     });
 });
 
-describe("Tinker (CR 117.9 additional cost / 701.19 / 400.7 / 701.20, issue #677)", () => {
+describe("Tinker (CR 118.8 additional cost / 701.19 / 400.7 / 701.20, issue #677)", () => {
     it("searches for an artifact card and puts it onto the battlefield", () => {
         const libOrn = makeInstance(ornithopter.id, {
             id: "orn1",

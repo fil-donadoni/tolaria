@@ -20,7 +20,7 @@
 // item `evoked: true` whenever the chosen alt cost === `CardDefinition.evoke`
 // (compared by reference). That flag rides onto the entering permanent for
 // free — a stack item IS its `CardInstanceState`, the same object — mirroring
-// how CR 702.138e's `escaped` marker already survives the stack→battlefield
+// how CR 702.138b's `escaped` marker already survives the stack→battlefield
 // transition.
 //
 // This file is only the SECOND half: a `TriggeredAbility` a card adds to its
@@ -30,7 +30,7 @@
 // paid" clause is a CR 603.4 CHECK-TIME predicate (`condition`, evaluated
 // once when the trigger would go on the stack) rather than an
 // intervening-if — `evoked` cannot change between the ETB event firing and
-// this trigger resolving (nothing un-evokes a permanent), so no CR 603.4d
+// this trigger resolving (nothing un-evokes a permanent), so no CR 603.4
 // resolve-time re-check plumbing is needed.
 import type { TriggeredAbility } from "../types";
 import { enteredTrigger } from "./triggers/enteredTrigger";

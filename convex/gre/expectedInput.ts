@@ -115,7 +115,7 @@ export function computeExpectedInput(
 
 /** Every player id actually owed to act right now (issue #1778 review
  *  finding 1). For every {@link ExpectedInput} kind this is a singleton —
- *  `[computeExpectedInput(state).playerId]` — EXCEPT the CR 510.1c/702.21j-k
+ *  `[computeExpectedInput(state).playerId]` — EXCEPT the CR 510.1c/702.22j-k
  *  combat-damage-assignment sub-flow (2+ blockers on one attacker, or banding
  *  shifting assignment to the defending player): that sub-flow folds into a
  *  plain `{ kind: "priority" }` window (the two damage mutations gate with

@@ -56,7 +56,7 @@ export interface LibrarySearchedTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if; re-evaluated by the engine at resolve time. */
+    /** CR 603.4 intervening-if; re-evaluated by the engine at resolve time. */
     interveningIf?: (
         event: LibrarySearchedEvent,
         self: PermanentView,
@@ -104,7 +104,7 @@ function matchesLibrarySearchedScope(
 
 /** Builds a `TriggeredAbility` listening for `LIBRARY_SEARCHED` events
  *  (CR 603.2 / 701.19a, issue #788). The factory handles event-type
- *  narrowing, scope gating, and CR 603.4 / 603.4d wiring so card authors
+ *  narrowing, scope gating, and CR 603.4 / 603.4 wiring so card authors
  *  write only the effect body. */
 export function librarySearchedTrigger(
     args: LibrarySearchedTriggerArgs

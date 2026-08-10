@@ -1,6 +1,6 @@
 // issue #2283 — the vs-AI bot answers an ENGINE-RAISED target selection.
 //
-// A raised pending target (CR 603.3d targeted trigger, CR 114.6 retarget,
+// A raised pending target (CR 603.3d targeted trigger, CR 115.7 retarget,
 // CR 707.10b copy retarget) freezes priority on its owner exactly like a
 // `PendingChoice`, but nothing on the bot side could see it: `enumerateMoves`
 // surfaced no move for ANY live `pendingTarget`, `BotAction` had no member for

@@ -5,7 +5,7 @@
 // click-paths dispatch the SAME GRE-boundary mutation / toggle the SAME buffer
 // on either board:
 //  (a) target selection  → selectTarget (gated by matchesTargetRequirement)
-//  (b) additional cost    → selectAdditionalCost (CR 117.9)
+//  (b) additional cost    → selectAdditionalCost (CR 118.8)
 //  (c) battlefield choice → buffer.toggle (CR 608.2): own / cross-player
 //      (zoneOwnerId) / all-controllers
 //  (d) hand choice        → buffer.toggle on the viewer's own spatial hand card,
@@ -386,7 +386,7 @@ describe("board targeting — divide-as-you-choose steppers (CR 601.2d)", () => 
     });
 });
 
-describe("board additional-cost parity (#279, CR 117.9)", () => {
+describe("board additional-cost parity (#279, CR 118.8)", () => {
     it("(b) clicking a battlefield permanent dispatches the SAME selectAdditionalCost args on both boards", () => {
         const me = makePlayer("me", [creature("bear1")]);
         const costCtx: Partial<React.ContextType<typeof GameContext>> = {

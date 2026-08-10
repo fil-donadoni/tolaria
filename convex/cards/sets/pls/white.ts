@@ -317,7 +317,7 @@ const DOMINARIAS_JUDGMENT_PAIRS: { subtype: string; colorName: string }[] = [
 // control gain protection from white if you control a Plains, from blue if
 // you control an Island, from black if you control a Swamp, from red if you
 // control a Mountain, and from green if you control a Forest." (CR 702.16
-// protection, CR 611.1b temporary grant via `grantAbility`.) Each of the five
+// protection, CR 611.2a temporary grant via `grantAbility`.) Each of the five
 // clauses is a per-creature `if`/`count` pair — "control a <land>" is a
 // board-wide condition independent of WHICH creature is being granted
 // protection, so it is re-evaluated once per iterated creature (correct, just
@@ -427,7 +427,7 @@ export const hobble: CardDefinition = {
 
 // Honorable Scout — {W} Creature — Human Soldier Scout, 1/1. "When this
 // creature enters, you gain 2 life for each black and/or red creature target
-// opponent controls." (CR 603.6a ETB; CR 119.3a life gain scaled by a
+// opponent controls." (CR 603.6a ETB; CR 119.3 life gain scaled by a
 // targeted-player battlefield count, `EffectCountSpec`, issue #999 — `color`
 // is an OR filter, CR 202.2, so a black-red creature counts once, exactly
 // "black and/or red" and never double.)
@@ -606,7 +606,7 @@ export const orimsChant: CardDefinition = {
 
 // Samite Elder — {2}{W} Creature — Human Cleric, 1/2. "{T}: Creatures you
 // control gain protection from the colors of target permanent you control
-// until end of turn." (CR 702.16 protection, CR 611.1b temporary grant.)
+// until end of turn." (CR 702.16 protection, CR 611.2a temporary grant.)
 //
 // DSL Effect Script (issue #1948 review, MAJOR 4 — the original `resolve()`
 // justification was wrong): the candidate colours are the FIVE known at

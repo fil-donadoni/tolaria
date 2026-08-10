@@ -189,7 +189,7 @@ function applyActivate(
     }
     const permanent = matches[0];
 
-    // CR 611.1b/613.1f (layer 6, issue #1522) — the POST-LAYER effective set:
+    // CR 611.2a/613.1f (layer 6, issue #1522) — the POST-LAYER effective set:
     // native abilities from the definition (dropped while a "loses all
     // abilities" suppression is live) PLUS any ability granted to THIS
     // instance by another permanent's continuous static effect (Zombie

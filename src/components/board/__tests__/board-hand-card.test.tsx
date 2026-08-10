@@ -285,7 +285,7 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
 
     it("issue #944: a card with no legal actions (e.g. an unpayable additional-cost spell) is inert on click AND drag", () => {
         // Mirrors the wire shape the server sends for a spell like Natural
-        // Order when the additional-cost sacrifice is unpayable (CR 117.9 /
+        // Order when the additional-cost sacrifice is unpayable (CR 118.8 /
         // 601.2f, issue #944): `getLegalActions` omits "cast" entirely, so
         // `legalActions` is empty — the card must not be clickable OR
         // draggable-to-commit.

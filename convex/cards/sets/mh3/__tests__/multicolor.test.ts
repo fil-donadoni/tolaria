@@ -99,7 +99,7 @@ const frogOnBattlefield = () =>
         zone: "battlefield",
     });
 
-describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.1b)", () => {
+describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.2a)", () => {
     it("discard ability: discards a chosen card and adds a +1/+1 counter", () => {
         const frog = frogOnBattlefield();
         const handCard = makeInstance(psychicFrog.id, {

@@ -331,7 +331,7 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
     });
 });
 
-describe("Storm — per-copy retarget (CR 707.10b / 707.12c, S5)", () => {
+describe("Storm — per-copy retarget (CR 707.10b / 707.10c, S5)", () => {
     it("offers a retarget and auto-resolves when there is NO legal alternative (Arena-style zero-branch)", () => {
         const shroudSource = makeInstance(SHROUD_SOURCE_ID, {
             id: "shroud-src",

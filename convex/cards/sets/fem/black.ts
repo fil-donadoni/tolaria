@@ -242,7 +242,7 @@ export const ebonPraetor: CardDefinition = {
                 };
                 // CR 122.6 — remove a -2/-2 counter the praetor received.
                 ctx.removeCounter(self, "-2/-2", 1);
-                // CR 117.9 — the sacrificed creature's subtypes were snapshotted
+                // CR 118.8 — the sacrificed creature's subtypes were snapshotted
                 // when the activation cost was paid; a Thrull adds +1/+0.
                 const subtypes = ctx.getAdditionalCostSubtypes();
                 if (subtypes?.includes("Thrull")) {
@@ -530,7 +530,7 @@ export const orderOfTheEbonHand: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.1b).
+            // strike until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -600,7 +600,7 @@ export const soulExchange: CardDefinition = {
         if (!t || t.type !== "graveyard-card" || !t.playerId) return;
         const returned = ctx.returnToBattlefield(t.playerId, t.id, "graveyard");
         if (!returned) return;
-        // CR 117.9 — the exiled creature's subtypes were snapshotted as the
+        // CR 118.8 — the exiled creature's subtypes were snapshotted as the
         // additional cost was paid; a Thrull adds a +2/+2 counter to the
         // reanimated creature.
         const subtypes = ctx.getAdditionalCostSubtypes();

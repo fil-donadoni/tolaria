@@ -54,7 +54,7 @@ export type OwedInput = {
     /** The Expected Input kind the game is currently resting on. */
     kind: ExpectedInputKind;
     /** The acting player the Expected Input names. Equals the queried seat for
-     *  every kind EXCEPT the CR 510.1c/702.21j-k combat-damage-assignment
+     *  every kind EXCEPT the CR 510.1c/702.22j-k combat-damage-assignment
      *  sub-flow, which folds into a `priority` window whose real actors live in
      *  `combat.damageAssignerIds` — which is exactly why owed-ness is decided by
      *  MEMBERSHIP in `computeOwedPlayerIds`, never by equality with this id. */

@@ -260,7 +260,7 @@ describe("activation sacrifice cost (CR 701.16 / 118.5)", () => {
         const activations = enumerateMoves(state, BOT).filter(
             (m) => m.kind === "activate-ability"
         );
-        // Three legal victims (the Angel may eat itself, CR 701.16b).
+        // Three legal victims (the Angel may eat itself, CR 701.21a).
         const picked = activations.map((m) =>
             m.kind === "activate-ability"
                 ? m.costPicks?.sacrificeIds

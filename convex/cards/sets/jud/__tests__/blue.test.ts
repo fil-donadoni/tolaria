@@ -12,7 +12,7 @@
 //     move graveyard → exile, the spell lands on the stack with chosenX + the
 //     flashback flags, and commit is BLOCKED until the picks are in
 //   - the pick validator (`recordCastExileCostPick`): count / colour / own-
-//     graveyard / exclude-self / duplicate rules (CR 702.34e)
+//     graveyard / exclude-self / duplicate rules (CR 601.2a)
 //   - a full flashback resolve: `resolveTopOfStack` drives the look-top keep and
 //     `exileOnResolve` sends Flash of Insight to exile, not the graveyard
 //   - the frontend wiring SURFACE: `projectPublicState` carries the picker +
@@ -234,7 +234,7 @@ describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
         });
     });
 
-    describe("recordCastExileCostPick validation (CR 702.34e / 118.5)", () => {
+    describe("recordCastExileCostPick validation (CR 601.2a / 118.5)", () => {
         it("records a legal pick of blue cards from your own graveyard", () => {
             const { state } = flashbackState();
             recordCastExileCostPick(state, "p1", ["blue1", "blue3"]);
@@ -250,7 +250,7 @@ describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
             ).toThrow(/exactly 2/);
         });
 
-        it("rejects exiling Flash of Insight to pay for its own cost (CR 702.34e)", () => {
+        it("rejects exiling Flash of Insight to pay for its own cost (CR 601.2a)", () => {
             const { state } = flashbackState();
             expect(() =>
                 recordCastExileCostPick(state, "p1", ["foi", "blue1"])
@@ -353,7 +353,7 @@ describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
             expect(projFoi.flashbackExileMaxX).toBe(3);
         });
 
-        it("flashbackExileMaxX drops to 0 when FoI is the only blue card (CR 702.34e)", () => {
+        it("flashbackExileMaxX drops to 0 when FoI is the only blue card (CR 601.2a)", () => {
             const foi = makeInstance(FOI, {
                 id: "foi",
                 zone: "graveyard",

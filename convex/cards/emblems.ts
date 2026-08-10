@@ -88,7 +88,7 @@ registerEmblemDefinition({
 });
 
 /** Chandra, Torch of Defiance −7 emblem (KLD, issue #1478 / #1252). The first
- *  TRIGGERED emblem (CR 114.2a, 113.3): "Whenever you cast a spell, this emblem
+ *  TRIGGERED emblem (CR 114.4, 113.3): "Whenever you cast a spell, this emblem
  *  deals 5 damage to any target." Fires on the owner's own SPELL_CAST (CR
  *  603.2 — `self.controllerId` is the emblem's owner, so `casterId ===
  *  self.controllerId` scopes it to "you"); the "any target" (CR 115.4) is
@@ -124,7 +124,7 @@ registerEmblemDefinition({
 });
 
 /** Jace, Telepath Unbound −9 emblem (ORI, issue #2380). A TRIGGERED emblem
- *  (CR 114.2a, 113.3) with a targeted trigger: "Whenever you cast a spell,
+ *  (CR 114.4, 113.3) with a targeted trigger: "Whenever you cast a spell,
  *  target opponent mills five cards." Same seam as the two emblems around it —
  *  fires on the owner's own SPELL_CAST (CR 603.2, `casterId ===
  *  self.controllerId` scopes it to "you") and the target opponent (CR 115.1c)
@@ -164,14 +164,14 @@ registerEmblemDefinition({
 });
 
 /** Teferi, Hero of Dominaria −8 emblem (DOM, issue #1726). A TRIGGERED emblem
- *  (CR 114.2a, 113.3) with a targeted trigger: "Whenever you draw a card,
+ *  (CR 114.4, 113.3) with a targeted trigger: "Whenever you draw a card,
  *  exile target permanent an opponent controls." Fires on the owner's own
  *  CARD_DRAWN (CR 603.2 — `self.controllerId` is the emblem's owner); the
  *  target (CR 115.1c) is chosen when the trigger goes on the stack via the
  *  ability's `targetRequirement`, rid onto the emblem trigger item as
  *  `inlineTargetRequirement` (`buildEmblemTriggerItem`, triggers.ts) —
  *  same seam as Chandra, Torch of Defiance's emblem above. A batch draw
- *  ("draw two") emits one CARD_DRAWN per card (CR 121.1a — `emitCardDrawn`
+ *  ("draw two") emits one CARD_DRAWN per card (CR 121.2 — `emitCardDrawn`
  *  fans out per-card events), so the trigger fires once per card drawn. */
 export const TEFERI_HERO_OF_DOMINARIA_EMBLEM_ID =
     "teferi-hero-of-dominaria-emblem";

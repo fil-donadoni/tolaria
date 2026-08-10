@@ -148,7 +148,7 @@ export function buildBoardAbilityDemands(
         // CR 613.1f — a permanent that has lost all abilities exposes none of
         // its printed activated abilities.
         if (abilitiesSuppressed(perm)) continue;
-        // CR 113.1 / 611.1b (issue #1880) — POST-LAYER set: an ability GRANTED
+        // CR 113.1 / 611.2a (issue #1880) — POST-LAYER set: an ability GRANTED
         // to this permanent competes for mana exactly like a printed one, so
         // auto-tap must reserve for it too.
         for (const { ability } of getEffectiveActivatedAbilities(perm)) {

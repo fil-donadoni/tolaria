@@ -306,7 +306,7 @@ export type ManaRestriction =
  *  combined submission (ADR 0053 "alternative rejected"). */
 export type DividePilesKind = "divide-piles" | "pick-pile";
 
-/** Reflexive Madness cast-choice (CR 702.35d). A yes/no-shaped decision — "cast
+/** Reflexive Madness cast-choice (CR 702.35a). A yes/no-shaped decision — "cast
  *  the discarded-and-exiled card for its madness cost, or put it into your
  *  graveyard" — raised when the madness reflexive trigger resolves
  *  (`openMadnessCastWindow`). Its own STACKLESS family (like `land-entry-tapped`)

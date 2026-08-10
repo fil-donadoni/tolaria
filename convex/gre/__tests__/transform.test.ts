@@ -399,7 +399,7 @@ describe("a transformed permanent reverts to its FRONT face on leaving the battl
     });
 });
 
-describe("transform is always PUBLIC information (CR 712.1a) — no per-viewer hiding", () => {
+describe("transform is always PUBLIC information (CR 712.6) — no per-viewer hiding", () => {
     it("the transformed face projects identically for the controller and the opponent", () => {
         const card = makeInstance(FRONT_ID, {
             id: "t6",

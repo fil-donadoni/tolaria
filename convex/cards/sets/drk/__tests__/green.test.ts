@@ -385,8 +385,8 @@ describe("Elves of Deep Shadow — {T}: Add {B} + 1 self-damage (CR 605.1a / 603
     });
 });
 
-describe("Wormwood Treefolk — temp landwalk grants + self-damage (CR 611.1b / 702.14)", () => {
-    it("the {G}{G} ability grants forestwalk until EOT and self-damages 2 (CR 611.1b)", () => {
+describe("Wormwood Treefolk — temp landwalk grants + self-damage (CR 611.2a / 702.14)", () => {
+    it("the {G}{G} ability grants forestwalk until EOT and self-damages 2 (CR 611.2a)", () => {
         const tf = makeInstance(wormwoodTreefolk.id, {
             id: "tf",
             controllerId: "p1",
@@ -403,7 +403,7 @@ describe("Wormwood Treefolk — temp landwalk grants + self-damage (CR 611.1b / 
         expect(state.players[0].life).toBe(18); // 20 - 2
     });
 
-    it("the {B}{B} ability grants swampwalk until EOT and self-damages 2 (CR 611.1b)", () => {
+    it("the {B}{B} ability grants swampwalk until EOT and self-damages 2 (CR 611.2a)", () => {
         const tf = makeInstance(wormwoodTreefolk.id, {
             id: "tf",
             controllerId: "p1",

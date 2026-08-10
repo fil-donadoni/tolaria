@@ -24,7 +24,7 @@ import type { CardDefinition } from "../../types";
 //     P/T spec (the folded happy path, no `staticEffects`).
 //   • −4 — creatures you control get +3/+3 and gain trample until end of turn:
 //     forEach{permanents, controller:"controller", Creature} → pump + grant
-//     trample, both until end of turn (CR 611.1c / 514.2 expiry).
+//     trample, both until end of turn (CR 611.2a / 514.2 expiry).
 export const garrukWildspeaker: CardDefinition = {
     id: "ca6f13a2-9243-4ce9-9f71-bed74355b781",
     name: "Garruk Wildspeaker",

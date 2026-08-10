@@ -1,15 +1,19 @@
 // Escape (CR 702.138) — a keyword-cast capability that lets a card be cast from
 // its owner's graveyard for an alternative ESCAPE COST: a mana cost PLUS exiling
 // OTHER cards from that graveyard (CR 702.138a). A permanent cast this way
-// "escaped" (CR 702.138e) — a flag the resulting permanent carries, read by
+// "escaped" (CR 702.138b) — a flag the resulting permanent carries, read by
 // "sacrifice it unless it escaped" / "as long as ~ escaped" clauses.
 //
-// 702.138a "Escape—[cost], Exile [number of] other cards from your graveyard"
-//          means "You may cast this card from your graveyard by paying [cost]
-//          and exiling [number of] other cards from your graveyard as an
-//          additional cost to cast this spell."
-// 702.138b A card in a graveyard with escape may be cast this way.
-// 702.138e An object "escaped" if it was cast for its escape cost.
+// 702.138a Escape represents a static ability that functions while the card
+//          with escape is in a player's graveyard. "Escape [cost]" means "You
+//          may cast this card from your graveyard by paying [cost] rather than
+//          paying its mana cost." (The printed template spells the exile leg
+//          out inside [cost]: "Escape—{2}{G}, Exile four other cards from your
+//          graveyard.") Casting a spell using its escape ability follows the
+//          rules for paying alternative costs in rules 601.2b and 601.2f–h.
+// 702.138b A spell or permanent "escaped" if that spell or the spell that
+//          became that permanent as it resolved was cast from a graveyard with
+//          an escape ability.
 //
 // Escape is engine/cost-system infrastructure, NOT an Effect Script Op — a
 // card's on-resolution effect stays DSL; only the CAST permission and cost live

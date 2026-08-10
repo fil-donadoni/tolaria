@@ -280,7 +280,7 @@ export type OwedPaymentSubmission =
     /** CR 701.16 / 601.2f — one call per victim; the server routes it to
      *  whichever in-flight cast/activation awaits a sacrifice choice. */
     | { mutation: "selectSacrifice"; cardInstanceIdEach: string[] }
-    /** CR 117.9 — the cast-side exile additional cost (Soul Exchange). */
+    /** CR 118.8 — the cast-side exile additional cost (Soul Exchange). */
     | { mutation: "selectAdditionalCost"; cardInstanceId: string }
     /** CR 702.51 — convoke. */
     | { mutation: "selectConvokeCreatures"; creatureInstanceIds: string[] }

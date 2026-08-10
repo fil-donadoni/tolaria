@@ -1072,7 +1072,7 @@ const spellCreaturePtFilterDescriptor = defineFilter<{
     },
 });
 
-// CR 114.6 / 115.10 — Reflecting Mirror: the chosen spell must have EXACTLY
+// CR 115.7 / 115.10 — Reflecting Mirror: the chosen spell must have EXACTLY
 // ONE target, and that target must be the activating player (the chooser).
 const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
     lower: (req) => (req.spellSingleTargetingController ? true : undefined),

@@ -104,7 +104,7 @@ export const arwenMortalQueen: CardDefinition = {
             }),
             effects: [
                 // "Another target creature gains indestructible until end of
-                // turn" (CR 611.1b / 613.1f layer 6, temporary — independent
+                // turn" (CR 611.2a / 613.1f layer 6, temporary — independent
                 // of the counter-driven grant, purged at CLEANUP).
                 {
                     op: "grantAbility",

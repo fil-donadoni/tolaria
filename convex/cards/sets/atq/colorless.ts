@@ -732,7 +732,7 @@ export const triskelion: CardDefinition = {
 // four +1/+0 counters. (Twin of Clockwork Beast in lea.ts, capped at four
 // instead of seven and with flying.)
 //  • "At end of combat, if this creature attacked or blocked this combat,
-//    remove a +1/+0 counter from it." (CR 603.6a END_OF_COMBAT + CR 603.4d
+//    remove a +1/+0 counter from it." (CR 603.6a END_OF_COMBAT + CR 603.4
 //    intervening-if on the attacked/blocked markers.)
 //  • "{X}, {T}: Put up to X +1/+0 counters on this creature. This ability
 //    can't cause the total ... to be greater than four. Activate only during
@@ -758,7 +758,7 @@ export const clockworkAvian: CardDefinition = {
                 "At end of combat, if this creature attacked or blocked this combat, remove a +1/+0 counter from it.",
             phase: "END_OF_COMBAT",
             scope: "each",
-            // CR 603.4d intervening-if — the "attacked or blocked this combat"
+            // CR 603.4 intervening-if — the "attacked or blocked this combat"
             // markers persist past END_OF_COMBAT, so the resolve-time re-check
             // sees the same values (mirrors Clockwork Beast).
             interveningIf: (_event, self) =>
@@ -809,7 +809,7 @@ export const clockworkAvian: CardDefinition = {
 // P/T statics, combat & one-shot prevention shields (free tranche, #277) —
 // CR 611 (layer 7c P/T buffs), CR 604.3 (characteristic-defining P/T), CR
 // 611.1 (temporary P/T mods + animate), CR 615 (one-shot damage prevention),
-// CR 702.21j (banding via grantStaticAbility), CR 117.3a (optional may-pay),
+// CR 702.22j (banding via grantStaticAbility), CR 117.3a (optional may-pay),
 // CR 705 (coin flip). Modern Scryfall oracle text is authoritative (ADR 0004);
 // mana costs / type lines come from MTGJSON ATQ.json. Every effect reuses
 // existing staticEffects kinds, the COP factory, animateAsCreature, and
@@ -1036,7 +1036,7 @@ export const batteringRam: CardDefinition = {
             phase: "BEGINNING_OF_COMBAT",
             scope: "your",
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant banding
-            // until end of combat (CR 611.1b). A "your"-scoped phaseTrigger, so
+            // until end of combat (CR 611.2a). A "your"-scoped phaseTrigger, so
             // the effects site is available (the scoped player is the
             // controller / $source).
             effects: [
@@ -1116,7 +1116,7 @@ export const urzasAvenger: CardDefinition = {
             // `optionChoice` (CR 611.1). The keyword grant is chosen during
             // resolution — `optionChoice` suspends on an `option-pick` Pending
             // Choice, then runs the picked mode's single `grantAbility` Op
-            // (CR 611.1b).
+            // (CR 611.2a).
             effects: [
                 {
                     op: "pump",

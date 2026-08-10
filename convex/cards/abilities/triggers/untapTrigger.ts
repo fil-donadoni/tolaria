@@ -14,7 +14,7 @@
 //
 // `condition` runs at trigger-check time only (CR 603.4). `interveningIf` runs
 // both at check time and is re-evaluated at resolve time by the engine
-// (CR 603.4d) — if false at resolve, the trigger fizzles.
+// (CR 603.4) — if false at resolve, the trigger fizzles.
 
 import type { PermanentFilter } from "../../filters";
 import { matchesPermanentFilter } from "../../filters";
@@ -50,7 +50,7 @@ export interface UntappedTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if. Engine re-evaluates at resolve time; false
+    /** CR 603.4 intervening-if. Engine re-evaluates at resolve time; false
      *  resolves to a fizzle (no `resolve` invocation, TRIGGER_FIZZLED event). */
     interveningIf?: (
         event: PermanentUntappedEvent,

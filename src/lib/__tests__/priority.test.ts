@@ -283,7 +283,7 @@ describe("computeSoloViewerId", () => {
     });
 });
 
-describe("damage-assignment authority (CR 702.21j-k)", () => {
+describe("damage-assignment authority (CR 702.22j-k)", () => {
     const bandedDamageCombat: Combat = {
         attackerIds: ["hero", "bear"],
         confirmed: true,

@@ -57,7 +57,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         if (choice.kind === "may-pay") {
             setIsBusy(true);
             try {
-                // CR 701.16b — a sacrifice leg with a real victim choice sets
+                // CR 701.21a — a sacrifice leg with a real victim choice sets
                 // `zone: "battlefield"`; the chosen victims are the picks the
                 // player accumulated in the shared choice buffer. A plain
                 // yes/no (or auto-resolving) may-pay carries no zone → no ids.
@@ -132,7 +132,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                           return acc;
                       }, {})
                 : undefined;
-        // CR 701.16b / 118 — when the choice carries a battlefield sacrifice
+        // CR 701.21a / 118 — when the choice carries a battlefield sacrifice
         // pick (`zone: "battlefield"`), Pay stays disabled until the buffered
         // victims satisfy the leg: a fixed count, or (threshold mode, Phyrexian
         // Dreadnought) enough summed power to reach `minTotalPower`.

@@ -64,7 +64,7 @@ export const aspectOfWolf: CardDefinition = {
 // Berserk — "Cast this spell only before the combat damage step. Target
 // creature gains trample and gets +X/+0 until end of turn, where X is its
 // power. At the beginning of the next end step, destroy that creature if it
-// attacked this turn." (CR 117.1b, 113.1, 611.1b, 603.7a, 514.2)
+// attacked this turn." (CR 117.1b, 113.1, 611.2a, 603.7a, 514.2)
 //
 // "+X/+0 where X is its power" resolves at cast time: the creature's current
 // power is snapshotted on resolution and added back. The delayed destroy is
@@ -102,7 +102,7 @@ export const berserk: CardDefinition = {
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (!target || target.type !== "permanent") return;
-        // CR 611.1b — static grant applies immediately; trample is read at
+        // CR 611.2a — static grant applies immediately; trample is read at
         // combat-damage assignment time.
         ctx.grantStaticAbility(target, "trample", { phase: "end-of-turn" });
         // CR 107.3 — X is the creature's power as the spell resolves.

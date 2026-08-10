@@ -3586,7 +3586,7 @@ describe("Banding keyword recognition (CR 702.21)", () => {
     });
 });
 
-describe("Band composition legality (CR 702.21e)", () => {
+describe("Band composition legality (CR 702.22c)", () => {
     const banding = () => makeInstance(benalishHero.id);
     const plain = () => makeInstance(grizzlyBearsId());
 
@@ -3613,7 +3613,7 @@ describe("Band composition legality (CR 702.21e)", () => {
     });
 });
 
-describe("Band blocked as a group (CR 702.21e)", () => {
+describe("Band blocked as a group (CR 702.22h)", () => {
     function bandState(blockTarget: string) {
         const hero = makeInstance(benalishHero.id, {
             id: "hero",
@@ -3676,7 +3676,7 @@ describe("Band blocked as a group (CR 702.21e)", () => {
     });
 });
 
-describe("Banding damage authority — defender assigns (CR 702.21j)", () => {
+describe("Banding damage authority — defender assigns (CR 702.22j)", () => {
     function setup() {
         const atk = makeInstance(grizzlyBearsId(), {
             id: "atk",
@@ -3739,7 +3739,7 @@ describe("Banding damage authority — defender assigns (CR 702.21j)", () => {
     });
 });
 
-describe("Banding damage authority — attacker assigns blocker damage to band members (CR 702.21k)", () => {
+describe("Banding damage authority — attacker assigns blocker damage to band members (CR 702.22k)", () => {
     function setup() {
         const hero = makeInstance(benalishHero.id, {
             id: "hero",

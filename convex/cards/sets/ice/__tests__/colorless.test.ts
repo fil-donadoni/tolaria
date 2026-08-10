@@ -2025,7 +2025,7 @@ describe("Glacial Crevasses / Sunstone (CR 118.5 snow-Mountain / snow-land sacri
     });
 });
 
-describe("Withering Wisps (CR 602.5f snow-Swamp activation cap)", () => {
+describe("Withering Wisps (CR 602.5b snow-Swamp activation cap)", () => {
     it("can activate up to the number of snow Swamps controlled", () => {
         const ww = makeInstance(witheringWisps.id, {
             id: "ww",

@@ -196,7 +196,7 @@ describe("Rabid Wombat (+2/+2 per attached Aura, CR 604.3 pt-cda + wire)", () =>
     });
 });
 
-describe("Emerald Dragonfly ({G}{G}: gains first strike EOT, CR 611.1b)", () => {
+describe("Emerald Dragonfly ({G}{G}: gains first strike EOT, CR 611.2a)", () => {
     it("grants first strike until end of turn", () => {
         const dragonfly = makeInstance(emeraldDragonfly.id, {
             id: "df",
@@ -238,7 +238,7 @@ describe("Killer Bees ({G}: +1/+1 EOT, CR 611.1)", () => {
     });
 });
 
-describe("Pixie Queen ({G}{G}{G}, {T}: target gains flying EOT, CR 611.1b)", () => {
+describe("Pixie Queen ({G}{G}{G}, {T}: target gains flying EOT, CR 611.2a)", () => {
     it("grants flying to a chosen creature", () => {
         const queen = makeInstance(pixieQueen.id, {
             id: "queen",
@@ -643,7 +643,7 @@ describe("Master of the Hunt (Wolves-of-the-Hunt token band, CR 702.22j)", () =>
     });
 });
 
-describe("Shelkin Brownie (strip 'bands with other' until EOT, CR 611.1b)", () => {
+describe("Shelkin Brownie (strip 'bands with other' until EOT, CR 611.2a)", () => {
     it("removes the bands-with-other keyword and restores it at cleanup", () => {
         const brownie = makeInstance(shelkinBrownie.id, {
             id: "brownie",
@@ -795,7 +795,7 @@ describe("Cocoon (pupa counters on the Aura + hatch into +1/+1 and flying, CR 12
     });
 });
 
-describe("Whirling Dervish (end-step +1/+1 if it dealt damage to an opponent this turn, CR 120.3 / 603.4d)", () => {
+describe("Whirling Dervish (end-step +1/+1 if it dealt damage to an opponent this turn, CR 120.3 / 603.4)", () => {
     function setup(dealt: boolean) {
         const dervish = makeInstance(whirlingDervish.id, {
             id: "dervish",

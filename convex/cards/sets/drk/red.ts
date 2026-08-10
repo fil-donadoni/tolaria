@@ -257,7 +257,7 @@ export const cavePeople: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant mountainwalk
-            // to the announced target creature until end of turn (CR 611.1b).
+            // to the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -594,7 +594,7 @@ export const goblinWizard: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant protection
             // from white to the announced target Goblin until end of turn
-            // (CR 611.1b / 702.16).
+            // (CR 611.2a / 702.16).
             effects: [
                 {
                     op: "grantAbility",

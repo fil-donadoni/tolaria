@@ -62,7 +62,7 @@ export const crestedSunmare: CardDefinition = {
                 "At the beginning of each end step, if you gained life this turn, create a 5/5 white Horse creature token.",
             phase: "END_STEP",
             scope: "each",
-            // CR 603.4 / 603.4d — "if you gained life this turn". Checked at
+            // CR 603.4 / 603.4 — "if you gained life this turn". Checked at
             // trigger time (mirrored into `matches` by the factory) and again
             // immediately before resolution; a zero/absent tally is false.
             interveningIf: (_event, self, state) =>

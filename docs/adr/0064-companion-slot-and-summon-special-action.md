@@ -13,7 +13,7 @@ Lutri). Companion is not an on-resolution effect; it is a subsystem:
 2. The card sits **outside the game** (in the sideboard) and, when its
    condition holds, is **revealed at game start** (CR 702.139c).
 3. Once per game, its controller may take a **special action** at sorcery
-   timing (CR 702.139f): pay {3} to put it into their hand, from where it is
+   timing (CR 702.139a): pay {3} to put it into their hand, from where it is
    cast normally. The special action does **not** use the stack.
 
 The engine already has: a **Sideboard** on the Match deck copy (snapshotted at

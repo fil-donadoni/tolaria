@@ -230,7 +230,7 @@ export function useControllerActions(): ControllerState {
         playerId,
     ]);
 
-    // Every multi-target source THIS player is responsible for (CR 702.21j-k
+    // Every multi-target source THIS player is responsible for (CR 702.22j-k
     // can split authority between attacker and defender) must have its full
     // power assigned before the player can confirm.
     const allDamageAssigned = useMemo(() => {

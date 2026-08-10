@@ -1382,7 +1382,7 @@ describe("Planeswalker's Mischief (protocol: reveal-random + grantCastFromExile 
     });
 });
 
-// Waterspout Elemental (CR 702.33 single Kicker, CR 603.4d intervening-if
+// Waterspout Elemental (CR 702.33 single Kicker, CR 603.4 intervening-if
 // ETB, CR 400.7 mass bounce, CR 614.10 skip-turn, issue #1957) — introduces
 // the `skipNextTurn` Op AND the `excludeSource` forEach-selector field, so
 // per the DSL-first authoring rule (new Op / new construct combination) this
@@ -1795,7 +1795,7 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib1"]);
     });
 
-    it("Confound STILL draws when the target can't be countered (CR 701.5c — separate Oracle sentence)", () => {
+    it("Confound STILL draws when the target can't be countered (CR 113.6g — separate Oracle sentence)", () => {
         const state = board();
         state.players[0].library = [
             makeInstance(island.id, {

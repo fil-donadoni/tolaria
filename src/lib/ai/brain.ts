@@ -70,7 +70,7 @@ export type BotView = {
      *  pass (else it loops on the rejection). */
     damageConfirmed?: boolean;
     /** True when a damage step is open (`damageConfirmed === false`), the bot is
-     *  one of the step's assigners (CR 702.21j-k — normally the active player,
+     *  one of the step's assigners (CR 702.22j-k — normally the active player,
      *  banding can shift it), and it has NOT yet confirmed its portion. The bot
      *  owes a `confirmDamage`; cleared once it has confirmed so it doesn't loop
      *  re-confirming while waiting on another assigner. */
@@ -142,7 +142,7 @@ export type BotView = {
         park: OwedPayment;
         submission: OwedPaymentSubmission | null;
     };
-    /** CR 603.3d / 114.6 / 707.10b (issue #2283) — an ENGINE-RAISED target
+    /** CR 603.3d / 115.7 / 707.10b (issue #2283) — an ENGINE-RAISED target
      *  selection owed to the bot: a targeted trigger it controls (Flickerwisp,
      *  Badgermole Cub), a retarget, or a spell copy's retarget. It is NOT the
      *  bot's own half-built cast/activation target selection — that stays a
@@ -280,7 +280,7 @@ export type OwedChoice = {
     /** `may-pay` only: whether the optional cost is trivially affordable from the
      *  bot's available mana (ADR 0016 minimal policy: accept iff affordable). */
     affordable?: boolean;
-    /** `may-pay` only (CR 701.16b): the number of permanents the accepted cost's
+    /** `may-pay` only (CR 701.21a): the number of permanents the accepted cost's
      *  sacrifice leg makes the payer choose, when the leg admits a real choice
      *  (more matching permanents than sacrificed). `candidates` then holds the
      *  legal victims and the bot picks `sacrificeCount` of them worst-first.
@@ -446,7 +446,7 @@ export type BotAction =
           kind: "search-target";
       }
     | {
-          /** CR 603.3d / 114.6 / 707.10b (issue #2283) — the deterministic
+          /** CR 603.3d / 115.7 / 707.10b (issue #2283) — the deterministic
            *  minimal-legal answer to an engine-raised target selection, used
            *  when the search yields no move (mirroring how `search-choice`
            *  degrades to `chooseOwedChoiceAction`). Realised by the executor
@@ -620,7 +620,7 @@ export function botActionRealisation(
         case "madness-decline":
         case "rebound-decline":
         case "submit-target":
-            // CR 603.3d / 114.6 / 707.10b (issue #2283) — `submit-target` is
+            // CR 603.3d / 115.7 / 707.10b (issue #2283) — `submit-target` is
             // the minimal-legal answer to an ENGINE-RAISED target selection,
             // realised through the executor (`selectTargets` +
             // `confirmTargets`) like every other brain-resolved fallback. The
@@ -1051,7 +1051,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // pre-game branch, and `random-reveal` is an engine-drawn reveal acked
         // via `random-reveal-ack` (`decideBotAction` handles all three before
         // reaching here). Reaching any via `chooseResolution` is a bug.
-        // `madness-cast` (CR 702.35d) also has its own dedicated path in
+        // `madness-cast` (CR 702.35a) also has its own dedicated path in
         // `decideBotAction` (the bot declines): never resolved here.
         // `rebound-cast` (CR 702.88a) mirrors it — its own dedicated path in
         // `decideBotAction` (the bot declines): never resolved here.
@@ -1139,7 +1139,7 @@ function answerOwedInput(kind: ExpectedInputKind, view: BotView): BotAction {
             }
             return NONE;
 
-        // CR 601.2c / 603.3d / 114.6 / 707.10b — a target selection. An
+        // CR 601.2c / 603.3d / 115.7 / 707.10b — a target selection. An
         // ENGINE-RAISED one (targeted trigger, retarget, copy retarget — issue
         // #2283) is a search node with a precomputed minimal-legal fallback; an
         // ANNOUNCED one is the bot's own half-built cast, which the executor
@@ -1212,7 +1212,7 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
         // from the bot's mana pool, else decline (ADR 0016 minimal policy —
         // smart "should I pay?" is deferred). Both answers are legal.
         const accept = choice.affordable === true;
-        // CR 701.16b — a sacrifice leg with a real victim choice needs a
+        // CR 701.21a — a sacrifice leg with a real victim choice needs a
         // legal pick supplied alongside the accept, or the submit throws and
         // the bot freezes. Pick `sacrificeCount` worst-first candidates (a
         // minimal-legal default — smart victim choice is deferred).
@@ -1282,7 +1282,7 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
         };
     }
     if (choice.kind === "madness-cast") {
-        // CR 702.35d — the reflexive Madness cast-choice: the bot's minimal
+        // CR 702.35a — the reflexive Madness cast-choice: the bot's minimal
         // policy is to DECLINE (send the card to the graveyard). Casting from
         // exile for the madness cost is a real value decision deferred to a
         // later slice (ADR 0016); declining is always legal and never stalls.

@@ -107,7 +107,7 @@ const C5_MULTI_ART_PRINTS: { print: CardPrint; defId: string }[] = [
 
 /** Mirror of selectAdditionalCost's spell-cast picker: validate the pick
  *  against the live additional-cost filter, record `pickedId`, then attempt the
- *  auto-commit (CR 117.9 / 601.2f). */
+ *  auto-commit (CR 118.8 / 601.2f). */
 function pickAdditionalCost(
     state: GameState,
     playerId: string,
@@ -291,10 +291,10 @@ describe("Armor Thrull — sac-self +1/+2 counter (CR 602.1, 122.1)", () => {
 // you-control as an additional cost, coexisting with a graveyard target.
 // ---------------------------------------------------------------------------
 
-describe("Soul Exchange — exile-as-cost + reanimate + Thrull +2/+2 (CAPABILITY E, CR 117.9/601.2f/406)", () => {
+describe("Soul Exchange — exile-as-cost + reanimate + Thrull +2/+2 (CAPABILITY E, CR 118.8/601.2f/406)", () => {
     it("GRE: reanimates the targeted graveyard creature; +2/+2 when the exiled creature was a Thrull", () => {
         // The exiled creature's subtypes are snapshotted on the stack item; a
-        // Thrull adds a +2/+2 counter to the reanimated creature (CR 117.9).
+        // Thrull adds a +2/+2 counter to the reanimated creature (CR 118.8).
         const state = makeState({
             players: [
                 makePlayer("p1", {

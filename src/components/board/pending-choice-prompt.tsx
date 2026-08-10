@@ -99,7 +99,7 @@ export default function PendingChoicePrompt({
     const isDrawReplacement = choice.kind === "draw-replacement";
     const isYesNoPay = isMayPay || isLandEntry || isDrawReplacement;
     const isOptionPick = choice.kind === "option-pick";
-    // CR 702.35d — reflexive Madness cast-choice: Cast (fires the ordinary
+    // CR 702.35a — reflexive Madness cast-choice: Cast (fires the ordinary
     // announceCast on the exiled card, which consumes this choice) or Decline
     // (submitMadnessDecline → graveyard). Its own two-button branch — the Cast
     // affordance is a cast, not a choice submit.
@@ -139,7 +139,7 @@ export default function PendingChoicePrompt({
             ? formatOracleText(mayPayCostLabel(choice.cost))
             : null;
 
-    // CR 701.16b / 701.24 — a may-pay PERMANENT leg with a real choice sets
+    // CR 701.21a / 701.24 — a may-pay PERMANENT leg with a real choice sets
     // `zone: "battlefield"`; the chooser clicks the permanent(s) to sacrifice
     // (or, for a `"return"` leg, to bounce — ADR 0079) before Pay enables.
     // Show the pick progress; the verb comes from `choice.permanentAction`.
@@ -324,7 +324,7 @@ export default function PendingChoicePrompt({
                                                 return;
                                             setIsBusy(true);
                                             try {
-                                                // CR 702.35d / 702.88a — accept:
+                                                // CR 702.35a / 702.88a — accept:
                                                 // cast the exiled card via the
                                                 // ordinary cast path (consumes
                                                 // this choice server-side, then
@@ -366,7 +366,7 @@ export default function PendingChoicePrompt({
                                                         playerId,
                                                     });
                                                 } else {
-                                                    // CR 702.35d — decline:
+                                                    // CR 702.35a — decline:
                                                     // send the card to the
                                                     // graveyard.
                                                     await submitMadnessDecline({

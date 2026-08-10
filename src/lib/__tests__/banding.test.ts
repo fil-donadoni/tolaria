@@ -29,7 +29,7 @@ function creature(
     };
 }
 
-describe("frontend banding helpers mirror the engine (CR 702.21e / 702.22j)", () => {
+describe("frontend banding helpers mirror the engine (CR 702.22c / 702.22j)", () => {
     it("hasBanding / hasBandsWithOther / hasBandingLike", () => {
         const plain = creature(FROST_GIANT, ["banding"]);
         const variant = creature(HUNDING, ["bands with other:legendary"]);

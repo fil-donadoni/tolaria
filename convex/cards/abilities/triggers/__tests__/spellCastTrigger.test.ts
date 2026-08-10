@@ -1,6 +1,6 @@
 // Unit tests for `spellCastTrigger` (CR 603.2 + 601.2i). Exercises the
 // scope vocabulary, the SpellFilter integration, the condition gate
-// (CR 603.4), and the engine-facing `interveningIf` wiring (CR 603.4d).
+// (CR 603.4), and the engine-facing `interveningIf` wiring (CR 603.4).
 // Resolve-time behavior with real card scenarios lives in `lea.test.ts`.
 
 import { describe, it, expect } from "vitest";
@@ -221,7 +221,7 @@ describe("nthSpellThisTurn (issue #1343, CR 601.2i) — per-player 'Nth spell' c
     });
 });
 
-describe("spellCastTrigger — engine intervening-if wiring (CR 603.4d)", () => {
+describe("spellCastTrigger — engine intervening-if wiring (CR 603.4)", () => {
     it("populates `interveningIf` only when supplied by the caller", () => {
         const without = spellCastTrigger({
             id: "t",

@@ -2,7 +2,7 @@
 import type { CardDefinition } from "../../types";
 
 // Tarfire — "Tarfire deals 2 damage to any target." (CR 120.1 damage.)
-// Kindred Instant — Goblin (CR 301.10 — a Kindred permanent-independent card
+// Kindred Instant — Goblin (CR 308.2 — a Kindred permanent-independent card
 // carries the creature-type subtype without being a creature).
 export const tarfire: CardDefinition = {
     id: "d13a898e-6a97-4fd9-980e-3bfd8d755386",

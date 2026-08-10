@@ -45,7 +45,7 @@ const ISLAND = getCardByName("Island").id; // colourless (no mana cost), ineligi
 
 /** A graveyard mixing eligible (blue) and ineligible (non-blue) cards, plus
  *  the flashback card itself (`fbi`, excluded regardless of colour, CR
- *  702.34e) — pinning the ordering the fix must filter DOWN from, not just
+ *  601.2a) — pinning the ordering the fix must filter DOWN from, not just
  *  filter TO a subset that happens to already be all-blue. */
 function mixedGraveyard() {
     return [

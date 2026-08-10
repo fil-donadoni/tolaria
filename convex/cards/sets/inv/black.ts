@@ -795,7 +795,7 @@ export const phyrexianBattleflies: CardDefinition = {
 // target creature card from your graveyard to the battlefield. You lose
 // life equal to that card's mana value." (CR 603.6a ETB, CR 603.3d
 // announcement-time target, CR 400.7 reanimation, CR 202.3 mana value,
-// CR 119.3b life loss.)
+// CR 119.3 life loss.)
 //
 // CR 603.3d — "target creature card from your graveyard" is a REAL target
 // chosen when the ETB trigger is put on the stack (a `targetRequirement` on

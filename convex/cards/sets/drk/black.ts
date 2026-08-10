@@ -281,7 +281,7 @@ export const graveRobbers: CardDefinition = {
                 controller: "any",
             },
             // Migrated resolve()→effects[] (ADR 0045, #839): exile the targeted
-            // graveyard artifact card (CR 400.7), then gain 2 life (CR 119.3a).
+            // graveyard artifact card (CR 400.7), then gain 2 life (CR 119.3).
             effects: [
                 { op: "moveZone", target: { target: 0 }, to: "exile" },
                 { op: "gainLife", player: "controller", amount: 2 },

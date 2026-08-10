@@ -118,7 +118,7 @@ describe("Crested Sunmare — 'Other Horses you control have indestructible' (CR
     });
 });
 
-describe("Crested Sunmare — 'if you gained life this turn' intervening-if (CR 603.4 / 603.4d)", () => {
+describe("Crested Sunmare — 'if you gained life this turn' intervening-if (CR 603.4 / 603.4)", () => {
     it("does NOT trigger at all when no life was gained this turn (trigger-time check)", () => {
         const { state } = setup();
         const triggers = sunmareTriggers(state, "p1");
@@ -151,7 +151,7 @@ describe("Crested Sunmare — 'if you gained life this turn' intervening-if (CR 
         expect(made[0].controllerId).toBe("p1");
     });
 
-    it("fizzles at resolution if the condition stopped holding (CR 603.4d re-check)", () => {
+    it("fizzles at resolution if the condition stopped holding (CR 603.4 re-check)", () => {
         const { state } = setup();
         gainLifeEmitting(state, "p1", 3);
         // The trigger is on the stack; a turn boundary (or any effect clearing

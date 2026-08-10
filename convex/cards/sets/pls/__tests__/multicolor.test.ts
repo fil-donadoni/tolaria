@@ -104,7 +104,7 @@ const endStepEvent = (playerId: string): PhaseBeginEvent => ({
 });
 
 /** Pushes Keldon Twilight's end-step trigger for `activePlayerId` and resolves
- *  it, exactly as the engine does (`resolveTopOfStack` runs the CR 603.4d
+ *  it, exactly as the engine does (`resolveTopOfStack` runs the CR 603.4
  *  intervening-if re-check before the body). */
 function fireEndStep(
     state: GameState,
@@ -209,7 +209,7 @@ describe("Keldon Twilight — trigger scope (CR 603.6a, 'each player's end step'
     });
 });
 
-describe("Keldon Twilight — intervening-if 'if no creatures attacked this turn' (CR 603.4 / 603.4d)", () => {
+describe("Keldon Twilight — intervening-if 'if no creatures attacked this turn' (CR 603.4 / 603.4)", () => {
     it("does not trigger at all once a creature has attacked this turn", () => {
         const { state, twilight } = twoPlayerBoard();
         state.creatureAttackedThisTurn = true;
@@ -218,7 +218,7 @@ describe("Keldon Twilight — intervening-if 'if no creatures attacked this turn
         ).toBe(false);
     });
 
-    it("fizzles on RESOLUTION if the condition became false after the trigger went on the stack (CR 603.4d)", () => {
+    it("fizzles on RESOLUTION if the condition became false after the trigger went on the stack (CR 603.4)", () => {
         const { state, twilight } = twoPlayerBoard();
         state.stack.push({
             ...twilight,
@@ -468,7 +468,7 @@ describe("Phyrexian Tyranny — offered to the DRAWING player, not the controlle
     });
 });
 
-describe("Phyrexian Tyranny — pay or lose 2 life (CR 117.3a / 119.3b)", () => {
+describe("Phyrexian Tyranny — pay or lose 2 life (CR 117.3a / 119.3)", () => {
     it("declining costs the drawing player 2 life", () => {
         const tyranny = makeTyranny("p1");
         const state = makeState({

@@ -65,7 +65,7 @@ describe("Arwen, Mortal Queen — ETB indestructible counter (CR 122.1c, issue #
     });
 });
 
-describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.1b layer-6 grant, CR 122.1c counter-driven lifelink)", () => {
+describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.2a layer-6 grant, CR 122.1c counter-driven lifelink)", () => {
     it("grants the target indestructible until end of turn and puts +1/+1 + lifelink counters on both creatures", () => {
         const arwen = makeInstance(arwenMortalQueen.id, {
             id: "arwen1",

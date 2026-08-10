@@ -406,7 +406,7 @@ describe("Spreading Plague (ETB → destroy other same-color creatures, can't re
     });
 });
 
-describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a / 603.3d / 400.7 / 202.3 / 119.3b)", () => {
+describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a / 603.3d / 400.7 / 202.3 / 119.3)", () => {
     /** Puts Phyrexian Delver's ETB trigger on the stack with its target slot
      *  UNSET (`targets` intentionally left `undefined`) so
      *  `raiseTriggerTargetSelection` (CR 603.3d) treats it as a targeted

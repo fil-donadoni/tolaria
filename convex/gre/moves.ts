@@ -131,7 +131,7 @@ export type Move =
            *  travels on the Move. */
           kind: "may-pay";
           accept: boolean;
-          /** CR 701.16b — chosen sacrifice victim id(s) when the accepted cost's
+          /** CR 701.21a — chosen sacrifice victim id(s) when the accepted cost's
            *  sacrifice leg admits a real choice. Omitted otherwise. */
           sacrificeIds?: string[];
           /** CR 701.9 / 118.3 (issue #899) — chosen hand card id(s) when the
@@ -159,7 +159,7 @@ export type Move =
           accept: boolean;
       }
     | {
-          /** Decline a reflexive `madness-cast` pending choice (CR 702.35d),
+          /** Decline a reflexive `madness-cast` pending choice (CR 702.35a),
            *  realised through the dedicated `submitMadnessDecline` mutation. No
            *  data travels; the choice identity is read from the active pending
            *  choice. The ACCEPT ("Cast") is a normal `cast-spell` move on the
@@ -198,7 +198,7 @@ export type Move =
       }
     | { kind: "play-land"; cardInstanceId: string }
     | {
-          /** CR 116.2 / 702.139f (ADR 0064) — the `summon-companion` special
+          /** CR 116.2 / 702.139a (ADR 0064) — the `summon-companion` special
            *  action. No card id (the source is `player.companion`, not a hand
            *  card) and no tap plan: the fixed generic {3} is solved and
            *  applied server-side in one shot by the shared auto-tap solver
@@ -248,8 +248,8 @@ export type Move =
       }
     | {
           /** Answer an ENGINE-RAISED pending target selection (issue #2283) —
-           *  a targeted trigger's targets (CR 603.3d), a retarget (CR 114.6)
-           *  or a spell copy's retarget (CR 707.10b/12c). Unlike the target
+           *  a targeted trigger's targets (CR 603.3d), a retarget (CR 115.7)
+           *  or a spell copy’s retarget (CR 707.10c). Unlike the target
            *  tuple that rides ON a `cast-spell` / `activate-ability` move, this
            *  is a STANDALONE submission: nobody announced anything, the engine
            *  simply owes the controller a choice, and until it is answered the
@@ -645,7 +645,7 @@ function comboSharesController(
     return true;
 }
 
-/** CR 603.3d / 114.6 / 707.10b (issue #2283) — every legal answer to the
+/** CR 603.3d / 115.7 / 707.10b (issue #2283) — every legal answer to the
  *  ENGINE-RAISED pending target selection `playerId` owes right now.
  *
  *  Returns `[]` when there is no such selection: no pending target, one owed to
@@ -1619,7 +1619,7 @@ export function enumerateMoves(
         return choiceCandidates(state, headChoice).map((c) => c.move);
     }
 
-    // CR 603.3d / 114.6 / 707.10b (issue #2283) — an ENGINE-RAISED target
+    // CR 603.3d / 115.7 / 707.10b (issue #2283) — an ENGINE-RAISED target
     // selection is a first-class decision node, exactly like the pending choice
     // above: the engine opened it AT its owner during resolution, it freezes
     // priority, and nothing else the owner could do is legal until it is
@@ -1650,7 +1650,7 @@ export function enumerateMoves(
     }
 
     const moves: Move[] = [{ kind: "pass" }];
-    // CR 116.2 / 702.139f (ADR 0064) — the companion summon special action.
+    // CR 116.2 / 702.139a (ADR 0064) — the companion summon special action.
     // Single source of truth for legality, shared with the human mutation
     // (`summonCompanion`, game.ts) and the legal-actions surface
     // (legalActions.ts, via this enumerator).

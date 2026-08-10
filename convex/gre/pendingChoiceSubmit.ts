@@ -102,7 +102,7 @@ export type SubmitChoiceArgs = {
 export type SubmitMayPayArgs = {
     playerId: string;
     accept: boolean;
-    /** CR 701.16b — the payer's chosen sacrifice victim id(s) for a may-pay
+    /** CR 701.21a — the payer's chosen sacrifice victim id(s) for a may-pay
      *  whose sacrifice leg admits a real choice (more matching permanents than
      *  the leg sacrifices). Required (exactly `count` ids) in that case; ignored
      *  when the pick auto-resolves (single candidate / `count` covers all) or the
@@ -151,7 +151,7 @@ export function applyMayPaySubmit(
         ) {
             throw new Error("Cannot pay the cost");
         }
-        // CR 701.16b / 701.24 — validate the payer's permanent pick when the
+        // CR 701.21a / 701.24 — validate the payer's permanent pick when the
         // leg admits a real choice. The candidate set is recomputed live (the board may have
         // shifted since the choice was enqueued). Two shapes:
         //   - fixed cardinal (`count: number`): the pick must name exactly

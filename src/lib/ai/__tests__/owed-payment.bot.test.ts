@@ -418,7 +418,7 @@ describe("activation parks the bot used to stall on (CR 602.1 / 118)", () => {
     });
 });
 
-describe("cast parks the bot used to stall on (CR 601.2f / 117.9 / 118.9)", () => {
+describe("cast parks the bot used to stall on (CR 601.2f / 118.8 / 118.9)", () => {
     it("Metamorphosis — answers the cast-side sacrifice park (CR 601.2f)", async () => {
         const state = baseState(
             {
@@ -454,7 +454,7 @@ describe("cast parks the bot used to stall on (CR 601.2f / 117.9 / 118.9)", () =
         ]);
     });
 
-    it("Soul Exchange — answers the exile additional-cost park (CR 117.9)", async () => {
+    it("Soul Exchange — answers the exile additional-cost park (CR 118.8)", async () => {
         const state = baseState(
             {
                 hand: [inst(SOUL_EXCHANGE.id, "soul", "hand")],

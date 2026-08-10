@@ -16,20 +16,30 @@
  *   bun run cr:lint            # report unresolvable citations, exit 1 if any
  *   bun run cr:lint --files    # also list every file/line for each bad id
  *
- * NOT wired into `check:all` yet — the standing violations are tracked for
- * cleanup first (see the ADR). Run it before adding a citation.
+ * Wired into `check:guards` (issue #2429) once the 42 standing violations were
+ * corrected. `scripts/__tests__/cr-citations.test.ts` is the regression guard —
+ * it runs the same scan under `bun run test` so a bad citation cannot land even
+ * if the gate wiring is later changed.
+ *
+ * KNOWN BLIND SPOT: the scan is line-based and requires the `CR ` prefix, so a
+ * citation written bare inside a slash-list ("CR 707.10b / 114.6") or wrapped
+ * across two comment lines is invisible to it. Both shapes existed in the repo
+ * and were corrected by hand in #2429.
  */
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = join(import.meta.dir, "..");
+// `import.meta.dir` is Bun-only; the regression guard imports this module under
+// vitest/node, where it is undefined.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CR_PATH = join(ROOT, "data/cr/comprehensive-rules.txt");
 
 /** Text surfaces where a CR citation is meaningful. */
-const SCANNED = /\.(ts|tsx|mts|mjs|js|md)$/;
+export const SCANNED = /\.(ts|tsx|mts|mjs|js|md)$/;
 
-function knownRuleIds(): Set<string> {
+export function knownRuleIds(): Set<string> {
     // U+2028 is a paragraph break INSIDE a rule in WotC's export; JS does not
     // treat it as a line terminator, so a rule containing one is invisible to a
     // line-start match and reads as "does not exist" (509.1b, 205.4c).
@@ -49,28 +59,37 @@ function knownRuleIds(): Set<string> {
     return ids;
 }
 
-type Hit = { file: string; line: number };
+export type Hit = { file: string; line: number };
 
-function main(): number {
-    const showFiles = process.argv.includes("--files");
-    const ids = knownRuleIds();
-    const files = execSync("git ls-files", {
-        cwd: ROOT,
+export interface ScanResult {
+    /** bad rule id → every `file:line` that cites it. */
+    bad: Map<string, Hit[]>;
+    /** Total citations seen (resolvable or not). */
+    total: number;
+}
+
+/** Every tracked file a CR citation could live in. */
+export function scannedFiles(root = ROOT): string[] {
+    return execSync("git ls-files", {
+        cwd: root,
         encoding: "utf8",
         maxBuffer: 64 << 20,
     })
         .split("\n")
         .filter((f) => SCANNED.test(f));
+}
 
+/**
+ * The scan itself, over `(file, text)` pairs — pure, so the regression test can
+ * drive it with synthetic content instead of the working tree.
+ */
+export function scanCitations(
+    sources: Iterable<{ file: string; text: string }>,
+    ids: Set<string>
+): ScanResult {
     const bad = new Map<string, Hit[]>();
     let total = 0;
-    for (const file of files) {
-        let text: string;
-        try {
-            text = readFileSync(join(ROOT, file), "utf8");
-        } catch {
-            continue;
-        }
+    for (const { file, text } of sources) {
         if (!text.includes("CR ")) continue;
         text.split("\n").forEach((line, i) => {
             for (const m of line.matchAll(
@@ -85,9 +104,36 @@ function main(): number {
             }
         });
     }
+    return { bad, total };
+}
+
+/** Reads every tracked source and scans it. Used by the CLI and the guard. */
+export function scanRepo(root = ROOT): ScanResult & { fileCount: number } {
+    const files = scannedFiles(root);
+    const sources: { file: string; text: string }[] = [];
+    for (const file of files) {
+        try {
+            sources.push({
+                file,
+                text: readFileSync(join(root, file), "utf8"),
+            });
+        } catch {
+            continue;
+        }
+    }
+    return {
+        ...scanCitations(sources, knownRuleIds()),
+        fileCount: files.length,
+    };
+}
+
+function main(): number {
+    const showFiles = process.argv.includes("--files");
+    const ruleCount = knownRuleIds().size;
+    const { bad, total, fileCount } = scanRepo();
 
     console.log(
-        `scanned ${files.length} files, ${total} CR citations, ${ids.size} rules in the vendored CR`
+        `scanned ${fileCount} files, ${total} CR citations, ${ruleCount} rules in the vendored CR`
     );
     if (!bad.size) {
         console.log("all citations resolve");
@@ -109,4 +155,7 @@ function main(): number {
     return 1;
 }
 
-process.exit(main());
+// CLI only. The regression guard (`scripts/__tests__/cr-citations.test.ts`)
+// imports the exported scan functions; without this gate the import would tear
+// the test runner down with `process.exit`.
+if (import.meta.main) process.exit(main());

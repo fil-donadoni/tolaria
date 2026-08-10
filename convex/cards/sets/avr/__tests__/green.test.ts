@@ -23,7 +23,7 @@ function craterhoofEntered(instanceId: string, controllerId: string) {
     };
 }
 
-describe("Craterhoof Behemoth (CR 603.6a self-ETB, 611.2c one-shot mass pump + 611.1b trample grant — issue #2372)", () => {
+describe("Craterhoof Behemoth (CR 603.6a self-ETB, 611.2c one-shot mass pump + 611.2a trample grant — issue #2372)", () => {
     it("with 3 creatures you control (including itself), each gets +3/+3 and trample until end of turn", () => {
         const craterhoof = makeInstance(craterhoofBehemoth.id, {
             id: "craterhoof-1",

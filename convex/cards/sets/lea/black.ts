@@ -818,7 +818,7 @@ export const mindTwist: CardDefinition = {
 
 // Nether Shadow — "Haste. At the beginning of your upkeep, if this card is in
 // your graveyard with three or more creature cards above it, you may put this
-// card onto the battlefield." (CR 603.6e graveyard-zone trigger, 603.4d
+// card onto the battlefield." (CR 603.6e graveyard-zone trigger, 603.4
 // intervening-if, 603.10.) The trigger opts into `collectTriggers`' graveyard
 // scan via `zone: "graveyard"`; the intervening-if counts creature cards
 // stacked above Nether Shadow in its owner's graveyard via the shared
@@ -1067,12 +1067,12 @@ export const paralyze: CardDefinition = {
 // Pestilence — "At the beginning of the end step, if no creatures are on the
 // battlefield, sacrifice this enchantment.\n{B}: This enchantment deals 1
 // damage to each creature and each player." (modern Scryfall Oracle; CR 603.6a
-// phase trigger, 603.4d intervening-if, 120.3 damage to each). The pre-Oracle
+// phase trigger, 603.4 intervening-if, 120.3 damage to each). The pre-Oracle
 // Alpha printing had an upkeep "sacrifice unless pay {B}" clause and gated the
 // activated ability on a creature being in play — both removed in the modern
 // Oracle (issue #960). The end-step trigger fires on EVERY end step (unqualified
 // "the end step" → scope "each") and its intervening-if re-checks "no creatures
-// on the battlefield" at trigger AND resolve time (CR 603.4d); the activated
+// on the battlefield" at trigger AND resolve time (CR 603.4); the activated
 // ability now has no activation restriction (CR 602.5a).
 export const pestilence: CardDefinition = {
     id: "d42a6350-b16b-4e10-a273-e6cbb55dcb7a",
@@ -1089,7 +1089,7 @@ export const pestilence: CardDefinition = {
                 "At the beginning of the end step, if no creatures are on the battlefield, sacrifice this enchantment.",
             phase: "END_STEP",
             scope: "each",
-            // CR 603.4d intervening-if — the "if no creatures are on the
+            // CR 603.4 intervening-if — the "if no creatures are on the
             // battlefield" condition is re-checked at trigger time (mirrored
             // into matches by the factory) and again immediately before
             // resolve. A creature entering between trigger and resolve fizzles
@@ -1241,7 +1241,7 @@ export const royalAssassin: CardDefinition = {
 
 // Sacrifice — "As an additional cost to cast this spell, sacrifice a
 // creature. Add an amount of {B} equal to the sacrificed creature's mana
-// value." (CR 117.9 / 601.2f additional cost, CR 202.3 mana value, CR 605
+// value." (CR 118.8 / 601.2f additional cost, CR 202.3 mana value, CR 605
 // mana ability surrogate.) The engine validates ≥1 creature available at
 // announcement and the player picks the target via selectAdditionalCost
 // before mana payment can complete. The sacrificed creature's mana value
@@ -1642,7 +1642,7 @@ export const wordOfCommand: CardDefinition = {
         // The Acting Player (controller) makes EVERY cast decision for the
         // controlled opponent's spell, consuming the opponent's resources
         // (ADR 0037): the mode (CR 700.2c), the value of X (CR 107.3), any
-        // additional sacrifice cost (CR 117.9), and the targets (CR 601.2c).
+        // additional sacrifice cost (CR 118.8), and the targets (CR 601.2c).
         // Each pick is a resolve-time Pending Choice routed to the controller;
         // the resolve step re-runs after every submit, reading prior picks back
         // (so the choiceIds must be stable). Any pick that is unmeetable from
@@ -1692,11 +1692,11 @@ export const wordOfCommand: CardDefinition = {
             chosenX = Number(pickedX);
         }
 
-        // ADDITIONAL COST — sacrifice (#579, CR 117.9). For a spell with a
+        // ADDITIONAL COST — sacrifice (#579, CR 118.8). For a spell with a
         // sacrifice additional cost the controller picks a matching permanent
         // on the CONTROLLED OPPONENT's battlefield; it is sacrificed on commit.
         // No matching permanent → the cost is unmeetable, the spell is NOT
-        // played ("if able", CR 117.9 / 601.2f).
+        // played ("if able", CR 118.8 / 601.2f).
         const sacrificeFilter = ctx.getCardSacrificeFilter(
             opponentId,
             chosenId

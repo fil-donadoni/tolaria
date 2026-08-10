@@ -177,7 +177,7 @@ describe("Chain of Vapor (CR 701.10 / 608.2 / 701.16 / 707.12)", () => {
         ).toBe(true);
 
         // A copy controlled by p2 awaits a (new) target; p2 — who sacrificed —
-        // chooses (CR 707.12b/c).
+        // chooses (CR 707.10/c).
         const pt = state.pendingTarget!;
         expect(pt.kind).toBe("copy-retarget");
         expect(pt.playerId).toBe("p2");

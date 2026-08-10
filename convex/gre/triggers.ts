@@ -145,7 +145,7 @@ function buildTriggerItem(
     };
 }
 
-/** CR 702.35d — builds the synthetic reflexive triggered ability StackItem a
+/** CR 702.35a — builds the synthetic reflexive triggered ability StackItem a
  *  card discarded via Madness puts on the stack ("When this card is discarded
  *  and exiled this way, its owner may cast it..."). Engine-owned: it carries no
  *  card-def ability, only the `madnessTrigger` marker (the exiled card's id),
@@ -587,13 +587,13 @@ export function collectTriggers(
         }
     }
 
-    // CR 702.35d — the reflexive "may cast" triggered ability of a card discarded
+    // CR 702.35a — the reflexive "may cast" triggered ability of a card discarded
     // via Madness. The ability lives on the discarded card itself (now in its
     // owner's exile), not a battlefield permanent, so every scan above misses it.
     // It triggers off the CARD_DISCARDED event the madness replacement emitted;
     // the `madnessTriggerPending` tag (set by `markMadnessExiled`) is consumed
     // here so the trigger is built exactly once. A card is only ever discarded
-    // from its owner's hand, so the discarding player IS the owner (CR 702.35d —
+    // from its owner's hand, so the discarding player IS the owner (CR 702.35a —
     // "its owner may cast it").
     for (const event of events) {
         if (event.type !== "CARD_DISCARDED") continue;

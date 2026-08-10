@@ -115,7 +115,7 @@ describe("Food token (CR 707.2, issue #778)", () => {
         expect(state.stack).toHaveLength(1);
 
         resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(23); // CR 119.3a
+        expect(state.players[0].life).toBe(23); // CR 119.3
     });
 
     it("wire format: the life gain and Food ability survive projectPublicState", () => {

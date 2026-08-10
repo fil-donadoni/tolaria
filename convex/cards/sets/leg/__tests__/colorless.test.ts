@@ -772,7 +772,7 @@ describe("Unholy Citadel (CR 702.22j keyword-grant, black legendary creatures)",
     });
 });
 
-describe("Tolaria (strip banding + bands-with-other, upkeep-only, CR 611.1b)", () => {
+describe("Tolaria (strip banding + bands-with-other, upkeep-only, CR 611.2a)", () => {
     it("strips both banding and bands-with-other until cleanup", () => {
         const land = makeInstance(tolaria.id, {
             id: "tolaria",

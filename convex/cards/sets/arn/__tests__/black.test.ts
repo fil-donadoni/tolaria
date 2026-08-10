@@ -185,7 +185,7 @@ describe("Khabál Ghoul (end step: +1/+1 per creature that died this turn)", () 
     });
 });
 
-describe("Erg Raiders (end step: 2 damage to you unless it attacked / just arrived, CR 603.3e/603.4)", () => {
+describe("Erg Raiders (end step: 2 damage to you unless it attacked / just arrived, CR 603.2/603.4)", () => {
     const ability = ergRaiders.triggeredAbilities!.find(
         (a) => a.id === "erg-raiders-end-step"
     )!;
@@ -221,7 +221,7 @@ describe("Erg Raiders (end step: 2 damage to you unless it attacked / just arriv
         expect(state.players[0].life).toBe(20);
     });
 
-    it("does not trigger the turn it came under your control (CR 603.3e)", () => {
+    it("does not trigger the turn it came under your control (CR 603.2)", () => {
         const erg = makeInstance(ergRaiders.id, {
             id: "erg",
             isSummoningSick: true,

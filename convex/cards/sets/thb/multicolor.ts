@@ -3,7 +3,7 @@
 import type { CardDefinition, EffectOp } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
-// CR 702.138e — "sacrifice it unless it escaped": sacrifice $source when the
+// CR 702.138b — "sacrifice it unless it escaped": sacrifice $source when the
 // escaped flag reads 0 (a NON-escape cast — from hand, or a blink). The escaped
 // EffectValue resolves to 1 (escaped) or 0 (not); `< 1` selects the 0 case.
 const sacrificeUnlessEscaped: EffectOp[] = [
@@ -45,7 +45,7 @@ const uroValue: EffectOp[] = [
 ];
 
 // Uro, Titan of Nature's Wrath — {1}{G}{U} Legendary Creature — Elder Giant 6/6.
-// "When Uro enters, sacrifice it unless it escaped." (CR 702.138e escaped test.)
+// "When Uro enters, sacrifice it unless it escaped." (CR 702.138b escaped test.)
 // "Whenever Uro enters or attacks, you gain 3 life and draw a card, then you may
 //  put a land card from your hand onto the battlefield."
 // "Escape—{G}{G}{U}{U}, Exile five other cards from your graveyard." (CR 702.138.)

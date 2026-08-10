@@ -127,7 +127,8 @@ describe("convoke keyword recognition + eligibility (CR 702.51)", () => {
 
     it("eligible creatures = the caster's UNTAPPED creatures (summoning sickness irrelevant)", () => {
         const { player } = board({ creatures: [CRAW_WURM, DRUDGE_SKELETONS] });
-        // A freshly-cast (summoning-sick) creature still convokes (CR 702.51e).
+        // A freshly-cast (summoning-sick) creature still convokes — convoke
+        // taps no `{T}` activation cost, so CR 602.5a never applies to it.
         expect(
             convokeEligibleCreatures(player)
                 .map((c) => c.id)

@@ -457,7 +457,7 @@ export function getLegalActions(
     }
     if (computeExpectedInput(state)?.kind !== "priority") {
         // One exception, and it is the reason this can't be a blanket check:
-        // a reflexive Madness / Rebound cast window (CR 702.35d / 702.88a) IS
+        // a reflexive Madness / Rebound cast window (CR 702.35a / 702.88a) IS
         // a pending choice, and CASTING the window's own card is how its owner
         // accepts it — `announceCast` consumes that choice before its own
         // Expected-Input gate (`consumeMadnessCastChoice` /
@@ -759,7 +759,7 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 702.35d — a card in the player's OWN exile that was discarded via
+    // CR 702.35a — a card in the player's OWN exile that was discarded via
     // Madness is castable from there for its madness cost. The madness cast
     // window is instant-speed (the reflexive trigger can resolve on any player's
     // turn), so no sorcery-timing/phase gate applies; affordability is checked
@@ -857,7 +857,7 @@ export function getLegalActions(
     return actions;
 }
 
-/** CR 117.9 / 601.2f: a spell whose additional cost is "sacrifice/exile a
+/** CR 118.8 / 601.2f: a spell whose additional cost is "sacrifice/exile a
  *  permanent matching a filter" (Natural Order, Soul Exchange) can only be
  *  cast if the caster controls at least one legal permanent to pay that
  *  cost — you can't announce a spell whose additional cost is unpayable.
@@ -1500,7 +1500,7 @@ function coloredCostLeftover(
     // pip from it for free. PROBE only: the real payment is the caster's
     // explicit creature-picker choice (`PendingCast.convokeCreatureChoice`),
     // never auto-picked. Summoning-sick creatures count (convoke is not a `{T}`
-    // ability, CR 702.51e). Without this a convoke-only-payable spell (Hogaak
+    // ability, CR 602.5a). Without this a convoke-only-payable spell (Hogaak
     // off can't-spend-mana) is judged unpayable and "cast" is hidden.
     if (includePayWith && spellHasConvoke(card)) {
         for (const creature of convokeEligibleCreatures(player)) {
@@ -2815,7 +2815,7 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             sourcePower
         );
 
-        // CR 702.21e (issue #1361) — when TWO+ spells/abilities simultaneously
+        // CR 702.21a (issue #1361) — when TWO+ spells/abilities simultaneously
         // target the same warded permanent, `legal` above (filtered only by
         // "targets THIS permanent") holds every one of them: ambiguous, no
         // single-legal-target auto-select. But THIS trigger instance already

@@ -13,7 +13,7 @@
 //     decision interleave into a half-built announcement.
 //   * RAISED (`"trigger"` / `"retarget"` / `"copy-retarget"`) — the ENGINE
 //     opened the selection at the player during resolution (CR 603.3d targeted
-//     trigger; CR 114.6 retarget; CR 707.10b/12c copy retarget). Nobody
+//     trigger; CR 115.7 retarget; CR 707.10c copy retarget). Nobody
 //     announced anything; the player simply owes an answer, exactly like a
 //     `PendingChoice`. Before this module the bot had no way to say so, so
 //     `enumerateMoves` surfaced NOTHING and the game froze forever (Flickerwisp,
@@ -242,7 +242,7 @@ export function applyRaisedTargetFinalization(
         return true;
     }
 
-    // Retarget branch (CR 114.6 — Reflecting Mirror's "change the target of
+    // Retarget branch (CR 115.7 — Reflecting Mirror's "change the target of
     // target spell"). The new target is written onto the ORIGINAL spell already
     // on the stack (not a copy). The resolving Reflecting Mirror ability has
     // finished, so a fresh priority round begins with the active player and the

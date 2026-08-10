@@ -44,7 +44,7 @@ export interface DiscardTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if; re-evaluated at resolve time by the engine. */
+    /** CR 603.4 intervening-if; re-evaluated at resolve time by the engine. */
     interveningIf?: (
         event: CardDiscardedEvent,
         self: PermanentView,
@@ -94,7 +94,7 @@ export function discardTrigger(args: DiscardTriggerArgs): TriggeredAbility {
         matches: (event: GameEvent, self, state) => {
             if (event.type !== "CARD_DISCARDED") return false;
             if (!discardMatches(event, self, state)) return false;
-            // CR 603.4d — mirror the intervening-if into matches so the trigger
+            // CR 603.4 — mirror the intervening-if into matches so the trigger
             // never enters the stack when already false at fire time.
             if (args.interveningIf && !args.interveningIf(event, self, state)) {
                 return false;

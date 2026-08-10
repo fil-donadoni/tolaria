@@ -143,7 +143,7 @@ describe("Jace, Vryn's Prodigy — the loot + conditional flip (CR 712 / 400.7)"
         expect(state.players[0].exile).toHaveLength(0);
 
         // Wire format: the client renders the planeswalker face and its
-        // loyalty off the projection, for BOTH players (CR 712.1a — transform
+        // loyalty off the projection, for BOTH players (CR 712.6 — transform
         // is public information).
         for (const viewerId of ["p1", "p2"]) {
             const projected = projectPublicState(state, 1, viewerId);

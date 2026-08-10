@@ -438,9 +438,9 @@ describe("Nature's Lore (CR 701.19 search Forest onto battlefield)", () => {
     });
 });
 
-// --- Stampede — buff every attacker (CR 611.1c + trample) -------------------
+// --- Stampede — buff every attacker (CR 611.2a + trample) -------------------
 
-describe("Stampede (CR 611.1c attacker buff + trample)", () => {
+describe("Stampede (CR 611.2a attacker buff + trample)", () => {
     it("+1/+0 and trample on each attacking creature, survives projection", () => {
         const atk = makeInstance(balduvianBears.id, {
             id: "atk",
@@ -922,9 +922,9 @@ describe("Essence Filter (CR 700.2 modal mass enchantment destroy)", () => {
     });
 });
 
-// --- Fanatical Fever — +3/+0 and trample (CR 611.1c) ------------------------
+// --- Fanatical Fever — +3/+0 and trample (CR 611.2a) ------------------------
 
-describe("Fanatical Fever (CR 611.1c +3/+0 and trample)", () => {
+describe("Fanatical Fever (CR 611.2a +3/+0 and trample)", () => {
     it("buffs power and grants trample until end of turn", () => {
         const bear = vanilla("bear", 2, 2, {
             id: "bear",
@@ -949,9 +949,9 @@ describe("Fanatical Fever (CR 611.1c +3/+0 and trample)", () => {
     });
 });
 
-// --- Folk of the Pines — firebreathing +1/+0 (CR 605 / 611.1b) --------------
+// --- Folk of the Pines — firebreathing +1/+0 (CR 605 / 611.2a) --------------
 
-describe("Folk of the Pines (CR 611.1b firebreathing +1/+0)", () => {
+describe("Folk of the Pines (CR 611.2a firebreathing +1/+0)", () => {
     it("pumps itself +1/+0 until end of turn", () => {
         const folk = makeInstance(folkOfThePines.id, {
             id: "folk",
@@ -1591,7 +1591,7 @@ describe("Pyknite (1/1 Ouphe with self-ETB cantrip, CR 603.6a)", () => {
     });
 });
 
-describe("Touch of Vitae (until-EOT haste + granted {0} untap, once; CR 611.1b)", () => {
+describe("Touch of Vitae (until-EOT haste + granted {0} untap, once; CR 611.2a)", () => {
     it("grants haste + a duration-scoped {0} untap ability; the ability untaps, and the EOT purge removes both", () => {
         const creature = vanilla("c", 2, 2, {
             id: "c",
@@ -1614,7 +1614,7 @@ describe("Touch of Vitae (until-EOT haste + granted {0} untap, once; CR 611.1b)"
             { type: "permanent", id: "c" },
         ]);
         let c = state.players[0].battlefield.find((x) => x.id === "c")!;
-        // Both until-EOT grants applied (CR 611.1b): the haste keyword and the
+        // Both until-EOT grants applied (CR 611.2a): the haste keyword and the
         // duration-scoped activated ability, each with an end-of-turn duration.
         expect(c.staticAbilities).toContain("haste");
         expect(c.grantedActivatedAbilities).toHaveLength(1);
@@ -2617,7 +2617,7 @@ describe("Forbidden Lore (CR 611 activated-grant on enchanted land)", () => {
         expect(getEffectiveActivatedAbilities(land)).toEqual([]);
     });
 
-    it("attached, grants the land a tap-pump ability that survives the wire and resolves +2/+1 (CR 611.1b)", () => {
+    it("attached, grants the land a tap-pump ability that survives the wire and resolves +2/+1 (CR 611.2a)", () => {
         const { state, land } = setup(true);
         expect(land.grantedActivatedAbilities).toHaveLength(1);
         expect(land.grantedActivatedAbilities![0].abilityId).toBe(

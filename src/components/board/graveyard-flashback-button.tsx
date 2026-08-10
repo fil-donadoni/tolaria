@@ -28,7 +28,7 @@ export default function GraveyardFlashbackButton({
         costDialogOverlay,
     } = useHandCardCommit(card, { onCommitted });
 
-    // CR 702.34c — the projection attaches `legalActions` to the viewer's own
+    // CR 702.34a — the projection attaches `legalActions` to the viewer's own
     // flashback cards; "cast" is present only when the flashback cast is legal
     // right now (correct timing AND the flashback cost is affordable). Gate the
     // button so an illegal cast is disabled rather than dispatched and rejected

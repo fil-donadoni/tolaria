@@ -424,7 +424,7 @@ function compactCard(
     if (card.grantedFlashback) {
         out.grantedFlashback = card.grantedFlashback;
     }
-    // CR 702.138e — a permanent that escaped carries the flag for the life of
+    // CR 702.138b — a permanent that escaped carries the flag for the life of
     // the permanent (Uro/Phlage "unless it escaped", Nethergoyf "as long as ~
     // escaped"); it must survive save/load.
     if (card.escaped) {
@@ -435,7 +435,7 @@ function compactCard(
     if (card.madnessExiled) {
         out.madnessExiled = card.madnessExiled;
     }
-    // CR 702.35d — the pending-reflexive-trigger marker must survive a save/load
+    // CR 702.35a — the pending-reflexive-trigger marker must survive a save/load
     // between the discard→exile and the trigger being built by collectTriggers.
     if (card.madnessTriggerPending) {
         out.madnessTriggerPending = card.madnessTriggerPending;
@@ -476,7 +476,7 @@ function compactCard(
     // CR 702.33 (ADR 0079, issue #1950) — `wasKicked`'s per-Kicker-id twin
     // must survive the same save/load window: a two-Kicker permanent's ETB
     // trigger (Nightscape Battlemage — "if it was kicked with its {2}{U}
-    // kicker") re-checks its CR 603.4d intervening-if only once the trigger
+    // kicker") re-checks its CR 603.4 intervening-if only once the trigger
     // resolves, which can be after a stable point was already written.
     if (card.kickerPayments && Object.keys(card.kickerPayments).length > 0) {
         out.kickerPayments = card.kickerPayments;
@@ -484,7 +484,7 @@ function compactCard(
     // CR 107.3 / 601.2b (issue #674) — the chosen {X} snapshot must survive a
     // save/load: Ravenous's ETB trigger goes on the stack, the game reaches a
     // stable point (state written to `game_state`), and only THEN does the
-    // trigger resolve and re-check its CR 603.4d intervening-if. Dropped here,
+    // trigger resolve and re-check its CR 603.4 intervening-if. Dropped here,
     // "if X is 5 or greater" would read 0 on every real game.
     if (card.chosenXOnCast !== undefined) {
         out.chosenXOnCast = card.chosenXOnCast;
@@ -797,7 +797,7 @@ function expandCard(
         result.grantedFlashback =
             compact.grantedFlashback as CardInstanceState["grantedFlashback"];
     }
-    // CR 702.138e — restore the escaped flag on the permanent.
+    // CR 702.138b — restore the escaped flag on the permanent.
     if (compact.escaped) {
         result.escaped = compact.escaped as boolean;
     }
@@ -805,7 +805,7 @@ function expandCard(
     if (compact.madnessExiled) {
         result.madnessExiled = compact.madnessExiled as boolean;
     }
-    // CR 702.35d — restore the pending-reflexive-trigger marker.
+    // CR 702.35a — restore the pending-reflexive-trigger marker.
     if (compact.madnessTriggerPending) {
         result.madnessTriggerPending = compact.madnessTriggerPending as boolean;
     }
@@ -1176,7 +1176,7 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.abilityResolutionRecorded) {
         base.abilityResolutionRecorded = item.abilityResolutionRecorded;
     }
-    // CR 702.35d — the reflexive Madness cast-trigger marker (the exiled card's
+    // CR 702.35a — the reflexive Madness cast-trigger marker (the exiled card's
     // id) must survive a save/load while the trigger sits on the stack.
     if (item.madnessTrigger) base.madnessTrigger = item.madnessTrigger;
     // CR 702.88a — the reflexive Rebound cast-trigger marker (the exiled card's
@@ -1302,7 +1302,7 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
         item.abilityResolutionRecorded =
             compact.abilityResolutionRecorded as boolean;
     }
-    // CR 702.35d — restore the reflexive Madness cast-trigger marker.
+    // CR 702.35a — restore the reflexive Madness cast-trigger marker.
     if (compact.madnessTrigger) {
         item.madnessTrigger = compact.madnessTrigger as string;
     }
@@ -1383,7 +1383,7 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (compact.reboundFromHand) {
         item.reboundFromHand = compact.reboundFromHand as boolean;
     }
-    // CR 702.138e — rehydrate the escaped marker mid-resolution so the resulting
+    // CR 702.138b — rehydrate the escaped marker mid-resolution so the resulting
     // permanent still reads as having escaped.
     if (compact.escaped) {
         item.escaped = compact.escaped as boolean;
@@ -1407,7 +1407,7 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
 export const PERSISTED_OPTIONAL_KEYS = [
     "pendingCast",
     "pendingActivation",
-    // CR 116.2 / 702.139f (ADR 0064) — the {3} companion-summon payment.
+    // CR 116.2 / 702.139a (ADR 0064) — the {3} companion-summon payment.
     // Plain scalars (playerId/manaCost/tappedLandIds), no fat card refs, so
     // it round-trips via the generic optional-key loop with no per-field
     // compaction, exactly like pendingCast/pendingActivation.
@@ -1453,7 +1453,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "spellsCastThisTurn",
     "pendingUntapStep",
     "pendingCleanupDiscard",
-    // CR 702.35d — the open Madness cast window. Transiently set only while its
+    // CR 702.35a — the open Madness cast window. Transiently set only while its
     // owner owes a cast-or-decline decision (itself a stable save point), so it
     // must survive the DB round-trip. Undefined at a fully-resolved point.
     "madnessCastWindow",

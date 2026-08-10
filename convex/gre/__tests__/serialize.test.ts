@@ -142,7 +142,7 @@ describe("game_state serialize round-trip", () => {
         expect(companion?.instance.types).toEqual(["Creature"]);
     });
 
-    // CR 116.2 / 702.139f (ADR 0064) — the in-progress {3} companion-summon
+    // CR 116.2 / 702.139a (ADR 0064) — the in-progress {3} companion-summon
     // payment (a plain-scalar sibling of pendingCast/pendingActivation)
     // round-trips via the generic optional-key loop.
     it("preserves a parked pendingCompanionPay (issue #1391)", () => {
@@ -763,7 +763,7 @@ describe("game_state serialize round-trip", () => {
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
         lion.grantedStaticAbilities = [
             { ability: "flying", auraId: "aura-1", seq: 3 },
-            // CR 611.1b — duration-scoped keyword grant (Wall of Caltrops' EOT
+            // CR 611.2a — duration-scoped keyword grant (Wall of Caltrops' EOT
             // banding, #495). Persists across the DB round-trip with its duration.
             { ability: "banding", duration: { phase: "end-of-turn" } },
             // CR 613.1f (issue #1715) — a grant a strictly-later stripper
@@ -785,7 +785,7 @@ describe("game_state serialize round-trip", () => {
         lion.grantedSubtypesAdd = [
             { subtype: "Forest", auraId: "yavimaya-1", seq: 2 },
         ];
-        // CR 611.1b — duration-scoped keyword removal (Shelkin Brownie / Tolaria, #381).
+        // CR 611.2a — duration-scoped keyword removal (Shelkin Brownie / Tolaria, #381).
         lion.temporaryRemovedKeywords = [
             {
                 keyword: "bands with other:legendary",

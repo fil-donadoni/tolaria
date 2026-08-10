@@ -242,7 +242,7 @@ export const bogDown: CardDefinition = {
 // opponent's upkeep, that player loses X life, where X is the number of
 // cards in that player's hand minus the number of cards in your hand."
 // (CR 603.6a upkeep trigger, CR 402.2 hand size is public information,
-// CR 119.3b life loss.)
+// CR 119.3 life loss.)
 //
 // The card this set's two Effect Script gaps were opened for (issue #2006),
 // and it is now ordinary declarative data:
@@ -307,7 +307,7 @@ export const darkSuspicions: CardDefinition = {
 
 // Death Bomb — {3}{B} Instant. "As an additional cost to cast this spell,
 // sacrifice a creature. Destroy target nonblack creature. It can't be
-// regenerated. Its controller loses 2 life." (CR 601.2b/117.9 additional
+// regenerated. Its controller loses 2 life." (CR 601.2b/118.8 additional
 // sacrifice cost via `additionalCosts.sacrificeFilter`, CR 701.7/701.15c
 // destroy + can't-be-regenerated, CR 202.2 "nonblack" via `excludeColors`.)
 // The life-loss reads the target's controller BEFORE the `destroy` Op runs
@@ -343,7 +343,7 @@ export const deathBomb: CardDefinition = {
 
 // Diabolic Intent — {1}{B} Sorcery. "As an additional cost to cast this
 // spell, sacrifice a creature. Search your library for a card, put that
-// card into your hand, then shuffle." (CR 601.2b/117.9 additional sacrifice
+// card into your hand, then shuffle." (CR 601.2b/118.8 additional sacrifice
 // cost, CR 401.4 search.) The tutor body is Demonic Tutor's own effect body
 // verbatim (`lea/black.ts`) — this card's only distinguishing clause is the
 // additional cost.
@@ -521,7 +521,7 @@ export const maggotCarrier: CardDefinition = {
 // owners' hands. When this creature enters, if it was kicked with its
 // {2}{R} kicker, destroy target land." (CR 702.33 plural Kicker, ADR 0079 —
 // the Battlemage cycle's own headline shape: two INDEPENDENTLY payable
-// Kickers, each with its own CR 603.4d intervening-if ETB trigger.)
+// Kickers, each with its own CR 603.4 intervening-if ETB trigger.)
 //
 // The per-Kicker gate is `kickerPaidCondition("<id>")` — the shared predicate
 // over `PermanentView.kickerPayments` (issue #1950), the per-Kicker-id twin of
@@ -760,7 +760,7 @@ export const phyrexianScuta: CardDefinition = {
 // };
 
 // Shriek of Dread — {1}{B} Instant. "Target creature gains fear until end
-// of turn." (CR 702.14b fear, CR 611.1b temporary keyword grant via the
+// of turn." (CR 702.14b fear, CR 611.2a temporary keyword grant via the
 // shipped `grantAbility` Op — Hooded Kavu's own self-targeted shape
 // (`inv/multicolor.ts`) with an announced target instead of `$source`.)
 export const shriekOfDread: CardDefinition = {
@@ -852,7 +852,7 @@ export const slay: CardDefinition = {
 
 // Volcano Imp — {3}{B} Creature — Imp, 2/2. "Flying. {1}{R}: This creature
 // gains first strike until end of turn." (CR 702.9b flying keyword; CR
-// 611.1b temporary keyword grant via `grantAbility`, self-targeted through
+// 611.2a temporary keyword grant via `grantAbility`, self-targeted through
 // `$source` — the same shape as every other activated "gains X until end of
 // turn" pump ability in the catalogue.)
 export const volcanoImp: CardDefinition = {

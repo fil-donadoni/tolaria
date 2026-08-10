@@ -354,7 +354,7 @@ export function makeTriome(args: {
             COLOR_TO_LAND_SUBTYPE[c2],
             COLOR_TO_LAND_SUBTYPE[c3],
         ],
-        // CR 305.6b — Triomes always enter the battlefield tapped.
+        // CR 603.6d — Triomes always enter the battlefield tapped.
         entersTapped: true,
         activatedAbilities: [
             {

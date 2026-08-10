@@ -1,5 +1,5 @@
 // Direct unit tests for the `enteredTrigger` factory. Exercises the scope
-// vocabulary, filter wiring, CR 603.4 `condition`, CR 603.4d `interveningIf`,
+// vocabulary, filter wiring, CR 603.4 `condition`, CR 603.4 `interveningIf`,
 // and the flattened payload handed to the resolve callback. The shared
 // `matchesPermanentScope` helper is covered by `diedTrigger.test.ts`; this
 // file focuses on entered-specific wiring (event-type narrowing and the
@@ -183,7 +183,7 @@ describe("enteredTrigger factory", () => {
         ).toBe(true);
     });
 
-    it("forwards `interveningIf` to the engine-level field (CR 603.4d)", () => {
+    it("forwards `interveningIf` to the engine-level field (CR 603.4)", () => {
         const ability = enteredTrigger({
             id: "x",
             oracleText: "...",

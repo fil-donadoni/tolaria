@@ -102,7 +102,7 @@ export const earthcraft: CardDefinition = {
 
 // Harrow — {2}{G} Instant. "As an additional cost to cast this spell,
 // sacrifice a land. Search your library for up to two basic land cards, put
-// them onto the battlefield, then shuffle." (CR 601.2b / 117.9 additional
+// them onto the battlefield, then shuffle." (CR 601.2b / 118.8 additional
 // sacrifice cost; CR 401.4 search; CR 701.20 shuffle.)
 //
 // Home set = earliest paper printing (ADR 0041) = Tempest; it was first

@@ -69,7 +69,18 @@ gone from the skills' `allowed-tools` and from the permission allowlists;
 **Never cite a rule number that has not been printed.** If `bun run cr <id>`
 says the rule does not exist, the citation is wrong; find the real one with
 `bun run cr grep`. `bun run cr:lint` sweeps the repo for citations that do not
-resolve against the vendored document.
+resolve against the vendored document; since issue #2429 it is **part of
+`check:guards`** (and therefore of `bun run check:pr`), with
+`scripts/__tests__/cr-citations.test.ts` running the same scan inside the node
+project so the guard survives the gate wiring being changed.
+
+**What the linter cannot check.** It only asks whether an id RESOLVES. A
+citation repointed to a plausible-but-wrong number passes it silently, and the
+repo still contains such cases outside the #2429 sweep — see
+`docs/findings/2429-resolvable-but-wrong-cr-citations.md`. It is also
+line-based and requires the `CR ` prefix, so a bare id in a slash-list
+(`CR 707.10b / 114.6`) or a citation wrapped across two comment lines is
+invisible to it; #2429 fixed 167 such occurrences by hand.
 
 ## Consequences
 

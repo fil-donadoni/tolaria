@@ -559,7 +559,7 @@ export function applyMoveForSearch(
         }
 
         case "summon-companion": {
-            // CR 116.2 / 702.139f — the companion summon special action.
+            // CR 116.2 / 702.139a — the companion summon special action.
             // Coarse mana model matching this file's own `play-land`/
             // `cast-spell` leaves (see header): taps a representative source
             // set for the {3} without draining the pool coin-exact — legality

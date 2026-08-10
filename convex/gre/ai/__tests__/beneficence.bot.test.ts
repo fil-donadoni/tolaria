@@ -264,7 +264,7 @@ describe("misdirectedTargetCount — the sign against the real board (issue #188
 
 describe("X = 0 is provably nothing (issue #1888 item 2)", () => {
     // `Flash of Insight` declares `additionalCosts.flashbackExileFromGraveyard`
-    // — owed only on a GRAVEYARD cast (CR 702.34e). The dominance probe used to
+    // — owed only on a GRAVEYARD cast (CR 601.2a). The dominance probe used to
     // refuse the card outright on the presence of that object, leaving the
     // empty X = 0 branch in the move list.
     const board = {

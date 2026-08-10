@@ -57,7 +57,7 @@ turn-upable for mana — breaking a shipped card and contradicting CR 708 for th
 Mask case, whose whole point is that the turn-up is not a cost.
 
 **2. The paid turn-up is a special action (CR 116.2b), modelled on the
-companion summon.** The companion special action (CR 116.2/702.139f, ADR 0064 —
+companion summon.** The companion special action (CR 116.2/702.139a, ADR 0064 —
 `gre/moves.ts:1361`, `applyMove.ts:298`, with its matching `search.ts` bot
 branch) already establishes the shape: a non-stack move, offered while its
 controller has priority, paid through the `pendingCast` payment seam so the

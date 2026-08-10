@@ -287,7 +287,7 @@ describe("Old Man of the Sea ({T}: steal a creature with power <= its own while 
     });
 });
 
-describe("Fishliver Oil (Aura keyword-grant → islandwalk, CR 611 + 702.13i)", () => {
+describe("Fishliver Oil (Aura keyword-grant → islandwalk, CR 611 + 702.14)", () => {
     it("grants islandwalk to the host; the host becomes unblockable only once the defender controls an Island", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -323,7 +323,7 @@ describe("Fishliver Oil (Aura keyword-grant → islandwalk, CR 611 + 702.13i)", 
         ).toBe(true);
 
         // Defender controls an Island — islandwalk makes the host unblockable
-        // (CR 702.13i / 509.1b).
+        // (CR 702.14 / 509.1b).
         const isl = makeInstance(island.id, {
             id: "isl",
             controllerId: "p2",

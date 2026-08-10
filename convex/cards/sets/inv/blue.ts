@@ -304,7 +304,7 @@ export const shimmeringWingsInv: CardPrint = {
 };
 
 // Sky Weaver — {1}{U} Creature — Metathran Wizard, 2/1. "{2}: Target white or
-// black creature gains flying until end of turn." (CR 611.1b/613.1f layer-6
+// black creature gains flying until end of turn." (CR 611.2a/613.1f layer-6
 // duration grant + CR 202.2 OR colour filter — `colorFilterAny`.)
 export const skyWeaver: CardDefinition = {
     id: "04974146-42a8-4f10-b443-67bfeaa54d5d",

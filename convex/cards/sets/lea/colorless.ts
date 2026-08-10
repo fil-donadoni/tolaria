@@ -221,7 +221,7 @@ export const clockworkBeast: CardDefinition = {
                 "At end of combat, if this creature attacked or blocked this combat, remove a +1/+0 counter from it.",
             phase: "END_OF_COMBAT",
             scope: "each",
-            // CR 603.4d intervening-if — checked at both trigger time and
+            // CR 603.4 intervening-if — checked at both trigger time and
             // resolve. The "attacked or blocked this combat" markers persist
             // past END_OF_COMBAT so the resolve-time re-check sees the same
             // values.
@@ -609,7 +609,7 @@ export const glassesOfUrza: CardDefinition = {
 };
 
 // Helm of Chatzuk — "{1}, {T}: Target creature gains banding until end of
-// turn." Temporary keyword grant (CR 611.1b) via grantStaticAbility with an
+// turn." Temporary keyword grant (CR 611.2a) via grantStaticAbility with an
 // end-of-turn duration, mirroring Jump (flying).
 export const helmOfChatzuk: CardDefinition = {
     id: "3792c6ef-c4e6-4923-9a51-7d28fbc5c393",
@@ -627,7 +627,7 @@ export const helmOfChatzuk: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant banding to the
-            // announced target creature until end of turn (CR 611.1b).
+            // announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -661,7 +661,7 @@ export const howlingMine: CardDefinition = {
                 "At the beginning of each player's draw step, if Howling Mine is untapped, that player draws an additional card.",
             phase: "DRAW",
             scope: "each",
-            // CR 603.4d intervening-if — checked at both trigger time and
+            // CR 603.4 intervening-if — checked at both trigger time and
             // resolve. If the artifact is tapped between trigger and
             // resolve (Icy Manipulator response), the trigger fizzles.
             interveningIf: (_event, self) => !self.isTapped,
@@ -1113,13 +1113,13 @@ export const manaVault: CardDefinition = {
                 "At the beginning of your draw step, if this artifact is tapped, it deals 1 damage to you.",
             phase: "DRAW",
             scope: "your",
-            // CR 603.4d intervening-if — checked at both trigger time and
+            // CR 603.4 intervening-if — checked at both trigger time and
             // resolve. If the artifact has untapped between trigger and
             // resolve (e.g. paid upkeep), the ping fizzles.
             interveningIf: (_event, self) => self.isTapped === true,
             // Migrated resolve()→effects[] (ADR 0045): a `your`-scoped
             // phaseTrigger, so the scoped player == controller — deal 1
-            // damage to the controller (CR 603.4d intervening-if above gates
+            // damage to the controller (CR 603.4 intervening-if above gates
             // the "if tapped" clause).
             effects: [
                 { op: "dealDamage", amount: 1, to: { player: "controller" } },

@@ -21,7 +21,7 @@ import type { CardDefinition } from "../../types";
 // "Exile X blue cards from your graveyard" (CR 118.5) is a flashback-only cost
 // (`additionalCosts.flashbackExileFromGraveyard`): it applies ONLY when the
 // spell is cast from the graveyard, exiles exactly chosenX blue cards from the
-// caster's own graveyard, and never the flashback card itself (CR 702.34e).
+// caster's own graveyard, and never the flashback card itself (CR 601.2a).
 export const flashOfInsight: CardDefinition = {
     id: "ffaab905-0b97-42c2-a1a3-1e72275caa82", // JUD 40
     rarity: "uncommon",

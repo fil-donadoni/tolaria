@@ -846,10 +846,10 @@ describe("Fellwar Stone (CR 106.4 — colours an opponent's land could produce)"
 // ─────────────────────────────────────────────────────────────────────────────
 // Reflecting Mirror — "{X}, {T}: Change the target of target spell with a single
 // target if that target is you. The new target must be a player. X is twice the
-// mana value of that spell." (CR 605 activated ability; CR 114.6 changing the
+// mana value of that spell." (CR 605 activated ability; CR 115.7 changing the
 // target of a spell already on the stack — the ORIGINAL object, not a copy.)
 // ─────────────────────────────────────────────────────────────────────────────
-describe("Reflecting Mirror (retarget existing spell, CR 114.6)", () => {
+describe("Reflecting Mirror (retarget existing spell, CR 115.7)", () => {
     const MIRROR_ABILITY = "reflecting-mirror-retarget";
 
     // Pushes Reflecting Mirror's ability on the stack with its targets already
@@ -941,7 +941,7 @@ describe("Reflecting Mirror (retarget existing spell, CR 114.6)", () => {
         expect(legal).toHaveLength(0);
     });
 
-    it("resolution opens a player-target retarget prompt for the activator (CR 114.6)", () => {
+    it("resolution opens a player-target retarget prompt for the activator (CR 115.7)", () => {
         const { state, mirror, bolt } = setup();
         resolveMirrorAbility(state, mirror, bolt.id);
 

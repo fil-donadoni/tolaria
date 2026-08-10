@@ -254,7 +254,7 @@ export const phelia: CardDefinition = {
 // The integration test for four capability tickets, all shipped:
 //   * #1457 — `GameState.lifeGainedThisTurn` + the CR 603.4 intervening-if
 //     ("if you gained life this turn"), checked at trigger time AND re-checked
-//     immediately before resolution (CR 603.4d). Same shape as Crested
+//     immediately before resolution (CR 603.4). Same shape as Crested
 //     Sunmare (`hou/white.ts`), narrowed to `scope: "your"` (CR 500.1 — the
 //     controller's own end step).
 //   * #1458 — the `EffectCardFilter.enteredThisTurn` clause, which reads the
@@ -312,7 +312,7 @@ export const ocelotPride: CardDefinition = {
                 "At the beginning of your end step, if you gained life this turn, create a 1/1 white Cat creature token. Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy of it.",
             phase: "END_STEP",
             scope: "your",
-            // CR 603.4 / 603.4d intervening-if — mirrored into `matches` by
+            // CR 603.4 / 603.4 intervening-if — mirrored into `matches` by
             // the factory (trigger time) and re-evaluated by the engine right
             // before resolution. A zero/absent tally is false.
             interveningIf: (_event, self, state) =>

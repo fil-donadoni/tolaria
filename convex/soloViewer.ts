@@ -63,7 +63,7 @@ export function computeSoloViewerId(ctx: SoloViewerCtx): string {
         if (defender) return defender;
     }
 
-    // CR 702.21j-k: when banding hands damage-assignment authority to the
+    // CR 702.22j-k: when banding hands damage-assignment authority to the
     // defending player, steer the solo viewer to whoever still owes a choice.
     if (
         (ctx.phase === "COMBAT_DAMAGE" ||

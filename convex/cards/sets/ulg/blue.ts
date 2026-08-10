@@ -67,7 +67,7 @@ export const franticSearch: CardDefinition = {
 
 // Tinker — {2}{U} Sorcery. "As an additional cost to cast this spell,
 // sacrifice an artifact. Search your library for an artifact card, put that
-// card onto the battlefield, then shuffle." (CR 117.9 additional cost /
+// card onto the battlefield, then shuffle." (CR 118.8 additional cost /
 // 701.19 / 400.7 / 701.20.) The additional cost reuses
 // `additionalCosts.sacrificeFilter` (a plain `PermanentFilter`); the search
 // is an unrestricted-by-value type filter (`type: "Artifact"`) straight to

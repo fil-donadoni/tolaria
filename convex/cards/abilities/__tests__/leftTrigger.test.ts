@@ -266,7 +266,7 @@ describe("leftTrigger.matches — condition (CR 603.4)", () => {
     });
 });
 
-describe("leftTrigger — interveningIf wrapper (CR 603.4d)", () => {
+describe("leftTrigger — interveningIf wrapper (CR 603.4)", () => {
     it("forwards the narrowed event to the author predicate", () => {
         let seen: PermanentLeftEvent | undefined;
         const ability = leftTrigger({

@@ -81,7 +81,7 @@ export default defineSchema({
         expectedInputKind: v.optional(v.string()),
         // The player id(s) actually owed to act this tick (issue #1778 review
         // finding 1 — `computeOwedPlayerIds`, `convex/gre/expectedInput.ts`).
-        // NOT simply `expectedInput.playerId`: the CR 510.1c/702.21j-k combat
+        // NOT simply `expectedInput.playerId`: the CR 510.1c/702.22j-k combat
         // damage-assignment sub-flow folds into a plain `{kind:"priority"}`
         // window gated `anyPlayer: true` (`setDamageAssignment`/
         // `confirmDamage`, `convex/game.ts`) while the real actor(s) live in

@@ -217,7 +217,7 @@ describe("3-char text gate (issue #504)", () => {
             available: true,
         });
 
-        it("parseTypeLine keeps Token out of types (CR 110.5e — marker characteristic)", () => {
+        it("parseTypeLine keeps Token out of types (CR 111.1 — marker characteristic)", () => {
             const parsed = parseTypeLine("Token Creature — Zombie");
             expect(parsed.types).toEqual(["Creature"]);
             expect(parsed.isToken).toBe(true);
@@ -307,7 +307,7 @@ describe("3-char text gate (issue #504)", () => {
             expect(entry.oracleFold).toBe("");
         });
 
-        it("parseTypeLine separates Token marker from types (CR 110.5e)", () => {
+        it("parseTypeLine separates Token marker from types (CR 111.1)", () => {
             const parsed = parseTypeLine("Token Artifact — Treasure");
             expect(parsed.types).toEqual(["Artifact"]);
             expect(parsed.isToken).toBe(true);

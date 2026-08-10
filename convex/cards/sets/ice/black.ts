@@ -217,7 +217,7 @@ export const ashenGhoul: CardDefinition = {
 // Brine Shaman — sacrifice-a-creature engine (CR 602.1 / 118.5 sacrifice cost).
 // "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn."
 // and "{1}{U}{U}, Sacrifice a creature: Counter target creature spell."
-// (CR 611.1b temporary buff; CR 701.5 counter.) The sacrifice cost uses
+// (CR 611.2a temporary buff; CR 701.5 counter.) The sacrifice cost uses
 // `sacrificeFilter` (a Creature the activator controls).
 export const brineShaman: CardDefinition = {
     id: "f445962c-44a1-4f3f-88d4-17048f8ca9dc",
@@ -239,7 +239,7 @@ export const brineShaman: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+2 EOT
-            // on the announced target (CR 611.1b) via the pump Op.
+            // on the announced target (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1189,7 +1189,7 @@ export const hecatomb: CardDefinition = {
         },
     ],
 };
-// Hoar Shade — classic Shade pump (CR 611.1b). "{B}: This creature gets +1/+1
+// Hoar Shade — classic Shade pump (CR 611.2a). "{B}: This creature gets +1/+1
 // until end of turn."
 export const hoarShade: CardDefinition = {
     id: "72242dff-15ca-4da0-b3ae-9984d037b31f",
@@ -1208,7 +1208,7 @@ export const hoarShade: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1230,7 +1230,7 @@ export const howlFromBeyondIce: CardPrint = {
     rarity: "common",
 };
 // Hyalopterous Lemure — "{0}: This creature gets -1/-0 and gains flying until
-// end of turn." (CR 611.1b negative pump + CR 702.9 flying grant.) Pay {0} to
+// end of turn." (CR 611.2a negative pump + CR 702.9 flying grant.) Pay {0} to
 // trade power for evasion.
 export const hyalopterousLemure: CardDefinition = {
     id: "d2c9e037-f4d5-46fd-b439-56bee6fb2ad3",
@@ -1251,7 +1251,7 @@ export const hyalopterousLemure: CardDefinition = {
             cost: { mana: { X: 0 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self -1/0 (CR 611.1)
-            // + self-grant flying until end of turn (CR 611.1b).
+            // + self-grant flying until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "pump",
@@ -1504,7 +1504,7 @@ export const kjeldoranDead: CardDefinition = {
     ],
 };
 // Knight of Stromgald — the black "Order" cycle shape: protection from white
-// (CR 702.16) plus a first-strike grant and a power pump (CR 611.1b).
+// (CR 702.16) plus a first-strike grant and a power pump (CR 611.2a).
 export const knightOfStromgald: CardDefinition = {
     id: "2b87069b-ebaf-4705-b5da-446932af9b73",
     name: "Knight of Stromgald",
@@ -1525,7 +1525,7 @@ export const knightOfStromgald: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.1b).
+            // strike until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -1541,7 +1541,7 @@ export const knightOfStromgald: CardDefinition = {
             cost: { mana: { B: 2 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1556,7 +1556,7 @@ export const knightOfStromgald: CardDefinition = {
 };
 // Krovikan Elementalist — "{2}{R}: Target creature gets +1/+0 until end of turn.
 // {U}{U}: Target creature you control gains flying until end of turn. Sacrifice
-// it at the beginning of the next end step." (CR 611.1b temp buff + CR 702.9
+// it at the beginning of the next end step." (CR 611.2a temp buff + CR 702.9
 // flying grant + CR 603.7a delayed end-step sacrifice.) The second ability's
 // "sacrifice it at the next end step" is a delayed trigger carrying the buffed
 // creature's id.
@@ -2218,7 +2218,7 @@ export const minionOfLeshrac: CardDefinition = {
 // Minion of Tevesh Szat — "At the beginning of your upkeep, this creature deals
 // 2 damage to you unless you pay {B}{B}." (CR 603.6a upkeep trigger + CR 117.3a
 // may-pay; on decline it deals 2 to its controller.) Plus "{T}: Target creature
-// gets +3/-2 until end of turn." (CR 611.1b — pump power, drop toughness.)
+// gets +3/-2 until end of turn." (CR 611.2a — pump power, drop toughness.)
 export const minionOfTeveshSzat: CardDefinition = {
     id: "ea9f3ab5-6a31-47db-b8bf-4c56a7ff19d1",
     name: "Minion of Tevesh Szat",
@@ -2979,7 +2979,7 @@ export const soulBurn: CardDefinition = {
 };
 // Soul Kiss — "Enchant creature. {B}, Pay 1 life: Enchanted creature gets +2/+2
 // until end of turn. Activate no more than three times each turn." (CR 303.4
-// aura, CR 611.1b temp buff on the host, CR 602.5 hard per-turn activation cap.)
+// aura, CR 611.2a temp buff on the host, CR 602.5 hard per-turn activation cap.)
 // The cap "no more than three times each turn" is a true activation restriction:
 // `canActivate` reads the per-turn tally (`activationsThisTurn`, surfaced on
 // PermanentView) and rejects the 4th activation. NOTE: this is exactly the
@@ -3175,7 +3175,7 @@ export const touchOfDeath: CardDefinition = {
 // Withering Wisps — end-step self-sacrifice when no creatures are on the
 // battlefield (CR 603.6a phase trigger), plus "{B}: deal 1 to each creature and
 // each player" with a per-turn activation cap equal to the number of snow
-// Swamps you control (CR 205.4a / 602.5f). The cap is enforced in `canActivate`
+// Swamps you control (CR 205.4a / 602.5b). The cap is enforced in `canActivate`
 // by counting the controller's snow Swamps and comparing to this turn's tally.
 export const witheringWisps: CardDefinition = {
     id: "ad1e6ae5-c972-42c0-ae78-f203873aeeb1",
@@ -3192,7 +3192,7 @@ export const witheringWisps: CardDefinition = {
                 "At the beginning of the end step, if no creatures are on the battlefield, sacrifice this enchantment.",
             phase: "END_STEP",
             scope: "each",
-            // CR 603.4d intervening-if — only sacrifice when the battlefield
+            // CR 603.4 intervening-if — only sacrifice when the battlefield
             // holds no creatures at all.
             interveningIf: (_event, _self, state) =>
                 !(state?.players ?? []).some((p) =>
@@ -3201,7 +3201,7 @@ export const witheringWisps: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
             // self-sacrifice via `$source` (issue #807) — the `interveningIf`
             // above already re-checks the "no creatures" condition (CR
-            // 603.4d) — mirrors Drop of Honey's `stateTrigger` shape
+            // 603.4) — mirrors Drop of Honey's `stateTrigger` shape
             // (arn/green.ts).
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
@@ -3213,7 +3213,7 @@ export const witheringWisps: CardDefinition = {
                 "{B}: This enchantment deals 1 damage to each creature and each player. Activate no more times each turn than the number of snow Swamps you control.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            // CR 602.5f / 205.4a — capped at the controller's snow-Swamp count.
+            // CR 602.5b / 205.4a — capped at the controller's snow-Swamp count.
             canActivate: (source, state) => {
                 const me = source.controllerId;
                 const controller = state.players.find((p) => p.id === me);

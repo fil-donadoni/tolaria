@@ -385,7 +385,7 @@ export type CardInstanceState = {
      *  i.e. it came under its controller's control and has not yet had its
      *  first upkeep under that control. Set at ETB for permanents whose
      *  definition declares the `echo` keyword; read by the echo trigger's
-     *  CR 603.4d intervening-if so it fires exactly once (on the controller's
+     *  CR 603.4 intervening-if so it fires exactly once (on the controller's
      *  first upkeep) and cleared by `SpellContext.markEchoPaid()` when the
      *  echo cost is paid. Persisted (must survive the DB write between entry
      *  and the next upkeep). */
@@ -428,7 +428,7 @@ export type CardInstanceState = {
      *  step began. Read by upkeep triggers phrased "if ~ started the turn
      *  untapped" (Rasputin Dreamweaver, LEG). Refreshed each untap step. */
     startedTurnUntapped?: boolean;
-    /** Keyword abilities granted for a limited duration (CR 113.1 / 611.1b).
+    /** Keyword abilities granted for a limited duration (CR 113.1 / 611.2a).
      *  Each entry is also pushed to `staticAbilities` for read-time lookups
      *  (combat logic inspects `staticAbilities.includes("trample")`) and is
      *  spliced back out either when the parametric `duration` expires,
@@ -474,7 +474,7 @@ export type CardInstanceState = {
      *    lord-style static-effect grants, spliced out when the source leaves
      *    play (Zombie Master: "Other Zombies have '{B}: Regenerate this
      *    creature.'").
-     *  - `duration` for one-shot until-end-of-turn grants (CR 611.1b), spliced
+     *  - `duration` for one-shot until-end-of-turn grants (CR 611.2a), spliced
      *    out by the phase-boundary purge when the duration expires (Touch of
      *    Vitae: "gains '{0}: Untap this creature. Activate only once.'"). */
     grantedActivatedAbilities?: {
@@ -499,7 +499,7 @@ export type CardInstanceState = {
      *    static-effect grants, spliced out when the source leaves play (Energy
      *    Flux: "All artifacts have 'At the beginning of your upkeep, sacrifice
      *    this artifact unless you pay {2}.'").
-     *  - `duration` for one-shot until-end-of-turn grants (CR 611.1b), spliced
+     *  - `duration` for one-shot until-end-of-turn grants (CR 611.2a), spliced
      *    out by the phase-boundary purge when the duration expires (Rapid Fire:
      *    "that creature gains rampage 2 until end of turn"). */
     grantedTriggeredAbilities?: {
@@ -524,7 +524,7 @@ export type CardInstanceState = {
          *  — Gravity Sphere then Flight: the creature flies). */
         seq?: number;
     }[];
-    /** Keywords removed for a limited duration by a one-shot effect (CR 611.1b
+    /** Keywords removed for a limited duration by a one-shot effect (CR 611.2a
      *  layer 6 — Shelkin Brownie / Tolaria stripping banding and "bands with
      *  other" abilities until end of turn). Each entry records the keyword
      *  spliced out of `staticAbilities` and the `duration` after which it is
@@ -920,7 +920,7 @@ export type CardInstanceState = {
      *  issue #1210) — has been transformed an odd number of times. Distinct
      *  from `faceDown`/`faceDownOf` (CR 707.4 morph: a HIDDEN identity that
      *  turns up to its OWN characteristics) — transform swaps between two
-     *  DISTINCT, always-PUBLIC (CR 712.1a) printed characteristic sets, so
+     *  DISTINCT, always-PUBLIC (CR 712.6) printed characteristic sets, so
      *  (unlike `faceDown`) there is no per-viewer hiding in
      *  `gameProjections.ts`. Set by `transformPermanent` (`gre/transform.ts`),
      *  mirroring `faceDown.ts`'s definition-swap pattern: `card.card.id` and
@@ -1207,7 +1207,7 @@ export type CardInstanceState = {
      *  card's mana cost), but may carry a full {@link FlashbackCost} shape when
      *  the granted flashback also has a non-mana component (CR 702.34a). */
     grantedFlashback?: CardManaCost | FlashbackCost;
-    /** CR 702.138e — true iff this permanent ESCAPED, i.e. it was cast from a
+    /** CR 702.138b — true iff this permanent ESCAPED, i.e. it was cast from a
      *  graveyard via Escape. Set on the stack item at the escape cast and rides
      *  onto the resulting battlefield permanent (a stack item IS its
      *  CardInstanceState). Read by "sacrifice it unless it escaped" (Uro,
@@ -1219,12 +1219,12 @@ export type CardInstanceState = {
      *  instead of going to the graveyard. Set on the exiled instance by
      *  `discardToGraveyard` (via `markMadnessExiled`); it rides alongside
      *  `castableFromExileBy` and distinguishes a madness exile (castable for the
-     *  MADNESS cost, CR 702.35d) from an Ice-Cauldron-style exile cast (normal
+     *  MADNESS cost, CR 702.35a) from an Ice-Cauldron-style exile cast (normal
      *  cost). Cleared when the card is cast to the stack (`removeFromZone`) or
      *  binned on decline (`declineMadness`). Persisted so it survives a DB
      *  round-trip. */
     madnessExiled?: boolean;
-    /** CR 702.35d — true while a madness-exiled card is still awaiting its
+    /** CR 702.35a — true while a madness-exiled card is still awaiting its
      *  reflexive cast-trigger. Set alongside `madnessExiled` by `markMadnessExiled`
      *  at discard→exile; consumed by `collectTriggers` when it builds the
      *  reflexive trigger StackItem (so the trigger is created exactly once), and
@@ -1308,7 +1308,7 @@ export type CardInstanceState = {
      *  cycle): `wasKicked`'s single boolean can say "kicked at all" but never
      *  WHICH of two, and the Battlemage's own ETB triggers are worded "if it
      *  was kicked with its {2}{U} kicker" / "…{2}{R} kicker" — genuinely
-     *  distinct CR 603.4d intervening-ifs. Snapshotted from the resolving
+     *  distinct CR 603.4 intervening-ifs. Snapshotted from the resolving
      *  stack item's `kickerPayments` the instant it enters the battlefield
      *  (`finalizeSpellResolution`), the same instant `wasKicked` is derived
      *  from it via `totalKickerCount` — so the two never drift. Before this
@@ -1335,7 +1335,7 @@ export type CardInstanceState = {
      *  resolving and must still know what X was — Ravenous (CR 702.156a,
      *  Jacked Rabbit, `cards/sets/blc/white.ts`): "When this permanent enters,
      *  if X is 5 or greater, draw a card" is a triggered ability whose CR
-     *  603.4d intervening-if is re-checked when the TRIGGER resolves, long
+     *  603.4 intervening-if is re-checked when the TRIGGER resolves, long
      *  after the creature spell's stack item is gone. Three reasons the raw
      *  `chosenX` a resolved stack item leaves on the battlefield object (it is
      *  pushed as-is by `finalizeSpellResolution`) cannot be relied on there:
@@ -1616,7 +1616,7 @@ export type PlayerState = {
      *  `instance` is revealed to both players (CR 702.139c) — carried
      *  unchanged through `projectPublicState`/`projectFullState`, never
      *  hidden like a hand/library card. `used` is the once-per-game spent
-     *  flag (CR 702.139f), set true by the `summon-companion` special action
+     *  flag (CR 702.139a), set true by the `summon-companion` special action
      *  (`summonCompanion` mutation, game.ts) once its {3} cost is paid; a
      *  spent or condition-failed companion shows no summon affordance.
      *  Code that enumerates GameState zones (`ZONE_TO_FIELD` and friends)
@@ -1673,7 +1673,7 @@ export type StackItem = CardInstanceState & {
      *  `card.modes` and runs `mode.resolve` instead of `card.resolve`. */
     chosenModeId?: string;
     /** Snapshot of the permanent sacrificed OR exiled as an additional cost at
-     *  announcement (CR 117.9 / 601.2f). Captured at commit and read at
+     *  announcement (CR 118.8 / 601.2f). Captured at commit and read at
      *  resolve via `SpellContext.getAdditionalSacrificeMv` (mana value) and
      *  `SpellContext.getAdditionalCostSubtypes` (subtypes — e.g. Soul
      *  Exchange's "if the exiled creature was a Thrull"). */
@@ -1738,7 +1738,7 @@ export type StackItem = CardInstanceState & {
      *  This flag is set unconditionally on first tally and simply travels
      *  with the stack item until it resolves/pops — no cleanup needed. */
     abilityResolutionRecorded?: boolean;
-    /** CR 702.35d — set on the synthetic reflexive triggered ability that a
+    /** CR 702.35a — set on the synthetic reflexive triggered ability that a
      *  discarded madness card puts on the stack (`buildMadnessReflexiveTrigger`,
      *  triggers.ts). Holds the id of the exiled card. On resolution
      *  (`resolveTopOfStack`) `openMadnessCastWindow` opens the owner's single
@@ -1882,7 +1882,7 @@ export type StackItem = CardInstanceState & {
     castFromGraveyard?: boolean;
     /** CR 702.88a — true iff this spell has Rebound AND was cast from HAND
      *  (stamped at cast-commit by `reboundCastStackFlags`, game.ts — the
-     *  gate that makes CR 702.88d "free": an exile recast never carries this
+     *  gate that makes CR 702.88a "free": an exile recast never carries this
      *  flag, so it can't rebound again). Read by `finalizeSpellResolution`
      *  (state.ts): when set, the resolving non-permanent spell is exiled
      *  instead of graveyarded and a caster-scoped next-upkeep delayed
@@ -2012,7 +2012,7 @@ export type PendingCast = {
      *  read via `getActingPlayer`. Propagated onto the resulting StackItem so
      *  the spell's resolution choices also route to the acting player. */
     actingPlayerId?: string;
-    /** In-progress additional cost picker (CR 117.9 / 601.2f). Set when the
+    /** In-progress additional cost picker (CR 118.8 / 601.2f). Set when the
      *  card has `additionalCosts.sacrificeFilter` (`kind: "sacrifice"`) or
      *  `additionalCosts.exileFilter` (`kind: "exile"`, FEM Soul Exchange).
      *  `pickedId` is undefined until the player calls `selectAdditionalCost`;
@@ -2034,7 +2034,7 @@ export type PendingCast = {
      *  cast has `additionalCosts.flashbackExileFromGraveyard`. `count` equals
      *  the announced X; `color` mirrors the cost's colour filter (CR 105.2);
      *  `excludeInstanceId` is the flashback card itself (it can't pay for its
-     *  own cost, CR 702.34e). `pickedCardIds` is undefined until the player
+     *  own cost, CR 601.2a). `pickedCardIds` is undefined until the player
      *  calls `selectCastExileCost`, and commit is blocked while it is unset
      *  regardless of mana coverage. On commit the chosen cards move graveyard →
      *  exile. Mirrors the activation-path `exileFromGraveyardChoice`.
@@ -2309,14 +2309,14 @@ export type PendingActivation = {
 };
 
 /** Tracks the {3} payment for the `summon-companion` special action (CR
- *  116.2 / 702.139f, ADR 0064). Deliberately minimal next to `PendingCast`/
+ *  116.2 / 702.139a, ADR 0064). Deliberately minimal next to `PendingCast`/
  *  `PendingActivation`: the companion summon has no card being cast/
  *  activated, no target, no mode, no additional cost leg — just a fixed
  *  generic cost against `player.companion`. See the `GameState.
  *  pendingCompanionPay` doc for why this is a dedicated state. */
 export type PendingCompanionPay = {
     playerId: string;
-    /** Always `{ X: 3 }` (CR 702.139f's fixed {3}) — kept as a normalized
+    /** Always `{ X: 3 }` (CR 702.139a's fixed {3}) — kept as a normalized
      *  `Record<string, number>` cost, mirroring `PendingCast.manaCost`, so it
      *  can be handed straight to `solveSmartAutoTap`/`payManaCost`. */
     manaCost: Record<string, number>;
@@ -2499,7 +2499,7 @@ export type PendingChoice = {
      *  the zone move). `finalizeLandEntry` reads it to complete the entry on
      *  submit. */
     landInstanceId?: string;
-    /** For `kind: "madness-cast"` only (CR 702.35d) — the instance id of the
+    /** For `kind: "madness-cast"` only (CR 702.35a) — the instance id of the
      *  discarded-and-exiled card this choice decides. The client's "Cast" button
      *  fires `announceCast` on it (which consumes the choice); the DECLINE routes
      *  through `submitMadnessDecline`, which reads it to bin the card. */
@@ -2914,7 +2914,7 @@ export type PendingTarget = {
      *  Ignored for non-spell target types. */
     spellCreaturePtFilter?: { maxPowerOrToughness: number };
     /** Restricts legal SPELL targets to single-target spells whose only target
-     *  is the activating player (CR 114.6 / 115.10). Propagated from
+     *  is the activating player (CR 115.7 / 115.10). Propagated from
      *  TargetRequirement.spellSingleTargetingController. Used by Reflecting
      *  Mirror. Ignored for non-spell target types. */
     spellSingleTargetingController?: boolean;
@@ -3044,7 +3044,7 @@ export type PendingTarget = {
      *  targets for the copy"); `cardInstanceId` holds the copy's stack id and
      *  finalization writes the chosen targets onto that stack item instead of
      *  casting anything. When "retarget", target selection re-points the targets
-     *  of the ORIGINAL spell already on the stack (CR 114.6 — Reflecting Mirror's
+     *  of the ORIGINAL spell already on the stack (CR 115.7 — Reflecting Mirror's
      *  "change the target of target spell"); `cardInstanceId` holds the original
      *  spell's stack id and finalization writes the chosen targets onto it. */
     kind?: "cast" | "ability" | "copy-retarget" | "retarget" | "trigger";
@@ -3229,7 +3229,7 @@ export type GameState = {
      *  discard at random, coin flips). With rngSeed, the event log is
      *  sufficient to reproduce the exact random choices made during a game. */
     rngCounter: number;
-    /** CR 702.35d — the currently-open Madness cast window. Set when a reflexive
+    /** CR 702.35a — the currently-open Madness cast window. Set when a reflexive
      *  madness trigger resolves (`openMadnessCastWindow`): the owner may cast the
      *  named exiled card for its madness cost while they hold priority; passing
      *  priority instead bins it (`declineMadness`). Cleared on cast or decline.
@@ -3254,7 +3254,7 @@ export type GameState = {
     /** Active activated-ability payment in progress (CR 602.1). Mutually
      *  exclusive with pendingCast. */
     pendingActivation?: PendingActivation;
-    /** CR 116.2 / 702.139f (ADR 0064) — the {3} payment for the
+    /** CR 116.2 / 702.139a (ADR 0064) — the {3} payment for the
      *  `summon-companion` special action, in progress. A DEDICATED state
      *  rather than an overload of `pendingCast`: the companion summon has no
      *  target, mode, or resulting stack item, so forcing it through
@@ -3366,13 +3366,13 @@ export type GameState = {
         damageAssignments?: Record<string, Record<string, number>>;
         /** false = waiting for manual assignment, undefined = auto-applied or not yet at damage step. */
         damageConfirmed?: boolean;
-        /** Attacking bands declared this combat (CR 702.21e). A band is a
+        /** Attacking bands declared this combat (CR 702.22c). A band is a
          *  group of attacking creatures (1+ with banding, at most 1 without)
          *  that attacks as a unit and is blocked as a group. */
         bands?: { bandId: string; memberIds: string[] }[];
         /** sourceId → playerId responsible for assigning that source's combat
          *  damage this step. Normally the source's controller; banding
-         *  (CR 702.21j-k) shifts authority to the controller of the banding
+         *  (CR 702.22j-k) shifts authority to the controller of the banding
          *  creature(s) among the source's combat opponents. Only populated for
          *  sources that need a manual choice (2+ targets). */
         damageAssignerIds?: Record<string, string>;
@@ -4486,7 +4486,7 @@ function isManaAbilityTriggerItem(item: StackItem): boolean {
  *  action that fired it, WITHOUT granting priority. The item is pushed only
  *  transiently so the standard resolution path (`resolveTopOfStack`) can run
  *  it; on success it pops itself and the mana is in the pool. If resolution
- *  suspends on a player choice made as it resolves (CR 605.4b — Fertile
+ *  suspends on a player choice made as it resolves (CR 605.4a — Fertile
  *  Ground's colour pick), the item stays on the stack with a pending choice
  *  and finishes once that choice is submitted; a triggered mana ability still
  *  never hands priority to the non-active player to respond. */
@@ -4775,7 +4775,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
 
     const top = state.stack[state.stack.length - 1];
 
-    // CR 702.35d — the reflexive Madness cast-trigger. Engine-owned (no card-def
+    // CR 702.35a — the reflexive Madness cast-trigger. Engine-owned (no card-def
     // ability), so it is handled here before the spell/ability dispatch: open the
     // owner's single cast window on the still-exiled card, then leave the stack.
     // If the card is no longer in the owner's exile (an intervening effect moved
@@ -5013,7 +5013,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         // the presented copy; `findTriggeredAbility` unions both.
         const ability = findTriggeredAbility(top, top.triggeredAbilityId);
         if (ability) {
-            // CR 603.4d — intervening-if re-evaluation at resolution. If the
+            // CR 603.4 — intervening-if re-evaluation at resolution. If the
             // predicate is now false, the trigger fizzles: no `resolve`
             // invocation, item removed, TRIGGER_FIZZLED queued so downstream
             // triggers can react and the event log records the fizzle.
@@ -5420,7 +5420,7 @@ export function emitEntersWithCounterEvents(
  *  `chosenModeId`, `additionalSacrificeSnapshot`, `notedManaSpent`,
  *  `dynamicCantBeCountered`, `castById`, `targets`) plus the one-shot
  *  cast-fact markers a card's OWN cast can stamp onto the stack item
- *  (`evoked`, `dashed`, `escaped` — CR 702.74a/702.109a/702.138e; declared on
+ *  (`evoked`, `dashed`, `escaped` — CR 702.74a/702.109a/702.138b; declared on
  *  `CardInstanceState` because the permanent-side ETB triggers/`EffectValue`s
  *  that read them run AFTER the item leaves the stack, but stamped at the
  *  SAME cast-commit seam as `buybackPaid`, so they are exactly as
@@ -5491,7 +5491,7 @@ function resetStackTransientState(item: StackItem): void {
     delete item.additionalSacrificeSnapshot;
     delete item.notedManaSpent;
     delete item.dynamicCantBeCountered;
-    // CR 702.74a / 702.109a / 702.138e (issue #2412 fixup) — `evoked`,
+    // CR 702.74a / 702.109a / 702.138b (issue #2412 fixup) — `evoked`,
     // `dashed`, `escaped` are declared on `CardInstanceState` so they survive
     // resolution onto the permanent (the ETB triggers that read them run
     // there), but every cast-commit site in `convex/game.ts` stamps them onto
@@ -5762,7 +5762,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
             delete item.wasKicked;
         }
         // CR 107.3 / 601.2b (issue #674) — same shape, for the chosen {X}: a
-        // LATER predicate (Ravenous's CR 603.4d "if X is 5 or greater"
+        // LATER predicate (Ravenous's CR 603.4 "if X is 5 or greater"
         // intervening-if, re-checked when the ETB TRIGGER resolves) needs a
         // TYPED, SERIALIZED field on the permanent. The raw `chosenX` this
         // stack item still carries is neither — it is dropped by the card
@@ -5866,7 +5866,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // practice (no shipped card combines Rebound with a self-exile
         // instruction).
         if (item.reboundFromHand) {
-            // CR 702.88d — the flag is consumed HERE, not just gated at the
+            // CR 702.88a — the flag is consumed HERE, not just gated at the
             // cast site: this same CardInstanceState object is the one the
             // later exile recast re-pushes onto the stack (`removeFromZone`
             // clears `reboundExiled` but nothing sets/reads `reboundFromHand`
@@ -9971,7 +9971,7 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // paths that never run the creature spell's `resolveSteps`, so no new name
     // is ever asked for) would silently re-lock the old name.
     delete card.chosenName;
-    // CR 702.74a / 702.109a / 702.138e / 400.7 (issue #2412 fixup round 3) —
+    // CR 702.74a / 702.109a / 702.138b / 400.7 (issue #2412 fixup round 3) —
     // the PERMANENT-side sibling of the `wasKicked`/`chosenXOnCast` pairs
     // above, and of `resetStackTransientState`'s `evoked`/`dashed`/`escaped`
     // clear (round 2, this same function's stack-exit counterpart).
@@ -10487,7 +10487,7 @@ function cloneSpellOntoStack(
     // #898) — the ORIGINAL is shuffled into its owner's library, not the copy,
     // which ceases to exist as a one-shot effect (CR 707.10/112.5).
     delete copy.shuffleIntoLibraryOnResolve;
-    // CR 702.138e — "escaped" is a cast-site artifact; a copy was not cast via
+    // CR 702.138b — "escaped" is a cast-site artifact; a copy was not cast via
     // escape, so it must not inherit the flag (a copied escape permanent would
     // otherwise read as having escaped).
     delete copy.escaped;
@@ -10514,7 +10514,7 @@ function cloneSpellOntoStack(
     return copy.id;
 }
 
-/** CR 707.10b / 707.12c — offers `copy`'s controller a chance to choose new
+/** CR 707.10b / 707.10c — offers `copy`'s controller a chance to choose new
  *  targets, by populating `state.pendingTarget` (kind `"copy-retarget"`).
  *  Extracted so both `SpellContext.requestCopyRetarget` (Fork, Chain
  *  Lightning, Onslaught — always prompts) and storm's engine-code copy loop
@@ -10594,7 +10594,7 @@ export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
                   : {}),
           }
         : undefined;
-    // CR 707.10b / 707.12c — the COPY's controller chooses new targets.
+    // CR 707.10b / 707.10c — the COPY's controller chooses new targets.
     // For Fork this equals the resolving spell's caster; for Chain
     // Lightning it's the player who paid {R}{R} (the copy's controller),
     // so key the chooser off the copy itself, not the resolving item's caster.
@@ -11652,7 +11652,7 @@ export function buildSpellContext(
             // "{4}: Remove a paralyzation counter" freeing its own victim).
             refreshCounterGatedStatics(state);
             // CR 122.6 — emit a COUNTER_REMOVED event so "whenever a counter is
-            // removed" triggers (Vanishing's CR 702.63d sacrifice) can fire.
+            // removed" triggers (Vanishing's CR 702.63a sacrifice) can fire.
             // Drained by `processPendingActionTriggers` after the current
             // resolution completes, exactly like PERMANENT_ENTERED.
             if (removed > 0) {
@@ -11795,7 +11795,7 @@ export function buildSpellContext(
             return 0;
         },
         isEscaped(target: TargetSelection): boolean {
-            // CR 702.138e — "escaped" is a permanent-level flag stamped at the
+            // CR 702.138b — "escaped" is a permanent-level flag stamped at the
             // escape cast; it rides the stack item onto the battlefield.
             if (target.type !== "permanent") return false;
             const found = findOnBattlefield(state, target.id);
@@ -12544,7 +12544,7 @@ export function buildSpellContext(
             const idx = state.stack.findIndex((s) => s.id === target.id);
             if (idx === -1) return; // target no longer on stack — fizzle silently
             const found = state.stack[idx];
-            // CR 701.5c — "can't be countered": the countering spell/ability
+            // CR 113.6g — "can't be countered": the countering spell/ability
             // still legally targets this spell (targeting is unaffected — see
             // CardDefinition.cantBeCountered's doc comment for the Obliterate
             // ruling), but the counter itself fizzles: the spell is NOT
@@ -12621,7 +12621,7 @@ export function buildSpellContext(
         ): void {
             // CR 701.5-adjacent (issue #1205, Subtlety) — "put target spell on
             // the top or bottom of its owner's library." NOT a counter: it
-            // ignores `cantBeCountered` (CR 701.5c shields only against counter
+            // ignores `cantBeCountered` (CR 113.6g shields only against counter
             // effects). Mirrors `counter`'s stack-splice + ability-vanish.
             if (target.type !== "spell") {
                 throw new Error("putSpellOnLibrary() requires a spell target");
@@ -13449,7 +13449,7 @@ export function buildSpellContext(
             }
             return tokenId;
         },
-        // CR 113.1 / 611.1b: grants a keyword static ability for a limited
+        // CR 113.1 / 611.2a: grants a keyword static ability for a limited
         // duration. The keyword is pushed to `staticAbilities` so combat
         // lookups (attacker.staticAbilities.includes("trample")) resolve
         // without any special casing; the grant is tracked separately so
@@ -13508,7 +13508,7 @@ export function buildSpellContext(
                 { ability },
             ];
         },
-        // CR 113.1 / 611.1b: grants an ACTIVATED ability for a limited
+        // CR 113.1 / 611.2a: grants an ACTIVATED ability for a limited
         // duration (Touch of Vitae: "gains '{0}: Untap this creature. Activate
         // only once.' until end of turn"). The template lives on the granting
         // card's `grantTemplates[]` (looked up by the activation entry point in
@@ -13577,7 +13577,7 @@ export function buildSpellContext(
                 { sourceCardId, abilityId, seq: allocStaticTimestamp(state) },
             ];
         },
-        // CR 113.1 / 611.1b: grants a triggered ability for a limited duration.
+        // CR 113.1 / 611.2a: grants a triggered ability for a limited duration.
         // The template lives on the granting card's `triggeredGrantTemplates[]`
         // (looked up by `effectiveTriggeredAbilities`), so the trigger collector
         // scans and resolves it as if printed on the target. The duration-scoped
@@ -13648,7 +13648,7 @@ export function buildSpellContext(
             if (!found) return;
             found.card.exileOnLeave = true;
         },
-        // CR 611.1b layer 6: removes every keyword matching `predicate` from
+        // CR 611.2a layer 6: removes every keyword matching `predicate` from
         // `staticAbilities` for the duration, recording each on
         // `temporaryRemovedKeywords` so the phase-boundary purge restores it on
         // expiry. The duration-scoped inverse of `grantStaticAbility`. Used by
@@ -14591,7 +14591,7 @@ export function buildSpellContext(
             requestCopyRetargetOn(state, copy);
         },
         requestRetarget(spellStackItemId, requirement): void {
-            // CR 114.6 — change the target(s) of a spell ALREADY on the stack
+            // CR 115.7 — change the target(s) of a spell ALREADY on the stack
             // (the original object, not a copy). Reflecting Mirror. Mirrors
             // requestCopyRetarget but `cardInstanceId` points at the original
             // spell, so finalization writes new targets onto it in place.
@@ -14630,7 +14630,7 @@ export function buildSpellContext(
                 : undefined;
             state.pendingTarget = {
                 // The activating player (controller of THIS resolving ability)
-                // chooses the new target (CR 114.6 / 608.2).
+                // chooses the new target (CR 115.7 / 608.2).
                 playerId: item.castById,
                 cardInstanceId: spell.id,
                 targetType: requirement.type,
@@ -14747,7 +14747,7 @@ export function buildSpellContext(
                 entry.manaRestriction = req.manaRestriction;
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;
-            // CR 701.16b / 701.24 — when the may-pay's PERMANENT leg admits a
+            // CR 701.21a / 701.24 — when the may-pay's PERMANENT leg admits a
             // real permanent choice, light up the payer's battlefield so the
             // client can prompt WHICH permanent(s) to give up before
             // confirming. Reuses the standard battlefield pick machinery
@@ -16136,7 +16136,7 @@ export function buildSpellContext(
                 : false;
         },
         getCardSacrificeFilter(casterId, cardInstanceId) {
-            // CR 117.9 — the additional sacrifice cost's filter, if any.
+            // CR 118.8 — the additional sacrifice cost's filter, if any.
             const def = getHandCardDef(state, casterId, cardInstanceId);
             return def?.additionalCosts?.sacrificeFilter;
         },
@@ -16245,7 +16245,7 @@ export function buildSpellContext(
             // opponent), but the Word of Command controller (actingPlayerId)
             // makes its decisions — its targets (CR 601.2c), the value of X
             // (CR 107.3), the chosen mode (CR 700.2c), and any additional
-            // sacrifice cost (CR 117.9) — all decided by the caller and passed
+            // sacrifice cost (CR 118.8) — all decided by the caller and passed
             // in via `opts`. Resources are consumed from the CONTROLLED
             // OPPONENT (controllerId): mana from their lands, the sacrifice
             // from their battlefield.
@@ -16289,7 +16289,7 @@ export function buildSpellContext(
                 return false; // forbidden — not played (CR 601.3a / 117.3)
             }
 
-            // CR 117.9 — additional sacrifice cost. The picked permanent must
+            // CR 118.8 — additional sacrifice cost. The picked permanent must
             // be on the CONTROLLED OPPONENT's battlefield and match the card's
             // sacrifice filter; an absent/illegal pick when the card REQUIRES a
             // sacrifice means the cost is unmeetable → not played ("if able").
@@ -16382,7 +16382,7 @@ export function buildSpellContext(
                 }
             }
 
-            // CR 117.9 — pay the additional sacrifice from the opponent's
+            // CR 118.8 — pay the additional sacrifice from the opponent's
             // battlefield, snapshotting its pre-sacrifice mana value for the
             // stack item so `getAdditionalSacrificeMv()` reads it at resolve
             // (mirrors the normal-cast snapshot in tryCommitCast).
@@ -16433,7 +16433,7 @@ export function buildSpellContext(
             // normal cast (the resolve step reads `ctx.targets`). Omitted for a
             // non-targeted spell (`targets` undefined) so the field stays clean.
             if (targets && targets.length > 0) stackItem.targets = targets;
-            // CR 107.3 / 700.2c / 117.9 — the X / mode / sacrifice-snapshot
+            // CR 107.3 / 700.2c / 118.8 — the X / mode / sacrifice-snapshot
             // chosen by the Acting Player ride onto the stack item so the
             // resolve reads them back via getX / chosenModeId dispatch /
             // getAdditionalSacrificeMv. Omitted when absent so the item stays
@@ -17356,13 +17356,13 @@ export function removeFromZone(
     // meaningful while the card sits in exile; drop it once the card leaves so a
     // later re-exile never re-reads a stale source.
     delete card.exiledBySourceId;
-    // CR 702.35d — a madness card cast from exile leaves the madness marker
+    // CR 702.35a — a madness card cast from exile leaves the madness marker
     // behind (it is no longer a discarded-and-exiled card once it is on the
     // stack); clear it so a later bounce/exile never re-reads it.
     delete card.madnessExiled;
     // CR 702.88a — a rebound card recast from exile leaves the rebound marker
     // behind (it is no longer a rebound-exiled card once it is on the stack —
-    // and CR 702.88d means it can never rebound again regardless); clear it
+    // and CR 702.88a means it can never rebound again regardless); clear it
     // so a later bounce/exile never re-reads it.
     delete card.reboundExiled;
     return card;
@@ -17572,7 +17572,7 @@ export function discardToGraveyard(
     // is exiled instead of being put into the graveyard, then a reflexive
     // triggered ability (built by `collectTriggers` off the CARD_DISCARDED event
     // emitted below) goes on the stack, giving its owner one window to cast it
-    // for the madness cost when it resolves (CR 702.35d — `openMadnessCastWindow`
+    // for the madness cost when it resolves (CR 702.35a — `openMadnessCastWindow`
     // / `declineMadness`). Applies only when the discard was otherwise headed to
     // the graveyard (a Yawgmoth's-Will exile redirect already sent it to exile,
     // so madness is moot there).
@@ -18895,7 +18895,7 @@ function sacrificeCandidates(
 }
 
 /** Instance ids of `playerId`'s permanents that could pay a `may-pay` cost's
- *  PERMANENT leg — sacrificed (CR 701.16b) or returned to hand (CR 701.24 /
+ *  PERMANENT leg — sacrificed (CR 701.21a) or returned to hand (CR 701.24 /
  *  118.9); the controller chooses which either way. Returns `[]` when the cost
  *  has no permanent leg. Exported so the submit boundary (`applyMayPaySubmit`)
  *  and the bot driver can validate / pick a legal permanent against the SAME
@@ -18963,7 +18963,7 @@ export function mayPaySacrificeSetPower(
 
 /** Whether a `may-pay` PERMANENT leg admits a real permanent choice.
  *
- *   - `action: "sacrifice"` (CR 701.16b) — a choice is owed when the payer
+ *   - `action: "sacrifice"` (CR 701.21a) — a choice is owed when the payer
  *     controls MORE matching permanents than the leg sacrifices. When the
  *     filter matches exactly `count` (or fewer) there is nothing to choose:
  *     auto-selection stays and no prompt is shown (Arena UX auto-resolve).
@@ -18996,7 +18996,7 @@ export function mayPaySacrificeChoiceRequired(
     }
     if (typeof norm.permanent.count === "object") {
         // Threshold mode: any candidate at all makes the variable-size victim
-        // set the payer's decision (CR 118 / 701.16b).
+        // set the payer's decision (CR 118 / 701.21a).
         return candidateCount > 0;
     }
     return candidateCount > norm.permanent.count;
@@ -19294,7 +19294,7 @@ function payManaCostForRestriction(
 
 /** True if `playerId` can pay the whole `may-pay` cost union right now —
  *  mana pool covers the mana leg, life ≥ the life leg, and enough matching
- *  permanents exist for the sacrifice leg (CR 702.24c — all-or-nothing). A
+ *  permanents exist for the sacrifice leg (CR 702.24a — all-or-nothing). A
  *  cost with no legs present is trivially payable. When `manaRestriction` is
  *  given (the cumulative-upkeep `may-pay`, ADR 0042), the mana leg may also be
  *  covered by restricted mana carrying that restriction. */
@@ -19358,13 +19358,13 @@ export function canPayMayPayCost(
  *  life, permanent and hand legs are applied unconditionally). Mana is taken
  *  from the pool (lands must already be tapped, as for any `may-pay`); life is
  *  lost through the replacement chain; the PERMANENT leg sacrifices (CR
- *  701.16b) or returns to hand (CR 701.24 / 118.9, ADR 0079) the permanents the
+ *  701.21a) or returns to hand (CR 701.24 / 118.9, ADR 0079) the permanents the
  *  payer CHOSE; the HAND leg discards / exiles the cards the payer CHOSE (CR
  *  701.9, issue #899 — mirrors the permanent leg's picker).
  *  `sacrificeIds` / `discardIds`, validated at the submit boundary, name the
  *  victims/cards; when absent (only one legal candidate, `count` covers all,
  *  or a bot's minimal-legal default) the first `count` matching
- *  permanents/cards are auto-selected in author/hand order — CR 701.16b /
+ *  permanents/cards are auto-selected in author/hand order — CR 701.21a /
  *  701.9 is satisfied trivially when there is nothing to choose. */
 export function payMayPayCost(
     state: GameState,
@@ -19394,7 +19394,7 @@ export function payMayPayCost(
         loseLifeEmitting(state, playerId, norm.life);
     }
     if (norm.permanent) {
-        // CR 701.16b / 701.24 — the payer chooses which of their matching
+        // CR 701.21a / 701.24 — the payer chooses which of their matching
         // permanents pay. Honour the caller-supplied `sacrificeIds` (validated
         // at the submit boundary) when present; otherwise fall back to author
         // order.

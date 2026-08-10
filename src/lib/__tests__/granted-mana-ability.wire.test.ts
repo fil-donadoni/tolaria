@@ -1,5 +1,5 @@
 // Issue #1880 — the CLIENT mana mirrors must see a GRANTED mana ability
-// (CR 113.1 / 611.1b), and must see it through the WIRE REDUCER.
+// (CR 113.1 / 611.2a), and must see it through the WIRE REDUCER.
 //
 // The engine's probes (`convex/gre/constants.ts`) are covered by
 // `convex/gre/__tests__/grantedActivatedAbilities.test.ts`. These are the

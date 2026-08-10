@@ -7,7 +7,7 @@ import type { CardDefinition } from "../../types";
 // Reanimate — {B} Sorcery. "Put target creature card from a graveyard onto
 // the battlefield under your control. You lose life equal to that card's
 // mana value." (CR 601.2c target in ANY graveyard, CR 400.7 / 800.4a control
-// override, CR 119.3b life loss, CR 202.3 mana value.)
+// override, CR 119.3 life loss, CR 202.3 mana value.)
 //
 // A plain spell target (`targetRequirement.zone: "graveyard", controller:
 // "any"` — Hymn of Rebirth precedent), so the pick itself needs no new

@@ -272,7 +272,9 @@ Full gate mandatory before done/merge — never skipped.
   the light gate — a branch reached review with `validate.test.ts` red and a
   `check:pr` that exited 0. Scope pinned by
   `scripts/__tests__/check-guards-scope.test.ts`; bot deny-list drift by
-  `bot-fast-lane.test.ts`.
+  `bot-fast-lane.test.ts`. A third, ~1s lane runs **`bun run cr:lint`** (#2429)
+  — offline, reads only the vendored CR, so the gate's no-network contract
+  holds.
   **The dom project is need-classified, not directory-classified**
   (`scripts/test-env-split.ts`, computed at config load): a `src/**/*.test.ts`
   with no DOM global, no testing-library import, no jest-dom matcher and no
@@ -364,8 +366,12 @@ fetch. Third-party mirrors (yawgatog, ancestral.vision — the latter frozen at
 `MagicCompRules YYYYMMDD.txt` URL is the habit this replaced: twelve distinct
 versions, back to 2022, appear in past session transcripts. **Never cite a rule
 number you have not printed** — 42 of the 799 distinct ids cited in this repo
-resolve to nothing, and 40 of those never existed in any revision
-(`bun run cr:lint`). Wizards republishes roughly per set at
+resolved to nothing, and 40 of those never existed in any revision; all 42 were
+corrected in #2429 and **`bun run cr:lint` now runs in `check:guards`**, so a
+new one cannot land. It only checks that an id RESOLVES: a citation "corrected"
+to a plausible-but-wrong number still passes, which is why the correction has
+to come from `bun run cr <id>` printing text that matches the claim. Wizards
+republishes roughly per set at
 <https://magic.wizards.com/en/rules>; `bun run cr:check` says whether a newer
 document exists, `bun run cr:sync` takes it. `cr:check` is deliberately outside
 `check:all` — the gate is offline by contract.

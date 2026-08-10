@@ -449,7 +449,7 @@ export const riverMerfolk: CardDefinition = {
             cost: { mana: { U: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant
-            // mountainwalk until end of turn (CR 611.1b).
+            // mountainwalk until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -487,7 +487,7 @@ export const svyelunitePriest: CardDefinition = {
             activationPhaseRestriction: ["UPKEEP"],
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant shroud to the
-            // announced target creature until end of turn (CR 611.1b).
+            // announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -599,7 +599,7 @@ export const vodalianKnights: CardDefinition = {
             cost: { mana: { U: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant flying
-            // until end of turn (CR 611.1b).
+            // until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",

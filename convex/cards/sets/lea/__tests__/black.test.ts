@@ -1791,7 +1791,7 @@ describe("Pestilence (end-step sac if no creatures + {B}: 1 dmg to each creature
         state.phase = "POSTCOMBAT_MAIN";
         advancePhase(state); // → END_STEP
         expect(state.phase).toBe("END_STEP");
-        // Intervening-if (CR 603.4d) is false — the sacrifice never enters the stack.
+        // Intervening-if (CR 603.4) is false — the sacrifice never enters the stack.
         expect(state.stack).toHaveLength(0);
         expect(
             state.players[0].battlefield.find((c) => c.id === "pest")
@@ -3860,7 +3860,7 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         }
     });
 
-    // --- X / modal / additional-cost casts (#579, CR 107.3 / 700.2c / 117.9):
+    // --- X / modal / additional-cost casts (#579, CR 107.3 / 700.2c / 118.8):
     // the Acting Player makes EVERY cast decision from the opponent's
     // resources. ---
 
@@ -4102,7 +4102,7 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         ).toBeDefined();
     });
 
-    it("additional-cost spell: controller picks the sacrifice from the OPPONENT's battlefield (CR 117.9)", () => {
+    it("additional-cost spell: controller picks the sacrifice from the OPPONENT's battlefield (CR 118.8)", () => {
         // Opponent holds Sacrifice ({B}, "sacrifice a creature; add {B} equal to
         // its mana value"). The controller chooses which of the opponent's
         // creatures is sacrificed — Grizzly Bears (MV 2).
@@ -4168,7 +4168,7 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         expect(state.players[1].manaPool.B).toBe(2);
     });
 
-    it("additional-cost spell: no matching permanent to sacrifice → not played (CR 117.9 / 'if able')", () => {
+    it("additional-cost spell: no matching permanent to sacrifice → not played (CR 118.8 / 'if able')", () => {
         // Opponent holds Sacrifice but controls no creature → the additional
         // cost is unmeetable, so the spell is never played.
         const oppSacrifice = makeInstance(sacrifice.id, {

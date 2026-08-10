@@ -190,7 +190,7 @@ export const arnjlotsAscent: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
-            // announced target creature until end of turn (CR 611.1b).
+            // announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -477,7 +477,7 @@ export const counterspellIce: CardPrint = {
     rarity: "common",
 };
 // Deflection — "Change the target of target spell with a single target."
-// (CR 114.6 — change a spell's target.) Targets a spell on the stack; on
+// (CR 115.7 — change a spell's target.) Targets a spell on the stack; on
 // resolution it enters a `retarget` phase via `requestRetarget`, asking the
 // caster to pick a new legal target for that spell.
 //
@@ -496,14 +496,14 @@ export const deflection: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1 },
     // NOT DSL-migratable (ADR 0045): no `retarget` Op exists — `requestRetarget`
-    // (CR 114.6, re-pick a new legal target for a spell already on the stack)
+    // (CR 115.7, re-pick a new legal target for a spell already on the stack)
     // has no declarative skin in EFFECT_OP_REGISTRY. Blocked on: a retarget Op.
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (t?.type !== "spell") return;
         // Re-pick a single new target for the spell against "any target" —
         // the engine re-validates the new target against the spell's own
-        // requirement at selection time (CR 114.6).
+        // requirement at selection time (CR 115.7).
         ctx.requestRetarget(t.id, { type: "any", count: 1 });
     },
 };
@@ -874,7 +874,7 @@ export const illusionaryForces: CardDefinition = {
 // Illusionary Presence — cumulative upkeep {U} (CR 702.24, ADR 0042) plus an
 // "at the beginning of your upkeep, choose a land type" trigger that grants
 // THIS creature the matching landwalk until end of turn (CR 603.6a /
-// 702.13 / 611.1b). The land-type choice is a `requestOptionChoice` over the
+// 702.13 / 611.2a). The land-type choice is a `requestOptionChoice` over the
 // five basic types (same single-pick primitive Barbarian Guides uses for its
 // snow-landwalk grant); the matching `<type>walk` keyword is granted until end
 // of turn via `grantStaticAbility`, so a fresh choice is made each upkeep. The
@@ -907,7 +907,7 @@ export const illusionaryPresence: CardDefinition = {
             // land type" pick is the `optionChoice` Op — five modes over the
             // basic types (CR 702.13), each granting the matching landwalk
             // keyword to this creature (`$source`) until end of turn via
-            // grantAbility (CR 611.1b). The land-type option ids are preserved.
+            // grantAbility (CR 611.2a). The land-type option ids are preserved.
             effects: [
                 {
                     op: "optionChoice",
@@ -1264,7 +1264,7 @@ export const krovikanSorcerer: CardDefinition = {
 // creature) and Magus of the Unseen (steals an artifact), issue #730. The three
 // clauses — untap (CR 701.20a), gain control until end of turn (CR 611.2b /
 // 613.1b layer 2, reverted at cleanup CR 514.2 by `tickAllDurations`), and
-// grant haste until end of turn (CR 702.10b / 611.1b, so a stolen creature can
+// grant haste until end of turn (CR 702.10b / 611.2a, so a stolen creature can
 // attack the turn control is gained) — are all resolve()-time primitives.
 //
 // protocol: EOT control change + tap-on-loss rider — no ControlChangeCondition
@@ -1532,7 +1532,7 @@ export const mysticMight: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+2 EOT
-            // on the announced target (CR 611.1b) via the pump Op.
+            // on the announced target (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1609,7 +1609,7 @@ export const mysticRemora: CardDefinition = {
 // +1/+1 and gains flying until end of turn. When this creature leaves the
 // battlefield this turn, sacrifice that creature. When that creature leaves the
 // battlefield this turn, sacrifice this creature." The buff is `pump` +1/+1 EOT
-// + `grantAbility` flying EOT (CR 611.1b). The mutual "leave → sacrifice the
+// + `grantAbility` flying EOT (CR 611.2a). The mutual "leave → sacrifice the
 // other" is two `delayedTrigger`s with `timing: "leaves-battlefield"` and
 // crossed captures: one watches the Mount (`$source`) and sacrifices the buffed
 // creature (`$mounted` = target 0); the other watches the buffed creature
@@ -1860,7 +1860,7 @@ export const realityTwist: CardDefinition = {
         }),
     ],
 };
-// Sea Spirit — {U}: firebreathing self-pump (CR 611.1b temporary +1/+0).
+// Sea Spirit — {U}: firebreathing self-pump (CR 611.2a temporary +1/+0).
 export const seaSpirit: CardDefinition = {
     id: "f2d93d05-98bc-4504-9045-dedb925895ae",
     name: "Sea Spirit",
@@ -1878,7 +1878,7 @@ export const seaSpirit: CardDefinition = {
             cost: { mana: { U: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -2246,7 +2246,7 @@ export const soulBarrier: CardDefinition = {
     ],
 };
 // Thunder Wall — 0/2 flying Wall with Defender and a {U} self-pump
-// (CR 702.3, 702.9, 611.1b).
+// (CR 702.3, 702.9, 611.2a).
 export const thunderWall: CardDefinition = {
     id: "4fc5d510-c4f7-4a09-bf86-83c3fa3f8928",
     name: "Thunder Wall",
@@ -2266,7 +2266,7 @@ export const thunderWall: CardDefinition = {
             cost: { mana: { U: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -2291,7 +2291,7 @@ export const updraft: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
-    // announced target creature until end of turn (CR 611.1b), then the
+    // announced target creature until end of turn (CR 611.2a), then the
     // next-upkeep cantrip as an inline `delayedTrigger` Op (ADR 0048,
     // CR 603.7d).
     effects: [

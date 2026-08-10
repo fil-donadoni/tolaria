@@ -142,7 +142,7 @@ describe("Goblin Patrol — Echo {R} (CR 702.30)", () => {
         ).toBe(true);
     });
 
-    it("does not fire when echoPending is unset (CR 603.4d intervening-if)", () => {
+    it("does not fire when echoPending is unset (CR 603.4 intervening-if)", () => {
         const patrol = makeInstance(goblinPatrol.id, {
             id: "patrol",
             controllerId: "p1",

@@ -31,7 +31,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //
 //  * "if no creatures attacked this turn" — a CR 603.4 intervening-if, so the
 //    factory checks it BOTH when the trigger would fire and again immediately
-//    before it resolves (CR 603.4d); an attack declared in between is
+//    before it resolves (CR 603.4); an attack declared in between is
 //    impossible, but a resolution-time re-check is what the rule says and what
 //    `phaseTrigger` wires for free. It reads the GAME-level
 //    `creatureAttackedThisTurn` flag, not a scan of the per-creature
@@ -77,7 +77,7 @@ export const keldonTwilight: CardDefinition = {
                 "At the beginning of each player's end step, if no creatures attacked this turn, that player sacrifices a creature of their choice that they controlled since the beginning of the turn.",
             phase: "END_STEP",
             scope: "each",
-            // CR 603.4 / 603.4d — checked at trigger time AND re-checked at
+            // CR 603.4 / 603.4 — checked at trigger time AND re-checked at
             // resolution by the factory.
             interveningIf: (_event, _self, state) =>
                 state?.creatureAttackedThisTurn !== true,
@@ -150,7 +150,7 @@ export const phyrexianTyranny: CardDefinition = {
                     bind: "$paid",
                 },
                 {
-                    // CR 119.3b — unless paid, the drawing player loses 2
+                    // CR 119.3 — unless paid, the drawing player loses 2
                     // life (not damage — no "damage prevention" interaction,
                     // no Fog).
                     op: "if",

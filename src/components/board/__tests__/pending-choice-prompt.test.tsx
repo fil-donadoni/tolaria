@@ -242,7 +242,7 @@ describe("PendingChoicePrompt — pick-pile (ADR 0053, pile division)", () => {
     });
 });
 
-describe("PendingChoicePrompt — madness-cast (CR 702.35d)", () => {
+describe("PendingChoicePrompt — madness-cast (CR 702.35a)", () => {
     const madnessChoice = (playerId: string): PendingChoice =>
         ({
             stackItemId: "",
