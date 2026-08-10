@@ -18,8 +18,6 @@
             "Bash(curl -s \"https://www.google.com/search?q=MTGO+MTG+Arena+auto+tap+mana+undo+UX+system+how+it+works\")",
             "Bash(curl -s \"https://www.google.com/search?q=XMage+Forge+MTG+mana+payment+state+machine+implementation+auto+tap\")",
             "Bash(curl -s \"https://www.google.com/search?q=MTG+Arena+mana+payment+undo+tap+lands+floating+mana+UX+design\")",
-            "WebFetch(domain:mtg.fandom.com)",
-            "WebFetch(domain:yawgatog.com)",
             "WebFetch(domain:media.wizards.com)",
             "Bash(grep -n \"Record<string\" /Users/filippo/code/mtg/tolaria/convex/gre/*.ts)",
             "Bash(grep *)",
@@ -33,7 +31,6 @@
             "Bash(git -C /Users/filippo/code/mtg/tolaria check-ignore convex/_generated/api.d.ts)",
             "Bash(xargs ls *)",
             "WebFetch(domain:scryfall.com)",
-            "WebFetch(domain:ancestral.vision)",
             "Bash(mkdir -p new-card gre-test mtg-rules-check)",
             "Bash(mv new-card.md new-card/skill.md)",
             "Bash(mv gre-test.md gre-test/skill.md)",
@@ -127,7 +124,9 @@
             "Bash(ls convex/gre convex/gre/effects convex/cards)",
             "Bash(ls -la convex/gre/flashback.ts)",
             "Bash(grep -rln \"xValue\\\\|chosenX\\\\|announceCast\" convex src)",
-            "Bash(grep -rln \"kicker\\\\|Kicker\\\\|additionalCost\\\\|entwine\\\\|chosenModes\\\\|modal\\\\|chosenMode\" convex src)"
+            "Bash(grep -rln \"kicker\\\\|Kicker\\\\|additionalCost\\\\|entwine\\\\|chosenModes\\\\|modal\\\\|chosenMode\" convex src)",
+            "Bash(bun run cr:*)",
+            "Bash(bun scripts/cr.ts:*)"
         ]
     }
 }
