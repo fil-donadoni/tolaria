@@ -39,6 +39,7 @@ import {
     cycledTrigger,
 } from "../../cards/abilities/cycling";
 import {
+    activateAbilityOnState,
     buildPendingActivation,
     tryAutoCommitPendingActivation,
 } from "../../game";
@@ -227,6 +228,14 @@ function makeInstanceAbility(cardId: string, abilityId: string) {
 const stackTriggers = (state: GameState, abilityId: string) =>
     state.stack.filter((s) => s.triggeredAbilityId === abilityId);
 
+/** Counts a trigger wherever collection left it: on the stack when it is the
+ *  only one, or held off-stack in the batch when CR 603.3b needs an ordering. */
+const allTriggers = (state: GameState, abilityId: string) =>
+    stackTriggers(state, abilityId).length +
+    (state.pendingTriggerBatch ?? []).filter(
+        (t) => t.triggeredAbilityId === abilityId
+    ).length;
+
 describe('"When you cycle this card" (CR 702.29c)', () => {
     it("fires on a cycling cost payment, with the source in the graveyard", () => {
         const state = boardWith(CYCLER_ID);
@@ -257,6 +266,36 @@ describe('"When you cycle this card" (CR 702.29c)', () => {
         // client actually reads).
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].life).toBe(lifeBefore + 3);
+    });
+
+    it("fires on the INLINE-COMMIT activation path (mana already floating)", () => {
+        // `activateAbility` has TWO commit paths and they pay the discard-this
+        // cost at two different call sites. The `buildPendingActivation` +
+        // `tryAutoCommitPendingActivation` pair above is the deferred one; when
+        // the mana cost is already covered by the floating pool
+        // (`manaUncovered === false`) `activateAbilityOnState` skips the payment
+        // phase entirely and commits INLINE, from its own
+        // `discardToGraveyard(..., cyclingCost ? "cycling" : undefined)` call.
+        // Both must mark the CARD_DISCARDED event, or cycling triggers are dead
+        // for every activation made with mana already in the pool.
+        const state = boardWith(CYCLER_ID);
+        const lifeBefore = getPlayer(state, "p1").life;
+
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "src",
+            abilityId: "cycling",
+        });
+
+        // The inline path committed: no payment phase was ever entered.
+        expect(state.pendingActivation).toBeUndefined();
+        expect(
+            getPlayer(state, "p1").graveyard.some((c) => c.id === "src")
+        ).toBe(true);
+        expect(allTriggers(state, CYCLED_TRIGGER)).toBe(1);
+
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(getPlayer(state, "p1").life).toBe(lifeBefore + 3);
     });
 
     it("fires on a TYPEcycling cost payment too (CR 702.29f)", () => {
