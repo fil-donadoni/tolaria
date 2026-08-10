@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 // Deck-list Format filter (PRD #509, ADR 0036, issue #513): an "All" + three
 // Formats select that narrows a browsed deck list. Navigation only — never
 // gates play, never sets a deck's Format. Distinct from the creation

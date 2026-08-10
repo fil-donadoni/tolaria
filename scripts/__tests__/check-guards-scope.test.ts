@@ -97,7 +97,7 @@ describe("check:guards scope — the light gate runs the whole node project", ()
     it("still runs the bot fast lane (#1912 is not undone)", () => {
         expect(guards).toContain("TOLARIA_BOT_FAST=1");
         expect(guards).toMatch(/--project\s+bot-node/);
-        expect(guards).toMatch(/--project\s+bot-jsdom/);
+        expect(guards).toMatch(/--project\s+bot-dom/);
     });
 });
 

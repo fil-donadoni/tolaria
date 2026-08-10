@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 // vs-AI difficulty persistence (issue #114): stored, defaulted, and tolerant of
 // stale values. See `../session`.
 import { describe, it, expect, beforeEach } from "vitest";

@@ -1,16 +1,17 @@
 /**
  * Which `src/**` tests actually need a DOM.
  *
- * The jsdom project selects by DIRECTORY (`src/**`), not by need. Measured at
- * the light tier's 2 workers: 362 files, 171s — of which 133s is `environment`
- * (a jsdom instance built per file) and 116s is `import` (the default per-file
- * isolation re-evaluates each module graph). Actual test execution is 37s.
- * Meanwhile the node project runs 577 files in 26.5s, because node's
- * environment init is free and `isolate: false` shares one module registry per
- * worker.
+ * The `dom` project (named `jsdom` before #2435, when it also ran under the
+ * `jsdom` package — it now runs under `happy-dom`) selects by DIRECTORY
+ * (`src/**`), not by need. Measured at the light tier's 2 workers: 362 files,
+ * 171s — of which 133s was `environment` (a DOM instance built per file) and
+ * 116s is `import` (the default per-file isolation re-evaluates each module
+ * graph). Actual test execution is 37s. Meanwhile the node project runs 577
+ * files in 26.5s, because node's environment init is free and
+ * `isolate: false` shares one module registry per worker.
  *
  * 104 of those `src` files render nothing: they exercise pure helpers —
- * sorting, filtering, cost math, eligibility predicates — and pay the jsdom
+ * sorting, filtering, cost math, eligibility predicates — and pay the DOM
  * tax for a DOM they never touch. Moving them to the node project measured
  * 57.8s → ~10-20s for that subset, and hands the light gate a `src`-side
  * catalogue guard it never ran (`activation-affordability.catalogue.test.ts`).
@@ -18,13 +19,14 @@
  * The split is CONTENT-classified rather than named (`*.node.test.ts` would
  * mean renaming ~104 files and would rot the moment someone adds `render()` to
  * one without renaming it) and it is computed at config load, so it re-derives
- * itself on every run. A file that grows a DOM dependency moves back to jsdom
+ * itself on every run. A file that grows a DOM dependency moves back to `dom`
  * by itself.
  *
  * Conservative by construction — the markers below are "might need a DOM or
- * might leak between files", not "definitely does". A false jsdom classification
- * costs ~0.4s; a false node classification is a red test, so ambiguity resolves
- * toward jsdom. `.tsx` is never classified: JSX in a test means rendering.
+ * might leak between files", not "definitely does". A false `dom`
+ * classification costs ~0.4s; a false node classification is a red test, so
+ * ambiguity resolves toward `dom`. `.tsx` is never classified: JSX in a test
+ * means rendering.
  *
  * `vi.mock` / `vi.spyOn` / fake timers / global stubs are disqualifiers even
  * with no DOM in sight: the node project runs `isolate: false`, so module-level
@@ -92,20 +94,20 @@ function collect(dir: string, out: string[] = []): string[] {
 export interface SrcTestSplit {
     /** `src` tests that can run in the node project, repo-relative, posix. */
     node: string[];
-    /** `src` tests that stay in jsdom, repo-relative, posix. */
-    jsdom: string[];
+    /** `src` tests that stay in the dom project, repo-relative, posix. */
+    dom: string[];
 }
 
-/** Classifies every non-bot `src/**\/*.test.ts` by whether it needs jsdom. */
+/** Classifies every non-bot `src/**\/*.test.ts` by whether it needs a DOM. */
 export function splitSrcTests(root: string): SrcTestSplit {
     const node: string[] = [];
-    const jsdom: string[] = [];
+    const dom: string[] = [];
     for (const file of collect(path.join(root, "src")).sort()) {
         if (file.endsWith(".bot.test.ts")) continue;
         const rel = path.relative(root, file).split(path.sep).join("/");
         const source = fs.readFileSync(file, "utf8");
         const needsDom = SRC_NODE_DISQUALIFIERS.some((m) => source.includes(m));
-        (needsDom ? jsdom : node).push(rel);
+        (needsDom ? dom : node).push(rel);
     }
-    return { node, jsdom };
+    return { node, dom };
 }
