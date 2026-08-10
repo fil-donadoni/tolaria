@@ -2692,15 +2692,22 @@ export function pendingTargetFiltersFromRequirement(
 }
 
 /** Resolve a trigger requirement's `count` to a concrete {min, max}. Triggers
- *  do not carry X, so `"X"` collapses to none (0). An "up to" requirement
- *  without an explicit `max` is treated as unbounded. */
+ *  do not carry X (CR 603.3d has no announcement step), so `"X"` collapses to
+ *  none (0). An "up to" requirement without an explicit `max` is treated as
+ *  unbounded. The object form's `max` may itself be the literal `"X"` (CR
+ *  601.2c "up to X" range, issue #2365) — it collapses the SAME way a bare
+ *  `"X"` does, folding the upper bound down to `min` (never `NaN`, never a
+ *  literal string reaching a `PendingTarget`): a `{min: 0, max: "X"}` trigger
+ *  requirement always resolves to `{min: 0, max: 0}`, i.e. no targets. */
 function triggerTargetMinMax(count: TargetRequirement["count"]): {
     min: number;
     max: number;
 } {
     if (typeof count === "number") return { min: count, max: count };
     if (count === "X") return { min: 0, max: 0 };
-    return { min: count.min, max: count.max ?? Number.MAX_SAFE_INTEGER };
+    const max =
+        count.max === "X" ? count.min : (count.max ?? Number.MAX_SAFE_INTEGER);
+    return { min: count.min, max };
 }
 
 /** CR 603.3d / 603.3c (issue #1193) — lock announcement-time targets for any
@@ -2861,12 +2868,12 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             req.divideAsChosen && typeof req.divideAsChosen.total === "number"
                 ? req.divideAsChosen.total
                 : undefined;
+        // Reuses the SAME {min, max} `triggerTargetMinMax` already resolved
+        // above (issue #2365) — this used to re-derive `count` independently
+        // from `req.count`, which missed the object form's `max === "X"`
+        // shape (a literal `"X"` string would have reached `PendingTarget`).
         const count: PendingTarget["count"] =
-            typeof req.count === "number"
-                ? req.count
-                : req.count === "X"
-                  ? { min: 0, max: 0 }
-                  : { min: req.count.min, max: req.count.max ?? max };
+            typeof req.count === "number" ? req.count : { min, max };
         state.pendingTarget = {
             playerId: item.controllerId,
             cardInstanceId: item.id,

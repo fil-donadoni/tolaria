@@ -893,7 +893,7 @@ const NON_PERMANENT_TARGET_TYPES = new Set([
  *  "unaffordable" READ if X ends up 0, which the server's own `hasEnoughLegalTargets`
  *  gate has final say over regardless). */
 function minTargetCountHint(
-    count: number | "X" | { min: number; max?: number }
+    count: number | "X" | { min: number; max?: number | "X" }
 ): number {
     if (count === "X") return 1;
     return typeof count === "number" ? count : count.min;

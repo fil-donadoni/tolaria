@@ -319,8 +319,17 @@ export interface TargetRequirement {
      *  601.2c, e.g. Volcanic Eruption "Destroy X target Mountains"). The count
      *  is resolved against `chosenX` at cast announcement — pendingTarget
      *  stores the resulting fixed N. When chosenX is 0, the spell skips
-     *  target selection entirely. */
-    count: number | "X" | { min: number; max?: number };
+     *  target selection entirely.
+     *
+     *  The object form's `max` may ALSO be the literal `"X"` — the genuinely
+     *  optional "up to X" variable-count template (CR 601.2c: "as many as you
+     *  choose, from zero to X", e.g. Pest Infestation "Destroy up to X target
+     *  artifacts and/or enchantments"), distinct from the exact-count `"X"`
+     *  string above. Resolved the same way, against `chosenX`, into a live
+     *  `{ min, max }` range — `convex/gre/state.ts`'s
+     *  `resolveTargetRequirementCount` is the single resolver every count
+     *  consumer calls (issue #2365). */
+    count: number | "X" | { min: number; max?: number | "X" };
     /** If set, restricts legal targets to permanents and stack spells of the
      *  given color (CR 202.2). Used by Circle of Protection's "source of your
      *  choice of color W/U/B/R/G" choice. */

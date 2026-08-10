@@ -25,6 +25,7 @@ import {
     canPayDiscardLastDrawn,
     applyCostModifiers,
     getCostModifiers,
+    resolveTargetRequirementCount,
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
 import {
@@ -479,20 +480,25 @@ function isVariableCount(req: TargetRequirement | undefined): boolean {
     return req.count === "X" || typeof req.count === "object";
 }
 
-function targetCount(
+// Exported for a direct unit test (issue #2365) — proof that the bot's
+// per-requirement count resolution no longer lets an unresolved `"X"` reach
+// `enumerateTargetTuples`'s `for (let size = min; size <= max; size++)` loop
+// below it, where `size <= "X"` used to coerce to `NaN` (always false) and
+// silently drop every non-empty tuple instead of erroring.
+export function targetCount(
     req: TargetRequirement,
     chosenX: number | undefined
 ): {
     min: number;
     max: number;
 } {
-    if (req.count === "X") {
-        const x = chosenX ?? 0;
-        return { min: x, max: x };
-    }
-    if (typeof req.count === "number")
-        return { min: req.count, max: req.count };
-    return { min: req.count.min, max: req.count.max ?? req.count.min };
+    // Single shared resolver (issue #2365) — this used to re-derive the
+    // literal `"X"` case inline and fall through `req.count.max ?? min` for
+    // the object form, which passed an unresolved `"X"` string straight
+    // through for an `{ min, max: "X" }` "up to X" range.
+    const resolved = resolveTargetRequirementCount(req.count, chosenX);
+    if (typeof resolved === "number") return { min: resolved, max: resolved };
+    return { min: resolved.min, max: resolved.max ?? resolved.min };
 }
 
 /** Every legal target tuple for one (mode) requirement at a chosen X. Returns

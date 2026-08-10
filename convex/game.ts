@@ -69,6 +69,7 @@ import {
     loseLifeEmitting,
     refreshCounterGatedStatics,
     PENDING_TARGET_FILTER_KEYS,
+    resolveTargetRequirementCount,
 } from "./gre/state";
 import {
     selectCompanion,
@@ -5455,21 +5456,19 @@ function minTargetCount(count: number | { min: number; max?: number }): number {
     return typeof count === "number" ? count : count.min;
 }
 
-/** Resolves the literal `"X"` target-count form to a fixed number using the
- *  cast's `chosenX` (CR 107.3 / 601.2c). Returns the input unchanged for
- *  numeric / range counts. Used only on the cast path — activated abilities
- *  don't carry chosenX, so passing `"X"` without chosenX throws. */
+/** Resolves a target-count's `"X"` bound(s) (a literal `"X"` count, or a
+ *  `{ min, max: "X" }` "up to X" range) to fixed numbers using the cast's
+ *  `chosenX` (CR 107.3 / 601.2c). Returns the input unchanged for a plain
+ *  numeric / already-fixed range. Thin wrapper over the single shared
+ *  resolver (`gre/state.ts` `resolveTargetRequirementCount`, issue #2365)
+ *  with `requireX: true` — the cast/activated-ability path is the one
+ *  consumer that must reject an X-bearing count with no announced X
+ *  (activated abilities without X in their cost never carry one). */
 function resolveTargetCount(
-    count: number | "X" | { min: number; max?: number },
+    count: number | "X" | { min: number; max?: number | "X" },
     chosenX: number | undefined
 ): number | { min: number; max?: number } {
-    if (count === "X") {
-        if (chosenX === undefined) {
-            throw new Error('Target count "X" requires chosenX');
-        }
-        return chosenX;
-    }
-    return count;
+    return resolveTargetRequirementCount(count, chosenX, { requireX: true });
 }
 
 /** True when the selected targets have reached the maximum allowed for this

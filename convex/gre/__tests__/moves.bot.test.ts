@@ -15,13 +15,19 @@ import {
 } from "../../cards/__tests__/setup";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import * as stateModule from "../state";
-import { enumerateMoves, planManaPayment, type Move } from "../moves";
+import {
+    enumerateMoves,
+    planManaPayment,
+    targetCount,
+    type Move,
+} from "../moves";
 import { getLegalActions, maxAffordableX } from "../rules";
 import {
     getAttackerCap,
     getRequiredAttackerIds,
     foldAttackRequirements,
 } from "../combat";
+import type { TargetRequirement } from "../../cards/types";
 
 const FOREST = getCardByName("Forest").id;
 const MOUNTAIN = getCardByName("Mountain").id;
@@ -1793,5 +1799,56 @@ describe("enumerateMoves — graveyard-source activations (CR 113.6, issue #2339
         card.controllerId = "p2";
         state.players[1].graveyard.push(card);
         expect(eternalizeMoves(state)).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// targetCount — "up to X" variable target count (CR 601.2c, issue #2365)
+//
+// Proof-of-failure target: before the fix, `{ min, max: "X" }` fell through
+// `req.count.max ?? req.count.min`, handing the literal STRING `"X"` to
+// `enumerateTargetTuples`'s `for (let size = min; size <= max; size++)`
+// loop — `size <= "X"` coerces to `NaN`, always false, so the loop body
+// never ran even once (not even for `size === min`), silently dropping every
+// non-empty tuple from the bot's candidate moves instead of erroring.
+// ---------------------------------------------------------------------------
+describe('targetCount — "up to X" (CR 601.2c, issue #2365)', () => {
+    const upToXReq: TargetRequirement = {
+        type: "Creature",
+        count: { min: 0, max: "X" },
+    };
+
+    it("resolves a numeric { min, max } for every announced X — never a string, never NaN", () => {
+        for (const x of [0, 1, 3]) {
+            const { min, max } = targetCount(upToXReq, x);
+            expect(min).toBe(0);
+            expect(max).toBe(x);
+            expect(typeof max).toBe("number");
+            expect(Number.isNaN(max)).toBe(false);
+        }
+    });
+
+    it("the resolved range spans every size from 0 through the announced X (0, k < X, and X are all in range)", () => {
+        const { min, max } = targetCount(upToXReq, 3);
+        expect(min).toBe(0);
+        expect(max).toBe(3);
+        for (const size of [0, 1, 3]) {
+            expect(size).toBeGreaterThanOrEqual(min);
+            expect(size).toBeLessThanOrEqual(max);
+        }
+    });
+
+    it("an exact-N range and a literal 'X' count still resolve as before (no regression)", () => {
+        expect(targetCount({ type: "any", count: 2 }, undefined)).toEqual({
+            min: 2,
+            max: 2,
+        });
+        expect(
+            targetCount({ type: "any", count: { min: 1, max: 2 } }, undefined)
+        ).toEqual({ min: 1, max: 2 });
+        expect(targetCount({ type: "any", count: "X" }, 4)).toEqual({
+            min: 4,
+            max: 4,
+        });
     });
 });
