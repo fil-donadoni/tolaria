@@ -17463,6 +17463,36 @@ export function canPayDiscardLastDrawn(player: PlayerState): boolean {
     return player.hand.some((c) => c.id === id);
 }
 
+/** CR 118 / 122.1c — whether `card` carries enough counters to pay a
+ *  `cost.removeCounter` leg (Thallid's three spore counters).
+ *
+ *  The affordability sibling of `canPayDiscardLastDrawn`, and the SINGLE
+ *  authority three callers share: the server's up-front validation
+ *  (`convex/game.ts`, which throws "Not enough counters to pay activation
+ *  cost"), the bot's move enumerator (`enumerateAbilityMoves`, `moves.ts`), and
+ *  the search's cost payment (`applyActivationCostsForSearch`, `applyMove.ts`).
+ *
+ *  It exists because those three disagreed (issue #1920 review round 2). The
+ *  enumerator had no gate at all, so a Thallid holding ONE spore counter still
+ *  offered its three-counter activation; the search then applied it, could not
+ *  pay, and — once the ability's payoff became visible — ranked a move the
+ *  server rejects ABOVE `pass`. Spore counters accrue one per upkeep, so that
+ *  was the commonest Thallid board state, not an edge case. */
+export function canPayRemoveCounterCost(
+    card: CardInstanceState,
+    cost: { type: string; count: number }
+): boolean {
+    return (card.counters?.[cost.type] ?? 0) >= cost.count;
+}
+
+/** CR 118.4 — whether `player` may pay a life cost: a payment greater than 0 is
+ *  legal only when the life total is at least the amount. Same three-caller
+ *  contract as `canPayRemoveCounterCost` above; the server throws "Not enough
+ *  life" on the same comparison. */
+export function canPayLifeCost(player: PlayerState, life: number): boolean {
+    return player.life >= life;
+}
+
 /** Pays a "discard the last card you drew this turn" cost by discarding that
  *  exact card. Throws if the card is no longer in hand (callers must check
  *  `canPayDiscardLastDrawn` first). Clears the tracker so the same draw can't

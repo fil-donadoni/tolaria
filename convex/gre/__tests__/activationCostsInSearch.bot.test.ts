@@ -28,6 +28,7 @@ import {
     applyMoveForSearch,
 } from "../applyMove";
 import { applyMoveInSearch, searchWithTrace } from "../search";
+import { activateAbilityOnState } from "../../game";
 import { enumerateMoves, type Move } from "../moves";
 import { evaluate } from "../evaluate";
 import { cloneGameState } from "../clone";
@@ -171,11 +172,12 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
         ).toBe(0);
     });
 
-    it("cost.removeCounter — an unaffordable source is left untouched, never thrown on", () => {
-        // `payRemoveCounterCost` THROWS when the source is short. Such an
-        // activation is not a legal move, but `applyActivationCostsForSearch` is
-        // exported and a sandbox must never throw on a coarse position reached
-        // by another route.
+    it("cost.removeCounter — an unpayable leg REPORTS, changes nothing, and is never pushed", () => {
+        // Issue #1920 review round 2's blocking finding, at the level it bit.
+        // The round-2 code guarded this leg by SKIPPING it, which quietly turned
+        // an unpayable cost into a free one — the search kept the payoff and
+        // dropped the price. A payer that cannot pay must say so and change
+        // nothing, and the caller must decline to push on that answer.
         const thallid = bf(THALLID, "thallid", BOT, { counters: { spore: 1 } });
         const state = makeState({
             players: [
@@ -195,13 +197,36 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
             tapPlan: [],
         };
 
-        expect(() =>
-            applyActivationCostsForSearch(state, BOT, handBuilt)
-        ).not.toThrow();
+        // REPORTS: false, not a throw and not a silent true.
+        expect(applyActivationCostsForSearch(state, BOT, handBuilt)).toBe(
+            false
+        );
+        // CHANGES NOTHING: the counter is still there.
         expect(
             botOf(state).battlefield.find((c) => c.id === "thallid")?.counters
                 ?.spore
         ).toBe(1);
+
+        // AND IS NEVER PUSHED: the fail-closed backstop for a hand-built move,
+        // the door `enumerateAbilityMoves`' gate does not cover. Without it the
+        // ability resolves in the tree for free.
+        const leaf = cloneGameState(state);
+        applyMoveInSearch(leaf, BOT, handBuilt);
+        expect(leaf.stack.filter((i) => i.abilityId !== undefined)).toEqual([]);
+        expect(
+            botOf(leaf).battlefield.find((c) => c.id === "thallid")?.counters
+                ?.spore
+        ).toBe(1);
+
+        // The gate mirrors the SERVER's own rule — that is why it is the right
+        // gate rather than a heuristic.
+        expect(() =>
+            activateAbilityOnState(cloneGameState(state), {
+                playerId: BOT,
+                cardInstanceId: "thallid",
+                abilityId: "thallid-make-saproling",
+            })
+        ).toThrow(/Not enough counters/);
     });
 
     it("cost.life — the life is deducted from the ACTIVATING player (CR 118.4)", () => {
@@ -283,7 +308,7 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
     });
 
     it("cost.discardThis — the hand source is discarded (CR 118.3 / 702.29a)", () => {
-        // No ENUMERATED move reaches this leg: `enumerateActivationMoves` scans
+        // No ENUMERATED move reaches this leg: `enumerateAbilityMoves` scans
         // the battlefield and the graveyard, never the hand, so an
         // `activateFromHand` ability (Cycling, Harvester of Misery) is not a
         // macro-move today. The helper is exported and must still pay every leg
@@ -680,6 +705,117 @@ describe("field repro #2422 — Sylvan Safekeeper does not eat its own lands", (
             expect(chosen).not.toContain("Sylvan Safekeeper");
         }
     );
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The ENUMERATOR gates (issue #1920 review round 2, blocking finding). The
+// authoritative half of the fix: `enumerateAbilityMoves` gated affordability
+// for tap / discardLastDrawn / sacrificeFilter / discardFilter /
+// exileFromGraveyard / tapOtherFilter but NOT for `removeCounter` or `life`,
+// both of which the server validates and throws on. Once issue #1920 made an
+// activation's payoff visible, the bot did not merely tolerate those moves — it
+// PREFERRED one the mutation rejects.
+// ───────────────────────────────────────────────────────────────────────────
+describe("enumerateAbilityMoves affordability parity with the server (#1920 review)", () => {
+    function thallidWith(spore: number): GameState {
+        return makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, {
+                    battlefield: [
+                        bf(THALLID, "thallid", BOT, {
+                            counters: { spore },
+                        }),
+                    ],
+                }),
+            ],
+            turn: 3,
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+    }
+
+    it.each([0, 1, 2])(
+        "does not offer a removeCounter activation at %i counters (CR 118)",
+        (spore) => {
+            const state = thallidWith(spore);
+            expect(activationOf(state, "thallid")).toBeUndefined();
+            // The gate is the server's rule, not a guess: the same activation
+            // throws in the mutation.
+            expect(() =>
+                activateAbilityOnState(cloneGameState(state), {
+                    playerId: BOT,
+                    cardInstanceId: "thallid",
+                    abilityId: "thallid-make-saproling",
+                })
+            ).toThrow(/Not enough counters/);
+        }
+    );
+
+    it("still offers it at exactly the required counters — the gate is not a mute button", () => {
+        const state = thallidWith(3);
+        expect(activationOf(state, "thallid")).toBeDefined();
+        expect(() =>
+            activateAbilityOnState(cloneGameState(state), {
+                playerId: BOT,
+                cardInstanceId: "thallid",
+                abilityId: "thallid-make-saproling",
+            })
+        ).not.toThrow();
+    });
+
+    it("the ROOT no longer chooses a server-illegal activation (seed 1, 200 iterations)", () => {
+        // The measured symptom: at one spore counter the root chose the
+        // activation (1.0 against `pass` 0.99826) while `main` chose `pass`.
+        // With the gate the move is not a candidate at all, so there is nothing
+        // to rank — asserted on the CANDIDATE SET rather than on the ranking,
+        // because that is what the fix changes.
+        const { trace } = searchWithTrace(
+            thallidWith(1),
+            BOT,
+            { iterations: 200 },
+            1
+        );
+        const activations = (trace?.candidates ?? []).filter(
+            (c) => c.move.kind === "activate-ability"
+        );
+        expect(activations).toEqual([]);
+    });
+
+    function griselbrandAt(life: number): GameState {
+        return makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, {
+                    battlefield: [bf(GRISELBRAND, "gris")],
+                    life,
+                }),
+            ],
+            turn: 3,
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+    }
+
+    it("does not offer a life activation below the cost (CR 118.4)", () => {
+        // The sibling gap: fail-closed today only because the leaf happened not
+        // to flip the choice. Gated in the same pass rather than left behind.
+        const state = griselbrandAt(3);
+        expect(activationOf(state, "gris")).toBeUndefined();
+        expect(() =>
+            activateAbilityOnState(cloneGameState(state), {
+                playerId: BOT,
+                cardInstanceId: "gris",
+                abilityId: "griselbrand-pay-life-draw",
+            })
+        ).toThrow(/Not enough life/);
+    });
+
+    it("still offers it at exactly the cost in life", () => {
+        expect(activationOf(griselbrandAt(7), "gris")).toBeDefined();
+    });
 });
 
 describe("review repro (#1920 finding 2) — a counter cost is not free at the root", () => {

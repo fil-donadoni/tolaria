@@ -48,6 +48,9 @@ import {
     payRemoveCounterCost,
     payDiscardLastDrawn,
     payDiscardAtRandomCost,
+    canPayRemoveCounterCost,
+    canPayLifeCost,
+    canPayDiscardLastDrawn,
 } from "./state";
 // CR 611.1b (issue #1920 review, finding 4) — the POST-LAYER ability set, the
 // same authority the search's push gate reads (`effectiveAbilityOf`). Two
@@ -215,7 +218,7 @@ export function applyDelveExileForSearch(
  *  scored it.
  *
  *  Two legs stay out, both deliberately and neither of them free value:
- *    * `cost.loyalty` (CR 606.5) — `enumerateActivationMoves` refuses loyalty
+ *    * `cost.loyalty` (CR 606.5) — `enumerateAbilityMoves` refuses loyalty
  *      abilities outright, so no move carrying one exists to pay.
  *    * `notedManaSpent` (CR 106.10) — not a cost at all but a record OF the
  *      cost, needing a coin-exact pool delta the coarse tap-plan mana model
@@ -224,7 +227,7 @@ export function applyActivationCostsForSearch(
     state: GameState,
     playerId: string,
     move: Extract<Move, { kind: "activate-ability" }>
-): void {
+): boolean {
     // CR 113.3c — the source may be on another player's battlefield ("any
     // player may activate"), so search globally.
     let src: CardInstanceState | undefined;
@@ -255,7 +258,7 @@ export function applyActivationCostsForSearch(
         // CR 113.6 / 702.29a — a HAND-source activation (Cycling, Harvester of
         // Misery's `activateFromHand` discard ability). Its one board-changing
         // cost leg is "Discard this card", paid through the shared choke point
-        // so CARD_DISCARDED fires. `enumerateActivationMoves` scans only the
+        // so CARD_DISCARDED fires. `enumerateAbilityMoves` scans only the
         // battlefield and the graveyard, so no enumerated move reaches this
         // branch today — it is here so the helper pays EVERY leg it can be
         // handed, rather than leaving one silently free (issue #1920 review,
@@ -274,44 +277,69 @@ export function applyActivationCostsForSearch(
         if (handOwner && handAbility?.cost.discardThis) {
             discardToGraveyard(state, handOwner.id, move.cardInstanceId);
         }
-        return;
+        return true;
     }
 
     // CR 611.1b — the POST-LAYER ability (finding 4): a GRANTED activated
     // ability resolves here exactly as it does at the search's push gate, so
     // the two can never disagree about which ability is being paid for.
     const ability = effectiveAbilityOf(src, move.abilityId);
-    if (!ability) return;
+    if (!ability) return false;
+
+    // AFFORDABILITY FIRST, before a single mutation (issue #1920 review round
+    // 2). The three legs below are paid by helpers that THROW when the payer is
+    // short, and the round-2 version of this function guarded each one inline —
+    // which turned an unpayable leg into a silently FREE one. That is a worse
+    // failure than the throw it replaced: the search kept the payoff and
+    // dropped the price, and (with no `removeCounter` gate in the enumerator at
+    // the time) the bot ranked a Thallid activation the server rejects ABOVE
+    // `pass`.
+    //
+    // A payer that cannot pay must SAY SO and change nothing — never continue.
+    // The caller declines to push on `false` (`applyMoveInSearch`,
+    // `gre/search.ts`), so an unpayable activation can no longer buy its effect.
+    const payer = state.players.find((p) => p.id === playerId);
+    if (
+        ability.cost.removeCounter &&
+        !canPayRemoveCounterCost(src, ability.cost.removeCounter)
+    ) {
+        return false;
+    }
+    if (
+        ability.cost.life !== undefined &&
+        (!payer || !canPayLifeCost(payer, ability.cost.life))
+    ) {
+        return false;
+    }
+    if (
+        ability.cost.discardLastDrawn &&
+        (!payer || !canPayDiscardLastDrawn(payer))
+    ) {
+        return false;
+    }
+
     if (ability.cost.tap) src.isTapped = true;
     // CR 118.4 — the life leg (fetchland-style "Pay N life", Griselbrand).
-    if (ability.cost.life !== undefined) {
-        const payer = state.players.find((p) => p.id === playerId);
-        if (payer) payer.life -= ability.cost.life;
+    if (ability.cost.life !== undefined && payer) {
+        payer.life -= ability.cost.life;
     }
     // CR 118 / 122.1c — the counter-removal leg (Thallid's three spore
-    // counters). `payRemoveCounterCost` THROWS when the source is short, so
-    // affordability is checked first: an unaffordable activation is not a legal
-    // move, and a search sandbox must never throw on a coarse position it
-    // reached by another route.
-    const removeCounter = ability.cost.removeCounter;
-    if (
-        removeCounter &&
-        (src.counters?.[removeCounter.type] ?? 0) >= removeCounter.count
-    ) {
-        payRemoveCounterCost(src, removeCounter);
+    // counters), through the shared affordability authority. The payability
+    // CHECK happened before any mutation (see the guard above `src.isTapped`),
+    // so reaching here means the source is not short and `payRemoveCounterCost`
+    // cannot throw.
+    if (ability.cost.removeCounter) {
+        payRemoveCounterCost(src, ability.cost.removeCounter);
     }
     // CR 118.3 — "discard the last card you drew this turn" (Jandor's Ring).
-    // Same throw-guard as the counter leg above: `payDiscardLastDrawn` rejects a
-    // player with no such card still in hand.
-    if (ability.cost.discardLastDrawn) {
-        const payer = state.players.find((p) => p.id === playerId);
-        const lastDrawn = payer?.lastDrawnCardId;
-        if (payer && lastDrawn && payer.hand.some((c) => c.id === lastDrawn)) {
-            payDiscardLastDrawn(state, payer);
-        }
+    if (ability.cost.discardLastDrawn && payer) {
+        payDiscardLastDrawn(state, payer);
     }
-    // CR 118.3 — the random-discard leg (Coral Helm).
-    if (ability.cost.discardAtRandom) {
+    // CR 118.3 — the random-discard leg (Coral Helm). `payDiscardAtRandomCost`
+    // clamps to hand size, so an empty hand is a no-op rather than a throw; the
+    // `payer` guard is here only so an unknown `playerId` cannot reach the
+    // `getPlayer` inside it, matching every sibling leg in this function.
+    if (ability.cost.discardAtRandom && payer) {
         payDiscardAtRandomCost(state, playerId, ability.cost.discardAtRandom);
     }
     // CR 602.1 — sacrifice costs change the board materially, so they're
@@ -331,7 +359,7 @@ export function applyActivationCostsForSearch(
         (owner
             ? (planActivationCostPicks(state, owner, src, ability) ?? undefined)
             : undefined);
-    if (!owner) return;
+    if (!owner) return true;
     // CR 701.16 — the filtered-sacrifice victims, both the ones the server
     // auto-resolves at announcement and the ones the payer names.
     for (const id of activationSacrificeVictims(
@@ -343,7 +371,7 @@ export function applyActivationCostsForSearch(
     )) {
         removePermanentTo(state, id, "graveyard", "sacrifice");
     }
-    if (!picks) return;
+    if (!picks) return true;
     for (const id of picks.tapOtherIds ?? []) {
         const perm = owner.battlefield.find((c) => c.id === id);
         if (perm) tapPermanent(state, perm);
@@ -368,6 +396,7 @@ export function applyActivationCostsForSearch(
     for (const id of picks.discardIds ?? []) {
         discardToGraveyard(state, owner.id, id);
     }
+    return true;
 }
 
 /** Tap the planned mana sources on the (already cloned) state. Coarse model:

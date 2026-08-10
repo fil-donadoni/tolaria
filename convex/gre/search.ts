@@ -756,15 +756,25 @@ export function applyMoveInSearch(
             // sandbox and the live bot paid them — an activation whose payoff
             // the search also cannot see then tied `pass` exactly and won on
             // rollout noise (#2422 Sylvan Safekeeper, #2415 Iron-Shield Elf).
-            applyActivationCostsForSearch(state, playerId, move);
+            // `paid` is false when a cost leg could not be met (CR 118 — a
+            // short `removeCounter`, too little life, no last-drawn card in
+            // hand). The helper changes NOTHING in that case, and the push is
+            // declined below: an activation the payer cannot afford must not
+            // buy its effect in the tree. `enumerateAbilityMoves` gates all
+            // three, so this is the fail-closed backstop for the hand-built
+            // moves this exported function also accepts (issue #1920 review
+            // round 2 — the round-2 version skipped the unpayable leg silently
+            // and kept the payoff, which is how the bot came to rank a Thallid
+            // activation the server rejects above `pass`).
+            const paid = applyActivationCostsForSearch(state, playerId, move);
             // CR 605.3c — a MANA ability never uses the stack: it resolves
             // immediately and is payment plumbing the search already models
             // through the tap plan. Pushing one would park an item nothing ever
-            // resolves. `enumerateMoves` already refuses to emit a
+            // resolves. `enumerateAbilityMoves` already refuses to emit a
             // `!useStack` ability as a macro-move (`moves.ts`), so this gate is
             // fail-closed defence for the hand-built moves this exported
             // function also accepts (tests, blade setup steps).
-            if (source && activated?.useStack) {
+            if (paid && source && activated?.useStack) {
                 // CR 602.2a — the item is built by the SAME authority the three
                 // mutation commit sites use (`activationCommit.ts`), so the
                 // fields `resolveTopOfStack` reads cannot drift between the
@@ -1146,7 +1156,7 @@ function findPermanentOnBattlefield(
  *      Harvester of Misery).
  *
  *  The hand branch is deliberately UNREACHABLE through `enumerateMoves` today
- *  (`enumerateActivationMoves` scans the battlefield and the graveyard only), so
+ *  (`enumerateAbilityMoves` scans the battlefield and the graveyard only), so
  *  it exists for symmetry rather than for a live path. It was previously omitted
  *  on the grounds that pushing a hand-source ability would put an item on the
  *  stack while its `discardThis` cost went unpaid — true when it was written,
