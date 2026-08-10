@@ -287,7 +287,17 @@ describe('"When you cycle this card" (CR 702.29c)', () => {
             abilityId: "cycling",
         });
 
-        // The inline path committed: no payment phase was ever entered.
+        // This only confirms the activation completed with no pending payment
+        // left behind — a successful DEFERRED commit also clears
+        // `pendingActivation`, so the assertion alone does not discriminate
+        // between the two paths. What actually forces the inline branch here
+        // is the board setup: {C}{C}{C} floating against this {1} cycling
+        // cost makes `manaUncovered === false` at `convex/game.ts:12939`, so
+        // `activateAbilityOnState` commits inline instead of deferring. If
+        // cycling ever grows a non-mana cost component (sacrifice / exile /
+        // tapOther / discardFilter), that setup would stop forcing the
+        // inline branch and this test would silently degenerate into a
+        // duplicate of the deferred-path test above.
         expect(state.pendingActivation).toBeUndefined();
         expect(
             getPlayer(state, "p1").graveyard.some((c) => c.id === "src")
