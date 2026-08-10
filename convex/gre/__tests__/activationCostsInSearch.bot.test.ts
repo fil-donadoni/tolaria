@@ -58,6 +58,8 @@ const CORAL_HELM = getCardByName("Coral Helm").id;
 const HARVESTER = getCardByName("Harvester of Misery").id;
 const RING_OF_RENEWAL = getCardByName("Ring of Renewal").id;
 const ISLAND = getCardByName("Island").id;
+const METEOR_STORM = getCardByName("Meteor Storm").id;
+const MOUNTAIN = getCardByName("Mountain").id;
 
 function bf(cardId: string, id: string, owner = BOT, extra = {}) {
     return makeInstance(cardId, {
@@ -858,10 +860,7 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
         ).toThrow(/No card in hand to discard/);
     });
 
-    it("still offers it with a single card in hand — the server's condition is emptiness, not count", () => {
-        // Deliberately ONE card against a cost that discards one, and the reason
-        // the predicate is `hand.length > 0` rather than `>= count`: the server
-        // clamps, so a 2-card random discard with 1 card in hand is legal too.
+    it("still offers it with a single card in hand", () => {
         const state = ringWithHand(1);
         expect(activationOf(state, "ring")).toBeDefined();
         expect(() =>
@@ -869,6 +868,48 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
                 playerId: BOT,
                 cardInstanceId: "ring",
                 abilityId: "ring-of-renewal",
+            })
+        ).not.toThrow();
+    });
+
+    it("offers a TWO-card random discard against a ONE-card hand — emptiness, not count", () => {
+        // The boundary the predicate actually draws, and it needs a cost whose
+        // count EXCEEDS the hand. Ring of Renewal discards one, so `hand.length
+        // > 0` and `hand.length >= count` are indistinguishable there and a test
+        // built on it cannot fail — it stayed green when the predicate was
+        // tightened to `>= count`. Meteor Storm discards TWO, so one card in
+        // hand separates them: the server accepts it and
+        // `discardCardsAtRandom` clamps to the single card, which is why
+        // `canPayDiscardAtRandom` asks whether the hand is EMPTY and not
+        // whether it is deep enough.
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, {
+                    battlefield: [
+                        bf(METEOR_STORM, "storm"),
+                        bf(MOUNTAIN, "m1"),
+                        bf(MOUNTAIN, "m2"),
+                        bf(FOREST, "g1"),
+                        bf(FOREST, "g2"),
+                    ],
+                    hand: [inZone(GRIZZLY_BEARS, "only", "hand")],
+                }),
+            ],
+            turn: 5,
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+
+        expect(activationOf(state, "storm")).toBeDefined();
+        // Server parity: the mutation accepts it rather than rejecting the
+        // shallow hand, so the enumerator must too.
+        expect(() =>
+            activateAbilityOnState(cloneGameState(state), {
+                playerId: BOT,
+                cardInstanceId: "storm",
+                abilityId: "meteor-storm-blast",
             })
         ).not.toThrow();
     });
