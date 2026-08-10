@@ -56,6 +56,8 @@ const GRISELBRAND = getCardByName("Griselbrand").id;
 const JANDORS_RING = getCardByName("Jandor's Ring").id;
 const CORAL_HELM = getCardByName("Coral Helm").id;
 const HARVESTER = getCardByName("Harvester of Misery").id;
+const RING_OF_RENEWAL = getCardByName("Ring of Renewal").id;
+const ISLAND = getCardByName("Island").id;
 
 function bf(cardId: string, id: string, owner = BOT, extra = {}) {
     return makeInstance(cardId, {
@@ -815,6 +817,78 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
 
     it("still offers it at exactly the cost in life", () => {
         expect(activationOf(griselbrandAt(7), "gris")).toBeDefined();
+    });
+
+    function ringWithHand(cards: number): GameState {
+        return makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, {
+                    battlefield: [
+                        bf(RING_OF_RENEWAL, "ring"),
+                        ...Array.from({ length: 5 }, (_, i) =>
+                            bf(ISLAND, `i${i}`)
+                        ),
+                    ],
+                    hand: Array.from({ length: cards }, (_, i) =>
+                        inZone(GRIZZLY_BEARS, `h${i}`, "hand")
+                    ),
+                }),
+            ],
+            turn: 5,
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+    }
+
+    it("does not offer a discardAtRandom activation with an EMPTY hand (CR 118.3)", () => {
+        // The leg whose payer does not throw: `payDiscardAtRandomCost` clamps to
+        // hand size, so an empty hand was a silent no-op that still bought the
+        // ability's effect. "Safe from throwing" and "legal" are different
+        // properties, and only the second one is the server's rule.
+        const state = ringWithHand(0);
+        expect(activationOf(state, "ring")).toBeUndefined();
+        expect(() =>
+            activateAbilityOnState(cloneGameState(state), {
+                playerId: BOT,
+                cardInstanceId: "ring",
+                abilityId: "ring-of-renewal",
+            })
+        ).toThrow(/No card in hand to discard/);
+    });
+
+    it("still offers it with a single card in hand — the server's condition is emptiness, not count", () => {
+        // Deliberately ONE card against a cost that discards one, and the reason
+        // the predicate is `hand.length > 0` rather than `>= count`: the server
+        // clamps, so a 2-card random discard with 1 card in hand is legal too.
+        const state = ringWithHand(1);
+        expect(activationOf(state, "ring")).toBeDefined();
+        expect(() =>
+            activateAbilityOnState(cloneGameState(state), {
+                playerId: BOT,
+                cardInstanceId: "ring",
+                abilityId: "ring-of-renewal",
+            })
+        ).not.toThrow();
+    });
+
+    it("the fail-closed door covers it too — a hand-built move reports and is not pushed", () => {
+        const state = ringWithHand(0);
+        const handBuilt: Move = {
+            kind: "activate-ability",
+            cardInstanceId: "ring",
+            abilityId: "ring-of-renewal",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+        expect(applyActivationCostsForSearch(state, BOT, handBuilt)).toBe(
+            false
+        );
+        const leaf = cloneGameState(state);
+        applyMoveInSearch(leaf, BOT, handBuilt);
+        expect(leaf.stack.filter((i) => i.abilityId !== undefined)).toEqual([]);
     });
 });
 

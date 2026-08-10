@@ -25,6 +25,7 @@ import {
     canPayDiscardLastDrawn,
     canPayRemoveCounterCost,
     canPayLifeCost,
+    canPayDiscardAtRandom,
     applyCostModifiers,
     getCostModifiers,
     resolveTargetRequirementCount,
@@ -1121,6 +1122,14 @@ function enumerateAbilityMoves(
             ability.cost.life !== undefined &&
             !canPayLifeCost(player, ability.cost.life)
         ) {
+            continue;
+        }
+        // CR 118.3 — "discard a card at random" is illegal with an EMPTY hand
+        // (Ring of Renewal, Coral Helm); the server throws "No card in hand to
+        // discard". The one cost leg whose payer does not throw — it clamps to
+        // hand size — so it read as safe while being illegal, and the search
+        // pushed an activation the mutation rejects.
+        if (ability.cost.discardAtRandom && !canPayDiscardAtRandom(player)) {
             continue;
         }
         // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" cost is

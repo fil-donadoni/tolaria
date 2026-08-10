@@ -51,6 +51,7 @@ import {
     canPayRemoveCounterCost,
     canPayLifeCost,
     canPayDiscardLastDrawn,
+    canPayDiscardAtRandom,
 } from "./state";
 // CR 611.1b (issue #1920 review, finding 4) — the POST-LAYER ability set, the
 // same authority the search's push gate reads (`effectiveAbilityOf`). Two
@@ -314,6 +315,15 @@ export function applyActivationCostsForSearch(
     if (
         ability.cost.discardLastDrawn &&
         (!payer || !canPayDiscardLastDrawn(payer))
+    ) {
+        return false;
+    }
+    // CR 118.3 — the leg whose payer CLAMPS instead of throwing, so it needs
+    // the report even more than its siblings: without it the helper paid
+    // nothing, returned true, and the push proceeded on a server-illegal move.
+    if (
+        ability.cost.discardAtRandom &&
+        (!payer || !canPayDiscardAtRandom(payer))
     ) {
         return false;
     }

@@ -17493,6 +17493,20 @@ export function canPayLifeCost(player: PlayerState, life: number): boolean {
     return player.life >= life;
 }
 
+/** CR 118.3 — whether `player` may pay a "discard a card at random" cost (Coral
+ *  Helm, Ring of Renewal): illegal with an EMPTY hand, and legal with any card
+ *  at all. Deliberately not `hand.length >= count` — the server's own condition
+ *  is `hand.length === 0`, because `discardCardsAtRandom` clamps to hand size,
+ *  so a 2-card cost with 1 card in hand is legal and discards the one.
+ *
+ *  Same three-caller contract as the two predicates above. This leg is the one
+ *  whose payer does NOT throw — `payDiscardAtRandomCost` clamps — so it looked
+ *  safe while being server-ILLEGAL, and "does not throw" is not the property
+ *  that matters here (issue #1920 review round 3). */
+export function canPayDiscardAtRandom(player: PlayerState): boolean {
+    return player.hand.length > 0;
+}
+
 /** Pays a "discard the last card you drew this turn" cost by discarding that
  *  exact card. Throws if the card is no longer in hand (callers must check
  *  `canPayDiscardLastDrawn` first). Clears the tracker so the same draw can't
