@@ -36,8 +36,11 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup";
 import { grizzlyBears, hillGiant, savannahLions } from "@convex/cards/sets/lea";
+import { preloadDefinitions } from "@convex/cards";
+import type { CardDefinition } from "@convex/cards/types";
 import { selectTarget, confirmTargets } from "@convex/game";
 import {
+    requestCopyRetargetOn,
     resolveTargetRequirementCount,
     type GameState,
     type PendingTarget,
@@ -51,6 +54,30 @@ import {
 } from "@convex/__tests__/gameMutationHarness";
 import type { Id } from "@convex/_generated/dataModel";
 import { describeTargetProgress } from "~/lib/target-progress";
+
+// A synthetic card whose OWN targetRequirement is the "up to X" object form
+// (CR 601.2c) — nothing in the shipped catalogue uses this shape yet (see
+// the comment below), so `requestCopyRetargetOn` (the real CR 707.10b/707.12c
+// producer, gre/state.ts) needs a real `def.targetRequirement` to read when
+// driven for real (review finding on issue #2365, `boardWithRealCopyRetarget`
+// below). `min: 1` (not the `min: 0` the OTHER tests in this file use) is
+// deliberate: `requestCopyRetargetOn` early-returns without raising a
+// PendingTarget whenever `count.min <= 0` (a PRE-EXISTING gate, unrelated to
+// and unmodified by issue #2365 — it applies identically to a fixed `{min:0,
+// max:N}` "up to N" requirement) — so `min: 0` here would prove the producer
+// runs its two count-resolution lines but never reach a live PendingTarget
+// to drive `selectTarget`/`confirmTargets` through. `min: 1` clears that gate
+// while still exercising the SAME "up to X" `resolveTargetRequirementCount`
+// branch the rest of this file covers.
+const UP_TO_X_REAL_PRODUCER_CARD: CardDefinition = {
+    id: "00000000-0000-4000-8000-0000c0797e70",
+    name: "Synthetic Up-To-X Copy-Retarget Test Spell",
+    rarity: "common",
+    types: ["Instant"],
+    manaCost: {},
+    targetRequirement: { type: "Creature", count: { min: 1, max: "X" } },
+};
+preloadDefinitions([UP_TO_X_REAL_PRODUCER_CARD]);
 
 const GAME_ID = "game-1" as Id<"games">;
 
@@ -139,6 +166,94 @@ function boardWithCopyRetarget(chosenX: number): {
     });
     return { state, targetIds: [t1.id, t2.id, t3.id] };
 }
+
+/** Same three-creature board as `boardWithCopyRetarget`, but the
+ *  `PendingTarget` is raised by calling the REAL `requestCopyRetargetOn`
+ *  producer against a real spell copy on the stack (`UP_TO_X_REAL_PRODUCER_
+ *  CARD`), instead of hand-building the `PendingTarget` — the review-finding
+ *  fix on issue #2365: the producer's own two count-resolution lines
+ *  (`req.count` read + the `minNeeded` gate) are now actually executed. */
+function boardWithRealCopyRetarget(chosenX: number): {
+    state: GameState;
+    targetIds: string[];
+} {
+    const t1 = makeInstance(grizzlyBears.id, {
+        id: "rt1",
+        controllerId: "p2",
+        ownerId: "p2",
+    });
+    const t2 = makeInstance(hillGiant.id, {
+        id: "rt2",
+        controllerId: "p2",
+        ownerId: "p2",
+    });
+    const t3 = makeInstance(savannahLions.id, {
+        id: "rt3",
+        controllerId: "p2",
+        ownerId: "p2",
+    });
+    const copy: StackItem = {
+        ...makeInstance(UP_TO_X_REAL_PRODUCER_CARD.id, {
+            id: "real-copy-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+        }),
+        castById: "p1",
+        chosenX,
+        targets: [],
+    };
+    const state = makeState({
+        players: [
+            makePlayer("p1"),
+            makePlayer("p2", { battlefield: [t1, t2, t3] }),
+        ],
+        stack: [copy],
+    });
+    // THE call under test: the real producer, not a hand-built PendingTarget.
+    requestCopyRetargetOn(state, copy);
+    return { state, targetIds: [t1.id, t2.id, t3.id] };
+}
+
+describe("requestCopyRetargetOn — the real CR 707.10b/707.12c producer (review finding, issue #2365)", () => {
+    it("raises the SAME { min, max } shape as the shared resolver for an 'up to X' requirement", () => {
+        const { state } = boardWithRealCopyRetarget(2);
+        expect(state.pendingTarget).toBeDefined();
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("copy-retarget");
+        expect(pt.targetType).toBe("Creature");
+        expect(pt.count).toEqual(
+            resolveTargetRequirementCount({ min: 1, max: "X" }, 2)
+        );
+        expect(pt.count).toEqual({ min: 1, max: 2 });
+    });
+
+    it("the raised PendingTarget drives the SAME real selectTarget/confirmTargets handlers and describeTargetProgress reducer", async () => {
+        const { state, targetIds } = boardWithRealCopyRetarget(2);
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await runSelectTarget(harness.ctx, targetIds[0]);
+        const midway = harness.state();
+        expect(midway.pendingTarget).toBeDefined();
+        const pt = midway.pendingTarget!;
+        expect(pt.selected).toHaveLength(1);
+        // min: 1 was already reached by the first pick, max: 2 is not.
+        const progress = describeTargetProgress(
+            pt.count,
+            pt.selected.length,
+            "a creature"
+        );
+        expect(progress.minReached).toBe(true);
+        expect(progress.maxReached).toBe(false);
+
+        await runConfirmTargets(harness.ctx);
+        const after = harness.state();
+        expect(after.pendingTarget).toBeUndefined();
+        const copy = after.stack.find((s) => s.id === "real-copy-1");
+        expect(copy?.targets).toEqual([
+            { type: "permanent", id: targetIds[0] },
+        ]);
+    });
+});
 
 describe('"up to X" variable target count — full path (CR 601.2c, issue #2365)', () => {
     it("GRE: the resolved range spans 0, k < X, and X for a single announced X", () => {

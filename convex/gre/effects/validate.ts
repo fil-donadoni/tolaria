@@ -2556,7 +2556,30 @@ function isReflexiveCaptureMap(value: unknown): boolean {
  *  authoring time and by the target-filter registry at resolution time; what
  *  this adds — and what tsc cannot — is that the requirement survives the DB
  *  round-trip as pure JSON (ADR 0046), checked by the script-wide purity
- *  pass. */
+ *  pass.
+ *
+ *  A bare `count: "X"` is accepted (it's the pre-existing, always-inert
+ *  shape below), but `count: { min, max: "X" }` — the CR 601.2c "up to X"
+ *  object form the `TargetRequirement.count` type widened to accept for the
+ *  SPELL/activated-ability announcement path (issue #2365) — is DELIBERATELY
+ *  rejected here, not merely an artifact of the integer-only checks below.
+ *  This inline requirement only ever reaches the trigger path
+ *  (`raiseTriggerTargetSelection` → `triggerTargetMinMax`, gre/rules.ts),
+ *  which has no CR 601.2b X-announcement step (CR 603.3d incorporates
+ *  601.2c–d, not 601.2b) and so collapses ANY `max: "X"` straight to `min`,
+ *  discarding the announced upper bound entirely. A `{min, max: "X"}`
+ *  `reflexiveTrigger` requirement would tsc-check and pass a naive schema
+ *  check, then silently choose zero variable targets at runtime with no
+ *  signal anything is wrong — exactly the partial-mechanic-ships-silently
+ *  shape `.claude/rules/gre-development.md` blocks on (#957/#958). A
+ *  genuinely variable "up to X" reflexive-trigger count isn't expressible
+ *  today; open an issue if a card needs one instead of authoring this shape.
+ *  (Mirrored at `triggerTargetMinMax`'s doc comment, gre/rules.ts — that
+ *  function is also reached via a card-def/emblem `TriggeredAbility.
+ *  targetRequirement`, a surface this validator does NOT cover, since
+ *  `validateAbilityEffectScript` only walks `effects[]`; the catalogue-wide
+ *  guard in `cards/__tests__/triggerVariableTargetCount.test.ts` covers
+ *  that surface instead.) */
 function isInlineTargetRequirement(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -2576,6 +2599,9 @@ function isInlineTargetRequirement(value: unknown): boolean {
     if (typeof count === "object" && count !== null && !Array.isArray(count)) {
         const c = count as Record<string, unknown>;
         const minOk = Number.isInteger(c.min) && (c.min as number) >= 0;
+        // `max: "X"` is REJECTED on purpose here — see the function doc
+        // comment above. Only `undefined` (unbounded "up to") or a concrete
+        // non-negative integer are legal.
         const maxOk =
             c.max === undefined ||
             (Number.isInteger(c.max) && (c.max as number) >= 0);

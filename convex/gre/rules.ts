@@ -2691,14 +2691,29 @@ export function pendingTargetFiltersFromRequirement(
     return out;
 }
 
-/** Resolve a trigger requirement's `count` to a concrete {min, max}. Triggers
- *  do not carry X (CR 603.3d has no announcement step), so `"X"` collapses to
- *  none (0). An "up to" requirement without an explicit `max` is treated as
- *  unbounded. The object form's `max` may itself be the literal `"X"` (CR
- *  601.2c "up to X" range, issue #2365) — it collapses the SAME way a bare
- *  `"X"` does, folding the upper bound down to `min` (never `NaN`, never a
- *  literal string reaching a `PendingTarget`): a `{min: 0, max: "X"}` trigger
- *  requirement always resolves to `{min: 0, max: 0}`, i.e. no targets. */
+/** Resolve a trigger requirement's `count` to a concrete {min, max}. A
+ *  triggered ability's announcement (CR 603.3d) incorporates CR 601.2c–d —
+ *  which DOES include announcing how many targets a variable-target
+ *  ability picks (601.2c) — but NOT 601.2b, the step that announces an `X`
+ *  value. So a trigger has no way to learn what `X` even IS; a bare `"X"`
+ *  collapses to none (0). An "up to" requirement without an explicit `max`
+ *  is treated as unbounded. The object form's `max` may itself be the
+ *  literal `"X"` (CR 601.2c "up to X" range, issue #2365) — it collapses the
+ *  SAME way a bare `"X"` does, folding the upper bound down to `min` (never
+ *  `NaN`, never a literal string reaching a `PendingTarget`): a `{min: 0,
+ *  max: "X"}` trigger requirement always resolves to `{min: 0, max: 0}`,
+ *  i.e. no targets.
+ *
+ *  This collapse is a DEFENSIVE fallback, not the primary guard: the one
+ *  inline-authoring surface a validator can statically check —
+ *  `reflexiveTrigger`'s own `targetRequirement` field — REJECTS `max: "X"`
+ *  outright at authoring time (`isInlineTargetRequirement`,
+ *  `gre/effects/validate.ts`), so it should never actually reach here that
+ *  way. A card-def or emblem `TriggeredAbility.targetRequirement` is NOT
+ *  routed through that validator (only `effects[]` is) and could still
+ *  tsc-check with this shape; the catalogue-wide guard in
+ *  `cards/__tests__/triggerVariableTargetCount.test.ts` covers that surface
+ *  instead, so the shape can't ship silently inert either way (#957/#958). */
 function triggerTargetMinMax(count: TargetRequirement["count"]): {
     min: number;
     max: number;

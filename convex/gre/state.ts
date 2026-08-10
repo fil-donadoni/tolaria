@@ -2757,6 +2757,17 @@ export function getPendingChoiceMin(count: PendingChoice["count"]): number {
  *  `Math.max(0, …)` guards a defensively-negative X the same way in both
  *  branches.
  *
+ *  The resolved `max` is additionally CLAMPED to be at least `min`
+ *  (`Math.max(count.min, resolveX())`, review finding on issue #2365): a
+ *  `{min: k>0, max: "X"}` requirement with an announced X below `min` (or,
+ *  with `requireX: false`, a missing `chosenX` folding to 0) would otherwise
+ *  resolve to a `{min: k, max: max<min}` range no consumer downstream can
+ *  satisfy — `pendingTargetCountMaxReached` is already true at 0 selections
+ *  so `selectTarget` refuses the first pick, and `confirmTargets` throws "At
+ *  least N target(s) required" with no way to progress except `cancel-target`.
+ *  This resolver is the single authority for the shape, so it must not be
+ *  able to emit a range with no legal way to satisfy it.
+ *
  *  Before this extraction, four sites independently re-implemented count
  *  resolution and only ONE of them (this one, formerly `game.ts`'s
  *  `resolveTargetCount`) handled the literal `"X"` case; none handled
@@ -2765,9 +2776,10 @@ export function getPendingChoiceMin(count: PendingChoice["count"]): number {
  *  silently zeroed every non-empty tuple (`size <= "X"` coerces to `NaN`,
  *  always false) rather than throwing, so the bug was invisible until
  *  traced. The trigger path (`gre/rules.ts` `triggerTargetMinMax`) is the
- *  deliberate exception — triggers never carry an announced X at all (CR
- *  603.3d has no announcement step), so it collapses `"X"` to 0 locally
- *  rather than calling this resolver with a synthetic `chosenX`. */
+ *  deliberate exception — a trigger's announcement (CR 603.3d) incorporates
+ *  CR 601.2c–d but not 601.2b, so it never learns an announced X at all —
+ *  it collapses `"X"` to 0 locally rather than calling this resolver with a
+ *  synthetic `chosenX`. */
 export function resolveTargetRequirementCount(
     count: number | "X" | { min: number; max?: number | "X" },
     chosenX: number | undefined,
@@ -2786,8 +2798,12 @@ export function resolveTargetRequirementCount(
     // `max` is provably `number | undefined` — TS does not narrow the WHOLE
     // object's type from a `count.max === "X"` property check the way it
     // narrows a discriminant on a union, so a bare `return count` still
-    // carries the `"X"` possibility in `max`'s type.
-    return { min: count.min, max: count.max === "X" ? resolveX() : count.max };
+    // carries the `"X"` possibility in `max`'s type. `Math.max(count.min, …)`
+    // clamps a below-min resolved X up to `min` — see the doc comment above.
+    return {
+        min: count.min,
+        max: count.max === "X" ? Math.max(count.min, resolveX()) : count.max,
+    };
 }
 
 /** Tracks target selection for a spell being announced (CR 601.2c) or an
@@ -10491,8 +10507,13 @@ function cloneSpellOntoStack(
  *  Lightning, Onslaught — always prompts) and storm's engine-code copy loop
  *  (`resolveStormTrigger`, which wraps this with an auto-resolve zero-branch
  *  check, ADR 0052) share one implementation instead of duplicating the
- *  target-requirement → PendingTarget filter translation. */
-function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
+ *  target-requirement → PendingTarget filter translation. Exported (only)
+ *  for the review-finding integration test on issue #2365
+ *  (`variable-target-count-integration.test.ts`) to call this producer
+ *  directly instead of hand-building the `PendingTarget` it would raise —
+ *  every non-test caller still goes through `SpellContext.requestCopyRetarget`
+ *  / `requestStormCopyRetarget` below. */
+export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
     const cardId = (copy.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     // A copy of a modal spell retargets within its chosen mode

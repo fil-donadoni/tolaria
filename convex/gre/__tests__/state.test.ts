@@ -1583,6 +1583,29 @@ describe("resolveTargetRequirementCount (CR 107.3 / 601.2c, issue #2365)", () =>
         });
     });
 
+    it("clamps max up to min when the announced X is BELOW min (review finding, issue #2365)", () => {
+        // Every prior case here has X > min (4 > 1) or min === 0 (where any
+        // X is already ≥ min). This is the one that wasn't covered: an
+        // announced X strictly less than a positive min. Without the clamp
+        // this resolves to `{ min: 2, max: 1 }` — a range no consumer
+        // downstream can satisfy (`pendingTargetCountMaxReached` is already
+        // true at 0 selections, `confirmTargets` throws "At least 2
+        // target(s) required" with no way to progress but cancel).
+        expect(resolveTargetRequirementCount({ min: 2, max: "X" }, 0)).toEqual({
+            min: 2,
+            max: 2,
+        });
+        expect(resolveTargetRequirementCount({ min: 2, max: "X" }, 1)).toEqual({
+            min: 2,
+            max: 2,
+        });
+        // The `requireX: false` missing-chosenX default (0) folds the SAME
+        // way through a positive min — no `{min, max:0}` degenerate range.
+        expect(
+            resolveTargetRequirementCount({ min: 3, max: "X" }, undefined)
+        ).toEqual({ min: 3, max: 3 });
+    });
+
     it("requireX: true throws when an X-bearing count has no chosenX (game.ts cast/ability path)", () => {
         expect(() =>
             resolveTargetRequirementCount("X", undefined, { requireX: true })
