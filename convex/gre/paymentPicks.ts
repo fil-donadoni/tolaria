@@ -21,11 +21,12 @@
 //    server rejects is a retry loop; a pick that differs from the simulated one
 //    makes the evaluation that selected the move a lie (ADR 0091, alternatives).
 //
-// Callers: `applyMoveForSearch` reaches the activation legs through
-// `activationCostPicks.ts` (which shares this module's sacrifice helpers), and
-// the live bot answers any owed park through `pickForOwedPayment`.
-// `applyMoveInSearch` — the ISMCTS path, which today pays no additional cost at
-// all — is deliberately NOT wired here; that is issue #2155.
+// Callers: BOTH search sandboxes reach the activation legs through
+// `activationCostPicks.ts` (which shares this module's sacrifice helpers) —
+// `applyMoveForSearch` and `applyMoveInSearch` call the one shared
+// `applyActivationCostsForSearch` (`applyMove.ts`, issue #2155), so the greedy
+// 1-ply leaf and the ISMCTS tree pay the same cards. The live bot answers any
+// owed park through `pickForOwedPayment`. Three callers, one set of picks.
 
 import { tryGetDefinition } from "../cards/index";
 import { matchesPermanentFilter } from "../cards/filters";

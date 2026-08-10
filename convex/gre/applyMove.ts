@@ -163,6 +163,133 @@ export function applyDelveExileForSearch(
     }
 }
 
+/** CR 602.1 / 118 (issue #2155) — pay EVERY non-mana cost of an
+ *  `activate-ability` move on a search sandbox state, in place.
+ *
+ *  Shared by BOTH move-application sandboxes — `applyMoveForSearch` below (the
+ *  greedy 1-ply selector) and `applyMoveInSearch` (`search.ts`, the ISMCTS
+ *  path). One implementation is the point: the ISMCTS tree used to apply only
+ *  the tap plan, so the additional costs (`cost.sacrifice`,
+ *  `cost.sacrificeFilter`, `cost.tapOtherFilter`, `cost.discardFilter`,
+ *  `cost.exileFromGraveyard`) were FREE in the very tree that picks the move.
+ *  A cost-free activation whose payoff the search also cannot see (issue
+ *  #1920) scores exactly equal to `pass` and wins on rollout noise — the bot
+ *  sacrificed a land to Sylvan Safekeeper with nothing on the stack (#2422)
+ *  and emptied its hand to Iron-Shield Elf's discard (#2415). Same precedent
+ *  as `applyDelveExileForSearch` above.
+ *
+ *  WHICH cards pay is the activator's choice, so the move carries it
+ *  (`costPicks`, `activationCostPicks.ts`) and this applies exactly the cards
+ *  `executor.ts` will later name to the server. A hand-built move with no
+ *  `costPicks` falls back to the same module's deterministic default, so the
+ *  search, the greedy sandbox and the live bot can never drift.
+ *
+ *  `playerId` is the ACTIVATING player — the one who pays. It is deliberately
+ *  a parameter rather than derived from the source permanent: CR 113.3c lets a
+ *  card grant "any player may activate", in which case the ability is
+ *  enumerated off the OPPONENT's battlefield (`moves.ts`) with `costPicks`
+ *  built from the activator's own resources, so the source's controller is the
+ *  wrong player to discard/sacrifice/tap from.
+ *
+ *  The caller applies the MANA leg (`applyTapPlan`) itself; this covers only
+ *  what is left. The ability's PAYOFF is still not resolved (issue #1920). */
+export function applyActivationCostsForSearch(
+    state: GameState,
+    playerId: string,
+    move: Extract<Move, { kind: "activate-ability" }>
+): void {
+    // CR 113.3c — the source may be on another player's battlefield ("any
+    // player may activate"), so search globally.
+    let src: CardInstanceState | undefined;
+    for (const p of state.players) {
+        src = p.battlefield.find((c) => c.id === move.cardInstanceId);
+        if (src) break;
+    }
+    // CR 113.6 / 702.129a — a GRAVEYARD-source activation (Eternalize, Ashen
+    // Ghoul). The source is on no battlefield, so the scan above finds
+    // nothing; apply the one cost leg that changes the board here — "exile
+    // this card from your graveyard" — so a search line cannot keep
+    // pretending the card is still a reanimation/eternalize resource.
+    if (!src) {
+        const owner = state.players.find((p) =>
+            p.graveyard.some((c) => c.id === move.cardInstanceId)
+        );
+        const gvCard = owner?.graveyard.find(
+            (c) => c.id === move.cardInstanceId
+        );
+        const gvAbility = gvCard
+            ? tryGetDefinition(
+                  (gvCard.card as { id?: string }).id ?? ""
+              )?.activatedAbilities?.find((a) => a.id === move.abilityId)
+            : undefined;
+        if (owner && gvAbility?.cost.exileThis) {
+            exileCardFromGraveyard(owner, move.cardInstanceId);
+        }
+        return;
+    }
+
+    const def = tryGetDefinition((src.card as { id?: string }).id ?? "");
+    const ability = def?.activatedAbilities?.find(
+        (a) => a.id === move.abilityId
+    );
+    if (!ability) return;
+    if (ability.cost.tap) src.isTapped = true;
+    // CR 602.1 — sacrifice costs change the board materially, so they're
+    // applied in the search slice (even though the ability's effect resolves
+    // later) to keep the evaluated position honest. Self-sacrifice removes
+    // the source; a FILTERED sacrifice is a named victim and rides on the
+    // move with the other deferred legs below.
+    if (ability.cost.sacrifice) {
+        removePermanentTo(state, src.id, "graveyard", "sacrifice");
+    }
+    // CR 602.1 / 118 — the DEFERRED cost legs (sacrifice, tap-other,
+    // exile-from-graveyard, discard). The payer is the ACTIVATING player, NOT
+    // the source's controller — see the header note on CR 113.3c.
+    const owner = state.players.find((p) => p.id === playerId);
+    const picks =
+        move.costPicks ??
+        (owner
+            ? (planActivationCostPicks(state, owner, src, ability) ?? undefined)
+            : undefined);
+    if (!owner) return;
+    // CR 701.16 — the filtered-sacrifice victims, both the ones the server
+    // auto-resolves at announcement and the ones the payer names.
+    for (const id of activationSacrificeVictims(
+        state,
+        owner,
+        src,
+        ability,
+        picks
+    )) {
+        removePermanentTo(state, id, "graveyard", "sacrifice");
+    }
+    if (!picks) return;
+    for (const id of picks.tapOtherIds ?? []) {
+        const perm = owner.battlefield.find((c) => c.id === id);
+        if (perm) tapPermanent(state, perm);
+    }
+    // CR 118.5 — exile from a graveyard (Night Soil, Grim Lavamancer): the
+    // cards leave the graveyard now, so a later graveyard-cost play in the
+    // same rollout cannot reuse them.
+    const exile = picks.exileFromGraveyard;
+    if (exile) {
+        const gyOwner = state.players.find(
+            (p) => p.id === exile.graveyardOwnerId
+        );
+        for (const id of exile.cardInstanceIds) {
+            const idx = gyOwner?.graveyard.findIndex((c) => c.id === id) ?? -1;
+            if (!gyOwner || idx < 0) continue;
+            const [card] = gyOwner.graveyard.splice(idx, 1);
+            card.zone = "exile";
+            gyOwner.exile.push(card);
+        }
+    }
+    // CR 118.3 — the discard leg (Survival of the Fittest, Iron-Shield Elf).
+    for (const id of picks.discardIds ?? []) {
+        discardToGraveyard(state, owner.id, id);
+    }
+}
+
 /** Tap the planned mana sources on the (already cloned) state. Coarse model:
  *  a source listed in the tap plan is marked tapped so the resulting position
  *  reflects the spent mana; exact pool accounting is unnecessary for eval. */
@@ -398,143 +525,12 @@ export function applyMoveForSearch(
         }
 
         case "activate-ability":
-            // Costs only (see file header): tap the source and planned mana, do
-            // not resolve the ability's effect this slice.
+            // Costs only (see file header): tap the planned mana, pay every
+            // non-mana cost leg through the sandbox-shared helper
+            // (`applyActivationCostsForSearch`, issue #2155), do not resolve
+            // the ability's effect this slice (issue #1920).
             applyTapPlan(next, playerId, move.tapPlan);
-            {
-                // CR 113.3c — the source may be on another player's battlefield
-                // ("any player may activate"), so search globally. Tap it only
-                // when the ability actually has a {T} cost; any-player damage
-                // abilities (Ifh-Bíff Efreet) don't tap their source.
-                let src: CardInstanceState | undefined;
-                for (const p of next.players) {
-                    src = p.battlefield.find(
-                        (c) => c.id === move.cardInstanceId
-                    );
-                    if (src) break;
-                }
-                // CR 113.6 / 702.129a — a GRAVEYARD-source activation
-                // (Eternalize, Ashen Ghoul). The source is on no battlefield,
-                // so the scan above finds nothing; apply the one cost leg that
-                // changes the board here — "exile this card from your
-                // graveyard" — so the simulated leaf does not keep pretending
-                // the card is still a reanimation/eternalize resource. The
-                // ability's PAYOFF still isn't resolved (see the file header's
-                // documented limits and issue #1920).
-                if (!src) {
-                    const owner = next.players.find((p) =>
-                        p.graveyard.some((c) => c.id === move.cardInstanceId)
-                    );
-                    const gvCard = owner?.graveyard.find(
-                        (c) => c.id === move.cardInstanceId
-                    );
-                    const gvAbility = gvCard
-                        ? tryGetDefinition(
-                              (gvCard.card as { id?: string }).id ?? ""
-                          )?.activatedAbilities?.find(
-                              (a) => a.id === move.abilityId
-                          )
-                        : undefined;
-                    if (owner && gvAbility?.cost.exileThis) {
-                        exileCardFromGraveyard(owner, move.cardInstanceId);
-                    }
-                }
-                if (src) {
-                    const def = tryGetDefinition(
-                        (src.card as { id?: string }).id ?? ""
-                    );
-                    const ability = def?.activatedAbilities?.find(
-                        (a) => a.id === move.abilityId
-                    );
-                    if (ability?.cost.tap) src.isTapped = true;
-                    // CR 602.1 — sacrifice costs change the board materially, so
-                    // they're applied in the search slice (even though the
-                    // ability's effect resolves later) to keep the evaluated
-                    // position honest. Self-sacrifice removes the source; a
-                    // FILTERED sacrifice is a named victim and rides on the
-                    // move with the other deferred legs below.
-                    if (ability?.cost.sacrifice) {
-                        removePermanentTo(
-                            next,
-                            src.id,
-                            "graveyard",
-                            "sacrifice"
-                        );
-                    }
-                    // CR 602.1 / 118 — the DEFERRED cost legs (sacrifice,
-                    // tap-other, exile-from-graveyard, discard). WHICH cards
-                    // pay them is the activator's choice, so the move carries
-                    // it (`costPicks`, `activationCostPicks.ts`) and the search
-                    // applies exactly the cards the executor will later name to
-                    // the server. A hand-built move with no `costPicks` falls
-                    // back to the same module's deterministic default, so the
-                    // two can never drift.
-                    if (ability) {
-                        const owner = next.players.find((p) =>
-                            p.battlefield.some((c) => c.id === src!.id)
-                        );
-                        const picks =
-                            move.costPicks ??
-                            (owner
-                                ? (planActivationCostPicks(
-                                      next,
-                                      owner,
-                                      src,
-                                      ability
-                                  ) ?? undefined)
-                                : undefined);
-                        if (owner) {
-                            // CR 701.16 — the filtered-sacrifice victims, both
-                            // the ones the server auto-resolves at announcement
-                            // and the ones the payer names.
-                            for (const id of activationSacrificeVictims(
-                                next,
-                                owner,
-                                src,
-                                ability,
-                                picks
-                            )) {
-                                removePermanentTo(
-                                    next,
-                                    id,
-                                    "graveyard",
-                                    "sacrifice"
-                                );
-                            }
-                        }
-                        if (owner && picks) {
-                            for (const id of picks.tapOtherIds ?? []) {
-                                const perm = owner.battlefield.find(
-                                    (c) => c.id === id
-                                );
-                                if (perm) tapPermanent(next, perm);
-                            }
-                            const exile = picks.exileFromGraveyard;
-                            if (exile) {
-                                const gyOwner = next.players.find(
-                                    (p) => p.id === exile.graveyardOwnerId
-                                );
-                                for (const id of exile.cardInstanceIds) {
-                                    const idx =
-                                        gyOwner?.graveyard.findIndex(
-                                            (c) => c.id === id
-                                        ) ?? -1;
-                                    if (!gyOwner || idx < 0) continue;
-                                    const [card] = gyOwner.graveyard.splice(
-                                        idx,
-                                        1
-                                    );
-                                    card.zone = "exile";
-                                    gyOwner.exile.push(card);
-                                }
-                            }
-                            for (const id of picks.discardIds ?? []) {
-                                discardToGraveyard(next, owner.id, id);
-                            }
-                        }
-                    }
-                }
-            }
+            applyActivationCostsForSearch(next, playerId, move);
             checkStateBasedActions(next);
             return next;
 

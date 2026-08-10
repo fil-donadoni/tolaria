@@ -43,7 +43,6 @@
 
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import {
-    exileCardFromGraveyard,
     moveCard,
     removeFromZone,
     resolveTopOfStack,
@@ -79,7 +78,10 @@ import {
 } from "./pendingTargetOrigin";
 import { manaValue } from "./constants";
 import { getInstanceManaCost } from "../cards";
-import { applyDelveExileForSearch } from "./applyMove";
+import {
+    applyActivationCostsForSearch,
+    applyDelveExileForSearch,
+} from "./applyMove";
 import { resolvePlayLandSourceZone } from "./playLand";
 import {
     evaluate,
@@ -715,30 +717,19 @@ export function applyMoveInSearch(
             // issue #1890 item 3 — is blocked on closing this, or it converts
             // that tie into a deterministic decline in the REACTIVE window.
             applyTapPlan(state, playerId, move.tapPlan);
-            const src = player.battlefield.find(
-                (c) => c.id === move.cardInstanceId
-            );
-            if (src) src.isTapped = true;
-            // CR 113.6 / 702.129a (issue #2339) — a GRAVEYARD-source activation
-            // (Eternalize, Ashen Ghoul) has no battlefield source to tap; apply
-            // the one cost leg that changes the board, "exile this card from
-            // your graveyard", so a search line cannot spend the same graveyard
-            // card twice. The payoff gap above (issue #1920) is unchanged.
-            if (!src) {
-                const gvCard = player.graveyard.find(
-                    (c) => c.id === move.cardInstanceId
-                );
-                const gvAbility = gvCard
-                    ? tryGetDefinition(
-                          (gvCard.card as { id?: string }).id ?? ""
-                      )?.activatedAbilities?.find(
-                          (a) => a.id === move.abilityId
-                      )
-                    : undefined;
-                if (gvAbility?.cost.exileThis) {
-                    exileCardFromGraveyard(player, move.cardInstanceId);
-                }
-            }
+            // CR 602.1 / 118 (issue #2155) — every non-mana cost leg, paid
+            // through the SAME helper the greedy sandbox
+            // (`applyMoveForSearch`) uses and applying exactly the cards
+            // `executor.ts` will name to the server: the `{T}` cost, a
+            // self-sacrifice, a graveyard-source `exileThis` (issue #2339),
+            // and the four deferred legs the move carries in `costPicks`
+            // (sacrificeFilter / tapOtherFilter / discardFilter /
+            // exileFromGraveyard). Before this the ISMCTS tree applied the tap
+            // plan only, so those four were free HERE while the greedy
+            // sandbox and the live bot paid them — an activation whose payoff
+            // the search also cannot see then tied `pass` exactly and won on
+            // rollout noise (#2422 Sylvan Safekeeper, #2415 Iron-Shield Elf).
+            applyActivationCostsForSearch(state, playerId, move);
             state.passCount = 0;
             state.priorityPlayerId = playerId;
             state.singleShotAutoPass = playerId;
