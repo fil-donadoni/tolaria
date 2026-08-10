@@ -1,8 +1,8 @@
 ---
-title: TargetSelectionBanner's Done button ignores minReached
+title: TargetSelectionBanner shows a disabled Done button below min
 discoveredBy: 2365
 status: draft
-confidence: medium
+confidence: low
 ---
 
 **What is wrong.** `src/components/board/target-selection-banner.tsx:88`:
@@ -13,11 +13,15 @@ const showDone = typeof pendingTarget.count !== "number" && !maxReached;
 
 `showDone` never consults `describeTargetProgress`'s `minReached`. For a range
 requirement with `min > 0` (e.g. `{ min: 2, max: 4 }` — "choose two or three
-target creatures"), the Done button is offered as soon as ANY target is
-selected, below `min`. Clicking it calls `confirmTargets`, which throws "At
-least 2 target(s) required" server-side (`convex/gre/state.ts`/`game.ts`'s
-`confirmTargets` handler) — a dead click with no user-visible error surfaced
-by the mutation call site.
+target creatures"), the Done button is RENDERED as soon as the banner opens,
+below `min`.
+
+**This is cosmetic, not a dead click.** `minReached` _is_ consulted — one line
+down, on the button's `disabled` prop (`:142`,
+`disabled={isBusy || !minReached}`), not on `showDone`. So the button appears
+early but is unclickable, and `confirmTargets` is never reached below `min`.
+The defect is that a disabled control is shown where it could simply be
+hidden.
 
 **Why it wasn't fixed in #2365.** This bug is pre-existing, not introduced by
 that PR: any positive-`min` range requirement already hits it, with or without
