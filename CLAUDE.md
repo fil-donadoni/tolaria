@@ -263,7 +263,7 @@ Full gate mandatory before done/merge — never skipped.
   `vitest.config.ts`, ~60s), where the catalogue-wide bot guards
   (`aiEffectsGuard`, `pickRatings`, `opValuerCoverage`, censuses) live; and the
   **whole node project** (`convex/**` + `scripts/**` + every DOM-free `src`
-  test, 692 files, ~30s at the light tier's 2 workers — no jsdom env init,
+  test, 692 files, ~30s at the light tier's 2 workers — no dom env init,
   `isolate: false`, so the card registry is imported once per worker). The node
   lane used to be filtered to
   `scripts/__tests__`, which left every backend catalogue guard
@@ -273,7 +273,7 @@ Full gate mandatory before done/merge — never skipped.
   `check:pr` that exited 0. Scope pinned by
   `scripts/__tests__/check-guards-scope.test.ts`; bot deny-list drift by
   `bot-fast-lane.test.ts`.
-  **The jsdom project is need-classified, not directory-classified**
+  **The dom project is need-classified, not directory-classified**
   (`scripts/test-env-split.ts`, computed at config load): a `src/**/*.test.ts`
   with no DOM global, no testing-library import, no jest-dom matcher and no
   `vi.mock`/spy/fake-timer runs in the **node** project instead — 110 files
@@ -281,10 +281,14 @@ Full gate mandatory before done/merge — never skipped.
   pinned by `scripts/__tests__/src-test-env-split.test.ts` (a file selected by
   NO project runs nowhere and the gate stays green). `bun run test:app` 190s →
   108s at the heavy tier.
-  **Still outside the light gate: what genuinely needs jsdom** (252 files, 133s
-  at 2 workers — per-file environment init, so no deny-list helps and
-  `--pool=threads` measured identical). Cover `src/` changes with targeted
-  runs. Its one known
+  **Still outside the light gate: what genuinely needs a DOM** (252 files;
+  issue #2435 swapped the environment to `happy-dom` — measured back-to-back
+  on the same tree, `TOLARIA_VITEST_WORKERS=2 bunx vitest run --project dom`,
+  2207 passed both ways: happy-dom 119.35s wall / 44.33s `environment` vs
+  jsdom 180.05s wall / 113.03s `environment`, ~34% off wall, ~61% off the
+  `environment` phase — per-file environment init still dominates, so no
+  deny-list helps and `--pool=threads` measured identical). Cover `src/`
+  changes with targeted runs. Its one known
   cross-boundary breakage class — a `vi.mock("@convex/cards")` factory going
   stale when a name becomes barrel-internal (#2339: 102 tests, 12 files, seen
   first at the merge-train) — is caught statically instead, by

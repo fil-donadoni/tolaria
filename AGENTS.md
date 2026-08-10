@@ -30,7 +30,7 @@ Auto-formatting via husky + lint-staged on commit. Never run `prettier` manually
 
 ## Testing quirks
 
-- Vitest has **two projects** in `vitest.config.ts`: `node` (convex/scripts, `isolate: false`) and `jsdom` (src/, default isolation). The split is by runtime need — don't combine them.
+- Vitest has **two projects** in `vitest.config.ts`: `node` (convex/scripts, `isolate: false`) and `dom` (src/, `happy-dom`, default isolation). The split is by runtime need — don't combine them.
 - `isolate: false` on the node project speeds up imports ~4-5x but is safe only because those tests use zero vi.mock/vi.spyOn/fake timers. Don't add mocking to node-project tests.
 - **Wire-format tests are mandatory for visible effects.** The `projectPublicState` projection strips fat fields — GRE unit tests pass but the UI sees nothing. Pattern: re-run assertion after `projectPublicState`. See `.opencode/rules/gre-development.md` § Wire format test.
 - Every new `TargetRequirement.type` needs tests at GRE + backend + frontend layers — two pieces passing separately but failing together is a shipped bug.

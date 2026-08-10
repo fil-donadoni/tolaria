@@ -10,7 +10,7 @@ import { splitSrcTests } from "../test-env-split";
  *
  * `vitest.config.ts` moves every DOM-free, mock-free `src/**\/*.test.ts` into
  * the node project (`splitSrcTests`) and excludes exactly those paths from the
- * jsdom project. The failure mode worth guarding is the quiet one: a file
+ * dom project. The failure mode worth guarding is the quiet one: a file
  * claimed by NEITHER project runs nowhere, and `bun run test` reports green
  * over a test the runner never selected. Nothing else in the gate distinguishes
  * "passed" from "was never picked up" — the suite total is not something anyone
@@ -71,9 +71,9 @@ const NON_BOT = SRC_TESTS.filter((f) => !f.endsWith(".bot.test.ts"));
 describe("src test env split — every src test runs in exactly one project", () => {
     it("reads the real config (sanity — an unparsed config would vacuously pass)", () => {
         expect(projects?.map((p) => p.test?.name).sort()).toEqual([
-            "bot-jsdom",
+            "bot-dom",
             "bot-node",
-            "jsdom",
+            "dom",
             "node",
         ]);
         expect(SRC_TESTS.length).toBeGreaterThan(300);
@@ -84,7 +84,7 @@ describe("src test env split — every src test runs in exactly one project", ()
         expect(
             inNode.length,
             "No src test is selected by the node project. Nothing breaks — everything still " +
-                "runs — but the split is undone, and the jsdom project is back to paying " +
+                "runs — but the split is undone, and the dom project is back to paying " +
                 "per-file environment init (~0.4s each) for pure-logic tests."
         ).toBeGreaterThan(50);
         expect(inNode).toEqual(splitSrcTests(ROOT).node);
@@ -98,13 +98,13 @@ describe("src test env split — every src test runs in exactly one project", ()
             bad.map(([f, hits]) => `${f} → ${hits.join("+") || "NOTHING"}`),
             "Each src test must be selected by exactly one project. A file selected by none " +
                 "never runs and never fails; a file selected by two runs twice, in two " +
-                "environments, and the jsdom copy hides a node-side breakage."
+                "environments, and the dom copy hides a node-side breakage."
         ).toEqual([]);
     });
 
     it("routes bot src tests to the bot project only", () => {
         const bots = SRC_TESTS.filter((f) => f.endsWith(".bot.test.ts"));
         expect(bots.length).toBeGreaterThan(0);
-        for (const f of bots) expect(selectedBy(f)).toEqual(["bot-jsdom"]);
+        for (const f of bots) expect(selectedBy(f)).toEqual(["bot-dom"]);
     });
 });

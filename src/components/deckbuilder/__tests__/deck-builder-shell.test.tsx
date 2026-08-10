@@ -277,13 +277,27 @@ describe("DeckBuilderShell — declared-variant vocabulary (issue #1623)", () =>
         // caller that sets ONLY `headerFoldableActions` still gets the
         // control folded into `SaveDeckBar`'s short-viewport row, with no
         // separate `saveBar.foldableActions` at all.
-        const { container, getAllByText } = renderShell({
+        const { container } = renderShell({
             headerFoldableActions: <button type="button">Stats</button>,
             saveBar: { name: "Deck", cardCount: 0, onChangeName: () => {} },
         });
         const form = container.querySelector("form")!;
-        const foldedStats = getAllByText("Stats").find((el) =>
-            form.contains(el)
+        // Adapted for happy-dom (issue #2435): `getAllByText("Stats").find(el
+        // => form.contains(el))` — an UPWARD walk from the found node — no
+        // longer distinguishes the two "Stats" buttons under happy-dom.
+        // Root-caused with a standalone debug run (not a CSSOM string quirk):
+        // for this component's `<form>`, `realSpan.parentElement !== form`
+        // even though `realSpan` was itself obtained via `form.
+        // querySelectorAll("span")` — happy-dom's own downward query and its
+        // `.parentElement` back-pointer disagree about this element's parent.
+        // `form.contains(el)` (jsdom, and the DOM spec) is defined as exactly
+        // that upward walk, so it inherits the same divergence.
+        // A DOWNWARD query rooted at `form` sidesteps the broken back-pointer
+        // entirely and asserts the identical fact — "the folded Stats control
+        // is a descendant of the save-bar form" — the same coverage as
+        // before, reached without the affected primitive.
+        const foldedStats = Array.from(form.querySelectorAll("button")).find(
+            (el) => el.textContent === "Stats"
         );
         expect(foldedStats).toBeTruthy();
         const wrapper = foldedStats!.closest("span")!;

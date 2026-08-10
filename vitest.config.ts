@@ -17,16 +17,25 @@ const exclude = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TWO AXES: runtime environment (node / jsdom) × subsystem (app / bot).
+// TWO AXES: runtime environment (node / dom) × subsystem (app / bot).
 //
-// AXIS 1 — runtime environment (issue #811):
-//   - `node`   → convex GRE / card / script tests. Pure Node logic (no DOM, no
-//                React); running them under jsdom paid a per-file jsdom
-//                environment-init cost for nothing. `node` env init is
-//                effectively free, which collapses the `environment` phase.
-//   - `jsdom`  → the src/ tests that genuinely need a DOM (React component /
-//                hook renders). Only the jsdom projects load the jsdom setup
-//                file (jest-dom matchers + ResizeObserver stub).
+// AXIS 1 — runtime environment (issue #811, DOM impl swapped to happy-dom in
+// #2435):
+//   - `node`  → convex GRE / card / script tests. Pure Node logic (no DOM, no
+//               React); running them under a DOM environment paid a per-file
+//               environment-init cost for nothing. `node` env init is
+//               effectively free, which collapses the `environment` phase.
+//   - `dom`   → the src/ tests that genuinely need a DOM (React component /
+//               hook renders), run under `happy-dom` (issue #2435 — swapped
+//               from jsdom because jsdom's per-file `environment` phase was
+//               the dominant cost. Measured back-to-back on the SAME tree,
+//               `TOLARIA_VITEST_WORKERS=2 bunx vitest run --project dom`,
+//               252 files / 2207 passed both ways: happy-dom 119.35s wall /
+//               44.33s `environment`, jsdom 180.05s wall / 113.03s
+//               `environment` — ~34% off wall, ~61% off the `environment`
+//               phase). Only the DOM
+//               projects load the DOM setup file (jest-dom matchers +
+//               ResizeObserver stub).
 // The line between them is runtime NEED, not directory: `src` tests that touch
 // no DOM global and mock no module run in the node project (see SRC_NODE_TESTS
 // below). It survives future card-registry migrations because it keys off what
@@ -65,27 +74,30 @@ const exclude = [
 // the dominant slice of the `import` phase. It is safe there because
 // convex/scripts tests use ZERO vi.mock / vi.spyOn / fake timers / global
 // writes, so there is no module-level state to leak between files sharing a
-// worker. The jsdom projects keep the default isolation because src files use
+// worker. The dom projects keep the default isolation because src files use
 // vi.mock/spyOn and would leak spies.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Bot/AI tests, selected by the `*.bot.test.ts` filename suffix. */
 const BOT_GLOB_NODE = ["convex/**/*.bot.test.ts", "scripts/**/*.bot.test.ts"];
-const BOT_GLOB_JSDOM = ["src/**/*.bot.test.{ts,tsx}"];
+const BOT_GLOB_DOM = ["src/**/*.bot.test.{ts,tsx}"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AXIS 1, REFINED — `src` tests that need no DOM run in the NODE project.
 //
-// The jsdom project selected by directory, so 104 pure-logic `src` files paid
-// the jsdom tax for a DOM they never touch: measured, that subset costs 57.8s
-// under jsdom and ~10-20s under node, and the whole jsdom project is 171s of
-// which 133s is per-file environment init. The classifier
-// (`scripts/test-env-split.ts`) reads each file and disqualifies on any DOM
-// global, testing-library import, jest-dom matcher, or `vi.mock`/spy/fake-timer
-// (the node project runs `isolate: false`, so module-level state is shared).
+// The dom project selected by directory, so 104 pure-logic `src` files paid
+// the DOM tax for a DOM they never touch: measured, that subset costs 57.8s
+// under jsdom and ~10-20s under node, and the whole dom project is 171s of
+// which 133s is per-file environment init (issue #811's jsdom baseline; the
+// happy-dom swap in #2435 cut the `environment` phase to 44.33s measured on a
+// same-tree back-to-back run — see the `dom` project comment above). The
+// classifier (`scripts/test-env-split.ts`) reads each file and disqualifies
+// on any DOM global, testing-library import, jest-dom matcher, or
+// `vi.mock`/spy/fake-timer (the node project runs `isolate: false`, so
+// module-level state is shared).
 //
 // Computed at config load, never checked in: a file that grows a DOM dependency
-// moves back to jsdom on the next run with no list to update. Partition pinned
+// moves back to dom on the next run with no list to update. Partition pinned
 // by `scripts/__tests__/src-test-env-split.test.ts` — the silent failure to
 // guard against is a file selected by NEITHER project, which is a test that
 // stops running while the gate stays green.
@@ -167,11 +179,11 @@ export default defineConfig({
             {
                 extends: true,
                 test: {
-                    name: "jsdom",
-                    environment: "jsdom",
+                    name: "dom",
+                    environment: "happy-dom",
                     setupFiles: ["./vitest.setup.ts"],
                     include: ["src/**/*.test.{ts,tsx}"],
-                    exclude: [...exclude, ...BOT_GLOB_JSDOM, ...SRC_NODE_TESTS],
+                    exclude: [...exclude, ...BOT_GLOB_DOM, ...SRC_NODE_TESTS],
                 },
             },
             {
@@ -194,10 +206,10 @@ export default defineConfig({
             {
                 extends: true,
                 test: {
-                    name: "bot-jsdom",
-                    environment: "jsdom",
+                    name: "bot-dom",
+                    environment: "happy-dom",
                     setupFiles: ["./vitest.setup.ts"],
-                    include: BOT_GLOB_JSDOM,
+                    include: BOT_GLOB_DOM,
                     exclude: botExclude,
                     testTimeout: 60_000,
                 },
