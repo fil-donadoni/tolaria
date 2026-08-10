@@ -4388,3 +4388,62 @@ describe("validateEffectScript — reflexiveTrigger inline targetRequirement (CR
         );
     });
 });
+
+describe("validateEffectScript — devotion value member (CR 700.5, issue #2070)", () => {
+    const damageBy = (devotion: unknown): EffectOp => ({
+        op: "dealDamage",
+        amount: { devotion } as never,
+        to: { player: "opponent" },
+    });
+
+    it("accepts { of, color } in an amount position", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [damageBy({ of: "controller", color: "U" })],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts every player selector `of` admits", () => {
+        for (const of of ["controller", "opponent", { target: 0 }]) {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: [damageBy({ of, color: "B" })],
+                        targetRequirement: { type: "player", count: 1 },
+                    })
+                )
+            ).toEqual([]);
+        }
+    });
+
+    it("REJECTS a missing `color` — it is required, not defaulted", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: [damageBy({ of: "controller" })] })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("REJECTS colourless: CR 202.2 makes 'C' the absence of colour, not a sixth one", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: [damageBy({ of: "controller", color: "C" })] })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("REJECTS an unknown key alongside `of`/`color`", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        damageBy({ of: "controller", color: "U", times: 2 }),
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+});

@@ -64,6 +64,40 @@ export function getPipCountsFromCost(
     return pips;
 }
 
+/** CR 700.5 — how many mana symbols of `color` appear in ONE mana cost: the
+ *  per-card term of a player's devotion (issue #2070). Pure cost arithmetic, no
+ *  board scan — {@link countDevotion} (`./devotion`) sums this over the
+ *  permanents a player controls.
+ *
+ *  Every symbol that IS a `color` mana symbol counts once, which is three
+ *  shapes, not one (CR 105.2 / 202.2a):
+ *    * a plain coloured pip — `{U}{U}` is 2 toward blue;
+ *    * a Phyrexian pip `{U/P}` — still a blue mana symbol even though it may be
+ *      paid with life (Gitaxian Probe is 1 toward blue);
+ *    * a guild-hybrid pip `{B/G}` — BOTH a black and a green mana symbol, so it
+ *      counts 1 toward black AND 1 toward green (a `{B/G}{B/G}` permanent is 2
+ *      toward each).
+ *
+ *  Generic, `{X}` and `{C}` are not coloured mana symbols and contribute 0 (CR
+ *  202.3b — a variable X is 0 regardless of what was paid), as does a permanent
+ *  with no mana cost at all (a token, a land) — the `undefined` cost case.
+ *
+ *  Deliberately NOT folded into {@link getPipCountsFromCost}: that helper feeds
+ *  the draft bot's Colour Commitment and omits hybrid today, so teaching it
+ *  hybrid would silently reprice every hybrid card in the drafter. Devotion
+ *  needs the hybrid clause and gets its own reader. */
+export function devotionPipsFromCost(
+    cost: ManaCost | undefined,
+    color: Color
+): number {
+    if (!cost || color === "C") return 0;
+    let pips = (cost[color] ?? 0) + (cost.phyrexian?.[color] ?? 0);
+    for (const pair of cost.hybrid ?? []) {
+        if (pair.includes(color)) pips += 1;
+    }
+    return pips;
+}
+
 /** CR 105.2 / 202.2 — the card's actual printed COLOUR(s): exactly the colours
  *  of its mana cost. A card with no coloured mana in its cost is COLOURLESS
  *  (CR 105.2a) even when it TAPS for coloured mana — a basic Island is

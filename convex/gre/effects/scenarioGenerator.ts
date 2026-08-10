@@ -285,6 +285,17 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a player's Domain — the canned generator does not seed basic lands to size it`;
         return;
     }
+    // devotion (CR 700.5, issue #2070): the amount reads how many mana symbols
+    // of one colour appear among the costs of a player's permanents. The
+    // generator's filler board is seeded from a fixed template rather than from
+    // the card's own colour, so it cannot size a declared outcome against a
+    // devotion count; skip-with-reason — the value member's own interpreter
+    // test (across the `of` player selectors, hybrid and Phyrexian pips) is the
+    // behavioural guarantor, per the new-construct regime.
+    if ("devotion" in value) {
+        req.skip ??= `amount reads a player's devotion to a colour — the canned generator does not seed a board to size it`;
+        return;
+    }
     // escaped (CR 702.138e, issue #695): a 0/1 read of whether a permanent
     // escaped. The canned generator casts spells from hand, never via escape, so
     // it can't set an escaped=1 outcome; skip-with-reason — the value member's

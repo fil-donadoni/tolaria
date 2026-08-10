@@ -22,6 +22,7 @@ import type { CardInstanceState, GameState } from "../state";
 import { getOpponentId, getPlayer } from "../state";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { tryGetDefinition } from "../../cards";
+import { countDevotion } from "../../cards/devotion";
 import {
     dslLatentAbilityScriptOpValue,
     dslSpellScriptOpValue,
@@ -481,6 +482,21 @@ function resolveValueAgainstBoard(
     if ("lifeGainedThisTurn" in v) {
         return v.lifeGainedThisTurn.of === "controller"
             ? (state.lifeGainedThisTurn?.[perspectivePlayerId] ?? 0)
+            : CF_ASSUMED_REF_FALLBACK;
+    }
+    // devotion (CR 700.5, issue #2070) — a per-player board scalar, genuinely
+    // resolvable off the LIVE board like `count`/`lifeGainedThisTurn` and
+    // unlike the object-scoped reads above: the permanents are already on the
+    // battlefield, so nothing about it needs an announced cast. Only the
+    // `"controller"` selector is resolvable pre-cast (the caster IS the
+    // perspective player); any other selector needs an announcement that does
+    // not exist yet at a choice node. Resolving it genuinely matters — a card
+    // whose whole magnitude IS its controller's devotion (Thassa's Oracle)
+    // would otherwise be priced at a fixed representative constant on a board
+    // where the real number is knowable.
+    if ("devotion" in v) {
+        return v.devotion.of === "controller"
+            ? countDevotion(state, perspectivePlayerId, v.devotion.color)
             : CF_ASSUMED_REF_FALLBACK;
     }
     // difference (issue #2006) — both operands are terminals (a literal or a

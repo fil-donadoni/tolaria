@@ -549,9 +549,13 @@ const TOKEN_SUPERTYPES = new Set([
 /** Valid `EffectTokenSpec.colors` members (CR 105.1, the five colors + C). */
 const TOKEN_COLORS = new Set(["W", "U", "B", "R", "G", "C"]);
 
-/** Valid colours in a source-scoped `preventDamage` shield's `match.colors`
- *  (issue #1955) — WUBRG only (CR 105.1). */
-const SHIELD_MATCH_COLORS = new Set(["W", "U", "B", "R", "G"]);
+/** The five COLOURS (CR 105.1), without the `"C"` that `Color` carries for mana
+ *  purposes. Every grammar position that means "a colour" rather than "a mana
+ *  symbol" checks against this: a source-scoped `preventDamage` shield's
+ *  `match.colors` (issue #1955) and a `devotion` value's `color` (issue #2070)
+ *  alike — colourless is the ABSENCE of colour (CR 202.2), so it is neither a
+ *  colour a shield can match nor one a player has devotion to. */
+const COLORED_MANA_SYMBOLS = new Set(["W", "U", "B", "R", "G"]);
 
 /** Valid `grantGraveyardPlay.zones` members (issue #1149) — which card kinds
  *  a graveyard-cast permission grant covers. */
@@ -1094,6 +1098,29 @@ function isDomainValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** `{ devotion: { of, color } }` — SHAPE of the devotion value construct (CR
+ *  700.5, issue #2070, fifteenth EffectValue member). `of` is a PLAYER selector
+ *  (`EffectPlayerRef`) — like `domain`'s and `lifeGainedThisTurn`'s, and UNLIKE
+ *  `counters`/`manaValue`'s object `of`: devotion is a per-PLAYER scalar.
+ *  Family-checked as a PLAYER position by the ordered ref pass (the
+ *  `keyHint === "devotion"` case in `collectRefUses`, needed for the same
+ *  `of`-key collision reason `domain` documents). `color` is REQUIRED and must
+ *  be a single COLOURED mana symbol — `"C"` is rejected because colourless is
+ *  the absence of colour (CR 202.2), not a sixth colour anyone has devotion to.
+ *  Both keys are required and no others are permitted. */
+function isDevotionValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "devotion") return false;
+    const spec = (value as { devotion: unknown }).devotion;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of" || k === "color")) return false;
+    if (typeof s.color !== "string") return false;
+    if (!COLORED_MANA_SYMBOLS.has(s.color)) return false;
+    return isPlayerRef(s.of);
+}
+
 /** `{ escaped: { of } }` — SHAPE of the escaped value construct (CR 702.138e,
  *  issue #695). `of` is an object selector (an announced target slot, `$source`,
  *  or a permanents-set forEach `$each`) — family-checked as an OBJECT position
@@ -1231,6 +1258,7 @@ function isEffectValue(value: unknown): boolean {
         isKickerPaidValue(value) ||
         isManaValueValue(value) ||
         isDomainValue(value) ||
+        isDevotionValue(value) ||
         isEscapedValue(value) ||
         isAbilityResolutionCountValue(value) ||
         isLifeGainedThisTurnValue(value) ||
@@ -1568,7 +1596,7 @@ function isSourceShieldMatch(value: unknown): boolean {
         // "colourless sources" shield is not expressible as a colour match
         // (and `"C"`, which `Color` carries for mana purposes, would silently
         // never match `getColors`' output).
-        if (!m.colors.every((c) => SHIELD_MATCH_COLORS.has(c as string))) {
+        if (!m.colors.every((c) => COLORED_MANA_SYMBOLS.has(c as string))) {
             return false;
         }
     }
@@ -4366,6 +4394,23 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         keyHint === "domain" &&
         keys.includes("of") &&
         keys.every((k) => k === "of" || k === "times")
+    ) {
+        collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // devotion — { devotion: { of, color } } (CR 700.5, issue #2070): `of` is a
+    // PLAYER position, same as `domain`'s and for the same reason. Handled
+    // before the generic recursion so a ref under it isn't mis-tagged "object"
+    // by the `of`-key convention `counters`/`manaValue` established. `color` is
+    // a plain string with no ref grammar of its own, so — exactly like
+    // `domain`'s `times` — it is allowed to co-exist with `of` here rather than
+    // falling through to the generic recursion (the review finding on #1066: a
+    // bare `keys.length === 1` check mis-tags `of` the moment a sibling key
+    // exists).
+    if (
+        keyHint === "devotion" &&
+        keys.includes("of") &&
+        keys.every((k) => k === "of" || k === "color")
     ) {
         collectRefUses(obj.of, "player", out);
         return;

@@ -3324,7 +3324,26 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `{ of/value, times }` shape to any terminal, rather than a card-shaped
  *  `{ twiceX: true }`, is "generalize, don't add". One operator, one
  *  non-literal operand, that operand a TERMINAL — the value grammar stays
- *  depth-1 exactly as `difference` keeps it. */
+ *  depth-1 exactly as `difference` keeps it.
+ *  `devotion` (issue #2070, `{ devotion: { of, color } }`) IS a new
+ *  value-grammar member — the FIFTEENTH — and earns no EFFECT_OP_REGISTRY row
+ *  for the same reason `domain` (#1066) and `lifeGainedThisTurn` (#1457) do
+ *  not: it is a per-PLAYER scalar READ, not an Op, and not a structural
+ *  construct, so ADR 0045 stays shut. CR 700.5 — the number of mana symbols of
+ *  one colour among the mana costs of the permanents a player controls, read
+ *  through `SpellContext.getDevotion` over the single `countDevotion` scan
+ *  (`cards/devotion.ts`), which is where a static `countMode: "devotion"` twin
+ *  (Nykthos, Gray Merchant) will hang when a card needs one rather than
+ *  growing a second scan. It counts SYMBOLS, not permanents (`{U}{U}` is 2),
+ *  and a guild-hybrid pip counts toward BOTH its colours (CR 105.2) — the one
+ *  clause that made a dedicated reader necessary instead of reusing
+ *  `getPipCountsFromCost`, which omits hybrid because the draft bot's Colour
+ *  Commitment is priced on it. Deliberately narrow: a SINGLE colour (CR
+ *  700.5's two-colour devotion arrives with the first card that needs it) and
+ *  no `times` multiplier (no devotion card scales the count the way Wandering
+ *  Stream scales Domain). Shipped consumer: Thassa's Oracle, which reads it
+ *  twice — as `lookDistribute`'s `look`, and as the left side of the
+ *  `>= cards-in-library` comparison gating `winGame`. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

@@ -46,6 +46,7 @@ import {
     tryGetDefinition,
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
+import { countDevotion } from "../cards/devotion";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
@@ -12940,6 +12941,16 @@ export function buildSpellContext(
         // path, no duplicated logic.
         getDomain(playerId: string): number {
             return countDomain(state as never, playerId);
+        },
+        // Devotion (CR 700.5, issue #2070) — the number of `color` mana symbols
+        // among the mana costs of the permanents `playerId` controls. Same
+        // `state`-satisfies-`StaticEffectStateView` structural cast `getDomain`
+        // uses, and the same single-execution-path rule: `countDevotion`
+        // (`cards/devotion.ts`) is the ONE scan, so the static `countMode:
+        // "devotion"` twin a Nykthos-shaped card would add reuses it rather
+        // than growing a second copy.
+        getDevotion(playerId: string, color: Color): number {
+            return countDevotion(state as never, playerId, color);
         },
         // CR 119.3 (issue #1457) — total life `playerId` has GAINED so far
         // this turn (0 when none). Reads back the `lifeGainedThisTurn` tally

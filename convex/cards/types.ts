@@ -3192,6 +3192,16 @@ export interface SpellContext {
      *  closures (Kavu Scout, Wayfaring Giant, Exotic Curse, Strength of
      *  Unity) via the shared `countDomain` helper directly. */
     getDomain: (playerId: string) => number;
+    /** CR 700.5 (issue #2070) — `playerId`'s devotion to `color`: the number of
+     *  `color` mana symbols among the mana costs of the permanents they
+     *  control. Counts SYMBOLS, not permanents (a `{U}{U}` permanent is 2), and
+     *  a hybrid pip counts toward BOTH its colours (CR 105.2). A thin skin over
+     *  `countDevotion` (`cards/devotion.ts`), reading the SAME live
+     *  `state.players[].battlefield` the layer system reads. Used by the
+     *  fifteenth `EffectValue` grammar member (`{ devotion: { of, color } }`).
+     *  Single colour only — a two-colour devotion (CR 700.5's second sentence)
+     *  arrives with the first card that needs one. */
+    getDevotion: (playerId: string, color: Color) => number;
     /** CR 119.3 (issue #1457) — the total life `playerId` has GAINED so far
      *  this turn, 0 when none. Reads back `GameState.lifeGainedThisTurn`, the
      *  tally `gainLifeEmitting` maintains at the single life-gain choke point
@@ -9577,6 +9587,32 @@ export type EffectDomainValue = {
     domain: { of: EffectPlayerRef; times?: number };
 };
 
+/** devotion — a player's devotion to a single colour (CR 700.5, issue #2070):
+ *  the number of mana symbols of that colour among the mana costs of the
+ *  permanents that player controls. A thin JSON-pure skin over
+ *  `SpellContext.getDevotion` / the shared `countDevotion` helper
+ *  (`cards/devotion.ts`). The FIFTEENTH `EffectValue` grammar member; like
+ *  `domain` (issue #1066) and `lifeGainedThisTurn` (issue #1457) it is NOT an
+ *  Op and NOT a new STRUCTURAL construct — it does not reopen ADR 0045.
+ *
+ *  `of` is a PLAYER selector (`EffectPlayerRef`), like `domain`'s and for the
+ *  same reason: devotion is a per-player scalar, not a per-object one. `color`
+ *  is a single colour — CR 700.5's two-colour devotion ("devotion to black and
+ *  green") is deliberately NOT modelled until a card needs it, since a
+ *  `Color[]` here would have to answer whether a `{B/G}` pip counts once or
+ *  twice (once — CR 700.5) and no shipped card asks.
+ *
+ *  Counts SYMBOLS, not permanents: `{U}{U}` contributes 2, and a hybrid pip
+ *  counts toward BOTH its colours (CR 105.2). Composes with every amount-taking
+ *  Op and with the comparison predicate — Thassa's Oracle reads it twice, once
+ *  as `lookDistribute`'s `look` and once as the left side of the
+ *  `>= cards-in-library` win check. No `times` multiplier: unlike Wandering
+ *  Stream's "TWO life for each basic land type", no devotion card scales the
+ *  count, and the member stays as narrow as its cards require. */
+export type EffectDevotionValue = {
+    devotion: { of: EffectPlayerRef; color: Color };
+};
+
 /** One operand of a `difference` value (issue #2006). Deliberately a TERMINAL,
  *  never a full `EffectValue`: a literal integer or a single `count`. Making
  *  the operand type non-recursive is the whole defence — an expression TREE
@@ -9698,7 +9734,8 @@ export interface EffectScaledValue {
  *  (issue #1015), a selected object's `manaValue` (issue #680), a player's
  *  `domain` (issue #1066), a permanent's `escaped` flag (issue #695), the
  *  currently-resolving triggered ability's `abilityResolutionCount` (issue
- *  #1189), the `difference` of two terminals (issue #2006), or a terminal
+ *  #1189), a player's `devotion` to a colour (issue #2070), the
+ *  `difference` of two terminals (issue #2006), or a terminal
  *  `scaled` by a fixed multiplier (issue #2366). The value grammar is capped
  *  at these — beyond `difference`'s single, non-nestable subtraction and
  *  `scaled`'s single, non-nestable multiplication there is no arithmetic and
@@ -9717,7 +9754,8 @@ export type EffectValue =
     | EffectAbilityResolutionCountValue
     | EffectLifeGainedThisTurnValue
     | EffectDifferenceValue
-    | EffectScaledValue;
+    | EffectScaledValue
+    | EffectDevotionValue;
 
 /** lifeGainedThisTurn — the total life a PLAYER has gained so far this turn
  *  (CR 119.3, issue #1457), a thin JSON-pure skin over

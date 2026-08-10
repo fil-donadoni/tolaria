@@ -643,6 +643,16 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getDomain(playerId) * (value.domain.times ?? 1);
     }
+    // devotion (CR 700.5, issue #2070) — a PLAYER's devotion to one colour, a
+    // thin skin over ctx.getDevotion. `of` is a PLAYER selector resolved
+    // through the SAME resolvePlayerRef path `domain` uses, and for the same
+    // reason: devotion is a per-player scalar, not an object-scoped read.
+    // Undefined when the player cannot be resolved (CR 608.2b).
+    if ("devotion" in value) {
+        const playerId = resolvePlayerRef(ctx, value.devotion.of);
+        if (playerId === undefined) return undefined;
+        return ctx.getDevotion(playerId, value.devotion.color);
+    }
     // abilityResolutionCount (CR 122 / 603.3, issue #1189) — how many times
     // the CURRENTLY RESOLVING triggered ability has resolved this turn,
     // counting this resolution, a thin skin over
