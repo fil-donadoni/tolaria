@@ -15,6 +15,11 @@ When modifying files in `convex/gre/` or `convex/cards/`.
   Implement exactly what the CR specifies; question only genuine ambiguity,
   intentional simplification, or choices the CR doesn't dictate. Verify with
   `/mtg-rules-check` first.
+- **Print the rule, never recall it** (ADR 0098). The vendored official
+  document (`data/cr/comprehensive-rules.txt`) is the only source:
+  `bun run cr 605.1a`, `bun run cr grep "<keyword>"`. A citation whose id
+  `bun run cr` cannot find is wrong — `bun run cr:lint` sweeps the repo for
+  them.
 - Every mechanic MUST reference its CR section in code comments.
 - Flag any deviation from CR explicitly — what's simplified and why.
 

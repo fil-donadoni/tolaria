@@ -16,14 +16,14 @@
 // Effect Script interpreter ships (ADR 0045) an implemented row's binding
 // may instead be an Op name.
 //
-// CR numbering source: Comprehensive Rules effective 2025-09-19
-// (media.wizards.com/2025/downloads/MagicCompRules%2020250919.txt). Section
-// numbers shift between CR editions as new keywords are inserted — always
-// re-derive a row's number from a current rules text, never copy a stale
-// in-repo comment (e.g. banding.ts cites "CR 702.21", correct for an older
-// edition; the current CR lists Banding at 702.22 — this registry uses the
-// current number and does not "fix" the older comment, which is out of
-// scope for this census).
+// CR numbering source: the VENDORED official Comprehensive Rules
+// (`data/cr/comprehensive-rules.txt`, effective date in `data/cr/VERSION.json`,
+// ADR 0098) — print a row's number with `bun run cr <id>` / `bun run cr grep`,
+// never copy it from memory or from a stale in-repo comment. Section numbers
+// shift between CR editions as new keywords are inserted (banding.ts cites
+// "CR 702.21", which is Ward in every edition since 2022; Banding is 702.22 —
+// this registry uses the current number and does not "fix" the older comment,
+// which is out of scope for this census and tracked by `bun run cr:lint`).
 //
 // Known engine gaps surfaced while building this census (flagged per
 // CLAUDE.md "flag explicitly rather than assuming deferred"): `haste`

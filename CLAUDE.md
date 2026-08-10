@@ -327,6 +327,20 @@ Always cross-reference against the official CR. Before writing code, discuss
 uncovered details (edge cases, interactions, timing) and decide implement-now
 vs defer together.
 
+**The CR is vendored, and it is the only source** (ADR 0098):
+`data/cr/comprehensive-rules.txt` + `data/cr/VERSION.json`, sliced by
+`bun run cr 605.1a` / `bun run cr grep "<keyword>"` — offline, exact, no
+fetch. Third-party mirrors (yawgatog, ancestral.vision — the latter frozen at
+2022-10-07) are removed, and an ad-hoc `curl` of a remembered
+`MagicCompRules YYYYMMDD.txt` URL is the habit this replaced: twelve distinct
+versions, back to 2022, appear in past session transcripts. **Never cite a rule
+number you have not printed** — 42 of the 799 distinct ids cited in this repo
+resolve to nothing, and 40 of those never existed in any revision
+(`bun run cr:lint`). Wizards republishes roughly per set at
+<https://magic.wizards.com/en/rules>; `bun run cr:check` says whether a newer
+document exists, `bun run cr:sync` takes it. `cr:check` is deliberately outside
+`check:all` — the gate is offline by contract.
+
 ## Implemented engine capabilities
 
 Once deferred, since **shipped** — do not treat as out of scope:
