@@ -19,9 +19,11 @@ When modifying files in `convex/gre/` or `convex/cards/`.
   document (`data/cr/comprehensive-rules.txt`) is the only source:
   `bun run cr 605.1a`, `bun run cr grep "<keyword>"`. A citation whose id
   `bun run cr` cannot find is wrong — `bun run cr:lint` sweeps the repo for
-  them and runs in `check:guards` (#2429). It proves only that an id RESOLVES:
-  the comment around it must still say what the printed rule says, and that is
-  yours to check.
+  them and runs in `check:guards` (#2429) — including bare ids in a slash-list,
+  so long as the citation stays on ONE line (a prefix and its id split across
+  two comment lines is the one shape the scan cannot see). It proves only that
+  an id RESOLVES: the comment around it must still say what the printed rule
+  says, and that is yours to check.
 - Every mechanic MUST reference its CR section in code comments.
 - Flag any deviation from CR explicitly — what's simplified and why.
 

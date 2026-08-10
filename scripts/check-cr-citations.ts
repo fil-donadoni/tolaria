@@ -8,28 +8,39 @@
  * than no citation: it reads as provenance, survives review, and sends the next
  * reader to a rule that says something else — or to nothing at all.
  *
- * The failure mode this catches is model memory, not a stale source. Of the 42
- * unresolvable ids found when this guard was written, 40 existed in NO revision
- * of the CR (2022, 2025, 2026 all checked) — they were recalled, never printed.
+ * The failure mode this catches is model memory, not a stale source. 44
+ * unresolvable ids stood in the repo when this guard was written; of the first
+ * 42 traced, 40 existed in NO revision of the CR (2022, 2025, 2026 all checked)
+ * — they were recalled, never printed.
  *
  * Usage:
  *   bun run cr:lint            # report unresolvable citations, exit 1 if any
  *   bun run cr:lint --files    # also list every file/line for each bad id
  *
- * Wired into `check:guards` (issue #2429) once the 42 standing violations were
+ * Wired into `check:guards` (issue #2429) once the 44 standing violations were
  * corrected. `scripts/__tests__/cr-citations.test.ts` is the regression guard —
  * it runs the same scan under `bun run test` so a bad citation cannot land even
  * if the gate wiring is later changed.
  *
- * KNOWN BLIND SPOT: the scan is line-based and requires the `CR ` prefix, so a
- * citation written bare inside a slash-list ("CR 205.4a / 602.5b" — the second
- * id has no prefix) or wrapped across two comment lines is invisible to it.
- * Both shapes existed in the repo and were corrected by hand in #2429; two
- * unresolvable ids hiding in that blind spot (one in `gre/sba.ts`'s SBA
- * roll-call, one repeated across nine copy-a-spell sites) survived the first
- * pass and were found only by an id-agnostic re-sweep that extracts EVERY
- * `NNN.N[a-z]` token near a CR mention and resolves each. Re-run that sweep by
- * hand when auditing; this guard will not do it for you.
+ * SCOPE: the scan is line-based, and a line is scanned in two passes. The first
+ * resolves every id carrying its own `CR ` prefix. The second — on any line that
+ * already mentions `CR ` — resolves every BARE `NNN.N[a-z]` token on it too, so
+ * a citation written inside a slash-list ("CR 205.4a / 602.5b / 603.3b", where
+ * only the first id is prefixed) is covered. That second pass is not a nicety:
+ * two of the 44 bad ids #2429 corrected — 10 sites — lived in exactly that
+ * shape (`706.5c` in `gre/sba.ts`'s SBA roll-call, `112.5` repeated across nine
+ * copy-a-spell sites). Both survived the first correction pass and were found
+ * only by a hand-rolled id-agnostic re-sweep; that is now the guard's job, not
+ * the auditor's.
+ *
+ * REMAINING BLIND SPOT: a citation WRAPPED ACROSS TWO LINES — the `CR ` prefix
+ * on one comment line and the id on the next — is still invisible, because both
+ * passes are anchored to a single line. One such site existed
+ * (`src/lib/ai/__tests__/flashback-exile-color.bot.test.ts`) and was rewritten
+ * onto one line in #2429. Extending the bare pass to a window of adjacent lines
+ * is not free — it would resolve ordinary prose numbers on the line AFTER any CR
+ * mention, where the single-line rule stays exact (24,656 tokens scanned over
+ * the #2429 tree, zero false positives). Keep citations on one line.
  */
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
@@ -84,6 +95,18 @@ export function scannedFiles(root = ROOT): string[] {
         .filter((f) => SCANNED.test(f));
 }
 
+/** An id carrying its own `CR ` prefix. The subrule part is optional. */
+const PREFIXED_CITATION = /\bCR\s?(\d{3})(\.\d+[a-z]{0,2})?/g;
+
+/**
+ * A bare `NNN.N[a-z]` id, resolved only on lines that already mention `CR `.
+ * The three-digits-then-dot anchor plus the word boundaries are what keep
+ * version strings and dates out (`1.2.3`, `2026.08.07` cannot match): the
+ * subrule part is mandatory here, unlike the prefixed form, because a bare
+ * three-digit number is just a number.
+ */
+const BARE_ID = /\b\d{3}\.\d+[a-z]{0,2}\b/g;
+
 /**
  * The scan itself, over `(file, text)` pairs — pure, so the regression test can
  * drive it with synthetic content instead of the working tree.
@@ -97,15 +120,27 @@ export function scanCitations(
     for (const { file, text } of sources) {
         if (!text.includes("CR ")) continue;
         text.split("\n").forEach((line, i) => {
-            for (const m of line.matchAll(
-                /\bCR\s?(\d{3})(\.\d+[a-z]{0,2})?/g
-            )) {
+            const record = (id: string) => {
                 total++;
-                const id = m[1] + (m[2] ?? "");
-                if (ids.has(id)) continue;
+                if (ids.has(id)) return;
                 const hits = bad.get(id) ?? [];
                 hits.push({ file, line: i + 1 });
                 bad.set(id, hits);
+            };
+            // Pass 1: prefixed ids. Remember where each id's digits START so
+            // pass 2 does not count the same token twice.
+            const counted = new Set<number>();
+            for (const m of line.matchAll(PREFIXED_CITATION)) {
+                const id = m[1] + (m[2] ?? "");
+                counted.add(m.index + m[0].length - id.length);
+                record(id);
+            }
+            // Pass 2: bare ids sharing a line with a CR mention — the
+            // slash-list shape ("CR 707.10b / 114.5 / 603.3d").
+            if (!line.includes("CR ")) return;
+            for (const m of line.matchAll(BARE_ID)) {
+                if (counted.has(m.index)) continue;
+                record(m[0]);
             }
         });
     }

@@ -5,7 +5,7 @@ status: draft
 confidence: high
 ---
 
-**What is wrong.** #2429 fixed the 42 rule ids that resolve to _nothing_. While
+**What is wrong.** #2429 fixed the 44 rule ids that resolve to _nothing_. While
 printing the replacements it surfaced a much larger, structurally different
 class: ids that **resolve fine and point at the wrong rule**. `bun run cr:lint`
 is blind to these by construction — it only asks whether the id exists — so the
@@ -53,22 +53,64 @@ Three smaller, unrelated instances of the same class:
 Two more surfaced in the #2452 review round, both large enough to be their own
 slice:
 
-- **`602.5b` used as the generic "activation restrictions are enforced" cite**
-  (~85 sites, repo-wide: `convex/gre/constants.ts:1037`, `convex/game.ts:1629`,
-  `src/lib/card-utils.ts:1594`, `convex/cards/types.ts:1257`, most `sets/**`
-  card headers…). `bun run cr 602.5b` is a **controller-change persistence**
-  clause ("the restriction continues to apply to that object even if its
-  controller changes") — it says nothing about enforcement. The enforcing rule
-  is **`602.5`** ("A player can't begin to activate an ability that's
-  prohibited from being activated"), with `602.5a` for summoning sickness and
-  `602.5d/e` for "activate only as a sorcery/instant". The seven sites this PR
-  touched were re-pointed; the rest were left alone deliberately — it is the
-  same ~85-site mechanical-sed risk as the 701 block.
-- **`704.5m` used for the world rule** (2 sites, `convex/gre/sba.ts:746` and
-  `:835`). `704.5m` is the **Aura** attachment SBA — which the same file also
-  cites correctly at `:489`, so one id carries two meanings here. The world
-  rule is **`704.5k`**. Narrow enough to fix in passing, but it is the
-  resolvable-but-wrong class, not the unresolvable one #2429 scoped.
+- **`602.5b` used as the generic "activation restrictions are enforced" cite.**
+  `bun run cr 602.5b` is a **controller-change persistence** clause ("the
+  restriction continues to apply to that object even if its controller
+  changes") — it says nothing about enforcement. The enforcing rule is
+  **`602.5`** ("A player can't begin to activate an ability that's prohibited
+  from being activated"), with `602.5a` for summoning sickness and `602.5d/e`
+  for "activate only as a sorcery/instant".
+
+    **Count: 88 lines across 44 files** at the tip of #2452 —
+    `git grep -c '602\.5b' -- '*.ts' '*.tsx' '*.md' ':!docs/findings'`. Every one
+    of them is the misuse: grepping the same set for `controller chang|persist`
+    returns nothing outside this drawer file, so there is no correct-usage subset
+    to preserve — a fixer can treat the whole grep as the worklist. It spans
+    `convex/gre/` (`constants.ts`, `autoTapDemands.ts`, `activationCostPicks.ts`),
+    `convex/game.ts`, `convex/cards/types.ts`, `src/lib/card-utils.ts`, and most
+    `convex/cards/sets/**` card headers with an activation-timing restriction.
+    The seven sites this PR touched were re-pointed; the rest were left alone
+    deliberately — it is the same mechanical-sed risk as the 701 block.
+
+- **`704.5m` used for the world rule.** `704.5m` is the **Aura attachment**
+  SBA ("If an Aura is attached to an illegal object or player… that Aura is put
+  into its owner's graveyard"). The world rule is **`704.5k`** ("If two or more
+  permanents have the supertype world…"). One id therefore carries two
+  meanings in this repo, sometimes in the same file.
+
+    **Count: 21 lines across 9 files** (not 2 — an earlier draft of this entry
+    said 2, from a `sba.ts`-only glance):
+
+    | file                                            | world-rule cites | Aura cites (correct) |
+    | ----------------------------------------------- | ---------------: | -------------------: |
+    | `convex/gre/sba.ts`                             |                5 |                    4 |
+    | `convex/gre/state.ts`                           |                3 |                    5 |
+    | `convex/gre/__tests__/serialize.test.ts`        |                2 |                    0 |
+    | `convex/gre/serialize.ts`                       |                1 |                    0 |
+    | `convex/cards/sets/leg/__tests__/green.test.ts` |                6 |                    0 |
+    | `convex/cards/sets/leg/__tests__/black.test.ts` |                1 |                    0 |
+    | `convex/cards/sets/leg/__tests__/helpers.ts`    |                1 |                    0 |
+    | `convex/cards/sets/leg/black.ts`                |                1 |                    0 |
+    | `convex/cards/sets/leg/green.ts`                |                1 |                    0 |
+
+    **How to tell the two apart without line numbers** (which rot — the two this
+    entry used to name were already stale by one review round): start from
+    `git grep -n '704\.5m'` (59 hits repo-wide) and keep the hits whose subject is
+    the **World supertype**, not an attachment. Mechanically that is
+    `allWorldPermanents` / `checkWorldRuleSBA` and the `checkStateBasedActions`
+    call site in `sba.ts`; the `worldSeq` / `nextWorldSeq` timestamp field, its
+    serializer key and its round-trip tests; and the LEG World-enchantment cards
+    and their tests. Everything else — `checkAuraAttachmentSBA`,
+    `checkAttachmentSBA`, `attachedTo`, bestow, protection — is a genuine
+    `704.5m` and must be left alone. Filtering the grep output for the word
+    "world" on the SAME line finds only 16 of the 21 — five carry "world" on the
+    neighbouring comment line — so do not use that as the worklist.
+
+    Note the neighbours travel with it: the `worldSeq` sites cite
+    `CR 704.5m / 613.7m`, and `613.7m` (simultaneous timestamps in APNAP order) is
+    the right rule for the tie-break, so only the first id moves. Narrow enough to
+    fix in passing, but it is the resolvable-but-wrong class, not the unresolvable
+    one #2429 scoped.
 
 **Evidence.** `bun run cr 701.16` → "701.16. Investigate / 701.16a 'Investigate'
 means 'Create a Clue token.'" against
@@ -77,12 +119,17 @@ controller to put it into its owner's graveyard". `bun run cr 701.21` prints
 exactly that sentence. Same pattern for every row above; each was checked by
 printing both the cited rule and the intended one.
 
-Also worth knowing: `cr:lint` is **line-based and requires the `CR ` prefix**.
-#2429 found 167 occurrences of the bad ids written bare inside a slash-list
-("CR 205.4a / 602.5b / 603.3b" — only the first id carries the prefix) or
-wrapped across two comment lines
-(`src/lib/ai/__tests__/flashback-exile-color.bot.test.ts:47-48`), all invisible
-to the sweep. They were fixed by hand; the blind spot remains.
+Also worth knowing what `cr:lint` does and does not reach. It is **line-based**,
+and it scans a line twice: prefixed ids, then — if the line mentions `CR ` at
+all — every bare `NNN.N[a-z]` token on it. #2429 found 167 occurrences of bad
+ids written bare inside a slash-list ("CR 205.4a / 602.5b / 603.3b", only the
+first id prefixed); that shape used to be invisible and is now covered (the
+widening was the round-2 review finding on #2452 — it is what would have caught
+`706.5c` and the nine `112.5` sites without a hand-rolled sweep). What is
+**still** out of reach is a citation **wrapped across two comment lines**, the
+prefix on one and the id on the next
+(`src/lib/ai/__tests__/flashback-exile-color.bot.test.ts` had the only one; it
+was rewritten onto a single line). Keep citations on one line.
 
 **Why it may not deserve its own issue.** Two arguments against ticketing it as
 written:

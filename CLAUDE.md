@@ -365,12 +365,18 @@ fetch. Third-party mirrors (yawgatog, ancestral.vision — the latter frozen at
 2022-10-07) are removed, and an ad-hoc `curl` of a remembered
 `MagicCompRules YYYYMMDD.txt` URL is the habit this replaced: twelve distinct
 versions, back to 2022, appear in past session transcripts. **Never cite a rule
-number you have not printed** — 42 of the 799 distinct ids cited in this repo
-resolved to nothing, and 40 of those never existed in any revision; all 42 were
-corrected in #2429 and **`bun run cr:lint` now runs in `check:guards`**, so a
-new one cannot land. It only checks that an id RESOLVES: a citation "corrected"
-to a plausible-but-wrong number still passes, which is why the correction has
-to come from `bun run cr <id>` printing text that matches the claim. Wizards
+number you have not printed** — 44 of the 850 distinct ids cited in this repo
+resolved to nothing, and nearly all of them never existed in any revision; all
+44 were corrected in #2429 and **`bun run cr:lint` now runs in `check:guards`**,
+so a new one cannot land **on a line of its own or in a slash-list** (the
+scanner resolves every bare `NNN.Nx` token on any line mentioning `CR ` — two of
+the 44 ids, 10 sites, hid in exactly that shape and survived the first
+correction pass). Two things still get past it: a citation **wrapped across
+two comment lines** — so keep one on a single line — and a **resolvable but
+wrong** id, since the scan only asks whether an id exists. A citation
+"corrected" to a plausible-but-wrong number passes, which is why the correction
+has to come from `bun run cr <id>` printing text that matches the claim.
+Wizards
 republishes roughly per set at
 <https://magic.wizards.com/en/rules>; `bun run cr:check` says whether a newer
 document exists, `bun run cr:sync` takes it. `cr:check` is deliberately outside

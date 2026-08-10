@@ -77,12 +77,19 @@ project so the guard survives the gate wiring being changed.
 **What the linter cannot check.** It only asks whether an id RESOLVES. A
 citation repointed to a plausible-but-wrong number passes it silently, and the
 repo still contains such cases outside the #2429 sweep — see
-`docs/findings/2429-resolvable-but-wrong-cr-citations.md`. It is also
-line-based and requires the `CR ` prefix, so a bare id in a slash-list
-(`CR 205.4a / 602.5b` — the second id carries no prefix) or a citation wrapped
-across two comment lines is invisible to it; #2429 fixed 167 such occurrences
-by hand, including two unresolvable ids (in `gre/sba.ts`'s SBA roll-call and
-across nine copy-a-spell sites) that only an id-agnostic re-sweep surfaced.
+`docs/findings/2429-resolvable-but-wrong-cr-citations.md`.
+
+It is also **line-based**: it scans a line for prefixed ids, then — if that line
+mentions `CR ` at all — for every bare `NNN.N[a-z]` token on it, which covers
+the slash-list shape (`CR 205.4a / 602.5b / 603.3b`, only the first id
+prefixed). That second pass is not decorative: #2429 fixed 167 slash-list
+occurrences by hand, and two of the unresolvable ids among them (in
+`gre/sba.ts`'s SBA roll-call and across nine copy-a-spell sites) were invisible
+to the prefix-only scan and surfaced only via an ad-hoc id-agnostic re-sweep.
+The remaining hole is a citation **wrapped across two comment lines** — prefix
+on one, id on the next. Both passes are anchored to a single line, and widening
+them to a window would start resolving ordinary prose numbers, so the rule is:
+**keep a citation on one line.**
 
 ## Consequences
 
