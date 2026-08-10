@@ -1982,18 +1982,26 @@ export interface EffectTokenSpec {
     /** Activated abilities the token enters with (CR 707.2, issue #1191 —
      *  Investigate's Clue: "{2}, Sacrifice this token: Draw a card."; extended
      *  #778 for Blood's "{1}, {T}, Discard a card, Sacrifice this token: Draw
-     *  a card."). A RESTRICTED, JSON-pure subset of `ActivatedAbility`: only
-     *  `id`, `cost` (`tap` / `mana` / `sacrifice` / `discardFilter` — the
-     *  JSON-pure cost legs; no closures), `oracleText`, `useStack` and
-     *  `effects` (an Effect Script, DSL-only — `resolve/effect` are rejected)
-     *  are accepted, enforced by `isEffectTokenSpec` in
-     *  `gre/effects/validate.ts`. Each ability's
+     *  a card."; extended #2423 for a runtime colour-choice mana ability, the
+     *  Treasure shape). A RESTRICTED, JSON-pure subset of `ActivatedAbility`:
+     *  only `id`, `cost` (`tap` / `mana` / `sacrifice` / `discardFilter` — the
+     *  JSON-pure cost legs; no closures), `oracleText`, `useStack`, `effects`
+     *  (an Effect Script, DSL-only — `resolve`/`effect` are rejected) and
+     *  `manaChoices` (a plain `ManaCost[]`, mirroring the card-level
+     *  `ActivatedAbility.manaChoices` above — "{T}, Sacrifice this artifact:
+     *  Add one mana of any color.") are accepted, enforced by
+     *  `isTokenActivatedAbility` in `gre/effects/validate.ts`. Each ability's
      *  `effects[]` is validated and ref-checked as its OWN independently-scoped
      *  script (fresh `$source` = the token itself once created — see
      *  `validateEffectOpList`'s nested-`createToken` pass), never against the
      *  outer script's bindings. Structurally compatible with
      *  `ActivatedAbility[]`, so the interpreter passes `token` straight to
-     *  `SpellContext.createToken` with no conversion (ADR 0045, ADR 0046). */
+     *  `SpellContext.createToken` with no conversion (ADR 0045, ADR 0046) —
+     *  including `manaChoices`, which the engine's mana-tap-choice machinery
+     *  (`hasManaAbility`/`getActivatedManaAbility`, `gre/constants.ts`; the
+     *  commit path in `game.ts`) reads generically off whatever
+     *  `ActivatedAbility` it finds on the permanent's synthesized
+     *  `CardDefinition`, with no card-vs-token distinction. */
     activatedAbilities?: ActivatedAbility[];
     /** Triggered abilities the token enters with (CR 707.2, issue #2364 — the
      *  Pest template: "When this token dies, you gain 1 life."). A RESTRICTED,

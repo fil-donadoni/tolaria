@@ -628,13 +628,30 @@ function isTokenAbilityCost(value: unknown): boolean {
 
 /** A token-scoped activated ability (issue #1191, `EffectTokenSpec.activatedAbilities`):
  *  a RESTRICTED, JSON-pure subset of `ActivatedAbility` — `id` / `cost`
- *  (tap/mana/sacrifice only) / `oracleText` / `useStack` / `effects`.
+ *  (tap/mana/sacrifice only) / `oracleText` / `useStack` / `effects` /
+ *  `manaChoices` (issue #2423, widened from the original #1191 shape).
  *  `resolve` / `effect` / any other `ActivatedAbility` field is rejected:
  *  DSL-only, mirroring `EffectTokenSpec` itself omitting `staticEffects`
  *  because closures can't survive JSON (ADR 0046). The ability's `effects[]`
  *  SHAPE is checked here; its deep ref/purity validity is checked separately
  *  by `validateEffectOpList`'s nested-`createToken` pass, in the ability's OWN
- *  scope (fresh `$source`), not the outer script's. */
+ *  scope (fresh `$source`), not the outer script's.
+ *
+ *  `manaChoices` (issue #2423) — a runtime colour-choice mana ability
+ *  ("{T}, Sacrifice this artifact: Add one mana of any color.", the Treasure
+ *  shape) — is `ManaCost[]`, already JSON-pure at the CARD level
+ *  (`ActivatedAbility.manaChoices`, `types.ts:1180`); only the DSL-authoring
+ *  ALLOWLIST here rejected it. Each option is validated with the SAME
+ *  `isManaCost` a mana-cost `EffectValue` uses, so a token's manaChoices list
+ *  accepts exactly the pip shapes a card-level one does. The engine's own
+ *  mana-tap-choice machinery (`hasManaAbility`/`getActivatedManaAbility`,
+ *  `gre/constants.ts`; the commit path in `game.ts`) reads `manaChoices` off
+ *  whatever `ActivatedAbility` it finds on the permanent's `CardDefinition` —
+ *  it never distinguishes a card-level ability from one `createTokenPermanents`
+ *  registered from a `TokenSpec`/`EffectTokenSpec` (`gre/state.ts`) — so no
+ *  engine change was needed once this allowlist accepts the field; see
+ *  `tokenManaChoicesTapUntap.test.ts` for the round-trip proof through the
+ *  real tap-for-mana commit path. */
 function isTokenActivatedAbility(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -646,6 +663,7 @@ function isTokenActivatedAbility(value: unknown): boolean {
         "oracleText",
         "useStack",
         "effects",
+        "manaChoices",
     ]);
     if (!Object.keys(a).every((k) => allowed.has(k))) return false;
     if (typeof a.id !== "string" || a.id.length === 0) return false;
@@ -655,6 +673,12 @@ function isTokenActivatedAbility(value: unknown): boolean {
     }
     if (typeof a.useStack !== "boolean") return false;
     if ("effects" in a && !isOpList(a.effects)) return false;
+    if (
+        "manaChoices" in a &&
+        !(Array.isArray(a.manaChoices) && a.manaChoices.every(isManaCost))
+    ) {
+        return false;
+    }
     return true;
 }
 
