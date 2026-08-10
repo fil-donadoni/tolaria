@@ -325,6 +325,18 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount is a difference of two values — the canned predictor sizes exactly one count set, not an arithmetic combination`;
         return;
     }
+    // scaled (issue #2366): a fixed multiplier times a terminal — X, a
+    // literal, or a count. When the operand is X the canned generator can't
+    // reproduce the value (same reason bare `X` skips above: it pushes the
+    // spell directly, never announcing X); when the operand is a count, the
+    // multiplied total is a fresh magnitude `predictAmount`'s fixed
+    // COUNT_SET_SIZE contract doesn't cover either. Skip-with-reason —
+    // the member's own interpreter test is the behavioural guarantor
+    // (new-grammar-member regime, matching `difference`'s own skip above).
+    if ("scaled" in value) {
+        req.skip ??= `amount is a scaled (multiplied) terminal — the canned predictor sizes exactly one unscaled count set`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
@@ -1399,6 +1411,7 @@ function predictAmount(value: EffectValue): number | null {
     if ("domain" in value) return null; // skipped earlier — defensive
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
     if ("difference" in value) return null; // skipped earlier — defensive
+    if ("scaled" in value) return null; // skipped earlier — defensive
     return COUNT_SET_SIZE;
 }
 

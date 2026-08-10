@@ -149,3 +149,79 @@ describe("context-aware count grounding threads every EffectCountSpec zone/scope
         ).toBe(3);
     });
 });
+
+// `scaled` (issue #2366) — a fixed multiplier times a terminal (literal,
+// count, or X). The failure mode this guards against (issue #1520's own
+// precedent, restated in the `scaled` branches of both grounders): falling
+// through to a FIXED representative constant instead of the multiplied
+// magnitude, which would price "twice X" or "twice a board count" at the
+// SAME number regardless of the multiplier — a wrong-magnitude bug, not a
+// merely-imprecise one.
+describe("scaled grounds to the multiplied magnitude, not a flat constant (issue #2366)", () => {
+    function stateFor() {
+        return makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+    }
+
+    it("context-free: a scaled X grounds to `times` * the assumed-X floor, board-scaling", () => {
+        const bareX = cf.value({ X: true });
+        const scaledX = cf.value({ scaled: { value: { X: true }, times: 2 } });
+        expect(scaledX.amount).toBe(bareX.amount * 2);
+        expect(scaledX.scaling).toBe(true);
+    });
+
+    it("context-free: a scaled literal grounds to `times` * the literal, non-scaling", () => {
+        const scaled = cf.value({ scaled: { value: 3, times: 4 } });
+        expect(scaled.amount).toBe(12);
+        expect(scaled.scaling).toBe(false);
+    });
+
+    it("context-aware: a scaled X grounds to `times` * the assumed-X fallback (no announced cast pre-choice)", () => {
+        const state = stateFor();
+        const bareX = contextAwareGroundingForChoice(state, "p1").value({
+            X: true,
+        });
+        const scaledX = contextAwareGroundingForChoice(state, "p1").value({
+            scaled: { value: { X: true }, times: 3 },
+        });
+        expect(scaledX.amount).toBe(bareX.amount * 3);
+    });
+
+    it("context-aware: a scaled count grounds to `times` * the REAL board count, distinguishing board sizes", () => {
+        const bears = (n: number) =>
+            Array.from({ length: n }, (_, i) =>
+                makeInstance(BEAR_ID, {
+                    id: `p1-scaled-bf-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "battlefield",
+                })
+            );
+        const v: EffectValue = {
+            scaled: {
+                value: {
+                    count: { zone: "battlefield", controller: "controller" },
+                },
+                times: 2,
+            },
+        };
+        const empty = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const crowded = makeState({
+            players: [
+                makePlayer("p1", { battlefield: bears(5) }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            contextAwareGroundingForChoice(empty, "p1").value(v).amount
+        ).toBe(0);
+        expect(
+            contextAwareGroundingForChoice(crowded, "p1").value(v).amount
+        ).toBe(10);
+    });
+});

@@ -9412,9 +9412,11 @@ export interface EffectCardFilter {
  *  A fifth `EffectValue` grammar member (issue #852, PRD #826), NOT an Op and
  *  NOT a new structural construct — it does not reopen ADR 0045 (only a fifth
  *  bind/ref/if/forEach-style construct would). Unblocks Earthquake / Stream of
- *  Life / Fireball-style scripts whose amount is exactly `ctx.getX()`. There is
- *  still no arithmetic: `X` reads back the one chosen number, nothing composes
- *  it (a card like Braingeyser drawing `X` cards, Drain Life dealing `X`). */
+ *  Life / Fireball-style scripts whose amount is exactly `ctx.getX()`. On its
+ *  own it reads back the one chosen number verbatim, nothing composing it (a
+ *  card like Braingeyser drawing `X` cards, Drain Life dealing `X`) — but see
+ *  `EffectScaledValue` (issue #2366) for the one place a fixed multiplier
+ *  scales it ("twice X"). */
 export type EffectXValue = { X: true };
 
 /** counters — the number of counters of a given `type` on a selected object
@@ -9509,7 +9511,9 @@ export type EffectDomainValue = {
  *  never a full `EffectValue`: a literal integer or a single `count`. Making
  *  the operand type non-recursive is the whole defence — an expression TREE
  *  (`(a - b) - c`, `a - (b * c)`) is not merely discouraged, it is
- *  unrepresentable in the type system. */
+ *  unrepresentable in the type system. Deliberately excludes `X` — see
+ *  `EffectScaledOperand` (issue #2366) for the sibling terminal type that
+ *  adds it, kept separate so this scope stays exactly what #2006 shipped. */
 export type EffectDifferenceOperand = number | EffectCount;
 
 /** difference — `from` MINUS `minus` (issue #2006), the one place the value
@@ -9553,16 +9557,82 @@ export interface EffectDifferenceValue {
     };
 }
 
+/** One operand of a `scaled` value (issue #2366). Deliberately a SIBLING of
+ *  `EffectDifferenceOperand`, not a widening of it: this type adds
+ *  `EffectXValue` to the literal-or-`count` terminal set (the whole reason
+ *  `scaled` exists — "twice X" needs X as a scalable operand), while
+ *  `difference` stays exactly as narrow as issue #2006 shipped it. Widening
+ *  `EffectDifferenceOperand` in place instead of adding this sibling would
+ *  have silently re-opened `difference` to an `X` operand it was deliberately
+ *  never given — `validateEffectScript`'s own difference test rejects
+ *  `{ difference: { from: { X: true }, minus: 1 } }` today
+ *  (`validate.test.ts`, "rejects a NESTED difference"), and that rejection is
+ *  the difference member's own frozen scope, not an oversight to fix here.
+ *  Still a TERMINAL, never a full `EffectValue`: an expression tree is
+ *  unrepresentable in the type system, exactly as `EffectDifferenceOperand`
+ *  documents. */
+export type EffectScaledOperand = number | EffectCount | EffectXValue;
+
+/** scaled — a fixed positive-integer multiplier times a terminal value (issue
+ *  #2366), the value grammar's multiplication counterpart to `difference`'s
+ *  subtraction. A FOURTEENTH `EffectValue` grammar member; like `difference`
+ *  it IS new grammar (arithmetic), but like every member since `X` (#852) it
+ *  is NOT an Op and NOT a new STRUCTURAL construct — the frozen set stays
+ *  bind/ref/if/forEach (ADR 0045).
+ *
+ *  Reason to exist: Pest Infestation ("create twice X 1/1 Pest tokens", C21,
+ *  #2369) needs `2 * X`. `EffectXValue`'s own doc comment says plainly
+ *  "nothing composes it" — reading X back verbatim was the whole contract.
+ *  `EffectDomainValue.times` is the nearest shipped precedent for a
+ *  fixed-literal multiplier (Wandering Stream's "gain TWO life for each
+ *  basic land type"), but it is baked into ONE member (Domain) and cannot
+ *  scale an arbitrary terminal — generalizing THAT shape, rather than
+ *  minting a card-shaped `{ twiceX: true }`, is "generalize, don't add"
+ *  (`.claude/rules/gre-development.md` § Primitive reuse) applied here: the
+ *  `{ of/value, times }` scaling shape already shipped once, this reuses it
+ *  for the general terminal-operand grammar instead of one player-scoped
+ *  read.
+ *
+ *  Depth-1 discipline (ADR 0045's frozen-grammar defence, matching
+ *  `EffectDifferenceValue`'s own doc comment verbatim): exactly ONE
+ *  operator (multiplication), exactly ONE non-literal operand, and that
+ *  operand is a TERMINAL (`EffectScaledOperand`) — never a full
+ *  `EffectValue`. `{ scaled: { value: { scaled: {...} }, times: n } }` is
+ *  grammatically impossible: `EffectScaledOperand` does not include
+ *  `EffectScaledValue`. `times` itself is a plain positive-int literal
+ *  (mirrors `EffectCountSpec.times` / `EffectDomainValue.times`, issue
+ *  #999's rule) — never a ref/X/nested value, for the identical reason a
+ *  second value slot there would reopen the expression grammar.
+ *
+ *  Parametrizing `EffectDifferenceValue` instead was considered and
+ *  rejected: `difference` SUBTRACTS two independent terminals — there is no
+ *  multiplication to parametrize onto it, and "twice X" is one operand
+ *  scaled by a constant, not two operands combined.
+ *
+ *  CR 107.1b: unlike `difference`, no sign clamp is needed here — every
+ *  `EffectScaledOperand` case is non-negative by construction (a positive-int
+ *  literal, a `count`'s cardinality, or CR 107.3's non-negative chosen X) and
+ *  `times` is a positive int, so the product is always non-negative. */
+export interface EffectScaledValue {
+    scaled: {
+        /** The terminal value being scaled. */
+        value: EffectScaledOperand;
+        /** Fixed positive-integer multiplier. */
+        times: number;
+    };
+}
+
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
  *  reading a bound object's numeric property, a `count` of a selected set, the
  *  chosen-cost `X` (issue #852), a `counters` count on a selected object
  *  (issue #1015), a selected object's `manaValue` (issue #680), a player's
  *  `domain` (issue #1066), a permanent's `escaped` flag (issue #695), the
  *  currently-resolving triggered ability's `abilityResolutionCount` (issue
- *  #1189), or the `difference` of two terminals (issue #2006). The value
- *  grammar is capped at these — beyond `difference`'s single, non-nestable
- *  subtraction there is no arithmetic and there are no expressions (the
- *  frozen-grammar defence, ADR 0045). */
+ *  #1189), the `difference` of two terminals (issue #2006), or a terminal
+ *  `scaled` by a fixed multiplier (issue #2366). The value grammar is capped
+ *  at these — beyond `difference`'s single, non-nestable subtraction and
+ *  `scaled`'s single, non-nestable multiplication there is no arithmetic and
+ *  there are no expressions (the frozen-grammar defence, ADR 0045). */
 export type EffectValue =
     | number
     | EffectRef
@@ -9576,7 +9646,8 @@ export type EffectValue =
     | EffectEscapedValue
     | EffectAbilityResolutionCountValue
     | EffectLifeGainedThisTurnValue
-    | EffectDifferenceValue;
+    | EffectDifferenceValue
+    | EffectScaledValue;
 
 /** lifeGainedThisTurn — the total life a PLAYER has gained so far this turn
  *  (CR 119.3, issue #1457), a thin JSON-pure skin over

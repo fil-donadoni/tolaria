@@ -3283,7 +3283,24 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  (ATQ) and Storm World (LEG) — both "N minus the number of cards in their
  *  hand" — the literal-minus-count variants the operand union also covers.
  *  A `plus` / `max` / nested difference is deliberately absent and is a NEW
- *  design decision with its own issue, not an implied widening of this row. */
+ *  design decision with its own issue, not an implied widening of this row.
+ *  `scaled` (issue #2366, `{ scaled: { value, times } }`) IS a new
+ *  value-grammar member — the FOURTEENTH — and the value grammar's ONE
+ *  multiplication operator, `difference`'s sibling (subtraction). Same
+ *  non-Op, non-ADR-0045-reopening status: a value member, not a structural
+ *  construct. Its operand type, `EffectScaledOperand`, is
+ *  `EffectDifferenceOperand` PLUS the chosen-cost `X` — a SEPARATE type, not a
+ *  widening of `EffectDifferenceOperand` in place, because `difference` was
+ *  deliberately shipped X-free (its own test rejects an `X` operand) and
+ *  `scaled` exists specifically to give X a multiplier
+ *  (`EffectXValue`'s own doc comment: "nothing composes it" — until now).
+ *  Reason to exist: Pest Infestation (C21, #2369) is "create twice X 1/1 Pest
+ *  tokens" — `EffectDomainValue.times` is the nearest shipped multiplier
+ *  precedent, but it is baked into ONE member (Domain); generalizing that
+ *  `{ of/value, times }` shape to any terminal, rather than a card-shaped
+ *  `{ twiceX: true }`, is "generalize, don't add". One operator, one
+ *  non-literal operand, that operand a TERMINAL — the value grammar stays
+ *  depth-1 exactly as `difference` keeps it. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED
