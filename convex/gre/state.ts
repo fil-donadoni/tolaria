@@ -11,6 +11,7 @@ import {
     type DomainDrivenCostReduction,
     type DelayedTriggerInlineBody,
     type DelayedTriggerTiming,
+    type DiscardCause,
     type DrawReplacementEvent,
     type DrawReplacementOutcome,
     type DrawStepPlan,
@@ -2242,6 +2243,14 @@ export type PendingActivation = {
      *  `discardToGraveyard` so CARD_DISCARDED fires — Marauding Mako). Deferred
      *  to commit so a cancelled payment leaves the card in hand. */
     discardThisSource?: boolean;
+    /** CR 702.29c / 702.29f — the deferred `discardThisSource` above pays an
+     *  activation cost of a CYCLING ability (cycling or typecycling), so the
+     *  discard performed at commit carries `cause: "cycling"`. Mirrors
+     *  `ActivatedAbility.cost.cyclingCost`, which `buildPendingActivation`
+     *  copies here: the ability object is not in scope at the commit site, and
+     *  re-deriving the fact from an id or oracle text would fail open. Absent
+     *  ⇒ an ordinary discard cost (Harvester of Misery). */
+    cyclingCost?: boolean;
     /** CR 702.129a / 118.3 — the Eternalize "Exile this card from your
      *  graveyard" cost. When set, the SOURCE card moves graveyard → exile at
      *  commit. Deferred to commit for the same reason as `discardThisSource`:
@@ -9149,7 +9158,8 @@ export function emitCardDiscarded(
     state: GameState,
     playerId: string,
     cardInstanceId: string,
-    cardId?: string
+    cardId?: string,
+    cause?: DiscardCause
 ): void {
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
@@ -9158,6 +9168,9 @@ export function emitCardDiscarded(
             playerId,
             cardInstanceId,
             ...(cardId ? { cardId } : {}),
+            // CR 702.29c/d — the cycling marker rides the ONE discard event, so
+            // "cycles or discards" still fires exactly once (see `DiscardCause`).
+            ...(cause ? { cause } : {}),
         },
     ];
 }
@@ -17476,11 +17489,19 @@ export function payDiscardLastDrawn(
  *  CARD_DISCARDED so "whenever you discard a card" triggers (Necropotence) fire
  *  off EVERY discard path. Knowledge clearing (ADR 0026) stays at the call
  *  sites because the conservative scope differs per path (owner-chosen vs
- *  random vs cleanup). No-op (returns false) if the card is no longer in hand. */
+ *  random vs cleanup). No-op (returns false) if the card is no longer in hand.
+ *
+ *  `cause` marks the discards the rules distinguish (CR 702.29c — a cycling
+ *  cost payment) and rides onto the single CARD_DISCARDED event; omitting it
+ *  means "an ordinary discard", which is what every producer that predates the
+ *  distinction correctly is. Producer census (one row per call site) lives in
+ *  the PR for issue #2442 — only the three `cost.discardThis` commit sites can
+ *  ever pass a cause, and only when the ability declares `cost.cyclingCost`. */
 export function discardToGraveyard(
     state: GameState,
     playerId: string,
-    cardInstanceId: string
+    cardInstanceId: string,
+    cause?: DiscardCause
 ): boolean {
     const player = getPlayer(state, playerId);
     const handCard = player.hand.find((c) => c.id === cardInstanceId);
@@ -17534,7 +17555,7 @@ export function discardToGraveyard(
             },
         ]);
     }
-    emitCardDiscarded(state, playerId, repl.cardInstanceId, cardId);
+    emitCardDiscarded(state, playerId, repl.cardInstanceId, cardId, cause);
     return true;
 }
 

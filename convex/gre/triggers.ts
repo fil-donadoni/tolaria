@@ -606,6 +606,40 @@ export function collectTriggers(
         out.push(buildMadnessReflexiveTrigger(state, card, event.playerId));
     }
 
+    // CR 702.29c — "When you cycle this card" and any other trigger on the
+    // DISCARDED CARD ITSELF (`functionsFromOwnDiscard`). Same shape as the
+    // Madness block above: the source is not on any battlefield, so every scan
+    // above misses it, and it is located off the CARD_DISCARDED event rather
+    // than by sweeping a fixed pile — "these abilities trigger from whatever
+    // zone the card winds up in after it's cycled", which is the graveyard
+    // normally and EXILE when a CR 614 graveyard-bound replacement (Dauthi
+    // Voidwalker / Yawgmoth's Will) or Madness redirected it.
+    //
+    // Abilities are read from the PRINTED definition (CR 603.6 — no continuous
+    // effect applies to a card outside the battlefield), and the marker is
+    // fail-closed, so an unmarked battlefield trigger on the same card
+    // (Marauding Mako's "whenever you discard") is never collected here — which
+    // together with the single-event design is CR 702.29d: a "cycles or
+    // discards" ability fires exactly once on a cycled card.
+    for (const event of events) {
+        if (event.type !== "CARD_DISCARDED") continue;
+        const owner = getPlayer(state, event.playerId);
+        const card =
+            owner.graveyard.find((c) => c.id === event.cardInstanceId) ??
+            owner.exile.find((c) => c.id === event.cardInstanceId);
+        if (!card) continue;
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        const abilities = tryGetDefinition(cardId)?.triggeredAbilities;
+        if (!abilities || abilities.length === 0) continue;
+        for (const ability of abilities) {
+            if (!ability.functionsFromOwnDiscard) continue;
+            if (!triggerHandlesEventType(ability, event.type)) continue;
+            if (!ability.matches(event, card, state)) continue;
+            out.push(buildTriggerItem(state, card, ability.id, event));
+        }
+    }
+
     return out;
 }
 

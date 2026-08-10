@@ -19,7 +19,7 @@ import {
     tryAutoCommitPendingActivation,
 } from "../../game";
 import { normalizeManaCost, resolveTopOfStack, type GameState } from "../state";
-import { getCardByName, getDefinition } from "../../cards";
+import { getAllCards, getCardByName, getDefinition } from "../../cards";
 import { raugrinTriome } from "../../cards/sets/iko/colorless";
 import { grizzlyBears } from "../../cards/sets/lea";
 import { trollOfKhazadDum } from "../../cards/sets/ltr/black";
@@ -394,5 +394,53 @@ describe("typecycling (CR 702.29e/f)", () => {
         expect(theirs.players[0].graveyard.map((c) => c.id)).toEqual([
             "troll-hand",
         ]);
+    });
+});
+
+// CR 702.29c/f (issue #2442) — the "this discard pays a cycling cost" marker.
+// `cyclingActivationShell` is the ONLY place it is declared, so both public
+// factories carry it structurally; this sweep is what fails if a future cycling
+// card is hand-authored around the shell (it would ship a silently inert "when
+// you cycle this card" interaction) or if the marker is pinned on an ability
+// that is not a cycling ability.
+describe("cycling cost marker (CR 702.29c/f)", () => {
+    /** A printed cycling / typecycling ability, recognised by the reminder text
+     *  BOTH factories render ("Cycling {2} (…)", "Mountaincycling {2} (…)") —
+     *  deliberately NOT by the ability id, which is exactly the fail-open
+     *  string match the marker exists to avoid in production code. */
+    const isPrintedCyclingAbility = (oracleText: string) =>
+        /^[A-Za-z]*[Cc]ycling \{/.test(oracleText);
+
+    const abilities = getAllCards().flatMap((card) =>
+        (card.activatedAbilities ?? []).map((ability) => ({
+            card: card.name,
+            ability,
+        }))
+    );
+
+    it("every catalogue cycling/typecycling ability declares cost.cyclingCost", () => {
+        const printed = abilities.filter((a) =>
+            isPrintedCyclingAbility(a.ability.oracleText)
+        );
+        // Guard the guard: the catalogue really does ship cycling cards.
+        expect(printed.length).toBeGreaterThan(0);
+        const unmarked = printed
+            .filter((a) => a.ability.cost.cyclingCost !== true)
+            .map((a) => `${a.card} / ${a.ability.id}`);
+        expect(unmarked).toEqual([]);
+        // CR 702.29a — a cycling cost always includes discarding this card.
+        expect(
+            printed.filter((a) => a.ability.cost.discardThis !== true)
+        ).toEqual([]);
+    });
+
+    it("nothing else declares cost.cyclingCost", () => {
+        const marked = abilities.filter(
+            (a) => a.ability.cost.cyclingCost === true
+        );
+        const notCycling = marked
+            .filter((a) => !isPrintedCyclingAbility(a.ability.oracleText))
+            .map((a) => `${a.card} / ${a.ability.id}`);
+        expect(notCycling).toEqual([]);
     });
 });

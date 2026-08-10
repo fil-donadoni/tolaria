@@ -2576,6 +2576,11 @@ export function buildPendingActivation(opts: {
         tapSource: !!ability.cost.tap,
         sacrificeSource: !!ability.cost.sacrifice,
         ...(ability.cost.discardThis ? { discardThisSource: true } : {}),
+        // CR 702.29c / 702.29f — carry the "this discard pays a cycling cost"
+        // marker to commit, where the ability object is no longer in scope.
+        // Declared once on `cyclingActivationShell`, so cycling AND typecycling
+        // both get it without either factory restating it.
+        ...(ability.cost.cyclingCost ? { cyclingCost: true } : {}),
         // CR 702.129a / 118.3 — Eternalize's "Exile this card from your
         // graveyard" leg. Deferred to commit like `discardThisSource` so a
         // cancelled mana payment leaves the graveyard untouched.
@@ -2858,7 +2863,17 @@ export function tryAutoCommitPendingActivation(
     // vanished-source policy above). Runs BEFORE the stack-item clone below so
     // the ability's source is captured while still valid.
     if (pa.discardThisSource) {
-        if (!discardToGraveyard(state, playerId, card.id)) {
+        // CR 702.29c — a cycling/typecycling cost payment is marked on the one
+        // CARD_DISCARDED event so a "when you cycle this card" trigger can tell
+        // it apart from an ordinary discard, without a second event (702.29d).
+        if (
+            !discardToGraveyard(
+                state,
+                playerId,
+                card.id,
+                pa.cyclingCost ? "cycling" : undefined
+            )
+        ) {
             state.pendingActivation = undefined;
             return null;
         }
@@ -6012,8 +6027,16 @@ export function finalizeTargetSelection(
         // from hand as the ability commits, routed through the shared choke
         // point so CARD_DISCARDED fires (Marauding Mako). Runs BEFORE the
         // stack-item clone below (the card object persists after the move).
+        // CR 702.29c — `cyclingCost` marks a cycling/typecycling cost payment on
+        // the one CARD_DISCARDED event (Harvester of Misery's discard-this cost
+        // is NOT a cycling cost and stays unmarked).
         if (ability.cost.discardThis) {
-            discardToGraveyard(state, player.id, card.id);
+            discardToGraveyard(
+                state,
+                player.id,
+                card.id,
+                ability.cost.cyclingCost ? "cycling" : undefined
+            );
         }
         // CR 702.129a / 118.3 — the "Exile this card from your graveyard"
         // activation cost (Eternalize). Runs BEFORE the stack-item clone below
@@ -13014,8 +13037,15 @@ export function activateAbilityOnState(
     // source from hand as the ability commits, routed through the shared
     // choke point so CARD_DISCARDED fires (Marauding Mako). Runs BEFORE the
     // stack-item clone below (the card object persists after the move).
+    // CR 702.29c — `cyclingCost` marks a cycling/typecycling cost payment on the
+    // one CARD_DISCARDED event; an ordinary discard-this cost stays unmarked.
     if (ability.cost.discardThis) {
-        discardToGraveyard(state, player.id, card.id);
+        discardToGraveyard(
+            state,
+            player.id,
+            card.id,
+            ability.cost.cyclingCost ? "cycling" : undefined
+        );
     }
     // CR 702.129a / 118.3 — the "Exile this card from your graveyard"
     // activation cost (Eternalize): the source moves graveyard → exile as the

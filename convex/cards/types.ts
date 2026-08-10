@@ -926,6 +926,27 @@ export interface ActivatedAbility {
          *  sacrifices THIS source from the battlefield). Used by every Cycling
          *  card. */
         discardThis?: boolean;
+        /** CR 702.29f — this activation cost IS a cycling cost ("Typecycling
+         *  abilities are cycling abilities, and typecycling costs are cycling
+         *  costs"). The declared, fail-closed discriminator that lets the
+         *  discard choke point tell "this card was discarded to pay an
+         *  activation cost of a cycling ability" (CR 702.29c) apart from every
+         *  other discard, WITHOUT a second event (CR 702.29d — a "cycles or
+         *  discards" ability must trigger exactly once on a cycled card).
+         *
+         *  Set ONLY by `cyclingActivationShell`
+         *  (`cards/abilities/cycling.ts`), the single shell both
+         *  `cyclingAbility` and `typecyclingAbility` build through — so
+         *  702.29f holds structurally rather than by each factory remembering
+         *  the flag. Never set by an author by hand, and deliberately NOT
+         *  derived from the ability's id or oracle text: a string match would
+         *  fail open the moment a variant is added.
+         *
+         *  Only meaningful together with `discardThis` (the cycling cost's
+         *  discard leg). A `discardThis` cost WITHOUT it — Harvester of Misery
+         *  (`sets/big/black.ts`) — is an ordinary discard cost, not a cycling
+         *  cost, and must not fire a "when you cycle this card" trigger. */
+        cyclingCost?: boolean;
         /** "Exile this card from your graveyard" as an activation cost
          *  (CR 118.3 / 702.129a — the Eternalize cost's non-mana component;
          *  CR 702.128a Embalm is the same shape). The SOURCE card itself moves
@@ -7609,7 +7630,28 @@ export interface CardDiscardedEvent {
     /** Card definition id of the discarded card, so type-based filters can run
      *  without re-reading the graveyard. */
     cardId?: string;
+    /** WHY the card was discarded, when the reason is one the rules care about.
+     *  Absent for an ordinary discard (a rummage effect, the CR 514.1 cleanup
+     *  hand-size discard, a random discard, a non-cycling discard cost).
+     *
+     *  This is a payload field on the ONE discard event, deliberately not a
+     *  second event type: CR 702.29d — "Some cards have abilities that trigger
+     *  whenever a player 'cycles or discards' a card. These abilities trigger
+     *  only once when a card is cycled." A `CARD_CYCLED` event emitted beside
+     *  this one would make Marauding Mako's "whenever you discard one or more
+     *  cards" fire twice. One event, one trigger; "when you cycle this card"
+     *  (CR 702.29c) is a predicate on this field. Same shape as
+     *  `CardDrawnEvent.drawIndexThisTurn` / `CardMilledEvent.types`. */
+    cause?: DiscardCause;
 }
+
+/** Why a `CARD_DISCARDED` event happened, for the reasons the CR distinguishes.
+ *  `"cycling"` = CR 702.29c — "When you cycle this card" means "When you discard
+ *  this card to pay an activation cost of a cycling ability", which per
+ *  CR 702.29f includes a typecycling ability. Undefined means "an ordinary
+ *  discard": the union is FAIL-CLOSED, so a discard producer that knows nothing
+ *  about this field can never wrongly look like a cycling cost payment. */
+export type DiscardCause = "cycling";
 
 /** Emitted whenever a card is put into its owner's graveyard from their
  *  library by a mill (CR 701.17). One event per card, emitted AFTER the card
@@ -8242,6 +8284,25 @@ export interface TriggeredAbility {
      *  casting does NOT wrongly trigger from the stack (CR 603.6 — an ability
      *  functions only on the battlefield unless it says otherwise). */
     functionsFromStack?: true;
+    /** CR 702.29c — this ability triggers off the discard of ITS OWN card, and
+     *  is collected "from whatever zone the card winds up in after it's
+     *  cycled": the graveyard normally, or exile when a CR 614 graveyard-bound
+     *  replacement (Dauthi Voidwalker / Yawgmoth's Will) or Madness redirected
+     *  it. `collectTriggers` sweeps that pile off the CARD_DISCARDED event
+     *  itself, the same shape as the Madness reflexive trigger.
+     *
+     *  A DEDICATED marker rather than a `zone` member, for the same reason
+     *  `functionsFromStack` is: `zone` selects which pile to sweep for a source
+     *  SITTING somewhere and is fixed at authoring time, whereas the zone a
+     *  discarded card wound up in is only known from the event. Set by the
+     *  `cycledTrigger` factory (`cards/abilities/cycling.ts`), never by hand.
+     *
+     *  Deliberately FAIL-CLOSED: without it a card in the graveyard is never
+     *  scanned for CARD_DISCARDED, so a battlefield "whenever you cycle or
+     *  discard a card" ability (Marauding Mako) does NOT fire off its own
+     *  discard from the graveyard (CR 603.6 — an ability functions only on the
+     *  battlefield unless it says otherwise). */
+    functionsFromOwnDiscard?: true;
     /** True if `event` triggers this ability on the permanent carrying it.
      *  `state` is supplied for state triggers (CR 603.8) that need to inspect
      *  persistent game conditions. */
