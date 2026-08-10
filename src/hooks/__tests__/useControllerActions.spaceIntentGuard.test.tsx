@@ -56,6 +56,7 @@ import {
 vi.mock("@convex/cards", () => ({
     getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     getDefinition: () => ({ id: "plain", name: "T", staticEffects: [] }),
+    tryGetDefinition: () => ({ id: "plain", name: "T", staticEffects: [] }),
 }));
 vi.mock("@convex/cards/attackRestrictions", () => ({
     globalAttackProhibitionReason: () => undefined,

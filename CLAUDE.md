@@ -258,12 +258,27 @@ Full gate mandatory before done/merge — never skipped.
   **`bun run check:pr`** (= `check:all:inner`: format + lint + type-check +
   `check:index` + `check:stubs`, **plus `check:guards`**; light tier, no
   mutex). Never hand-pick a subset (#omitting `check:index` broke every
-  card-shipping PR at the merge-train). **`check:guards`** (#1912) runs the
-  bot suite's fast lane (`TOLARIA_BOT_FAST=1`, deny-list in
-  `vitest.config.ts`, ~60s) — the catalogue-wide guards (`aiEffectsGuard`,
-  `pickRatings`, `opValuerCoverage`, censuses) live there and card PRs trip
-  them routinely — plus `scripts/__tests__` (the repo's own hygiene guards,
-  ~4s). Deny-list drift guarded by `scripts/__tests__/bot-fast-lane.test.ts`.
+  card-shipping PR at the merge-train). **`check:guards`** runs two lanes: the
+  bot suite's fast lane (#1912 — `TOLARIA_BOT_FAST=1`, deny-list in
+  `vitest.config.ts`, ~60s), where the catalogue-wide bot guards
+  (`aiEffectsGuard`, `pickRatings`, `opValuerCoverage`, censuses) live; and the
+  **whole node project** (`convex/**` + `scripts/**`, 577 files, ~26s at the
+  light tier's 2 workers — no jsdom env init, `isolate: false`, so the card
+  registry is imported once per worker). The node lane used to be filtered to
+  `scripts/__tests__`, which left every backend catalogue guard
+  (`effects/validate`'s Op-registry/executor/schema coverage,
+  `mechanicsRegistry`, `divergenceMarkers`, `serialize`'s drift check) outside
+  the light gate — a branch reached review with `validate.test.ts` red and a
+  `check:pr` that exited 0. Scope pinned by
+  `scripts/__tests__/check-guards-scope.test.ts`; bot deny-list drift by
+  `bot-fast-lane.test.ts`.
+  **Still outside the light gate: the jsdom half** (`src/**`, 362 files, 171s —
+  per-file jsdom environment init, so no deny-list helps and `--pool=threads`
+  measured identical). Cover `src/` changes with targeted runs. Its one known
+  cross-boundary breakage class — a `vi.mock("@convex/cards")` factory going
+  stale when a name becomes barrel-internal (#2339: 102 tests, 12 files, seen
+  first at the merge-train) — is caught statically instead, by
+  `scripts/__tests__/convex-cards-barrel-mock.test.ts` in the node lane.
 - **Before done/merge** — full gate once: `bun run check:all` (zero errors) +
   `bun run test` (zero failures).
 

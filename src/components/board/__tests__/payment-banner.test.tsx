@@ -42,14 +42,16 @@ vi.mock("@convex/cards", () => {
         "artifact-spell": ["Artifact"],
         "some-spell": ["Instant"],
     };
+    const def = (id: string) => ({
+        id,
+        name: `Card ${id}`,
+        types: TYPES[id] ?? [],
+        supertypes: [],
+    });
     return {
         getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
-        getDefinition: (id: string) => ({
-            id,
-            name: `Card ${id}`,
-            types: TYPES[id] ?? [],
-            supertypes: [],
-        }),
+        getDefinition: def,
+        tryGetDefinition: def,
     };
 });
 

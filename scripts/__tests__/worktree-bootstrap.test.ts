@@ -453,12 +453,16 @@ describe("light pre-PR gate", () => {
         // projects would drag `ai-diagnosis.bot.test.ts` (163s of the suite's
         // 188s) into every pre-PR gate.
         expect(scripts["check:guards"]).toContain("TOLARIA_BOT_FAST=1");
-        // …and it must also cover this directory. `scripts/__tests__` holds the
-        // repo's own hygiene guards — including THIS test, which asserts the
-        // shape of `check:pr` itself. Those live in the APPLICATION suite, so
-        // before #1912 a change to the gate's own wiring could not be caught by
-        // running the gate: this very assertion went red in CI while `check:pr`
-        // reported green locally. 12 files, ~4s.
-        expect(scripts["check:guards"]).toContain("scripts/__tests__");
+        // …and it must also cover the application suite's node project WHOLE —
+        // `convex/**` + `scripts/**`, no path filter. It used to be filtered to
+        // `scripts/__tests__` (the repo's own hygiene guards, including THIS
+        // test): enough to catch a change to the gate's own wiring, but it left
+        // every backend catalogue guard outside the light gate, and a branch
+        // reached review with `convex/gre/effects/__tests__/validate.test.ts`
+        // red under a `check:pr` that exited 0. The whole project is ~26s at 2
+        // workers. Scope pinned in detail by `check-guards-scope.test.ts`.
+        expect(scripts["check:guards"]).toMatch(
+            /vitest run --project node\s*"?$/
+        );
     });
 });
