@@ -929,9 +929,14 @@ girare due suite complete a metà velocità ciascuna.
   `scripts/__tests__/src-test-env-split.test.ts`: un file selezionato da
   **nessun** progetto non gira e il gate resta verde. `bun run test:app` passa
   da 190s a 108s sul tier heavy.
-  Resta fuori dal gate leggero ciò che il DOM lo usa davvero (252 file, 97s a
-  2 worker sotto `happy-dom`, issue #2435:
-  init dell'ambiente DOM per file, quindi nessuna deny-list aiuta e
+  Resta fuori dal gate leggero ciò che il DOM lo usa davvero (252 file;
+  l'issue #2435 ha sostituito l'ambiente con `happy-dom` — misura
+  back-to-back sullo stesso albero, `TOLARIA_VITEST_WORKERS=2 bunx vitest run
+--project dom`, 2207 test passati in entrambi i casi: happy-dom 119,35s
+  wall / 44,33s di `environment` contro jsdom 180,05s wall / 113,03s di
+  `environment`, circa il 34% in meno sul wall, il 61% in meno sulla fase
+  `environment` — l'init dell'ambiente DOM per file resta comunque dominante,
+  quindi nessuna deny-list aiuta e
   `--pool=threads` misura identico) — per quelli servono i test mirati;
 
 - **prima di considerare finito** — `bun run check:all` + `bun run test` completi,

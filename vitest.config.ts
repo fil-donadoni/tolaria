@@ -26,9 +26,14 @@ const exclude = [
 //               environment-init cost for nothing. `node` env init is
 //               effectively free, which collapses the `environment` phase.
 //   - `dom`   → the src/ tests that genuinely need a DOM (React component /
-//               hook renders), run under `happy-dom` (issue #2435 — 133s →
-//               ~97s at the light tier's 2 workers, jsdom's per-file
-//               `environment` phase was the dominant cost). Only the DOM
+//               hook renders), run under `happy-dom` (issue #2435 — swapped
+//               from jsdom because jsdom's per-file `environment` phase was
+//               the dominant cost. Measured back-to-back on the SAME tree,
+//               `TOLARIA_VITEST_WORKERS=2 bunx vitest run --project dom`,
+//               252 files / 2207 passed both ways: happy-dom 119.35s wall /
+//               44.33s `environment`, jsdom 180.05s wall / 113.03s
+//               `environment` — ~34% off wall, ~61% off the `environment`
+//               phase). Only the DOM
 //               projects load the DOM setup file (jest-dom matchers +
 //               ResizeObserver stub).
 // The line between them is runtime NEED, not directory: `src` tests that touch
@@ -83,11 +88,13 @@ const BOT_GLOB_DOM = ["src/**/*.bot.test.{ts,tsx}"];
 // The dom project selected by directory, so 104 pure-logic `src` files paid
 // the DOM tax for a DOM they never touch: measured, that subset costs 57.8s
 // under jsdom and ~10-20s under node, and the whole dom project is 171s of
-// which 133s is per-file environment init (97s under jsdom before #2435; the
-// happy-dom swap in #2435 cut that phase further, to ~40s). The classifier
-// (`scripts/test-env-split.ts`) reads each file and disqualifies on any DOM
-// global, testing-library import, jest-dom matcher, or `vi.mock`/spy/fake-timer
-// (the node project runs `isolate: false`, so module-level state is shared).
+// which 133s is per-file environment init (issue #811's jsdom baseline; the
+// happy-dom swap in #2435 cut the `environment` phase to 44.33s measured on a
+// same-tree back-to-back run — see the `dom` project comment above). The
+// classifier (`scripts/test-env-split.ts`) reads each file and disqualifies
+// on any DOM global, testing-library import, jest-dom matcher, or
+// `vi.mock`/spy/fake-timer (the node project runs `isolate: false`, so
+// module-level state is shared).
 //
 // Computed at config load, never checked in: a file that grows a DOM dependency
 // moves back to dom on the next run with no list to update. Partition pinned

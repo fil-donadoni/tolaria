@@ -281,11 +281,14 @@ Full gate mandatory before done/merge — never skipped.
   pinned by `scripts/__tests__/src-test-env-split.test.ts` (a file selected by
   NO project runs nowhere and the gate stays green). `bun run test:app` 190s →
   108s at the heavy tier.
-  **Still outside the light gate: what genuinely needs a DOM** (252 files,
-  97s at 2 workers under `happy-dom`, issue #2435 — per-file environment
-  init, so no deny-list helps and
-  `--pool=threads` measured identical). Cover `src/` changes with targeted
-  runs. Its one known
+  **Still outside the light gate: what genuinely needs a DOM** (252 files;
+  issue #2435 swapped the environment to `happy-dom` — measured back-to-back
+  on the same tree, `TOLARIA_VITEST_WORKERS=2 bunx vitest run --project dom`,
+  2207 passed both ways: happy-dom 119.35s wall / 44.33s `environment` vs
+  jsdom 180.05s wall / 113.03s `environment`, ~34% off wall, ~61% off the
+  `environment` phase — per-file environment init still dominates, so no
+  deny-list helps and `--pool=threads` measured identical). Cover `src/`
+  changes with targeted runs. Its one known
   cross-boundary breakage class — a `vi.mock("@convex/cards")` factory going
   stale when a name becomes barrel-internal (#2339: 102 tests, 12 files, seen
   first at the merge-train) — is caught statically instead, by
