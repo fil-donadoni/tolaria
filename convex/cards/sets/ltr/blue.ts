@@ -3,16 +3,18 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../types";
+import { typecyclingAbility } from "../../abilities/cycling";
 
 // Lórien Revealed — {3}{U}{U} Sorcery. "Draw three cards. Islandcycling {1}
 // ({1}, Discard this card: Search your library for an Island card, reveal
-// it, put it into your hand, then shuffle.)" SIMPLIFIED (documented
-// deviation): only the main sorcery effect (CR 121.1 draw) ships here.
-// Islandcycling (CR 702.29c, a `[Subtype]cycling` variant) has no Mechanics
-// Registry row at all — plain Cycling is `implemented`, the typecycling
-// variant is uncensused and unbuilt (tracked-by: #1839). The card is
-// otherwise fully correct as a plain "Draw three cards" sorcery; it just
-// lacks its extra alternate-cast mode.
+// it, put it into your hand, then shuffle.)" (Issue #1839 completed the
+// card: it previously shipped as a plain "Draw three cards" sorcery with the
+// Islandcycling mode absent.)
+//
+// The cycling half is a normal activated ability on a NONPERMANENT card —
+// CR 702.29a's "functions only while the card is in a player's hand" is
+// exactly what `activateFromHand` gates, so a sorcery carries it the same way
+// a land or creature does.
 export const lorienRevealed: CardDefinition = {
     id: "0ce44270-a684-4489-9077-521456e6dfaa",
     name: "Lórien Revealed",
@@ -22,6 +24,8 @@ export const lorienRevealed: CardDefinition = {
     oracleText:
         "Draw three cards.\nIslandcycling {1} ({1}, Discard this card: Search your library for an Island card, reveal it, put it into your hand, then shuffle.)",
     effects: [{ op: "draw", player: "controller", count: 3 }],
+    // CR 702.29e/f — Islandcycling {1}.
+    activatedAbilities: [typecyclingAbility({ generic: 1 }, "Island")],
 };
 
 // Stern Scolding — {U} Instant. "Counter target creature spell with power or

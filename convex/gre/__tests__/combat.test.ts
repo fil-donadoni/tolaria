@@ -697,18 +697,104 @@ function combatWith(
     });
 }
 
-describe("getMinimumBlockers (CR 702.111a — generic threshold, ADR 0038)", () => {
-    it("returns 1 for a creature without menace (no constraint)", () => {
+// Producer census (issue #1839) — every source that can raise an attacker's
+// minimum-blocker threshold gets a row here, INCLUDING the must-NOT rows.
+// `MINIMUM_BLOCKER_RULES` (gre/combatRegistry.ts) is the declared census; this
+// block is its behavioural mirror, so a new rule row that forgets a guard (or
+// a keyword that accidentally starts counting) fails here.
+describe("getMinimumBlockers (CR 509.1b — max over every applicable rule, ADR 0038)", () => {
+    it("returns 1 for a creature with no minimum-blocker source (no constraint)", () => {
         const c = makeCard({ types: ["Creature"], staticAbilities: [] });
         expect(getMinimumBlockers(c)).toBe(1);
     });
 
-    it("returns 2 for a creature WITH menace (printed or granted keyword)", () => {
+    it("returns 2 for a creature WITH menace (printed or granted keyword, CR 702.111a)", () => {
         const c = makeCard({
             types: ["Creature"],
             staticAbilities: ["menace"],
         });
         expect(getMinimumBlockers(c)).toBe(2);
+    });
+
+    it("returns N for the parametrized `minimum-blockers:N` marker (Troll of Khazad-dûm's N=3)", () => {
+        const c = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["minimum-blockers:3"],
+        });
+        expect(getMinimumBlockers(c)).toBe(3);
+    });
+
+    it("takes the HIGHEST minimum when several sources apply (CR 509.1b applies every restriction)", () => {
+        // menace (2) + minimum-blockers:3 → 3, in either declaration order.
+        expect(
+            getMinimumBlockers(
+                makeCard({
+                    types: ["Creature"],
+                    staticAbilities: ["menace", "minimum-blockers:3"],
+                })
+            )
+        ).toBe(3);
+        expect(
+            getMinimumBlockers(
+                makeCard({
+                    types: ["Creature"],
+                    staticAbilities: ["minimum-blockers:3", "menace"],
+                })
+            )
+        ).toBe(3);
+        // …and a LOWER declared minimum never lowers menace's 2.
+        expect(
+            getMinimumBlockers(
+                makeCard({
+                    types: ["Creature"],
+                    staticAbilities: ["menace", "minimum-blockers:1"],
+                })
+            )
+        ).toBe(2);
+    });
+
+    // --- must-NOT rows: sources that look adjacent but impose no minimum ---
+
+    it("does NOT count evasion keywords — they veto individual blockers, not counts", () => {
+        for (const keyword of [
+            "flying",
+            "fear",
+            "shadow",
+            "trample",
+            "unblockable",
+            "swampwalk",
+        ]) {
+            expect(
+                getMinimumBlockers(
+                    makeCard({
+                        types: ["Creature"],
+                        staticAbilities: [keyword],
+                    })
+                ),
+                keyword
+            ).toBe(1);
+        }
+    });
+
+    it("fails CLOSED on a malformed or non-positive marker parameter", () => {
+        for (const declared of [
+            "minimum-blockers:0",
+            "minimum-blockers:",
+            "minimum-blockers:x",
+            "minimum-blockers",
+            "minimum-blockers:3x",
+            "xminimum-blockers:3",
+        ]) {
+            expect(
+                getMinimumBlockers(
+                    makeCard({
+                        types: ["Creature"],
+                        staticAbilities: [declared],
+                    })
+                ),
+                declared
+            ).toBe(1);
+        }
     });
 });
 
@@ -751,35 +837,54 @@ describe("validateMinimumBlockers (DECLARE_BLOCKERS — menace, CR 509.1b/c)", (
         expect(validateMinimumBlockers(state)).toEqual({ ok: true });
     });
 
-    // Parameterised on the threshold: the same check enforces a hypothetical
-    // "three or more" variant once getMinimumBlockers raises the number — proves
-    // the rule is generic, not menace-specific.
+    // Parameterised on the threshold: the SAME validator enforces menace's
+    // "two or more" and the `minimum-blockers:N` rules-text form's "three or
+    // more" — proof the rule is generic, not menace-specific. Every row now
+    // drives the real `validateMinimumBlockers` (issue #1839: the min=3 rows
+    // used to assert arithmetic against a hand-computed count, never reaching
+    // the subject at all).
     it.each([
-        { min: 2, blockers: 1, ok: false },
-        { min: 2, blockers: 2, ok: true },
-        { min: 3, blockers: 2, ok: false },
-        { min: 3, blockers: 3, ok: true },
-    ])("min=$min blocked-by=$blockers → ok=$ok", ({ min, blockers, ok }) => {
-        const attacker = makeCard({
-            id: "atk",
-            types: ["Creature"],
-            power: 4,
-            toughness: 4,
-            // Encode the threshold directly so the test is independent of
-            // which keyword maps to which number.
-            staticAbilities: min === 2 ? ["menace"] : [],
-        });
-        const blockerIds = Array.from({ length: blockers }, (_, i) => `b${i}`);
-        const state = combatWith(attacker, blockerIds);
-        // For min===3 there is no shipped keyword; assert the helper's
-        // contract directly (the generalisation point), then the validator
-        // for the menace (min===2) rows.
-        if (min === 3) {
-            // Simulate a future "three or more" by overriding the count.
-            const blockedBy = blockerIds.length;
-            expect(blockedBy > 0 && blockedBy < min).toBe(!ok);
-        } else {
+        { declared: "menace", min: 2, blockers: 1, ok: false },
+        { declared: "menace", min: 2, blockers: 2, ok: true },
+        { declared: "minimum-blockers:3", min: 3, blockers: 2, ok: false },
+        { declared: "minimum-blockers:3", min: 3, blockers: 3, ok: true },
+        { declared: "minimum-blockers:3", min: 3, blockers: 0, ok: true },
+    ])(
+        "$declared (min=$min) blocked-by=$blockers → ok=$ok",
+        ({ declared, blockers, ok }) => {
+            const attacker = makeCard({
+                id: "atk",
+                types: ["Creature"],
+                power: 4,
+                toughness: 4,
+                staticAbilities: [declared],
+            });
+            const blockerIds = Array.from(
+                { length: blockers },
+                (_, i) => `b${i}`
+            );
+            const state = combatWith(attacker, blockerIds);
             expect(validateMinimumBlockers(state).ok).toBe(ok);
+        }
+    );
+
+    it("blames the keyword only when there IS one — the rules-text form prints no '(menace)'", () => {
+        const declaredAttacker = makeCard({
+            id: "declared-min",
+            types: ["Creature"],
+            power: 6,
+            toughness: 5,
+            staticAbilities: ["minimum-blockers:3"],
+        });
+        const result = validateMinimumBlockers(
+            combatWith(declaredAttacker, ["b1", "b2"])
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.reason).toMatch(
+                /can't be blocked except by 3 or more creatures/
+            );
+            expect(result.reason).not.toMatch(/menace/i);
         }
     });
 });

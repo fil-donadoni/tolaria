@@ -4,6 +4,9 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import type { CardDefinition } from "../../types";
+import { typecyclingAbility } from "../../abilities/cycling";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { createFoodTokenOp } from "../../abilities/tokens/foodToken";
 
 // Delighted Halfling — "{T}: Add {C}.\n{T}: Add one mana of any color. Spend
 // this mana only to cast a legendary spell, and that spell can't be
@@ -61,20 +64,32 @@ export const delightedHalfling: CardDefinition = {
 };
 
 // Generous Ent — "Reach. When this creature enters, create a Food token.
-// Forestcycling {1} ({1}, Discard this card: Search your library for a
-// Forest card, reveal it, put it into your hand, then shuffle.)" Blocked:
-// Forestcycling (CR 702.29c, a `[Subtype]cycling` variant) has no Mechanics
-// Registry row at all — plain Cycling is `implemented`, the typecycling
-// variant is uncensused and unbuilt. Kept as a whole-card stub rather than a
-// partial ship (the ETB Food token is free today).
-// tracked-by: #1839
-// export const generousEnt: CardDefinition = {
-//     id: "85d22d5d-3875-42ff-b51e-c6e21db201f5",
-//     name: "Generous Ent",
-//     rarity: "common",
-//     manaCost: { X: 5, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Treefolk"],
-//     power: 5,
-//     toughness: 7,
-// };
+// Forestcycling {1}." (Issue #1839.) All three clauses declarative:
+//  - Reach: CR 702.17, a plain `staticAbilities` keyword.
+//  - The ETB Food token: CR 603.6a `enteredTrigger` + `createFoodTokenOp`,
+//    the shared CR 707.2 Food spec (never a hand-rolled token spec).
+//  - Forestcycling {1}: CR 702.29e typecycling — `typecyclingAbility`, which
+//    shares plain Cycling's activation shell (CR 702.29f).
+export const generousEnt: CardDefinition = {
+    id: "85d22d5d-3875-42ff-b51e-c6e21db201f5",
+    name: "Generous Ent",
+    rarity: "common",
+    manaCost: { X: 5, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Treefolk"],
+    power: 5,
+    toughness: 7,
+    oracleText:
+        'Reach\nWhen this creature enters, create a Food token. (It\'s an artifact with "{2}, {T}, Sacrifice this token: You gain 3 life.")\nForestcycling {1} ({1}, Discard this card: Search your library for a Forest card, reveal it, put it into your hand, then shuffle.)',
+    staticAbilities: ["reach"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "generous-ent-etb-food",
+            oracleText: "When this creature enters, create a Food token.",
+            scope: "self",
+            effects: [createFoodTokenOp()],
+        }),
+    ],
+    // CR 702.29e/f — Forestcycling {1}.
+    activatedAbilities: [typecyclingAbility({ generic: 1 }, "Forest")],
+};

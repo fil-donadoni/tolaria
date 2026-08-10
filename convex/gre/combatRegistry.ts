@@ -210,6 +210,98 @@ export const ATTACK_RESTRICTION_RULES: readonly AttackRestrictionRule[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Minimum-blocker rules registry (CR 509.1b)
+// ---------------------------------------------------------------------------
+
+/** A rule that raises the MINIMUM number of creatures that must block an
+ *  attacker together ("can't be blocked except by N or more creatures").
+ *
+ *  Unlike `EvasionRule`, this is not a per-blocker predicate: it is a count
+ *  constraint on the COMPLETE block declaration, judged once every block is
+ *  known (`validateMinimumBlockers` in `combat.ts`). Each rule reads one
+ *  declared `staticAbilities` string on the attacker and reports the minimum
+ *  that string imposes.
+ *
+ *  CR 509.1b applies EVERY restriction, so when several rules match the same
+ *  attacker the HIGHEST minimum wins — see `describeMinimumBlockers`. */
+export interface MinimumBlockerRule {
+    /** Stable rule id (also the Mechanics Registry / engine-internal-marker
+     *  name the declared string belongs to). */
+    id: string;
+    /** CR section reference. */
+    cr: string;
+    /** Reads the minimum this rule imposes out of ONE declared
+     *  `staticAbilities` string, or `undefined` when the string is not this
+     *  rule's. Parametrized rules parse their number out of the string. */
+    minimumFrom: (declared: string) => number | undefined;
+    /** Keyword name to name in the rejection message ("(menace)"), or
+     *  `undefined` for plain rules text that prints no keyword. */
+    sourceLabel?: string;
+}
+
+/** CR 702.111a — Menace: "This creature can't be blocked except by two or
+ *  more creatures." A fixed minimum of 2, keyed on the plain keyword. */
+const MENACE_MINIMUM_RULE: MinimumBlockerRule = {
+    id: "menace",
+    cr: "702.111a",
+    minimumFrom: (declared) => (declared === "menace" ? 2 : undefined),
+    sourceLabel: "menace",
+};
+
+/** The parametrized `minimum-blockers:N` marker — CR 509.1b rules text with
+ *  no keyword name of its own ("This creature can't be blocked except by
+ *  three or more creatures", LTR's Troll of Khazad-dûm). Declared verbatim on
+ *  the card's `staticAbilities`, censused in `ENGINE_INTERNAL_MARKERS`
+ *  (`convex/cards/mechanicsRegistry.ts`) rather than the CR keyword registry
+ *  because it is not a named keyword. `grantAbility` can hand it out like any
+ *  other static-ability string. */
+const MINIMUM_BLOCKERS_MARKER = /^minimum-blockers:(\d+)$/;
+const DECLARED_MINIMUM_RULE: MinimumBlockerRule = {
+    id: "minimum-blockers",
+    cr: "509.1b",
+    minimumFrom: (declared) => {
+        const m = MINIMUM_BLOCKERS_MARKER.exec(declared);
+        if (!m) return undefined;
+        const n = Number(m[1]);
+        return Number.isFinite(n) && n > 0 ? n : undefined;
+    },
+};
+
+export const MINIMUM_BLOCKER_RULES: readonly MinimumBlockerRule[] = [
+    MENACE_MINIMUM_RULE,
+    DECLARED_MINIMUM_RULE,
+];
+
+/** CR 509.1b — the minimum number of creatures that must block `attacker`
+ *  together, plus the keyword to blame in the rejection message.
+ *
+ *  Takes the MAXIMUM over every matching rule: CR 509.1b applies every
+ *  restriction simultaneously, so a creature with both menace and
+ *  `minimum-blockers:3` needs three blockers, not two. Default `{ min: 1 }`
+ *  = no constraint.
+ *
+ *  Reads the attacker instance's EFFECTIVE `staticAbilities`, which already
+ *  include keywords granted by anthems such as Goblin War Drums (the grant is
+ *  pushed into `staticAbilities` imperatively when the source resolves — see
+ *  `applySourceStaticEffects`). */
+export function describeMinimumBlockers(attacker: CardInstanceState): {
+    min: number;
+    sourceLabel?: string;
+} {
+    let min = 1;
+    let sourceLabel: string | undefined;
+    for (const declared of attacker.staticAbilities) {
+        for (const rule of MINIMUM_BLOCKER_RULES) {
+            const n = rule.minimumFrom(declared);
+            if (n === undefined || n <= min) continue;
+            min = n;
+            sourceLabel = rule.sourceLabel;
+        }
+    }
+    return sourceLabel !== undefined ? { min, sourceLabel } : { min };
+}
+
+// ---------------------------------------------------------------------------
 // Public evaluation API
 // ---------------------------------------------------------------------------
 

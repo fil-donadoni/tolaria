@@ -21,6 +21,7 @@ import type { CombatDeclarationCap } from "../cards/attackRestrictions";
 import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
+    describeMinimumBlockers,
 } from "./combatRegistry";
 
 /** Card definition id of the Legends World enchantment whose defender-history
@@ -193,26 +194,23 @@ export function getBlockerCap(state: GameState): number | undefined {
     return getBlockerCapEffect(state)?.max;
 }
 
-/** Generic minimum-blocker threshold (CR 509.1b, 702.111 menace).
+/** Generic minimum-blocker threshold (CR 509.1b).
  *
- *  Some evasion keywords don't forbid a blocker outright — they impose a
- *  MINIMUM on how many creatures must block the attacker together. Menace
- *  (CR 702.111a) sets that minimum to two ("can't be blocked except by two or
- *  more creatures"). The threshold is deliberately a single generic number so
- *  future "can't be blocked except by three or more creatures" variants reuse
- *  the same `confirmBlockers` enforcement path — they only raise this number.
+ *  Some restrictions don't forbid a blocker outright — they impose a MINIMUM
+ *  on how many creatures must block the attacker together. Menace
+ *  (CR 702.111a) sets that minimum to two; the parametrized
+ *  `minimum-blockers:N` marker covers the keyword-less rules-text form ("can't
+ *  be blocked except by three or more creatures").
+ *
+ *  Both are declared as rows in `MINIMUM_BLOCKER_RULES`
+ *  (`gre/combatRegistry.ts`) — the single census of what can raise the
+ *  threshold — and `describeMinimumBlockers` takes the MAXIMUM over every
+ *  matching row, because CR 509.1b applies every restriction at once.
  *
  *  Returns the per-attacker minimum number of blockers (default 1, i.e. no
- *  constraint). Reads the attacker instance's effective `staticAbilities`,
- *  which already include keywords granted by anthems such as Goblin War Drums
- *  (the grant is pushed into `staticAbilities` imperatively when the source
- *  resolves — see `applySourceStaticEffects`). */
+ *  constraint). */
 export function getMinimumBlockers(attacker: CardInstanceState): number {
-    // CR 702.111a — menace. If multiple "two or more" / "three or more"
-    // keywords ever stack, the highest minimum wins (CR 509.1b applies every
-    // restriction). Today only menace exists.
-    if (attacker.staticAbilities.includes("menace")) return 2;
-    return 1;
+    return describeMinimumBlockers(attacker).min;
 }
 
 /** Validates the COMPLETE set of declared blocks against every attacker's
@@ -255,15 +253,18 @@ export function validateMinimumBlockers(
             (c) => c.id === attackerId
         );
         if (!attacker) continue;
-        const min = getMinimumBlockers(attacker);
+        const { min, sourceLabel } = describeMinimumBlockers(attacker);
         if (blockedBy < min) {
             const cardName = tryGetDefinition(
                 (attacker.card as { id?: string }).id ?? ""
             )?.name;
             const label = cardName ?? "This creature";
+            // CR 509.1b — name the keyword when there is one (menace); plain
+            // rules-text restrictions print no keyword.
+            const blame = sourceLabel !== undefined ? ` (${sourceLabel})` : "";
             return {
                 ok: false,
-                reason: `${label} can't be blocked except by ${min} or more creatures (menace)`,
+                reason: `${label} can't be blocked except by ${min} or more creatures${blame}`,
             };
         }
     }

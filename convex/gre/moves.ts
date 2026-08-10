@@ -1449,10 +1449,12 @@ export function enumerateBlockerMoves(
                       blockerCap
               );
 
-    // CR 509.1b / 702.111 — minimum-blocker thresholds (menace). Drop combos
-    // that block a menace attacker with fewer than its minimum number of
-    // distinct blockers; the server rejects these at confirm time, so the bot
-    // must not consider them legal moves either (mirrors the cap filter above).
+    // CR 509.1b — minimum-blocker thresholds (menace, and the parametrized
+    // `minimum-blockers:N` rules-text form). Drop combos that block such an
+    // attacker with fewer than its minimum number of distinct blockers; the
+    // server rejects these at confirm time, so the bot must not consider them
+    // legal moves either (mirrors the cap filter above). Both sides read the
+    // SAME `getMinimumBlockers`, so a new source can never desync them.
     const minLegal = capped.filter((assignments) => {
         const blockerCountByAttacker = new Map<string, number>();
         for (const a of assignments) {
