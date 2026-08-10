@@ -628,13 +628,37 @@ function isTokenAbilityCost(value: unknown): boolean {
 
 /** A token-scoped activated ability (issue #1191, `EffectTokenSpec.activatedAbilities`):
  *  a RESTRICTED, JSON-pure subset of `ActivatedAbility` — `id` / `cost`
- *  (tap/mana/sacrifice only) / `oracleText` / `useStack` / `effects`.
+ *  (tap/mana/sacrifice only) / `oracleText` / `useStack` / `effects` /
+ *  `manaChoices` (issue #2423, widened from the original #1191 shape).
  *  `resolve` / `effect` / any other `ActivatedAbility` field is rejected:
  *  DSL-only, mirroring `EffectTokenSpec` itself omitting `staticEffects`
  *  because closures can't survive JSON (ADR 0046). The ability's `effects[]`
  *  SHAPE is checked here; its deep ref/purity validity is checked separately
  *  by `validateEffectOpList`'s nested-`createToken` pass, in the ability's OWN
- *  scope (fresh `$source`), not the outer script's. */
+ *  scope (fresh `$source`), not the outer script's.
+ *
+ *  `manaChoices` (issue #2423) — a runtime colour-choice mana ability
+ *  ("{T}, Sacrifice this artifact: Add one mana of any color.", the Treasure
+ *  shape) — is `ManaCost[]`, already JSON-pure at the CARD level
+ *  (`ActivatedAbility.manaChoices`, `types.ts:1180`); only the DSL-authoring
+ *  ALLOWLIST here rejected it. Each option is validated with the SAME
+ *  `isManaCost` a mana-cost `EffectValue` uses, so a token's manaChoices list
+ *  accepts exactly the pip shapes a card-level one does — PLUS two fail-
+ *  closed checks `isManaCost` alone does not make: the list must be
+ *  non-empty, and every option must carry at least one positive pip
+ *  (`hasManaCostPip`). Both guard the exact "empty array/object is truthy"
+ *  hazard `gre/rules.ts:1333` documents for `getManaTapOptionsDetailed` — an
+ *  `[]` or `[{}]` manaChoices list would report the token AS HAVING a mana
+ *  ability while yielding zero (or a mana-less) usable option, an unusable
+ *  ability shipped silently (review finding, #2423). The engine's own
+ *  mana-tap-choice machinery (`hasManaAbility`/`getActivatedManaAbility`,
+ *  `gre/constants.ts`; the commit path in `game.ts`) reads `manaChoices` off
+ *  whatever `ActivatedAbility` it finds on the permanent's `CardDefinition` —
+ *  it never distinguishes a card-level ability from one `createTokenPermanents`
+ *  registered from a `TokenSpec`/`EffectTokenSpec` (`gre/state.ts`) — so no
+ *  engine change was needed once this allowlist accepts the field; see
+ *  `tokenManaChoicesTapUntap.test.ts` for the round-trip proof through the
+ *  real tap-for-mana commit path. */
 function isTokenActivatedAbility(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -646,6 +670,7 @@ function isTokenActivatedAbility(value: unknown): boolean {
         "oracleText",
         "useStack",
         "effects",
+        "manaChoices",
     ]);
     if (!Object.keys(a).every((k) => allowed.has(k))) return false;
     if (typeof a.id !== "string" || a.id.length === 0) return false;
@@ -655,6 +680,16 @@ function isTokenActivatedAbility(value: unknown): boolean {
     }
     if (typeof a.useStack !== "boolean") return false;
     if ("effects" in a && !isOpList(a.effects)) return false;
+    if (
+        "manaChoices" in a &&
+        !(
+            Array.isArray(a.manaChoices) &&
+            a.manaChoices.length > 0 &&
+            a.manaChoices.every((m) => isManaCost(m) && hasManaCostPip(m))
+        )
+    ) {
+        return false;
+    }
     return true;
 }
 
@@ -1754,6 +1789,20 @@ function isManaCost(value: unknown): boolean {
         }
     }
     return true;
+}
+
+/** True if an already-`isManaCost`-validated value contributes at least one
+ *  mana pip — `isManaCost({})` alone returns true (an empty object has no
+ *  keys to fail on), so a `manaChoices` option of `{}` would otherwise pass
+ *  the shape check while producing NO mana, the object-shaped sibling of the
+ *  `manaChoices: []` empty-array hazard `gre/rules.ts:1333` documents.
+ *  `X: "X"` does not count as a pip here (nothing to add to the pool without
+ *  a resolved X value); only a positive numeric pip does. */
+function hasManaCostPip(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    return Object.values(value as Record<string, unknown>).some(
+        (v) => typeof v === "number" && v > 0
+    );
 }
 
 /** A full `ManaCost` value for `EffectCardFilter.manaCostEquals`'s exact

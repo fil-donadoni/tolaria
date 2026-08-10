@@ -40,6 +40,55 @@ export const TREASURE_TOKEN: TokenSpec = {
     imagePrintId: "284ec798-2725-4741-8748-578c259d0623",
 };
 
+/** Treasure token (issue #778 / #1265 / #2423), DSL-authorable sibling of
+ *  `TREASURE_TOKEN` above. Identical characteristics and mana ability —
+ *  "{T}, Sacrifice this artifact: Add one mana of any color." — but typed
+ *  `EffectTokenSpec` (JSON-pure, ADR 0046) so a `createToken` Effect Script
+ *  Op can carry it: the ability carries NO `effects` body (see the doc
+ *  comment on `activatedAbilities` below for why a `manaChoices` ability
+ *  needs none), rather than `TREASURE_TOKEN`'s imperative `effect` closure.
+ *
+ *  Deliberately a SEPARATE constant, not a promotion of `TREASURE_TOKEN`
+ *  itself: `TREASURE_TOKEN` stays `TokenSpec`-typed for its existing
+ *  `resolve()` callers (Ragavan, Currency Converter), which pass an
+ *  `ActivatedAbilityContext`-driven `effect` closure `EffectTokenSpec` has no
+ *  slot for. "Generalize, don't add" (primitive reuse) argues for widening an
+ *  ALMOST-right primitive; a spec's *type* isn't a primitive to overload with
+ *  two incompatible shapes — hence a sibling constant, not a promotion. Any
+ *  future DSL `createToken` producer of a Treasure shares THIS one. */
+export const EFFECT_TREASURE_TOKEN: EffectTokenSpec = {
+    name: "Treasure",
+    types: ["Artifact"],
+    subtypes: ["Treasure"],
+    activatedAbilities: [
+        {
+            id: "treasure-token-mana",
+            oracleText:
+                "{T}, Sacrifice this artifact: Add one mana of any color.",
+            cost: { tap: true, sacrifice: true },
+            useStack: false,
+            // Deliberately NO `effects` body. A `manaChoices` ability (CR
+            // 605.1a) never executes an `effects`/`effect` body at all: the
+            // choice branch in `game.ts`'s `tapUntap` resolves the chosen
+            // index via `resolveManaTapChoice` and adds THAT `ManaCost`
+            // directly to the pool — `effects`/`effect` is read only for a
+            // FIXED-output mana ability with no choice. An `effects` array
+            // here would be dead weight at best; at worst it changes this
+            // spec's structural-hash `tokenDefinitionId` (the JSON-encoded
+            // ability segment) relative to `TREASURE_TOKEN` above — whose
+            // `effect` closure is silently dropped by `JSON.stringify` — so
+            // the two Treasure specs would hash to DIFFERENT definition ids
+            // and `listTokenCatalogue()` would emit two "Treasure" entries
+            // instead of one shared identity (caught in review, #2423).
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+    ],
+    // Real printed Treasure token art (tcmr, Commander Legends tokens) — same
+    // print as `TREASURE_TOKEN` above (one shared Treasure identity, two spec
+    // types).
+    imagePrintId: "284ec798-2725-4741-8748-578c259d0623",
+};
+
 /** Eldrazi Spawn token (CR 707.2, issue #1531). "0/1 colorless Eldrazi Spawn
  *  creature token with 'Sacrifice this token: Add {C}.'" — a mana ability
  *  shaped like `TREASURE_TOKEN`'s (`cost.sacrifice`, `useStack: false`, CR
