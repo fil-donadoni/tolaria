@@ -3688,6 +3688,14 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Eagles of the North",
+        "scryfallId": "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41",
+        "oracleId": "e519cebf-0f09-4da9-abef-82928738514d",
+        "firstSet": "ltr",
+        "firstPrintId": "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41",
+        "firstPrintSet": "ltr"
+    },
+    {
         "name": "Earth Elemental",
         "scryfallId": "b24b5864-44c0-4bc8-8705-9504f83b2c03",
         "oracleId": "3c97c311-7ad5-47ec-b421-f6c3bfbda9fb",
@@ -5206,6 +5214,14 @@
         "firstSet": "ice",
         "firstPrintId": "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Generous Ent",
+        "scryfallId": "85d22d5d-3875-42ff-b51e-c6e21db201f5",
+        "oracleId": "b6859c7a-4c4d-4652-938f-ecedce29d506",
+        "firstSet": "ltr",
+        "firstPrintId": "85d22d5d-3875-42ff-b51e-c6e21db201f5",
+        "firstPrintSet": "ltr"
     },
     {
         "name": "Generous Plunderer",
@@ -9518,6 +9534,14 @@
         "firstSet": "arn",
         "firstPrintId": "d10f8a05-78b0-42a7-adcd-83f6bafe5417",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Oliphaunt",
+        "scryfallId": "6989018c-37b1-4282-a4af-9cc97f160b4d",
+        "oracleId": "186b2256-4af3-48cb-96b0-b0e80a7ee6dc",
+        "firstSet": "ltr",
+        "firstPrintId": "6989018c-37b1-4282-a4af-9cc97f160b4d",
+        "firstPrintSet": "ltr"
     },
     {
         "name": "Omnath, Locus of Creation",
@@ -14374,6 +14398,14 @@
         "firstSet": "atq",
         "firstPrintId": "a79c99e1-722a-44b6-8fa3-2be3f0c193d8",
         "firstPrintSet": "atq"
+    },
+    {
+        "name": "Troll of Khazad-dûm",
+        "scryfallId": "a6539e26-b63b-4725-9407-caaf451de084",
+        "oracleId": "222fd9fc-7af4-4269-bbb9-cd7b8ac029bd",
+        "firstSet": "ltr",
+        "firstPrintId": "a6539e26-b63b-4725-9407-caaf451de084",
+        "firstPrintSet": "ltr"
     },
     {
         "name": "Troll-Horn Cameo",

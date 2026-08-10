@@ -3,24 +3,68 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
+import type { CardDefinition } from "../../types";
+import { typecyclingAbility } from "../../abilities/cycling";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+
 // Eagles of the North — "Flying. When this creature enters, creatures you
 // control get +1/+0 and gain first strike until end of turn. Plainscycling
-// {1} ({1}, Discard this card: Search your library for a Plains card,
-// reveal it, put it into your hand, then shuffle.)" Blocked: Plainscycling
-// (CR 702.29c, a `[Subtype]cycling` variant) has no Mechanics Registry row
-// at all — plain Cycling is `implemented`, the typecycling variant is
-// uncensused and unbuilt. Kept as a whole-card stub rather than a partial
-// ship (the ETB team pump is free today).
-// tracked-by: #1839
-// export const eaglesOfTheNorth: CardDefinition = {
-//     id: "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41",
-//     name: "Eagles of the North",
-//     rarity: "common",
-//     manaCost: { X: 5, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Bird", "Soldier"],
-//     power: 3,
-//     toughness: 3,
-// };
-
-export {};
+// {1}." (Issue #1839.)
+//
+// Three clauses, all declarative:
+//  - Flying: CR 702.9, a plain `staticAbilities` keyword.
+//  - The ETB team pump: CR 603.6a `enteredTrigger` + the standard
+//    `forEach` over the controller's battlefield creatures with `pump` +
+//    `grantAbility`, both `duration: { phase: "end-of-turn" }` (CR 514.2
+//    cleanup reverts them). Same shape as Garruk Wildspeaker's −4.
+//  - Plainscycling {1}: CR 702.29e typecycling — `typecyclingAbility`, which
+//    shares plain Cycling's activation shell (CR 702.29f).
+export const eaglesOfTheNorth: CardDefinition = {
+    id: "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41",
+    name: "Eagles of the North",
+    rarity: "common",
+    manaCost: { X: 5, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird", "Soldier"],
+    power: 3,
+    toughness: 3,
+    oracleText:
+        "Flying\nWhen this creature enters, creatures you control get +1/+0 and gain first strike until end of turn.\nPlainscycling {1} ({1}, Discard this card: Search your library for a Plains card, reveal it, put it into your hand, then shuffle.)",
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "eagles-of-the-north-etb-pump",
+            oracleText:
+                "When this creature enters, creatures you control get +1/+0 and gain first strike until end of turn.",
+            scope: "self",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: 1,
+                            toughness: 0,
+                            duration: { phase: "end-of-turn" },
+                        },
+                        {
+                            op: "grantAbility",
+                            ability: "first strike",
+                            target: { ref: "$each" },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    // CR 702.29e/f — Plainscycling {1}.
+    activatedAbilities: [typecyclingAbility({ generic: 1 }, "Plains")],
+};

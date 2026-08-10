@@ -25,7 +25,7 @@ import {
     resolveTopOfStack,
 } from "../state";
 import { assertLegalAction } from "../rules";
-import { enumerateMoves, type Move } from "../moves";
+import { enumerateMoves, enumerateBlockerMoves, type Move } from "../moves";
 import {
     projectPublicState,
     type PublicGameState,
@@ -37,6 +37,7 @@ import {
     getRequiredBlockerAssignments,
 } from "../combat";
 import { goblinWarDrums, merseine, seasinger } from "../../cards/sets/fem";
+import { trollOfKhazadDum } from "../../cards/sets/ltr/black";
 import { untapStep } from "../phases";
 import { applyLandManaReplacement } from "../constants";
 import { activateAbilityOnState, resolveAbilityManaCost } from "../../game";
@@ -574,5 +575,126 @@ describe("graveyard-source activation: enumerate → execute → token (issue #2
         expect(token!.subtypes).toEqual(["Snake", "Druid", "Zombie"]);
         expect(token!.power).toBe(4);
         expect(token!.toughness).toBe(4);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CR 509.1b — the KEYWORD-LESS minimum-blocker restriction (issue #1839):
+// Troll of Khazad-dûm, "This creature can't be blocked except by three or more
+// creatures", declared as the parametrized `minimum-blockers:3` marker.
+//
+// The producer census's load-bearing claim is that all THREE consumers of the
+// threshold agree — `validateMinimumBlockers` at the server's confirm seam,
+// `enumerateBlockerMoves` in the bot's legal-move enumerator, and the same
+// check re-run on the WIRE-projected state the bot actually reasons over. A
+// server-only generalization would leave the bot proposing two-creature blocks
+// the mutation then rejects (a frozen game, not a bad play).
+// ---------------------------------------------------------------------------
+describe("minimum-blockers:3 — Troll of Khazad-dûm across all three consumers (CR 509.1b)", () => {
+    function boardWithTroll() {
+        const troll = makeInstance(trollOfKhazadDum.id, {
+            id: "troll",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blockers = ["blk-1", "blk-2", "blk-3"].map((id) =>
+            makeInstance(BEARS, { id, controllerId: "p2", ownerId: "p2" })
+        );
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            players: [
+                makePlayer("p1", { battlefield: [troll] }),
+                makePlayer("p2", { battlefield: blockers }),
+            ],
+            combat: {
+                attackerIds: ["troll"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        return { state };
+    }
+
+    it("consumer 1 — the confirm seam rejects one and two blockers, accepts three (and zero)", () => {
+        expect(confirmBlockSeam(boardWithTroll().state, {})).toBeNull();
+        expect(
+            confirmBlockSeam(boardWithTroll().state, { "blk-1": ["troll"] })
+        ).toMatch(/3 or more creatures/);
+        expect(
+            confirmBlockSeam(boardWithTroll().state, {
+                "blk-1": ["troll"],
+                "blk-2": ["troll"],
+            })
+        ).toMatch(/3 or more creatures/);
+        expect(
+            confirmBlockSeam(boardWithTroll().state, {
+                "blk-1": ["troll"],
+                "blk-2": ["troll"],
+                "blk-3": ["troll"],
+            })
+        ).toBeNull();
+        // CR 509.1b rules text, not a keyword — nothing to blame by name.
+        expect(
+            confirmBlockSeam(boardWithTroll().state, { "blk-1": ["troll"] })
+        ).not.toMatch(/menace/i);
+    });
+
+    it("consumer 2 — the bot's enumerator never offers a sub-threshold block", () => {
+        const { state } = boardWithTroll();
+        const combos = enumerateBlockerMoves(
+            state,
+            getPlayer(state, "p2")
+        ) as Extract<Move, { kind: "declare-blockers" }>[];
+        expect(combos.length).toBeGreaterThan(0);
+        for (const move of combos) {
+            const blocking = move.assignments.filter(
+                (a) => a.attackerId === "troll"
+            ).length;
+            expect(blocking === 0 || blocking >= 3).toBe(true);
+        }
+        // The full three-creature block IS offered (the filter is not
+        // vacuously dropping everything).
+        expect(
+            combos.some(
+                (m) =>
+                    m.assignments.filter((a) => a.attackerId === "troll")
+                        .length === 3
+            )
+        ).toBe(true);
+        // Every enumerated combo also survives the SERVER's own check — the
+        // agreement claim, not just each side in isolation.
+        for (const move of combos) {
+            const assignments: Record<string, string[]> = {};
+            for (const a of move.assignments) {
+                assignments[a.blockerId] = [
+                    ...(assignments[a.blockerId] ?? []),
+                    a.attackerId,
+                ];
+            }
+            expect(
+                confirmBlockSeam(boardWithTroll().state, assignments)
+            ).toBeNull();
+        }
+    });
+
+    it("consumer 3 — the restriction survives the wire projection (criterion 5)", () => {
+        const { state } = boardWithTroll();
+        const projected = projectPublicState(state, 1, "p1");
+        const slimTroll = projected.players[0].battlefield.find(
+            (c) => c.id === "troll"
+        )!;
+        expect(slimTroll.staticAbilities).toContain("minimum-blockers:3");
+        const projectedState = projectedToGameState(projected);
+        projectedState.activePlayerId = "p1";
+        projectedState.combat = {
+            attackerIds: ["troll"],
+            confirmed: true,
+            blockerAssignments: { "blk-1": ["troll"], "blk-2": ["troll"] },
+            blockersConfirmed: false,
+        };
+        expect(validateMinimumBlockers(projectedState).ok).toBe(false);
     });
 });

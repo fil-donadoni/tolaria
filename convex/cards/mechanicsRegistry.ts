@@ -970,6 +970,25 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         binding: "cycling",
         note: 'Cost-system / keyword-cast capability (engine/cost infra, NOT an Effect Script Op): an activated ability usable only from the hand at instant speed (CR 702.29a-b). Modeled as a normal `useStack: true` activated ability declared via the `cyclingAbility(cost)` factory (convex/cards/abilities/cycling.ts): `activateFromHand: true` (new ActivatedAbility flag, twin of activateFromGraveyard) + `cost: { mana, discardThis: true }` + `effects: [{ op: "draw", amount: 1 }]`. activateAbility locates the source in hand, gates on activateFromHand + ownership; the discard-this cost routes through discardToGraveyard (emitting CARD_DISCARDED, CR 701.8) so "whenever you discard" triggers fire (Marauding Mako). Used by the IKO/SNC Triomes, Miscalculation, Unearth, Marauding Mako.',
     },
+    // 702.29e/f Typecycling ([Type]cycling) — a VARIANT of Cycling above,
+    // not a sibling: CR 702.29f, "typecycling abilities are cycling
+    // abilities". It gets its own row because the registry is the NAME
+    // authority and "Mountaincycling" is a name a card can print; the
+    // implementation deliberately shares Cycling's activation shell.
+    {
+        id: "typecycling",
+        name: "Typecycling",
+        kind: "keyword-ability",
+        cr: "702.29",
+        status: "implemented",
+        binding:
+            "convex/cards/abilities/cycling.ts typecyclingAbility (shares cyclingActivationShell with cyclingAbility)",
+        // Parametrized keyword: the printed name carries the searched-for
+        // type as a prefix ("mountaincycling", "islandcycling", …). Does NOT
+        // match bare "cycling" — that is the Cycling row's own `binding`.
+        bindingPattern: /^[a-z]+cycling$/i,
+        note: 'CR 702.29e — "[Type]cycling [cost]" means "[Cost], Discard this card: Search your library for a [type] card, reveal it, and put it into your hand. Then shuffle your library." Issue #1839. Built as the SAME activation shell as plain Cycling (`cyclingActivationShell`: `cost: { mana, discardThis: true }` + `activateFromHand: true` + `useStack: true` + the shared `"cycling"` ability id), with a different Effect Script body: the canonical tutor-to-hand composition `choice`/search-library (`filter: { subtype }`, `count: { min: 0, max: 1 }` — CR 701.19c may-fail-to-find) → `reveal` → `moveZone` library→hand → `libraryLook` shuffle. Sharing the shell is what makes CR 702.29f true structurally: the discard-this cost still routes through `discardToGraveyard` (CARD_DISCARDED, CR 701.8) so "whenever you cycle or discard" triggers fire, and the ability id is literally `"cycling"`, so anything that comes to look for a cycling ability finds a typecycling one. SCOPE: the "usually a subtype" single-word form only (Plains/Island/Swamp/Mountain/Forest cycling — LTR\'s Eagles of the North, Lórien Revealed, Troll of Khazad-dûm, Oliphaunt, Generous Ent). CR 702.29e\'s card-type / supertype / combination forms ("basic landcycling") are NOT built: they need a multi-clause EffectCardFilter and a different reminder-text renderer, and no card in the pool prints one. Cards do not declare a typecycling string in `staticAbilities` (neither does plain Cycling — the ability is the enforcement); the `bindingPattern` keeps the name resolvable if one ever does.',
+    },
     // 702.30 Echo
     {
         id: "echo",
@@ -2490,6 +2509,11 @@ export const ENGINE_INTERNAL_MARKERS: EngineInternalMarker[] = [
         id: "may-choose-not-to-untap",
         binding: "may-choose-not-to-untap",
         note: 'Per-permanent "you may choose not to untap this" rules text — phases.ts untap step. Not a named CR keyword.',
+    },
+    {
+        id: "minimum-blockers",
+        bindingPattern: /^minimum-blockers:\d+$/,
+        note: 'CR 509.1b minimum-blocker requirement — "This creature can\'t be blocked except by N or more creatures" as plain rules text with no keyword name of its own (LTR Troll of Khazad-dûm, N = 3; issue #1839). MENACE (CR 702.111a) is the N = 2 case that DOES have a keyword, so it keeps its own registry row and declares "menace"; this marker is the generic form. Both are rows in `MINIMUM_BLOCKER_RULES` (convex/gre/combatRegistry.ts) and `describeMinimumBlockers` takes the MAX over every matching row (CR 509.1b applies every restriction), read by `getMinimumBlockers` → `validateMinimumBlockers` (blocker-confirm, convex/game.ts) and by the bot\'s legal-block enumerator (convex/gre/moves.ts). Not a named CR keyword.',
     },
     {
         id: "does-not-untap-with-depletion-counter",

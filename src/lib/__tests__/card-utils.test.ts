@@ -4911,6 +4911,49 @@ describe("getHandStackAbilities (CR 113.6 / 702.29a — Cycling, #689)", () => {
         expect(postcombat.map((a) => a.id)).toEqual(["cycling"]);
     });
 
+    // CR 702.29e/f (issue #1839) — a TYPECYCLING ability is a cycling ability,
+    // so the same hand affordance must surface it. Both a permanent card
+    // (Troll of Khazad-dûm) and a NONPERMANENT one (Lórien Revealed, a
+    // sorcery) go through the real reducer: the hand-activation path must not
+    // be gated on the card being castable-as-a-permanent.
+    it.each([
+        {
+            what: "Troll of Khazad-dûm (Swampcycling {1})",
+            cardId: "a6539e26-b63b-4725-9407-caaf451de084",
+            types: ["Creature"],
+        },
+        {
+            what: "Lórien Revealed (Islandcycling {1}, a sorcery)",
+            cardId: "0ce44270-a684-4489-9077-521456e6dfaa",
+            types: ["Sorcery"],
+        },
+    ])("surfaces the typecycling ability for $what", ({ cardId, types }) => {
+        const card = makeCardInstance({
+            id: "typecycler-1",
+            card: { id: cardId },
+            types,
+            ownerId: "p1",
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const abilities = getHandStackAbilities(
+            card,
+            "PRECOMBAT_MAIN",
+            viewFor(card)
+        );
+        // CR 702.29f — it is offered under the SAME ability id as plain
+        // Cycling, and its printed reminder text reaches the menu.
+        expect(abilities.map((a) => a.id)).toEqual(["cycling"]);
+        expect(abilities[0].oracleText).toMatch(/cycling \{1\}/i);
+        expect(abilities[0].oracleText).toMatch(/Search your library/);
+        // CR 702.29b — instant speed, so a later phase offers it too.
+        expect(
+            getHandStackAbilities(card, "POSTCOMBAT_MAIN", viewFor(card)).map(
+                (a) => a.id
+            )
+        ).toEqual(["cycling"]);
+    });
+
     it("offers nothing for a card in hand with no activateFromHand ability", () => {
         const bears = makeCardInstance({
             id: "bears-1",

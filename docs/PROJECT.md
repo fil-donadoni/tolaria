@@ -1133,7 +1133,8 @@ carte inerti.
   slice; S3 (layer 6) porta il caso di conformità counter-gate ×
   source-independence assorbito da #1712 — Dread Wight.
 - Seam mirati: ritorno di un permanente andato via (#1468), scelta di spesa del
-  mana generico (#1442), typecycling (#1839).
+  mana generico (#1442). Typecycling (#1839) è stato consegnato: variante di
+  Cycling (CR 702.29e/f) costruita sulla stessa activation shell.
 
 **Migrazione `resolve()` → `effects[]`**
 
