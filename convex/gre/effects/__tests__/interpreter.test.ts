@@ -1854,6 +1854,112 @@ describe("Effect Script value: hand count + difference (CR 402.2 / 107.1b)", () 
     });
 });
 
+// `{ scaled: { value, times } }` (issue #2366) — a FOURTEENTH EffectValue
+// grammar member, the value grammar's multiplication counterpart to
+// `difference`'s subtraction. Its own permanent test (new-grammar-member
+// regime): unblocks Pest Infestation's "create twice X 1/1 Pest tokens"
+// (#2369, not shipped in this slice).
+describe("Effect Script value: scaled (multiplication, issue #2366)", () => {
+    it("multiplies chosen-cost X by a fixed multiplier (Pest Infestation's 'twice X')", () => {
+        const id = registerScript("test-scaled-x", [
+            {
+                op: "dealDamage",
+                amount: { scaled: { value: { X: true }, times: 2 } },
+                to: { target: 0 },
+            },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        // twice X, X = 3 → 6 damage.
+        expect(state.players[1].life).toBe(14);
+    });
+
+    it("X defaults to 0 (CR 107.3), so a scaled X is also 0", () => {
+        const id = registerScript("test-scaled-x-zero", [
+            {
+                op: "dealDamage",
+                amount: { scaled: { value: { X: true }, times: 5 } },
+                to: { target: 0 },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]); // no chosenX
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("multiplies a literal operand (a plain fixed-multiplier amount)", () => {
+        const id = registerScript("test-scaled-literal", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { scaled: { value: 4, times: 3 } },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(32); // 20 + 4*3
+    });
+
+    it("multiplies a `count` operand (a board-dependent scaled amount)", () => {
+        const bears = (owner: "p1" | "p2", n: number) =>
+            Array.from({ length: n }, (_, i) =>
+                makeInstance(BEAR_ID, {
+                    id: `${owner}-scaled-bf-${i}`,
+                    controllerId: owner,
+                    ownerId: owner,
+                    zone: "battlefield",
+                })
+            );
+        const id = registerScript("test-scaled-count", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    scaled: {
+                        value: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: { type: "Creature" },
+                            },
+                        },
+                        times: 2,
+                    },
+                },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: bears("p1", 3) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(26); // 20 + 3*2
+    });
+
+    // No wire-format ("survives projection") test here — deliberately, unlike
+    // the `difference` block above. `EffectValue` is static `CardDefinition`
+    // script data, never a `GameState`/`CardInstanceState` field, so nothing
+    // about the `scaled` CONSTRUCT itself is projected. The `difference`
+    // block's wire test earns its keep because its consumer (hand-count
+    // difference) drives an amount computed from a HIDDEN-ZONE size, which
+    // `projectPublicState` reshapes (`hand` → `null[]`, length preserved) —
+    // a genuine stripped-fat-field risk. Every `scaled` test above resolves
+    // to a plain life total, a field the projection never redacts for either
+    // seat, so a "life survives projection" assertion here would restate the
+    // GRE test rather than prove anything the projection could have broken —
+    // the vacuous-test shape `.claude/rules/gre-development.md` § Proof-of-
+    // failure warns against. If a future `scaled` consumer computes its
+    // operand from a hidden-zone count (mirroring `difference`'s Dark
+    // Suspicions), that consumer earns the same wire test `difference` has.
+});
+
 describe("Effect Script Op: gainLife (CR 119.3a)", () => {
     it("the selected player gains life", () => {
         const id = registerScript("test-op-gain", [

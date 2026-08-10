@@ -1179,14 +1179,47 @@ function isDifferenceValue(value: unknown): boolean {
     return isDifferenceOperand(s.from) && isDifferenceOperand(s.minus);
 }
 
+/** One operand of a `scaled` (issue #2366) — `isDifferenceOperand` PLUS `X`.
+ *  Deliberately a SEPARATE checker rather than a widening of
+ *  `isDifferenceOperand`: `difference` stays exactly as narrow as issue #2006
+ *  shipped it (its own test rejects an `X` operand there), while `scaled`
+ *  needs `X` as an operand — "twice X" is its reason to exist. Still a
+ *  TERMINAL, never `isEffectValue` — non-recursive, matching
+ *  `EffectScaledOperand` (`cards/types.ts`). */
+function isScaledOperand(value: unknown): boolean {
+    return isPositiveInt(value) || isCountValue(value) || isXValue(value);
+}
+
+/** `{ scaled: { value, times } }` — SHAPE of the multiplication value
+ *  construct (issue #2366). Exactly two keys, both required: `value` a
+ *  terminal operand (`isScaledOperand`), `times` a positive-int literal
+ *  multiplier (mirrors `EffectCountSpec.times` / `EffectDomainValue.times` —
+ *  issue #999's rule: literal only, never a ref/X/nested value — scaling BY a
+ *  variable amount is a different, unimplemented feature, not this one).
+ *  Mirrors `isDifferenceValue`'s shape check. */
+function isScaledValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "scaled") return false;
+    const spec = (value as { scaled: unknown }).scaled;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "value" || k === "times")) {
+        return false;
+    }
+    if (!isPositiveInt(s.times)) return false;
+    return isScaledOperand(s.value);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
  *  on a selected object (issue #1015), a selected object's `manaValue` (issue
  *  #680), a player's `domain` (issue #1066), an object's `escaped` flag
  *  (issue #695), the resolving triggered ability's `abilityResolutionCount`
- *  (issue #1189), or the `difference` of two terminals (issue #2006). Exactly
- *  those — one non-nestable subtraction, and beyond it no arithmetic and no
- *  expressions. */
+ *  (issue #1189), the `difference` of two terminals (issue #2006), or a
+ *  terminal `scaled` by a fixed multiplier (issue #2366). Exactly those — one
+ *  non-nestable subtraction, one non-nestable multiplication, and beyond them
+ *  no arithmetic and no expressions. */
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
@@ -1201,7 +1234,8 @@ function isEffectValue(value: unknown): boolean {
         isEscapedValue(value) ||
         isAbilityResolutionCountValue(value) ||
         isLifeGainedThisTurnValue(value) ||
-        isDifferenceValue(value)
+        isDifferenceValue(value) ||
+        isScaledValue(value)
     );
 }
 

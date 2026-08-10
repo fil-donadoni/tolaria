@@ -84,6 +84,7 @@ import type {
     EffectPileObjectSelector,
     EffectPlayerRef,
     EffectPredicate,
+    EffectScaledOperand,
     EffectSignedValue,
     EffectTargetRef,
     EffectValue,
@@ -508,12 +509,14 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
  *  `ref` reading a bound snapshot's power/toughness, a `count` of a selected
  *  set, the chosen-cost `X` (issue #852 — a thin skin over `ctx.getX()`,
  *  CR 107.3 / 601.2b), a `counters` count on a selected object (issue #1015
- *  — a thin skin over `ctx.getCounterCount`, CR 122.6), or — at a SIGNED value
- *  site (`EffectSignedValue`, today only `pump`'s power/toughness) — a
- *  `negate`-wrapped value (issue #926, one unary sign flip, no other
- *  arithmetic). Returns `undefined` when a ref names a binding that was never
- *  captured, a selected object has left play (CR 608.2b), or the negated
- *  inner value is itself unresolvable — so the caller skips too. */
+ *  — a thin skin over `ctx.getCounterCount`, CR 122.6), a `difference` of two
+ *  terminals (issue #2006), a terminal `scaled` by a fixed multiplier (issue
+ *  #2366), or — at a SIGNED value site (`EffectSignedValue`, today only
+ *  `pump`'s power/toughness) — a `negate`-wrapped value (issue #926, one
+ *  unary sign flip, no other arithmetic). Returns `undefined` when a ref
+ *  names a binding that was never captured, a selected object has left play
+ *  (CR 608.2b), or the negated inner value is itself unresolvable — so the
+ *  caller skips too. */
 function resolveValue(
     ctx: SpellContext,
     value: EffectValue | EffectSignedValue
@@ -676,6 +679,17 @@ function resolveValue(
         const minus = resolveDifferenceOperand(ctx, value.difference.minus);
         return from - minus;
     }
+    // scaled (issue #2366) — a fixed positive-integer multiplier times a
+    // terminal value, the value grammar's multiplication counterpart to
+    // `difference`'s subtraction. Unblocks Pest Infestation's "twice X". Both
+    // the operand and the product are non-negative by construction (CR
+    // 107.1b — see `EffectScaledValue`'s doc comment), so unlike `difference`
+    // there is no sign concern here.
+    if ("scaled" in value) {
+        return (
+            resolveScaledOperand(ctx, value.scaled.value) * value.scaled.times
+        );
+    }
     return countSet(ctx, value.count);
 }
 
@@ -688,6 +702,21 @@ function resolveDifferenceOperand(
     operand: EffectDifferenceOperand
 ): number {
     return typeof operand === "number" ? operand : countSet(ctx, operand.count);
+}
+
+/** One operand of a `scaled` value (issue #2366): a literal integer, a single
+ *  `count`, or the chosen-cost `X` — `EffectDifferenceOperand` plus `X`, kept
+ *  as a sibling type rather than a widening of it (see `EffectScaledOperand`'s
+ *  doc comment in `cards/types.ts` for why `difference` stays X-free). `X` is
+ *  read the same one way every other X site reads it (`ctx.getX()`); a count
+ *  that cannot resolve its player is already 0 in `countSet` (CR 608.2b). */
+function resolveScaledOperand(
+    ctx: SpellContext,
+    operand: EffectScaledOperand
+): number {
+    if (typeof operand === "number") return operand;
+    if ("X" in operand) return ctx.getX();
+    return countSet(ctx, operand.count);
 }
 
 /** The explicit third outcome of mapping an `EffectCardFilter` onto a

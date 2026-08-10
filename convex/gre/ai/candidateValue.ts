@@ -33,6 +33,7 @@ import type {
     EffectCountSpec,
     EffectForEachSelector,
     EffectPlayerRef,
+    EffectScaledOperand,
     EffectValue,
 } from "../../cards/types";
 
@@ -501,9 +502,45 @@ function resolveValueAgainstBoard(
                   );
         return operand(v.difference.from) - operand(v.difference.minus);
     }
+    // scaled (issue #2366) — a fixed multiplier times a terminal (X, a
+    // literal, or a count), all genuinely resolvable pre-cast: `count` is the
+    // same board-read `difference` already uses, and X falls back to the same
+    // representative `CF_ASSUMED_X_FALLBACK` the bare `X` branch above uses
+    // (MUST mirror it, not the generic `CF_ASSUMED_REF_FALLBACK` floor below —
+    // the same wrong-magnitude concern `contextFreeGrounding` documents,
+    // issue #1520).
+    if ("scaled" in v) {
+        return (
+            resolveScaledOperandAgainstBoard(
+                state,
+                perspectivePlayerId,
+                v.scaled.value
+            ) * v.scaled.times
+        );
+    }
     // ref / manaValue / domain — object- or player-scoped reads with no
     // resolvable object/announcement pre-cast.
     return CF_ASSUMED_REF_FALLBACK;
+}
+
+/** One operand of a `scaled` value (issue #2366) resolved against the LIVE
+ *  board where possible: a literal reads back verbatim, a `count` resolves
+ *  genuinely (the same `resolveCountSpecAgainstBoard` `difference` uses), and
+ *  `X` falls back to the representative `CF_ASSUMED_X_FALLBACK` — no
+ *  announced cast exists yet at a choice node (mirrors the bare-`X` branch of
+ *  `resolveValueAgainstBoard`). */
+function resolveScaledOperandAgainstBoard(
+    state: GameState,
+    perspectivePlayerId: string,
+    operand: EffectScaledOperand
+): number {
+    if (typeof operand === "number") return operand;
+    if ("X" in operand) return CF_ASSUMED_X_FALLBACK;
+    return resolveCountSpecAgainstBoard(
+        state,
+        perspectivePlayerId,
+        operand.count
+    );
 }
 
 /** The FIRST production caller of `contextAwareGrounding` (issue #1433

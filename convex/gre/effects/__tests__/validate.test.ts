@@ -3964,6 +3964,97 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
     });
 });
 
+// --- scaled value (issue #2366) ---------------------------------------------
+//
+// The static sweep must accept every terminal operand `scaled` was built for
+// (literal, count, X — the reason it exists) and reject anything that would
+// widen it into an expression grammar: a nested `scaled`, a `difference`
+// operand, or an `X`/ref-valued `times`.
+
+describe("validateEffectScript — scaled (issue #2366)", () => {
+    const loseLife = (amount: unknown): EffectOp[] => [
+        { op: "loseLife", player: "opponent", amount } as unknown as EffectOp,
+    ];
+
+    it("accepts every terminal operand: literal, count, and X", () => {
+        for (const value of [
+            3,
+            { count: { zone: "battlefield", controller: "controller" } },
+            { X: true },
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({ effects: loseLife({ scaled: { value, times: 2 } }) })
+                )
+            ).toEqual([]);
+        }
+    });
+
+    it("rejects a NESTED scaled — the operand type is a terminal, so the grammar stays depth-1", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        scaled: {
+                            value: { scaled: { value: 3, times: 2 } },
+                            times: 2,
+                        },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a `difference` as the scaled operand — a terminal, not a full EffectValue", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        scaled: {
+                            value: { difference: { from: 3, minus: 1 } },
+                            times: 2,
+                        },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a non-positive-int `times` (0, negative, fractional)", () => {
+        for (const times of [0, -2, 1.5]) {
+            expect(
+                validateEffectScript(
+                    host({ effects: loseLife({ scaled: { value: 3, times } }) })
+                ).length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("rejects an `X`/ref-valued `times` — the multiplier is a literal only (mirrors count.times, issue #999)", () => {
+        for (const times of [{ X: true }, { ref: "$source.power" }]) {
+            expect(
+                validateEffectScript(
+                    host({ effects: loseLife({ scaled: { value: 3, times } }) })
+                ).length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("rejects a malformed scaled shape (missing key, extra key)", () => {
+        for (const scaled of [
+            { value: 3 },
+            { times: 2 },
+            { value: 3, times: 2, extra: 1 },
+            {},
+        ]) {
+            expect(
+                validateEffectScript(host({ effects: loseLife({ scaled }) }))
+                    .length
+            ).toBeGreaterThan(0);
+        }
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Reserved `$target<N>.name` ref (issue #2065) — static half.
 //

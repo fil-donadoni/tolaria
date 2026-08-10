@@ -81,6 +81,22 @@ export function contextFreeGrounding(): GroundingContext {
         if ("difference" in v) {
             return { amount: CF_ASSUMED_COUNT, scaling: true };
         }
+        // scaled (issue #2366) — a fixed multiplier times a terminal (X, a
+        // literal, or a count). The operand shape (`number | EffectCount |
+        // EffectXValue`) is structurally a valid `EffectValue`, so it grounds
+        // through the SAME closure recursively (X → CF_ASSUMED_X, a literal
+        // → itself, a count → CF_ASSUMED_COUNT board-scaling) rather than a
+        // duplicated floor — the one thing this branch must NOT do is fall
+        // through to the generic CF_ASSUMED_REF floor below and price
+        // "twice X" as a fixed representative constant instead of 2x whatever
+        // X grounds to (the wrong-magnitude failure mode, issue #1520).
+        if ("scaled" in v) {
+            const inner = value(v.scaled.value);
+            return {
+                amount: inner.amount * v.scaled.times,
+                scaling: inner.scaling,
+            };
+        }
         // counters / manaValue / domain / kickerCount / kickerPaid / escaped /
         // abilityResolutionCount / lifeGainedThisTurn — dynamic reads off
         // runtime state.
