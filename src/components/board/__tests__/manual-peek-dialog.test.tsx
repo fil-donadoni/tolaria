@@ -14,6 +14,10 @@ import {
     ManualCardInteractionProvider,
     manualVerbsForZone,
 } from "~/lib/manual-card-verbs";
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 
 const useQuery = vi.fn();
 vi.mock("convex/react", () => ({
@@ -24,6 +28,7 @@ vi.mock("@convex/_generated/api", () => ({
 }));
 vi.mock("@convex/cards", () => ({
     tryGetDefinition: () => undefined,
+    getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     FACE_DOWN_CARD_ID: "__faceDownDef",
 }));
 
