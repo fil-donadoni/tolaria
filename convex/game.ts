@@ -59,7 +59,6 @@ import {
     emitSpellCastEvent,
     emitBecameTargetEvents,
     emitPermanentTapped,
-    emitAbilityActivated,
     discardPermanentTappedEvent,
     processPendingActionTriggers,
     realizeManaAbilityTapBonus,
@@ -333,6 +332,13 @@ import type { Phase, ManaRestriction } from "./gre/types";
 // existing `from "./game"` / `from "../../game"` import site.
 import { getEffectiveActivatedAbilities } from "./gre/activatedAbilities";
 export { getEffectiveActivatedAbilities } from "./gre/activatedAbilities";
+// CR 602.2a / 602.5 — the shared shape of an activated ability's stack item and
+// the shared activation tally, so the three commit sites below and the ISMCTS
+// search's move sandbox (`gre/search.ts`, issue #1920) cannot drift apart.
+import {
+    buildActivatedAbilityStackItem,
+    recordActivation,
+} from "./gre/activationCommit";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     MANA_COLORS,
@@ -2961,9 +2967,7 @@ export function tryAutoCommitPendingActivation(
 
     // CR 601.2f / 701.21a — the filtered sacrifice(s) were executed above via
     // the unified layer (pa.sacrificeSelection); nothing more to pay here.
-    const stackItem: StackItem = {
-        ...structuredClone(card),
-        zone: "stack" as const,
+    const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
         castById: playerId,
         abilityId: pa.abilityId,
         ...(pa.chosenModeId ? { chosenModeId: pa.chosenModeId } : {}),
@@ -2979,7 +2983,7 @@ export function tryAutoCommitPendingActivation(
             ? { additionalSacrificeSnapshot: activationSacrificeSnapshot }
             : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
-    };
+    });
     state.stack.push(stackItem);
     recordActivation(state, card, pa.abilityId, !!pa.tapSource);
 
@@ -5436,35 +5440,6 @@ export function payLoyaltyCost(
     card.loyaltyActivatedThisTurn = true;
 }
 
-/** Records one activation of `abilityId` against `card` for the current turn
- *  (CR 602.5 — `oncePerTurn` enforcement) and emits the cluster-B
- *  `ABILITY_ACTIVATED` event for non-{T} abilities (CR 602.1). Initialises the
- *  counter map on first activation. Called at every activation commit site —
- *  the single shared anchor, so every path (immediate, targeted, deferred
- *  payment) fires the event exactly once.
- *
- *  The event is emitted only when the ability has NO {T} component: a {T}
- *  ability already emitted `PERMANENT_TAPPED` from its tap, and the two events
- *  are complements (see `AbilityActivatedEvent` doc). Passing `taps` makes the
- *  gate explicit at every call site. */
-function recordActivation(
-    state: GameState,
-    card: CardInstanceState,
-    abilityId: string,
-    taps: boolean
-): void {
-    const map: Record<string, number> = card.activationsThisTurn ?? {};
-    map[abilityId] = (map[abilityId] ?? 0) + 1;
-    card.activationsThisTurn = map;
-    // CR 602.1 — non-{T} activated abilities emit ABILITY_ACTIVATED so
-    // "tapped or non-tap ability activated" punishers (Haunting Wind,
-    // Powerleech, Artifact Possession) can react. {T} abilities are covered by
-    // PERMANENT_TAPPED instead, avoiding a double trigger.
-    if (!taps) {
-        emitAbilityActivated(state, card, abilityId);
-    }
-}
-
 /** Minimum number of targets required for a TargetRequirement.count value.
  *  Fixed N → N; range → min. Used to validate confirmTargets (CR 601.2c). */
 function minTargetCount(count: number | { min: number; max?: number }): number {
@@ -6051,9 +6026,7 @@ export function finalizeTargetSelection(
             state
         );
 
-        const stackItem: StackItem = {
-            ...structuredClone(card),
-            zone: "stack" as const,
+        const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
             castById: playerId,
             abilityId,
             targets,
@@ -6069,7 +6042,7 @@ export function finalizeTargetSelection(
                 ? { additionalSacrificeSnapshot: targetedSacSnapshot }
                 : {}),
             ...(notedManaSpent ? { notedManaSpent } : {}),
-        };
+        });
         state.stack.push(stackItem);
         recordActivation(state, card, abilityId, !!ability.cost.tap);
         state.passCount = 0;
@@ -13062,9 +13035,7 @@ export function activateAbilityOnState(
     );
 
     // Put ability on stack (clone card state as a virtual stack item)
-    const stackItem: StackItem = {
-        ...structuredClone(card),
-        zone: "stack" as const,
+    const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
         castById: args.playerId,
         abilityId: args.abilityId,
         ...(chosenMode ? { chosenModeId: chosenMode.id } : {}),
@@ -13074,7 +13045,7 @@ export function activateAbilityOnState(
             ? { additionalSacrificeSnapshot: immediateSacSnapshot }
             : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
-    };
+    });
     state.stack.push(stackItem);
     recordActivation(state, card, args.abilityId, !!ability.cost.tap);
     state.passCount = 0;
@@ -13954,15 +13925,13 @@ export const activateManaAbility = mutation({
         // SpellContext for the source, run the resolve, then pop. The item is
         // pushed and immediately resolved within this single mutation, so it is
         // never observable on the stack and never grants priority.
-        const stackItem: StackItem = {
-            ...structuredClone(card),
-            zone: "stack" as const,
+        const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
             castById: args.playerId,
             abilityId: args.abilityId,
             ...(resolved.grantedSourceCardId
                 ? { grantedSourceCardId: resolved.grantedSourceCardId }
                 : {}),
-        };
+        });
         state.stack.push(stackItem);
         // Increment BEFORE resolving so getActivationCount inside resolve()
         // counts this activation (CR 602.5). A mana cost (no {T}) emits
