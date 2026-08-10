@@ -9412,9 +9412,11 @@ export interface EffectCardFilter {
  *  A fifth `EffectValue` grammar member (issue #852, PRD #826), NOT an Op and
  *  NOT a new structural construct — it does not reopen ADR 0045 (only a fifth
  *  bind/ref/if/forEach-style construct would). Unblocks Earthquake / Stream of
- *  Life / Fireball-style scripts whose amount is exactly `ctx.getX()`. There is
- *  still no arithmetic: `X` reads back the one chosen number, nothing composes
- *  it (a card like Braingeyser drawing `X` cards, Drain Life dealing `X`). */
+ *  Life / Fireball-style scripts whose amount is exactly `ctx.getX()`. On its
+ *  own it reads back the one chosen number verbatim, nothing composing it (a
+ *  card like Braingeyser drawing `X` cards, Drain Life dealing `X`) — but see
+ *  `EffectScaledValue` (issue #2366) for the one place a fixed multiplier
+ *  scales it ("twice X"). */
 export type EffectXValue = { X: true };
 
 /** counters — the number of counters of a given `type` on a selected object
