@@ -50,16 +50,35 @@ Three smaller, unrelated instances of the same class:
   …). `702.88c` is "Multiple instances of rebound are redundant"; the claim is a
   consequence of **`702.88a`** and has no rule of its own.
 
-- **`707.12` used for "copy a spell"** (26 sites, `convex/cards/sets/c19/white.ts`
-  and its tests, …). `707.12` is **cast** a copy ("An effect that instructs a
-  player to cast a copy of an object **and not just copy a spell**… follows the
-  rules for casting spells"); putting a copy on the stack without casting it is
-  **`707.10`** ("a copy of a spell isn't cast"). The two are not
-  interchangeable — a cast copy goes through 601.2a–h, so it can be countered
-  on cast triggers, pays costs and is affected by cast-restrictions. Needs
-  per-site classification, not a sed: a card that really says "cast a copy"
-  (Isochron-Scepter-style wording) cites `707.12` correctly. Surfaced in the
+- **The whole copy-a-spell block is muddled**, two ids deep. Surfaced in the
   #2452 round-3 review.
+    - **`707.10b` used for "you may choose new targets for the copy"** —
+      **36 sites**, `convex/game.ts` (×3+), `convex/cards/types.ts:4042`,
+      `convex/gre/state.ts:3034`, `lea/red.ts` and its tests, …
+      Printed, `707.10b` is "A copy of an ability has the same **source** as the
+      original ability"; the retarget permission is **`707.10c`** ("Some effects
+      copy a spell or ability and state that its controller may choose new
+      targets for the copy"). 12 other files already cite `707.10c` correctly,
+      so the repo contradicts itself. Related: `lea/red.ts:414` cites
+      `707.10c` for a "color-change to red" — `707.10c` is the retarget rule,
+      and Fork's colour-change is Fork's own text, not a CR subrule at all.
+    - **`707.12` used for "copy a spell"** (26 sites,
+      `convex/cards/sets/c19/white.ts` and its tests, …). `707.12` is **cast** a
+      copy ("An effect that instructs a player to cast a copy of an object **and
+      not just copy a spell**… follows the rules for casting spells"); putting a
+      copy on the stack without casting it is **`707.10`** ("a copy of a spell
+      isn't cast"). Not interchangeable — a cast copy goes through 601.2a–h, so
+      it triggers cast triggers, pays costs and obeys cast restrictions. Needs
+      per-site classification, not a sed: a card really worded "cast a copy"
+      cites `707.12` correctly.
+
+    One instance was fixed in passing rather than recorded, because it was
+    **unresolvable** and so in #2429's scope: PR #2443 landed a
+    `707.10b`-slash-`707.12c` pair at four sites in
+    `src/lib/__tests__/variable-target-count-integration.test.ts` — `707.12` has
+    only an `a` subrule — re-pointed to `707.10c`. (Written out with a slash
+    here on purpose: spelled literally, the dead id would trip `cr:lint` from
+    inside this very file.)
 
 Three more surfaced in the #2452 review rounds, all large enough to be their own
 slice:
