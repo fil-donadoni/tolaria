@@ -729,7 +729,7 @@ export function applyMoveInSearch(
             // sandbox and the live bot paid them — an activation whose payoff
             // the search also cannot see then tied `pass` exactly and won on
             // rollout noise (#2422 Sylvan Safekeeper, #2415 Iron-Shield Elf).
-            applyActivationCostsForSearch(state, move);
+            applyActivationCostsForSearch(state, playerId, move);
             state.passCount = 0;
             state.priorityPlayerId = playerId;
             state.singleShotAutoPass = playerId;

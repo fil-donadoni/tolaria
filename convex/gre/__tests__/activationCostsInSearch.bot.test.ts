@@ -23,7 +23,10 @@
 // (c) that the two field repros now score strictly below `pass`.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
-import { applyMoveForSearch } from "../applyMove";
+import {
+    applyActivationCostsForSearch,
+    applyMoveForSearch,
+} from "../applyMove";
 import { applyMoveInSearch, searchWithTrace } from "../search";
 import { enumerateMoves, type Move } from "../moves";
 import { evaluate } from "../evaluate";
@@ -42,6 +45,7 @@ const SAFEKEEPER = getCardByName("Sylvan Safekeeper").id;
 const IRON_SHIELD_ELF = getCardByName("Iron-Shield Elf").id;
 const EARTHCRAFT = getCardByName("Earthcraft").id;
 const NIGHT_SOIL = getCardByName("Night Soil").id;
+const LLANOWAR_VANGUARD = getCardByName("Llanowar Vanguard").id;
 const FOREST = getCardByName("Forest").id;
 const SWAMP = getCardByName("Swamp").id;
 const GRIZZLY_BEARS = getCardByName("Grizzly Bears").id;
@@ -186,6 +190,111 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
         expect(
             botOf(greedy).battlefield.find((c) => c.id === "bears1")!.isTapped
         ).toBe(true);
+    });
+
+    // CR 602.1 — the `{T}` leg is CONDITIONAL on the cost actually carrying a
+    // tap symbol. The ISMCTS leaf used to tap an activation's source
+    // unconditionally, which silently taxed every ability WITHOUT `{T}` — both
+    // field repros (Sylvan Safekeeper, Iron-Shield Elf) and Earthcraft — inside
+    // the very tree that picks the move: the phantom tap made the sacrifice
+    // look worse than it is in some windows and masked the real tie in others
+    // (see the DECLARE_ATTACKERS note in the #2422 repro below). Both
+    // directions are pinned, so restoring the unconditional tap goes red.
+    it("cost without {T} — the source is NOT tapped (CR 602.1)", () => {
+        const safekeeper = bf(SAFEKEEPER, "keeper");
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, {
+                    battlefield: [
+                        safekeeper,
+                        bf(FOREST, "forest1"),
+                        bf(FOREST, "forest2"),
+                    ],
+                }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        const move = activationOf(state, safekeeper.id);
+        expect(move).toBeDefined();
+
+        const tree = cloneGameState(state);
+        applyMoveInSearch(tree, BOT, move!);
+        expect(
+            botOf(tree).battlefield.find((c) => c.id === "keeper")!.isTapped
+        ).toBeFalsy();
+
+        const greedy = applyMoveForSearch(state, BOT, move!);
+        expect(
+            botOf(greedy).battlefield.find((c) => c.id === "keeper")!.isTapped
+        ).toBeFalsy();
+    });
+
+    it("cost.tap — the source IS tapped (CR 602.1)", () => {
+        const vanguard = bf(LLANOWAR_VANGUARD, "vanguard");
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, { battlefield: [vanguard] }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        const move = activationOf(state, vanguard.id);
+        expect(move).toBeDefined();
+
+        const tree = cloneGameState(state);
+        applyMoveInSearch(tree, BOT, move!);
+        expect(
+            botOf(tree).battlefield.find((c) => c.id === "vanguard")!.isTapped
+        ).toBe(true);
+
+        const greedy = applyMoveForSearch(state, BOT, move!);
+        expect(
+            botOf(greedy).battlefield.find((c) => c.id === "vanguard")!.isTapped
+        ).toBe(true);
+    });
+
+    // CR 113.3c — the PAYER is the ACTIVATING player, never the source's
+    // controller. An `activatableByAnyPlayer` ability is enumerated off the
+    // OPPONENT's battlefield (`moves.ts`) with `costPicks` built from the
+    // activator's own resources, so deriving the payer from the permanent
+    // discards/sacrifices/taps the wrong player's cards. No shipped card
+    // combines "any player may activate" with a deferred cost leg today, so the
+    // contract is pinned on the shared helper directly — it is the seam both
+    // sandboxes now go through.
+    it("pays from the ACTIVATING player, not the source's controller (CR 113.3c)", () => {
+        const elf = bf(IRON_SHIELD_ELF, "elf", OPP);
+        const state = makeState({
+            players: [
+                makePlayer(OPP, { battlefield: [elf] }),
+                makePlayer(BOT, {
+                    hand: [inZone(LIGHTNING_BOLT, "bolt1", "hand")],
+                }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+
+        applyActivationCostsForSearch(state, BOT, {
+            kind: "activate-ability",
+            cardInstanceId: "elf",
+            abilityId: "iron-shield-elf-discard",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+            costPicks: { discardIds: ["bolt1"] },
+        });
+
+        expect(botOf(state).hand).toHaveLength(0);
+        expect(botOf(state).graveyard.map((c) => c.id)).toEqual(["bolt1"]);
+        expect(state.players.find((p) => p.id === OPP)!.graveyard).toHaveLength(
+            0
+        );
     });
 
     it("cost.exileFromGraveyard — the graveyard cards leave for exile (CR 118.5)", () => {

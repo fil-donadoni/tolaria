@@ -22,8 +22,10 @@ about the **chosen move**:
 None of the three can see the root statistics. `searchWithTrace`
 (`convex/gre/search.ts:2324`) already computes exactly what a tie-shaped bug
 needs — `DecisionTrace.candidates[].meanReward` / `.meanMargin` / `.visits`
-(`search.ts:1466-1499`) — but `runBladeScenario` calls plain `search`
-(`convex/gre/ai/blade/runner.ts`) and discards it.
+(`search.ts:1466-1499`) — and `runBladeScenario` **already calls it**
+(`convex/gre/ai/blade/runner.ts:365`), destructuring only `{ move }` and
+dropping the `trace`. So the missing piece is purely the expectation shape, not
+the plumbing.
 
 ## Evidence
 
@@ -60,9 +62,9 @@ Two separate causes are tangled here, and only the first is blade's:
 
 Add a fourth expectation kind to `BladeExpectation`, e.g.
 `ranking: { above: MoveMatcher; below: MoveMatcher }`, evaluated against the
-`DecisionTrace` the runner already could obtain by calling `searchWithTrace`
-instead of `search`. Cost: one field, one runner line, no change to existing
-entries.
+`DecisionTrace` the runner already receives from `searchWithTrace` and
+currently throws away. Cost: one field, one destructure, one branch in
+`checkExpectation` — no change to existing entries.
 
 ## Why it might NOT deserve a ticket
 

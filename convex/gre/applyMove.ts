@@ -184,10 +184,18 @@ export function applyDelveExileForSearch(
  *  `costPicks` falls back to the same module's deterministic default, so the
  *  search, the greedy sandbox and the live bot can never drift.
  *
+ *  `playerId` is the ACTIVATING player — the one who pays. It is deliberately
+ *  a parameter rather than derived from the source permanent: CR 113.3c lets a
+ *  card grant "any player may activate", in which case the ability is
+ *  enumerated off the OPPONENT's battlefield (`moves.ts`) with `costPicks`
+ *  built from the activator's own resources, so the source's controller is the
+ *  wrong player to discard/sacrifice/tap from.
+ *
  *  The caller applies the MANA leg (`applyTapPlan`) itself; this covers only
  *  what is left. The ability's PAYOFF is still not resolved (issue #1920). */
 export function applyActivationCostsForSearch(
     state: GameState,
+    playerId: string,
     move: Extract<Move, { kind: "activate-ability" }>
 ): void {
     // CR 113.3c — the source may be on another player's battlefield ("any
@@ -235,10 +243,9 @@ export function applyActivationCostsForSearch(
         removePermanentTo(state, src.id, "graveyard", "sacrifice");
     }
     // CR 602.1 / 118 — the DEFERRED cost legs (sacrifice, tap-other,
-    // exile-from-graveyard, discard).
-    const owner = state.players.find((p) =>
-        p.battlefield.some((c) => c.id === src.id)
-    );
+    // exile-from-graveyard, discard). The payer is the ACTIVATING player, NOT
+    // the source's controller — see the header note on CR 113.3c.
+    const owner = state.players.find((p) => p.id === playerId);
     const picks =
         move.costPicks ??
         (owner
@@ -523,7 +530,7 @@ export function applyMoveForSearch(
             // (`applyActivationCostsForSearch`, issue #2155), do not resolve
             // the ability's effect this slice (issue #1920).
             applyTapPlan(next, playerId, move.tapPlan);
-            applyActivationCostsForSearch(next, move);
+            applyActivationCostsForSearch(next, playerId, move);
             checkStateBasedActions(next);
             return next;
 
