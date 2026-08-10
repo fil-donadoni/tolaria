@@ -124,7 +124,7 @@ describe("Rebound capability (CR 702.88)", () => {
         });
     });
 
-    describe("cast-stack-flag gate (CR 702.88a / 702.88a)", () => {
+    describe("cast-stack-flag gate (CR 702.88a)", () => {
         it("stamps reboundFromHand only for a hand cast of a rebound card", () => {
             const card = makeInstance(ephemerate.id, { zone: "hand" });
             expect(reboundCastStackFlags(card, "hand")).toEqual({

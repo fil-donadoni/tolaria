@@ -77,7 +77,7 @@ export const keldonTwilight: CardDefinition = {
                 "At the beginning of each player's end step, if no creatures attacked this turn, that player sacrifices a creature of their choice that they controlled since the beginning of the turn.",
             phase: "END_STEP",
             scope: "each",
-            // CR 603.4 / 603.4 — checked at trigger time AND re-checked at
+            // CR 603.4 — checked at trigger time AND re-checked at
             // resolution by the factory.
             interveningIf: (_event, _self, state) =>
                 state?.creatureAttackedThisTurn !== true,

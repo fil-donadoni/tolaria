@@ -122,7 +122,7 @@ export interface EnteredTriggerArgs {
 
 /** Builds a `TriggeredAbility` listening for `PERMANENT_ENTERED` events
  *  (CR 603.6a). The factory handles event-type narrowing, scope gating,
- *  filter matching, and CR 603.4 / 603.4 wiring so card authors write only
+ *  filter matching, and CR 603.4 wiring so card authors write only
  *  the effect body. */
 export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
     const ability: TriggeredAbility = {

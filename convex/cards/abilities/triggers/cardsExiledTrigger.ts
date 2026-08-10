@@ -120,7 +120,7 @@ function qualifyingCards(
 
 /** Builds a `TriggeredAbility` listening for `CARDS_EXILED` events (issue
  *  #1558, CR 400.1 / 603.3b / 608.2i). The factory handles event-type
- *  narrowing, scope+fromZone gating, and CR 603.4 / 603.4 wiring so card
+ *  narrowing, scope+fromZone gating, and CR 603.4 wiring so card
  *  authors write only the effect body. */
 export function cardsExiledTrigger(
     args: CardsExiledTriggerArgs

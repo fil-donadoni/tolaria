@@ -22,9 +22,14 @@
  * if the gate wiring is later changed.
  *
  * KNOWN BLIND SPOT: the scan is line-based and requires the `CR ` prefix, so a
- * citation written bare inside a slash-list ("CR 707.10b / 114.6") or wrapped
- * across two comment lines is invisible to it. Both shapes existed in the repo
- * and were corrected by hand in #2429.
+ * citation written bare inside a slash-list ("CR 205.4a / 602.5b" — the second
+ * id has no prefix) or wrapped across two comment lines is invisible to it.
+ * Both shapes existed in the repo and were corrected by hand in #2429; two
+ * unresolvable ids hiding in that blind spot (one in `gre/sba.ts`'s SBA
+ * roll-call, one repeated across nine copy-a-spell sites) survived the first
+ * pass and were found only by an id-agnostic re-sweep that extracts EVERY
+ * `NNN.N[a-z]` token near a CR mention and resolves each. Re-run that sweep by
+ * hand when auditing; this guard will not do it for you.
  */
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";

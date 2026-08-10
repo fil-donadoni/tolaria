@@ -12,8 +12,8 @@
 //     trigger fires, or — for `host-controller` — the enchanted permanent's
 //     current controller, looked up at resolve time per CR 603.10 last-known
 //     information),
-//   * optional CR 603.4 condition filter at trigger time and CR 603.4
-//     intervening-if filter at resolution time.
+//   * optional CR 603.4 condition filter at trigger time and the same
+//     rule's intervening-if filter at resolution time.
 //
 // Cards using the factory should NOT re-narrow the event type or recompute
 // the scope inside `resolve` — they receive a typed event and the resolved

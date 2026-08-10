@@ -209,7 +209,7 @@ describe("Keldon Twilight — trigger scope (CR 603.6a, 'each player's end step'
     });
 });
 
-describe("Keldon Twilight — intervening-if 'if no creatures attacked this turn' (CR 603.4 / 603.4)", () => {
+describe("Keldon Twilight — intervening-if 'if no creatures attacked this turn' (CR 603.4)", () => {
     it("does not trigger at all once a creature has attacked this turn", () => {
         const { state, twilight } = twoPlayerBoard();
         state.creatureAttackedThisTurn = true;

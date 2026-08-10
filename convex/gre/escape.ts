@@ -7,13 +7,16 @@
 // 702.138a Escape represents a static ability that functions while the card
 //          with escape is in a player's graveyard. "Escape [cost]" means "You
 //          may cast this card from your graveyard by paying [cost] rather than
-//          paying its mana cost." (The printed template spells the exile leg
-//          out inside [cost]: "Escape—{2}{G}, Exile four other cards from your
-//          graveyard.") Casting a spell using its escape ability follows the
-//          rules for paying alternative costs in rules 601.2b and 601.2f–h.
+//          paying its mana cost." Casting a spell using its escape ability
+//          follows the rules for paying alternative costs in rules 601.2b and
+//          601.2f–h.
 // 702.138b A spell or permanent "escaped" if that spell or the spell that
 //          became that permanent as it resolved was cast from a graveyard with
 //          an escape ability.
+//
+// The rule keeps the exile leg abstract as "[cost]"; the printed template
+// spells it out — "Escape—{2}{G}, Exile four other cards from your graveyard."
+// — which is why `EscapeCost` carries both a mana leg and an exile count.
 //
 // Escape is engine/cost-system infrastructure, NOT an Effect Script Op — a
 // card's on-resolution effect stays DSL; only the CAST permission and cost live

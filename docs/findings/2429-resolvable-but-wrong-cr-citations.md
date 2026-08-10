@@ -50,6 +50,26 @@ Three smaller, unrelated instances of the same class:
   …). `702.88c` is "Multiple instances of rebound are redundant"; the claim is a
   consequence of **`702.88a`** and has no rule of its own.
 
+Two more surfaced in the #2452 review round, both large enough to be their own
+slice:
+
+- **`602.5b` used as the generic "activation restrictions are enforced" cite**
+  (~85 sites, repo-wide: `convex/gre/constants.ts:1037`, `convex/game.ts:1629`,
+  `src/lib/card-utils.ts:1594`, `convex/cards/types.ts:1257`, most `sets/**`
+  card headers…). `bun run cr 602.5b` is a **controller-change persistence**
+  clause ("the restriction continues to apply to that object even if its
+  controller changes") — it says nothing about enforcement. The enforcing rule
+  is **`602.5`** ("A player can't begin to activate an ability that's
+  prohibited from being activated"), with `602.5a` for summoning sickness and
+  `602.5d/e` for "activate only as a sorcery/instant". The seven sites this PR
+  touched were re-pointed; the rest were left alone deliberately — it is the
+  same ~85-site mechanical-sed risk as the 701 block.
+- **`704.5m` used for the world rule** (2 sites, `convex/gre/sba.ts:746` and
+  `:835`). `704.5m` is the **Aura** attachment SBA — which the same file also
+  cites correctly at `:489`, so one id carries two meanings here. The world
+  rule is **`704.5k`**. Narrow enough to fix in passing, but it is the
+  resolvable-but-wrong class, not the unresolvable one #2429 scoped.
+
 **Evidence.** `bun run cr 701.16` → "701.16. Investigate / 701.16a 'Investigate'
 means 'Create a Clue token.'" against
 `convex/gre/state.ts:15068` — "CR 701.16: to sacrifice a permanent is for its
@@ -59,7 +79,8 @@ printing both the cited rule and the intended one.
 
 Also worth knowing: `cr:lint` is **line-based and requires the `CR ` prefix**.
 #2429 found 167 occurrences of the bad ids written bare inside a slash-list
-("CR 707.10b / 114.6 / 603.3d") or wrapped across two comment lines
+("CR 205.4a / 602.5b / 603.3b" — only the first id carries the prefix) or
+wrapped across two comment lines
 (`src/lib/ai/__tests__/flashback-exile-color.bot.test.ts:47-48`), all invisible
 to the sweep. They were fixed by hand; the blind spot remains.
 

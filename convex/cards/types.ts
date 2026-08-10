@@ -4033,7 +4033,7 @@ export interface SpellContext {
      *  (copies of permanent spells / abilities are out of scope). The copy
      *  inherits the original's resolve, targets, and chosen X, is controlled by
      *  the controller of THIS resolving spell, and ceases to exist after
-     *  resolving instead of going to a graveyard (CR 707.10/112.5).
+     *  resolving instead of going to a graveyard (CR 707.10a).
      *  `modifications.colorOverride` sets the copy's colors (CR 707.10c —
      *  Fork's "except that the copy is red"). */
     copyStackItem: (
@@ -4047,7 +4047,7 @@ export interface SpellContext {
      *  instant/sorcery spell. The copy starts a fresh resolution from step 0
      *  (its own may-pay / choice steps re-run), is controlled by this spell's
      *  controller, and ceases to exist after resolving instead of going to a
-     *  graveyard (CR 707.12/112.5). Pair with `requestCopyRetarget` to let the
+     *  graveyard (CR 707.10a). Pair with `requestCopyRetarget` to let the
      *  copy's controller choose new targets for it. Distinct from
      *  `copyStackItem`, which copies a DIFFERENT spell still on the stack.
      *
@@ -8106,12 +8106,12 @@ export interface TriggerStateView {
     activePlayerId?: string;
     /** Count of creatures that have died this turn (CR 700.4 die tally,
      *  maintained in `removePermanentTo` and reset at turn start). Exposed so a
-     *  CR 603.4 / 603.4 condition can gate on "if a creature died this turn"
+     *  CR 603.4 condition can gate on "if a creature died this turn"
      *  without waiting for resolve — Osai Vultures' end-step intervening-if
      *  reads it. Mirrors `GameState.deathsThisTurn`; undefined defaults to 0. */
     deathsThisTurn?: number;
     /** CR 506.3 / 508.1 — true once ANY player's creature has been declared as
-     *  an attacker this turn. Exposed so a CR 603.4 / 603.4 intervening-if can
+     *  an attacker this turn. Exposed so a CR 603.4 intervening-if can
      *  answer "if no creatures attacked this turn" at BOTH trigger-check time
      *  and resolution — Keldon Twilight's end-step trigger reads
      *  `state?.creatureAttackedThisTurn !== true`. Mirrors
@@ -8121,7 +8121,7 @@ export interface TriggerStateView {
      *  attacker that died is no longer on any battlefield to be scanned. */
     creatureAttackedThisTurn?: boolean;
     /** Life gained by each player this turn (CR 119.3 tally, issue #1457),
-     *  keyed by player id. Exposed so a CR 603.4 / 603.4 intervening-if can
+     *  keyed by player id. Exposed so a CR 603.4 intervening-if can
      *  answer "if you gained life this turn" at BOTH trigger-check time and
      *  resolution — Crested Sunmare's end-step Horse trigger reads
      *  `state?.lifeGainedThisTurn?.[self.controllerId]`. Mirrors

@@ -118,7 +118,7 @@ describe("Crested Sunmare — 'Other Horses you control have indestructible' (CR
     });
 });
 
-describe("Crested Sunmare — 'if you gained life this turn' intervening-if (CR 603.4 / 603.4)", () => {
+describe("Crested Sunmare — 'if you gained life this turn' intervening-if (CR 603.4)", () => {
     it("does NOT trigger at all when no life was gained this turn (trigger-time check)", () => {
         const { state } = setup();
         const triggers = sunmareTriggers(state, "p1");

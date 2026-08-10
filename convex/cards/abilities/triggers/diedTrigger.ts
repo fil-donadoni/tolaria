@@ -101,7 +101,7 @@ export interface DiedTriggerArgs {
 
 /** Builds a `TriggeredAbility` listening for `CREATURE_DIED` events
  *  (CR 700.4 / 603.2). The factory handles event-type narrowing, scope
- *  gating, filter matching, and CR 603.4 / 603.4 wiring so card authors
+ *  gating, filter matching, and CR 603.4 wiring so card authors
  *  write only the effect body. */
 export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
     if (args.effects === undefined && args.resolve === undefined) {

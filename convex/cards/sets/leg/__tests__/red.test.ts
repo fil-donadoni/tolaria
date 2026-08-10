@@ -1131,7 +1131,7 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
         expect(state.players[1].manaPool.R).toBe(0); // cost was paid
 
         // Chain Lightning itself is gone; a copy controlled by p2 awaits a
-        // (new) target. p2 — who paid — chooses (CR 707.10/c).
+        // (new) target. p2 — who paid — chooses (CR 707.10 / 707.10c).
         const pt = state.pendingTarget!;
         expect(pt.kind).toBe("copy-retarget");
         expect(pt.playerId).toBe("p2");
@@ -1150,7 +1150,7 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
 
         expect(state.stack).toHaveLength(0);
         // Only the original real card is in a graveyard; the copy ceased to
-        // exist (CR 707.12 / 112.5).
+        // exist (CR 707.10a).
         const allGy = [
             ...state.players[0].graveyard,
             ...state.players[1].graveyard,

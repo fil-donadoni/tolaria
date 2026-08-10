@@ -9236,7 +9236,7 @@ describe("Effect Script Op: exileSelf (CR 608.2, issue #1097)", () => {
     // A copy of the spell (CR 707.10) never arms the self-redirect at all —
     // this exercises the PRIMITIVE's own copy guard
     // (`SpellContext.exileSelf`, `gre/state.ts`), not `finalizeSpellResolution`'s
-    // separate, EARLIER `if (item.isCopy) return;` (CR 707.10 / 112.5 — a copy
+    // separate, EARLIER `if (item.isCopy) return;` (CR 707.10a — a copy
     // never reaches the graveyard-vs-exile decision at all). Asserting only
     // "the copy didn't end up in exile or the graveyard" is true regardless
     // of whether this primitive's guard exists — `finalizeSpellResolution`

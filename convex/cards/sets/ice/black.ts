@@ -172,7 +172,8 @@ export const abyssalSpecter: CardDefinition = {
 // Ashen Ghoul — {3}{B} 3/1 Zombie. "Haste\n{B}: Return this card from your
 // graveyard to the battlefield. Activate only during your upkeep and only if
 // three or more creature cards are above this card." (CR 702.10 haste; CR 113.6
-// / 602.5b graveyard-source activated ability; CR 603.6e graveyard order.)
+// graveyard-source activated ability; CR 602.5 activation restrictions;
+// CR 603.6e graveyard order.)
 // The `activateFromGraveyard` seam (issue #737) lets `activateAbility` locate
 // the source in its owner's graveyard; `controllerTurnOnly` + the UPKEEP phase
 // restriction enforce "only during your upkeep"; `canActivate` gates on three
@@ -3175,7 +3176,7 @@ export const touchOfDeath: CardDefinition = {
 // Withering Wisps — end-step self-sacrifice when no creatures are on the
 // battlefield (CR 603.6a phase trigger), plus "{B}: deal 1 to each creature and
 // each player" with a per-turn activation cap equal to the number of snow
-// Swamps you control (CR 205.4a / 602.5b). The cap is enforced in `canActivate`
+// Swamps you control (CR 205.4a / 602.5). The cap is enforced in `canActivate`
 // by counting the controller's snow Swamps and comparing to this turn's tally.
 export const witheringWisps: CardDefinition = {
     id: "ad1e6ae5-c972-42c0-ae78-f203873aeeb1",
@@ -3213,7 +3214,7 @@ export const witheringWisps: CardDefinition = {
                 "{B}: This enchantment deals 1 damage to each creature and each player. Activate no more times each turn than the number of snow Swamps you control.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            // CR 602.5b / 205.4a — capped at the controller's snow-Swamp count.
+            // CR 602.5 / 205.4a — capped at the controller's snow-Swamp count.
             canActivate: (source, state) => {
                 const me = source.controllerId;
                 const controller = state.players.find((p) => p.id === me);

@@ -1856,7 +1856,7 @@ export type StackItem = CardInstanceState & {
     massRiderTargets?: string[];
     /** True iff this stack item is a COPY of a spell (CR 707.10, Fork). A
      *  copy is not a real card: when it finishes resolving it ceases to exist
-     *  rather than moving to a graveyard (CR 707.10/112.5), and it can never
+     *  rather than moving to a graveyard (CR 707.10a), and it can never
      *  return to a hand/library. Set by `SpellContext.copyStackItem`. */
     isCopy?: boolean;
     /** True iff the resolving spell instructs itself to be exiled as the last
@@ -5834,7 +5834,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // NOT handled here: it is the spell's first spell ability and must
         // apply BEFORE the rest of the spell's text, so it runs at the top of
         // `resolveTopOfStackInner` (before the effect dispatch) instead.
-        // CR 707.10 / 112.5 — a copy of an instant/sorcery spell is not a real
+        // CR 707.10 / 707.10a — a copy of an instant/sorcery spell is not a real
         // card: once it finishes resolving it simply ceases to exist instead
         // of being put into a graveyard.
         if (item.isCopy) return;
@@ -10480,12 +10480,12 @@ function cloneSpellOntoStack(
     // the copy re-offers its own "may copy this spell" clause and spirals into
     // unbounded copies. `exileOnResolve` is likewise a cast-site artifact (the
     // flashback card is exiled, not the copy, which ceases to exist as a
-    // one-shot effect per CR 707.10/112.5).
+    // one-shot effect per CR 707.10a).
     delete copy.castFromGraveyard;
     delete copy.exileOnResolve;
     // `shuffleIntoLibraryOnResolve` is likewise a cast-site artifact (issue
     // #898) — the ORIGINAL is shuffled into its owner's library, not the copy,
-    // which ceases to exist as a one-shot effect (CR 707.10/112.5).
+    // which ceases to exist as a one-shot effect (CR 707.10a).
     delete copy.shuffleIntoLibraryOnResolve;
     // CR 702.138b — "escaped" is a cast-site artifact; a copy was not cast via
     // escape, so it must not inherit the flag (a copied escape permanent would

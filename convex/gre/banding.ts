@@ -226,7 +226,7 @@ export function applyMeleeUnblockedRider(state: GameState): void {
 
 /**
  * Determines which player assigns `source`'s combat damage among
- * `targetCreatureIds` (CR 702.22j-k / 702.22j-k). If any target is a creature
+ * `targetCreatureIds` (CR 702.22j-k). If any target is a creature
  * with banding OR "bands with other [quality]", authority shifts to that
  * target's controller (the opponent of the source); otherwise the source's own
  * controller assigns. Returns `source`'s controller when there is no shift.

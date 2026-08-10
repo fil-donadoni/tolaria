@@ -753,7 +753,7 @@ export const curseOfMaritLage: CardDefinition = {
 // counter on target creature. Activate only during any upkeep step." A land
 // sacrifice cost (`sacrificeFilter: { types: "Land" }`, the Orcish Lumberjack
 // shape) gated to the upkeep step via `activationPhaseRestriction: ["UPKEEP"]`
-// (NO `controllerTurnOnly` — "any upkeep step", CR 602.5b). The +2/+2 counter is
+// (NO `controllerTurnOnly` — "any upkeep step", CR 602.5). The +2/+2 counter is
 // a layer-7d P/T counter (CR 122.1).
 export const dwarvenArmory: CardDefinition = {
     id: "7d14a430-6e08-40cf-970a-cae84bba6ef7",
@@ -1303,9 +1303,9 @@ export const goblinSnowman: CardDefinition = {
 };
 // Grizzled Wolverine — {1}{R}{R} 2/2 Wolverine. "{R}: +2/+0 until end of turn.
 // Activate only during the declare blockers step, only if at least one creature
-// is blocking this creature, and only once each turn." Three activation gates:
-// `activationPhaseRestriction: ["DECLARE_BLOCKERS"]` (CR 602.5b step), `oncePerTurn`
-// (CR 602.5b — engine tracks `activationsThisTurn`), and a `canActivate` predicate
+// is blocking this creature, and only once each turn." Three activation gates,
+// all enforced under CR 602.5: `activationPhaseRestriction: ["DECLARE_BLOCKERS"]`,
+// `oncePerTurn` (engine tracks `activationsThisTurn`), and a `canActivate` predicate
 // that reads the live block graph (`state.combat.blockerAssignments`, CR 509.2)
 // to confirm some blocker is assigned to this creature.
 export const grizzledWolverine: CardDefinition = {

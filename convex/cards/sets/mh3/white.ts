@@ -312,7 +312,7 @@ export const ocelotPride: CardDefinition = {
                 "At the beginning of your end step, if you gained life this turn, create a 1/1 white Cat creature token. Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy of it.",
             phase: "END_STEP",
             scope: "your",
-            // CR 603.4 / 603.4 intervening-if — mirrored into `matches` by
+            // CR 603.4 intervening-if — mirrored into `matches` by
             // the factory (trigger time) and re-evaluated by the engine right
             // before resolution. A zero/absent tally is false.
             interveningIf: (_event, self, state) =>
