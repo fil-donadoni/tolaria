@@ -262,9 +262,10 @@ Full gate mandatory before done/merge — never skipped.
   bot suite's fast lane (#1912 — `TOLARIA_BOT_FAST=1`, deny-list in
   `vitest.config.ts`, ~60s), where the catalogue-wide bot guards
   (`aiEffectsGuard`, `pickRatings`, `opValuerCoverage`, censuses) live; and the
-  **whole node project** (`convex/**` + `scripts/**`, 577 files, ~26s at the
-  light tier's 2 workers — no jsdom env init, `isolate: false`, so the card
-  registry is imported once per worker). The node lane used to be filtered to
+  **whole node project** (`convex/**` + `scripts/**` + every DOM-free `src`
+  test, 692 files, ~30s at the light tier's 2 workers — no jsdom env init,
+  `isolate: false`, so the card registry is imported once per worker). The node
+  lane used to be filtered to
   `scripts/__tests__`, which left every backend catalogue guard
   (`effects/validate`'s Op-registry/executor/schema coverage,
   `mechanicsRegistry`, `divergenceMarkers`, `serialize`'s drift check) outside
@@ -272,9 +273,18 @@ Full gate mandatory before done/merge — never skipped.
   `check:pr` that exited 0. Scope pinned by
   `scripts/__tests__/check-guards-scope.test.ts`; bot deny-list drift by
   `bot-fast-lane.test.ts`.
-  **Still outside the light gate: the jsdom half** (`src/**`, 362 files, 171s —
-  per-file jsdom environment init, so no deny-list helps and `--pool=threads`
-  measured identical). Cover `src/` changes with targeted runs. Its one known
+  **The jsdom project is need-classified, not directory-classified**
+  (`scripts/test-env-split.ts`, computed at config load): a `src/**/*.test.ts`
+  with no DOM global, no testing-library import, no jest-dom matcher and no
+  `vi.mock`/spy/fake-timer runs in the **node** project instead — 110 files
+  today, and a file that grows a DOM dependency moves back by itself. Partition
+  pinned by `scripts/__tests__/src-test-env-split.test.ts` (a file selected by
+  NO project runs nowhere and the gate stays green). `bun run test:app` 190s →
+  108s at the heavy tier.
+  **Still outside the light gate: what genuinely needs jsdom** (252 files, 133s
+  at 2 workers — per-file environment init, so no deny-list helps and
+  `--pool=threads` measured identical). Cover `src/` changes with targeted
+  runs. Its one known
   cross-boundary breakage class — a `vi.mock("@convex/cards")` factory going
   stale when a name becomes barrel-internal (#2339: 102 tests, 12 files, seen
   first at the merge-train) — is caught statically instead, by

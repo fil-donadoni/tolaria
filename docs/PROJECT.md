@@ -911,17 +911,28 @@ girare due suite complete a metà velocità ciascuna.
   sottoinsieme scelto a mano dei `check:*`: costano <0,2s ciascuno, e omettere
   `check:index` faceva fallire ogni PR che porta carte;
   `check:pr` include `check:guards`, che gira **due** lane: la fast lane della
-  suite bot (#1912) e **tutto il progetto node** — `convex/**` + `scripts/**`,
-  577 file, ~26s a 2 worker, perché l'ambiente node non ha init per file e il
-  progetto è `isolate: false`. Finché quella lane era filtrata a
+  suite bot (#1912) e **tutto il progetto node** — `convex/**` + `scripts/**`
+  più ogni test `src` che non tocca il DOM, 692 file, ~30s a 2 worker, perché
+  l'ambiente node non ha init per file e il progetto è `isolate: false`.
+  Finché quella lane era filtrata a
   `scripts/__tests__`, ogni guard catalogue-wide del backend
   (`effects/validate`, `mechanicsRegistry`, `divergenceMarkers`, la deriva di
   `serialize`) restava fuori dal gate leggero: una PR è arrivata alla review
   con `validate.test.ts` rosso e `check:pr` uscito 0. Lo scope è fissato da
   `scripts/__tests__/check-guards-scope.test.ts`.
-  Resta fuori la metà jsdom (`src/**`, 362 file, 171s: init dell'ambiente
-  jsdom per file, quindi nessuna deny-list aiuta e `--pool=threads` misura
-  identico) — per `src/` servono i test mirati;
+  Il progetto jsdom è classificato **per bisogno**, non per directory
+  (`scripts/test-env-split.ts`, calcolato al load della config): un
+  `src/**/*.test.ts` senza global del DOM, senza import di testing-library,
+  senza matcher jest-dom e senza `vi.mock`/spy/fake-timer gira nel progetto
+  **node** — 110 file oggi, e un file che acquisisce una dipendenza dal DOM
+  torna indietro da solo. La partizione è fissata da
+  `scripts/__tests__/src-test-env-split.test.ts`: un file selezionato da
+  **nessun** progetto non gira e il gate resta verde. `bun run test:app` passa
+  da 190s a 108s sul tier heavy.
+  Resta fuori dal gate leggero ciò che il DOM lo usa davvero (252 file, 133s a
+  2 worker:
+  init dell'ambiente jsdom per file, quindi nessuna deny-list aiuta e
+  `--pool=threads` misura identico) — per quelli servono i test mirati;
 
 - **prima di considerare finito** — `bun run check:all` + `bun run test` completi,
   zero errori e zero fallimenti.

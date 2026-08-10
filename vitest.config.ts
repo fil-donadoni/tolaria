@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import path from "path";
+import { splitSrcTests } from "./scripts/test-env-split";
 
 // Shared resolve aliases — must match tsconfig paths so both projects resolve
 // `~`, `@`, and `@convex` identically.
@@ -23,11 +24,13 @@ const exclude = [
 //                React); running them under jsdom paid a per-file jsdom
 //                environment-init cost for nothing. `node` env init is
 //                effectively free, which collapses the `environment` phase.
-//   - `jsdom`  → everything under src/ (React component / hook / util files),
-//                which genuinely needs a DOM. Only the jsdom projects load the
-//                jsdom setup file (jest-dom matchers + ResizeObserver stub).
-// The split is content-independent: it survives future card-registry migrations
-// because it keys off directory/runtime need, not on which modules a test imports.
+//   - `jsdom`  → the src/ tests that genuinely need a DOM (React component /
+//                hook renders). Only the jsdom projects load the jsdom setup
+//                file (jest-dom matchers + ResizeObserver stub).
+// The line between them is runtime NEED, not directory: `src` tests that touch
+// no DOM global and mock no module run in the node project (see SRC_NODE_TESTS
+// below). It survives future card-registry migrations because it keys off what
+// a file uses, not on which modules it imports.
 //
 // AXIS 2 — subsystem: APP vs BOT (`*.bot.test.ts`).
 // The bot/AI tests (ISMCTS search, evaluation, move enumeration, the bot
@@ -69,6 +72,25 @@ const exclude = [
 /** Bot/AI tests, selected by the `*.bot.test.ts` filename suffix. */
 const BOT_GLOB_NODE = ["convex/**/*.bot.test.ts", "scripts/**/*.bot.test.ts"];
 const BOT_GLOB_JSDOM = ["src/**/*.bot.test.{ts,tsx}"];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AXIS 1, REFINED — `src` tests that need no DOM run in the NODE project.
+//
+// The jsdom project selected by directory, so 104 pure-logic `src` files paid
+// the jsdom tax for a DOM they never touch: measured, that subset costs 57.8s
+// under jsdom and ~10-20s under node, and the whole jsdom project is 171s of
+// which 133s is per-file environment init. The classifier
+// (`scripts/test-env-split.ts`) reads each file and disqualifies on any DOM
+// global, testing-library import, jest-dom matcher, or `vi.mock`/spy/fake-timer
+// (the node project runs `isolate: false`, so module-level state is shared).
+//
+// Computed at config load, never checked in: a file that grows a DOM dependency
+// moves back to jsdom on the next run with no list to update. Partition pinned
+// by `scripts/__tests__/src-test-env-split.test.ts` — the silent failure to
+// guard against is a file selected by NEITHER project, which is a test that
+// stops running while the gate stays green.
+// ─────────────────────────────────────────────────────────────────────────────
+const SRC_NODE_TESTS = splitSrcTests(__dirname).node;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BOT FAST LANE — `TOLARIA_BOT_FAST=1` (issue #1912).
@@ -133,7 +155,11 @@ export default defineConfig({
                 test: {
                     name: "node",
                     environment: "node",
-                    include: ["convex/**/*.test.ts", "scripts/**/*.test.ts"],
+                    include: [
+                        "convex/**/*.test.ts",
+                        "scripts/**/*.test.ts",
+                        ...SRC_NODE_TESTS,
+                    ],
                     exclude: [...exclude, ...BOT_GLOB_NODE],
                     isolate: false,
                 },
@@ -145,7 +171,7 @@ export default defineConfig({
                     environment: "jsdom",
                     setupFiles: ["./vitest.setup.ts"],
                     include: ["src/**/*.test.{ts,tsx}"],
-                    exclude: [...exclude, ...BOT_GLOB_JSDOM],
+                    exclude: [...exclude, ...BOT_GLOB_JSDOM, ...SRC_NODE_TESTS],
                 },
             },
             {
