@@ -643,7 +643,14 @@ function isTokenAbilityCost(value: unknown): boolean {
  *  (`ActivatedAbility.manaChoices`, `types.ts:1180`); only the DSL-authoring
  *  ALLOWLIST here rejected it. Each option is validated with the SAME
  *  `isManaCost` a mana-cost `EffectValue` uses, so a token's manaChoices list
- *  accepts exactly the pip shapes a card-level one does. The engine's own
+ *  accepts exactly the pip shapes a card-level one does — PLUS two fail-
+ *  closed checks `isManaCost` alone does not make: the list must be
+ *  non-empty, and every option must carry at least one positive pip
+ *  (`hasManaCostPip`). Both guard the exact "empty array/object is truthy"
+ *  hazard `gre/rules.ts:1333` documents for `getManaTapOptionsDetailed` — an
+ *  `[]` or `[{}]` manaChoices list would report the token AS HAVING a mana
+ *  ability while yielding zero (or a mana-less) usable option, an unusable
+ *  ability shipped silently (review finding, #2423). The engine's own
  *  mana-tap-choice machinery (`hasManaAbility`/`getActivatedManaAbility`,
  *  `gre/constants.ts`; the commit path in `game.ts`) reads `manaChoices` off
  *  whatever `ActivatedAbility` it finds on the permanent's `CardDefinition` —
@@ -675,7 +682,11 @@ function isTokenActivatedAbility(value: unknown): boolean {
     if ("effects" in a && !isOpList(a.effects)) return false;
     if (
         "manaChoices" in a &&
-        !(Array.isArray(a.manaChoices) && a.manaChoices.every(isManaCost))
+        !(
+            Array.isArray(a.manaChoices) &&
+            a.manaChoices.length > 0 &&
+            a.manaChoices.every((m) => isManaCost(m) && hasManaCostPip(m))
+        )
     ) {
         return false;
     }
@@ -1778,6 +1789,20 @@ function isManaCost(value: unknown): boolean {
         }
     }
     return true;
+}
+
+/** True if an already-`isManaCost`-validated value contributes at least one
+ *  mana pip — `isManaCost({})` alone returns true (an empty object has no
+ *  keys to fail on), so a `manaChoices` option of `{}` would otherwise pass
+ *  the shape check while producing NO mana, the object-shaped sibling of the
+ *  `manaChoices: []` empty-array hazard `gre/rules.ts:1333` documents.
+ *  `X: "X"` does not count as a pip here (nothing to add to the pool without
+ *  a resolved X value); only a positive numeric pip does. */
+function hasManaCostPip(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    return Object.values(value as Record<string, unknown>).some(
+        (v) => typeof v === "number" && v > 0
+    );
 }
 
 /** A full `ManaCost` value for `EffectCardFilter.manaCostEquals`'s exact

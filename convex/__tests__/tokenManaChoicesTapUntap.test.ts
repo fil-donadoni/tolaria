@@ -120,6 +120,67 @@ describe("DSL createToken token.activatedAbilities.manaChoices (issue #2423)", (
         expect(validateEffectScript(def)).toEqual([]);
     });
 
+    it("validateEffectScript REJECTS a createToken script whose token ability declares an empty manaChoices list (gre/rules.ts:1333 hazard)", () => {
+        // `[].every(...)` is vacuously true, so a naive
+        // `Array.isArray && .every(isManaCost)` check would accept this —
+        // an ability the engine would report as a usable mana ability
+        // (`hasManaAbility`) with zero actual tap-for-mana options
+        // (`getManaTapOptions`), the exact "empty array is truthy" hazard
+        // `gre/rules.ts:1333` documents. Review finding, #2423.
+        const def: CardDefinition = {
+            id: "test-validate-treasure-empty-manachoices",
+            name: "test-validate-treasure-empty-manachoices",
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        ...EFFECT_TREASURE_TOKEN,
+                        activatedAbilities: [
+                            {
+                                ...EFFECT_TREASURE_TOKEN.activatedAbilities![0],
+                                manaChoices: [],
+                            },
+                        ],
+                    },
+                    controller: "controller",
+                },
+            ],
+        };
+        expect(validateEffectScript(def)).not.toEqual([]);
+    });
+
+    it("validateEffectScript REJECTS a createToken script whose token ability's manaChoices contains a pip-less option", () => {
+        // `isManaCost({})` alone returns true (no keys to fail on), so a
+        // `manaChoices` entry of `{}` is the object-shaped sibling of the
+        // empty-array hazard above: shape-valid, mana-less.
+        const def: CardDefinition = {
+            id: "test-validate-treasure-pipless-manachoices",
+            name: "test-validate-treasure-pipless-manachoices",
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        ...EFFECT_TREASURE_TOKEN,
+                        activatedAbilities: [
+                            {
+                                ...EFFECT_TREASURE_TOKEN.activatedAbilities![0],
+                                manaChoices: [{ W: 1 }, {}],
+                            },
+                        ],
+                    },
+                    controller: "controller",
+                },
+            ],
+        };
+        expect(validateEffectScript(def)).not.toEqual([]);
+    });
+
     it("tapping the DSL-created Treasure for a chosen color floats the SAME mana a card-level manaChoices ability would (CR 605.1a)", async () => {
         const { state, tokenId } = treasureTokenState();
         const stub = makeMutationCtx("p1", [gameStateSeed(state)]);

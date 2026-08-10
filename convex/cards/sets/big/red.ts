@@ -37,17 +37,14 @@
 // `{ target: N }` for "target opponent", `EffectTokenSpec.entersTapped`
 // (#1195 — the PRIOR blocker here, now shipped) and the attack trigger
 // (`dealDamage` sized off an `EffectCount` of the defending player's
-// artifacts) are all DSL-clean. STILL BLOCKED on a DIFFERENT, narrower gap:
-// the DSL `createToken` Op's `token: EffectTokenSpec` cannot carry a
-// Treasure's real "{T}, Sacrifice this artifact: Add one mana of any color"
-// ability — `isTokenActivatedAbility` (`convex/gre/effects/validate.ts`)
-// accepts no `manaChoices` field on a token-carried activated ability, only
-// a single fixed `addMana` amount, so the created Treasures would be inert
-// (no usable ability) or wrong (a fixed single color) if shipped today.
-// `sharedTokens.ts`'s `TREASURE_TOKEN` has the real ability but is reachable
-// only via `resolve()` + `ctx.createToken`, not this DSL Op. Stop-and-issue
-// per gre-development.md; shipping a Treasure with no/wrong ability would
-// misrepresent the card. tracked-by: #2423
+// artifacts) are all DSL-clean. The DSL `createToken` Op's `token:
+// EffectTokenSpec` NOW carries a Treasure's real "{T}, Sacrifice this
+// artifact: Add one mana of any color" ability —
+// `isTokenActivatedAbility` (`convex/gre/effects/validate.ts`) accepts a
+// `manaChoices` field on a token-carried activated ability as of #2423, and
+// `sharedTokens.ts`'s `EFFECT_TREASURE_TOKEN` is the DSL-authorable sibling
+// with the real ability. This card is still unshipped only because nobody
+// has wired it up yet. tracked-by: #2368
 // export const generousPlunderer: CardDefinition = {
 //     id: "4c6cf93a-d073-48ac-88db-c46bf3e10beb",
 //     name: "Generous Plunderer",

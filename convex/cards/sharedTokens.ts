@@ -44,9 +44,9 @@ export const TREASURE_TOKEN: TokenSpec = {
  *  `TREASURE_TOKEN` above. Identical characteristics and mana ability —
  *  "{T}, Sacrifice this artifact: Add one mana of any color." — but typed
  *  `EffectTokenSpec` (JSON-pure, ADR 0046) so a `createToken` Effect Script
- *  Op can carry it: the ability body is `effects: [{ op: "addMana" }]`
- *  driven by the SAME `manaChoices` list, rather than `TREASURE_TOKEN`'s
- *  imperative `effect` closure.
+ *  Op can carry it: the ability carries NO `effects` body (see the doc
+ *  comment on `activatedAbilities` below for why a `manaChoices` ability
+ *  needs none), rather than `TREASURE_TOKEN`'s imperative `effect` closure.
  *
  *  Deliberately a SEPARATE constant, not a promotion of `TREASURE_TOKEN`
  *  itself: `TREASURE_TOKEN` stays `TokenSpec`-typed for its existing
@@ -67,7 +67,19 @@ export const EFFECT_TREASURE_TOKEN: EffectTokenSpec = {
                 "{T}, Sacrifice this artifact: Add one mana of any color.",
             cost: { tap: true, sacrifice: true },
             useStack: false,
-            effects: [{ op: "addMana", mana: { W: 1 } }],
+            // Deliberately NO `effects` body. A `manaChoices` ability (CR
+            // 605.1a) never executes an `effects`/`effect` body at all: the
+            // choice branch in `game.ts`'s `tapUntap` resolves the chosen
+            // index via `resolveManaTapChoice` and adds THAT `ManaCost`
+            // directly to the pool — `effects`/`effect` is read only for a
+            // FIXED-output mana ability with no choice. An `effects` array
+            // here would be dead weight at best; at worst it changes this
+            // spec's structural-hash `tokenDefinitionId` (the JSON-encoded
+            // ability segment) relative to `TREASURE_TOKEN` above — whose
+            // `effect` closure is silently dropped by `JSON.stringify` — so
+            // the two Treasure specs would hash to DIFFERENT definition ids
+            // and `listTokenCatalogue()` would emit two "Treasure" entries
+            // instead of one shared identity (caught in review, #2423).
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
