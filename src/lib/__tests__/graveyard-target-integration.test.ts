@@ -43,8 +43,10 @@ function pendingFor(
 ): PendingTarget {
     const req = card.targetRequirement!;
     // `count` may be the literal "X" on a requirement; the pending target
-    // carries it resolved. Both fixture cards use a fixed count of 1.
-    const count = req.count === "X" ? 1 : req.count;
+    // carries it resolved. Both fixture cards use a fixed count of 1 — cast
+    // away the (unreachable here) `{ min, max? }` range form the widened
+    // `TargetRequirement.count` type now also admits (issue #2365).
+    const count = req.count === "X" ? 1 : (req.count as number);
     return {
         playerId: casterId,
         cardInstanceId: "src",

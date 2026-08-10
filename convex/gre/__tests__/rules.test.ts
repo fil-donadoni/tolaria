@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { getLegalActions, assertLegalAction } from "../rules";
-import type { CardInstanceState, GameState, PlayerState } from "../state";
+import {
+    getLegalActions,
+    assertLegalAction,
+    raiseTriggerTargetSelection,
+} from "../rules";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingTarget,
+    PlayerState,
+    StackItem,
+} from "../state";
 import { makeInstance } from "../../cards/__tests__/setup";
 import {
     ancestralRecall,
@@ -702,5 +712,83 @@ describe("assertLegalAction", () => {
         expect(() =>
             assertLegalAction(state, player, instant, "cast")
         ).not.toThrow();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// raiseTriggerTargetSelection — "up to X" count collapse for triggers
+// (CR 601.2c / 603.3d, issue #2365)
+//
+// Triggers never carry an announced X (CR 603.3d has no announcement step),
+// so a trigger requirement whose count is `{ min, max: "X" }` cannot resolve
+// against a live X the way a spell cast does. The pre-existing convention for
+// a literal `"X"` count on a trigger is to collapse it to 0 — this extends
+// the SAME convention to the object form's `max: "X"`. The regression this
+// guards: `raiseTriggerTargetSelection` used to re-derive its raised
+// `PendingTarget.count` a SECOND time, independently of the `{min, max}` the
+// function had already resolved via `triggerTargetMinMax` a few lines above
+// — that second, independent derivation fell through `req.count.max ?? max`
+// for the object form, which would have let an unresolved `"X"` STRING reach
+// `PendingTarget.count.max` (a number-typed field everywhere downstream:
+// `pendingTargetCountMaxReached`, the frontend's `describeTargetProgress`).
+// ---------------------------------------------------------------------------
+describe('raiseTriggerTargetSelection — "up to X" count collapse (CR 601.2c / 603.3d, issue #2365)', () => {
+    function stateWithInlineTrigger(
+        count: NonNullable<StackItem["inlineTargetRequirement"]>["count"]
+    ): { state: GameState; trigger: StackItem } {
+        const target = card(savannahLions.id, {
+            id: "target-1",
+            controllerId: "p1",
+        });
+        const player = makePlayer({ battlefield: [target] });
+        const trigger: StackItem = {
+            ...card(ancestralRecall.id, { zone: "stack" }),
+            id: "trig-1",
+            castById: "p1",
+            targets: undefined,
+            inlineTargetRequirement: {
+                type: "Creature",
+                count,
+            },
+        };
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+            stack: [trigger],
+        });
+        return { state, trigger };
+    }
+
+    it("{ min: 0, max: 'X' } raises a PendingTarget with a numeric { min: 0, max: 0 } — never the literal string", () => {
+        const { state } = stateWithInlineTrigger({
+            min: 0,
+            max: "X",
+        });
+        const suspended = raiseTriggerTargetSelection(state);
+        expect(suspended).toBe(true);
+        const pt = state.pendingTarget as PendingTarget;
+        expect(pt).toBeDefined();
+        expect(pt.count).toEqual({ min: 0, max: 0 });
+        // The must-NOT assertion: no branch of the resolution can leave the
+        // literal "X" string on a numeric-typed field.
+        expect(typeof pt.count).not.toBe("string");
+        if (typeof pt.count === "object") {
+            expect(typeof pt.count.max).toBe("number");
+            expect(Number.isNaN(pt.count.max)).toBe(false);
+        }
+    });
+
+    it("{ min: 1, max: 'X' } collapses to a single mandatory target and auto-selects (no PendingTarget raised)", () => {
+        const { state, trigger } = stateWithInlineTrigger({
+            min: 1,
+            max: "X",
+        });
+        const suspended = raiseTriggerTargetSelection(state);
+        // min===1 && max===1 (collapsed) with exactly one legal target is the
+        // "no real choice" auto-select branch — never reaches PendingTarget.
+        expect(suspended).toBe(false);
+        expect(state.pendingTarget).toBeUndefined();
+        expect(trigger.targets).toEqual([
+            { type: "permanent", id: "target-1" },
+        ]);
     });
 });

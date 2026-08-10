@@ -4341,3 +4341,50 @@ describe("validateEffectScript — createToken token.triggeredAbilities[] (CR 70
         );
     });
 });
+
+describe("validateEffectScript — reflexiveTrigger inline targetRequirement (CR 603.3d, review finding on issue #2365)", () => {
+    // A `reflexiveTrigger` (CR 603.3c) queues its own targeted trigger via
+    // `StackItem.inlineTargetRequirement`, resolved by the SAME
+    // `triggerTargetMinMax` (gre/rules.ts) a card-def `TriggeredAbility`
+    // uses. That resolver has no CR 601.2b X-announcement step (603.3d
+    // incorporates 601.2c–d, not 601.2b), so it collapses ANY `max: "X"`
+    // straight down to `min` — a `{min, max: "X"}` inline requirement would
+    // tsc-check and then silently choose zero variable targets at runtime.
+    // `isInlineTargetRequirement` rejects that object-form shape on purpose
+    // (not merely as a side effect of the bare-integer check next to it) —
+    // this is that rejection's permanent proof, so nobody "fixes" the
+    // integer check into accepting it without noticing what breaks.
+    const reflexive = (count: unknown): EffectOp => ({
+        op: "reflexiveTrigger",
+        oracleText: "When you do, ~ deals damage to any target.",
+        targetRequirement: { type: "any", count } as never,
+        effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
+    });
+
+    it("accepts a bare 'X' count (the pre-existing always-inert shape)", () => {
+        expect(
+            validateEffectScript(host({ effects: [reflexive("X")] }))
+        ).toEqual([]);
+    });
+
+    it("accepts a fixed-integer object-form count", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: [reflexive({ min: 0, max: 2 })] })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(host({ effects: [reflexive({ min: 1 })] }))
+        ).toEqual([]);
+    });
+
+    it("REJECTS the object-form 'up to X' shape { min, max: \"X\" } deliberately", () => {
+        const errors = validateEffectScript(
+            host({ effects: [reflexive({ min: 0, max: "X" })] })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(
+            /Op "reflexiveTrigger" field "targetRequirement" has invalid value/
+        );
+    });
+});

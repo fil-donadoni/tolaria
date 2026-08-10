@@ -14,6 +14,7 @@ import {
     normalizeManaCost,
     payManaCost,
     regenerateOrDestroy,
+    resolveTargetRequirementCount,
     resolveTopOfStack,
     tickDuration,
     type CardInstanceState,
@@ -1510,5 +1511,123 @@ describe("moveCardById grants knowledge on a public→hidden move (issue #1721)"
         expect(player.library[0].knownTo).toEqual(["p1", "p2"]);
         ctx.shuffleLibrary("p1");
         expect(player.library[0].knownTo).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTargetRequirementCount (CR 107.3 / 601.2c, issue #2365)
+//
+// The single shared resolver every count-resolution site calls
+// (`game.ts` cast/activated-ability paths, `gre/rules.ts`'s trigger path via
+// its own `triggerTargetMinMax`, `gre/state.ts`'s `requestCopyRetargetOn` /
+// `requestRetarget`, `gre/moves.ts`'s bot enumerator). Before this
+// extraction, four independent re-implementations each handled a different
+// subset of the `"X"` shapes — only ONE handled the literal `"X"` count at
+// all, and NONE handled the object form's `max === "X"` (the genuinely
+// optional "up to X" template, CR 601.2c: "as many as you choose, from zero
+// to X"). Testing the resolver once here is the catalogue-wide proof; every
+// call site's own test (below, and in `rules.test.ts` /
+// `moves.bot.test.ts` / the frontend integration test) only has to prove IT
+// calls this function, not re-prove the resolution arithmetic.
+// ---------------------------------------------------------------------------
+describe("resolveTargetRequirementCount (CR 107.3 / 601.2c, issue #2365)", () => {
+    it("a plain number passes through unchanged, ignoring chosenX", () => {
+        expect(resolveTargetRequirementCount(3, undefined)).toBe(3);
+        expect(resolveTargetRequirementCount(3, 7)).toBe(3);
+    });
+
+    it("a literal 'X' count resolves to the exact chosenX (Volcanic Eruption)", () => {
+        expect(resolveTargetRequirementCount("X", 0)).toBe(0);
+        expect(resolveTargetRequirementCount("X", 2)).toBe(2);
+        expect(resolveTargetRequirementCount("X", 5)).toBe(5);
+    });
+
+    it("an already-fixed { min, max } range passes through unchanged", () => {
+        expect(resolveTargetRequirementCount({ min: 1 }, 5)).toEqual({
+            min: 1,
+        });
+        expect(resolveTargetRequirementCount({ min: 1, max: 3 }, 5)).toEqual({
+            min: 1,
+            max: 3,
+        });
+    });
+
+    it("{ min: 0, max: 'X' } — 'up to X' — resolves to a live { min, max } range at 0, at k < X, and at X", () => {
+        // The GRE-level proof the issue asks for: legal selection sizes span
+        // the WHOLE 0..X range for a single announced X, not just the two
+        // endpoints.
+        expect(resolveTargetRequirementCount({ min: 0, max: "X" }, 0)).toEqual({
+            min: 0,
+            max: 0,
+        });
+        expect(resolveTargetRequirementCount({ min: 0, max: "X" }, 3)).toEqual(
+            { min: 0, max: 3 } // X itself
+        );
+        // k < X: the SAME resolved range covers every size from 0 through the
+        // announced X — a selection of size 1 (k) is legal within it.
+        const upToThree = resolveTargetRequirementCount(
+            { min: 0, max: "X" },
+            3
+        );
+        expect(upToThree).toEqual({ min: 0, max: 3 });
+        if (typeof upToThree === "object") {
+            expect(1).toBeGreaterThanOrEqual(upToThree.min); // k=1 ≥ min
+            expect(1).toBeLessThanOrEqual(upToThree.max!); // k=1 ≤ max (X=3)
+        }
+    });
+
+    it("{ min: 1, max: 'X' } resolves max only, leaving min untouched", () => {
+        expect(resolveTargetRequirementCount({ min: 1, max: "X" }, 4)).toEqual({
+            min: 1,
+            max: 4,
+        });
+    });
+
+    it("clamps max up to min when the announced X is BELOW min (review finding, issue #2365)", () => {
+        // Every prior case here has X > min (4 > 1) or min === 0 (where any
+        // X is already ≥ min). This is the one that wasn't covered: an
+        // announced X strictly less than a positive min. Without the clamp
+        // this resolves to `{ min: 2, max: 1 }` — a range no consumer
+        // downstream can satisfy (`pendingTargetCountMaxReached` is already
+        // true at 0 selections, `confirmTargets` throws "At least 2
+        // target(s) required" with no way to progress but cancel).
+        expect(resolveTargetRequirementCount({ min: 2, max: "X" }, 0)).toEqual({
+            min: 2,
+            max: 2,
+        });
+        expect(resolveTargetRequirementCount({ min: 2, max: "X" }, 1)).toEqual({
+            min: 2,
+            max: 2,
+        });
+        // The `requireX: false` missing-chosenX default (0) folds the SAME
+        // way through a positive min — no `{min, max:0}` degenerate range.
+        expect(
+            resolveTargetRequirementCount({ min: 3, max: "X" }, undefined)
+        ).toEqual({ min: 3, max: 3 });
+    });
+
+    it("requireX: true throws when an X-bearing count has no chosenX (game.ts cast/ability path)", () => {
+        expect(() =>
+            resolveTargetRequirementCount("X", undefined, { requireX: true })
+        ).toThrow('Target count "X" requires chosenX');
+        expect(() =>
+            resolveTargetRequirementCount({ min: 0, max: "X" }, undefined, {
+                requireX: true,
+            })
+        ).toThrow('Target count "X" requires chosenX');
+    });
+
+    it("without requireX, a missing chosenX defensively folds to 0 (copy-retarget / bot enumerator convention)", () => {
+        expect(resolveTargetRequirementCount("X", undefined)).toBe(0);
+        expect(
+            resolveTargetRequirementCount({ min: 0, max: "X" }, undefined)
+        ).toEqual({ min: 0, max: 0 });
+    });
+
+    it("clamps a defensively-negative chosenX to 0 rather than producing a negative bound", () => {
+        expect(resolveTargetRequirementCount("X", -1)).toBe(0);
+        expect(resolveTargetRequirementCount({ min: 0, max: "X" }, -1)).toEqual(
+            { min: 0, max: 0 }
+        );
     });
 });

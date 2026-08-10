@@ -2735,6 +2735,77 @@ export function getPendingChoiceMin(count: PendingChoice["count"]): number {
     return typeof count === "number" ? count : count.min;
 }
 
+/** Resolves the `"X"` bound(s) of a `TargetRequirement.count` against the
+ *  announced X (CR 107.3 / 601.2c) — the SINGLE shared resolver for every
+ *  count-resolution site (issue #2365). Three input shapes:
+ *   - literal `"X"` → an EXACT count equal to chosenX (Volcanic Eruption:
+ *     "Destroy X target Mountains").
+ *   - a plain number → returned unchanged (nothing to resolve).
+ *   - `{ min, max }` → returned unchanged UNLESS `max === "X"`, the "up to X"
+ *     variable-count template (CR 601.2c: "as many as you choose, from zero
+ *     to X" — Pest Infestation's future "destroy up to X target artifacts
+ *     and/or enchantments"), which resolves to a live `{ min, max: chosenX }`
+ *     range.
+ *
+ *  `requireX: true` throws when an X-bearing count reaches this with no
+ *  `chosenX` (the cast/activated-ability paths in `game.ts`, where a missing
+ *  X for an X-bearing count is an input-validation bug the mutation must
+ *  reject). Every other caller (a spell copy's retarget prompt, the bot's
+ *  move enumerator) defaults a missing X to 0 instead — `chosenX` there is
+ *  read defensively off already-resolved state rather than validated afresh,
+ *  so failing closed to "no extra targets" is safer than throwing mid-resolve.
+ *  `Math.max(0, …)` guards a defensively-negative X the same way in both
+ *  branches.
+ *
+ *  The resolved `max` is additionally CLAMPED to be at least `min`
+ *  (`Math.max(count.min, resolveX())`, review finding on issue #2365): a
+ *  `{min: k>0, max: "X"}` requirement with an announced X below `min` (or,
+ *  with `requireX: false`, a missing `chosenX` folding to 0) would otherwise
+ *  resolve to a `{min: k, max: max<min}` range no consumer downstream can
+ *  satisfy — `pendingTargetCountMaxReached` is already true at 0 selections
+ *  so `selectTarget` refuses the first pick, and `confirmTargets` throws "At
+ *  least N target(s) required" with no way to progress except `cancel-target`.
+ *  This resolver is the single authority for the shape, so it must not be
+ *  able to emit a range with no legal way to satisfy it.
+ *
+ *  Before this extraction, four sites independently re-implemented count
+ *  resolution and only ONE of them (this one, formerly `game.ts`'s
+ *  `resolveTargetCount`) handled the literal `"X"` case; none handled
+ *  `{ min, max: "X" }` — an unresolved `"X"` string reaching the bot's
+ *  `enumerateTargetTuples` loop (`for (let size = min; size <= max; size++)`)
+ *  silently zeroed every non-empty tuple (`size <= "X"` coerces to `NaN`,
+ *  always false) rather than throwing, so the bug was invisible until
+ *  traced. The trigger path (`gre/rules.ts` `triggerTargetMinMax`) is the
+ *  deliberate exception — a trigger's announcement (CR 603.3d) incorporates
+ *  CR 601.2c–d but not 601.2b, so it never learns an announced X at all —
+ *  it collapses `"X"` to 0 locally rather than calling this resolver with a
+ *  synthetic `chosenX`. */
+export function resolveTargetRequirementCount(
+    count: number | "X" | { min: number; max?: number | "X" },
+    chosenX: number | undefined,
+    options: { requireX?: boolean } = {}
+): number | { min: number; max?: number } {
+    const resolveX = (): number => {
+        if (chosenX !== undefined) return Math.max(0, chosenX);
+        if (options.requireX) {
+            throw new Error('Target count "X" requires chosenX');
+        }
+        return 0;
+    };
+    if (count === "X") return resolveX();
+    if (typeof count === "number") return count;
+    // Rebuilt explicitly (never `return count` as-is) so the return type's
+    // `max` is provably `number | undefined` — TS does not narrow the WHOLE
+    // object's type from a `count.max === "X"` property check the way it
+    // narrows a discriminant on a union, so a bare `return count` still
+    // carries the `"X"` possibility in `max`'s type. `Math.max(count.min, …)`
+    // clamps a below-min resolved X up to `min` — see the doc comment above.
+    return {
+        min: count.min,
+        max: count.max === "X" ? Math.max(count.min, resolveX()) : count.max,
+    };
+}
+
 /** Tracks target selection for a spell being announced (CR 601.2c) or an
  *  activated ability with targets (CR 602.2b). */
 export type PendingTarget = {
@@ -10436,8 +10507,13 @@ function cloneSpellOntoStack(
  *  Lightning, Onslaught — always prompts) and storm's engine-code copy loop
  *  (`resolveStormTrigger`, which wraps this with an auto-resolve zero-branch
  *  check, ADR 0052) share one implementation instead of duplicating the
- *  target-requirement → PendingTarget filter translation. */
-function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
+ *  target-requirement → PendingTarget filter translation. Exported (only)
+ *  for the review-finding integration test on issue #2365
+ *  (`variable-target-count-integration.test.ts`) to call this producer
+ *  directly instead of hand-building the `PendingTarget` it would raise —
+ *  every non-test caller still goes through `SpellContext.requestCopyRetarget`
+ *  / `requestStormCopyRetarget` below. */
+export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
     const cardId = (copy.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     // A copy of a modal spell retargets within its chosen mode
@@ -10448,9 +10524,12 @@ function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
                   ?.targetRequirement
             : undefined) ?? def?.targetRequirement;
     if (!req) return; // copied spell targets nothing — keep as-is
-    // CR 107.3 — resolve an "X" target count against the copy's X.
-    const rawCount = req.count;
-    const count = rawCount === "X" ? Math.max(0, copy.chosenX ?? 0) : rawCount;
+    // CR 107.3 / 601.2c — resolve an "X" target count (exact `"X"` or an "up
+    // to X" `{min, max: "X"}` range, issue #2365) against the copy's X via
+    // the single shared resolver. `requireX` stays false (the default): a
+    // copy's `chosenX` is read defensively off already-resolved state, so a
+    // missing X here folds to 0 instead of throwing mid-resolve.
+    const count = resolveTargetRequirementCount(req.count, copy.chosenX);
     const minNeeded = typeof count === "number" ? count : count.min;
     if (minNeeded <= 0) return; // no targets to choose
     const subtypeFilter = req.subtypeFilter
@@ -14505,9 +14584,15 @@ export function buildSpellContext(
             // spell, so finalization writes new targets onto it in place.
             const spell = state.stack.find((s) => s.id === spellStackItemId);
             if (!spell) return; // spell left the stack — nothing to retarget
-            const rawCount = requirement.count;
-            const count =
-                rawCount === "X" ? Math.max(0, item.chosenX ?? 0) : rawCount;
+            // Single shared resolver (issue #2365) — mirrors
+            // `requestCopyRetargetOn`'s use of the same function just above;
+            // this is a FIFTH independent count-resolution site the issue's
+            // consumer map missed (Reflecting Mirror's in-place retarget,
+            // distinct from the copy-retarget `kind`).
+            const count = resolveTargetRequirementCount(
+                requirement.count,
+                item.chosenX
+            );
             const minNeeded = typeof count === "number" ? count : count.min;
             if (minNeeded <= 0) return; // no targets to choose
             const subtypeFilter = requirement.subtypeFilter
