@@ -97,6 +97,32 @@ describe("vendored Comprehensive Rules (ADR 0098)", () => {
         expect(out).not.toContain("605.3c");
     });
 
+    /**
+     * WotC's export uses U+2028 LINE SEPARATOR for a paragraph break INSIDE a
+     * rule. JS does not treat it as a line terminator and `.` does not match
+     * it, so the first cut of the slicer failed to see 509.1b and 205.4c as
+     * rule starts and swallowed them into the preceding rule: `cr 509.1b`
+     * answered "No CR rule 509.1b", about a rule that plainly exists. That is
+     * the tool's worst possible failure — it is the authority an agent uses to
+     * decide a citation is wrong, so a false negative rewrites correct code.
+     */
+    it("finds rules whose body contains a U+2028 paragraph break", () => {
+        for (const [id, needle] of [
+            ["509.1b", "evasion ability"],
+            ["205.4c", "Eighth Edition"],
+        ] as const) {
+            const out = execFileSync("bun", ["scripts/cr.ts", id], {
+                cwd: REPO_ROOT,
+                encoding: "utf8",
+            });
+            expect(
+                out.startsWith(`${id} `),
+                `cr ${id} did not return that rule`
+            ).toBe(true);
+            expect(out).toContain(needle);
+        }
+    });
+
     it("an unknown rule id fails instead of inventing an answer", () => {
         expect(() =>
             execFileSync("bun", ["scripts/cr.ts", "605.99"], {

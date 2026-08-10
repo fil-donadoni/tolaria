@@ -30,7 +30,13 @@ const CR_PATH = join(ROOT, "data/cr/comprehensive-rules.txt");
 const SCANNED = /\.(ts|tsx|mts|mjs|js|md)$/;
 
 function knownRuleIds(): Set<string> {
-    const lines = readFileSync(CR_PATH, "utf8").replace(/\r/g, "").split("\n");
+    // U+2028 is a paragraph break INSIDE a rule in WotC's export; JS does not
+    // treat it as a line terminator, so a rule containing one is invisible to a
+    // line-start match and reads as "does not exist" (509.1b, 205.4c).
+    const lines = readFileSync(CR_PATH, "utf8")
+        .replace(/\r/g, "")
+        .replace(/[\u2028\u2029]/g, "\n")
+        .split("\n");
     const body = lines.slice(
         lines.lastIndexOf("1. Game Concepts"),
         lines.lastIndexOf("Glossary")

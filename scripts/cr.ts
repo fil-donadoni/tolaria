@@ -50,12 +50,29 @@ function readVersion(): Version {
 }
 
 /**
- * The document opens with a table of contents that repeats every section
- * header verbatim ("605. Mana Abilities" appears twice). The body starts at the
- * LAST occurrence of "1. Game Concepts"; the glossary at the last "Glossary".
+ * Line splitting for the official document.
+ *
+ * Two normalisations, both load-bearing:
+ *
+ *   - `\r` — the file is CRLF.
+ *   - **U+2028 LINE SEPARATOR** — WotC's exporter emits it for a paragraph
+ *     break INSIDE a rule (509.1b's evasion-ability paragraph, 205.4c's). JS
+ *     does not treat it as a line terminator and `.` does not match it, so a
+ *     rule whose body contains one used to fail the `^id … $` match entirely
+ *     and get swallowed as a continuation of the PREVIOUS rule — `cr 509.1b`
+ *     answered "no such rule" about a rule that plainly exists, which is the
+ *     exact failure this tool exists to prevent.
+ *
+ * The document also opens with a table of contents repeating every section
+ * header verbatim ("605. Mana Abilities" appears twice), so the body starts at
+ * the LAST occurrence of "1. Game Concepts" and the glossary at the last
+ * "Glossary".
  */
 function splitDocument(raw: string): { body: string[]; glossary: string[] } {
-    const lines = raw.replace(/\r/g, "").split("\n");
+    const lines = raw
+        .replace(/\r/g, "")
+        .replace(/[\u2028\u2029]/g, "\n")
+        .split("\n");
     const bodyStart = lines.lastIndexOf("1. Game Concepts");
     const glossaryStart = lines.lastIndexOf("Glossary");
     const creditsStart = lines.lastIndexOf("Credits");
