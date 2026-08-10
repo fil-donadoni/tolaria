@@ -60,6 +60,12 @@ sweep those verdicts rest on.
 
 ### Overlap with other tickets
 
+- **#1865 — CR 508.4 / the `entersAttacking` attack-target choice.** Already
+  open, `ready-for-agent`, and cited in-code as `DIVERGENCE (tracked-by: #1865)`
+  at `convex/cards/sets/mid/white.ts:96-107` and
+  `convex/cards/sets/m3c/multicolor.ts:40-48`. Recorded here as **DIVERGENT**
+  and re-verified against the new text; see §C.2. **No ticket is cut from
+  §C.2** — it would collide with #1865.
 - **#2430 — CR 605.1a / Chromatic Sphere.** Already diagnosed and ticketed.
   Recorded here as **DIVERGENT** without re-derivation; see §G.8.
 - **#2429 — unresolvable and drifted citations.** 42 rule ids cited in this
@@ -98,8 +104,18 @@ been dropped. It is now the **second half of new 603.2d**, merged into the
 one.
 
 The drift trap does not bite here because **no non-test source cites any of the
-shifted letters.** Every `603.2` citation under `convex/` and `src/` is either
-to the bare parent rule or to `603.2b`, which did not move:
+shifted letters** — `grep -rn '603\.2[d-h]' convex src` (excluding `__tests__`)
+returns nothing. Every `603.2` citation under `convex/` and `src/` is to the
+bare parent rule, to `603.2b`, or to `603.2c`
+(`convex/cards/sets/leg/black.ts:88`, `:132` — "An ability triggers only once
+each time its trigger event occurs"), and `a`–`c` are exactly the letters the
+merge left in place. The table below is a **sample**, not a census: `603.2b` is
+cited in 13 non-test files (also `convex/cards/abilities/ward.ts`,
+`convex/cards/mechanicsRegistry.ts`, `convex/cards/types.ts`,
+`convex/gre/rules.ts`, `convex/gre/state.ts`, `cn2/multicolor.ts`,
+`m12/blue.ts`, `mh3/multicolor.ts`, `pls/blue.ts`, `pls/multicolor.ts`,
+`wth/green.ts`). The verdict does not rest on the sample — it rests on the
+`d`–`h` grep being empty:
 
 | Cited                                                                                                                                                             | Site                                                                                                                                                                                                           |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -125,9 +141,17 @@ Printed:
 
 **Verdict: N/A — no card in the catalogue carries the templating.**
 
-A catalogue sweep for `"only once each turn"` / `"Do this only once"` finds
-exactly one hit, and it is a **commented-out stub**: Ancient Cornucopia,
+The discriminating sweep is `"Do this only once"`, and it finds **exactly one
+hit**, a **commented-out stub**: Ancient Cornucopia,
 `convex/cards/sets/big/green.ts:234` (tracked-by #1841). Nothing shipped.
+
+The looser sweep `"only once each turn"` is **not** discriminating: it returns
+29 non-test hits in `convex/cards/`, and every one of them is CR 602.5's
+_activated_-ability restriction ("Activate … only once each turn" —
+`drk/green.ts:28`, `fin/multicolor.ts:46`, `fem/black.ts:197`,
+`atq/black.ts:162`, `ice/red.ts:1316`, `lea/green.ts:560`, …) plus the
+`oncePerTurn` doc comment at `convex/cards/types.ts:1304`. Zero of them are
+603.2h.
 
 **Do not conflate this with `maxTriggersPerTurn`.** 603.2h is
 _action_-conditioned — the ability does not trigger if the controller has
@@ -453,7 +477,16 @@ writer of `hasAttackedThisTurn` / `creatureAttackedThisTurn`. The
 `entersAttacking` path calls only the former, so an entering attacker is
 `isAttacking` without ever having "attacked" — exactly 508.4/508.4c.
 
-**DIVERGENT — the attack-target choice is not offered.**
+**DIVERGENT — the attack-target choice is not offered. Already ticketed as
+#1865 — do not cut a new ticket from this section.** #1865 ("CR 508.4:
+entersAttacking token should let controller choose to attack a defending
+planeswalker") is OPEN and `ready-for-agent`, and the two shipped consumers
+already carry it in-line as `DIVERGENCE (tracked-by: #1865)`
+(`convex/cards/sets/mid/white.ts:96-107`,
+`convex/cards/sets/m3c/multicolor.ts:40-48`). The diagnosis below is recorded
+so the audit's item set is complete and re-derived against this revision's
+printed text; the work belongs to #1865.
+
 `convex/gre/state.ts:16715-16717` calls `markAttacking(state, token)` with no
 attack-target argument, and `markAttacking` (`convex/gre/combat.ts:53`) writes
 only `combat.attackerIds` + `isAttacking`. It never writes
@@ -463,17 +496,11 @@ the token is treated as attacking the defending **player**. CR 508.4 requires
 the controller to choose among the defending player, a planeswalker that player
 controls, and a battle they protect, unless the creating effect specifies.
 
-**Fix sketch.** Give the `entersAttacking` token spec an optional attack-target
-field for the "unless the effect specifies" case, and — when it is absent and
-the defending player controls at least one planeswalker — raise a pending
-choice from the token-creation path before `markAttacking`, writing the pick
-into `combat.attackTargets[tokenId]`. The choice must auto-resolve when the
-only legal option is the player (per the repo's auto-resolve-when-no-real-option
-convention), which is the case in every board the three shipped consumers reach
-today, so the observable change is confined to boards with a defending
-planeswalker. Costs: one new `PendingChoice` kind, its `expectedInput` entry,
-the wire projection of the prompt, a Bot `Move` + valuation, and a serialization
-key — the full new-choice-kind checklist.
+**Fix: #1865.** This audit adds no fix sketch of its own — the ticket owns the
+design, and a second sketch here would compete with it. What the audit does
+contribute is the confirmation that this revision's printed 508.4 still
+requires the choice (the rule was reworded, not relaxed) and the `file:line`
+above, which #1865 does not name.
 
 **508.4a** — N/A in a 2-player game with no battles. "That player is no longer
 in the game" cannot occur: a player leaving the game ends it
@@ -1155,11 +1182,20 @@ number:
    clause)"). 701.66a says "under **your** control" — the earthbending player's.
    The two differ whenever you control a land you do not own.
 
-**Fix sketch.** Drop `subtype: "Elemental"` from the `animate` Op. Add a
-controller override to the two `moveZone` Ops so the land returns under the
-ability's controller — `moveZone` needs a `controller: "you"` field if it does
-not already have one, which makes this a `/new-op`-adjacent slice rather than a
-pure card edit. Both changes are catalogue-wide by construction: earthbend is
+**Fix sketch — a card edit, not an Op slice.** Drop `subtype: "Elemental"` from
+the `animate` Op. Add `controller: "controller"` to the two `moveZone` Ops so
+the land returns under the ability's controller. **The DSL already supports
+this**: the `target`-shape `moveZone` declares `controller?: EffectPlayerRef`
+(`convex/cards/types.ts:10474`) and the interpreter honours it on exactly the
+graveyard/exile → battlefield branch Badgermole Cub uses
+(`convex/gre/effects/interpreter.ts:2709-2723`, whose comment reads "the new
+controller defaults to that owner (Resurrection, Hell's Caretaker) but an
+explicit `op.controller` (issue #680) redirects it"). So this is two added
+lines, not a `/new-op` slice — size the ticket accordingly. (`"controller"` is
+the correct `EffectPlayerRef` spelling, `convex/cards/types.ts:8953-8956`;
+there is no `"you"` member.)
+
+Both changes are catalogue-wide by construction: earthbend is
 uniform across the 28 TLA earthbend cards per the registry note, so whatever
 shape lands must live in the shared expansion, not on Badgermole Cub. Also
 correct the registry row's `cr` field, which asserts "not a CR 701/702 entry" —
@@ -1217,13 +1253,31 @@ Behaviour at each of these sites is **correct**; only the cited rule id is now
 wrong. They are listed here so #2429 has them and so no ticket cut from this
 audit edits the same comment.
 
-| Site(s)                                                                                                                                                                                | Cites                      | Should cite        | Why                                                                                                                 |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `convex/gre/phases.ts:3054`, `:3060`, `:3116`; `convex/gre/state.ts:1507`, `:2381`; `convex/gre/types.ts:256`; `convex/cards/types.ts:2969`; `convex/cards/sets/atq/colorless.ts:1383` | `500.4`                    | `500.5` (`703.4q`) | Mana emptying moved from 500.4 to 500.5. New 500.4 is about effects expiring as a step _begins_ — a different rule. |
-| `convex/gre/phases.ts:1898` (UNTAP entry tick)                                                                                                                                         | `502.1`                    | `500.4`            | 502.1 is the phasing turn-based action. The entry-expiry rule is new 500.4.                                         |
-| `convex/gre/phases.ts:1908` (UPKEEP entry tick)                                                                                                                                        | `500.2`                    | `500.4`            | 500.2 is "a phase or step in which players receive priority ends when…". The entry-expiry rule is new 500.4.        |
-| `convex/cards/entersWith.ts` (module header); `convex/gre/state.ts:5204`                                                                                                               | `121.6`                    | `122.6` / `122.6a` | 121.6 is _"Some effects replace card draws."_ The enters-with-counters rule is 122.6.                               |
-| `convex/cards/mechanicsRegistry.ts:2447` (earthbend row's `cr` field)                                                                                                                  | _"not a CR 701/702 entry"_ | `701.66`           | Earthbend now has a rule number. (The row also needs the §H.1 behaviour fix — coordinate.)                          |
+| Site(s)                                                                                                                                                                                | Cites                      | Should cite        | Why                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `convex/gre/phases.ts:3054`, `:3060`, `:3116`; `convex/gre/state.ts:1507`, `:2381`; `convex/gre/types.ts:256`; `convex/cards/types.ts:2969`; `convex/cards/sets/atq/colorless.ts:1383` | `500.4`                    | `500.5` (`703.4q`) | Mana emptying moved from 500.4 to 500.5. New 500.4 is about effects expiring as a step _begins_ — a different rule.                        |
+| `convex/gre/phases.ts:1898` (UNTAP entry tick)                                                                                                                                         | `502.1`                    | `500.4`            | 502.1 is the phasing turn-based action. The entry-expiry rule is new 500.4.                                                                |
+| `convex/gre/phases.ts:1908` (UPKEEP entry tick)                                                                                                                                        | `500.2`                    | `500.4`            | 500.2 is "a phase or step in which players receive priority ends when…". The entry-expiry rule is new 500.4.                               |
+| **20 sites, enumerated below the table** (`convex/gre/state.ts` ×8, `convex/cards/entersWith.ts` ×3, `fem/blue.ts` ×2, and eight singletons)                                           | `121.6`                    | `122.6` / `122.6a` | 121.6 is _"Some effects replace card draws."_ The enters-with-counters rule is 122.6.                                                      |
+| **6 sites, enumerated below the table** (`ncc/colorless.ts` ×3, `arn/colorless.ts` ×2, `dka/red.ts`)                                                                                   | `121.6`                    | `121.1`            | A second, distinct misuse of the same id: these cite it for a plain card draw. 121.1 is the draw rule; 121.6 is the _replacement_ subrule. |
+| `convex/cards/mechanicsRegistry.ts:2447` (earthbend row's `cr` field)                                                                                                                  | _"not a CR 701/702 entry"_ | `701.66`           | Earthbend now has a rule number. (The row also needs the §H.1 behaviour fix — coordinate.)                                                 |
+
+**The `121.6` sites in full.** `grep -rn '121\.6' convex src` (excluding
+`__tests__`) returns **26 hits across 17 files** — the id is the single most
+widely-drifted citation in the repo, so a #2429 ticket cut from the two rows
+above must be sized for all 26, not for a sample. Counters class (should cite
+`122.6` / `122.6a`): `convex/gre/state.ts:5168`, `:5204`, `:5522`, `:5704`,
+`:8695`, `:9996`, `:13321`, `:16658`; `convex/gre/playLand.ts:408`;
+`convex/gre/scenarioBuilder.ts:334`; `convex/cards/entersWith.ts:2`, `:4`,
+`:76`; `convex/cards/types.ts:13108`; `convex/cards/sets/inv/blue.ts:390`;
+`convex/cards/sets/fem/blue.ts:66`, `:768`; `convex/cards/sets/eld/black.ts:12`;
+`convex/cards/sets/ecl/black.ts:21`; `convex/cards/sets/onc/multicolor.ts:16`.
+That last one is about a **player**-scoped experience counter, so its correct
+target is `122.1` ("a marker placed on an object or player"), not `122.6` —
+check the sentence, not just the id. Draw class (should cite `121.1`):
+`convex/cards/sets/ncc/colorless.ts:75`, `:135`,
+`:141`; `convex/cards/sets/arn/colorless.ts:267`, `:268`;
+`convex/cards/sets/dka/red.ts:6`.
 
 Two further observations for #2429, not drift but gaps: **`115.7` has no citation
 anywhere in source** despite the retarget code implementing 115.7e correctly
@@ -1247,7 +1301,7 @@ above on its own merits, not on a comment.
 | B.3     | 500.5a until end of combat                                                                           | COMPLIANT                       |
 | B.4     | 500.5b until end of turn                                                                             | COMPLIANT                       |
 | C.1     | 506.3d enters unblocked / 506.3g battles                                                             | COMPLIANT / N/A                 |
-| C.2     | 508.4 attack-target choice                                                                           | **DIVERGENT**                   |
+| C.2     | 508.4 attack-target choice                                                                           | **DIVERGENT** → #1865           |
 | C.2     | 508.4 "never attacked", 508.4d                                                                       | COMPLIANT                       |
 | C.2     | 508.4a player left the game                                                                          | N/A                             |
 | C.3     | 506.4 protector / battle clauses                                                                     | N/A                             |
@@ -1271,9 +1325,10 @@ above on its own merits, not on a comment.
 | H       | battles, speed, partner, Roles, tokens, hone, airbend, blight, heal, recruit, the seven new keywords | N/A                             |
 | H.1     | 701.66 earthbend                                                                                     | **DIVERGENT**                   |
 | H.1     | 701.67 waterbend                                                                                     | **DIVERGENT**                   |
-| I       | citation drift (5 sites + 2 gaps)                                                                    | CITATION-ONLY → #2429           |
+| I       | citation drift (6 classes / 37 sites + 2 gaps)                                                       | CITATION-ONLY → #2429           |
 
-**Six divergences to ticket:** B.2 (mana/expiry ordering), C.2 (508.4 attack
-target), C.4 (lethal-damage threshold for trample and deathtouch), E.1 (LKI
-store, ADR 0086), H.1 earthbend, H.1 waterbend. G.8 is already #2430. All
-citation drift belongs to #2429.
+**Six divergences found; five to ticket:** B.2 (mana/expiry ordering), C.4
+(lethal-damage threshold for trample and deathtouch), E.1 (LKI store, ADR
+0086), H.1 earthbend, H.1 waterbend. **C.2 (508.4 attack target) is already
+#1865 and G.8 is already #2430 — no new ticket for either.** All citation
+drift belongs to #2429.
