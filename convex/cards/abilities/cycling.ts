@@ -37,7 +37,15 @@
 // authority: Cycling is row `id: "cycling"`, Typecycling row `id:
 // "typecycling"` (CR 702.29e/f).
 
-import type { ActivatedAbility, EffectOp, ManaCost } from "../types";
+import type {
+    ActivatedAbility,
+    EffectOp,
+    GameEvent,
+    ManaCost,
+    SpellContext,
+    TargetRequirement,
+    TriggeredAbility,
+} from "../types";
 
 /** The default ability id shared by BOTH factories. CR 702.29f — a
  *  typecycling ability IS a cycling ability, so anything that ever comes to
@@ -70,8 +78,15 @@ function cyclingActivationShell(args: {
         oracleText: args.oracleText,
         // CR 702.29a / 702.29f — the cost is the printed cycling mana cost
         // plus discarding this card (a cycling cost, for both variants).
-        // `discardThis` moves the source hand → graveyard at commit.
-        cost: { mana: args.cost, discardThis: true },
+        // `discardThis` moves the source hand → graveyard at commit;
+        // `cyclingCost` is the declared signal that the discard pays an
+        // activation cost of a CYCLING ability (CR 702.29c), which the discard
+        // choke point threads onto the single CARD_DISCARDED event as
+        // `cause: "cycling"`. Declared HERE, once, so 702.29f
+        // ("typecycling costs are cycling costs") holds structurally: neither
+        // public factory can forget it, and nothing downstream has to sniff an
+        // ability id or oracle text to recognise a cycling cost.
+        cost: { mana: args.cost, discardThis: true, cyclingCost: true },
         // CR 702.29a — the ability functions only while the card is in hand.
         activateFromHand: true,
         // CR 605 — this is NOT a mana ability; it uses the stack (can be
@@ -99,6 +114,60 @@ export function cyclingAbility(
         // cost (mana + discard-this) is the only cycling-specific part.
         effects: [{ op: "draw", player: "controller", count: 1 }],
     });
+}
+
+/** Builds a "When you cycle this card, …" triggered ability (CR 702.29c).
+ *
+ *  CR 702.29c: "Some cards with cycling have abilities that trigger when
+ *  they're cycled. 'When you cycle this card' means 'When you discard this card
+ *  to pay an activation cost of a cycling ability.' These abilities trigger
+ *  from whatever zone the card winds up in after it's cycled."
+ *
+ *  The template, so no author has to restate it:
+ *   - it listens to `CARD_DISCARDED`, the ONE event a cycling discard emits
+ *     (CR 702.29d — a "cycles or discards" ability must fire exactly once on a
+ *     cycled card, which a second `CARD_CYCLED` event would break);
+ *   - `matches` gates on `cause === "cycling"`, the signal
+ *     `cyclingActivationShell` declares and the discard choke point threads —
+ *     so an ordinary discard of the same card (rummage, CR 514.1 cleanup
+ *     hand-size, a non-cycling discard cost) does NOT fire it, while a
+ *     TYPEcycling discard does (CR 702.29f);
+ *   - it gates on `cardInstanceId === self.id`, because "THIS card" is the
+ *     cycled card itself, never another card cycled the same turn;
+ *   - it carries `functionsFromOwnDiscard`, which is what makes
+ *     `collectTriggers` look for the source in the zone it wound up in
+ *     (graveyard, or exile after a CR 614 redirect) instead of on the
+ *     battlefield.
+ *
+ *  Author supplies only the body — an Effect Script (`effects`, the ADR 0045
+ *  default) or, for a protocol-like effect that must read the firing event,
+ *  `resolve`. */
+export function cycledTrigger(args: {
+    id: string;
+    oracleText: string;
+    effects?: EffectOp[];
+    resolve?: (ctx: SpellContext, event: GameEvent) => void;
+    targetRequirement?: TargetRequirement;
+}): TriggeredAbility {
+    return {
+        id: args.id,
+        oracleText: args.oracleText,
+        event: "CARD_DISCARDED",
+        // CR 702.29c — collected from wherever the cycled card landed.
+        functionsFromOwnDiscard: true,
+        ...(args.targetRequirement
+            ? { targetRequirement: args.targetRequirement }
+            : {}),
+        matches: (event, self) =>
+            event.type === "CARD_DISCARDED" &&
+            // CR 702.29c/702.29f — "discarded to pay an activation cost of a
+            // cycling ability", typecycling included.
+            event.cause === "cycling" &&
+            // CR 702.29c — "this card", the cycled one.
+            event.cardInstanceId === self.id,
+        ...(args.effects ? { effects: args.effects } : {}),
+        ...(args.resolve ? { resolve: args.resolve } : {}),
+    };
 }
 
 /** "a" / "an" for a subtype word, so the printed reminder text reads

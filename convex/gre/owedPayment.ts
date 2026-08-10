@@ -160,6 +160,9 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         discardLastDrawnSource: "non-park",
         /** CR 702.29a — Cycling discards THIS card; no pick. */
         discardThisSource: "non-park",
+        /** CR 702.29c/f — a marker qualifying `discardThisSource`, read at
+         *  commit. Nothing to submit, so nobody is waiting on the payer. */
+        cyclingCost: "non-park",
         /** CR 702.129a — Eternalize exiles THIS card from the graveyard; no
          *  pick. */
         exileThisSource: "non-park",
