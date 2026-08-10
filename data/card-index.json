@@ -5208,6 +5208,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Generous Plunderer",
+        "scryfallId": "4c6cf93a-d073-48ac-88db-c46bf3e10beb",
+        "oracleId": "91c835d1-22ca-4c90-9ba6-c8e01bbc0347",
+        "firstSet": "big",
+        "firstPrintId": "4c6cf93a-d073-48ac-88db-c46bf3e10beb",
+        "firstPrintSet": "big"
+    },
+    {
         "name": "Geothermal Crevice",
         "scryfallId": "e744b593-13fe-4967-b492-ac02f5815e57",
         "oracleId": "83f9d84a-a011-4fa9-a3a4-51eb39159c54",
