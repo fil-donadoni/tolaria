@@ -27,10 +27,11 @@
 // choice, Mishra's Factory a mana ability and an `animatesSelf` ability.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
-import { activateAbilityOnState } from "../../game";
+import { activateAbilityOnState, finalizeTargetSelection } from "../../game";
 import { applyMoveInSearch, policyValue, selectRolloutMove } from "../search";
 import { enumerateMoves, type Move } from "../moves";
 import { evaluateBreakdown } from "../evaluate";
+import { buildActivatedAbilityStackItem } from "../activationCommit";
 import { cloneGameState } from "../clone";
 import {
     makeInstance,
@@ -48,6 +49,7 @@ const GOBLIN = getCardByName("Mons's Goblin Raiders").id;
 const FOREST = getCardByName("Forest").id;
 const VANGUARD = getCardByName("Llanowar Vanguard").id;
 const SAFEKEEPER = getCardByName("Sylvan Safekeeper").id;
+const CLERGY = getCardByName("Clergy of the Holy Nimbus").id;
 
 const SORCERER_ZAP = "prodigal-sorcerer-zap";
 const MOTHER_ABILITY = "mother-of-runes-protect";
@@ -196,6 +198,113 @@ describe("applyMoveInSearch puts an activated ability on the stack (CR 602.2a)",
         expect(activationFields(searchItem!)).toEqual(
             activationFields(serverItem!)
         );
+    });
+
+    it("SHAPE PARITY — the TARGETED commit site, with targets on both sides", () => {
+        // Review finding 3: the untargeted fixture above leaves seven of the
+        // compared fields `undefined` on BOTH sides, so it cannot observe a
+        // divergence in any CONDITIONAL field. This drives the OTHER server
+        // commit site — `finalizeTargetSelection`, where the ability reaches the
+        // stack after target selection — so `targets` is non-undefined on both
+        // sides and is compared as data rather than as two absences.
+        const searchState = board(
+            "BEGINNING_OF_COMBAT",
+            [mine(SORCERER, "tim")],
+            [theirs(GOBLIN, "gob")]
+        );
+        const serverState = cloneGameState(searchState);
+        const move = activationFor(searchState, "tim", "gob");
+
+        applyMoveInSearch(searchState, "p1", move);
+
+        activateAbilityOnState(serverState, {
+            playerId: "p1",
+            cardInstanceId: "tim",
+            abilityId: SORCERER_ZAP,
+        });
+        const pt = serverState.pendingTarget!;
+        expect(
+            pt,
+            "the server parks a pendingTarget for a targeted ability"
+        ).toBeDefined();
+        pt.selected = [{ type: "permanent", id: "gob" }];
+        finalizeTargetSelection(serverState, pt, "p1");
+
+        const searchItem = searchState.stack.find(
+            (i) => i.abilityId === SORCERER_ZAP
+        )!;
+        const serverItem = serverState.stack.find(
+            (i) => i.abilityId === SORCERER_ZAP
+        )!;
+        expect(searchItem.targets).toBeDefined();
+        expect(searchItem.targets).toEqual(serverItem.targets);
+        expect(searchItem.castById).toBe(serverItem.castById);
+        expect(searchItem.abilityId).toBe(serverItem.abilityId);
+        expect(searchItem.zone).toBe(serverItem.zone);
+    });
+
+    it("BUILDER CONTRACT — every conditional field is carried, and omitted when absent", () => {
+        // Review finding 3, the structural half. Two fields the search
+        // deliberately never produces (`additionalSacrificeSnapshot`,
+        // `notedManaSpent`) cannot be covered by a parity test at all, so
+        // deleting either spread from `buildActivatedAbilityStackItem` was
+        // invisible to this file. This tests the builder's own contract
+        // directly: each conditional field appears when supplied, and the KEY is
+        // absent when not — the presence/absence distinction is what the
+        // conditional-spread pattern exists for, and what a plain `=== undefined`
+        // comparison cannot see.
+        const source = mine(SORCERER, "tim");
+        const snapshot = { cardInstanceId: "victim", mv: 3, power: 2 };
+
+        const full = buildActivatedAbilityStackItem(source, {
+            castById: "p1",
+            abilityId: SORCERER_ZAP,
+            targets: [{ type: "permanent", id: "gob" }],
+            targetAmounts: { "permanent:gob": 2 },
+            chosenModeId: "mode-a",
+            chosenX: 3,
+            grantedSourceCardId: "granting-card",
+            additionalSacrificeSnapshot: snapshot,
+            notedManaSpent: { R: 1 },
+        });
+        expect(full.targets).toEqual([{ type: "permanent", id: "gob" }]);
+        expect(full.targetAmounts).toEqual({ "permanent:gob": 2 });
+        expect(full.chosenModeId).toBe("mode-a");
+        expect(full.chosenX).toBe(3);
+        expect(full.grantedSourceCardId).toBe("granting-card");
+        expect(full.additionalSacrificeSnapshot).toEqual(snapshot);
+        expect(full.notedManaSpent).toEqual({ R: 1 });
+
+        const bare = buildActivatedAbilityStackItem(source, {
+            castById: "p1",
+            abilityId: SORCERER_ZAP,
+        });
+        // `in`, not `=== undefined`: the builder must OMIT the key, because a
+        // present-but-undefined key survives `structuredClone` into persisted
+        // state and reads differently from the server's item.
+        for (const key of [
+            "targets",
+            "targetAmounts",
+            "chosenModeId",
+            "chosenX",
+            "grantedSourceCardId",
+            "additionalSacrificeSnapshot",
+            "notedManaSpent",
+        ]) {
+            expect(key in bare, `${key} must be omitted when absent`).toBe(
+                false
+            );
+        }
+        // An explicitly EMPTY target tuple is still carried — the targeted
+        // commit site relies on it (`finalizeTargetSelection` passes `targets`
+        // unconditionally), so "empty" and "absent" are not the same input.
+        const emptyTargets = buildActivatedAbilityStackItem(source, {
+            castById: "p1",
+            abilityId: SORCERER_ZAP,
+            targets: [],
+        });
+        expect("targets" in emptyTargets).toBe(true);
+        expect(emptyTargets.targets).toEqual([]);
     });
 
     it("does NOT push a mana ability — it never uses the stack (CR 605.3c)", () => {
@@ -368,6 +477,28 @@ describe("board flexibility — a live instant-speed activated option (issue #18
             mine(MOTHER, "mom", { isSummoningSick: true }),
         ]);
         expect(flex(sick)).toBe(0);
+    });
+
+    it("credits nothing for an ability only OPPONENTS may activate (CR 602.1)", () => {
+        // Review finding 1: the one gate this term did not mirror from
+        // `moves.ts`, and a fail-OPEN one — the controller of Clergy of the Holy
+        // Nimbus was credited for an option only their opponent can use.
+        //
+        // The Forest is load-bearing: it makes the {1} affordable, so a zero
+        // here cannot be the affordability gate passing for the wrong reason.
+        const state = board("PRECOMBAT_MAIN", [
+            mine(CLERGY, "clergy"),
+            mine(FOREST, "f1"),
+        ]);
+
+        expect(flex(state)).toBe(0);
+        // Tied to the enumerator rather than asserted in isolation: the claim is
+        // that the term agrees with what the bot may actually DO.
+        const activations = enumerateMoves(state, "p1").filter(
+            (m) =>
+                m.kind === "activate-ability" && m.cardInstanceId === "clergy"
+        );
+        expect(activations).toHaveLength(0);
     });
 
     it("credits nothing for a pure mana source (CR 605.1a)", () => {

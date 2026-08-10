@@ -50,6 +50,11 @@ const FOREST = getCardByName("Forest").id;
 const SWAMP = getCardByName("Swamp").id;
 const GRIZZLY_BEARS = getCardByName("Grizzly Bears").id;
 const LIGHTNING_BOLT = getCardByName("Lightning Bolt").id;
+const THALLID = getCardByName("Thallid").id;
+const GRISELBRAND = getCardByName("Griselbrand").id;
+const JANDORS_RING = getCardByName("Jandor's Ring").id;
+const CORAL_HELM = getCardByName("Coral Helm").id;
+const HARVESTER = getCardByName("Harvester of Misery").id;
 
 function bf(cardId: string, id: string, owner = BOT, extra = {}) {
     return makeInstance(cardId, {
@@ -126,6 +131,184 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
         expect(botOf(greedy).graveyard.map((c) => c.id)).toEqual(
             treeBot.graveyard.map((c) => c.id)
         );
+    });
+
+    // ───────────────────────────────────────────────────────────────────────
+    // The legs #2448 left free, closed by the issue-#1920 review (finding 2).
+    // While the ability's PAYOFF was invisible, an unpaid leg was a benign tie
+    // — the activation scored equal to `pass` either way. The moment the search
+    // could SEE what an activation buys, an unpaid leg became free VALUE in the
+    // scoring leaf: the exact shape of the shipped repros #2422 / #2415.
+    // ───────────────────────────────────────────────────────────────────────
+
+    it("cost.removeCounter — the counters leave the source (CR 118)", () => {
+        const thallid = bf(THALLID, "thallid", BOT, {
+            counters: { spore: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, { battlefield: [thallid] }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        const move = activationOf(state, thallid.id);
+        expect(move).toBeDefined();
+
+        const tree = cloneGameState(state);
+        applyMoveInSearch(tree, BOT, move!);
+        const source = botOf(tree).battlefield.find((c) => c.id === "thallid");
+        // Three spore counters paid: the map is dropped entirely at zero.
+        expect(source?.counters?.spore ?? 0).toBe(0);
+
+        // The greedy sandbox pays the same leg — the two sandboxes agree.
+        const greedy = applyMoveForSearch(state, BOT, move!);
+        expect(
+            botOf(greedy).battlefield.find((c) => c.id === "thallid")?.counters
+                ?.spore ?? 0
+        ).toBe(0);
+    });
+
+    it("cost.removeCounter — an unaffordable source is left untouched, never thrown on", () => {
+        // `payRemoveCounterCost` THROWS when the source is short. Such an
+        // activation is not a legal move, but `applyActivationCostsForSearch` is
+        // exported and a sandbox must never throw on a coarse position reached
+        // by another route.
+        const thallid = bf(THALLID, "thallid", BOT, { counters: { spore: 1 } });
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, { battlefield: [thallid] }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        const handBuilt: Move = {
+            kind: "activate-ability",
+            cardInstanceId: "thallid",
+            abilityId: "thallid-make-saproling",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+
+        expect(() =>
+            applyActivationCostsForSearch(state, BOT, handBuilt)
+        ).not.toThrow();
+        expect(
+            botOf(state).battlefield.find((c) => c.id === "thallid")?.counters
+                ?.spore
+        ).toBe(1);
+    });
+
+    it("cost.life — the life is deducted from the ACTIVATING player (CR 118.4)", () => {
+        const griselbrand = bf(GRISELBRAND, "gris");
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, { battlefield: [griselbrand] }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        const lifeBefore = botOf(state).life;
+        const move = activationOf(state, griselbrand.id);
+        expect(move).toBeDefined();
+
+        const tree = cloneGameState(state);
+        applyMoveInSearch(tree, BOT, move!);
+        expect(botOf(tree).life).toBe(lifeBefore - 7);
+    });
+
+    it("cost.discardLastDrawn — the drawn card leaves hand (CR 118.3)", () => {
+        const ring = bf(JANDORS_RING, "ring");
+        const drawn = inZone(GRIZZLY_BEARS, "drawn", "hand");
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, {
+                    battlefield: [ring, bf(FOREST, "f1"), bf(FOREST, "f2")],
+                    hand: [drawn],
+                    lastDrawnCardId: "drawn",
+                }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        const move = activationOf(state, ring.id);
+        expect(move).toBeDefined();
+
+        const tree = cloneGameState(state);
+        applyMoveInSearch(tree, BOT, move!);
+        expect(botOf(tree).hand.map((c) => c.id)).not.toContain("drawn");
+        expect(botOf(tree).graveyard.map((c) => c.id)).toContain("drawn");
+    });
+
+    it("cost.discardAtRandom — a card leaves hand at random (CR 118.3)", () => {
+        const helm = bf(CORAL_HELM, "helm");
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, {
+                    battlefield: [
+                        helm,
+                        bf(GRIZZLY_BEARS, "bear"),
+                        bf(FOREST, "f1"),
+                        bf(FOREST, "f2"),
+                        bf(FOREST, "f3"),
+                    ],
+                    hand: [
+                        inZone(GRIZZLY_BEARS, "h1", "hand"),
+                        inZone(GRIZZLY_BEARS, "h2", "hand"),
+                    ],
+                }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        const move = activationOf(state, helm.id);
+        expect(move).toBeDefined();
+
+        const tree = cloneGameState(state);
+        applyMoveInSearch(tree, BOT, move!);
+        // WHICH card is random (seeded); that exactly one left is not.
+        expect(botOf(tree).hand).toHaveLength(1);
+        expect(botOf(tree).graveyard).toHaveLength(1);
+    });
+
+    it("cost.discardThis — the hand source is discarded (CR 118.3 / 702.29a)", () => {
+        // No ENUMERATED move reaches this leg: `enumerateActivationMoves` scans
+        // the battlefield and the graveyard, never the hand, so an
+        // `activateFromHand` ability (Cycling, Harvester of Misery) is not a
+        // macro-move today. The helper is exported and must still pay every leg
+        // it can be handed, so this drives it directly rather than pretending
+        // the gap is unreachable-therefore-absent.
+        const harvester = inZone(HARVESTER, "harv", "hand");
+        const state = makeState({
+            players: [makePlayer(OPP), makePlayer(BOT, { hand: [harvester] })],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        const handBuilt: Move = {
+            kind: "activate-ability",
+            cardInstanceId: "harv",
+            abilityId: "harvester-of-misery-discard",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+
+        applyActivationCostsForSearch(state, BOT, handBuilt);
+
+        expect(botOf(state).hand.map((c) => c.id)).not.toContain("harv");
+        expect(botOf(state).graveyard.map((c) => c.id)).toContain("harv");
     });
 
     it("cost.discardFilter — the card leaves hand (CR 118.3)", () => {
@@ -495,6 +678,71 @@ describe("field repro #2422 — Sylvan Safekeeper does not eat its own lands", (
             );
             expect(activation).toBeLessThan(pass);
             expect(chosen).not.toContain("Sylvan Safekeeper");
+        }
+    );
+});
+
+describe("review repro (#1920 finding 2) — a counter cost is not free at the root", () => {
+    /** Thallid with exactly the three spore counters its ability eats, in the
+     *  bot's own precombat main. The REVIEWER's measurement: on the #1920 branch
+     *  before this fix the root chose the activation (0.99965 vs 0.99896) while
+     *  `main` chose `pass` (0.94899 vs 0.94897) — and the three counters were
+     *  still on the card in the leaf that scored it. Making the payoff visible
+     *  turned an unpaid cost leg into free value, which is precisely the
+     *  #2422 / #2415 shape. */
+    function position(): GameState {
+        return makeState({
+            players: [
+                makePlayer(OPP, {
+                    battlefield: [
+                        bf(SWAMP, "oppSwamp1", OPP),
+                        bf(SWAMP, "oppSwamp2", OPP),
+                    ],
+                }),
+                makePlayer(BOT, {
+                    battlefield: [
+                        bf(THALLID, "thallid", BOT, { counters: { spore: 3 } }),
+                    ],
+                }),
+            ],
+            turn: 3,
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+    }
+
+    it("spends the counters in the leaf that scores the activation", () => {
+        // The mechanism, asserted where the reviewer found it wrong: the cost
+        // must be paid in the very state the evaluator sees.
+        const state = position();
+        const move = activationOf(state, "thallid");
+        expect(move).toBeDefined();
+        const leaf = cloneGameState(state);
+        applyMoveInSearch(leaf, BOT, move!);
+
+        expect(
+            botOf(leaf).battlefield.find((c) => c.id === "thallid")?.counters
+                ?.spore ?? 0
+        ).toBe(0);
+    });
+
+    it.each(SEEDS)(
+        "does not make a free Saproling out of an unpaid cost (seed %i)",
+        (seed) => {
+            // Deliberately NOT asserting `activation < pass`: with the counters
+            // actually paid, making a 1/1 for three spore counters may well be
+            // correct play. What must not happen is the bot preferring it
+            // BECAUSE the cost was free. The counter assertion above is the
+            // mechanism; this is the root-level guard that the trace still sees
+            // both candidates and the search terminates on this shape.
+            const { activation, pass } = rootRewards(
+                position(),
+                "thallid",
+                seed
+            );
+            expect(Number.isFinite(activation)).toBe(true);
+            expect(Number.isFinite(pass)).toBe(true);
         }
     );
 });

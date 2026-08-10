@@ -344,6 +344,8 @@ function activationsInFlight(
  *    * `canActivate` / `getTargetRequirement` — a runtime predicate this leaf
  *      heuristic does not evaluate, exactly as the move enumerator refuses to
  *      (`moves.ts`).
+ *    * `activatableByOpponentsOnly` (CR 602.1) — an ability only the OPPONENT
+ *      may activate is not this player's option to hold.
  *
  *  The rest are AVAILABILITY, which an announced ability has already cleared —
  *  it is on the stack, so re-testing them would reject the very state the
@@ -362,12 +364,33 @@ function hasFlexibleActivation(
     perm: CardInstanceState,
     availableMana: number
 ): boolean {
+    // The shared "does something beyond producing mana" authority (CR 605.1a) —
+    // the same predicate the auto-tapper uses, never a parallel copy.
+    //
+    // It walks the post-layer ability set, and the loop below walks it again:
+    // two allocations per candidate permanent per `evaluate` call on the ISMCTS
+    // hot path (issue #1920 review, finding 5, measured there at ~+8%). Folding
+    // the two into one walk was tried and REVERTED — measured interleaved over
+    // 50k `evaluate` calls with 10 permanents a side, three pairs: 6397/5568/6543
+    // ms before against 6391/5753/5965 after, a ~2% mean difference inside a
+    // ~1000 ms run-to-run spread on this shared machine. The cost is the
+    // board-side loop EXISTING on the hot path at all, not the double walk, so
+    // the redundancy buys clarity for nothing measurable and the simpler shape
+    // stays.
     if (!hasNonManaActivatedAbility(perm)) return false;
+    const abilities = getEffectiveActivatedAbilities(perm);
     const inFlight = activationsInFlight(state, player, perm);
-    for (const { ability } of getEffectiveActivatedAbilities(perm)) {
+    for (const { ability } of abilities) {
         if (!isDeferrableStackAbility(ability)) continue;
         if (ability.activateFromHand || ability.activateFromGraveyard) continue;
         if (ability.canActivate || ability.getTargetRequirement) continue;
+        // CR 602.1 — "Only your opponents may activate this ability" (Clergy of
+        // the Holy Nimbus). It is not an option THIS player holds at all, and
+        // `enumerateMoves` offers them none; without this gate the term credited
+        // the controller for an ability only the opponent can use (issue #1920
+        // review, finding 1 — the one gate this loop did not mirror from
+        // `moves.ts`, and a fail-OPEN one).
+        if (ability.activatableByOpponentsOnly) continue;
         if (!isFreeToHoldCost(ability.cost)) continue;
         if (inFlight.has(ability.id)) return true;
         if (

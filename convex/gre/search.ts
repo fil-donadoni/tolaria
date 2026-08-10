@@ -1136,17 +1136,24 @@ function findPermanentOnBattlefield(
 }
 
 /** The card an `activate-ability` move names, in whichever zone the ability
- *  functions from — the two zones `enumerateActivationMoves` scans (`moves.ts`):
+ *  functions from (CR 113.6):
  *
  *    * a BATTLEFIELD permanent, on EITHER battlefield (CR 113.3c — "any player
- *      may activate" is enumerated off the opponent's board), and
+ *      may activate" is enumerated off the opponent's board),
  *    * a GRAVEYARD card, for an ability that opts into functioning there
- *      (CR 113.6 / 702.129a — Ashen Ghoul, Eternalize).
+ *      (CR 702.129a — Ashen Ghoul, Eternalize), and
+ *    * a HAND card, for an `activateFromHand` ability (CR 702.29a — Cycling,
+ *      Harvester of Misery).
  *
- *  Deliberately NOT the hand: an `activateFromHand` ability (Cycling) is never
- *  enumerated as a macro-move, so there is no hand-source activation for the
- *  search to apply, and inventing one here would let a Cycling item reach the
- *  stack while its `discardThis` cost went unpaid. */
+ *  The hand branch is deliberately UNREACHABLE through `enumerateMoves` today
+ *  (`enumerateActivationMoves` scans the battlefield and the graveyard only), so
+ *  it exists for symmetry rather than for a live path. It was previously omitted
+ *  on the grounds that pushing a hand-source ability would put an item on the
+ *  stack while its `discardThis` cost went unpaid — true when it was written,
+ *  and no longer: `applyActivationCostsForSearch` pays that leg (issue #1920
+ *  review, finding 2). Cost and push now cover the same three zones, which is
+ *  the invariant worth holding — a zone one of them knows about and the other
+ *  does not is exactly how an ability gets resolved for free. */
 function findActivationSource(
     state: GameState,
     instanceId: string
@@ -1155,6 +1162,10 @@ function findActivationSource(
     if (permanent) return permanent;
     for (const p of state.players) {
         const found = p.graveyard.find((c) => c.id === instanceId);
+        if (found) return found;
+    }
+    for (const p of state.players) {
+        const found = p.hand.find((c) => c.id === instanceId);
         if (found) return found;
     }
     return undefined;
