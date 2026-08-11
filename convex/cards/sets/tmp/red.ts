@@ -10,9 +10,9 @@ import type { SpellContext } from "../../types";
 // damage to any target." (CR 701.16 sacrifice cost, CR 120.1 damage.) The
 // sacrificed creature is any creature the activating player controls (not
 // necessarily this permanent, since Goblin Bombardment is an Enchantment,
-// not a creature) — `cost.sacrificeFilter` needs no `excludeInstanceIds`
-// (this permanent isn't itself a creature, so it can never satisfy its own
-// filter).
+// not a creature) — `cost.sacrificeFilter` needs neither `excludeInstanceIds`
+// nor `excludeSource` (issue #2367): this permanent isn't itself a creature, so
+// it can never satisfy its own filter.
 export const goblinBombardment: CardDefinition = {
     id: "179e954f-1d90-4ef4-b800-25845cc338e2",
     rarity: "uncommon",

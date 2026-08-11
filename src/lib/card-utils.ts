@@ -702,6 +702,24 @@ export interface ClientPermanentFilter {
      *  allow-list — so before this branch existed the mirror ringed EVERY
      *  tapped permanent instead of the one the prompt is about. */
     instanceIds?: ReadonlyArray<string>;
+    /** "another <filter>" with the source id deferred to match time (CR 109.2,
+     *  issue #2367) — mirrors `PermanentFilter.excludeSource`, the flag a
+     *  static card-definition filter uses when it has no instance id to write
+     *  into `excludeInstanceIds`.
+     *
+     *  This mirror ALWAYS fails closed on it, because it has no
+     *  `FilterMatchContext` and therefore no source id to compare against. That
+     *  is not a gap: every filter that reaches a client picker has already been
+     *  LOWERED to a concrete `excludeInstanceIds` entry by
+     *  `resolveExcludeSource` at the point the requirement was built
+     *  (`buildActivationSacrificeSelection`, `convex/gre/activationCostPicks.ts`),
+     *  which is the branch above. A raw `excludeSource` arriving here therefore
+     *  means the server forgot to lower it — and refusing to highlight anything
+     *  is the safe answer, exactly as `controlledSinceTurnStart` does without a
+     *  `turnState`. Declaring the field is what makes that TRUE: without a
+     *  branch the mirror would fail OPEN and ring the source itself as a legal
+     *  sacrifice (the `excludeSubtypes` shape of issue #1938). */
+    excludeSource?: boolean;
     /** "…that they controlled since the beginning of the turn" (Keldon
      *  Twilight, PLS). Mirrors `PermanentFilter.controlledSinceTurnStart`.
      *  Answering it needs the two turn-scoped `GameState` fields, so callers
@@ -810,6 +828,11 @@ export function matchesPermanentFilter(
     ) {
         return false;
     }
+    // CR 109.2 — "another <filter>" (issue #2367). This mirror carries no
+    // source id, so the only honest answer is CLOSED; see the field's own doc
+    // comment on `ClientPermanentFilter` for why an unlowered `excludeSource`
+    // reaching here is a server bug and not a case to fail open on.
+    if (filter.excludeSource === true) return false;
     // "…that they controlled since the beginning of the turn" — delegated to
     // the ONE engine authority (`hasControlledSinceTurnStart`) rather than
     // re-derived here, so the board highlight and the server's pending-choice
@@ -1906,6 +1929,14 @@ export function getStackAbilities(
             const hasCandidate = (mine?.battlefield ?? []).some((c) =>
                 matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
                     selfControllerId: payerId,
+                    // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact"
+                    // (Legion Extruder) / "another Orc or Goblin" (Orc
+                    // General): the source is never a legal payment for its own
+                    // cost, so it must not count toward this gate. Without the
+                    // id an `excludeSource` filter matches nothing here
+                    // (fail-closed) and the ability is simply never offered —
+                    // wrong, but never an illegal click.
+                    selfInstanceId: card.id,
                 })
             );
             if (!hasCandidate) return false;
@@ -2100,6 +2131,13 @@ export function getGraveyardStackAbilities(
                 const hasCandidate = (mine?.battlefield ?? []).some((c) =>
                     matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
                         selfControllerId: card.ownerId,
+                        // CR 109.2 (issue #2367) — "Sacrifice ANOTHER <filter>".
+                        // A graveyard-source ability's own card isn't on the
+                        // battlefield at all, so this can never exclude a real
+                        // candidate; threaded anyway because an `excludeSource`
+                        // filter fails CLOSED without it (the ability would be
+                        // permanently hidden rather than wrongly offered).
+                        selfInstanceId: card.id,
                     })
                 );
                 if (!hasCandidate) return false;
@@ -3256,6 +3294,17 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     // opposite scoping cannot fail open the same way.
     excludeInstanceIds: "mirrored",
     instanceIds: "mirrored",
+    // CR 109.2 (issue #2367) — the id-less form of `excludeInstanceIds`, for a
+    // STATIC card-definition filter ("Sacrifice another artifact"). Mirrored in
+    // the fail-CLOSED direction on both paths: the engine matcher needs
+    // `ctx.selfInstanceId` and matches nothing without it, and the
+    // `ClientPermanentFilter` mirror — which has no context at all — always
+    // matches nothing. The working client path is the LOWERED form: every
+    // requirement that reaches a picker has had `resolveExcludeSource`
+    // (`convex/cards/filters.ts`) turn this flag into a concrete
+    // `excludeInstanceIds` entry at build time, which the branch above already
+    // mirrors. Declaring the field is what stops an unlowered one failing OPEN.
+    excludeSource: "mirrored",
     // — adapter-only: no ClientPermanentFilter field, but toMatchablePermanent
     // populates the underlying MatchablePermanent field so the engine-matcher
     // path (mayPaySacrificeCount / mayPaySacrificePower) matches correctly —
@@ -3349,6 +3398,11 @@ export const TRIGGER_STATE_VIEW_CENSUS: Record<
     // `id` is always populated, so both instance-id filters already work.
     instanceIds: "populated",
     excludeInstanceIds: "populated",
+    // CR 109.2 (issue #2367) — same `id`-only data dependency as the two keys
+    // above; the SOURCE half comes from the gate's own `FilterMatchContext`
+    // (`getStackAbilities`' `sacrificeFilter` branch passes `selfInstanceId`),
+    // not from this reducer, exactly like `controllerRelation` below.
+    excludeSource: "populated",
     // Needs a `FilterMatchContext` with `selfControllerId`/`selfInstanceId` —
     // threaded by the gate's own call (`getStackAbilities`'
     // `sacrificeFilter`/`tapOtherFilter` branches pass `selfControllerId`),

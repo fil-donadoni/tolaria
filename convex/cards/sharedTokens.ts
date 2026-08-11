@@ -282,3 +282,29 @@ export function constructArtifactsYouControlToken(
         staticEffectKeys: ["pt-cda-artifacts-you-control"],
     };
 }
+
+/** Golem token (CR 111 / 707.2, issue #2367). "3/3 colorless Golem artifact
+ *  creature token" — the vanilla Mirrodin-block staple. Created by Sandstorm
+ *  Salvager's ETB (`sets/big/green.ts`) and by Legion Extruder's activated
+ *  ability (`sets/big/red.ts`); extracted here on the SECOND consumer per
+ *  CLAUDE.md primitive reuse.
+ *
+ *  `EffectTokenSpec` (JSON-pure, ADR 0046) rather than `TokenSpec`: a vanilla
+ *  token has no abilities, and both consumers create it from a DSL
+ *  `createToken` Op.
+ *
+ *  Deliberately NO pinned `imagePrintId`, following `RABBIT_TOKEN` above:
+ *  Golem is a printed token in many sets and the art-match rule is "the token
+ *  associated with the PRODUCING card's own printing", so
+ *  `tokenPrintIdFor(<producing card id>, "Golem")` resolves it per producer
+ *  from the reverse-linked Scryfall `all_parts` lockfile
+ *  (`generated/token-prints.json`). Both producers are already in that
+ *  lockfile (they happen to share the same Golem print today — pinning would
+ *  freeze that coincidence onto every future producer). */
+export const GOLEM_TOKEN: EffectTokenSpec = {
+    name: "Golem",
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 3,
+    toughness: 3,
+};

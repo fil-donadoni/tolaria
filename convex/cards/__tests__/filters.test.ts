@@ -4,6 +4,7 @@ import {
     matchesPermanentFilter,
     matchesPlayerFilter,
     matchesSpellFilter,
+    resolveExcludeSource,
     type FilterMatchContext,
     type MatchableDamageSource,
     type MatchablePermanent,
@@ -176,6 +177,64 @@ describe("matchesPermanentFilter", () => {
         expect(
             matchesPermanentFilter(card, { excludeInstanceIds: ["abc"] })
         ).toBe(false);
+    });
+
+    it("excludeSource excludes the ctx's own source, and fails CLOSED without one (CR 109.2, issue #2367)", () => {
+        const source = permanent({ id: "src", types: ["Artifact"] });
+        const other = permanent({ id: "other", types: ["Artifact"] });
+        const another = { types: "Artifact" as const, excludeSource: true };
+        const ctx: FilterMatchContext = { selfInstanceId: "src" };
+
+        // With the source id threaded: "another artifact" admits the other
+        // artifact and rejects the source itself.
+        expect(matchesPermanentFilter(other, another, ctx)).toBe(true);
+        expect(matchesPermanentFilter(source, another, ctx)).toBe(false);
+
+        // No `selfInstanceId` at all — the whole point of the field. A call
+        // site that forgets to thread the source must see NOTHING match (the
+        // ability reads as unactivatable), never "no constraint" (the source
+        // offered as payment for its own cost).
+        expect(matchesPermanentFilter(other, another)).toBe(false);
+        expect(matchesPermanentFilter(source, another)).toBe(false);
+        expect(
+            matchesPermanentFilter(other, another, { selfControllerId: "p1" })
+        ).toBe(false);
+
+        // ANDs with every other field rather than replacing them.
+        expect(
+            matchesPermanentFilter(
+                permanent({ id: "other", types: ["Creature"] }),
+                another,
+                ctx
+            )
+        ).toBe(false);
+    });
+
+    it("resolveExcludeSource lowers the flag to a concrete excludeInstanceIds entry (issue #2367)", () => {
+        const lowered = resolveExcludeSource(
+            { types: "Artifact", excludeSource: true },
+            "src"
+        );
+        expect(lowered.excludeSource).toBeUndefined();
+        expect(lowered.excludeInstanceIds).toEqual(["src"]);
+        // The lowered filter needs no context to mean the same thing — that is
+        // what lets it ride on `pendingActivation` and be re-read by every
+        // consumer that never sees the source again.
+        const source = permanent({ id: "src", types: ["Artifact"] });
+        const other = permanent({ id: "other", types: ["Artifact"] });
+        expect(matchesPermanentFilter(source, lowered)).toBe(false);
+        expect(matchesPermanentFilter(other, lowered)).toBe(true);
+
+        // Preserves any ids the filter already carried, and is identity for a
+        // filter without the flag.
+        expect(
+            resolveExcludeSource(
+                { excludeInstanceIds: ["a"], excludeSource: true },
+                "src"
+            ).excludeInstanceIds
+        ).toEqual(["a", "src"]);
+        const plain = { types: "Artifact" as const };
+        expect(resolveExcludeSource(plain, "src")).toBe(plain);
     });
 
     it("matches by colors (OR semantics, requires populated colors)", () => {

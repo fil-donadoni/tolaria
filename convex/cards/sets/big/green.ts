@@ -6,6 +6,7 @@
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+import { GOLEM_TOKEN } from "../../sharedTokens";
 
 // Sandstorm Salvager — {2}{G} Creature — Human Artificer, 1/1 (Cube FREE
 // residue token-maker, issue #1304). "When this creature enters, create a
@@ -40,13 +41,10 @@ export const sandstormSalvager: CardDefinition = {
             effects: [
                 {
                     op: "createToken",
-                    token: {
-                        name: "Golem",
-                        types: ["Artifact", "Creature"],
-                        subtypes: ["Golem"],
-                        power: 3,
-                        toughness: 3,
-                    },
+                    // Shared 3/3 colorless Golem spec (`sharedTokens.ts`) —
+                    // extracted on Legion Extruder, the second producer
+                    // (issue #2367).
+                    token: GOLEM_TOKEN,
                     controller: "controller",
                 },
             ],

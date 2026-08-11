@@ -1149,6 +1149,12 @@ function enumerateAbilityMoves(
                     ability.cost.sacrificeFilter!,
                     {
                         selfControllerId: player.id,
+                        // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact"
+                        // (Legion Extruder): the source can't pay its own cost
+                        // with itself. Without this id an `excludeSource`
+                        // filter matches nothing here (fail-closed) and the bot
+                        // simply never enumerates the activation.
+                        selfInstanceId: perm.id,
                         supertypesOf: liveSupertypesOf,
                     }
                 )

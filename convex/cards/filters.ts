@@ -115,6 +115,26 @@ export interface PermanentFilter {
      *  permanent's own id when an effect specifies "another permanent"
      *  (CR 109.2) or "permanents other than ~". */
     excludeInstanceIds?: ReadonlyArray<string>;
+    /** Exclude the FILTER'S OWN SOURCE — "another <filter>" (CR 109.2), the
+     *  declarative twin of `TargetRequirement.excludeSource` (issue #2367).
+     *  `excludeInstanceIds` above can only carry ids known when the filter is
+     *  AUTHORED, and a card definition's `ActivatedAbility.cost.sacrificeFilter`
+     *  is a static object shared by every instance of the card — so "Sacrifice
+     *  another artifact" (Legion Extruder) / "Sacrifice another Orc or Goblin"
+     *  (Orc General) has no id to write down. This flag defers the id to match
+     *  time: the source is `ctx.selfInstanceId`.
+     *
+     *  **Fail-CLOSED by construction.** When this is `true` and the caller
+     *  supplied NO `ctx.selfInstanceId`, the filter matches NOTHING rather than
+     *  falling through to "no constraint". That asymmetry is the whole point:
+     *  this field's readers are the seven-odd cost-payability sites (bot move
+     *  enumeration, both `game.ts` activation gates, the two client
+     *  affordability gates, the pick builder, the candidate scan) and a site
+     *  that forgets to thread the source id then reports the ability as
+     *  UNACTIVATABLE — loud and harmless — instead of silently letting a
+     *  permanent pay its own cost by sacrificing itself. AND with every other
+     *  field. */
+    excludeSource?: boolean;
     /** Restrict the match set to exactly these instance ids (AND with every
      *  other field). Used to scope a choice to a single named permanent —
      *  e.g. the per-permanent optional-untap prompt (ATQ cluster E "you may
@@ -414,6 +434,15 @@ export function matchesPermanentFilter(
     ) {
         return false;
     }
+    // CR 109.2 — "another <filter>" (issue #2367). Deliberately fail-CLOSED:
+    // without `ctx.selfInstanceId` there is no source to exclude, so the SAFE
+    // reading is "nothing matches" (the ability reads as unactivatable) rather
+    // than "no constraint" (the source is offered as a legal payment for its
+    // own cost). See the field's own doc comment on `PermanentFilter`.
+    if (filter.excludeSource === true) {
+        if (ctx?.selfInstanceId === undefined) return false;
+        if (card.id === ctx.selfInstanceId) return false;
+    }
     if (
         filter.instanceIds !== undefined &&
         !filter.instanceIds.includes(card.id)
@@ -454,6 +483,38 @@ export function matchesPermanentFilter(
         return false;
     }
     return true;
+}
+
+/** Bakes a filter's `excludeSource` flag (CR 109.2, issue #2367) into a
+ *  concrete `excludeInstanceIds` entry, returning a filter that needs no
+ *  `FilterMatchContext` to mean the same thing. Identity (same object) when the
+ *  filter carries no `excludeSource`.
+ *
+ *  Used where the filter STOPS being read against a live source and starts
+ *  being DATA that travels: `SacrificeRequirement.filter` is built once at
+ *  activation announcement (`buildActivationSacrificeSelection`), persisted on
+ *  `pendingActivation`, and then re-read by a dozen consumers that never see
+ *  the source again — `sacrificeCandidates`, `autoResolveFungible`,
+ *  `isSacrificeCandidateLegal`, `legalActions`, the bot's Brain, and the client
+ *  battlefield picker's own mirror. Resolving once at the build point is what
+ *  keeps every one of them correct without threading a source id through all of
+ *  them; the matcher's fail-closed branch is what makes forgetting to resolve
+ *  safe. Mirrors `toPermanentFilter`'s identical `excludeSource` →
+ *  `excludeInstanceIds` lowering in the effect interpreter. */
+export function resolveExcludeSource(
+    filter: PermanentFilter,
+    selfInstanceId: string
+): PermanentFilter {
+    if (filter.excludeSource !== true) return filter;
+    const { excludeSource: _excludeSource, ...rest } = filter;
+    void _excludeSource;
+    return {
+        ...rest,
+        excludeInstanceIds: [
+            ...(filter.excludeInstanceIds ?? []),
+            selfInstanceId,
+        ],
+    };
 }
 
 function matchesControllerRelation(
