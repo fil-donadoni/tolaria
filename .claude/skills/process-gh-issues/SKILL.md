@@ -42,7 +42,7 @@ SUBAGENT rather than by the orchestrator — pass the path, never the contents.
 | `references/reviewer-brief.md`        | spawning a reviewer subagent                                         | **the reviewer** |
 | `references/merge-train.md`           | picking the gate lane (once per run); `gh pr merge` misbehaves       | orchestrator     |
 | `references/scenario-registration.md` | a receipt carried a `scenario` (§5)                                  | orchestrator     |
-| `references/afk-driver.md`            | setting up or debugging `bun run loop:drain` (§ Running unattended)  | the human/user   |
+| `references/afk-driver.md`            | setting up or debugging `bun run loop:afk` (§ Running unattended)    | the human/user   |
 
 Nothing here is duplicated there. If you find yourself restating a reference in
 this frame, move the sentence rather than copying it — two copies of a rule
@@ -328,6 +328,14 @@ Back in the orchestrator (do NOT re-read the diff or re-run tests):
     Do not close a parent on a partial count, and do not close one whose `total` is 0 — a zero means nobody wired the sub-issue edges, not that there is no work left.
 
 - **Post-merge health check.** A gate that passed on the rebased tree can still be followed by a red `main` — a required check that only runs on `main`, a deployment step, a second merge that raced yours. After the last merge of the batch, read the tip's check runs (the §0 `gh api … /check-runs` call). Red → run §0b triage immediately: the culprit is almost certainly a commit **this loop just merged**, which is the revert case. Do not start another batch on a red tip.
+- **AFK handoff — the last action of the pass, after Release and the final report.** Run it on **every** exit path that reaches a report, including a pass that landed nothing:
+
+    ```bash
+    sh scripts/loop-handoff.sh --from-pass
+    ```
+
+    It decides for itself and is a quiet no-op in four cases: the checkout is not **armed** (no `.claude/telemetry/afk.conf` — an ordinary interactive pass must never fork an unattended run), this pass was itself started by the driver (`TOLARIA_LOOP_DRAIN=1` — the driver launches the next pass, not the pass), a driver is already running over this checkout, or the stop-file exists. Otherwise it detaches a `loop:drain` driver that keeps starting fresh passes with no further human input. **A blocked handoff is never an error** — it exits 0 and the batch that just landed stays a success.
+
 - Pass complete. With `MAX_PASSES = 1` (default), **exit here** — the driver starts a fresh process for the next batch (see § Running unattended).
 
 ## Release (mandatory on every exit path)
@@ -372,7 +380,17 @@ This skill implements **one pass**. Continuous operation is an outer loop that r
 | which tree is known green | `.claude/telemetry/green-sha`       |
 | in-flight work            | the pushed branch + open PR         |
 
-So a fresh process per batch loses nothing and resets context to zero. **Do NOT drive this with `/loop`** — `/loop` re-fires its prompt inside the SAME conversation, so context never resets between passes and `.claude/hooks/deny-guard.sh` denies the second `bun run queue:plan` in that session, killing pass 2 immediately. Drive it with **`bun run loop:drain`** instead (`scripts/loop-drain.sh`, ADR 0097; see `references/afk-driver.md` for stop reasons, the budget proxy, and the kill switch). **Never** try to run many passes inside one conversation to "save" the startup cost — context growth across passes is the failure mode this design removes.
+So a fresh process per batch loses nothing and resets context to zero. **Do NOT drive this with `/loop`** — `/loop` re-fires its prompt inside the SAME conversation, so context never resets between passes and `.claude/hooks/deny-guard.sh` denies the second `bun run queue:plan` in that session, killing pass 2 immediately. Drive it with the out-of-process driver `scripts/loop-drain.sh` (ADR 0097). **Never** try to run many passes inside one conversation to "save" the startup cost — context growth across passes is the failure mode this design removes.
+
+**One command starts the whole unattended run** (ADR 0099):
+
+```bash
+bun run loop:afk          # arm + detach the driver; then walk away
+bun run loop:afk --status # armed? driver alive? last passes
+bun run loop:afk --stop   # stop after the current pass finishes
+```
+
+`loop:afk` (`scripts/loop-handoff.sh`) **arms** the checkout — writing `.claude/telemetry/afk.conf`, which records in plain text the permission mode the unattended passes will use — and detaches the driver into its own session (setsid + `nohup`, under `caffeinate` so the Mac does not sleep through the run), so it outlives the terminal, the SSH connection, or the Claude Code session that started it. From then on the machine keeps launching fresh `claude -p "/process-gh-issues"` processes on its own; a pass that finishes on an armed checkout hands the baton on (§4 last step) even if the driver itself died. `bun run loop:drain` is still the way to run the driver in the foreground of a terminal you are watching. Details, flags and stop reasons: `references/afk-driver.md`.
 
 ## The queue is the only source of work
 

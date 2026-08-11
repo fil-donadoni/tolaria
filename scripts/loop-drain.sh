@@ -34,6 +34,22 @@ MAX_PASSES=0
 STOP_FILE=".claude/telemetry/loop-stop"
 CLAUDE_ARGS=""
 DRY_RUN=0
+# A single `claude` crash used to end an overnight run outright. It is now
+# retried with a doubling backoff, bounded by CONSECUTIVE failures — a
+# successful pass resets the streak, so a flaky environment cannot spin here
+# forever, and a genuinely broken one still stops after MAX_CONSECUTIVE_ERRORS
+# with reason `claude-error`. Rate limits are NOT part of this: they still stop
+# the run immediately (ADR 0097 — never sleep-and-retry a quota we cannot poll).
+MAX_CONSECUTIVE_ERRORS=3
+ERROR_BACKOFF_SECS=60
+ERROR_BACKOFF_MAX_SECS=900
+PID_FILE=".claude/telemetry/loop-drain.pid"
+SINGLE_INSTANCE=0
+# Grace period before the FIRST pass. The handoff (scripts/loop-handoff.sh)
+# detaches this driver from inside a pass that is still finishing its own
+# Release step; starting pass N+1 the same second would race that pass's
+# `--remove-label in-progress` calls and re-select issues it is still holding.
+START_DELAY=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -59,6 +75,30 @@ while [ $# -gt 0 ]; do
             ;;
         --claude-args)
             CLAUDE_ARGS="$2"
+            shift 2
+            ;;
+        --max-consecutive-errors)
+            MAX_CONSECUTIVE_ERRORS="$2"
+            shift 2
+            ;;
+        --error-backoff-secs)
+            ERROR_BACKOFF_SECS="$2"
+            shift 2
+            ;;
+        --error-backoff-max-secs)
+            ERROR_BACKOFF_MAX_SECS="$2"
+            shift 2
+            ;;
+        --pid-file)
+            PID_FILE="$2"
+            shift 2
+            ;;
+        --single-instance)
+            SINGLE_INSTANCE=1
+            shift
+            ;;
+        --start-delay)
+            START_DELAY="$2"
             shift 2
             ;;
         --dry-run)
@@ -96,6 +136,18 @@ if ! is_uint "$MAX_PASSES"; then
     exit 2
 fi
 
+for _pair in "max-consecutive-errors:$MAX_CONSECUTIVE_ERRORS" \
+    "error-backoff-secs:$ERROR_BACKOFF_SECS" \
+    "error-backoff-max-secs:$ERROR_BACKOFF_MAX_SECS" \
+    "start-delay:$START_DELAY"; do
+    _name=${_pair%%:*}
+    _value=${_pair#*:}
+    if ! is_uint "$_value"; then
+        echo "loop-drain: --$_name must be a non-negative integer, got: '$_value'" >&2
+        exit 2
+    fi
+done
+
 if ! is_number "$MAX_PCT"; then
     echo "loop-drain: --max-pct must be numeric, got: '$MAX_PCT'" >&2
     exit 2
@@ -113,6 +165,57 @@ GREEN_SHA_FILE=".claude/telemetry/green-sha"
 mkdir -p "$LOG_DIR"
 STOP_FILE_DIR=$(dirname "$STOP_FILE")
 [ "$STOP_FILE_DIR" = "." ] || mkdir -p "$STOP_FILE_DIR"
+PID_FILE_DIR=$(dirname "$PID_FILE")
+[ "$PID_FILE_DIR" = "." ] || mkdir -p "$PID_FILE_DIR"
+
+# ── liveness advertisement. The pid file is how `scripts/loop-handoff.sh`
+# answers "does a driver already own this checkout?" before detaching another
+# one — two drivers over one queue double the spend and interleave
+# merge-trains. Written unconditionally (so `--status` is informative even for
+# a hand-started run); ENFORCED as a lock only under --single-instance, which
+# the handoff always passes. A stale pid file (driver killed with -9) is not a
+# lock: `kill -0` proves liveness, the file's existence alone never does.
+driver_alive() {
+    _pid=$(cat "$PID_FILE" 2>/dev/null || echo "")
+    is_uint "$_pid" || return 1
+    [ "$_pid" = "$$" ] && return 1
+    kill -0 "$_pid" 2>/dev/null
+}
+
+if [ "$SINGLE_INSTANCE" -eq 1 ] && driver_alive; then
+    echo "loop-drain: a driver is already running (pid $(cat "$PID_FILE")) — refusing to start a second one over the same queue." >&2
+    echo ""
+    echo "loop-drain summary: passes=0 reason=already-running queue_start=? queue_end=? final_pct=n/a"
+    exit 0
+fi
+
+echo "$$" >"$PID_FILE"
+# Only ever remove a pid file that is still OURS: a driver that exits while a
+# newer one already claimed the file must not delete the newer one's claim.
+cleanup_pid_file() {
+    _owner=$(cat "$PID_FILE" 2>/dev/null || echo "")
+    [ "$_owner" = "$$" ] && rm -f "$PID_FILE"
+    return 0
+}
+trap cleanup_pid_file EXIT INT TERM
+
+# Sleep in short chunks so the stop-file kill switch is honoured DURING a
+# backoff, not only between passes — a 15-minute backoff that ignores the kill
+# switch is a run the user cannot stop. Returns 1 if the stop file appeared.
+interruptible_sleep() {
+    _remaining="$1"
+    while [ "$_remaining" -gt 0 ]; do
+        [ -f "$STOP_FILE" ] && return 1
+        if [ "$_remaining" -gt 5 ]; then
+            sleep 5
+            _remaining=$((_remaining - 5))
+        else
+            sleep "$_remaining"
+            _remaining=0
+        fi
+    done
+    return 0
+}
 
 # ── rate-limit detection — one place, easy to extend when a new wording
 # shows up. Case-insensitive `grep -E` alternation over shapes the `claude`
@@ -183,8 +286,18 @@ read_green_sha() {
     fi
 }
 
+if [ "$START_DELAY" -gt 0 ]; then
+    echo "loop-drain: waiting ${START_DELAY}s before the first pass (handoff grace period)." >&2
+    interruptible_sleep "$START_DELAY" || {
+        echo ""
+        echo "loop-drain summary: passes=0 reason=stop-file queue_start=? queue_end=? final_pct=n/a"
+        exit 0
+    }
+fi
+
 pass=0
 no_progress_streak=0
+error_streak=0
 stop_reason=""
 pct="n/a"
 first_queue_count=""
@@ -260,9 +373,14 @@ while :; do
         # rather than `$?` after the pipe (no PIPESTATUS in POSIX sh).
         set +e
         (
+            # TOLARIA_LOOP_DRAIN marks the pass as ALREADY driven: the
+            # skill's end-of-pass handoff (scripts/loop-handoff.sh) no-ops on
+            # it, so a driver-launched pass never detaches a second driver.
+            # Without it, every pass would fork its own driver and the fan-out
+            # would be exponential, not sequential.
             # shellcheck disable=SC2086  # intentional word-splitting of a
             # user-supplied flag string, documented above.
-            claude -p "/process-gh-issues" $CLAUDE_ARGS 2>&1
+            TOLARIA_LOOP_DRAIN=1 claude -p "/process-gh-issues" $CLAUDE_ARGS 2>&1
             echo $? >"$rc_file"
         ) | tee "$pass_log"
         set -e
@@ -275,14 +393,18 @@ while :; do
         is_uint "$claude_exit" || claude_exit=1
     fi
 
-    # 5. rate limit / claude error -> stop and report (never sleep-and-retry
-    # — the user chose this explicitly). Two DISTINCT reasons, so the one
-    # telemetry field a human reads the next morning doesn't conflate a real
-    # usage limit with an ordinary crash, a bad `--claude-args` string, or a
-    # hook denial:
-    #   - `rate-limit`: the transcript matched a rate-limit/usage-limit shape
+    # 5. rate limit / claude error. Two DISTINCT reasons, so the one telemetry
+    # field a human reads the next morning doesn't conflate a real usage limit
+    # with an ordinary crash, a bad `--claude-args` string, or a hook denial —
+    # and because they are now handled DIFFERENTLY:
+    #   - `rate-limit`: the transcript matched a rate-limit/usage-limit shape.
+    #     Stops immediately, never sleep-and-retry (ADR 0097 — there is no
+    #     quota endpoint to poll, so any backoff would be a guess).
     #   - `claude-error`: `claude` exited non-zero with NO such match — some
-    #     other failure, still worth stopping for, but not a rate limit
+    #     other failure. RETRIED with a doubling backoff up to
+    #     MAX_CONSECUTIVE_ERRORS consecutive failures, because a single crash
+    #     ending an unattended overnight run is the failure mode this driver
+    #     exists to remove.
     rate_limited=0
     claude_errored=0
     if grep -iE "$RATE_LIMIT_PATTERNS" "$pass_log" >/dev/null 2>&1; then
@@ -310,12 +432,34 @@ while :; do
 
     reason_field="-"
     stop_now=0
+    backoff_secs=0
     if [ "$rate_limited" -eq 1 ]; then
         reason_field="rate-limit"
         stop_now=1
     elif [ "$claude_errored" -eq 1 ]; then
-        reason_field="claude-error"
-        stop_now=1
+        # A crash is retried, not fatal — but only CONSECUTIVELY bounded. The
+        # streak is reset by any pass that does not crash (below), so a run
+        # that alternates crash/success cannot accumulate its way to a stop,
+        # and a run that is simply broken still stops after
+        # MAX_CONSECUTIVE_ERRORS with the same reason it used to stop on
+        # immediately. Backoff doubles per consecutive failure, capped.
+        error_streak=$((error_streak + 1))
+        if [ "$MAX_CONSECUTIVE_ERRORS" -eq 0 ] ||
+            [ "$error_streak" -ge "$MAX_CONSECUTIVE_ERRORS" ]; then
+            reason_field="claude-error"
+            stop_now=1
+        else
+            reason_field="claude-retry"
+            backoff_secs="$ERROR_BACKOFF_SECS"
+            _doublings=$((error_streak - 1))
+            while [ "$_doublings" -gt 0 ] &&
+                [ "$backoff_secs" -lt "$ERROR_BACKOFF_MAX_SECS" ]; do
+                backoff_secs=$((backoff_secs * 2))
+                _doublings=$((_doublings - 1))
+            done
+            [ "$backoff_secs" -le "$ERROR_BACKOFF_MAX_SECS" ] ||
+                backoff_secs="$ERROR_BACKOFF_MAX_SECS"
+        fi
     elif [ "$total_after" = "$total_before" ] && [ "$green_after" = "$green_before" ]; then
         # 6. no-progress — neither the TOTAL open ready-for-agent count nor
         # main's tip moved. Deliberately NOT `queue_after`/`queue_before`
@@ -333,8 +477,21 @@ while :; do
         no_progress_streak=0
     fi
 
+    # Any pass that did not crash clears the crash streak — bounded
+    # CONSECUTIVELY, not cumulatively (see the comment above).
+    [ "$claude_errored" -eq 1 ] || error_streak=0
+
     # 7. one line per pass: epoch pass claude_exit pct queue_before queue_after reason
     echo "$epoch $pass $claude_exit $pct $queue_before $queue_after $reason_field" >>"$LOG_FILE"
+
+    if [ "$stop_now" -eq 0 ] && [ "$backoff_secs" -gt 0 ]; then
+        echo "loop-drain: pass $pass crashed (claude exit $claude_exit; consecutive failure ${error_streak}/${MAX_CONSECUTIVE_ERRORS}) — retrying in ${backoff_secs}s. Log tail:" >&2
+        tail -n 20 "$pass_log" >&2
+        if ! interruptible_sleep "$backoff_secs"; then
+            stop_reason="stop-file"
+            break
+        fi
+    fi
 
     if [ "$stop_now" -eq 1 ]; then
         stop_reason="$reason_field"

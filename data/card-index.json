@@ -3056,6 +3056,14 @@
         "firstPrintSet": "ecl"
     },
     {
+        "name": "Deceiver Exarch",
+        "scryfallId": "1f123ad6-fe84-4fed-9c0f-6b41921e9c26",
+        "oracleId": "3c939ea6-68b7-4965-b1d3-af1d3dc79778",
+        "firstSet": "nph",
+        "firstPrintId": "1f123ad6-fe84-4fed-9c0f-6b41921e9c26",
+        "firstPrintSet": "nph"
+    },
+    {
         "name": "Deep Forest Hermit",
         "scryfallId": "3287775f-7bec-4e8f-bb8d-daf5ce92e4a8",
         "oracleId": "80e9a42e-f4f4-4bfc-91a2-ad124737dca2",
@@ -12798,6 +12806,14 @@
         "firstSet": "drk",
         "firstPrintId": "7011356e-7516-4ca0-ac54-d30af7ce03a2",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Splinter Twin",
+        "scryfallId": "2f8f22fb-7291-4517-9b15-e98501f2856b",
+        "oracleId": "2df3187b-4b91-4de9-9b26-d48a30700cec",
+        "firstSet": "roe",
+        "firstPrintId": "2f8f22fb-7291-4517-9b15-e98501f2856b",
+        "firstPrintSet": "roe"
     },
     {
         "name": "Spoils of Evil",
