@@ -813,7 +813,7 @@ describe("getStackAbilities", () => {
         ).toContain("Remove a paralyzation counter");
     });
 
-    // CR 611.1b / 613.1f (layer 6) — Titania's Song-style "loses all
+    // CR 611.2a / 613.1f (layer 6) — Titania's Song-style "loses all
     // abilities" effects must strip a NATIVE activated ability from the
     // client's offering, not just server-side: before this fix,
     // `getStackAbilities` read `getDefinition(...).activatedAbilities`
@@ -2641,7 +2641,7 @@ describe("matchesSpellPendingTarget (spellCreaturePtFilter dimension)", () => {
 });
 
 // Reflecting Mirror (#425): "target spell with a single target if that target
-// is you" — frontend clickability gate (CR 114.6 / 115.10).
+// is you" — frontend clickability gate (CR 115.7 / 115.10).
 describe("matchesSpellPendingTarget (spellSingleTargetingController dimension)", () => {
     const ctx = { playerId: "p1", activePlayerId: "p1", players: [] };
 
@@ -4612,7 +4612,7 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         expect(mayPaySacrificeCount(undefined, bf)).toBe(0);
     });
 
-    it("mayPayRequiredSacrifices reads the sacrifice leg's count (CR 701.16b)", () => {
+    it("mayPayRequiredSacrifices reads the sacrifice leg's count (CR 701.21a)", () => {
         expect(
             mayPayRequiredSacrifices({
                 permanent: {

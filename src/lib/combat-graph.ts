@@ -1,7 +1,7 @@
 import type { Combat } from "~/types/game";
 
 /** Client mirror of `convex/gre/banding.ts#getEffectiveBlockGraph`. Expands
- *  band membership (CR 702.21e): a blocker assigned to any band member blocks
+ *  band membership (CR 702.22h): a blocker assigned to any band member blocks
  *  every member, and every member is blocked. Reduces to a plain inversion of
  *  `blockerAssignments` when no bands are declared. */
 export function getEffectiveBlockGraph(combat: Combat): {
@@ -34,7 +34,7 @@ export function getEffectiveBlockGraph(combat: Combat): {
 }
 
 /** Source ids this `playerId` must assign damage for this step, derived from
- *  the per-source authority map (CR 702.21j-k). */
+ *  the per-source authority map (CR 702.22j-k). */
 export function damageSourcesForPlayer(
     combat: Combat,
     playerId: string

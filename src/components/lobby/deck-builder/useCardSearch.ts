@@ -41,7 +41,7 @@ export interface CardIndexEntry {
      *  Absent on index entries — defaults to `true` everywhere outside the
      *  unavailable-card path. */
     available?: boolean;
-    /** `true` for token cards (CR 110.5e — marker characteristic, not a type).
+    /** `true` for token cards (CR 111.1 — marker characteristic, not a type).
      *  Absent for index entries, set by `makeCatalogueEntry` from `parseTypeLine`. */
     isToken?: boolean;
 }

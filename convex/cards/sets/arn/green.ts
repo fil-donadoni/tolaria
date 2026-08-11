@@ -42,7 +42,7 @@ export const wyluliWolf: CardDefinition = {
 
 // Erhnam Djinn — "At the beginning of your upkeep, target non-Wall creature an
 // opponent controls gains forestwalk until your next upkeep." (CR 603.6a upkeep
-// trigger, CR 702.13 forestwalk evasion, CR 611.1b layer-6 keyword grant.)
+// trigger, CR 702.13 forestwalk evasion, CR 611.2a layer-6 keyword grant.)
 //
 // CR 603.3d — "target non-Wall creature an opponent controls" is a REAL target
 // chosen when the trigger is PUT ON THE STACK (issue #1193 machinery,
@@ -453,7 +453,7 @@ export const dropOfHoney: CardDefinition = {
 // creature. Add X mana of any one color, where X is 1 plus the sacrificed
 // creature's mana value. Spend this mana only to cast creature spells."
 //
-// CR 117.9 / 601.2f: the sacrifice is an additional cost paid at announcement;
+// CR 118.8 / 601.2f: the sacrifice is an additional cost paid at announcement;
 // the engine snapshots the sacrificed creature's mana value, read here via
 // getAdditionalSacrificeMv(). CR 106.6: the produced mana carries a
 // "creature-spell" spend restriction enforced at later spell-cast sites.

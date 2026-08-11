@@ -433,7 +433,7 @@ export const invisibility: CardDefinition = {
 };
 
 // Jump — "Target creature gains flying until end of turn." (CR 702.9 flying,
-// 611.1b temporary keyword grant with end-of-turn duration).
+// 611.2a temporary keyword grant with end-of-turn duration).
 export const jump: CardDefinition = {
     id: "cb3f4b11-ad1b-48e2-a500-787d351b0174",
     rarity: "common",
@@ -443,7 +443,7 @@ export const jump: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
-    // announced target creature until end of turn (CR 611.1b).
+    // announced target creature until end of turn (CR 611.2a).
     effects: [
         {
             op: "grantAbility",

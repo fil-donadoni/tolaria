@@ -41,7 +41,7 @@
 //     (`mayPay`, `if`, `counter`) is already covered by the interpreter test
 //     suite — the per-Op regime applies, no new Op introduced.
 //
-// Two-simultaneous-targeters edge (CR 702.21e, issue #1361, resolved — was a
+// Two-simultaneous-targeters edge (CR 702.21a, issue #1361, resolved — was a
 // documented divergence when split from #1312): the FILTER-based instance
 // pin above (`spellTargetsSelfSource` → `spellTargetsInstanceIds: [self.id]`)
 // alone can't distinguish WHICH of two spells/abilities simultaneously
@@ -52,7 +52,7 @@
 // set by `emitBecameTargetEvents`) and having
 // `raiseTriggerTargetSelection` (`gre/rules.ts`) narrow its legal-target set
 // to that exact id when present — so each ward instance forces the precise
-// object that caused it, per CR 702.21e, with no player choice even when two
+// object that caused it, per CR 702.21a, with no player choice even when two
 // (or more) targeters overlap. The broad `triggerSourceId`-based filter
 // remains as a defensive fallback for the (never expected) case where the
 // causing event carries no `sourceInstanceId`.

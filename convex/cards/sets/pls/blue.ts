@@ -798,7 +798,7 @@ export const sunkenHope: CardDefinition = {
 // Waterspout Elemental — {3}{U}{U} Creature — Elemental, 3/4. "Kicker {U}.
 // Flying. When this creature enters, if it was kicked, return all other
 // creatures to their owners' hands and you skip your next turn." (CR 702.33
-// Kicker, CR 603.4d intervening-if ETB, CR 400.7 mass bounce, CR 614.10
+// Kicker, CR 603.4 intervening-if ETB, CR 400.7 mass bounce, CR 614.10
 // skip-turn, issue #1957, parent PRD #1935.)
 //
 // A SINGLE Kicker (unlike the Battlemage cycle's "and/or" pair), so the
@@ -932,7 +932,7 @@ export const confound: CardDefinition = {
 //
 // Left as a TRACKED STUB, not shipped. Oracle's "if it was kicked" is a
 // resolution-time INTERVENING CONDITION (CR 608.2a), not a targeting
-// restriction (CR 114.1c) — "target spell" is unqualified, so any spell on
+// restriction (CR 115.2) — "target spell" is unqualified, so any spell on
 // the stack is a legal target and the kicker check happens on resolution.
 // The obvious shortcut (`targetRequirement.spellWasKicked: true`) is
 // materially wrong, not cosmetic: it makes the card uncastable while no

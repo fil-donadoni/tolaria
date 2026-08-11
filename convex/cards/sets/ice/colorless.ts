@@ -69,7 +69,7 @@ export const adarkarSentinel: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +0/+1 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -107,7 +107,7 @@ export const aegisOfTheMeek: CardDefinition = {
                 toughnessFilter: { min: 1, max: 1 },
             },
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+2 EOT
-            // on the announced target (CR 611.1b) via the pump Op.
+            // on the announced target (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -167,7 +167,7 @@ export const arcumsSleigh: CardDefinition = {
             },
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant vigilance to
-            // the announced target creature until end of turn (CR 611.1b).
+            // the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -391,7 +391,7 @@ export const batonOfMorale: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant banding to
-            // the announced target creature until end of turn (CR 611.1b).
+            // the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -637,7 +637,7 @@ export const fyndhornBow: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant first strike
-            // to the announced target creature until end of turn (CR 611.1b).
+            // to the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -1457,7 +1457,7 @@ export const snowFortress: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1474,7 +1474,7 @@ export const snowFortress: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +0/+1 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1604,7 +1604,7 @@ export const soldeviSimulacrum: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): +1/+0 EOT on
-            // this creature (CR 611.1b) via the pump Op. No per-card test
+            // this creature (CR 611.2a) via the pump Op. No per-card test
             // (✗no-test) — the `pump` Op is already exercised catalogue-wide
             // (Adarkar Sentinel, Snow Fortress), so the per-Op smoke sweep
             // covers this card for free (no hand-written test required).
@@ -1930,7 +1930,7 @@ export const warChariot: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant trample to
-            // the announced target creature until end of turn (CR 611.1b).
+            // the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -1967,7 +1967,7 @@ export const whaleboneGlider: CardDefinition = {
                 powerFilter: { max: 3 },
             },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
-            // announced target creature until end of turn (CR 611.1b).
+            // announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",

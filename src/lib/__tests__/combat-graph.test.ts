@@ -13,7 +13,7 @@ const banded: Combat = {
     bands: [{ bandId: "b1", memberIds: ["hero", "bear"] }],
 };
 
-describe("getEffectiveBlockGraph (client mirror, CR 702.21e)", () => {
+describe("getEffectiveBlockGraph (client mirror, CR 702.22h)", () => {
     it("expands a single block to every band member", () => {
         const g = getEffectiveBlockGraph(banded);
         expect(g.blockersByAttacker["hero"]).toEqual(["blk"]);

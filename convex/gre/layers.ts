@@ -32,7 +32,7 @@ export type LayerStateView = StaticEffectStateView;
  *  through the same `applies(target, source, ctx)` predicates as a battlefield
  *  source. `controllerId`/`ownerId` are the emblem's owner (CR 114.3), so an
  *  anthem's "creatures you control" predicate (controller match) scopes
- *  correctly. Carries no card characteristics — an emblem has none (CR 114.2a).
+ *  correctly. Carries no card characteristics — an emblem has none (CR 114.3).
  *  Issue #1221. */
 function emblemAsStaticSource(emblem: EmblemInstance): PermanentView {
     return {
@@ -199,7 +199,7 @@ export function getStaticPTBuff(
 }
 
 /**
- * Layer 7a/7b characteristic-defining contribution (CR 613.3a self-CDA,
+ * Layer 7a/7b characteristic-defining contribution (CR 613.4a self-CDA,
  * 613.4b external "set to a value" effects — Animate Artifact / Titania's
  * Song / Opalescence). `pt-cda` conflates both: a self-targeting CDA only
  * ever matches its own source (one contributor per target, so overwrite vs

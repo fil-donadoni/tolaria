@@ -157,7 +157,7 @@ export interface FlashbackCost {
 /** CR 702.138 — Escape. A card with escape may be cast from its owner's
  *  graveyard by paying its ESCAPE COST: a mana cost PLUS exiling OTHER cards
  *  from that graveyard (CR 702.138a). A permanent cast this way "escaped"
- *  (CR 702.138e) — a flag the resulting permanent carries
+ *  (CR 702.138b) — a flag the resulting permanent carries
  *  (`CardInstanceState.escaped`), read by "as long as ~ escaped" /
  *  "sacrifice it unless it escaped" clauses (Uro, Phlage, Nethergoyf).
  *  Unlike Flashback (CR 702.34), an escaped card is NOT exiled as it resolves —
@@ -1518,7 +1518,7 @@ export interface CostLegs {
      *  `count` selects between two payment shapes:
      *
      *   - **fixed cardinal** (`number`) — "give up N matching permanents". The
-     *     payer picks exactly `count` (CR 701.16b); the historical shape.
+     *     payer picks exactly `count` (CR 701.21a); the historical shape.
      *   - **summed-power threshold** (`{ minTotalPower: N }`) — "sacrifice ANY
      *     NUMBER of matching permanents with total power ≥ N" (CR 118 / 701.16,
      *     Phyrexian Dreadnought). The payer picks a variable-size set whose
@@ -1699,7 +1699,7 @@ export type CardImageFace = "front" | "back";
  *  front-face synthesis (`registerTokenDefinition`) — so every existing
  *  def-derived reader (layers, combat, activated-ability discovery) sees the
  *  new face automatically once the instance's `card.card.id` is swapped.
- *  Transform is always PUBLIC information (CR 712.1a) — no per-viewer
+ *  Transform is always PUBLIC information (CR 712.6) — no per-viewer
  *  hiding, unlike `faceDown`. Scoped to what CR 712 needs for a permanent
  *  ALREADY on the battlefield to transform in place; a full two-sided-card
  *  CASTING model (choosing a face to cast, a distinct mana cost per face,
@@ -2509,7 +2509,7 @@ export interface SpellContext {
      *  colour-filtered replacement/static that reads `self.chosenModeId`
      *  (the shipped Prismatic-Ward shield) immediately reflects the new pick. */
     setChosenMode: (instanceId: string, modeId: string) => void;
-    /** CR 702.138e — true iff `target` is a permanent that ESCAPED (was cast
+    /** CR 702.138b — true iff `target` is a permanent that ESCAPED (was cast
      *  from a graveyard via Escape, `CardInstanceState.escaped`). False for a
      *  non-permanent target or one that left play. Read by the `escaped`
      *  EffectValue ("sacrifice it unless it escaped"). */
@@ -2962,7 +2962,7 @@ export interface SpellContext {
      *  onto the top or bottom of its owner's library WITHOUT countering it.
      *  Distinct from `counter(target, "library-top")`: this is a "put on
      *  library" effect, not a counter, so it ignores `cantBeCountered` (CR
-     *  701.5c shields only against COUNTER effects). Target must be a
+     *  113.6g shields only against COUNTER effects). Target must be a
      *  `type: "spell"` TargetSelection; no-op if it has left the stack
      *  (CR 608.2b). An ability on the stack (no card) just vanishes, mirroring
      *  `counter`. `position` is the owner's chosen library end. */
@@ -3164,19 +3164,19 @@ export interface SpellContext {
      *  is reduced. */
     getManaCost: (target: TargetSelection) => ManaCost | undefined;
     /** Mana value snapshotted on the stack item when this spell's
-     *  additional sacrifice cost (CR 117.9) was paid at cast time. Returns
+     *  additional sacrifice cost (CR 118.8) was paid at cast time. Returns
      *  `undefined` for spells without an `additionalCosts.sacrificeFilter`.
      *  Used by Sacrifice ("Add an amount of {B} equal to the sacrificed
      *  creature's mana value") to read the captured value at resolve. */
     getAdditionalSacrificeMv: () => number | undefined;
     /** Subtypes snapshotted on the stack item when this spell's additional
-     *  sacrifice/exile cost (CR 117.9 / 601.2f) was paid at cast time. Returns
+     *  sacrifice/exile cost (CR 118.8 / 601.2f) was paid at cast time. Returns
      *  `undefined` for spells without an `additionalCosts` picker. Used by Soul
      *  Exchange ("Put a +2/+2 counter on that creature if the exiled creature
      *  was a Thrull") to read the exiled creature's subtypes at resolve. */
     getAdditionalCostSubtypes: () => string[] | undefined;
     /** Effective POWER snapshotted on the stack item when this ability's
-     *  additional sacrifice cost (CR 117.9 / 613 layer 7c) was paid. Captured
+     *  additional sacrifice cost (CR 118.8 / 613 layer 7c) was paid. Captured
      *  at cost commit because the sacrificed permanent is gone by resolution
      *  (CR 608.2h last-known information). Returns `undefined` when no creature
      *  was sacrificed for the cost. Used by Freyalise Supplicant ("deals damage
@@ -3529,7 +3529,7 @@ export interface SpellContext {
         duration: DurationSpec
     ) => void;
     /** Grants a keyword static ability to a permanent for a limited duration
-     *  (CR 113.1, 611.1b). Appends to the target's `staticAbilities` so combat
+     *  (CR 113.1, 611.2a). Appends to the target's `staticAbilities` so combat
      *  and rules checks see it at read time; the phase-boundary purge splices
      *  it back out when `duration` expires. No-op if target has left the
      *  battlefield. Used by Berserk's "target creature gains trample until
@@ -3550,7 +3550,7 @@ export interface SpellContext {
         ability: string
     ) => void;
     /** Grants an ACTIVATED ability to `target` for a limited duration
-     *  (CR 113.1, 611.1b). The template is looked up at activation time on the
+     *  (CR 113.1, 611.2a). The template is looked up at activation time on the
      *  granting card's `grantTemplates[]` (`sourceCardId` + `abilityId`), so
      *  the permanent exposes it as if printed on it. The duration-scoped
      *  sibling of the continuous `activated-grant` static effect; the
@@ -3582,7 +3582,7 @@ export interface SpellContext {
         abilityId: string
     ) => void;
     /** Grants a triggered ability to `target` for a limited duration
-     *  (CR 113.1, 611.1b). The template is looked up at trigger-scan time on
+     *  (CR 113.1, 611.2a). The template is looked up at trigger-scan time on
      *  the granting card's `triggeredGrantTemplates[]` (`sourceCardId` +
      *  `abilityId`) and unioned into the target's effective triggers, so the
      *  engine scans and resolves it as if printed on `target`. The
@@ -3623,7 +3623,7 @@ export interface SpellContext {
      *  leave the battlefield, exile it instead of putting it anywhere else"). */
     setExileOnLeave: (target: TargetSelection) => void;
     /** Removes every keyword static ability matching `predicate` from a
-     *  permanent for a limited duration (CR 611.1b layer 6). Each removed
+     *  permanent for a limited duration (CR 611.2a layer 6). Each removed
      *  keyword is spliced out of `staticAbilities` so combat / rules checks stop
      *  seeing it at read time; the phase-boundary purge restores it when
      *  `duration` expires. The duration-scoped counterpart of
@@ -3885,7 +3885,7 @@ export interface SpellContext {
      *  Efreet's coin-flip removal. No-op outside combat. */
     becomeUnblocked: (attackerId: string) => void;
     /** Current block graph as attackerId → ids of the creatures blocking it
-     *  (band-expanded, CR 702.21e). A pure read of combat state for effects
+     *  (band-expanded, CR 702.22h). A pure read of combat state for effects
      *  that must inspect blocks — e.g. False Orders, which unblocks the
      *  attackers left with no blocker after their sole blocker is removed.
      *  Empty outside combat. */
@@ -4033,7 +4033,7 @@ export interface SpellContext {
      *  (copies of permanent spells / abilities are out of scope). The copy
      *  inherits the original's resolve, targets, and chosen X, is controlled by
      *  the controller of THIS resolving spell, and ceases to exist after
-     *  resolving instead of going to a graveyard (CR 707.10/112.5).
+     *  resolving instead of going to a graveyard (CR 707.10a).
      *  `modifications.colorOverride` sets the copy's colors (CR 707.10c —
      *  Fork's "except that the copy is red"). */
     copyStackItem: (
@@ -4047,14 +4047,14 @@ export interface SpellContext {
      *  instant/sorcery spell. The copy starts a fresh resolution from step 0
      *  (its own may-pay / choice steps re-run), is controlled by this spell's
      *  controller, and ceases to exist after resolving instead of going to a
-     *  graveyard (CR 707.12/112.5). Pair with `requestCopyRetarget` to let the
+     *  graveyard (CR 707.10a). Pair with `requestCopyRetarget` to let the
      *  copy's controller choose new targets for it. Distinct from
      *  `copyStackItem`, which copies a DIFFERENT spell still on the stack.
      *
      *  `modifications.controllerId` reassigns the copy's controller when the
      *  effect names a specific copier other than this spell's controller (Chain
      *  Lightning: the player who paid {R}{R} controls and retargets the copy,
-     *  CR 707.12b). Defaults to this spell's controller. */
+     *  CR 707.10). Defaults to this spell's controller. */
     copyResolvingSpell: (modifications?: {
         colorOverride?: Color[];
         controllerId?: string;
@@ -4068,7 +4068,7 @@ export interface SpellContext {
      *  is no longer on the stack. */
     requestCopyRetarget: (copyStackItemId: string) => void;
     /** Changes the target of a spell ALREADY on the stack — the ORIGINAL stack
-     *  object, not a copy (CR 114.6 — "change the target(s) of a spell"). Enters
+     *  object, not a copy (CR 115.7 — "change the target(s) of a spell"). Enters
      *  a `retarget` target-selection phase against the given requirement; the
      *  chosen target(s) are written onto the original stack item in place. Used
      *  by Reflecting Mirror ("change the target of target spell … the new target
@@ -4911,7 +4911,7 @@ export interface SpellContext {
      *  the caller is responsible for choosing them from `getLegalTargetsForCard`
      *  (Word of Command — the controller aims the opponent's spell).
      *
-     *  X / modal / additional-cost casts (CR 107.3 / 700.2c / 117.9, #579) ride
+     *  X / modal / additional-cost casts (CR 107.3 / 700.2c / 118.8, #579) ride
      *  on the same `opts`, all decided by the Acting Player from the controlled
      *  opponent's resources:
      *   - `chosenX` — the value of X (CR 107.3); folded into the generic cost
@@ -4919,7 +4919,7 @@ export interface SpellContext {
      *   - `chosenModeId` — the chosen mode (CR 700.2c); written onto the stack
      *     item so the mode's `resolve` runs and its `staticEffects` apply.
      *   - `additionalSacrificeId` — a permanent on the CONTROLLED OPPONENT's
-     *     battlefield to sacrifice as an additional cost (CR 117.9). It is
+     *     battlefield to sacrifice as an additional cost (CR 118.8). It is
      *     sacrificed on commit and its pre-sacrifice mana value snapshotted for
      *     `getAdditionalSacrificeMv()`. The caller must validate it matches the
      *     card's `additionalCosts.sacrificeFilter`; a missing/illegal pick
@@ -4968,7 +4968,7 @@ export interface SpellContext {
      *  variable {X} in its mana cost (a string-valued `X`). Lets a controlled
      *  cast (Word of Command) know it must ask the Acting Player for X. */
     cardHasXCost: (casterId: string, cardInstanceId: string) => boolean;
-    /** ADR 0037 / CR 117.9 — the `additionalCosts.sacrificeFilter` of a card in
+    /** ADR 0037 / CR 118.8 — the `additionalCosts.sacrificeFilter` of a card in
      *  `casterId`'s hand, or `undefined` if it has no sacrifice additional
      *  cost. Lets a controlled cast (Word of Command) enumerate the controlled
      *  opponent's matching permanents for the Acting Player to choose from. */
@@ -5295,7 +5295,7 @@ export interface PermanentView {
     enteredOnTurn?: number;
     /** CR 702.30a — Echo: true while this permanent still owes its echo cost
      *  (it came under its controller's control and has not yet had its first
-     *  upkeep under that control). Read by the echo trigger's CR 603.4d
+     *  upkeep under that control). Read by the echo trigger's CR 603.4
      *  intervening-if; the trigger system passes the raw `CardInstanceState`
      *  as `self`, so this flag is populated for trigger predicates. */
     echoPending?: boolean;
@@ -5416,7 +5416,7 @@ export interface PermanentView {
      *  unkicked / without a Kicker cost. */
     wasKicked?: boolean;
     /** CR 702.33 (ADR 0079, issue #1950) — the PER-KICKER-ID twin of
-     *  `wasKicked`, exposed for a two-Kicker permanent's own CR 603.4d
+     *  `wasKicked`, exposed for a two-Kicker permanent's own CR 603.4
      *  intervening-if ("if it was kicked with its {2}{U} kicker" — the
      *  Planeshift Battlemage cycle): `wasKicked`'s single boolean can say
      *  "kicked at all" but never WHICH of two, so each Kicker's own
@@ -5431,7 +5431,7 @@ export interface PermanentView {
      *  instant it entered the battlefield (`finalizeSpellResolution`,
      *  `gre/state.ts`). The read handle for any check-time predicate that runs
      *  after the spell has finished resolving: Ravenous (CR 702.156a, Jacked
-     *  Rabbit) gates its ETB draw on a CR 603.4d intervening-if — "if X is 5 or
+     *  Rabbit) gates its ETB draw on a CR 603.4 intervening-if — "if X is 5 or
      *  greater" — which the engine re-evaluates when the TRIGGER resolves, by
      *  which point the creature spell's stack item (and `ctx.getX()` with it)
      *  is long gone. Deliberately NOT the +1/+1 counter count, which any later
@@ -7501,7 +7501,7 @@ export interface StateCheckEvent {
 }
 
 /** Emitted when a triggered ability fizzles at resolution because its
- *  intervening-if condition (CR 603.4d) is false at that moment. The stack
+ *  intervening-if condition (CR 603.4) is false at that moment. The stack
  *  item is removed without invoking `resolve`; downstream triggers can react
  *  to the fizzle (and the game-events log records it). */
 export interface TriggerFizzledEvent {
@@ -7773,7 +7773,7 @@ export interface LifeGainedEvent {
 /** Counter-removal event emitted whenever counters are removed from a
  *  permanent via `SpellContext.removeCounter` (CR 122.6). Carries the counter
  *  type, how many were removed, and how many of that type remain afterwards.
- *  A general primitive: Vanishing (CR 702.63d) listens for `counterType:
+ *  A general primitive: Vanishing (CR 702.63a) listens for `counterType:
  *  "time"` reaching `remaining: 0` to fire its sacrifice; future "whenever a
  *  counter is removed" cards reuse it. Emitted from the SpellContext primitive
  *  only — the `payRemoveCounterCost` activation-cost path is stateless and does
@@ -8106,12 +8106,12 @@ export interface TriggerStateView {
     activePlayerId?: string;
     /** Count of creatures that have died this turn (CR 700.4 die tally,
      *  maintained in `removePermanentTo` and reset at turn start). Exposed so a
-     *  CR 603.4 / 603.4d condition can gate on "if a creature died this turn"
+     *  CR 603.4 condition can gate on "if a creature died this turn"
      *  without waiting for resolve — Osai Vultures' end-step intervening-if
      *  reads it. Mirrors `GameState.deathsThisTurn`; undefined defaults to 0. */
     deathsThisTurn?: number;
     /** CR 506.3 / 508.1 — true once ANY player's creature has been declared as
-     *  an attacker this turn. Exposed so a CR 603.4 / 603.4d intervening-if can
+     *  an attacker this turn. Exposed so a CR 603.4 intervening-if can
      *  answer "if no creatures attacked this turn" at BOTH trigger-check time
      *  and resolution — Keldon Twilight's end-step trigger reads
      *  `state?.creatureAttackedThisTurn !== true`. Mirrors
@@ -8121,7 +8121,7 @@ export interface TriggerStateView {
      *  attacker that died is no longer on any battlefield to be scanned. */
     creatureAttackedThisTurn?: boolean;
     /** Life gained by each player this turn (CR 119.3 tally, issue #1457),
-     *  keyed by player id. Exposed so a CR 603.4 / 603.4d intervening-if can
+     *  keyed by player id. Exposed so a CR 603.4 intervening-if can
      *  answer "if you gained life this turn" at BOTH trigger-check time and
      *  resolution — Crested Sunmare's end-step Horse trigger reads
      *  `state?.lifeGainedThisTurn?.[self.controllerId]`. Mirrors
@@ -8343,7 +8343,7 @@ export interface TriggeredAbility {
      *  `collectTriggers`; a `zone: "graveyard"` ability, an emblem ability or a
      *  delayed trigger is not capped by this field. */
     maxTriggersPerTurn?: number;
-    /** Intervening-if condition (CR 603.4d). When defined, re-evaluated by
+    /** Intervening-if condition (CR 603.4). When defined, re-evaluated by
      *  the engine immediately before `resolve` runs. If it returns false the
      *  trigger fizzles: it leaves the stack without invoking `resolve`, and
      *  a `TRIGGER_FIZZLED` event is emitted so downstream triggers can
@@ -8456,7 +8456,7 @@ export interface TapManaBonusForPotential {
 // An emblem is an object created by a resolving spell or ability (typically a
 // planeswalker's ultimate loyalty ability) that lives in the COMMAND ZONE and
 // has no characteristics other than a set of continuous and/or triggered
-// abilities that affect the game "from outside" (CR 114.1, 114.2a). An emblem
+// abilities that affect the game "from outside" (CR 114.1, 114.3). An emblem
 // can't be targeted, enchanted, equipped, destroyed, or otherwise interacted
 // with, and it stays in the command zone for the rest of the game (CR 114.4) —
 // so there is no permanent SOURCE for its abilities to leave play with.
@@ -8469,7 +8469,7 @@ export interface TapManaBonusForPotential {
 // abilities). This keeps `GameState` JSON-pure and serializable (ADR 0046),
 // mirroring how a permanent references its `card.id`.
 
-/** The closure-bearing definition of an emblem's granted abilities (CR 114.2a).
+/** The closure-bearing definition of an emblem's granted abilities (CR 114.3).
  *  Registered by key in `convex/cards/emblems.ts`; never stored in game state
  *  directly (its closures aren't serializable). */
 export interface EmblemDefinition {
@@ -8487,12 +8487,12 @@ export interface EmblemDefinition {
      *  UUID that `src/lib/images.ts` turns into a CDN URL; absent means the
      *  client falls back to an in-app text placeholder. */
     imagePrintId?: string;
-    /** Continuous static abilities the emblem contributes (CR 114.2a, 611).
+    /** Continuous static abilities the emblem contributes (CR 114.4, 611).
      *  Source-less: collected by the layer system with the emblem scoped to its
      *  owner (an owner-scoped anthem reads `source.controllerId` = the owner).
      *  Same shape as `CardDefinition.staticEffects`. */
     staticEffects?: StaticEffect[];
-    /** Triggered abilities the emblem contributes (CR 114.2a, 113.3, 603).
+    /** Triggered abilities the emblem contributes (CR 114.4, 113.3, 603).
      *  Source-less: collected by the trigger scanner scoped to the owner. Same
      *  shape as `CardDefinition.triggeredAbilities`. */
     triggeredAbilities?: TriggeredAbility[];
@@ -8936,7 +8936,7 @@ export interface ReplacementStateView {
         /** attackerId → ordered blocker ids (CR 509.2). Empty array means
          *  the attacker is unblocked. */
         blockersByAttacker: Readonly<Record<string, ReadonlyArray<string>>>;
-        /** Declared attacking bands (CR 702.21e). Read by Camel to extend its
+        /** Declared attacking bands (CR 702.22c). Read by Camel to extend its
          *  Desert-damage prevention to the creatures banded with it. */
         bands?: ReadonlyArray<{ memberIds: ReadonlyArray<string> }>;
     };
@@ -9743,7 +9743,7 @@ export type EffectLifeGainedThisTurnValue = {
     lifeGainedThisTurn: { of: EffectPlayerRef };
 };
 
-/** CR 702.138e — resolves to 1 if the referenced permanent ESCAPED (was cast
+/** CR 702.138b — resolves to 1 if the referenced permanent ESCAPED (was cast
  *  from a graveyard via Escape, `CardInstanceState.escaped`), else 0. Powers the
  *  "sacrifice it unless it escaped" branch as a numeric comparison
  *  (`{ left: { escaped: { ref: "$source" } }, op: "eq", right: 0 }` → true when
@@ -10132,7 +10132,7 @@ export type EffectOp =
     | { op: "dealDamageDividedAsChosen"; total: number | "X" | "X+1" }
     /** CR 121.1 — `player` draws `count` cards. */
     | { op: "draw"; player: EffectPlayerRef; count: EffectValue }
-    /** CR 119.3a — `player` gains `amount` life. */
+    /** CR 119.3 — `player` gains `amount` life. */
     | { op: "gainLife"; player: EffectPlayerRef; amount: EffectValue }
     /** CR 122.1 — "you get {E}": `player` gets `amount` energy counters. A thin
      *  declarative skin over `SpellContext.addEnergy` (mirroring `gainLife`),
@@ -10140,7 +10140,7 @@ export type EffectOp =
      *  (not on an object), so `player` is a player ref — never an object slot.
      *  Skipped when the player cannot be resolved (CR 608.2b). */
     | { op: "getEnergy"; player: EffectPlayerRef; amount: EffectValue }
-    /** CR 119.3b — `player` loses `amount` life (not damage — no
+    /** CR 119.3 — `player` loses `amount` life (not damage — no
      *  damage-replacement interaction). */
     | { op: "loseLife"; player: EffectPlayerRef; amount: EffectValue }
     /** CR 500.7 (issue #686) — schedule `player` to take an extra turn after
@@ -10950,7 +10950,7 @@ export type EffectOp =
           op: "skipNextUntap";
           target: EffectObjectSelector;
       }
-    /** CR 611.1b / 613.1f (layer 6, issue #843) — grant an ability to a
+    /** CR 611.2a / 613.1f (layer 6, issue #843) — grant an ability to a
      *  permanent for a limited duration. A thin declarative skin over the
      *  SpellContext primitives `grantStaticAbility` / `grantActivatedAbility` /
      *  `grantTriggeredAbility`, one execution path (ADR 0045). Exactly one of
@@ -13170,7 +13170,7 @@ export interface CardDefinition {
      *  the spell resolves. Set it on any mass-land-destruction card whose
      *  effect lives in an opaque `resolve()`/`destroyAll` body. */
     destroysAllLands?: boolean;
-    /** CR 701.5c — "This spell can't be countered." A spell so flagged is
+    /** CR 113.6g — "This spell can't be countered." A spell so flagged is
      *  STILL a legal target for an effect that says "counter target spell"
      *  (targeting is unaffected — the oracle ruling for Obliterate is
      *  explicit: "Counterspells can be cast that target it, but when they
@@ -13309,7 +13309,7 @@ export interface CardDefinition {
      *  action (CR 701.27) is the only way to flip. Distinct from
      *  `faceDown`/`faceDownOf` (CR 707.4 morph — a hidden identity that
      *  turns up to its OWN characteristics): transform swaps between two
-     *  DISTINCT, always-PUBLIC (CR 712.1a) printed characteristic sets, so
+     *  DISTINCT, always-PUBLIC (CR 712.6) printed characteristic sets, so
      *  there is no per-viewer hiding at the projection boundary (unlike
      *  `faceDown`). Scoped to what CR 712 needs for a permanent ALREADY on
      *  the battlefield to transform in place (ADR 0067) — a full two-sided
@@ -13351,10 +13351,10 @@ export interface CardDefinition {
      *  card's `resolve()`. Looked up by id when a queued instance fires. */
     delayedTriggers?: DelayedTriggerDef[];
     sbaMods?: string[];
-    /** Additional costs to cast this spell (CR 117.9 / 601.2f). Paid at cast
+    /** Additional costs to cast this spell (CR 118.8 / 601.2f). Paid at cast
      *  time, NOT at resolve. The chooser picks a permanent matching
      *  `sacrificeFilter` on their own battlefield; the cast is illegal if no
-     *  matching permanent exists (CR 117.9). The picked permanent is
+     *  matching permanent exists (CR 118.8). The picked permanent is
      *  sacrificed on commit and its pre-sacrifice mana value is snapshotted
      *  on the stack item so `SpellContext.getAdditionalSacrificeMv()` can
      *  read it at resolve. Used by Sacrifice ("As an additional cost,
@@ -13411,8 +13411,9 @@ export interface CardDefinition {
          *  effect). The caster picks exactly X matching cards from their OWN
          *  graveyard via `selectCastExileCost`; the picked cards move graveyard
          *  → exile at cast commit. The flashback card itself is never eligible
-         *  (it is leaving the graveyard as it's cast — CR 702.34e "You can't
-         *  exile <this> to pay for its own flashback cost"). Used by Flash of
+         *  (casting it moves it from the graveyard to the stack before its
+         *  costs are paid, CR 601.2a, so it is not there to be exiled for its
+         *  own flashback cost). Used by Flash of
          *  Insight ("Flashback—{1}{U}, Exile X blue cards from your
          *  graveyard"). `color` filters the eligible cards (CR 105.2); omit for
          *  any card. */
@@ -13492,14 +13493,14 @@ export interface CardDefinition {
     /** CR 702.138 — Escape. The escape cost this card may be cast from its own
      *  owner's graveyard for (mana + exile other graveyard cards). The engine
      *  (`convex/gre/escape.ts`) reads this to make the graveyard card castable;
-     *  the resolving permanent is flagged `escaped` (CR 702.138e). Used by Uro,
+     *  the resolving permanent is flagged `escaped` (CR 702.138b). Used by Uro,
      *  Phlage, Nethergoyf. */
     escape?: EscapeCost;
     /** CR 702.35 — Madness. The alternative mana cost this card may be cast for
      *  out of exile in the window right after it is discarded (the engine
      *  `convex/gre/madness.ts` reads this). On discard the card is exiled
      *  instead of going to the graveyard (CR 702.35c) and its owner may cast it
-     *  for this cost (CR 702.35d); an uncast copy is put into the graveyard at
+     *  for this cost (CR 702.35a); an uncast copy is put into the graveyard at
      *  cleanup. `Madness {0}` is the empty cost `{}` (a real, free cost — not
      *  `undefined`, which means "no madness"). Used by Basking Rootwalla
      *  (`{}`), Blazing Rootwalla (`{}`), Anje's Ravager (`{ X: 1, R: 1 }`). */

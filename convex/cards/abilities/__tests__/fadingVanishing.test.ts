@@ -1,7 +1,7 @@
 // Fading / Vanishing keyword expansion (ADR 0054, CR 702.32 / 702.63). This is
 // the new mechanism's permanent test suite: the implicit-expansion parser, the
 // injected ETB counters + upkeep triggers, and — Vanishing's divergent half —
-// the COUNTER_REMOVED-driven sacrifice trigger (CR 702.63d). Fading's end-to-end
+// the COUNTER_REMOVED-driven sacrifice trigger (CR 702.63a). Fading's end-to-end
 // clock is exercised through the shipped Blastoderm, and Vanishing's through the
 // shipped Deep Forest Hermit, both in nem/__tests__/green.test.ts; here we cover
 // the shared parser plus the Vanishing sacrifice-trigger semantics in isolation,
@@ -152,7 +152,7 @@ registerTokenDefinition({
     staticAbilities: ["vanishing 3"],
 });
 
-describe("Vanishing sacrifice trigger (CR 702.63d, COUNTER_REMOVED)", () => {
+describe("Vanishing sacrifice trigger (CR 702.63a, COUNTER_REMOVED)", () => {
     const sacTrigger = () =>
         expandFadingVanishing({
             id: VANISHER_ID,

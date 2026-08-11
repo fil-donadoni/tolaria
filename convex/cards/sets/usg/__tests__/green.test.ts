@@ -169,7 +169,7 @@ describe("Fertile Ground (CR 603.2 tapped-for-mana trigger, additional mana of c
         emitPermanentTapped(state, land, true, { G: 1 });
         // CR 605.4 — Fertile Ground's tap trigger is a mana ability: it
         // resolves immediately off the stack. The colour pick is made as it
-        // resolves (CR 605.4b), so processing suspends on that choice rather
+        // resolves (CR 605.4a), so processing suspends on that choice rather
         // than parking the trigger on the stack for a later priority pass.
         processPendingActionTriggers(state);
         answer(state, ["W"]);

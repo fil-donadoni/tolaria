@@ -78,7 +78,7 @@ export interface EnteredTriggerArgs {
      *  shape. Mutually exclusive with `condition` in practice (supplying both
      *  gates on both, but only this one is retained). */
     conditionOnSelf?: (self: PermanentView) => boolean;
-    /** CR 603.4d intervening-if predicate. Evaluated at trigger-fire AND
+    /** CR 603.4 intervening-if predicate. Evaluated at trigger-fire AND
      *  re-evaluated by the engine at resolve time; if false at resolve, the
      *  trigger fizzles (no `resolve` invocation, TRIGGER_FIZZLED event
      *  emitted). */
@@ -122,7 +122,7 @@ export interface EnteredTriggerArgs {
 
 /** Builds a `TriggeredAbility` listening for `PERMANENT_ENTERED` events
  *  (CR 603.6a). The factory handles event-type narrowing, scope gating,
- *  filter matching, and CR 603.4 / 603.4d wiring so card authors write only
+ *  filter matching, and CR 603.4 wiring so card authors write only
  *  the effect body. */
 export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
     const ability: TriggeredAbility = {

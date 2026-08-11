@@ -102,7 +102,7 @@ describe("matchesBandQuality (CR 702.22j)", () => {
     });
 });
 
-describe("band formation legality (CR 702.21e / 702.22j)", () => {
+describe("band formation legality (CR 702.22c / 702.22j)", () => {
     it("plain banding: 1 banding + 1 non-banding is legal", () => {
         const members = [
             creature(FROST_GIANT, ["banding"]),

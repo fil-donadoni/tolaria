@@ -198,7 +198,7 @@ export interface CardInstance {
     }[];
     /** Triggered abilities granted to this permanent by an anthem-style static
      *  effect (CR 113.1, e.g. Energy Flux granting an upkeep sacrifice trigger
-     *  to every artifact) or by a one-shot until-end-of-turn grant (CR 611.1b,
+     *  to every artifact) or by a one-shot until-end-of-turn grant (CR 611.2a,
      *  Rapid Fire's "gains rampage 2 until end of turn"). The template lives on
      *  the granting card's `triggeredGrantTemplates` — UI resolves the oracle
      *  text via `getDefinition(grant.sourceCardId)`. Exactly one of `auraId`
@@ -425,7 +425,7 @@ export interface Combat {
     blockersConfirmed: boolean;
     damageAssignments?: Record<string, Record<string, number>>;
     damageConfirmed?: boolean;
-    /** Attacking bands declared this combat (CR 702.21e). */
+    /** Attacking bands declared this combat (CR 702.22c). */
     bands?: { bandId: string; memberIds: string[] }[];
     /** sourceId → playerId responsible for assigning that source's damage. */
     damageAssignerIds?: Record<string, string>;

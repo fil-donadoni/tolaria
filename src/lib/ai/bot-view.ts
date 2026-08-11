@@ -60,7 +60,7 @@ import type {
 
 /** Whether the bot still owes a combat-damage confirmation this step. True only
  *  when a damage step is open (`damageConfirmed === false`), the bot is one of
- *  the step's assigners (CR 702.21j-k — the source controller, banding can shift
+ *  the step's assigners (CR 702.22j-k — the source controller, banding can shift
  *  it), and it has not yet confirmed its portion. Mirrors the `confirmDamage`
  *  server gate so an accepted confirmation is never rejected, and clears once the
  *  bot has confirmed so the driver doesn't loop while another assigner is still
@@ -593,7 +593,7 @@ function mayPaySourceInstanceId(
 }
 
 /** Surfaces the may-pay PERMANENT-leg pick shape for the bot's OwedChoice: a
- *  fixed `sacrificeCount` (CR 701.16b) or a summed-power `sacrificeThreshold`
+ *  fixed `sacrificeCount` (CR 701.21a) or a summed-power `sacrificeThreshold`
  *  (CR 118, Phyrexian Dreadnought). Both absent when the cost has no permanent
  *  leg. Covers BOTH terminal actions (ADR 0079): a `"return"` leg picks exactly
  *  like a sacrifice leg — same candidate set, same fixed count, same
@@ -757,7 +757,7 @@ function buildOwedChoice(
             head.kind === "may-pay" || head.kind === "land-entry-tapped"
                 ? mayPayIsAffordable(state, head, botId)
                 : undefined,
-        // CR 701.16b — a may-pay sacrifice leg with a real victim choice sets
+        // CR 701.21a — a may-pay sacrifice leg with a real victim choice sets
         // `zone: "battlefield"` and lists the legal victims in `candidateIds`;
         // surface EITHER the fixed count the payer must pick (`sacrificeCount`)
         // OR the summed-power threshold (`sacrificeThreshold`, CR 118, Phyrexian
@@ -933,7 +933,7 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     // projection), so the adapter round-trip below loses nothing the picks need.
     view.owedPayment = buildOwedPaymentView(state, botId);
 
-    // CR 603.3d / 114.6 / 707.10b (issue #2283) — an engine-raised target
+    // CR 603.3d / 115.7 / 707.10b (issue #2283) — an engine-raised target
     // selection owed to the bot (targeted trigger / retarget / copy retarget).
     view.owedTarget = buildOwedTargetView(state, botId);
 
@@ -980,7 +980,7 @@ function buildAttackSacrificeView(
     return ids && ids.length > 0 ? { cardInstanceIds: ids } : undefined;
 }
 
-/** CR 603.3d / 114.6 / 707.10b (issue #2283) — the engine-raised target
+/** CR 603.3d / 115.7 / 707.10b (issue #2283) — the engine-raised target
  *  selection the bot owes, with its minimal-legal answer precomputed.
  *
  *  Runs through `projectedToGameState` rather than reading the projection
@@ -1143,7 +1143,7 @@ export function botActionToMove(
             };
         }
         case "madness-decline": {
-            // CR 702.35d — routes through `submitMadnessDecline` (decline the
+            // CR 702.35a — routes through `submitMadnessDecline` (decline the
             // reflexive Madness cast-choice → graveyard). No data travels; the
             // server reads the head choice and validates it.
             const head = state.pendingChoices?.[0];
@@ -1171,7 +1171,7 @@ export function botActionToMove(
             return { kind: "rebound-decline" };
         }
         case "submit-target": {
-            // CR 603.3d / 114.6 / 707.10b (issue #2283) — the minimal-legal
+            // CR 603.3d / 115.7 / 707.10b (issue #2283) — the minimal-legal
             // answer to an engine-raised target selection. Guarded against a
             // stale gate decision: the selection must still be live, still owed
             // to the bot, and still a RAISED origin — writing these targets

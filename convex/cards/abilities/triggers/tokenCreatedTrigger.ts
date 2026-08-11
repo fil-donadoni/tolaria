@@ -72,7 +72,7 @@ export interface TokenCreatedTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if; re-evaluated by the engine at resolve time. */
+    /** CR 603.4 intervening-if; re-evaluated by the engine at resolve time. */
     interveningIf?: (
         event: TokensCreatedEvent,
         self: PermanentView,
@@ -110,7 +110,7 @@ function matchesTokenCreatedScope(
 
 /** Builds a `TriggeredAbility` listening for `TOKENS_CREATED` events
  *  (CR 111 / 707.2, issue #1345). The factory handles event-type narrowing,
- *  scope gating, filter matching, and CR 603.4 / 603.4d wiring so card
+ *  scope gating, filter matching, and CR 603.4 wiring so card
  *  authors write only the effect body. */
 export function tokenCreatedTrigger(
     args: TokenCreatedTriggerArgs

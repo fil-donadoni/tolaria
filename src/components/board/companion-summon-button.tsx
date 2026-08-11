@@ -3,7 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 
-/** CR 116.2 / 702.139f (ADR 0064) — the companion summon special action.
+/** CR 116.2 / 702.139a (ADR 0064) — the companion summon special action.
  *  Modeled on {@link GraveyardFlashbackButton}'s bottom-overlay affordance,
  *  but simpler: no target/mode/mana-choice pickers — the {3} is solved and
  *  applied server-side in one shot (`summonCompanion`, game.ts), so the

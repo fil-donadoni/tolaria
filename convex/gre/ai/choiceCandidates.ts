@@ -183,7 +183,7 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const lifePaid = norm.life ?? 0;
     const player = getPlayer(state, playerId);
 
-    // CR 701.16b / 701.24 — the PERMANENT leg, when it admits a real choice
+    // CR 701.21a / 701.24 — the PERMANENT leg, when it admits a real choice
     // (a `"return"` leg always does — ADR 0079).
     const sacrificeSets: CardInstanceState[][] = [];
     if (mayPaySacrificeChoiceRequired(state, playerId, cost)) {

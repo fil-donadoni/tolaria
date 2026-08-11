@@ -487,9 +487,10 @@ export function checkDeathtouchDestroySBA(state: GameState): boolean {
 }
 
 /** Runs every SBA once. Currently: aura attachments (CR 704.5m), zero
- *  toughness (CR 704.5f), token existence (CR 704.5d), game-over
- *  (CR 704.5a/b). Expand as more SBAs come online (706.5c/d/e for legend
- *  rule, +1/-1 counter cancellation, etc.).
+ *  toughness (CR 704.5f), token existence (CR 704.5d), the legend rule
+ *  (CR 704.5j), +1/+1 / -1/-1 counter annihilation (CR 704.5q), and game-over
+ *  (CR 704.5a/b) — see the sweep in `checkStateBasedActions` for the full,
+ *  ordered list. Expand as more SBAs come online.
  *
  *  Per CR 117.5, after SBA resolution and before priority is granted, the
  *  game scans for state-triggered abilities (CR 603.8) and puts them on the

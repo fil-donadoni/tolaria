@@ -14,7 +14,7 @@
 // blockers and then calls `drainAutoPasses` — and when both seats hold a
 // standing Pass Turn intent (the exact flow `drainAutoPasses` documents as
 // PRESERVED across the forced declare-blockers window, `gre/phases.ts`), the
-// drain runs straight into `advancePhase`'s CR 510.5 decision
+// drain runs straight into `advancePhase`'s CR 510.4 decision
 // ("skip the first-strike damage step when no combatant has first strike or
 // double strike", `anyCombatantHasFirstOrDoubleStrike`) with no SBA pass
 // anywhere in between. The granted first strike was invisible at exactly the
@@ -60,7 +60,7 @@ import { lurker } from "../../cards/sets/drk";
 // The whole test turns on that 2/2-vs-2/2 symmetry:
 //   - first strike SEEN  → the blocker kills the attacker in FIRST_STRIKE_DAMAGE
 //                          and survives untouched;
-//   - first strike STALE → CR 510.5 skips the step and both creatures trade.
+//   - first strike STALE → CR 510.4 skips the step and both creatures trade.
 // The two outcomes differ in the battlefield contents, so a single assertion
 // distinguishes them.
 function makeCombatState(): {
@@ -153,7 +153,7 @@ function makeCombatState(): {
 // `gre/__tests__/keywordGrantHandSizeCondition.test.ts` /
 // `convex/__tests__/gameTicks.test.ts` (this repo has no convex-test harness).
 // NOTHING here calls `checkStateBasedActions` or `refreshCounterGatedStatics`:
-// the only thing that can make the grant visible to the CR 510.5 decision is
+// the only thing that can make the grant visible to the CR 510.4 decision is
 // the mutation's own marking order.
 type Row = Record<string, unknown>;
 
@@ -219,7 +219,7 @@ function makeCtx(userId: string, seeds: Row[]) {
     };
 }
 
-describe("confirmBlockers refreshes isBlocking-conditioned statics before draining auto-passes (CR 509.1a / 510.5, issue #1826)", () => {
+describe("confirmBlockers refreshes isBlocking-conditioned statics before draining auto-passes (CR 509.1a / 510.4, issue #1826)", () => {
     it("both seats auto-passing: the granted first strike survives the drain, so FIRST_STRIKE_DAMAGE is not skipped and the blocker lives", async () => {
         const { state } = makeCombatState();
         // The standing Pass Turn intent on BOTH seats — preserved across the
@@ -261,7 +261,7 @@ describe("confirmBlockers refreshes isBlocking-conditioned statics before draini
 
         // THE REGRESSION. Under the pre-fix order (mark → `drainAutoPasses` →
         // only then a refresh) `anyCombatantHasFirstOrDoubleStrike` saw a
-        // blocker with no first strike, CR 510.5 skipped the step, and the two
+        // blocker with no first strike, CR 510.4 skipped the step, and the two
         // 2/2s traded: p2's battlefield collapsed to just the snow land (the
         // Aura falls off with its host, CR 704.5m).
         expect(p2.battlefield.map((c) => c.id).sort()).toEqual([
@@ -380,13 +380,13 @@ describe("confirmBlockers records hasBlockedThisTurn (CR 506.4, issue #1826)", (
 });
 
 // ── The camouflage auto-confirm in `advancePhase` (finding 3) ───────────────
-describe("camouflage auto-confirm refreshes isBlocking-conditioned statics (CR 509.1a / 510.5, issue #1826)", () => {
-    it("advancePhase's forced pile blocks materialize the grant immediately, so its own CR 510.5 check does not skip FIRST_STRIKE_DAMAGE", () => {
+describe("camouflage auto-confirm refreshes isBlocking-conditioned statics (CR 509.1a / 510.4, issue #1826)", () => {
+    it("advancePhase's forced pile blocks materialize the grant immediately, so its own CR 510.4 check does not skip FIRST_STRIKE_DAMAGE", () => {
         const { state, blocker } = makeCombatState();
         // Camouflage (ADR 0012) replaced the declare-blockers step: the piles
         // were locked into `blockerAssignments` at the spell's resolution and
         // the DECLARE_BLOCKERS phase entry confirms them with no priority
-        // window — so no SBA pass runs between the marking and the CR 510.5
+        // window — so no SBA pass runs between the marking and the CR 510.4
         // decision either.
         state.phase = "DECLARE_ATTACKERS";
         state.camouflageCombat = true;
@@ -394,7 +394,7 @@ describe("camouflage auto-confirm refreshes isBlocking-conditioned statics (CR 5
 
         // ONE call: `advancePhase` enters DECLARE_BLOCKERS, auto-confirms the
         // piles, and — with no blocking priority window to stop at — takes its
-        // own CR 510.5 decision and recurses onward, all before any SBA pass.
+        // own CR 510.4 decision and recurses onward, all before any SBA pass.
         advancePhase(state);
         expect(state.combat?.blockersConfirmed).toBe(true);
         expect(blocker.isBlocking).toBe(true);
@@ -402,7 +402,7 @@ describe("camouflage auto-confirm refreshes isBlocking-conditioned statics (CR 5
         // run an SBA pass.
         expect(blocker.staticAbilities).toContain("first strike");
         // Pre-fix this landed on COMBAT_DAMAGE: the skip check read a stale
-        // `staticAbilities` and CR 510.5 removed the first-strike step.
+        // `staticAbilities` and CR 510.4 removed the first-strike step.
         expect(state.phase).toBe("FIRST_STRIKE_DAMAGE");
     });
 });

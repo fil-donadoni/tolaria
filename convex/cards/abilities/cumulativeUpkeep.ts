@@ -6,7 +6,7 @@
 // controller (a) puts an AGE counter on the permanent, then (b) MAY pay the
 // permanent's upkeep cost ONCE FOR EACH age counter on it. If the player
 // declines, or cannot pay the total, they sacrifice the permanent. The payment
-// is all-or-nothing for the whole multiplied total (CR 702.24c).
+// is all-or-nothing for the whole multiplied total (CR 702.24a).
 //
 // Because the cost may be non-mana (pay life, sacrifice a permanent) and may
 // even mix legs (Infernal Darkness — "Pay {B} and 1 life"), the scaled cost is
@@ -57,7 +57,7 @@ function normalize(cost: MayPayCost): CostLegs {
     return { mana: cost as ManaCost };
 }
 
-/** Multiplies every numeric pip of a `ManaCost` by `n` (CR 702.24c repetition).
+/** Multiplies every numeric pip of a `ManaCost` by `n` (CR 702.24a repetition).
  *  `{1}{U}` × 3 → `{3}{U}{U}{U}`. A variable `X` is not used by any cumulative
  *  upkeep cost, so only numeric pips are scaled. */
 function scaleMana(mana: ManaCost, n: number): ManaCost {
@@ -71,7 +71,7 @@ function scaleMana(mana: ManaCost, n: number): ManaCost {
     return out;
 }
 
-/** The printed cost repeated `n` times (CR 702.24c). Mana pips ×n, life ×n,
+/** The printed cost repeated `n` times (CR 702.24a). Mana pips ×n, life ×n,
  *  permanent count ×n — preserving correctness for mixed / non-mana costs. */
 function scaleCost(cost: MayPayCost, n: number): MayPayCost {
     const norm = normalize(cost);
@@ -89,7 +89,7 @@ function scaleCost(cost: MayPayCost, n: number): MayPayCost {
                       action: norm.permanent.action,
                       filter: norm.permanent.filter,
                       // Cumulative upkeep scales a FIXED permanent count ×n (CR
-                      // 702.24c). The summed-power threshold shape
+                      // 702.24a). The summed-power threshold shape
                       // (`{ minTotalPower }`, Phyrexian Dreadnought) is never a
                       // cumulative-upkeep cost, so it passes through unscaled.
                       count:
@@ -103,7 +103,7 @@ function scaleCost(cost: MayPayCost, n: number): MayPayCost {
             ? {
                   hand: {
                       action: norm.hand.action,
-                      // Each requirement repeats ×n (CR 702.24c), the same
+                      // Each requirement repeats ×n (CR 702.24a), the same
                       // repetition the mana/life legs get. No shipped
                       // cumulative upkeep carries a hand leg.
                       requirements: norm.hand.requirements.map((r) => ({
@@ -175,7 +175,7 @@ export function cumulativeUpkeepTrigger(
                     manaRestriction: "cumulative-upkeep",
                 });
                 if (accept === undefined) return; // suspended for the choice
-                // CR 702.24c — declined or unable to pay: sacrifice it. The
+                // CR 702.24a — declined or unable to pay: sacrifice it. The
                 // engine collapses "can't pay" to the decline branch (the
                 // affordability gate prevents an accept the pool can't cover),
                 // so a single `false` covers both.

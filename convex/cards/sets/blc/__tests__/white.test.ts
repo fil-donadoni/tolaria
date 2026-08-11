@@ -98,7 +98,7 @@ describe("Jacked Rabbit — Ravenous, entry counters (CR 702.156a / 614.1c)", ()
     });
 });
 
-describe("Jacked Rabbit — Ravenous, ETB draw (CR 702.156a / 603.4d)", () => {
+describe("Jacked Rabbit — Ravenous, ETB draw (CR 702.156a / 603.4)", () => {
     it("X=0 — the intervening-if is false, so nothing goes on the stack", () => {
         const { state } = castForX(0);
         expect(state.stack).toHaveLength(0);

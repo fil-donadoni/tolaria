@@ -774,7 +774,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
 // ---------------------------------------------------------------------------
 
 /** `additionalCosts` members that are owed ONLY when the spell is cast from the
- *  GRAVEYARD for its flashback cost (CR 702.34e / 118.5). `applyProbeCast`
+ *  GRAVEYARD for its flashback cost (CR 601.2a / 118.5). `applyProbeCast`
  *  takes the card out of the HAND, so on that path these are not owed at all
  *  and their presence must not refuse the probe — refusing it is what left
  *  Flash of Insight's provably-empty X = 0 branch (`digToHand look: 0`) in the

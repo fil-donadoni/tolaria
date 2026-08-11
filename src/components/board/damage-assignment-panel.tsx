@@ -89,7 +89,7 @@ function DamageRow({
 
 /**
  * Damage-assignment modal for the local player. Renders every combat-damage
- * source this player is responsible for (CR 510.1c/d, and CR 702.21j-k under
+ * source this player is responsible for (CR 510.1c/d, and CR 702.22j-k under
  * banding, which can hand a defending player authority over an attacker's
  * damage or an attacking player authority over a blocker's). Source and target
  * cards are looked up across both battlefields since banding crosses sides.

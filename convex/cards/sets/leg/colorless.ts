@@ -530,7 +530,7 @@ export const unholyCitadel: CardDefinition = {
 
 // Tolaria — "{T}: Add {U}." and "{T}: Target creature loses banding and all
 // 'bands with other' abilities until end of turn. Activate only during any
-// upkeep step." (CR 605.1a mana ability + CR 611.1b duration-scoped strip with
+// upkeep step." (CR 605.1a mana ability + CR 611.2a duration-scoped strip with
 // a phase-restricted activation.) Legendary land.
 export const tolaria: CardDefinition = {
     id: "d43c01b7-443d-4061-a934-6863d230c9b8",

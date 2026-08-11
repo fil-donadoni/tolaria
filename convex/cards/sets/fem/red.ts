@@ -432,7 +432,7 @@ export const orcishVeteran: CardDefinition = {
             cost: { mana: { R: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.1b).
+            // strike until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",

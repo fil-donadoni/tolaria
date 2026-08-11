@@ -432,7 +432,7 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // #960 (LEA Oracle-text reimplementation — Farmstead, Power Leak,
         // Pestilence) net-ADDED one protocol resolve() closure: Pestilence's
         // modern end-step "sacrifice if no creatures" phase trigger carries an
-        // intervening-if + `resolve` (CR 603.4d), while Farmstead/Power Leak
+        // intervening-if + `resolve` (CR 603.4), while Farmstead/Power Leak
         // stayed closure-neutral. The added closure is FREE + AFK-ready (its
         // per-card test lives in sets/lea/__tests__/black.test.ts). Net from
         // #960: total 643→644, FREE 400→401, AFK-ready 367→368, Op-blocked and

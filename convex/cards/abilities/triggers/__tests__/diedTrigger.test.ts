@@ -1,6 +1,6 @@
 // Direct unit tests for the `diedTrigger` factory and the shared
 // permanent-scope resolver. Exercises the scope vocabulary, filter wiring,
-// CR 603.4 `condition`, CR 603.4d `interveningIf`, and the LKI payload
+// CR 603.4 `condition`, CR 603.4 `interveningIf`, and the LKI payload
 // handed to the resolve callback.
 
 import { describe, expect, it, vi } from "vitest";
@@ -222,7 +222,7 @@ describe("diedTrigger factory", () => {
         ).toBe(true);
     });
 
-    it("forwards `interveningIf` to the engine-level field (CR 603.4d)", () => {
+    it("forwards `interveningIf` to the engine-level field (CR 603.4)", () => {
         const ability = diedTrigger({
             id: "x",
             oracleText: "...",

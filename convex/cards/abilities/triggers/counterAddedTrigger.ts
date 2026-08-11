@@ -70,7 +70,7 @@ export interface CounterAddedTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if; re-evaluated at resolve time by the engine. */
+    /** CR 603.4 intervening-if; re-evaluated at resolve time by the engine. */
     interveningIf?: (
         event: CounterAddedEvent,
         self: PermanentView,

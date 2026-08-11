@@ -1,4 +1,4 @@
-// Occurrence ownership of granted keywords (CR 113.1 / 611.1b / 611.2c /
+// Occurrence ownership of granted keywords (CR 113.1 / 611.2a / 611.2c /
 // 613.1f, issue #1706).
 //
 // `CardInstanceState.staticAbilities` is a flat MULTISET of keyword strings

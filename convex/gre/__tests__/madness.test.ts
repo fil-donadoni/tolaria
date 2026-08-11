@@ -1,16 +1,16 @@
 // Madness (CR 702.35) — the discard→exile reflexive-cast capability. Exercised
 // once here for the mechanic itself (built once, reused by every madness card);
 // the per-card behaviour lives in the parallel colour test files. Covers the
-// full CR 702.35d timing, driven through the REAL engine path
+// full CR 702.35a timing, driven through the REAL engine path
 // (processPendingActionTriggers → resolveTopOfStack → declineMadness):
 //   - CR 702.35c replacement: a discarded madness card is exiled, not binned,
 //     and is NOT yet castable (it awaits its reflexive trigger)
-//   - CR 702.35d trigger: a reflexive triggered ability goes on the stack, and
+//   - CR 702.35a trigger: a reflexive triggered ability goes on the stack, and
 //     resolving it opens the owner's single cast window (castableFromExileBy +
 //     state.madnessCastWindow)
-//   - CR 702.35d cast: the exiled card is castable from exile for its madness
+//   - CR 702.35a cast: the exiled card is castable from exile for its madness
 //     cost only while the window is open (getLegalActions + castRawManaCost)
-//   - CR 702.35d decline: passing priority in the window bins the card
+//   - CR 702.35a decline: passing priority in the window bins the card
 //     IMMEDIATELY (not at cleanup)
 //   - CR 514.3: a card discarded to hand size at cleanup gets a real cast window
 //     during the discarding player's own end step
@@ -48,7 +48,7 @@ import { anjesRavager } from "../../cards/sets/c19/red";
 import { grizzlyBears } from "../../cards/sets/lea";
 
 /** Discards `cardId` from `p1` and pushes the reflexive madness trigger onto the
- *  stack through the real post-action trigger scan (CR 702.35d). Returns the
+ *  stack through the real post-action trigger scan (CR 702.35a). Returns the
  *  discarded card's exiled instance. Does NOT resolve the trigger — the caller
  *  drives that to open the cast window. */
 function discardAndFireMadnessTrigger(
@@ -109,7 +109,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
     });
 
-    describe("reflexive cast-trigger on the stack (CR 702.35d)", () => {
+    describe("reflexive cast-trigger on the stack (CR 702.35a)", () => {
         it("puts a reflexive triggered ability on the stack, owner-controlled", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",
@@ -182,7 +182,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
     });
 
-    describe("cast for the madness cost (CR 702.35d)", () => {
+    describe("cast for the madness cost (CR 702.35a)", () => {
         it("charges the madness cost, not the printed cost, on the exile cast", () => {
             // Anje's Ravager: printed {2}{R}, Madness {1}{R}.
             const card = makeInstance(anjesRavager.id, {
@@ -261,7 +261,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
     });
 
-    describe("decline → graveyard immediately (CR 702.35d)", () => {
+    describe("decline → graveyard immediately (CR 702.35a)", () => {
         it("declineMadness bins the uncast card the instant the owner passes, not at cleanup", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",
@@ -427,7 +427,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
     });
 
-    describe("frontend wiring — projectPublicState (CR 702.35d)", () => {
+    describe("frontend wiring — projectPublicState (CR 702.35a)", () => {
         it("carries the cast affordance to the owner and hides it from the opponent while the window is open", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",

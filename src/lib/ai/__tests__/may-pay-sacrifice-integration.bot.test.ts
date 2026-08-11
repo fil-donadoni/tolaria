@@ -1,5 +1,5 @@
 // Integration: a may-pay sacrifice cost with a REAL victim choice across the
-// GRE → game.ts → driver boundary (issue #940). CR 701.16b — the payer chooses
+// GRE → game.ts → driver boundary (issue #940). CR 701.21a — the payer chooses
 // which permanent to sacrifice. The bot/solo driver must supply a legal pick so
 // a vs-AI / solo game never stalls on the choice.
 //
@@ -112,7 +112,7 @@ function seedTwoFodder(): GameState {
     return state;
 }
 
-describe("may-pay sacrifice choice — bot driver (issue #940, CR 701.16b)", () => {
+describe("may-pay sacrifice choice — bot driver (issue #940, CR 701.21a)", () => {
     it("surfaces the sacrifice pick to the bot: count + both candidates", () => {
         const state = seedTwoFodder();
         const projected = projectPublicState(state, 1, BOT);

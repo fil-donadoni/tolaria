@@ -127,7 +127,7 @@ export type ChoiceAction =
           choiceId: string;
       }
     /** Decline a reflexive `madness-cast` choice (`submitMadnessDecline`,
-     *  CR 702.35d) — the card goes to the graveyard. The ACCEPT ("Cast") is a
+     *  CR 702.35a) — the card goes to the graveyard. The ACCEPT ("Cast") is a
      *  normal cast action on the exiled card, not a choice action. */
     | { kind: "submit-madness-decline" }
     /** Decline a reflexive `rebound-cast` choice (`submitReboundDecline`, CR
@@ -147,7 +147,7 @@ export type TargetAction =
     | { kind: "confirm-targets" }
     /** Abort target selection (`cancelTarget`) — legal at any point of the
      *  selection (CR 601.2g; for retarget kinds it declines the retarget,
-     *  CR 707.10b / 114.6). */
+     *  CR 707.10b / 115.7). */
     | { kind: "cancel-target" };
 
 /** Actions legal while the game waits for `blockers` input (CR 509.1): one
@@ -308,7 +308,7 @@ function choiceActions(
         ];
     }
 
-    // CR 702.35d — reflexive Madness cast-choice: the only choice-action is to
+    // CR 702.35a — reflexive Madness cast-choice: the only choice-action is to
     // DECLINE (→ graveyard). The ACCEPT ("Cast") is a normal cast of the exiled
     // card, enumerated as a priority-window `cast-spell` move, not here.
     if (head.kind === "madness-cast") {
@@ -513,7 +513,7 @@ function targetActions(
     }
 
     // Aborting the selection is always legal for the chooser (CR 601.2g;
-    // declining a retarget, CR 707.10b / 114.6).
+    // declining a retarget, CR 707.10b / 115.7).
     actions.push(wrap({ kind: "cancel-target" }));
     return actions;
 }

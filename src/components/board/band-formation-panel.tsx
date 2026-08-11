@@ -10,7 +10,7 @@ import { Panel } from "~/components/ui/panel";
 
 /**
  * Band-formation control shown to the attacking player during attacker
- * declaration (CR 702.21e / 702.22j). A band groups 2+ attackers — for plain
+ * declaration (CR 702.22c / 702.22j). A band groups 2+ attackers — for plain
  * banding, at least one with banding and at most one without; for "bands with
  * other [quality]", every member sharing the quality — that attack and are
  * blocked as a unit. The panel only appears once a band is actually possible (a

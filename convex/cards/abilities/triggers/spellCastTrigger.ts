@@ -1,7 +1,7 @@
 // Factory for SPELL_CAST triggered abilities (CR 603.2 + 601.2i). Card
 // authors declare scope + filter + resolve; the factory wires event-type
-// narrowing, caster-scope gating, SpellFilter matching, optional condition
-// (CR 603.4) and engine-level intervening-if (CR 603.4d) plumbing.
+// narrowing, caster-scope gating, SpellFilter matching, and optional
+// condition + engine-level intervening-if plumbing (both CR 603.4).
 //
 // Last-known-information (CR 603.10) for SPELL_CAST is delivered to the
 // resolve callback via the `spell` derived payload — caller code never has
@@ -70,7 +70,7 @@ export interface SpellCastTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** Intervening-if predicate (CR 603.4d). Re-evaluated by the engine at
+    /** Intervening-if predicate (CR 603.4). Re-evaluated by the engine at
      *  resolve time; returning false fizzles the trigger. */
     interveningIf?: (
         event: SpellCastEvent,

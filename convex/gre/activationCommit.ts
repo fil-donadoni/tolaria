@@ -46,7 +46,7 @@ export type ActivatedAbilityCommit = {
     /** CR 113.1 — the granting card's def id when the ability was granted to
      *  the source by another card (Zombie Master's regenerate). */
     grantedSourceCardId?: string;
-    /** CR 117.9 / 601.2f — snapshot of the permanent sacrificed as an
+    /** CR 118.8 / 601.2f — snapshot of the permanent sacrificed as an
      *  additional cost, captured at commit because it is gone by resolution. */
     additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
     /** CR 106.10 — the mana-pool delta noted for a battery (Jeweled Amulet). */

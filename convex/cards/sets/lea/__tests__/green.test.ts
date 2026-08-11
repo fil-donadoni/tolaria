@@ -530,7 +530,7 @@ describe("Giant Growth (+3/+3 until end of turn, CR 611.1 / 514.2)", () => {
     });
 });
 
-describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1b / 611.1b / 603.7a / 514.2)", () => {
+describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1b / 611.2a / 603.7a / 514.2)", () => {
     function setupWithAttacker() {
         const bear = makeInstance(grizzlyBears.id, { id: "bear" });
         bear.isAttacking = true;

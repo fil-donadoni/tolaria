@@ -235,7 +235,7 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
         ]);
     });
 
-    it("a dropped attacker takes its planeswalker target and band membership with it (CR 508.1a / 702.21e)", async () => {
+    it("a dropped attacker takes its planeswalker target and band membership with it (CR 508.1a / 702.22f)", async () => {
         // Both Bears were declared as a band attacking the same planeswalker;
         // the cap of one then forces the required Juggernaut in and BOTH out.
         // Leaving their `attackTargets` entries or the band behind would point

@@ -6,7 +6,7 @@
 //
 // Each Move kind maps to a fixed, ordered call sequence:
 //   play-land        → playCard
-//   summon-companion → summonCompanion (CR 116.2 / 702.139f, ADR 0064)
+//   summon-companion → summonCompanion (CR 116.2 / 702.139a, ADR 0064)
 //   cast-spell       → announceCast → selectTargets? [→ confirmTargets] → tapForPayment?
 //   activate-ability → activateAbility → selectTargets? [→ confirmTargets] → tapForActivationPayment*
 //   declare-attackers→ toggleAttacker* → confirmAttackers
@@ -17,7 +17,7 @@
 //   may-pay          → submitMayPay (yes-no family, ADR 0016)
 //   submit-target    → selectTargets? [→ confirmTargets] (the STANDALONE answer
 //                      to an engine-raised target selection — CR 603.3d
-//                      targeted trigger / CR 114.6 retarget / CR 707.10b copy
+//                      targeted trigger / CR 115.7 retarget / CR 707.10c copy
 //                      retarget, issue #2283; nothing is announced or paid)
 //   pass             → passPriority
 //
@@ -43,7 +43,7 @@ type GP = { gameId: Id<"games">; playerId: string };
  *  public mutations in `convex/game.ts` — the bot uses no private surface. */
 export type MoveMutations = {
     playCard: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
-    /** CR 116.2 / 702.139f (ADR 0064) — the `summon-companion` special
+    /** CR 116.2 / 702.139a (ADR 0064) — the `summon-companion` special
      *  action. No card id (the source is the player's companion slot, not a
      *  hand card); the {3} is solved and applied server-side in one call. */
     summonCompanion: (a: GP) => Promise<unknown>;
@@ -197,7 +197,7 @@ export async function executeMove(
 
         case "may-pay":
             // Yes/no family (CR 117.3a / 118.4) — a SEPARATE entry point from
-            // submitResolutionChoice (ADR 0016). CR 701.16b — a sacrifice-leg
+            // submitResolutionChoice (ADR 0016). CR 701.21a — a sacrifice-leg
             // pick rides along as `sacrificeIds`; CR 701.9 / 118.3 (issue
             // #899 / #1507) — a discard-leg pick rides along as `discardIds`.
             await mutations.submitMayPay({
@@ -230,7 +230,7 @@ export async function executeMove(
             return;
 
         case "madness-decline":
-            // CR 702.35d — decline the reflexive Madness cast-choice (send the
+            // CR 702.35a — decline the reflexive Madness cast-choice (send the
             // card to the graveyard). Its own entry point (submitMadnessDecline);
             // no data travels, the server reads the head choice.
             await mutations.submitMadnessDecline(base);
@@ -264,7 +264,7 @@ export async function executeMove(
             return;
 
         case "submit-target": {
-            // CR 603.3d / 114.6 / 707.10b (issue #2283) — answer an
+            // CR 603.3d / 115.7 / 707.10b (issue #2283) — answer an
             // ENGINE-RAISED target selection (a targeted trigger, a retarget, a
             // spell copy's retarget). A STANDALONE submission: unlike the
             // target tuple that rides on `cast-spell` / `activate-ability`,

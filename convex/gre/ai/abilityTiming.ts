@@ -139,7 +139,7 @@ export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
     return ability.effects !== undefined && opsAllTransient(ability.effects);
 }
 
-/** One ability of a permanent's POST-LAYER activated-ability set (CR 611.1b),
+/** One ability of a permanent's POST-LAYER activated-ability set (CR 611.2a),
  *  by id — so a GRANTED ability is found exactly like a printed one. */
 export function effectiveAbilityOf(
     card: CardInstanceState,

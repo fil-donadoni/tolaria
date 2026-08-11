@@ -1960,7 +1960,7 @@ describe("Effect Script value: scaled (multiplication, issue #2366)", () => {
     // Suspicions), that consumer earns the same wire test `difference` has.
 });
 
-describe("Effect Script Op: gainLife (CR 119.3a)", () => {
+describe("Effect Script Op: gainLife (CR 119.3)", () => {
     it("the selected player gains life", () => {
         const id = registerScript("test-op-gain", [
             { op: "gainLife", player: "controller", amount: 3 },
@@ -2019,7 +2019,7 @@ describe("Effect Script Op: getEnergy (CR 122.1)", () => {
     });
 });
 
-describe("Effect Script Op: loseLife (CR 119.3b)", () => {
+describe("Effect Script Op: loseLife (CR 119.3)", () => {
     it("the selected player loses life (announced player target)", () => {
         const id = registerScript(
             "test-op-lose",
@@ -6966,7 +6966,7 @@ describe("Effect Script Op: tapUntap (CR 701.26, issue #842)", () => {
     });
 });
 
-describe("Effect Script Op: grantAbility (CR 611.1b / 613.1f, layer 6, issue #843)", () => {
+describe("Effect Script Op: grantAbility (CR 611.2a / 613.1f, layer 6, issue #843)", () => {
     // Granting a keyword to an announced target: the keyword appears in the
     // creature's `staticAbilities`, and that must survive the projection (the
     // client reads a creature's keywords off the slimmed wire state — a
@@ -7162,7 +7162,7 @@ describe("Effect Script Op: grantAbility (CR 611.1b / 613.1f, layer 6, issue #84
         expect(() => resolveTopOfStack(state)).not.toThrow();
     });
 
-    // CR 113.1 / 611.1b (issue #1665) — the THIRD payload: `grantedTriggeredId`
+    // CR 113.1 / 611.2a (issue #1665) — the THIRD payload: `grantedTriggeredId`
     // names a template on the RESOLVING source's `triggeredGrantTemplates[]`,
     // the triggered-ability sibling of `grantedActivatedId`. Guardian
     // Scalelord's Backup 1 (CR 702.165c) is the catalogue caller.
@@ -9236,7 +9236,7 @@ describe("Effect Script Op: exileSelf (CR 608.2, issue #1097)", () => {
     // A copy of the spell (CR 707.10) never arms the self-redirect at all —
     // this exercises the PRIMITIVE's own copy guard
     // (`SpellContext.exileSelf`, `gre/state.ts`), not `finalizeSpellResolution`'s
-    // separate, EARLIER `if (item.isCopy) return;` (CR 707.10 / 112.5 — a copy
+    // separate, EARLIER `if (item.isCopy) return;` (CR 707.10a — a copy
     // never reaches the graveyard-vs-exile decision at all). Asserting only
     // "the copy didn't end up in exile or the graveyard" is true regardless
     // of whether this primitive's guard exists — `finalizeSpellResolution`
@@ -10616,7 +10616,7 @@ describe("Effect Script Op: transform (CR 701.27 / 712, issue #1210, ADR 0067)",
     });
 
     // Wire format (GRE testing convention): transform is ALWAYS PUBLIC
-    // information (CR 712.1a) — unlike faceDown, there is no per-viewer
+    // information (CR 712.6) — unlike faceDown, there is no per-viewer
     // hiding, so the swapped face must project identically to both players.
     it("the transformed face survives projection identically for both players (wire format)", () => {
         const incubator = makeInstance(INCUBATOR_ID, {
@@ -10901,7 +10901,7 @@ describe("Effect Script Op: exileAndReturnTransformed (CR 712 / 400.7 / 306.5b, 
     });
 
     // Wire format (GRE testing convention): transform is ALWAYS PUBLIC (CR
-    // 712.1a), and the loyalty counters are what the client renders as the
+    // 712.6), and the loyalty counters are what the client renders as the
     // planeswalker's loyalty — an effect that only worked on the fat state
     // would show an empty planeswalker on both boards.
     it("projects the back face and its loyalty identically for both players (wire format)", () => {
@@ -16518,7 +16518,7 @@ describe("Effect Script Op: counter + destination (CR 701.5a, issue #683)", () =
     });
 });
 
-// --- CardDefinition.cantBeCountered (CR 701.5c, issue #1065) ---------------
+// --- CardDefinition.cantBeCountered (CR 113.6g, issue #1065) ---------------
 //
 // "This spell can't be countered" (Obliterate, Urza's Rage, Blurred Mongoose,
 // Kavu Chameleon). The flag is checked at the single choke point every
@@ -16535,7 +16535,7 @@ registerTokenDefinition({
     cantBeCountered: true,
     effects: [{ op: "draw", player: "controller", count: 1 }],
 });
-describe("CardDefinition.cantBeCountered (CR 701.5c, issue #1065)", () => {
+describe("CardDefinition.cantBeCountered (CR 113.6g, issue #1065)", () => {
     it("a flagged spell is a legal target for counter, but the counter fizzles — the spell stays on the stack", () => {
         const id = registerScript(
             "test-cant-be-countered-counterspell",
@@ -20076,7 +20076,7 @@ describe("Effect Script Op: emblem (CR 114, issue #1221)", () => {
         );
     });
 
-    it("continuous anthem: creatures the owner controls get +1/+0, incl. after projection (CR 114.2a / 611)", () => {
+    it("continuous anthem: creatures the owner controls get +1/+0, incl. after projection (CR 114.4 / 611)", () => {
         const p1Bear = makeInstance(BEAR_ID, {
             id: "p1-bear",
             controllerId: "p1",
@@ -20118,7 +20118,7 @@ describe("Effect Script Op: emblem (CR 114, issue #1221)", () => {
         expect(getEffectivePower(projected, slimP2Bear)).toBe(2);
     });
 
-    it("triggered emblem: fires owner-scoped from the command zone and resolves (CR 114.2a / 603)", () => {
+    it("triggered emblem: fires owner-scoped from the command zone and resolves (CR 114.4 / 603)", () => {
         // Synthetic triggered emblem: "Whenever you cast a spell, you gain 2
         // life." Exercises the collectTriggers emblem scan + the emblem-trigger
         // resolution branch (source-less, no permanent).

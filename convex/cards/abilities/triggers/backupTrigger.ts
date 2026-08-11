@@ -35,7 +35,7 @@
 // `targetRequirement`, CR 603.3d / issue #1193, the Flametongue Kavu
 // precedent), the counter placement is the existing `counters` Op (CR 122,
 // issue #841), and the conditional grant is the existing `grantAbility` Op
-// (CR 611.1b / 613.1f, issue #843) gated by the ONE new predicate this
+// (CR 611.2a / 613.1f, issue #843) gated by the ONE new predicate this
 // ability introduces: `targetIsAnother` (issue #1315) — an object-identity
 // comparison ("if that's ANOTHER creature") the existing numeric/boolean
 // predicate grammar had no shape for. No new Op.

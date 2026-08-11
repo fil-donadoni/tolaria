@@ -1,4 +1,4 @@
-// CR 105.2 / 118.5 / 702.34e — single-authority eligibility check for an
+// CR 105.2 / 118.5 / 601.2a — single-authority eligibility check for an
 // "exile cards from your graveyard/hand" CAST cost picker (delve, escape,
 // flashback). Lives outside the GRE and outside `convex/game.ts` so it can be
 // shared, unchanged, by the server mutation, the human picker dialog, and the
@@ -28,7 +28,7 @@ export interface ExileCostCandidate {
 }
 
 /** True iff `card` is a legal pick for an exile-from-graveyard/hand CAST cost:
- *  never the card paying its own cost (CR 702.34e — `excludeInstanceId`), and
+ *  never the card paying its own cost (CR 601.2a — `excludeInstanceId`), and
  *  — when the cost carries a colour filter (Flash of Insight's "exile X BLUE
  *  cards from your graveyard") — matching the card's actual printed COLOUR
  *  ({@link cardHasColor}, CR 105.2 / 202.2), NOT its deck-builder colour

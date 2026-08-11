@@ -2254,7 +2254,7 @@ describe("Dragon Whelp (CR 602.5, 603.7a — activation-count delayed sacrifice)
     });
 });
 
-describe("Stone Giant (CR 113.1, 611.1b, 603.7a — dynamic toughness target + flying + delayed destroy)", () => {
+describe("Stone Giant (CR 113.1, 611.2a, 603.7a — dynamic toughness target + flying + delayed destroy)", () => {
     const ABILITY_ID = "stone-giant-fling";
 
     function setup() {
@@ -2775,7 +2775,7 @@ describe("Fork (copy target instant or sorcery spell, CR 707.10)", () => {
 // ---------------------------------------------------------------------------
 // Banding (CR 702.21) — W28: benalishHero, mesaPegasus, timberWolves,
 // helmOfChatzuk. Covers keyword recognition, band-composition legality,
-// block-as-group, and the two damage-assignment authority shifts (702.21j-k).
+// block-as-group, and the two damage-assignment authority shifts (702.22j-k).
 // ---------------------------------------------------------------------------
 
 describe("Raging River (pile combat — CR 509.2 variant, ADR 0012)", () => {

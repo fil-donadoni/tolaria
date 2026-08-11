@@ -293,7 +293,7 @@ describe("Foul Familiar (can't block + bounce, CR 509.1b / 701.14)", () => {
     });
 });
 
-describe("Hoar Shade ({B}: +1/+1, CR 611.1b)", () => {
+describe("Hoar Shade ({B}: +1/+1, CR 611.2a)", () => {
     it("pumps itself +1/+1 until end of turn (wire format)", () => {
         const shade = makeInstance(hoarShade.id, {
             id: "hs",
@@ -319,7 +319,7 @@ describe("Hoar Shade ({B}: +1/+1, CR 611.1b)", () => {
     });
 });
 
-describe("Hyalopterous Lemure ({0}: -1/-0 + flying, CR 611.1b)", () => {
+describe("Hyalopterous Lemure ({0}: -1/-0 + flying, CR 611.2a)", () => {
     it("loses a power and gains flying until end of turn", () => {
         const lemure = makeInstance(hyalopterousLemure.id, {
             id: "hl",
@@ -358,7 +358,7 @@ describe("Kjeldoran Dead (ETB sac + regenerate, CR 603.6 / 701.15)", () => {
     });
 });
 
-describe("Knight of Stromgald (grants + pump, CR 611.1b)", () => {
+describe("Knight of Stromgald (grants + pump, CR 611.2a)", () => {
     it("grants itself first strike until end of turn", () => {
         const knight = makeInstance(knightOfStromgald.id, {
             id: "ks",
@@ -1007,7 +1007,7 @@ describe("Infernal Denizen (sac-two-Swamps-or-steal, {T} gain control, CR 603.6a
     });
 });
 
-describe("Soul Kiss (Aura +2/+2, hard cap 3/turn, CR 611.1b / 602.5)", () => {
+describe("Soul Kiss (Aura +2/+2, hard cap 3/turn, CR 611.2a / 602.5)", () => {
     function setup() {
         const host = vanilla("host", 2, 2, {
             controllerId: "p1",
@@ -1291,7 +1291,7 @@ describe("Dance of the Dead (graveyard-reanimation aura, CR 303.4i / 611)", () =
     });
 });
 
-describe("Krovikan Elementalist (pump / fly+sac, CR 611.1b / 603.7a)", () => {
+describe("Krovikan Elementalist (pump / fly+sac, CR 611.2a / 603.7a)", () => {
     it("{2}{R} pumps a target creature +1/+0", () => {
         const elem = makeInstance(krovikanElementalist.id, {
             id: "elem",

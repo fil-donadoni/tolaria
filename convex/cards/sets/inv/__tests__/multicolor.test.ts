@@ -1993,7 +1993,7 @@ describe("Horned Cheetah (CR 120.3/603.2 resolve() damage-dealt lifegain, GW iss
     });
 });
 
-describe("Noble Panther (CR 611.1b temporary first strike grant, GW issue #1079)", () => {
+describe("Noble Panther (CR 611.2a temporary first strike grant, GW issue #1079)", () => {
     it("{1}: gains first strike until end of turn", () => {
         const panther = makeInstance(noblePanther.id, {
             id: "np",
@@ -2145,7 +2145,7 @@ describe("Rith, the Awakener (CR 702.9b flying + 510.4/603.2 combat-damage trigg
     });
 });
 
-describe("Treva, the Renewer (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 119.3a life gain scaled by count, issue #1080)", () => {
+describe("Treva, the Renewer (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 119.3 life gain scaled by count, issue #1080)", () => {
     it("paying {2}{W} and choosing white gains 1 life per white permanent", () => {
         const trevaInst = makeInstance(treva.id, {
             id: "treva",
@@ -2310,7 +2310,7 @@ describe("Nightscape Master (CR 400.7 bounce + 120.1 damage, issue #1080)", () =
     });
 });
 
-describe("Thunderscape Apprentice (CR 119.3b life loss + 613.4c temporary pump, issue #1080)", () => {
+describe("Thunderscape Apprentice (CR 119.3 life loss + 613.4c temporary pump, issue #1080)", () => {
     it("{B}, {T}: target player loses 1 life", () => {
         const apprentice = makeInstance(thunderscapeApprentice.id, {
             id: "ta",

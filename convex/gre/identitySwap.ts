@@ -166,7 +166,7 @@ function replayLayer6Abilities(
     }
 
     // `temporaryRemovedKeywords` carries no timestamp of its own: it is
-    // written by a one-shot effect resolving NOW (CR 611.1b), so it applies
+    // written by a one-shot effect resolving NOW (CR 611.2a), so it applies
     // after every timestamped record above.
     const temporaryHolds: NonNullable<
         CardInstanceState["temporaryRemovedKeywords"]

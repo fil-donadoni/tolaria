@@ -1,4 +1,4 @@
-// Engine-level tests for CR 603.4d "intervening if". `resolveTopOfStack`
+// Engine-level tests for CR 603.4 "intervening if". `resolveTopOfStack`
 // re-evaluates `TriggeredAbility.interveningIf` against the current game
 // state immediately before invoking `resolve`. If the predicate is false
 // the trigger fizzles: it leaves the stack without invoking `resolve`,
@@ -57,7 +57,7 @@ const WASKICKED_SOURCE_ID = "test-intervening-if-waskicked-card";
 const WASKICKED_ABILITY_ID = "test-trigger-waskicked";
 
 // Synthetic card exercising the resolve-time `selfView` allowlist
-// (`gre/state.ts`, CR 603.4d) for the `wasKicked` field specifically (issue
+// (`gre/state.ts`, CR 603.4) for the `wasKicked` field specifically (issue
 // #1753 added `wasKicked`/`chosenXOnCast` to that hand-built allowlist
 // alongside the pre-existing combat-history fields). No shipped card reads
 // `self.wasKicked` from an `interveningIf` today — `pouncingKavu` and its
@@ -169,7 +169,7 @@ function setupState(opts: { sourceTapped: boolean }): GameState {
     };
 }
 
-describe("intervening-if (CR 603.4d)", () => {
+describe("intervening-if (CR 603.4)", () => {
     it("fizzles the trigger when the predicate is false at resolve time", () => {
         const state = setupState({ sourceTapped: true });
         resolveTopOfStack(state);
@@ -266,7 +266,7 @@ function setupWasKickedState(opts: { wasKicked: boolean }): GameState {
 // through — dropping the `wasKicked: sourceCard.wasKicked` line from the
 // allowlist would make the "kicked" case below fizzle exactly like the
 // "not kicked" case, since both would read `undefined`.
-describe("intervening-if allowlist — wasKicked (issue #1753, CR 603.4d / 614.1c)", () => {
+describe("intervening-if allowlist — wasKicked (issue #1753, CR 603.4 / 614.1c)", () => {
     it("fizzles when wasKicked is unset at resolve time", () => {
         const state = setupWasKickedState({ wasKicked: false });
         resolveTopOfStack(state);

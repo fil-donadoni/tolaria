@@ -330,7 +330,7 @@ export const rabidWombat: CardDefinition = {
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
 // Emerald Dragonfly — Flying; "{G}{G}: This creature gains first strike until
-// end of turn." (CR 702.9 flying + CR 611.1b end-of-turn keyword grant.)
+// end of turn." (CR 702.9 flying + CR 611.2a end-of-turn keyword grant.)
 export const emeraldDragonfly: CardDefinition = {
     id: "a3e81250-52c3-49f6-be43-17c34339e177",
     rarity: "common",
@@ -351,7 +351,7 @@ export const emeraldDragonfly: CardDefinition = {
             cost: { mana: { G: 2 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.1b).
+            // strike until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -424,7 +424,7 @@ export const killerBees: CardDefinition = {
 };
 
 // Pixie Queen — Flying; "{G}{G}{G}, {T}: Target creature gains flying until end
-// of turn." (CR 702.9 flying + CR 611.1b keyword grant on a chosen target.)
+// of turn." (CR 702.9 flying + CR 611.2a keyword grant on a chosen target.)
 export const pixieQueen: CardDefinition = {
     id: "b9527c2a-23bb-4d33-9e72-6e0ab3de0e6b",
     rarity: "rare",
@@ -446,7 +446,7 @@ export const pixieQueen: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
-            // announced target creature until end of turn (CR 611.1b).
+            // announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -716,7 +716,7 @@ export const masterOfTheHunt: CardDefinition = {
 };
 
 // Shelkin Brownie — "{T}: Target creature loses all 'bands with other' abilities
-// until end of turn." (CR 611.1b layer-6 duration-scoped keyword removal.)
+// until end of turn." (CR 611.2a layer-6 duration-scoped keyword removal.)
 export const shelkinBrownie: CardDefinition = {
     id: "fddcc557-871d-425b-b4ee-bc0c9bc717aa",
     rarity: "common",
@@ -871,7 +871,7 @@ export const whirlingDervish: CardDefinition = {
                 "At the beginning of each end step, if this creature dealt damage to an opponent this turn, put a +1/+1 counter on it.",
             phase: "END_STEP",
             scope: "each",
-            // CR 603.4d — only fires if it dealt damage to an opponent this
+            // CR 603.4 — only fires if it dealt damage to an opponent this
             // turn. Re-checked at resolve (the flag persists to CLEANUP).
             interveningIf: (_event, self) =>
                 self.dealtDamageToOpponentThisTurn === true,

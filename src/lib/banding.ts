@@ -3,7 +3,7 @@ import type { CardInstance } from "~/types/game";
 
 /**
  * Client-side mirror of the engine's band-eligibility predicates
- * (`convex/gre/banding.ts`, CR 702.21e / 702.22j). The server is authoritative;
+ * (`convex/gre/banding.ts`, CR 702.22c / 702.22j). The server is authoritative;
  * these helpers only drive the band-formation UI (which attackers show the
  * banding marker and when the "Create band" button enables). Kept here — not
  * imported from `convex/gre/` — to honor the frontend/engine boundary, but the
@@ -59,10 +59,10 @@ function matchesBandQuality(c: CardInstance, quality: BandQuality): boolean {
     return def.name === quality.name;
 }
 
-/** Mirror of `isLegalBandComposition` (CR 702.21e / 702.22j). */
+/** Mirror of `isLegalBandComposition` (CR 702.22c / 702.22j). */
 export function canFormBand(members: CardInstance[]): boolean {
     if (members.length < 2) return false;
-    // CR 702.21e — plain banding.
+    // CR 702.22c — plain banding.
     const banding = members.filter(hasBanding).length;
     if (banding >= 1 && members.length - banding <= 1) return true;
     // CR 702.22j — bands with other [quality].

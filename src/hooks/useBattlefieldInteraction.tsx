@@ -361,7 +361,7 @@ export function useBattlefieldInteraction(player: Player) {
         : undefined;
     const isPickingSacrifice = !!sacrificeSelection;
 
-    // Exile additional-cost picker (CR 117.9 / 406, Soul Exchange). Active when
+    // Exile additional-cost picker (CR 118.8 / 406, Soul Exchange). Active when
     // this player's pendingCast is waiting for them to exile a permanent.
     // `additionalCost` is exile-only now (the sacrifice branch migrated to the
     // unified sacrifice picker above). Routes clicks to selectAdditionalCost.
@@ -426,7 +426,7 @@ export function useBattlefieldInteraction(player: Player) {
         playerId === blockDeclarerId &&
         player.id !== defenderId;
 
-    // CR 702.21j-k: the player who assigns may be the defender, so gate on the
+    // CR 702.22j-k: the player who assigns may be the defender, so gate on the
     // outstanding assigner rather than always the active player.
     const isAssigningDamage =
         (phase === "COMBAT_DAMAGE" || phase === "FIRST_STRIKE_DAMAGE") &&
@@ -953,7 +953,7 @@ export function useBattlefieldInteraction(player: Player) {
             .find((c) => c.id === cardInstanceId);
         if (!card) return;
         const def = getDefinition(card.card.id);
-        // POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — the SAME effective
+        // POST-LAYER set (CR 113.1 / 611.2a, issue #1880) — the SAME effective
         // list `getActivatedManaMenuEntry` / `canRefundManaTap` /
         // `manaCostAbility` offer the entry from. Resolving against the PRINTED
         // `def.activatedAbilities` left a GRANTED mana ability's id unmatched:

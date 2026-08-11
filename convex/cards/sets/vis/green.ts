@@ -11,7 +11,7 @@ import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 
 // Natural Order — {2}{G}{G} Sorcery. "As an additional cost to cast this
 // spell, sacrifice a green creature. Search your library for a green
-// creature card, put it onto the battlefield, then shuffle." (CR 117.9
+// creature card, put it onto the battlefield, then shuffle." (CR 118.8
 // additional cost / 701.19 search / 400.7 / 701.20 shuffle.) The additional
 // cost reuses `additionalCosts.sacrificeFilter` (a `PermanentFilter`, already
 // supports `colors`); the search reuses the `choice` Op's `filter.color`

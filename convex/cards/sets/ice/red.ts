@@ -410,7 +410,7 @@ export const battleFrenzy: CardDefinition = {
 // Bone Shaman — {2}{R}{R} 3/3 Giant Shaman. "{B}: Until end of turn, this
 // creature gains 'Creatures dealt damage by this creature this turn can't be
 // regenerated this turn.'" The activated ability grants a DAMAGE-DEALT triggered
-// ability to self until end of turn (CR 611.1b duration-scoped trigger grant via
+// ability to self until end of turn (CR 611.2a duration-scoped trigger grant via
 // `grantTriggeredAbility`); the granted rider (a `damageDealtTrigger` template on
 // `triggeredGrantTemplates[]`) fires whenever self deals damage to a creature and
 // applies a regen-lock to that creature (CR 701.15c, the Lim-Dûl's Cohort leg).
@@ -753,7 +753,7 @@ export const curseOfMaritLage: CardDefinition = {
 // counter on target creature. Activate only during any upkeep step." A land
 // sacrifice cost (`sacrificeFilter: { types: "Land" }`, the Orcish Lumberjack
 // shape) gated to the upkeep step via `activationPhaseRestriction: ["UPKEEP"]`
-// (NO `controllerTurnOnly` — "any upkeep step", CR 602.5b). The +2/+2 counter is
+// (NO `controllerTurnOnly` — "any upkeep step", CR 602.5). The +2/+2 counter is
 // a layer-7d P/T counter (CR 122.1).
 export const dwarvenArmory: CardDefinition = {
     id: "7d14a430-6e08-40cf-970a-cae84bba6ef7",
@@ -840,7 +840,7 @@ export const flameSpirit: CardDefinition = {
             cost: { mana: { R: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1303,9 +1303,9 @@ export const goblinSnowman: CardDefinition = {
 };
 // Grizzled Wolverine — {1}{R}{R} 2/2 Wolverine. "{R}: +2/+0 until end of turn.
 // Activate only during the declare blockers step, only if at least one creature
-// is blocking this creature, and only once each turn." Three activation gates:
-// `activationPhaseRestriction: ["DECLARE_BLOCKERS"]` (CR 602.5b step), `oncePerTurn`
-// (CR 602.5f — engine tracks `activationsThisTurn`), and a `canActivate` predicate
+// is blocking this creature, and only once each turn." Three activation gates,
+// all enforced under CR 602.5: `activationPhaseRestriction: ["DECLARE_BLOCKERS"]`,
+// `oncePerTurn` (engine tracks `activationsThisTurn`), and a `canActivate` predicate
 // that reads the live block graph (`state.combat.blockerAssignments`, CR 509.2)
 // to confirm some blocker is assigned to this creature.
 export const grizzledWolverine: CardDefinition = {
@@ -1337,7 +1337,7 @@ export const grizzledWolverine: CardDefinition = {
                 );
             },
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+0 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -2296,7 +2296,7 @@ export const totalWar: CardDefinition = {
     ],
 };
 // Vertigo — "2 damage to target creature with flying. That creature loses
-// flying until end of turn." (CR 120.1 damage + CR 611.1b layer-6 keyword
+// flying until end of turn." (CR 120.1 damage + CR 611.2a layer-6 keyword
 // removal.) The flying-target restriction uses `requireAbility: "flying"`; the
 // loss is `removeStaticAbilities` scoped to flying, until end of turn.
 export const vertigo: CardDefinition = {
@@ -2338,7 +2338,7 @@ export const wallOfLava: CardDefinition = {
             cost: { mana: { R: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",

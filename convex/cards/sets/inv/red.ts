@@ -108,7 +108,7 @@ export const overload: CardDefinition = {
 };
 
 // Obliterate — "This spell can't be countered. Destroy all artifacts,
-// creatures, and lands. They can't be regenerated." (CR 701.5c can't-be-
+// creatures, and lands. They can't be regenerated." (CR 113.6g can't-be-
 // countered flag, issue #1065; CR 701.7 destroy + CR 701.15c regen
 // suppression.)
 //
@@ -138,7 +138,7 @@ export const obliterate: CardDefinition = {
 // Urza's Rage — "Kicker {8}{R}. This spell can't be countered. Urza's Rage
 // deals 3 damage to any target. If this spell was kicked, instead it deals
 // 10 damage to that permanent or player and the damage can't be prevented."
-// (CR 701.5c can't-be-countered flag, issue #1065; CR 702.33 Kicker; CR 120.1
+// (CR 113.6g can't-be-countered flag, issue #1065; CR 702.33 Kicker; CR 120.1
 // damage; CR 615 prevention — the kicked mode's `unpreventable: true` skips
 // prevention shields only, generalizing `dealDamage`'s existing preventable
 // path — CR 614 replacement/redirection and CR 702.16 protection are
@@ -237,7 +237,7 @@ export const kavuScout: CardDefinition = {
 // Collapsing Borders — {3}{R} Enchantment. "Domain — At the beginning of
 // each player's upkeep, that player gains 1 life for each basic land type
 // among lands they control. Then this enchantment deals 3 damage to that
-// player." (CR 603.6a phase trigger, CR 119.3a life gain, CR 120.1 damage,
+// player." (CR 603.6a phase trigger, CR 119.3 life gain, CR 120.1 damage,
 // CR 702 preamble Domain ability word, issue #1066.) A per-player symmetric
 // trigger (`scope: "each"`) — the DOMAIN READ and both effects target
 // WHOEVER'S upkeep it is, not the enchantment's controller, so both
@@ -327,7 +327,7 @@ export const callousGiant: CardDefinition = {
 // gets +1/+1 until end of turn. Draw a card." (CR 601.3e cast restriction via
 // `castPhaseRestriction`, spanning every step from DECLARE_BLOCKERS through
 // END_OF_COMBAT — "after blockers are declared" is not just the one step;
-// CR 702.3x coin flip via the shipped `coinFlip` Op; the draw is unconditional,
+// CR 705.2 coin flip via the shipped `coinFlip` Op; the draw is unconditional,
 // outside both branches.)
 export const chaoticStrike: CardDefinition = {
     id: "061df8e4-6947-4bbb-9fe7-52ca4fd95d65",

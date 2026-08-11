@@ -249,7 +249,7 @@ export function getLandManaColor(card: CardInstance): Color | null {
 }
 
 /** Every activated ability actually available on this permanent POST-LAYER —
- *  native AND GRANTED (CR 113.1 / 611.1b, issue #1880) — as the CLIENT sees it
+ *  native AND GRANTED (CR 113.1 / 611.2a, issue #1880) — as the CLIENT sees it
  *  (a projected `CardInstance` is structurally a `CardInstanceState` here;
  *  `grantedActivatedAbilities` survives the wire because `slimCard` spreads the
  *  instance). The ONE place the board's tap / mana / ability-menu path may
@@ -271,7 +271,7 @@ export function getEffectiveClientAbilities(
 }
 
 /** The mana ability this permanent exposes, native OR granted (CR 113.1 /
- *  611.1b, issue #1880). Reads the SAME post-layer effective set the server's
+ *  611.2a, issue #1880). Reads the SAME post-layer effective set the server's
  *  mana probes use (`getEffectiveActivatedAbilities`, `gre/activatedAbilities`)
  *  rather than `cardDef.activatedAbilities` alone — a permanent granted a
  *  "{T}: Add …" (Urza's Saga chapter I) is a real mana source, and reading
@@ -405,7 +405,7 @@ export function canRefundManaTap(
     player: Pick<PlayerState, "manaPool" | "restrictedMana">
 ): boolean {
     if (!card.isTapped || card.manaCommitted) return false;
-    // POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — a source tapped for
+    // POST-LAYER set (CR 113.1 / 611.2a, issue #1880) — a source tapped for
     // mana via a GRANTED fixed ability offers the same refund affordance.
     const ability = getEffectiveActivatedAbilities(
         card as unknown as CardInstanceState
@@ -483,7 +483,7 @@ export function getNonTapManaChoices(
     card: CardInstance,
     players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
 ): ManaCost[] | null {
-    // POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — the gate matches the
+    // POST-LAYER set (CR 113.1 / 611.2a, issue #1880) — the gate matches the
     // effective list `getEffectiveManaChoices` below resolves against, so a
     // GRANTED non-tap chooser is not silently gated out of the picker.
     const ability = getEffectiveActivatedAbilities(
@@ -555,7 +555,7 @@ export function tapOtherCostCandidates(
  *  High Artificer's "Tap an untapped artifact you control: Add {U}") — there
  *  is no tap toggle to reach it through in the first place.
  *
- *  POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — read through
+ *  POST-LAYER set (CR 113.1 / 611.2a, issue #1880) — read through
  *  {@link getEffectiveClientAbilities}, never `getDefinition(...).
  *  activatedAbilities`: a GRANTED "{1}, {T}: Add {W}" is invisible to the
  *  printed list, so it got no explicit entry and fell through to the plain
@@ -596,7 +596,7 @@ export function getManaCostMenuAbility(
 }
 
 /** Returns the mana color produced by an activated tap ability, or null.
- *  POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — mirrors the engine's
+ *  POST-LAYER set (CR 113.1 / 611.2a, issue #1880) — mirrors the engine's
  *  `getActivatedManaColor`, so the battlefield's "taps for mana" visual cue
  *  (`useBattlefieldVisualState`) lights up for a GRANTED `{T}: Add …` too. */
 export function getActivatedManaColor(card: CardInstance): Color | null {
@@ -2007,7 +2007,7 @@ export function getStackAbilities(
         }
         return true;
     };
-    // CR 611.1b / 613.1f (layer 6) — read the POST-LAYER effective set, not
+    // CR 611.2a / 613.1f (layer 6) — read the POST-LAYER effective set, not
     // the card definition's raw list: a "loses all abilities" effect
     // (Titania's Song) strips native abilities here too, so a client that
     // read `cardDef.activatedAbilities` directly kept offering a stripped
@@ -3398,7 +3398,7 @@ export function mayPaySacrificeCount(
 }
 
 /** Number of permanents a FIXED-count `may-pay` sacrifice leg makes the payer
- *  sacrifice (CR 701.16b). Returns 0 when the cost has no sacrifice leg OR uses
+ *  sacrifice (CR 701.21a). Returns 0 when the cost has no sacrifice leg OR uses
  *  a summed-power threshold (`{ minTotalPower }`, which has no fixed cardinal —
  *  gate that shape with {@link mayPaySacrificePickSatisfied} instead). */
 export function mayPayRequiredSacrifices(cost: MayPayCost | undefined): number {
@@ -3462,7 +3462,7 @@ export function mayPaySacrificeSelectionPower(
 }
 
 /** Whether the chooser's current sacrifice pick satisfies a battlefield
- *  `may-pay` sacrifice leg (CR 701.16b / 118). Fixed-count legs require exactly
+ *  `may-pay` sacrifice leg (CR 701.21a / 118). Fixed-count legs require exactly
  *  `count` picks; threshold legs (`{ minTotalPower }`, Phyrexian Dreadnought)
  *  require the selected permanents' summed PRINTED power to reach the threshold
  *  (over-payment allowed). A cost with no sacrifice leg is trivially satisfied. */

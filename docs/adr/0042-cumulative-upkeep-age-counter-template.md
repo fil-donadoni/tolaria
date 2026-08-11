@@ -66,7 +66,7 @@ combination of which may be present (Infernal Darkness sets both `mana` and
 `life`). Scaling by age count is **repetition of the whole cost**, not a
 multiply-the-numbers shortcut, so "pay {B} and 1 life" at three age counters is
 "pay {B}{B}{B} and 3 life", and "Sacrifice a land" at two counters sacrifices
-two lands — paid all-or-nothing (CR 702.24c). **Discard-as-cost is deliberately
+two lands — paid all-or-nothing (CR 702.24a). **Discard-as-cost is deliberately
 omitted** — no ICE card uses it; it is added the day a set needs it.
 
 **`requestMayPay` is generalized from `ManaCost` to the cost union.** The

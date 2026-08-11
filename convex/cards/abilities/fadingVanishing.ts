@@ -9,7 +9,7 @@
 // The two keywords share a shape (enter with N named counters; at your upkeep
 // remove one) but diverge on WHEN they sacrifice:
 //
-//   * Fading N (CR 702.32b) — at your upkeep, remove a fade counter; if you
+//   * Fading N (CR 702.32a) — at your upkeep, remove a fade counter; if you
 //     CAN'T (none remain), sacrifice it. A single upkeep trigger that
 //     checks-then-acts: `removeCounter` returning 0 means "couldn't remove".
 //     It survives one upkeep longer than vanishing N (the turn it finds no
@@ -57,7 +57,7 @@ export function parseFadingVanishing(
     return null;
 }
 
-/** Fading's single upkeep trigger (CR 702.32b): remove a fade counter, or — if
+/** Fading's single upkeep trigger (CR 702.32a): remove a fade counter, or — if
  *  none remain to remove — sacrifice the permanent. */
 function fadingUpkeepTrigger(): TriggeredAbility {
     return phaseTrigger({
@@ -97,20 +97,20 @@ function vanishingUpkeepTrigger(): TriggeredAbility {
     });
 }
 
-/** Vanishing's sacrifice trigger (CR 702.63d): "When the last time counter is
+/** Vanishing's sacrifice trigger (CR 702.63a): "When the last time counter is
  *  removed from this permanent, sacrifice it." Fires on any removal that takes
  *  the `time` count to zero — upkeep or otherwise — not only the upkeep step. */
 function vanishingSacrificeTrigger(): TriggeredAbility {
     return {
         id: "vanishing-last-counter",
         oracleText:
-            "When the last time counter is removed from this permanent, sacrifice it. (CR 702.63d)",
+            "When the last time counter is removed from this permanent, sacrifice it. (CR 702.63a)",
         event: "COUNTER_REMOVED",
         matches: (event: GameEvent, self: PermanentView) => {
             if (event.type !== "COUNTER_REMOVED") return false;
             if (event.instanceId !== self.id) return false;
             if (event.counterType !== TIME_COUNTER) return false;
-            // CR 702.63d — only the removal that empties the last counter.
+            // CR 702.63a — only the removal that empties the last counter.
             return event.remaining === 0;
         },
         resolve: (ctx) => {

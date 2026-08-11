@@ -51,7 +51,7 @@ function controllerHandSizeAtMost(max: number) {
 // ETB (DSL-first, ADR 0045): `discard` with `cards` omitted is the bulk
 // WHOLE-HAND shape (CR 701.8a — the Wheel of Fortune template, issue #1279),
 // then `investigateOp(controller, 4)`. "Investigate four times" is CR
-// 701.16b's N separate Clue creations, expressed as ONE `createToken` with
+// 701.16a's N separate Clue creations, expressed as ONE `createToken` with
 // `count: 4` over the shared `CLUE_TOKEN_SPEC` (primitive reuse); the Clue
 // art resolves through this card's own `generated/token-prints.json` row.
 // Both Ops are already exercised by shipped cards (Wheel of Fortune, Thraben

@@ -195,7 +195,7 @@ export function useBattlefieldVisualState(
         return matchesPermanentFilter(card, req.filter, controlContinuity);
     }
 
-    // Exile additional-cost picker (CR 117.9 / 406, Soul Exchange). The
+    // Exile additional-cost picker (CR 118.8 / 406, Soul Exchange). The
     // sacrifice branch migrated to the unified sacrifice picker above;
     // `additionalCost` is exile-only now.
     const isPickingAdditionalCost =
@@ -756,7 +756,7 @@ export function useBattlefieldVisualState(
             ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
 
-        // Non-mana cost picker highlight (CR 117.9 spell additional cost /
+        // Non-mana cost picker highlight (CR 118.8 spell additional cost /
         // CR 602.1 activated-ability sacrifice or tap-other cost). Same gold
         // ring as a resolution choice so eligible permanents read as
         // clickable.

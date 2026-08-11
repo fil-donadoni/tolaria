@@ -200,7 +200,7 @@ export const fountainOfYouth: CardDefinition = {
             cost: { mana: { X: 2 }, tap: true },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #832): controller gains
-            // 1 life (CR 119.3a).
+            // 1 life (CR 119.3).
             effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         },
     ],
@@ -308,7 +308,7 @@ export const necropolis: CardDefinition = {
 
 // Reflecting Mirror — "{X}, {T}: Change the target of target spell with a single
 // target if that target is you. The new target must be a player. X is twice the
-// mana value of that spell." (CR 605 activated ability; CR 114.6 changing the
+// mana value of that spell." (CR 605 activated ability; CR 115.7 changing the
 // target of a spell already on the stack — the ORIGINAL object, not a copy
 // (distinct from Fork's copy-retarget). The ability targets the spell (which
 // must be single-target and currently target you, CR 115.10), and {X} is forced
@@ -342,7 +342,7 @@ export const reflectingMirror: CardDefinition = {
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target || target.type !== "spell") return;
-                // CR 114.6 — the new target must be a player; the change is
+                // CR 115.7 — the new target must be a player; the change is
                 // applied to the original spell on the stack (not a copy).
                 ctx.requestRetarget(target.id, { type: "player", count: 1 });
             },

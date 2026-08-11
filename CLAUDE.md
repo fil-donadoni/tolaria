@@ -272,7 +272,9 @@ Full gate mandatory before done/merge — never skipped.
   the light gate — a branch reached review with `validate.test.ts` red and a
   `check:pr` that exited 0. Scope pinned by
   `scripts/__tests__/check-guards-scope.test.ts`; bot deny-list drift by
-  `bot-fast-lane.test.ts`.
+  `bot-fast-lane.test.ts`. A third, ~1s lane runs **`bun run cr:lint`** (#2429)
+  — offline, reads only the vendored CR, so the gate's no-network contract
+  holds.
   **The dom project is need-classified, not directory-classified**
   (`scripts/test-env-split.ts`, computed at config load): a `src/**/*.test.ts`
   with no DOM global, no testing-library import, no jest-dom matcher and no
@@ -363,9 +365,23 @@ fetch. Third-party mirrors (yawgatog, ancestral.vision — the latter frozen at
 2022-10-07) are removed, and an ad-hoc `curl` of a remembered
 `MagicCompRules YYYYMMDD.txt` URL is the habit this replaced: twelve distinct
 versions, back to 2022, appear in past session transcripts. **Never cite a rule
-number you have not printed** — 42 of the 799 distinct ids cited in this repo
-resolve to nothing, and 40 of those never existed in any revision
-(`bun run cr:lint`). Wizards republishes roughly per set at
+number you have not printed** — 44 of the 850 distinct ids cited in this repo
+resolved to nothing, and nearly all of them never existed in any revision; all
+44 were corrected in #2429 and **`bun run cr:lint` now runs in `check:guards`**,
+so a new one cannot land **on a line of its own or in a slash-list** (the
+scanner resolves every bare `NNN.Nx` token on any line mentioning `CR ` — two of
+the 44 ids, 10 sites, hid in exactly that shape and survived the first
+correction pass). Three things still get past it: a citation **wrapped across
+two comment lines** — so keep one on a single line; an id on a line mentioning
+`CR ` **nowhere** (1,795 today, 597 of them in `mechanicsRegistry.ts` alone — a
+deliberate boundary, since reaching them reds the gate on 16 ids that are mostly
+not citations at all — including the happy-dom benchmark seconds quoted a few
+sections above); and a
+**resolvable but wrong** id, since the scan only asks whether an id exists. A citation
+"corrected" to a plausible-but-wrong number passes, which is why the correction
+has to come from `bun run cr <id>` printing text that matches the claim.
+Wizards
+republishes roughly per set at
 <https://magic.wizards.com/en/rules>; `bun run cr:check` says whether a newer
 document exists, `bun run cr:sync` takes it. `cr:check` is deliberately outside
 `check:all` — the gate is offline by contract.

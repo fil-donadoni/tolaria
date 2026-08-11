@@ -62,7 +62,7 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     // pile-division divide-then-choose family (ADR 0053)
     "divide-piles": "Divide into piles",
     "pick-pile": "Choose a pile",
-    // reflexive Madness cast-choice (CR 702.35d)
+    // reflexive Madness cast-choice (CR 702.35a)
     "madness-cast": "Madness",
     // reflexive Rebound cast-choice (CR 702.88a)
     "rebound-cast": "Rebound",

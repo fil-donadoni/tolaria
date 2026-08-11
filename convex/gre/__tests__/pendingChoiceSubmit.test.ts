@@ -1349,7 +1349,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         ).toThrow(/legal target/i);
     });
 
-    // --- X / additional-cost casts (#579, CR 107.3 / 117.9): every cast
+    // --- X / additional-cost casts (#579, CR 107.3 / 118.8): every cast
     // decision flows through the same submit path the mutation runs. ---
 
     it("casts the opponent's Fireball with controller-chosen X via the submit path (CR 107.3)", () => {
@@ -1401,7 +1401,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         expect(state.players[0].life).toBe(startLife - 1);
     });
 
-    it("casts the opponent's Sacrifice with a controller-chosen sacrifice via the submit path (CR 117.9)", () => {
+    it("casts the opponent's Sacrifice with a controller-chosen sacrifice via the submit path (CR 118.8)", () => {
         const oppSacrifice = makeInstance(sacrifice.id, {
             id: "opp-sacrifice",
             controllerId: "p2",

@@ -96,7 +96,7 @@ export type SlimGraveyardCard = SlimCardInstance & {
      *  THIS flashback cast, bounded by its `flashbackExileFromGraveyard`
      *  additional cost ("Exile X blue cards from your graveyard", Flash of
      *  Insight): the count of eligible cards in the viewer's own graveyard,
-     *  excluding the flashback card itself (CR 702.34e). Present ONLY on a
+     *  excluding the flashback card itself (CR 601.2a). Present ONLY on a
      *  `castKind: "flashback"` card that carries this cost, so the client X
      *  stepper caps at a payable value instead of letting the caster announce
      *  an X the exile cost can't cover (which the server rejects at commit).
@@ -111,7 +111,7 @@ export type SlimGraveyardCard = SlimCardInstance & {
 export type SlimCompanionSlot = {
     instance: SlimCardInstance;
     used: boolean;
-    /** CR 116.2 / 702.139f — true iff the `summon-companion` special action
+    /** CR 116.2 / 702.139a — true iff the `summon-companion` special action
      *  is legal for the VIEWER right now (`canSummonCompanion`, gre/
      *  companion.ts). Present ONLY on the viewer's own player — mirrors
      *  every other viewer-scoped affordance field (`SlimHandCard.

@@ -61,7 +61,7 @@ export const flyingCarpet: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
-            // announced target creature until end of turn (CR 611.1b).
+            // announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -511,7 +511,7 @@ export const bottleOfSuleiman: CardDefinition = {
             id: "bottle-of-suleiman-flip",
             oracleText:
                 "{1}, Sacrifice this artifact: Flip a coin. If you win the flip, create a 5/5 colorless Djinn artifact creature token with flying. If you lose the flip, this artifact deals 5 damage to you.",
-            // Self-sacrifice paid at activation commit (CR 117.9); the source is
+            // Self-sacrifice paid at activation commit (CR 118.8); the source is
             // already off the battlefield by resolution, so the win branch
             // creates the token and the lose branch deals 5 to its controller.
             cost: { mana: { X: 1 }, sacrifice: true },
@@ -519,7 +519,7 @@ export const bottleOfSuleiman: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, #851): a `coinFlip` Op —
             // the win branch creates the Djinn token, the loss branch deals 5 to
             // the controller (CR 705.2 / ADR 0023, the suspending reveal flip).
-            // Self-sacrifice paid at activation commit (CR 117.9), so the source
+            // Self-sacrifice paid at activation commit (CR 118.8), so the source
             // is already gone by resolution; both branches act on the caster.
             // No `imagePrintId` on the Djinn token — Scryfall has no printed
             // counterpart for Bottle of Suleiman (`all_parts` is empty), so

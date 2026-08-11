@@ -256,9 +256,9 @@ describe("Iceberg (counters-as-mana, CR 122)", () => {
     });
 });
 
-// --- Sea Spirit / Thunder Wall (self-pump, CR 611.1b) ----------------------
+// --- Sea Spirit / Thunder Wall (self-pump, CR 611.2a) ----------------------
 
-describe("Sea Spirit ({U}: +1/+0, CR 611.1b)", () => {
+describe("Sea Spirit ({U}: +1/+0, CR 611.2a)", () => {
     it("pumps itself +1/+0 until end of turn", () => {
         const spirit = makeInstance(seaSpirit.id, {
             id: "sea",
@@ -278,7 +278,7 @@ describe("Sea Spirit ({U}: +1/+0, CR 611.1b)", () => {
     });
 });
 
-describe("Thunder Wall ({U}: +1/+1, CR 611.1b)", () => {
+describe("Thunder Wall ({U}: +1/+1, CR 611.2a)", () => {
     it("pumps itself +1/+1 until end of turn", () => {
         const wall = makeInstance(thunderWall.id, {
             id: "tw",
@@ -686,7 +686,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
         ).toBe(true);
     });
 
-    it("declining sacrifices the permanent (CR 702.24c)", () => {
+    it("declining sacrifices the permanent (CR 702.24a)", () => {
         const { state, forces } = setup();
         state.players[0].manaPool = { U: 5 };
         fireCumulativeUpkeep(
@@ -3243,7 +3243,7 @@ describe("Soldevi Machinist — '{T}: Add {C}{C}. Spend only on artifact abiliti
     });
 });
 
-describe("Deflection (retarget a single-target spell to any target, CR 114.6)", () => {
+describe("Deflection (retarget a single-target spell to any target, CR 115.7)", () => {
     function setup() {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -3254,7 +3254,7 @@ describe("Deflection (retarget a single-target spell to any target, CR 114.6)", 
         return { state, bolt };
     }
 
-    it("resolution opens an any-target retarget prompt for the caster (CR 114.6)", () => {
+    it("resolution opens an any-target retarget prompt for the caster (CR 115.7)", () => {
         const { state, bolt } = setup();
         pushSpell(state, deflection.id, "p1", [{ type: "spell", id: bolt.id }]);
         resolveTopOfStack(state);

@@ -139,16 +139,16 @@ export function selectCompanion(
 }
 
 // ---------------------------------------------------------------------------
-// Summon special action (CR 116.2 / 702.139f)
+// Summon special action (CR 116.2 / 702.139a)
 // ---------------------------------------------------------------------------
 
-/** The companion summon's fixed cost: generic {3} (CR 702.139f), normalized
+/** The companion summon's fixed cost: generic {3} (CR 702.139a), normalized
  *  the same way every other mana cost in the engine is (`{ X: N }` for the
  *  generic portion) so it can be handed straight to `solveSmartAutoTap`/
  *  `payManaCost`. */
 export const COMPANION_SUMMON_COST: Record<string, number> = { X: 3 };
 
-/** CR 116.2 / 702.139f — true iff `player` may currently take the
+/** CR 116.2 / 702.139a — true iff `player` may currently take the
  *  `summon-companion` special action: their own main phase, empty stack,
  *  holding priority, with no other action already in progress, an unused
  *  companion in the slot, and {3} affordable via the shared auto-tap solver

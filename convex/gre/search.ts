@@ -314,7 +314,7 @@ export function decidingPlayer(state: GameState): string | null {
         return null;
     }
 
-    // CR 603.3d / 114.6 / 707.10b (issue #2283) — an ENGINE-RAISED target
+    // CR 603.3d / 115.7 / 707.10b (issue #2283) — an ENGINE-RAISED target
     // selection is a real decision node: its owner picks the trigger's /
     // retarget's targets and `enumerateMoves` surfaces the submissions. An
     // ANNOUNCED one (`"cast"` / `"ability"`) stays a non-decision — the
@@ -575,7 +575,7 @@ export function applyMoveInSearch(
         }
 
         case "submit-target": {
-            // CR 603.3d / 114.6 / 707.10b (issue #2283) — answer an
+            // CR 603.3d / 115.7 / 707.10b (issue #2283) — answer an
             // ENGINE-RAISED target selection. Applied through the SAME
             // authority the `selectTargets` mutation reaches
             // (`applyRaisedTargetFinalization`), so the tree cannot commit a
@@ -641,7 +641,7 @@ export function applyMoveInSearch(
         }
 
         case "summon-companion": {
-            // CR 116.2 / 702.139f — the companion summon special action. Coarse
+            // CR 116.2 / 702.139a — the companion summon special action. Coarse
             // mana model (see file header): taps a representative source set
             // for the {3} without draining the pool coin-exact. No stack item
             // (CR 116.2a), so — like `play-land` — this is a special action
@@ -868,7 +868,7 @@ export function applyMoveInSearch(
                 // re-materializes the statics whose condition reads
                 // `isBlocking` (Snow Devil). Must run BEFORE `drainAutoPasses`
                 // below, exactly as in the `confirmBlockers` mutation: the
-                // drain can reach `advancePhase`'s CR 510.5 first-strike-step
+                // drain can reach `advancePhase`'s CR 510.4 first-strike-step
                 // skip decision with no intervening SBA pass (issue #1826).
                 markDeclaredBlockers(state);
                 state.combat.pendingBlockerId = undefined;

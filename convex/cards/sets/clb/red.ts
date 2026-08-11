@@ -30,7 +30,7 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // Skeleton creature token with menace that's tapped and attacking. Choose a
 // Background (You can have a Background as a second commander.)"
 //
-// "Choose a Background" (CR 903.14, deckbuilding-only text) is explicitly OUT
+// "Choose a Background" (CR 702.124k, deckbuilding-only text) is explicitly OUT
 // OF SCOPE: this engine has no Commander/Background deckbuilding surface
 // (2-player/solo constructed only, CLAUDE.md § Out of Scope) and the clause
 // produces zero in-game battlefield behavior — omitted with no stub/marker,

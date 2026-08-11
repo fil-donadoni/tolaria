@@ -17,7 +17,7 @@ this artifact.'"
    with a single REAL identity hidden behind a generic 2/2, later turning up
    to its OWN characteristics. CR 712 transform is a structurally different
    mechanic: a permanent with two DISTINCT printed characteristic sets (front
-   and back), always PUBLIC information (CR 712.1a — both players know both
+   and back), always PUBLIC information (CR 712.6 — both players know both
    faces at all times, unlike a face-down card's hidden identity). There was
    no "which face is showing" flag, no back-face characteristics storage, and
    no primitive to swap them.
@@ -97,7 +97,7 @@ of `faceDown.ts`'s `turnFaceDown`/`turnFaceUp`:
   counters; they belong to the permanent, not a face). Since counters live on
   `CardInstanceState.counters`, untouched by the swap, this is automatic — no
   special-case code.
-- **Always public** (CR 712.1a): `projectPublicState`'s generic `slimCard`
+- **Always public** (CR 712.6): `projectPublicState`'s generic `slimCard`
   pass-through already ships `transformed`/`transformedFrom` identically to
   both players — no branch needed (contrast `faceDown`'s
   `projectBattlefieldCard`, which swaps `card.id` per-viewer to hide a
@@ -176,7 +176,7 @@ since it resolves in THIS outer scope at token-creation time, same as
   morph and transform diverge on the one property that matters most for
   correctness — face-down hides a REAL identity (opponent sees a placeholder,
   `projectBattlefieldCard` branches per-viewer); transform is always public
-  (both faces known to both players, CR 712.1a). Overloading one flag for two
+  (both faces known to both players, CR 712.6). Overloading one flag for two
   visibility models is a standing footgun (a future card combining morph +
   transform, e.g. a manifest-then-transform interaction, would need to
   disambiguate anyway). A second, symmetric flag pair costs one serialize

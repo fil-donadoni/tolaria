@@ -7,7 +7,7 @@
 //   black Zombie [card's subtypes] with no mana cost. Eternalize only as a
 //   sorcery." This activated ability functions only while this card is in your
 //   graveyard.
-// CR 702.129b: Eternalize's token is not a copy of the exiled card's TOKEN-ness
+// CR 702.129a: Eternalize's token is not a copy of the exiled card's TOKEN-ness
 //   or of any counters/effects on it — a copy effect copies copiable values
 //   only (CR 707.2), which is exactly what `applyCopy` does.
 //

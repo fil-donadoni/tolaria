@@ -235,7 +235,7 @@ describe("phaseTrigger factory", () => {
         ).toBe(true);
     });
 
-    it("matches() also gates on interveningIf (CR 603.4d trigger-time check)", () => {
+    it("matches() also gates on interveningIf (CR 603.4 trigger-time check)", () => {
         const ability = phaseTrigger({
             id: "test",
             oracleText: "test",
