@@ -12698,9 +12698,6 @@ export function activateAbilityOnState(
             [],
             abilitySourcePower
         );
-        if (legal.length === 0) {
-            throw new Error("No legal targets available");
-        }
         let abilityCount = resolveTargetCount(
             effectiveTargetReq.count,
             targetChosenX
@@ -12715,9 +12712,24 @@ export function activateAbilityOnState(
         // 601.2c distinct-targets fix, issue #1951 review round 2, is what
         // makes the dead-end reachable: a repeat pick used to silently
         // paper over the shortfall).
+        //
+        // CR 601.2c — a min-0 requirement ("up to one" / "up to N", Teferi,
+        // Time Raveler's -3 "Return up to one target artifact, creature, or
+        // enchantment... Draw a card", Sorin, Lord of Innistrad's -6, Minsc
+        // & Boo's +1) is legal to activate with ZERO legal targets on the
+        // board — same rule the cast path's `required` reorder above
+        // enforces. `abilityRequired` must therefore be resolved BEFORE
+        // deciding whether an empty legal-target set is fatal, not after an
+        // unconditional throw on `legal.length === 0`: that ordering used to
+        // reject Teferi's -3 outright on an empty board, losing its
+        // unconditional "Draw a card" rider (issue #2369 review round 2).
         const abilityRequired = minTargetCount(abilityCount);
         if (legal.length < abilityRequired) {
-            throw new Error("Not enough legal targets");
+            throw new Error(
+                legal.length === 0
+                    ? "No legal targets available"
+                    : "Not enough legal targets"
+            );
         }
         // CR 601.2d / 120.4 — divide-as-you-choose budget for an activated
         // ability (Arc Mage). Mirrors the spell-cast path: resolve the total
