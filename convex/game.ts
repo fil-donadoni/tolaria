@@ -7081,7 +7081,16 @@ export const announceCast = mutation({
             // A divide-as-you-choose spell with a zero total (Fire Covenant /
             // Meteor Shower with X = 0) takes no targets — CR 601.2d, there is
             // nothing to divide. Fall through to the no-target cast path.
-            divideTotal !== 0;
+            divideTotal !== 0 &&
+            // CR 601.2c — an "up to X" range (`{ min: 0, max }`, Pest
+            // Infestation / Force of Vigor) with a resolved max of 0 (X = 0,
+            // or a fixed zero-width range) takes no targets, same as the
+            // plain-number `resolvedCount > 0` check above. Without this, an
+            // object-shaped `resolvedCount` always satisfied the first
+            // clause regardless of its value, so X = 0 still routed into a
+            // `{ min: 0, max: 0 }` target-selection banner the caster had to
+            // Confirm past for no reason.
+            (typeof resolvedCount !== "object" || resolvedCount.max !== 0);
 
         if (activeTargetRequirement && requiresTargets) {
             // CR 202.2 / 702.16b: source colors derived from the casting
@@ -7098,13 +7107,23 @@ export const announceCast = mutation({
                 args.playerId,
                 chosenX
             );
-            if (legalTargets.length === 0) {
-                throw new Error("No legal targets available");
-            }
-            // CR 601.2c: must be able to choose enough legal targets.
+            // CR 601.2c: must be able to choose enough legal targets. A
+            // min-0 requirement ("up to X" / "up to N", Pest Infestation /
+            // Force of Vigor) is legal to announce with ZERO legal targets
+            // on the board — the sibling checks already get this right
+            // (`hasEnoughLegalTargets`'s `required <= 0` early return,
+            // gre/rules.ts, and the client hint's identical guard,
+            // src/lib/card-utils.ts) — so `required` must be resolved
+            // BEFORE deciding whether an empty legal-target set is fatal,
+            // not after an unconditional throw on `legalTargets.length ===
+            // 0`.
             const required = minTargetCount(resolvedCount!);
             if (legalTargets.length < required) {
-                throw new Error("Not enough legal targets");
+                throw new Error(
+                    legalTargets.length === 0
+                        ? "No legal targets available"
+                        : "Not enough legal targets"
+                );
             }
             // CR 601.2c — a spell with additional INDEPENDENT target groups
             // (Fumarole's "target creature AND target land") is legal only if
