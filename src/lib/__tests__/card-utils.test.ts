@@ -91,6 +91,8 @@ import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
 import { disruptingScepter, forest } from "@convex/cards/sets/lea";
 import { powerArmor } from "@convex/cards/sets/inv";
 import { thopterFoundry } from "@convex/cards/sets/arb/multicolor";
+import { legionExtruder } from "@convex/cards/sets/big/red";
+import { ornithopter } from "@convex/cards/sets/atq/colorless";
 import { caribouRange } from "@convex/cards/sets/ice/white";
 import { norritt } from "@convex/cards/sets/ice/black";
 import { whiteout } from "@convex/cards/sets/ice/green";
@@ -3370,6 +3372,28 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 expected: true,
             },
         ],
+        // CR 109.2 (issue #2367) — the id-LESS form of `excludeInstanceIds`,
+        // for a static card-definition filter ("Sacrifice another artifact").
+        // `expectParity` supplies no `FilterMatchContext`, which is exactly the
+        // shape under test: BOTH paths must then match NOTHING (the engine
+        // matcher has no `ctx.selfInstanceId`; the client mirror has no context
+        // at all), never fall through to "no constraint" and ring the source as
+        // a legal sacrifice. The working client path is the LOWERED filter —
+        // `resolveExcludeSource` turns this flag into a concrete
+        // `excludeInstanceIds` entry before the requirement leaves the server —
+        // which the two cases above already cover.
+        excludeSource: [
+            {
+                card: makeCardInstance({ id: "source-1" }),
+                filter: { excludeSource: true },
+                expected: false,
+            },
+            {
+                card: makeCardInstance({ id: "another-1" }),
+                filter: { excludeSource: true },
+                expected: false,
+            },
+        ],
         instanceIds: [
             {
                 card: makeCardInstance({ id: "keep-me" }),
@@ -3923,6 +3947,66 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
             view
         ).map((a) => a.id);
         expect(ids).toContain("caribou-range-gain-life");
+    });
+
+    it('#2367 — "Sacrifice ANOTHER artifact" is HIDDEN when the source is the only artifact, and OFFERED once a second one exists (Legion Extruder, through projectPublicState + buildTriggerStateView)', () => {
+        // The fail-OPEN direction this issue closes: before
+        // `PermanentFilter.excludeSource`, `getStackAbilities`'
+        // `sacrificeFilter` gate counted the ability's OWN source as a legal
+        // sacrifice candidate, so Legion Extruder alone on the battlefield read
+        // as affordable — the client offered an activation the server rejects,
+        // and (worse) the shipped Orc General could feed itself to its own cost.
+        //
+        // Deliberately routed through BOTH real reducers — the server-side
+        // `projectPublicState` wire boundary and `buildTriggerStateView` — so a
+        // dropped field fails here rather than being masked by a hand-built
+        // view (the structural rule in gre-development.md § Proof-of-failure).
+        function offeredAbilityIds(battlefield: CardInstanceState[]): string[] {
+            const state = makeState({
+                players: [
+                    makeServerPlayer("p1", { battlefield }),
+                    makeServerPlayer("p2"),
+                ],
+            });
+            const projected = projectPublicState(state, 1, "p1");
+            const projectedP1 = projected.players.find((p) => p.id === "p1")!;
+            const projectedExtruder = projectedP1.battlefield.find(
+                (c) => c.id === "extruder"
+            )! as unknown as CardInstance;
+            const view = buildTriggerStateView([
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield:
+                        projectedP1.battlefield as unknown as CardInstance[],
+                },
+            ]);
+            return getStackAbilities(
+                projectedExtruder,
+                undefined,
+                true,
+                view
+            ).map((a) => a.id);
+        }
+
+        const extruder = makeInstance(legionExtruder.id, {
+            id: "extruder",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const otherArtifact = makeInstance(ornithopter.id, {
+            id: "other-artifact",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+
+        expect(offeredAbilityIds([extruder])).not.toContain(
+            "legion-extruder-make-golem"
+        );
+        expect(offeredAbilityIds([extruder, otherArtifact])).toContain(
+            "legion-extruder-make-golem"
+        );
     });
 });
 

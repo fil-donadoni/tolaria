@@ -5761,6 +5761,9 @@ export function finalizeTargetSelection(
                     ability.cost.sacrificeFilter!,
                     {
                         selfControllerId: player.id,
+                        // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact":
+                        // the source is not a legal payment for its own cost.
+                        selfInstanceId: card.id,
                         supertypesOf: liveSupertypesOf,
                     }
                 )
@@ -12816,6 +12819,9 @@ export function activateAbilityOnState(
                 ability.cost.sacrificeFilter!,
                 {
                     selfControllerId: player.id,
+                    // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact":
+                    // the source is not a legal payment for its own cost.
+                    selfInstanceId: card.id,
                     supertypesOf: liveSupertypesOf,
                 }
             )

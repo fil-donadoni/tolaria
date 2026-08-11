@@ -120,6 +120,14 @@ function handCard(id: string, cardId: string): CardInstance {
 
 const VIEWER = "p1";
 const OPP = "p2";
+/** Instance id of the ability's own source permanent in every fixture below.
+ *  Named because a `sacrificeFilter` can now carry `excludeSource` (CR 109.2,
+ *  issue #2367 — "Sacrifice another artifact"), which `matchesPermanentFilter`
+ *  resolves against `ctx.selfInstanceId` and which fails CLOSED without one:
+ *  every probe here that asks "could SOME permanent pay this cost" must supply
+ *  the source id, or an `excludeSource` cost silently reports "nothing in the
+ *  catalogue matches" and the whole case is skipped instead of asserted. */
+const SOURCE_ID = "src-1";
 
 /** A source permanent that clears every gate NOT under test: untapped, no
  *  summoning sickness, high counters. Counters/life are overridden per case. */
@@ -128,7 +136,7 @@ function makeSource(
     overrides: Partial<CardInstance> = {}
 ): CardInstance {
     return {
-        id: "src-1",
+        id: SOURCE_ID,
         card: { id: def.id },
         controllerId: VIEWER,
         ownerId: VIEWER,
@@ -213,6 +221,10 @@ function findMatchingPermanentCardId(
         if (
             matchesPermanentFilter(view, structuralFilter, {
                 selfControllerId: VIEWER,
+                // The probe stands in for a permanent OTHER than the ability's
+                // own source (`SOURCE_ID`), so an `excludeSource` filter must
+                // admit it (issue #2367).
+                selfInstanceId: SOURCE_ID,
             })
         ) {
             return { id: def.id, power: def.power };
@@ -256,6 +268,9 @@ function findMatchingAnyPermanentCardId(
         if (
             matchesPermanentFilter(view, structuralFilter, {
                 selfControllerId: VIEWER,
+                // See `findMatchingPermanentCardId` — the probe is NOT the
+                // ability's own source, so `excludeSource` must admit it.
+                selfInstanceId: SOURCE_ID,
             })
         ) {
             return def.id;
@@ -391,7 +406,7 @@ function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
                     a.cost.sacrificeFilter
                 ) as unknown as Parameters<typeof matchesPermanentFilter>[0],
                 a.cost.sacrificeFilter,
-                { selfControllerId: VIEWER }
+                { selfControllerId: VIEWER, selfInstanceId: SOURCE_ID }
             )
         ) {
             return "no catalogue permanent (real or synthetic) matches the sacrificeFilter";
@@ -402,6 +417,15 @@ function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
         // candidates" break can't be constructed without removing the
         // ability's own home permanent — skip rather than assert an
         // unreachable HIDDEN case.
+        //
+        // Since issue #2367 this case is no longer unconditional for a source
+        // that structurally matches its own filter: an `excludeSource` cost
+        // ("Sacrifice another artifact" — Legion Extruder; "another Orc or
+        // Goblin" — Orc General) explicitly does NOT admit its own source, so
+        // the HIDDEN case IS constructible and must be asserted rather than
+        // skipped. The probe below is the source (`selfInstanceId` names the
+        // probe's own id), which is exactly what makes `excludeSource` answer
+        // false here and drop the skip.
         if (
             matchesPermanentFilter(
                 {
@@ -424,7 +448,7 @@ function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
                     isToken: false,
                 },
                 a.cost.sacrificeFilter,
-                { selfControllerId: VIEWER }
+                { selfControllerId: VIEWER, selfInstanceId: "self-probe" }
             )
         ) {
             return "sacrificeFilter self-matches the ability's own source";

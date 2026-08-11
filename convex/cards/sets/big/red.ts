@@ -4,30 +4,69 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import type { CardDefinition } from "../../types";
-import { EFFECT_TREASURE_TOKEN } from "../../sharedTokens";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { EFFECT_TREASURE_TOKEN, GOLEM_TOKEN } from "../../sharedTokens";
 
 // Legion Extruder — {1}{R} Artifact (Cube FREE residue token-maker, issue
 // #1304). "When this artifact enters, it deals 2 damage to any target. {2},
 // {T}, Sacrifice another artifact: Create a 3/3 colorless Golem artifact
-// creature token." The ETB damage half would be DSL-clean on its own
-// (`dealDamage`), but the activated ability's cost is "Sacrifice ANOTHER
-// artifact" (excluding this permanent itself) — `ActivatedAbility.cost.
-// sacrificeFilter` is a static `PermanentFilter` shared by every instance of
-// the card, with no per-source dynamic hook (unlike `TargetRequirement.
-// excludeInstanceIds`, which a `getTargetRequirement(source)` closure can
-// populate per-instance — the Sorceress Queen precedent, arn/black.ts); the
-// sacrifice-candidate scan (`convex/gre/moves.ts`) matches the WHOLE
-// battlefield including the activating permanent. Shipping the filter as-is
-// would illegally let the source pay its own cost by sacrificing itself.
-// Stop-and-issue per gre-development.md; shipping only the ETB half would
-// misrepresent the card. tracked-by: #1357
-// export const legionExtruder: CardDefinition = {
-//     id: "5a077de0-1893-40d0-a499-ee2e6e2258f1",
-//     name: "Legion Extruder",
-//     rarity: "mythic",
-//     manaCost: { generic: 1, R: 1 },
-//     types: ["Artifact"],
-// };
+// creature token."
+//
+// Fully DSL (ADR 0045): the ETB half is a plain `dealDamage` on a `type: "any"`
+// target requirement, the activated half a plain `createToken` off the shared
+// `GOLEM_TOKEN` spec (`sharedTokens.ts`, extracted here as the second producer
+// alongside Sandstorm Salvager's ETB).
+//
+// The activation cost is "Sacrifice ANOTHER artifact" (CR 109.2 / 602.1): the
+// source may not pay its own cost with itself, and `cost.sacrificeFilter` is a
+// STATIC `PermanentFilter` shared by every instance of the card, so there is no
+// instance id to write into `excludeInstanceIds`. `PermanentFilter.
+// excludeSource` (issue #2367) is that id-less form — `matchesPermanentFilter`
+// resolves it against `ctx.selfInstanceId` at match time and fails CLOSED
+// without one, and `resolveExcludeSource` lowers it to a concrete
+// `excludeInstanceIds` entry when the activation's sacrifice requirement is
+// built.
+export const legionExtruder: CardDefinition = {
+    id: "5a077de0-1893-40d0-a499-ee2e6e2258f1",
+    name: "Legion Extruder",
+    rarity: "mythic",
+    manaCost: { generic: 1, R: 1 },
+    types: ["Artifact"],
+    oracleText:
+        "When this artifact enters, it deals 2 damage to any target.\n{2}, {T}, Sacrifice another artifact: Create a 3/3 colorless Golem artifact creature token.",
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "legion-extruder-etb-damage",
+            oracleText:
+                "When this artifact enters, it deals 2 damage to any target.",
+            scope: "self",
+            targetRequirement: { type: "any", count: 1 },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "legion-extruder-make-golem",
+            oracleText:
+                "{2}, {T}, Sacrifice another artifact: Create a 3/3 colorless Golem artifact creature token.",
+            cost: {
+                mana: { generic: 2 },
+                tap: true,
+                // CR 109.2 — "another artifact": any artifact the activator
+                // controls EXCEPT this permanent (issue #2367).
+                sacrificeFilter: { types: "Artifact", excludeSource: true },
+            },
+            useStack: true,
+            effects: [
+                {
+                    op: "createToken",
+                    token: GOLEM_TOKEN,
+                    controller: "controller",
+                },
+            ],
+        },
+    ],
+};
 
 // Generous Plunderer — {1}{R} Creature — Human Rogue, 2/2 (Cube FREE residue
 // token-maker, issue #1304 / #2368). "Menace. At the beginning of your
