@@ -52,7 +52,6 @@ import {
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
 import { comboScore } from "./ai/comboAnnotations";
-import "./ai/comboRegistry"; // side-effect: registers all combos
 import {
     creatureValueRaw,
     dslLatentPiecesById,

@@ -1683,6 +1683,43 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Twin combo recognition. The bot has Exarch on board and Twin in hand with 2RR available. It should enchant Exarch to start the combo.",
     },
+    {
+        label: "combo: activates Splinter Twin on enchanted Deceiver Exarch",
+        spec: {
+            cards: [
+                {
+                    name: "Deceiver Exarch",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Splinter Twin",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Deceiver Exarch",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+            landCount: 4,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Deceiver Exarch" }],
+        },
+        note: "Twin combo execution. The bot has Twin attached to Exarch and should activate '{T}: Create token copy' to start the combo engine.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

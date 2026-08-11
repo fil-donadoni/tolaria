@@ -67,8 +67,8 @@ describe("comboScore", () => {
             { cardId: TWIN_ID, zone: "any" },
         ],
         stages: [
-            { piecesRequired: 1, boost: 200 },
-            { piecesRequired: 2, boost: 5000 },
+            { piecesOnBoard: 1, boost: 200 },
+            { piecesOnBoard: 2, boost: 5000 },
         ],
     };
 
@@ -91,7 +91,7 @@ describe("comboScore", () => {
         expect(comboScore(state, "p1")).toBe(200);
     });
 
-    it("returns stage 2 boost with both pieces (one on board, one in hand)", () => {
+    it("returns stage 1 boost with both pieces when one is in hand (not on board)", () => {
         registerCombo(testCombo);
         const state = {
             players: [
@@ -103,7 +103,7 @@ describe("comboScore", () => {
                 makePlayer("p2", [], []),
             ],
         } as unknown as GameState;
-        expect(comboScore(state, "p1")).toBe(5000);
+        expect(comboScore(state, "p1")).toBe(200);
     });
 
     it("returns stage 2 boost with both pieces on battlefield", () => {
@@ -121,7 +121,7 @@ describe("comboScore", () => {
         expect(comboScore(state, "p1")).toBe(5000);
     });
 
-    it("returns stage 1 boost when Exarch is tapped (only Twin counts)", () => {
+    it("returns 0 when Exarch is tapped and Twin is in hand", () => {
         registerCombo(testCombo);
         const state = {
             players: [
@@ -133,6 +133,6 @@ describe("comboScore", () => {
                 makePlayer("p2", [], []),
             ],
         } as unknown as GameState;
-        expect(comboScore(state, "p1")).toBe(200);
+        expect(comboScore(state, "p1")).toBe(0);
     });
 });

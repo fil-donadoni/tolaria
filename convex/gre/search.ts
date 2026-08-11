@@ -109,6 +109,7 @@ import { isCreature, hasManaAbility, manaGateBattlefields } from "./constants";
 import { tryGetDefinition } from "../cards";
 import { getManaSubstitutions } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
+import { comboScore } from "./ai/comboAnnotations";
 import { COMPANION_SUMMON_COST } from "./companion";
 // Choice-node spine (PRD #1423, issue #1425).
 import {
@@ -346,6 +347,11 @@ export function decidingPlayer(state: GameState): string | null {
     return state.priorityPlayerId;
 }
 
+/** Reward-per-combo-point — the fraction of the [0,1] reward band a single
+ *  Forge-scale combo point buys. Tuned so an assembled 2-card combo (5000 pts)
+ *  adds ~0.15 to the reward — enough to break ties without saturating. */
+const COMBO_REWARD = 0.00003;
+
 /** Map an `evaluate` score (bot perspective) to a reward in [0, 1].
  *
  *  Three monotone bands keep the win/loss OUTCOME dominant while never erasing
@@ -357,7 +363,9 @@ export function decidingPlayer(state: GameState): string | null {
  *  nothing costs the same slice of reward whether the bot is even or far ahead —
  *  the suicidal-attack signal no longer saturates away. */
 export function reward(state: GameState, botId: string): number {
-    return rewardFromValue(evaluate(state, botId));
+    const base = rewardFromValue(evaluate(state, botId));
+    const combo = Math.min(0.15, comboScore(state, botId) * COMBO_REWARD);
+    return Math.min(1, base + combo);
 }
 
 /** The reward-band shaping applied to an `evaluate` value, factored out of
