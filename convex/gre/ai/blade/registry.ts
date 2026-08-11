@@ -39,33 +39,28 @@ function pruningKeepsACast(
 }
 
 /** "The issue-#1890 reactive-timing discipline is a PREFERENCE, not a filter" —
- *  the negative control for the two activation-timing entries below.
+ *  the weaker, POSITION-level negative control for the activation-timing
+ *  entries below: in a window where the activation belongs, it is still
+ *  ENUMERATED (the timing rules never touch legality) and carries NO rollout
+ *  policy penalty. If items 1-2 ever widen into a mute button, this goes red.
  *
- *  It asserts the POSITION, not the chosen move, for a measured reason: the
- *  search's move application is documented not to put an activated ability's
- *  EFFECT on the stack at all (`applyMoveInSearch`, `search.ts`: "applies costs
- *  but does not put the ability's effect on the stack"). So in the world the
- *  search reasons about, every activation is pure cost — a Mother of Runes
- *  activation taps a 1/1 and grants nothing, an animation spends {1} and
- *  produces no body. No blade entry can therefore make the bot CHOOSE an
- *  activation for its payoff; the payoff is invisible by construction, and
- *  closing that hole is a separate change to the search's simulation, not a
- *  timing rule — TRACKED BY ISSUE #1920. (It is also the deeper reason issue
- *  #1890's symptoms exist at all: with no payoff visible, every activation ties
- *  `pass` inside `OUTCOME_EPS` and the pick falls to rollout noise.)
+ *  It was, until issue #1920, the STRONGEST thing a blade could assert here.
+ *  `applyMoveInSearch` applied an activation's COSTS and never put its effect on
+ *  the stack, so in the world the search reasoned about every activation was
+ *  pure cost — a Mother of Runes activation tapped a 1/1 and granted nothing.
+ *  No blade could make the bot CHOOSE an activation for its payoff, because the
+ *  payoff was invisible by construction. (That is also the deeper reason issue
+ *  #1890's symptoms existed at all: with no payoff visible, every activation
+ *  tied `pass` inside `OUTCOME_EPS` and the pick fell to rollout noise.)
  *
- *  What IS assertable here, deterministically, is the property the negative
- *  control actually guards: in a window where the activation belongs, it is
- *  still ENUMERATED (the timing rules never touch legality) and carries NO
- *  rollout policy penalty. If items 1-2 ever widen into a mute button, this goes
- *  red.
- *
- *  ENUMERATION is all a blade can see, and that is a real blind spot: a change
- *  could leave the move enumerated and unpenalised while making the bot's CHOICE
- *  in that window deterministically decline it (any evaluator term that prices
- *  an unspent option, over the #1920 payoff gap, does exactly that). That half
- *  is pinned at the choice level by `selectRolloutMove — the reactive window is
- *  never muted` in `convex/gre/__tests__/activationTiming.bot.test.ts`. */
+ *  Issue #1920 closed that: the ability now reaches the stack and `policyValue`
+ *  resolves it one ply deep. So the blind spot this helper's docstring used to
+ *  disclaim — "a change could leave the move enumerated and unpenalised while
+ *  making the bot's CHOICE in that window deterministically decline it" — is now
+ *  covered by real CHOSEN-MOVE entries in the `activation payoff:` group below,
+ *  which is where new coverage of this kind belongs. This predicate is kept for
+ *  the positions whose right answer is genuinely a legal-set property rather
+ *  than a single best move. */
 function activationStaysAvailable(
     state: GameState,
     seat: BladeSeat,
@@ -1288,7 +1283,178 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             describe:
                 "the Mother activation is still enumerated in the response window and carries no rollout-policy penalty",
         },
-        note: "Issue #1890 NEGATIVE CONTROL for the entry above — the same ability in the window where it BELONGS: a red removal spell on the stack aimed at its own source, on the opponent's turn. Asserted on the POSITION rather than the chosen move, and not for convenience: `applyMoveInSearch` is documented not to put an activated ability's EFFECT on the stack at all, so in the search's world this activation taps a 1/1 and grants nothing. No blade can make the bot CHOOSE it for a payoff the simulation cannot produce (see `activationStaysAvailable`); what this entry pins is that the timing rules never touched legality and never penalised the reactive window. NOT DISCRIMINATING by construction — it is green before and after — which is exactly the job of a mute-button guard. Note what it CANNOT see: it asserts enumeration, so a regression that leaves the move offered but makes the bot CHOOSE `pass` here would slip past it. That half is pinned at the choice level by `selectRolloutMove — the reactive window is never muted`; the fire/no-fire boundary itself is pinned deterministically in the same file, `convex/gre/__tests__/activationTiming.bot.test.ts`. The underlying payoff blindness is tracked by issue #1920.",
+        note: "Issue #1890 NEGATIVE CONTROL for the entry above — the same ability in the window where it BELONGS: a red removal spell on the stack aimed at its own source, on the opponent's turn. Asserted on the POSITION rather than the chosen move: what it pins is that the timing rules never touched legality and never penalised the reactive window. NOT DISCRIMINATING by construction — green before and after — which is exactly the job of a mute-button guard. It asserts enumeration, so a regression that left the move offered but made the bot CHOOSE `pass` here would slip past it; when this note was written that half was unassertable, because `applyMoveInSearch` never put the ability's effect on the stack (issue #1920). It is now covered directly by `activation payoff: Mother of Runes protects itself against removal on the stack` below, which asserts the CHOSEN move in this very position. Keep both: this one guards enumeration, that one guards the choice.",
+    },
+    // --- Activation PAYOFF (issue #1920) ------------------------------------
+    // The group that could not exist before #1920. `applyMoveInSearch` now puts
+    // an activated ability on the stack and `policyValue` resolves it one ply
+    // deep, so the search can finally see what an activation BUYS — which makes
+    // the chosen move, not merely the legal set, an assertable property in a
+    // reactive window. Each entry below was measured on the pre-#1920 engine;
+    // the ones that flip are marked DISCRIMINATING with their seed counts.
+    {
+        label: "activation payoff: Mother of Runes protects itself against removal on the stack",
+        spec: {
+            cards: [
+                {
+                    name: "Mother of Runes",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "me",
+                target: "Mother of Runes",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Mother of Runes",
+                    target: "Mother of Runes",
+                },
+            ],
+        },
+        note: "Issue #1920, the CHOICE half of the Mother negative control directly above. Same position, but asserting the chosen move: with a Bolt on the stack aimed at her, Mother protects herself and the Bolt fizzles on an illegal target (CR 608.2b / 702.16b). DISCRIMINATING: measured on the pre-#1920 engine at 4 of 5 seeds green and seed 0xb1ade RED (it passed and let her die) — precisely the documented failure shape, an activation tying `pass` inside `OUTCOME_EPS` with the pick falling to rollout noise. Green on all 5 seeds after. Worth reading as the pin on the WEAKEST link in this change: Mother's payoff sits behind a mid-resolution colour choice (CR 601.2b), so `policyValue`'s one-resolution lookahead sees NO payoff here at all — this entry passes because the deeper tree answers the choice node and resolves the Bolt. What makes the 1-ply leaf non-negative is the in-flight clause of the board flexibility term (`hasFlexibleActivation`, `gre/evaluate.ts`); without it the activation scores exactly W_FLEX below `pass` and drops out of `selectRolloutMove`'s exact-equality bucket.",
+    },
+    {
+        label: "activation payoff: Prodigal Sorcerer zaps in response to removal aimed at it",
+        spec: {
+            cards: [
+                {
+                    name: "Prodigal Sorcerer",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "me",
+                target: "Prodigal Sorcerer",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Prodigal Sorcerer",
+                    target: "Mons's Goblin Raiders",
+                },
+            ],
+        },
+        note: "Issue #1920, use-it-or-lose-it. Tim is about to die to a Bolt on the stack, so his {T} ping is worth exactly one more activation and the only question is WHERE it goes: into the opposing 1/1, which it kills outright, rather than at a face at 20 life. The TARGET is the assertion and it is the whole point — DISCRIMINATING: on the pre-#1920 engine the bot chose the activation on all 5 seeds but aimed it at the opponent's FACE on 3 of them (seeds 1, 2, 3), because with no payoff resolving, every target of a zap that deals no damage scores identically and the pick is noise. After, all 5 seeds kill the Goblin. This is the cleanest demonstration that the payoff is genuinely visible rather than merely tie-broken: the margin at the policy level is +140.5 for killing the 1/1 versus +38 for `pass`, against a W_FLEX of 6.",
+    },
+    {
+        label: "activation payoff: Iron-Shield Elf saves itself from removal on the stack",
+        spec: {
+            cards: [
+                {
+                    name: "Iron-Shield Elf",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "me",
+                target: "Iron-Shield Elf",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Iron-Shield Elf" }],
+        },
+        note: "Issue #1920, the discard-cost mirror of the Mother entry: the Elf pays a card from hand to give itself indestructible until end of turn (CR 702.12b), which is worth paying with a Bolt already on the stack aimed at it. DISCRIMINATING and the strongest single result in this change: RED on ALL 5 seeds on the pre-#1920 engine — the bot passed and let the Elf die every time, because the discard was a visible cost and the indestructible was an invisible payoff — and green on all 5 after. Its NEGATIVE CONTROL is `activation timing: does not activate Iron-Shield Elf with no threat` below; the pair is what proves the fix bought discrimination rather than a blanket bias toward activating.",
+    },
+    {
+        label: "activation timing: does not activate Iron-Shield Elf with no threat",
+        spec: {
+            cards: [
+                { name: "Iron-Shield Elf", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Iron-Shield Elf" }],
+        },
+        note: "Issue #1920 NEGATIVE CONTROL for the entry above — and the pair is where the discrimination lives, not this entry alone. The reactive entry is RED on all 5 seeds pre-#1920 and green after; this one is green on all 5 both before and after. Together they say the fix bought DISCRIMINATION (activate when a threat is on the stack, not otherwise) rather than a blanket bias toward activating, which is exactly the failure mode making a payoff visible invites: the indestructible grant is a KEYWORD, so `evaluateCreature` prices it as material, and at the 1-ply policy level this activation measures +22 ABOVE `pass` in this very position. READ WITH CARE — this entry is a tripwire, not a tight guard. Measured insensitive to two deliberate breaks: disabling issue #1890 item 1's rollout guardrail (`isDiscouragedRolloutMove`) and making activation costs free again (reverting #2155's payment in the leaf) BOTH leave it green on all 5 seeds, because the root prefers `pass` here by a margin wider than either. Do not cite it as the pin on the guardrail or on cost payment; those are pinned in `activationCostsInSearch.bot.test.ts` and `activationPayoffInSearch.bot.test.ts`. Recorded in docs/findings/1920-noThreat-blade-entries-insensitive.md.",
+    },
+    {
+        label: "activation timing: does not crack Sylvan Safekeeper with no threat",
+        spec: {
+            cards: [
+                { name: "Sylvan Safekeeper", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Sylvan Safekeeper" },
+            ],
+        },
+        note: "Issue #1920 regression guard, the sacrifice-cost sibling of the Iron-Shield Elf control above: with nothing on the stack, sacrificing a land to give a creature shroud buys nothing and permanently costs a mana source. It is here because the cost half of this exact card (#2422, the bot sacrificing a land to Safekeeper with an empty stack) is a SHIPPED bug this change could plausibly have reopened from the payoff side — the shroud grant is now visible material. It does not: `pass` on all 5 seeds before and after. Same caveat as the Elf control above, and stronger here — this position is FAR from the decision boundary: with activation costs made free again AND the rollout guardrail disabled, the bot still passes on all 5 seeds. Treat it as a tripwire against a much larger future mis-valuation, not as a proof about any single mechanism. Deliberately NO reactive counterpart entry: with a Bolt on the stack aimed at the Bears the bot still passes on all 5 seeds, before and after, because at 1 ply the sacrificed land outweighs a shroud grant whose payoff (the Bolt fizzling on an illegal target, CR 608.2b) is two resolutions away. That is a genuine remaining lookahead-depth gap, NOT something #1920 claims to fix — recorded in docs/findings/1920-safekeeper-reactive-depth.md rather than shipped as a red entry.",
     },
     {
         label: "activation timing: does not animate Mishra's Factory after its own combat",

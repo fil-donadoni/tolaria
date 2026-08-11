@@ -23,6 +23,9 @@ import type { CardInstanceState, GameState, PlayerState } from "./state";
 import {
     normalizeManaCost,
     canPayDiscardLastDrawn,
+    canPayRemoveCounterCost,
+    canPayLifeCost,
+    canPayDiscardAtRandom,
     applyCostModifiers,
     getCostModifiers,
     resolveTargetRequirementCount,
@@ -1098,6 +1101,35 @@ function enumerateAbilityMoves(
         // CR 118.3 — "discard the last card you drew this turn" cost
         // (Jandor's Ring) is unpayable when no such card is in hand.
         if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
+            continue;
+        }
+        // CR 118 / 122.1c — "remove N <type> counters" (Thallid) is unpayable
+        // when the source is short. The server validates this up front and
+        // throws, so without the gate the bot enumerates — and, since issue
+        // #1920 made an activation's payoff visible, PREFERS — a move the
+        // mutation rejects. Measured before this gate: a Thallid with one spore
+        // counter, turn 3 precombat main, 200 iterations at seed 1, chose the
+        // activation (1.0 against `pass` 0.99826) while `main` chose `pass`.
+        if (
+            ability.cost.removeCounter &&
+            !canPayRemoveCounterCost(perm, ability.cost.removeCounter)
+        ) {
+            continue;
+        }
+        // CR 118.4 — a life cost is unpayable below that much life; the server
+        // throws "Not enough life" on the same comparison.
+        if (
+            ability.cost.life !== undefined &&
+            !canPayLifeCost(player, ability.cost.life)
+        ) {
+            continue;
+        }
+        // CR 118.3 — "discard a card at random" is illegal with an EMPTY hand
+        // (Ring of Renewal, Coral Helm); the server throws "No card in hand to
+        // discard". The one cost leg whose payer does not throw — it clamps to
+        // hand size — so it read as safe while being illegal, and the search
+        // pushed an activation the mutation rejects.
+        if (ability.cost.discardAtRandom && !canPayDiscardAtRandom(player)) {
             continue;
         }
         // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" cost is
