@@ -197,6 +197,50 @@ about the measurement — the char counts are exact.
 | 4   | **Make the glob-scoped rules actually scope** (or accept and shrink them)                |             up to 5,076 tok | resident × every agent                          | medium — depends on harness |
 | 5   | **Re-decompose `process-gh-issues/SKILL.md`** against real read-rates                    |                 ≤ 7.3 k tok | per loop session                                | low — needs telemetry       |
 
+### Applied 2026-08-11 (levers 1–3)
+
+| Lever                              |  Before |  After | Δ                    |
+| ---------------------------------- | ------: | -----: | -------------------- |
+| `docs/adr/README.md`               | 207,433 | 30,355 | **−85%**             |
+| `CLAUDE.md`                        |  22,847 | 18,907 | **−17%**             |
+| Resident total (CLAUDE.md + rules) |  44,817 | 40,877 | −3,940 (~−1,125 tok) |
+
+**1 — ADR index.** Each row's Decision cell is now the ADR's own H1, taken
+canonically from the file rather than re-summarised. The ~10 pasted abstracts
+are gone from the index; nothing is lost, because each was a lossy copy of a
+record the row already links (ADR 0079's 1,919-char cell versus its 40-line
+Context/Decision/Considered-options/Consequences body). With no cell over 150
+chars, prettier's alignment stops padding 103 rows to the widest one.
+`adr-index.test.ts` still passes — every ADR linked, no row pointing at a
+missing file.
+
+**2 — CLAUDE.md episodic prose → `docs/agents/quality-gates.md`.** Chosen over
+`.claude/rules/` on this document's own finding #4: the glob-scoped rules load
+unconditionally, so moving prose there would have kept it resident — out of
+CLAUDE.md but still paid on every request. Every **norm** stayed (cadence
+table, never-hand-pick, format-verifies-not-repairs, three suites, the
+`*.bot.test.ts` naming rule, tier table, worktree bootstrap, zero-red); what
+moved is the **reasoning**: the happy-dom benchmark table, lane contents, file
+counts, the `validate.test.ts`-red-with-`check:pr`-green incident, the
+GitHub-Actions removal rationale, the pre-push green-sha mechanics.
+
+**3 — `scripts/__tests__/resident-context-budget.test.ts`**, ceiling 44,000
+bytes over `CLAUDE.md` + `.claude/rules/**` (~7% headroom on the post-prune
+40,877). Proof-of-failure, both directions: appending 4,700 bytes to CLAUDE.md
+— the regrowth rate this document measured — failed it at 45,595/44,000; and
+re-pointing the corpus constant at a nonexistent `.claude/rulez` failed the
+"finds the resident corpus" assertion, so a silently-emptied corpus cannot pass
+vacuously. Reverted, both green.
+
+**Not done: further CLAUDE.md compaction.** After the extraction the remainder
+is domain context and norms — architecture, data model, player identity, the
+DSL rules, the skills routing table. Squeezing it would be the failure mode the
+exercise exists to avoid: cruft is specific dated instructions, not length, and
+a naive shortening pass deletes the highest-value words first. The headroom
+left is in `.claude/rules/gre-development.md` (16,535 bytes, the largest single
+resident file), which was deliberately not touched — it is normative,
+CI-guard-referenced, and the same judgement applies.
+
 ### Why #3 is the one that matters most
 
 Levers 1, 2 and 4 are each worth more tokens than #3. But this is the **third**
