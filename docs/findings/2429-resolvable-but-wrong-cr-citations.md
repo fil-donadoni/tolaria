@@ -76,9 +76,12 @@ Three smaller, unrelated instances of the same class:
     **unresolvable** and so in #2429's scope: PR #2443 landed a
     `707.10b`-slash-`707.12c` pair at four sites in
     `src/lib/__tests__/variable-target-count-integration.test.ts` — `707.12` has
-    only an `a` subrule — re-pointed to `707.10c`. (Written out with a slash
-    here on purpose: spelled literally, the dead id would trip `cr:lint` from
-    inside this very file.)
+    only an `a` subrule — re-pointed to `707.10c`. (This paragraph names a dead
+    id and `cr:lint` stays green only because no line here carries the `CR `
+    prefix — blind-spot shape 2, documented below. Add `CR ` in front of it and
+    this file reds the gate. That is the trap for anyone quoting a bad id in
+    prose: keep the prefix off, or the document describing the problem becomes
+    one.)
 
 Three more surfaced in the #2452 review rounds, all large enough to be their own
 slice:
@@ -166,15 +169,19 @@ from an ordinary number:
 1. A citation **wrapped across two comment lines**, the prefix on one and the id
    on the next (`src/lib/ai/__tests__/flashback-exile-color.bot.test.ts` had the
    only one; it was rewritten onto a single line). Keep citations on one line.
-2. An id on a line with **no `CR ` anywhere on it** — 387 at the tip of #2452,
-   including all 188 `// 702.NN <Keyword>` section headers in
-   `mechanicsRegistry.ts`. All 387 resolve today, and this boundary is
-   deliberate, not an oversight: the #2452 round-3 review measured what happens
-   if you drop the `CR `-on-the-line condition, and the scan starts flagging
-   real non-citations — the blade eval margins `−951.0` / `−135.0`
-   (`gre/ai/blade/registry.ts`) and the value `168.1`
-   (`gre/ai/cardScriptValue.ts`). A gate that reds on arithmetic is worse than
-   one that misses a prefix-less header.
+2. An id on a line with **no `CR ` anywhere on it** — **1,795** of them at the
+   tip of #2452 (drop the condition and the scan goes from 27,491 to 29,286
+   citations), of which `convex/cards/mechanicsRegistry.ts` alone contributes
+   **597**, its 188 `// 702.NN <Keyword>` section headers among them. All 1,795
+   resolve today, and this boundary is deliberate, not an oversight: dropping
+   the `CR `-on-the-line condition reds the gate on **16** ids, and what they
+   are is the argument. Three are benchmark timings from CLAUDE.md's own
+   happy-dom measurement (`119.35s`, `180.05s`, `113.03s`); four are bot
+   numbers (the blade eval margins `−951.0` / `−135.0` in
+   `gre/ai/blade/registry.ts`, `168.1` in `gre/ai/cardScriptValue.ts`, `134.3`);
+   the rest are deliberate negative fixtures and the very documents — this one
+   included — that quote a dead id in order to describe it. A gate that reds on
+   a benchmark second is worse than one that misses a prefix-less header.
 
 **Why it may not deserve its own issue.** Two arguments against ticketing it as
 written:

@@ -90,12 +90,14 @@ Both passes are anchored to a single line, and `CR ` on that line is the only
 thing separating a rule id from an ordinary number — so two shapes stay out of
 reach. One is a citation **wrapped across two comment lines**, prefix on one and
 id on the next; hence the rule **keep a citation on one line.** The other is an
-id on a line mentioning `CR ` nowhere — 387 at the time of writing, including all
-188 `// 702.NN <Keyword>` headers in `mechanicsRegistry.ts`. Dropping the
-`CR `-on-the-line condition to reach them was measured and rejected: the scan
-then flags real non-citations, among them the blade eval margins `−951.0` /
-`−135.0` and the value `168.1` in `convex/gre/ai/`. A gate that reds on
-arithmetic is worse than one that misses a prefix-less header.
+id on a line mentioning `CR ` nowhere — **1,795** at the time of writing (the
+scan sees 27,491 citations with the condition, 29,286 without), `mechanicsRegistry.ts`
+alone accounting for 597 of them. Dropping the condition to reach them was
+measured and rejected: it reds the gate on 16 ids, and they are things like the
+benchmark timings in this repo's own gate documentation (`119.35s`, `180.05s`,
+`113.03s`), the blade eval margins `−951.0` / `−135.0` and the value `168.1` in
+`convex/gre/ai/`. A gate that reds on a benchmark second is worse than one that
+misses a prefix-less header.
 
 ## Consequences
 

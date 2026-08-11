@@ -373,9 +373,10 @@ scanner resolves every bare `NNN.Nx` token on any line mentioning `CR ` — two 
 the 44 ids, 10 sites, hid in exactly that shape and survived the first
 correction pass). Three things still get past it: a citation **wrapped across
 two comment lines** — so keep one on a single line; an id on a line mentioning
-`CR ` **nowhere** (387 today, incl. every `// 702.NN <Keyword>` header in
-`mechanicsRegistry.ts` — a deliberate boundary, since reaching them makes the
-scan red on real numbers like the blade eval margins in `convex/gre/ai/`); and a
+`CR ` **nowhere** (1,795 today, 597 of them in `mechanicsRegistry.ts` alone — a
+deliberate boundary, since reaching them reds the gate on 16 ids that are mostly
+not citations at all — including the happy-dom benchmark seconds quoted a few
+sections above); and a
 **resolvable but wrong** id, since the scan only asks whether an id exists. A citation
 "corrected" to a plausible-but-wrong number passes, which is why the correction
 has to come from `bun run cr <id>` printing text that matches the claim.
