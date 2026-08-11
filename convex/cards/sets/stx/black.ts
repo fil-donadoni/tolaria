@@ -7,23 +7,18 @@
 // and Ward are both registered, implemented keywords (data-only), and the
 // Magecraft CAST half is a plain `SPELL_CAST` trigger (`spellCastTrigger`,
 // the same factory the sibling Witherbloom Apprentice stub in
-// `sets/stx/multicolor.ts` cites) — but TWO gaps still block the whole card:
-// (1) the Pest token's own "When this token dies, you gain 1 life." is a
-// TRIGGERED ability the token carries — `TokenSpec` / `EffectTokenSpec`
-// (`convex/cards/types.ts`) have no `triggeredAbilities` field, and
-// `createTokenPermanents` (`convex/gre/state.ts`) never registers one even
-// for a `resolve()` card, so the Pest token cannot be created AT ALL today
-// (tracked-by: #1357 — shared root cause with Pest Infestation's identical
-// Pest token, c21/green.ts). (2) EVEN with that gap closed, the "or copy"
-// half of Magecraft has no trigger source of its own: `SPELL_CAST` fires
-// only on an original cast; `cloneSpellOntoStack` (backing
-// `copyStackItem`/`copyResolvingSpell`) emits NO event at all for a spell
-// copy. That gap is already tracked at #2087 (Witherbloom Apprentice, same
-// set) — issue #1304 explicitly authorizes shipping the cast-only half with
-// a documented divergence once (1) is unblocked, but (1) alone already
-// blocks the whole card today (the token the ability creates doesn't
-// exist), so there is nothing partial to ship yet. tracked-by: #1357,
-// tracked-by: #2087
+// `sets/stx/multicolor.ts` cites). The Pest token itself is no longer a
+// blocker: `EffectTokenSpec.triggeredAbilities` shipped (#2364) and Pest
+// Infestation (`sets/c21/green.ts`, #2369) is now shipping the shared
+// `PEST_TOKEN` spec (`cards/sharedTokens.ts`) this card would reuse
+// verbatim. What still blocks the WHOLE card is the "or copy" half of
+// Magecraft: `SPELL_CAST` fires only on an original cast;
+// `cloneSpellOntoStack` (backing `copyStackItem`/`copyResolvingSpell`) emits
+// NO event at all for a spell copy, so there is no trigger source for that
+// half. Tracked at #2087 (Witherbloom Apprentice, same set) — issue #1304
+// explicitly authorizes shipping the cast-only half with a documented
+// divergence, but that is a scope decision for #2087's own PR, not a
+// license to reopen it here. tracked-by: #2087
 // export const sedgemoorWitch: CardDefinition = {
 //     id: "e900c1eb-968b-4046-b824-c167a7a5b682",
 //     name: "Sedgemoor Witch",
