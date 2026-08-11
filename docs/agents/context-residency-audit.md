@@ -219,6 +219,79 @@ just above today's post-prune figure, failing with the section table and the
 instruction to move episodic prose out. Raising the ceiling stays possible — it
 just has to be a commit someone signs, not a side effect of a doc edit.
 
+## Cross-check: the five-layer map
+
+The measurement above was made before reading the framing the user brought to
+it — a widely-circulated thread (starmex, 2026-08-01) arguing that "prompt vs
+context vs harness vs loop vs graph engineering" is not four competing
+paradigms but **one stack of five layers, each wrapping the one below**, and
+that the standing mistake is fixing the wrong layer. Its two operative rules:
+_never skip a layer_, and _fix **down**, not up — a symptom at layer 4 usually
+originates at layer 2_.
+
+Mapped onto this project, the map is unusually flattering and the diagnosis
+lands exactly where the measurement independently did.
+
+| Layer         | This project                                                                                                                    | State                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **1 Prompt**  | Skill files, subagent briefs                                                                                                    | fine                                                                               |
+| **2 Context** | Resident scaffold, skill bodies, `bun run cr`, ADR index                                                                        | **where the remaining waste is** — this document                                   |
+| **3 Harness** | `.claude/hooks/` — `deny-guard`, `spawn-guard`, `receipt-guard`, `claim-ledger`; gate tiers; worktree isolation                 | done, and ahead of the article: "'be careful' is not a permission model" is a hook |
+| **4 Loop**    | `bun run check:all` / `bun run test`; proof-of-failure doctrine; the identity-only-test purge (#2363)                           | done, and the strongest layer in the repo                                          |
+| **5 Graph**   | `process-gh-issues`: file-disjoint batch → parallel implement (fan-out) → review in fresh context → serial merge-train (fan-in) | done, right-sized                                                                  |
+
+Three things in the article are worth extracting; two are worth explicitly
+**not** acting on.
+
+### Worth extracting
+
+**1. Its context budget is a direct indictment of the number above.** The
+article's layer-2 table gives a "typical" and a "should be" for each line. The
+one line it does not even flag as a problem is `System prompt + rules`:
+typical 2,000 tokens, should be 2,000. **This project measures 12,805** — a 6.4×
+overrun on the only budget line the article assumes nobody gets wrong. Its other
+lines are already handled here: tool definitions load on demand (deferred MCP
+tools + `ToolSearch`), and retrieval-not-dumping is exactly what ADR 0098 did by
+vendoring the CR behind `bun run cr <id>` instead of fetching or pasting it.
+
+**2. "Fix down, not up" is the ranking argument.** Layers 3, 4 and 5 have had
+sustained investment here; layer 2 has had two passes that both decayed. The
+article's decision tree exits at layer 2 for this project, and the lever list
+above is a layer-2 list — no new machinery, no more nodes.
+
+**3. Its layer-5 trap test retires a question rather than opening one.** _"Point
+at each node and name the specialty that forced it; if deleting a node changes
+nothing, it was decoration."_ Applied to the loop: implement, review (fresh
+context, the one thing a single loop structurally cannot do) and merge-train
+each survive. There is no graph work to do, which is a result — it removes the
+temptation the article warns about.
+
+### Deliberately not acted on
+
+**Context editing is real but not ours to configure.** The article's third
+layer-2 move — clear tool outputs once used, its own table's largest single line
+(30,000 → 3,000) — maps exactly onto this repo's largest open behavioural
+finding: general-purpose implement subagents whose context balloons from a 43 k
+median first turn to a 228 k median peak purely on inline tool-call volume, 31%
+of them past 150 k. The mechanism exists: **`context_management.edits` with
+`clear_tool_uses_20250919`, beta `context-management-2025-06-27`.** But it is a
+**Claude API request parameter on `client.beta.messages.*`** — a knob for
+someone building an agent, not one Claude Code exposes to the repository it is
+working in. Same for compaction (`compact_20260112`). So the fix stays where
+the 2026-07-21 pass put it: **behavioural — don't generate the output in the
+first place** (delegate mapping to an investigator subagent whose dumps stay in
+its own context; pipe noisy `Bash` through `tail`). Worth knowing the mechanical
+version exists one layer down, and worth not filing a ticket for it.
+
+**Knowledge graphs are the article's own conflation warning, and it applies
+here.** It spends a section separating "knowledge graph = layer 2, what the
+model knows" from "agent graph = layer 5, how work is organised", and notes half
+the online argument is two people agreeing about different things. This project
+needs neither: there is no prose corpus to build entity-relation triples over —
+the two things agents retrieve are a codebase (already structured, already
+searchable) and the CR (already sliced by rule id). GraphRAG here would be a
+layer-2 answer to a problem layer 2 does not have.
+
 ## Handover — running the dynamic half
 
 These must run on the machine holding the telemetry, from a normal checkout:
