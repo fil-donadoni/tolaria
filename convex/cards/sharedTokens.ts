@@ -308,3 +308,42 @@ export const GOLEM_TOKEN: EffectTokenSpec = {
     power: 3,
     toughness: 3,
 };
+
+/** Pest token (CR 111 / 707.2, issue #2364 / #2369). "1/1 black and green
+ *  Pest creature token with 'When this token dies, you gain 1 life.'" —
+ *  shared between Pest Infestation (`sets/c21/green.ts`) and Sedgemoor Witch
+ *  (`sets/stx/black.ts`, still stubbed on the unrelated Magecraft-"or copy"
+ *  gap, #2087). The FIRST card-shipped consumer of
+ *  `EffectTokenSpec.triggeredAbilities` (issue #2364's shipped primitive,
+ *  landed with zero card consumers until now): the dies-trigger is a
+ *  `TokenTriggeredAbility` descriptor (`event: "CREATURE_DIED"`, always
+ *  self-scoped per CR 109.2 — the token gains ITS OWN controller 1 life),
+ *  converted into a real `TriggeredAbility` by
+ *  `resolveTokenTriggeredAbilities` (`cards/tokenTriggeredAbilities.ts`) at
+ *  the `createToken` Op executor. `EffectTokenSpec` (JSON-pure, ADR 0046),
+ *  not `TokenSpec` — both consumers are DSL `createToken` producers, neither
+ *  needs a `resolve()` closure.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN`/
+ *  `HUMAN_TOKEN`/`SKELETON_TOKEN` treatment: Pest is a printed token across
+ *  several sets, and the art-match rule is "the token associated with the
+ *  PRODUCING card's own printing" — `SpellContext.createToken` resolves it
+ *  per producer from `generated/token-prints.json` (`tokenPrintIdFor`),
+ *  reverse-linked from each producer's own printing's `all_parts` Pest
+ *  token entry. */
+export const PEST_TOKEN: EffectTokenSpec = {
+    name: "Pest",
+    types: ["Creature"],
+    subtypes: ["Pest"],
+    power: 1,
+    toughness: 1,
+    colors: ["B", "G"],
+    triggeredAbilities: [
+        {
+            id: "pest-dies-gain-1-life",
+            oracleText: "When this token dies, you gain 1 life.",
+            event: "CREATURE_DIED",
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        },
+    ],
+};
