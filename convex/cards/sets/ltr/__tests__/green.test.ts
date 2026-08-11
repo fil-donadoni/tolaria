@@ -242,7 +242,7 @@ describe("Delighted Halfling (LTR #158, CR 106.6 / 701.13, issue #1559)", () => 
             { type: "spell", id: target.id },
         ]);
         resolveTopOfStack(state);
-        // The counter attempt fizzles (CR 701.5c-style): the target spell
+        // The counter attempt fizzles (CR 113.6g-style): the target spell
         // stays on the stack.
         expect(state.stack.find((s) => s.id === target.id)).toBeDefined();
     });

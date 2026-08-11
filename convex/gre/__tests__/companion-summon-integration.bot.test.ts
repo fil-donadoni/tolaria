@@ -1,4 +1,4 @@
-// Integration: the `summon-companion` special action (CR 116.2 / 702.139f,
+// Integration: the `summon-companion` special action (CR 116.2 / 702.139a,
 // ADR 0064) — GRE move loop (enumerateMoves/applyMoveForSearch) AND the
 // authoritative `summonCompanion` mutation (game.ts). The project has no
 // convex-test harness (see moves-integration.test.ts's own header), so the

@@ -6,7 +6,7 @@
 
 const SUPER_TYPES = new Set(["Basic", "Legendary", "Snow", "World", "Ongoing"]);
 
-/** Token is a marker characteristic (CR 110.5e), not a card type. */
+/** Token is a marker characteristic (CR 111.1), not a card type. */
 const TOKEN_MARKER = "Token";
 
 export interface ParsedTypeLine {

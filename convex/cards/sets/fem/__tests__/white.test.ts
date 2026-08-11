@@ -665,7 +665,7 @@ describe("Combat Medic (activated preventDamage next-n shield on an announced ta
 // Icatian Infantry — the DSL smoke sweep skips both scripts: `grantAbility`
 // targets `$source`, which the generator can't pre-resolve without a live
 // resolution context.
-describe("Icatian Infantry (self-granted activated keywords, grantAbility targets $source, CR 611.1b)", () => {
+describe("Icatian Infantry (self-granted activated keywords, grantAbility targets $source, CR 611.2a)", () => {
     it("gains first strike until end of turn when its {1} ability resolves", () => {
         const inf = makeInstance(icatianInfantry.id, {
             id: "inf",

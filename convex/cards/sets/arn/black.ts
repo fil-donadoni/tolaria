@@ -206,7 +206,7 @@ export const khabalGhoul: CardDefinition = {
 
 // Erg Raiders — end-step self-damage unless it attacked, with a
 // "came under your control this turn" exemption (CR 603.4 intervening-if for
-// the attack clause + CR 603.3e trigger gate for the control-change clause).
+// the attack clause + CR 603.2 trigger gate for the control-change clause).
 // Reuses the existing `phaseTrigger` factory (END_STEP, scope "your") and the
 // `dealDamage` primitive (cf. Juzám Djinn upkeep self-damage). The exemption
 // reads `self.isSummoningSick`: that flag is set when a creature enters or
@@ -230,7 +230,7 @@ export const ergRaiders: CardDefinition = {
                 "At the beginning of your end step, if Erg Raiders didn't attack this turn, Erg Raiders deals 2 damage to you. This ability doesn't trigger if Erg Raiders came under your control this turn.",
             phase: "END_STEP",
             scope: "your",
-            // CR 603.3e — the ability does not even trigger the turn Erg
+            // CR 603.2 — the ability does not even trigger the turn Erg
             // Raiders came under your control (summoning-sick this turn).
             condition: (_event, self) => self.isSummoningSick !== true,
             // CR 603.4 intervening-if — "if it didn't attack this turn".

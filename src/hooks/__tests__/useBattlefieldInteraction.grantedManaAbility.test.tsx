@@ -1,5 +1,5 @@
 // Issue #1880 — the board's CLICK HANDLER must resolve a GRANTED mana ability
-// (CR 113.1 / 611.1b), not just OFFER it.
+// (CR 113.1 / 611.2a), not just OFFER it.
 //
 // `src/lib/__tests__/granted-mana-ability.wire.test.ts` covers what the menu
 // offers (`getActivatedManaMenuEntry` & friends). That is only half the seam:

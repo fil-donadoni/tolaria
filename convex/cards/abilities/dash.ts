@@ -23,19 +23,19 @@
 // the resulting stack item `dashed: true` whenever the chosen alt cost ===
 // `CardDefinition.dash` (compared by reference). That flag rides onto the
 // entering permanent for free — a stack item IS its `CardInstanceState`,
-// the same object — mirroring how CR 702.138e's `escaped` marker and CR
+// the same object — mirroring how CR 702.138b's `escaped` marker and CR
 // 702.74a's `evoked` marker already survive the stack→battlefield transition.
 //
 // This file is only the SECOND half: a `TriggeredAbility` a card adds to its
 // own `triggeredAbilities[]` ALONGSIDE its real ETB effect(s) — CR 702.109a is
 // explicitly one triggered ability with two clauses (haste grant + delayed
 // return), both DSL Ops already shipped and exercised elsewhere: `grantAbility`
-// (CR 611.1b / 613.1f, issue #843) and `delayedTrigger` (CR 603.7, ADR 0048,
+// (CR 611.2a / 613.1f, issue #843) and `delayedTrigger` (CR 603.7, ADR 0048,
 // issue #838). The "if its dash cost was paid" clause is a CR 603.4 CHECK-TIME
 // predicate (`condition`, evaluated once when the trigger would go on the
 // stack) rather than an intervening-if — `dashed` cannot change between the
 // ETB event firing and this trigger resolving (nothing un-dashes a permanent),
-// so no CR 603.4d resolve-time re-check plumbing is needed.
+// so no CR 603.4 resolve-time re-check plumbing is needed.
 import type { TriggeredAbility } from "../types";
 import { enteredTrigger } from "./triggers/enteredTrigger";
 

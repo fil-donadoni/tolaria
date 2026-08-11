@@ -71,7 +71,7 @@ describe("Blastoderm (Shroud + Fading 3, CR 702.18 / 702.32)", () => {
         expect(derm.counters).toEqual({ fade: 3 });
     });
 
-    it("removes one fade counter at each of the controller's upkeeps (CR 702.32b)", () => {
+    it("removes one fade counter at each of the controller's upkeeps (CR 702.32a)", () => {
         const derm = makeInstance(blastoderm.id, {
             id: "derm",
             controllerId: "p1",
@@ -106,7 +106,7 @@ describe("Blastoderm (Shroud + Fading 3, CR 702.18 / 702.32)", () => {
         expect(onBattlefield(state, "derm")?.counters).toBeUndefined();
     });
 
-    it("sacrifices itself at the upkeep it can't remove a fade counter (CR 702.32b)", () => {
+    it("sacrifices itself at the upkeep it can't remove a fade counter (CR 702.32a)", () => {
         const derm = makeInstance(blastoderm.id, {
             id: "derm",
             controllerId: "p1",

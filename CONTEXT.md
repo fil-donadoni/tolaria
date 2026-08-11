@@ -291,7 +291,7 @@ _Avoid_: Time-out, fading (they are distinct keywords)
 The named counter **Vanishing** places on a **Permanent**; its removal to zero is the trigger condition for the vanishing sacrifice. A plain object counter, not a player resource like a **Poison Counter**.
 
 **Rebound**:
-A **Keyword** ability (CR 702.88) on an instant or sorcery: if the spell was **Cast** from its owner's hand it is exiled as it **Resolves** (instead of going to the graveyard), creating a **Delayed Triggered Ability** — "at the beginning of your next upkeep, you may cast this card from exile without paying its mana cost." The recast is optional; declining leaves the card in exile permanently (never the graveyard, CR 702.88c). Only the hand-cast rebounds — the exile recast is not from hand, so it resolves to the graveyard with no second rebound (CR 702.88d). The upkeep cast window reuses the **Madness** reflexive Cast/Decline shape.
+A **Keyword** ability (CR 702.88) on an instant or sorcery: if the spell was **Cast** from its owner's hand it is exiled as it **Resolves** (instead of going to the graveyard), creating a **Delayed Triggered Ability** — "at the beginning of your next upkeep, you may cast this card from exile without paying its mana cost." The recast is optional; declining leaves the card in exile permanently (never the graveyard, CR 702.88c). Only the hand-cast rebounds — the exile recast is not from hand, so it resolves to the graveyard with no second rebound (CR 702.88a). The upkeep cast window reuses the **Madness** reflexive Cast/Decline shape.
 _Avoid_: Flashback (that recasts from the graveyard, rebound from exile), buyback, recur
 
 **Foretell**:
@@ -450,10 +450,10 @@ A **Creature** declared as blocking an **Attacker** during DECLARE_BLOCKERS.
 Damage dealt by **Creatures** during COMBAT_DAMAGE (or FIRST_STRIKE_DAMAGE for first strikers).
 
 **Band**:
-A group of attacking **Creatures** (1+ with banding, at most 1 without) declared via banding (CR 702.21e). A band attacks and is blocked as a unit — blocking any member blocks them all. Tracked in `combat.bands`.
+A group of attacking **Creatures** (1+ with banding, at most 1 without) declared via banding (CR 702.22c). A band attacks and is blocked as a unit — blocking any member blocks them all. Tracked in `combat.bands`.
 
 **Damage Assignment Authority**:
-Who chooses how a combat-damage **Source** splits its damage among its targets. Normally the source's controller; **Band**ing flips it to the controller of the banding creature(s) opposite (CR 702.21j-k). Tracked per source in `combat.damageAssignerIds`, with a multi-party confirm handshake (`damageAssignmentConfirmedBy`).
+Who chooses how a combat-damage **Source** splits its damage among its targets. Normally the source's controller; **Band**ing flips it to the controller of the banding creature(s) opposite (CR 702.22j-k). Tracked per source in `combat.damageAssignerIds`, with a multi-party confirm handshake (`damageAssignmentConfirmedBy`).
 
 **Attack Tax**:
 A cost the attacking player must pay to make an already-declared attack legal, charged once per taxed **Attacker** as attackers are confirmed (CR 508.1c/1g) — not a restriction that hides the attack, but a price for it. Paid in mana (Propaganda) or by sacrificing **Permanents** (Flooded Woodlands, Leviathan). Two directions, and a card means exactly one: **directed** — "creatures can't attack _you_ unless…", where only the player being attacked imposes it; **undirected** — "this creature can't attack unless…", which applies whoever is being attacked. If the whole tax cannot be paid, the entire attack declaration is illegal and is re-declared.

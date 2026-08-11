@@ -179,7 +179,7 @@ export const dwarvenWarriors: CardDefinition = {
                 powerFilter: { max: 2 },
             },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant unblockable
-            // to the announced target creature until end of turn (CR 611.1b).
+            // to the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -442,7 +442,7 @@ export const fork: CardDefinition = {
 };
 
 // Goblin Balloon Brigade — "{R}: Goblin Balloon Brigade gains flying until
-// end of turn." (CR 702.9 flying, 611.1b temporary keyword grant). The grant
+// end of turn." (CR 702.9 flying, 611.2a temporary keyword grant). The grant
 // targets self via `ctx.sourceInstanceId`, expires at CLEANUP.
 export const goblinBalloonBrigade: CardDefinition = {
     id: "5129b422-7a35-4bc5-b14b-c814012a0d8f",
@@ -462,7 +462,7 @@ export const goblinBalloonBrigade: CardDefinition = {
             cost: { mana: { R: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant flying
-            // until end of turn (CR 611.1b).
+            // until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -1169,7 +1169,7 @@ export const smoke: CardDefinition = {
 
 // Stone Giant — "{T}: Target creature you control with toughness less than
 // Stone Giant's power gains flying until end of turn. Destroy that creature
-// at the beginning of the next end step." (CR 113.1, 611.1b, 603.7a)
+// at the beginning of the next end step." (CR 113.1, 611.2a, 603.7a)
 //
 // getTargetRequirement computes a dynamic toughnessFilter from the source's
 // current power. resolve grants flying EOT and schedules a delayed destroy.

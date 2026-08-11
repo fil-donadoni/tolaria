@@ -461,8 +461,12 @@ describe("light pre-PR gate", () => {
         // reached review with `convex/gre/effects/__tests__/validate.test.ts`
         // red under a `check:pr` that exited 0. The whole project is ~26s at 2
         // workers. Scope pinned in detail by `check-guards-scope.test.ts`.
+        //
+        // The node segment must be followed by nothing or by another `&&`
+        // command — never by a positional token, which vitest reads as a path
+        // filter. (Issue #2429 appended `&& bun run cr:lint` as a third lane.)
         expect(scripts["check:guards"]).toMatch(
-            /vitest run --project node\s*"?$/
+            /vitest run --project node(?:\s*&&|\s*"?$)/
         );
     });
 });

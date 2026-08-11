@@ -53,7 +53,7 @@ import {
     canPayDiscardLastDrawn,
     canPayDiscardAtRandom,
 } from "./state";
-// CR 611.1b (issue #1920 review, finding 4) — the POST-LAYER ability set, the
+// CR 613.1f (issue #1920 review, finding 4) — the POST-LAYER ability set, the
 // same authority the search's push gate reads (`effectiveAbilityOf`). Two
 // different answers to "which ability is this" is how an ability gets pushed
 // and resolved with its costs unpaid.
@@ -281,7 +281,7 @@ export function applyActivationCostsForSearch(
         return true;
     }
 
-    // CR 611.1b — the POST-LAYER ability (finding 4): a GRANTED activated
+    // CR 613.1f — the POST-LAYER ability (finding 4): a GRANTED activated
     // ability resolves here exactly as it does at the search's push gate, so
     // the two can never disagree about which ability is being paid for.
     const ability = effectiveAbilityOf(src, move.abilityId);
@@ -559,7 +559,7 @@ export function applyMoveForSearch(
         }
 
         case "summon-companion": {
-            // CR 116.2 / 702.139f — the companion summon special action.
+            // CR 116.2 / 702.139a — the companion summon special action.
             // Coarse mana model matching this file's own `play-land`/
             // `cast-spell` leaves (see header): taps a representative source
             // set for the {3} without draining the pool coin-exact — legality

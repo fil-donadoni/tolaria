@@ -6,10 +6,10 @@ import { tryGetDefinition } from "../cards";
  * Banding combat helpers (CR 702.21).
  *
  * Banding has two mechanical effects this module models:
- *  1. **Block as a group (CR 702.21e):** an attacking band is blocked as a
+ *  1. **Block as a group (CR 702.22h):** an attacking band is blocked as a
  *     unit. Blocking any one member blocks every member — so the effective
  *     block graph expands each blocked attacker to its full band.
- *  2. **Damage-assignment authority (CR 702.21j-k):** if a creature is in
+ *  2. **Damage-assignment authority (CR 702.22j-k):** if a creature is in
  *     combat with one or more creatures with banding, the controller of those
  *     banding creature(s) — not the creature's own controller — chooses how
  *     that creature assigns its combat damage. This flips the assigner for
@@ -18,7 +18,7 @@ import { tryGetDefinition } from "../cards";
  */
 
 /** True if the instance currently has the banding keyword (printed or granted
- *  via Helm of Chatzuk, CR 611.1b — both land in `staticAbilities`). */
+ *  via Helm of Chatzuk, CR 611.2a — both land in `staticAbilities`). */
 export function hasBanding(card: CardInstanceState): boolean {
     return card.staticAbilities.includes("banding");
 }
@@ -112,9 +112,9 @@ export function getBandMembers(
         ?.memberIds;
 }
 
-/** True if `members` form a legal band (CR 702.21e / 702.22j). Two lanes:
+/** True if `members` form a legal band (CR 702.22c / 702.22j). Two lanes:
  *
- *  - **Plain banding (CR 702.21e):** 2+ creatures, at least one with banding and
+ *  - **Plain banding (CR 702.22c):** 2+ creatures, at least one with banding and
  *    at most one without banding.
  *  - **Bands with other [quality] (CR 702.22j):** 2+ creatures where some
  *    member has "bands with other [Q]" and EVERY member satisfies that same
@@ -125,7 +125,7 @@ export function getBandMembers(
  *  mutation and its tests. */
 export function isLegalBandComposition(members: CardInstanceState[]): boolean {
     if (members.length < 2) return false;
-    // CR 702.21e — plain banding.
+    // CR 702.22c — plain banding.
     const banding = members.filter(hasBanding).length;
     if (banding >= 1 && members.length - banding <= 1) return true;
     // CR 702.22j — bands with other [quality]: some member grants the variant
@@ -148,7 +148,7 @@ export type BlockGraph = {
 };
 
 /**
- * Builds the effective block graph, expanding band membership (CR 702.21e):
+ * Builds the effective block graph, expanding band membership (CR 702.22h):
  * a blocker assigned to any band member is treated as blocking every member,
  * and every member is treated as blocked. With no bands declared this reduces
  * to a plain inversion of `combat.blockerAssignments`.
@@ -226,7 +226,7 @@ export function applyMeleeUnblockedRider(state: GameState): void {
 
 /**
  * Determines which player assigns `source`'s combat damage among
- * `targetCreatureIds` (CR 702.21j-k / 702.22j-k). If any target is a creature
+ * `targetCreatureIds` (CR 702.22j-k). If any target is a creature
  * with banding OR "bands with other [quality]", authority shifts to that
  * target's controller (the opponent of the source); otherwise the source's own
  * controller assigns. Returns `source`'s controller when there is no shift.

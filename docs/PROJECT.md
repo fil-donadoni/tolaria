@@ -200,7 +200,7 @@ la query pesante solo quando `owedPlayerIds` nomina il proprio seat.
 
 `owedPlayerIds` è un **array**, non un singolo id, e va sempre testato con
 `.includes()`. L'assegnazione del danno da combattimento (CR 510.1c, banding
-702.21j-k) si presenta come una normale finestra di priority ma l'attore reale
+702.22j-k) si presenta come una normale finestra di priority ma l'attore reale
 sta in `combat.damageAssignerIds` e può differire da `priorityPlayerId` — con
 banding entrambi i giocatori possono dovere una conferma. Confrontare per
 uguaglianza con un solo id fa deadlockare la partita.

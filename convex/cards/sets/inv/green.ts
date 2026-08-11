@@ -16,7 +16,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 import { protectionColorModes } from "../../abilities";
 
 // Blurred Mongoose — "This spell can't be countered. Shroud (This creature
-// can't be the target of spells or abilities.)" (CR 701.5c can't-be-countered
+// can't be the target of spells or abilities.)" (CR 113.6g can't-be-countered
 // flag, issue #1065; CR 702.18 Shroud.)
 //
 // The registry's `staticAbilities: ["shroud"]` string is registry status
@@ -61,7 +61,7 @@ export const blurredMongoose: CardDefinition = {
 };
 
 // Kavu Chameleon — "This spell can't be countered. {G}: This creature
-// becomes the color of your choice until end of turn." (CR 701.5c can't-be-
+// becomes the color of your choice until end of turn." (CR 113.6g can't-be-
 // countered flag, issue #1065; CR 305.7 / 613.1d layer-5 colour change.)
 //
 // Migrated resolve()→effects[] (ADR 0045): the `setColor` Op shipped (issue
@@ -114,7 +114,7 @@ export const kavuChameleon: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────
 
 // Wandering Stream — {2}{G} Sorcery. "Domain — You gain 2 life for each
-// basic land type among lands you control." (CR 119.3a life gain, CR 702
+// basic land type among lands you control." (CR 119.3 life gain, CR 702
 // preamble Domain ability word, issue #1066.) `times: 2` is the Domain
 // value's fixed scaling-factor field (mirrors `EffectCountSpec.times`,
 // issue #999) — "gain TWO life for each…", not one.

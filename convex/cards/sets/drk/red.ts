@@ -257,7 +257,7 @@ export const cavePeople: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant mountainwalk
-            // to the announced target creature until end of turn (CR 611.1b).
+            // to the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -594,7 +594,7 @@ export const goblinWizard: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant protection
             // from white to the announced target Goblin until end of turn
-            // (CR 611.1b / 702.16).
+            // (CR 611.2a / 702.16).
             effects: [
                 {
                     op: "grantAbility",
@@ -745,13 +745,16 @@ export const orcGeneral: CardDefinition = {
                 "{T}, Sacrifice another Orc or Goblin: Other Orc creatures get +1/+1 until end of turn.",
             cost: {
                 tap: true,
-                // "another Orc or Goblin": a creature with the Orc OR Goblin
-                // subtype, other than Orc General itself (CR 602.1 — "another"
-                // excludes the source, enforced at activation).
+                // "another Orc or Goblin" (CR 109.2 / 602.1): a creature with
+                // the Orc OR Goblin subtype, other than Orc General itself —
+                // which is an Orc, so without the exclusion it could pay its
+                // own cost by sacrificing itself. `excludeInstanceIds: []` used
+                // to sit here with a comment claiming the exclusion was
+                // "enforced at activation"; nothing enforced it (issue #2367).
                 sacrificeFilter: {
                     types: "Creature",
                     subtypes: ["Orc", "Goblin"],
-                    excludeInstanceIds: [],
+                    excludeSource: true,
                 },
             },
             useStack: true,

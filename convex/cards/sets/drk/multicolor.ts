@@ -54,7 +54,7 @@ export const darkHeartOfTheWood: CardDefinition = {
             cost: { sacrificeFilter: { subtypes: "Forest" } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #832): controller gains
-            // 3 life (CR 119.3a). The Forest sacrifice is an activation cost.
+            // 3 life (CR 119.3). The Forest sacrifice is an activation cost.
             effects: [{ op: "gainLife", player: "controller", amount: 3 }],
         },
     ],

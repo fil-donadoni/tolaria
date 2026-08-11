@@ -213,7 +213,7 @@ export const balance: CardDefinition = {
 
 // Benalish Hero — vanilla 1/1 with banding (CR 702.21). The keyword lives in
 // staticAbilities[]; the combat engine reads it to expand band-blocking and
-// shift combat-damage assignment authority (CR 702.21j-k).
+// shift combat-damage assignment authority (CR 702.22j-k).
 export const benalishHero: CardDefinition = {
     id: "11600105-56c6-4073-a4a6-8469030b39c9",
     rarity: "common",

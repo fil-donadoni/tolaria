@@ -5,7 +5,7 @@
 //   - the cast affordance gate (getLegalActions offers "cast" from the graveyard)
 //   - the real cast-commit seam (locateCastSource / castRawManaCost /
 //     graveyardCastStackFlags exported from game.ts, driven in announceCast's order)
-//   - the escaped marker riding onto the resulting permanent (CR 702.138e) via
+//   - the escaped marker riding onto the resulting permanent (CR 702.138b) via
 //     resolveTopOfStack, and NO exile-on-resolve (unlike Flashback)
 //   - the "unless it escaped" DSL branch (the `escaped` EffectValue) through the
 //     real ETB trigger path (Uro's sacrifice-unless-escaped)
@@ -390,7 +390,7 @@ describe("Escape capability (CR 702.138)", () => {
         });
     });
 
-    describe("escaped marker + resolution (CR 702.138e)", () => {
+    describe("escaped marker + resolution (CR 702.138b)", () => {
         function escapeCastUro(escaped: boolean): GameState {
             const uro = makeInstance(uroTitanOfNaturesWrath.id, {
                 id: "uro",
@@ -511,7 +511,7 @@ describe("Escape capability (CR 702.138)", () => {
         });
     });
 
-    describe("serialization (CR 702.138e)", () => {
+    describe("serialization (CR 702.138b)", () => {
         it("round-trips the escaped flag on a battlefield permanent", () => {
             const uro = makeInstance(uroTitanOfNaturesWrath.id, {
                 id: "uro",

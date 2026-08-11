@@ -13,7 +13,7 @@
 // No card in the catalogue uses this shape yet (Pest Infestation, the
 // motivating consumer, is blocked on two OTHER gaps — #2366/#1357 — and
 // lands in its own slice, #2369), so this drives the RAISED "copy-retarget"
-// producer (`requestCopyRetargetOn`, CR 707.10b/707.12c) rather than a full
+// producer (`requestCopyRetargetOn`, CR 707.10c) rather than a full
 // spell cast: it is one of the five sites this issue's fix touches, needs no
 // catalogue card (just a synthetic `TargetRequirement` and a stack item), and
 // exercises the exact same shared resolver a spell cast would.
@@ -57,7 +57,7 @@ import { describeTargetProgress } from "~/lib/target-progress";
 
 // A synthetic card whose OWN targetRequirement is the "up to X" object form
 // (CR 601.2c) — nothing in the shipped catalogue uses this shape yet (see
-// the comment below), so `requestCopyRetargetOn` (the real CR 707.10b/707.12c
+// the comment below), so `requestCopyRetargetOn` (the real CR 707.10c
 // producer, gre/state.ts) needs a real `def.targetRequirement` to read when
 // driven for real (review finding on issue #2365, `boardWithRealCopyRetarget`
 // below). `min: 1` (not the `min: 0` the OTHER tests in this file use) is
@@ -110,7 +110,7 @@ const runConfirmTargets = (ctx: Parameters<typeof runMutation>[1]) =>
 
 /** Three vanilla creatures on p2's battlefield (legal "up to X" targets) plus
  *  a spell COPY on the stack whose controller (p1) is offered the
- *  `copy-retarget` prompt — CR 707.10b/707.12c, `requestCopyRetargetOn`'s
+ *  `copy-retarget` prompt — CR 707.10c, `requestCopyRetargetOn`'s
  *  shape. `chosenX` is the copy's announced X (CR 107.3); the `count` on the
  *  PendingTarget is built via the SAME shared resolver `requestCopyRetargetOn`
  *  calls, so this is the real resolution path, not a hand-built shortcut. */
@@ -215,7 +215,7 @@ function boardWithRealCopyRetarget(chosenX: number): {
     return { state, targetIds: [t1.id, t2.id, t3.id] };
 }
 
-describe("requestCopyRetargetOn — the real CR 707.10b/707.12c producer (review finding, issue #2365)", () => {
+describe("requestCopyRetargetOn — the real CR 707.10c producer (review finding, issue #2365)", () => {
     it("raises the SAME { min, max } shape as the shared resolver for an 'up to X' requirement", () => {
         const { state } = boardWithRealCopyRetarget(2);
         expect(state.pendingTarget).toBeDefined();

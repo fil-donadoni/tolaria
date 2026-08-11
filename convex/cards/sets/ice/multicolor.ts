@@ -119,7 +119,7 @@ function makeUpkeepPayOrElse(args: {
 // ─────────────────────────────────────────────────────────────────────────────
 // Altar of Bone — {G}{W} Sorcery. "As an additional cost to cast this spell,
 // sacrifice a creature. Search your library for a creature card, reveal it, put
-// it into your hand, then shuffle." (CR 117.9 / 601.2f sacrifice additional cost
+// it into your hand, then shuffle." (CR 118.8 / 601.2f sacrifice additional cost
 // via `additionalCosts.sacrificeFilter`; CR 701.19 library search for a creature
 // card → hand; CR 701.20 shuffle.) The reveal is implicit — the searched card
 // moves to the caster's hand and the library is shuffled.
@@ -998,7 +998,7 @@ export const monsoon: CardDefinition = {
 // Mountain Titan — "{1}{R}{R}: Until end of turn, whenever you cast a black
 // spell, put a +1/+1 counter on this creature." (CR 605 activated ability that
 // arms an until-end-of-turn cast-watch trigger via `grantTriggeredAbility` with
-// `{ phase: "end-of-turn" }`, CR 611.1b; the granted rider — a
+// `{ phase: "end-of-turn" }`, CR 611.2a; the granted rider — a
 // `spellCastTrigger(scope:"you", filter:{colors:"B"})` on
 // `triggeredGrantTemplates[]` — fires on each black spell you cast and adds a
 // +1/+1 counter, CR 122.1.) The Bone Shaman pattern: the rider is grant-only

@@ -742,7 +742,7 @@ describe("Ocelot Pride — intervening-if 'if you gained life this turn' (CR 603
         ).toHaveLength(0);
     });
 
-    it("fizzles on resolution if the life gain is gone by then (CR 603.4d)", () => {
+    it("fizzles on resolution if the life gain is gone by then (CR 603.4)", () => {
         const state = ocelotSetup();
         state.lifeGainedThisTurn = { p1: 2 };
         const source = state.players[0].battlefield[0];

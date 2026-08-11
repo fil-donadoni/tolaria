@@ -368,7 +368,7 @@ export const solkanarTheSwampKing: CardDefinition = {
             scope: "any",
             filter: { colors: "B" },
             // Migrated resolve()→effects[] (ADR 0045): event-independent
-            // 1-life gain for the source's controller (CR 119.3a) via the
+            // 1-life gain for the source's controller (CR 119.3) via the
             // `gainLife` Op.
             effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         }),
@@ -1190,7 +1190,7 @@ export const rasputinDreamweaver: CardDefinition = {
                 "At the beginning of your upkeep, if Rasputin Dreamweaver started the turn untapped, put a dream counter on it.",
             phase: "UPKEEP",
             scope: "your",
-            // CR 603.4d — only if it started the turn untapped.
+            // CR 603.4 — only if it started the turn untapped.
             interveningIf: (_event, self) => self.startedTurnUntapped === true,
             // Migrated resolve()→effects[] (ADR 0045): the stale blocker (no
             // counter-count predicate) is resolved — the `counters` EffectValue

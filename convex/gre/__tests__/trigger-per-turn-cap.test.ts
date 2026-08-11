@@ -4,7 +4,7 @@
 // The cap is enforced in the trigger SCAN (`collectTriggers`), not at
 // resolution: an over-quota ability never produces a StackItem at all, which is
 // what distinguishes it from a trigger that goes on the stack and then fizzles
-// (CR 603.4d). The tally lives on `CardInstanceState.triggersThisTurn`, the
+// (CR 603.4). The tally lives on `CardInstanceState.triggersThisTurn`, the
 // trigger twin of `activationsThisTurn` — keyed by ability id and counted PER
 // SOURCE OBJECT, so a battlefield-wide grant gives every recipient its own
 // quota.

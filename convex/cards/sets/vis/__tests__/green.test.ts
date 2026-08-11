@@ -26,7 +26,7 @@ import { globalAttackProhibitionReason } from "../../../attackRestrictions";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
 
-describe("Natural Order (CR 117.9 additional cost / 701.19 / 400.7 / 701.20)", () => {
+describe("Natural Order (CR 118.8 additional cost / 701.19 / 400.7 / 701.20)", () => {
     it("searches for a green creature card and puts it onto the battlefield", () => {
         const libBear = makeInstance(grizzlyBears.id, {
             id: "bear1",

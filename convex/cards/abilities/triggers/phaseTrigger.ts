@@ -12,8 +12,8 @@
 //     trigger fires, or — for `host-controller` — the enchanted permanent's
 //     current controller, looked up at resolve time per CR 603.10 last-known
 //     information),
-//   * optional CR 603.4 condition filter at trigger time and CR 603.4d
-//     intervening-if filter at resolution time.
+//   * optional CR 603.4 condition filter at trigger time and the same
+//     rule's intervening-if filter at resolution time.
 //
 // Cards using the factory should NOT re-narrow the event type or recompute
 // the scope inside `resolve` — they receive a typed event and the resolved
@@ -64,14 +64,14 @@ export interface PhaseTriggerArgs {
      *  phase + scope checks pass. Use this for narrow per-card conditions
      *  the factory cannot express (e.g. an additional state-shape check that
      *  ONLY runs at trigger time, not at resolve). For "if X at resolve"
-     *  semantics use `interveningIf` instead — that's the CR 603.4d hook
+     *  semantics use `interveningIf` instead — that's the CR 603.4 hook
      *  the engine re-checks before invoking `resolve`. */
     condition?: (
         event: PhaseBeginEvent,
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if. The engine re-evaluates this predicate
+    /** CR 603.4 intervening-if. The engine re-evaluates this predicate
      *  immediately before `resolve` runs; if it returns false the trigger
      *  fizzles (no resolve, TRIGGER_FIZZLED queued — see
      *  `gre/state.ts:resolveTopOfStack`). Use this for "if [condition on
@@ -153,7 +153,7 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
                 if (args.condition && !args.condition(event, self, state)) {
                     return false;
                 }
-                // CR 603.4d — intervening-if is checked at BOTH trigger time and
+                // CR 603.4 — intervening-if is checked at BOTH trigger time and
                 // resolve time. The engine wires the resolve-time check via the
                 // `interveningIf` field; we mirror it into `matches` here so the
                 // trigger never enters the stack when the condition is already

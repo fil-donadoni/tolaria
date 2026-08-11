@@ -78,7 +78,7 @@ choke point every "leaves the battlefield" path already funnels through. After
 a permanent leaves (to any zone — "until ~ leaves the battlefield" is
 zone-agnostic), `phaseInBundlesForSource` phases in any bundle whose
 `returnOn.sourceId` matches. This runs **immediately**, not via the stack: the
-"until ~ leaves" duration ending is a continuous effect expiring (CR 611.2g),
+"until ~ leaves" duration ending is a continuous effect expiring (CR 611.2a),
 not a triggered ability. The creature returns tapped (`onPhaseIn.tap`) and
 still enchanted, with its counters intact.
 

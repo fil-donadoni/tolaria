@@ -80,7 +80,7 @@ export const creepingTarPit: CardDefinition = {
 // see `AnimateSpec.grantedAbilities`'s doc), which would diverge from the
 // original two `ctx.grantStaticAbility(source, ability, { phase:
 // "end-of-turn" })` calls that DO expire at end of turn. Two separate
-// `grantAbility` Ops (CR 611.1b/613.1f, issue #843), each carrying its own
+// `grantAbility` Ops (CR 611.2a/613.1f, issue #843), each carrying its own
 // `duration: { phase: "end-of-turn" }`, reproduce that exactly.
 export const celestialColonnade: CardDefinition = {
     id: "f6929259-2903-4f6f-9b06-42048fd55c6a",

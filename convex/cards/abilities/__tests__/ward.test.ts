@@ -244,11 +244,11 @@ describe("raiseTriggerTargetSelection: spellTargetsSelfSource dynamic pin (CR 70
     });
 });
 
-describe("raiseTriggerTargetSelection: two simultaneous targeters pin the EXACT triggering object (CR 702.21e, issue #1361)", () => {
+describe("raiseTriggerTargetSelection: two simultaneous targeters pin the EXACT triggering object (CR 702.21a, issue #1361)", () => {
     it("each ward trigger instance counters the SPECIFIC spell that caused it — no player choice, even with 2 legal 'targets this permanent' candidates", () => {
         const { state, wardedInstId } = wardedState();
         // Two DISTINCT opponent-controlled removal spells target the SAME
-        // warded permanent before either resolves — the CR 702.21e edge: a
+        // warded permanent before either resolves — the CR 702.21a edge: a
         // "targets this permanent" filter alone can't tell which one caused
         // which ward instance (both are legal under that filter).
         const spellA = pushSpell(state, REMOVAL_ID, "p1", [
@@ -279,7 +279,7 @@ describe("raiseTriggerTargetSelection: two simultaneous targeters pin the EXACT 
 
         // Each ward trigger's own target is EXACTLY the spell whose
         // BECAME_TARGET event fired IT (via `triggerEvent.sourceInstanceId`),
-        // never the other simultaneous targeter — CR 702.21e's "counter THAT
+        // never the other simultaneous targeter — CR 702.21a's "counter THAT
         // spell or ability", forced deterministically.
         const targetBySourceInstance = new Map(
             wardTriggers.map((t) => {

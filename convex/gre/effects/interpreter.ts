@@ -553,7 +553,7 @@ function resolveValue(
         }
         return undefined;
     }
-    // escaped (CR 702.138e, issue #695) — 1 if the referenced permanent escaped
+    // escaped (CR 702.138b, issue #695) — 1 if the referenced permanent escaped
     // (was cast from a graveyard via Escape), else 0. Powers "sacrifice it
     // unless it escaped" as a numeric comparison. `of` resolves through the same
     // resolveObjectRef path every object-acting Op uses; an unresolvable object
@@ -1823,7 +1823,7 @@ export const OP_EXECUTORS: {
             ctx.noteChoice(doneKey, ["done"]);
         }
     },
-    // CR 119.3a — life gain.
+    // CR 119.3 — life gain.
     gainLife(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
@@ -1839,7 +1839,7 @@ export const OP_EXECUTORS: {
         if (amount === undefined || amount <= 0) return;
         ctx.addEnergy(playerId, amount);
     },
-    // CR 119.3b — life loss (not damage).
+    // CR 119.3 — life loss (not damage).
     loseLife(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
@@ -2276,7 +2276,7 @@ export const OP_EXECUTORS: {
             chosenX = Number(pickedX);
         }
 
-        // ADDITIONAL COST — sacrifice (CR 117.9). Applies even to a free cast
+        // ADDITIONAL COST — sacrifice (CR 118.8). Applies even to a free cast
         // (only the mana cost is waived). No matching permanent => the cost is
         // unmeetable, the card is NOT cast ("if able").
         const sacrificeFilter = ctx.getCardSacrificeFilter(
@@ -2818,7 +2818,7 @@ export const OP_EXECUTORS: {
     // the target is gone (CR 608.2b — the permanent left the battlefield;
     // `resolveObjectRef` returns undefined). The primitives themselves no-op
     // when the permanent is already in the requested state (CR 701.26a/b).
-    // CR 611.1b / 613.1f (issue #843) — grant a keyword static ability to a
+    // CR 611.2a / 613.1f (issue #843) — grant a keyword static ability to a
     // permanent for a limited duration (layer 6). A thin declarative skin over
     // `grantStaticAbility`, ONE execution path (ADR 0045). Skipped when the
     // target is gone (CR 608.2b — the permanent left the battlefield;
@@ -2868,7 +2868,7 @@ export const OP_EXECUTORS: {
             }
         }
         if (op.grantedTriggeredId) {
-            // CR 113.1 / 611.1b (issue #1665) — a TRIGGERED-ability grant whose
+            // CR 113.1 / 611.2a (issue #1665) — a TRIGGERED-ability grant whose
             // template lives on the resolving source's
             // `triggeredGrantTemplates[]` (Guardian Scalelord's Backup 1
             // handing the target creature the attack trigger printed below the

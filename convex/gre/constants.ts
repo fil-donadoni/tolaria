@@ -20,7 +20,7 @@ import { liveSupertypesOf } from "../cards/snowReads";
 import { LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { ManaRestriction } from "./types";
 import { getDefinition, tryGetDefinition } from "../cards";
-// CR 611.1b / 613.1f (issue #1880) — the POST-LAYER activated-ability set
+// CR 611.2a / 613.1f (issue #1880) — the POST-LAYER activated-ability set
 // (native + granted, minus a "loses all abilities" suppression). Every mana
 // probe below reads it instead of `cardDef.activatedAbilities` so a GRANTED
 // `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
@@ -541,7 +541,7 @@ export function abilitiesSuppressed(card: CardInstanceState): boolean {
 
 /** Returns the mana color produced by a tap mana ability (e.g. Mox), or null.
  *
- *  CR 113.1 / 611.1b (issue #1880) — reads the POST-LAYER effective set, so a
+ *  CR 113.1 / 611.2a (issue #1880) — reads the POST-LAYER effective set, so a
  *  GRANTED `{T}: Add …` (Urza's Saga chapter I on a land with no printed mana
  *  ability) actually PRODUCES mana. This is the production half of the seam:
  *  the discovery probes (`hasManaAbility`, `getManaTapOptionsDetailed`) already
@@ -561,7 +561,7 @@ export function getActivatedManaColor(card: CardInstanceState): Color | null {
 }
 
 /** Returns the mana produced by a tap mana ability, or null. Supports
- *  multi-color (e.g. Signet). CR 113.1 / 611.1b (issue #1880) — POST-LAYER
+ *  multi-color (e.g. Signet). CR 113.1 / 611.2a (issue #1880) — POST-LAYER
  *  effective set, so a GRANTED tap mana ability's output is real. */
 export function getActivatedManaProduced(
     card: CardInstanceState
@@ -659,7 +659,7 @@ function withEffectivePT(
  *  the controller's own battlefield (the only board data this hook receives —
  *  see `manaLayerView`), not its raw base stats.
  *
- *  CR 113.1 / 611.1b (issue #1880) — POST-LAYER effective set, so a GRANTED
+ *  CR 113.1 / 611.2a (issue #1880) — POST-LAYER effective set, so a GRANTED
  *  board-conditional tap mana ability scales like a printed one. */
 export function getDynamicManaProduced(
     card: CardInstanceState,
@@ -783,7 +783,7 @@ export function getDefinitionProducibleColors(
  *  which reads the substitution-rewritten `subtypes`, not the definition's
  *  printed ones) — issue #1619.
  *
- *  CR 113.1 / 611.1b (issue #1880) — the ability union is the POST-LAYER
+ *  CR 113.1 / 611.2a (issue #1880) — the ability union is the POST-LAYER
  *  effective set, the third instance-only concern: a GRANTED mana ability
  *  (Urza's Saga chapter I) is a real "could produce" source, so a land holding
  *  only a granted `{T}: Add {G}` reads as a green source to Fellwar Stone and
@@ -1187,7 +1187,7 @@ export function getManaTapOptionsDetailed(
             ? battlefields.find((b) => b.playerId === controllerId)?.battlefield
             : undefined;
 
-    // CR 113.1 / 611.1b (issue #1880) — the POST-LAYER set: printed abilities
+    // CR 113.1 / 611.2a (issue #1880) — the POST-LAYER set: printed abilities
     // PLUS every one granted to this permanent (Urza's Saga chapter I's
     // "{T}: Add {C}"), so a granted mana ability is a real tap option for the
     // auto-tap planner and the tap mutations, not merely a client-side menu
@@ -1520,7 +1520,7 @@ export function getManaChoiceCounterCost(
  *  introspection with no board snapshot) keep compiling; every real
  *  tap-decision site (the three tap mutations, `hasManaAbility`) passes one.
  *
- *  CR 113.1 / 611.1b (issue #1880) — the search runs over the POST-LAYER
+ *  CR 113.1 / 611.2a (issue #1880) — the search runs over the POST-LAYER
  *  effective set (`getEffectiveActivatedAbilities`), not
  *  `cardDef.activatedAbilities` alone: a permanent GRANTED a `{T}: Add …`
  *  (Urza's Saga chapter I) has a real mana ability, and reading only the
@@ -1633,7 +1633,7 @@ export function isUntappedManaSource(
  *  (a stack ability, or an activated
  *  ability with no mana output) makes the permanent dual-purpose. Suppressed
  *  permanents expose no abilities (CR 613.1f). POST-LAYER set (CR 113.1 /
- *  611.1b, issue #1880) — a GRANTED non-mana ability makes its holder
+ *  611.2a, issue #1880) — a GRANTED non-mana ability makes its holder
  *  dual-purpose exactly like a printed one. */
 export function hasNonManaActivatedAbility(card: CardInstanceState): boolean {
     if (abilitiesSuppressed(card)) return false;

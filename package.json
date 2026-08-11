@@ -15,7 +15,7 @@
         "check:ts": "tsc -b --noEmit",
         "check:index": "bun scripts/check-card-index.ts",
         "check:stubs": "bun scripts/check-stub-coverage.ts",
-        "check:guards": "TOLARIA_BOT_FAST=1 vitest run --project bot-node --project bot-dom && vitest run --project node",
+        "check:guards": "TOLARIA_BOT_FAST=1 vitest run --project bot-node --project bot-dom && vitest run --project node && bun run cr:lint",
         "test": "bun scripts/gate.ts heavy 'bun run test:app && bun run test:bot && bun run test:blade'",
         "test:app": "bun scripts/gate.ts heavy 'vitest run --project node --project dom'",
         "test:bot": "bun scripts/gate.ts heavy 'vitest run --project bot-node --project bot-dom'",

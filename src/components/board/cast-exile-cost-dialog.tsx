@@ -17,7 +17,7 @@ import { pickerRingClass } from "~/lib/picker-ring";
  *  `pendingCast` is waiting for them to pick the cards the flashback exile cost
  *  requires. The whole cost comes from the caster's OWN graveyard; the player
  *  selects EXACTLY `count` cards matching the `color` filter (CR 105.2), never
- *  the flashback card itself (`excludeInstanceId`, CR 702.34e), then submits via
+ *  the flashback card itself (`excludeInstanceId`, CR 601.2a), then submits via
  *  `selectCastExileCost`. Dismissing cancels the cast (parity with the payment
  *  banner's Cancel). Mirrors the activation-path `ExileCostDialog`. */
 export default function CastExileCostDialog({
@@ -57,7 +57,7 @@ export default function CastExileCostDialog({
     const sourceCards = zone === "hand" ? me?.hand : me?.graveyard;
 
     // Eligible payment cards: the caster's own zone, matching the colour
-    // filter (CR 105.2) and excluding the flashback card itself (CR 702.34e)
+    // filter (CR 105.2) and excluding the flashback card itself (CR 601.2a)
     // via the shared `isExileCostEligible` — the server (`recordCastExileCostPick`,
     // through `graveyardCardMatchesColor`, which delegates its colour leg
     // straight to this function) and the bot's view builder

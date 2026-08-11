@@ -125,7 +125,7 @@ describe("bot shock-land choice is decided by the search (CR 614.12, issue #1506
     });
 });
 
-describe("bot madness-cast choice reaches the executor, not the Worker (CR 702.35d)", () => {
+describe("bot madness-cast choice reaches the executor, not the Worker (CR 702.35a)", () => {
     it("the bot declines the reflexive madness choice, executor-realised AND translatable", () => {
         const BOT = "u1-p2";
         const state = makeState({

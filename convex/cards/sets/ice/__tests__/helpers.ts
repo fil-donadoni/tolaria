@@ -129,7 +129,7 @@ export function fireCumulativeUpkeep(
 }
 
 /** Answer the head may-pay choice, auto-resuming the suspended resolution.
- *  When the choice carries a battlefield sacrifice pick (CR 701.16b — more
+ *  When the choice carries a battlefield sacrifice pick (CR 701.21a — more
  *  matching permanents than the leg sacrifices, e.g. Polar Kraken's "sacrifice 2
  *  lands" with 3 in play), an explicit `sacrificeIds` set names the victims; when
  *  omitted the first N candidate ids are auto-picked so the shim stays terse. */

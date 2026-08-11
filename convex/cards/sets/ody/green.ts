@@ -8,7 +8,7 @@ const SQUIRREL_NEST_ID = "22eccb27-1723-4c5a-96b8-85e6e5739c30";
 // Squirrel Nest — {1}{G}{G} Enchantment — Aura. "Enchant land. Enchanted land
 // has '{T}: Create a 1/1 green Squirrel creature token.'" The Forbidden Lore /
 // Earthlore shape (ice/green.ts): an Aura on any land whose whole effect is an
-// `activated-grant` StaticEffect (CR 611.1b / 613.1f) pushing ONE activated
+// `activated-grant` StaticEffect (CR 611.2a / 613.1f) pushing ONE activated
 // ability onto the enchanted land. `AURA_AFFECTS_HOST` scopes the grant to the
 // land this Aura is attached to; the template lives on `grantTemplates[]` so
 // Squirrel Nest itself exposes nothing. The cost is the LAND's own tap

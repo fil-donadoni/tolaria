@@ -211,7 +211,7 @@ export const coalitionVictory: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────
 
 // Absorb — {W}{U}{U} Instant. "Counter target spell. You gain 3 life." (CR
-// 701.5a counter, CR 119.3a life gain.) A plain two-Op sequence: `counter`
+// 701.5a counter, CR 119.3 life gain.) A plain two-Op sequence: `counter`
 // removes the targeted spell from the stack, then `gainLife` on the
 // resolving controller. MTGJSON INV.json: casting cost {W}{U}{U}.
 export const absorb: CardDefinition = {
@@ -730,7 +730,7 @@ export const slinkingSerpent: CardDefinition = {
 // step, precedent Chaotic Strike `inv/red.ts`; CR 701.26 untap; CR 613.1b
 // control change via `gainControl` with NO `duration` — an INDEFINITE
 // reassignment, since the delayed trigger below removes the creature by
-// sacrifice rather than a control-reversion condition; CR 611.1b temporary
+// sacrifice rather than a control-reversion condition; CR 611.2a temporary
 // keyword grant for haste; CR 603.7 delayed trigger, ADR 0048.) The delayed
 // body's `capture: { $creature: { target: 0 } }` carries only the
 // INSTANCE ID across scheduling → fire (`resolveCaptureSource`); at FIRE
@@ -832,7 +832,7 @@ export const stalkingAssassin: CardDefinition = {
 };
 
 // Undermine — {U}{U}{B} Instant. "Counter target spell. Its controller
-// loses 3 life." (CR 701.5a counter, CR 119.3b life loss.) A plain two-Op
+// loses 3 life." (CR 701.5a counter, CR 119.3 life loss.) A plain two-Op
 // sequence, exact precedent shape Absorb (this same file) with `loseLife`
 // in place of `gainLife` and `{ controllerOf }` in place of the resolving
 // controller.
@@ -1265,7 +1265,7 @@ export const firescreamer: CardDefinition = {
 };
 
 // Hooded Kavu — {2}{R} Creature — Kavu, 2/2. "{B}: This creature gains fear
-// until end of turn." (CR 702.14b fear, CR 611.1b temporary keyword grant
+// until end of turn." (CR 702.14b fear, CR 611.2a temporary keyword grant
 // via the shipped `grantAbility` Op self-targeted via `$source`.)
 export const hoodedKavu: CardDefinition = {
     id: "5464b80a-22fe-42c7-a839-31667712fb2d",
@@ -2655,7 +2655,7 @@ export const duelingGrounds: CardDefinition = {
 };
 
 // Heroes' Reunion — {G}{W} Instant. "Target player gains 7 life." (CR
-// 119.3a life gain.) A plain single-Op spell — exact shape precedent
+// 119.3 life gain.) A plain single-Op spell — exact shape precedent
 // Absorb's `gainLife` half (this file's WU tranche), target swapped from
 // the caster to an announced player target.
 export const heroesReunion: CardDefinition = {
@@ -2720,7 +2720,7 @@ export const llanowarKnight: CardDefinition = {
 };
 
 // Noble Panther — {1}{G}{W} Creature — Cat, 3/3. "{1}: This creature gains
-// first strike until end of turn." (CR 702.7b first strike, CR 611.1b
+// first strike until end of turn." (CR 702.7b first strike, CR 611.2a
 // temporary keyword grant via the shipped `grantAbility` Op self-targeted
 // through `$source` — the exact Hooded Kavu shape, this file's BR
 // tranche, keyword swapped fear → first strike.)
@@ -3046,7 +3046,7 @@ const TREVA_LIFEGAIN_COLOR_MODES: NonNullable<
 // {2}{W}. If you do, choose a color, then you gain 1 life for each
 // permanent of that color." (CR 702.9b flying; CR 510.4/603.2 combat-damage
 // trigger; CR 117.3a/118.4 optional additional-cost `mayPay`; CR 700.2
-// modal colour pick; CR 119.3a life gain scaled by a battlefield-wide
+// modal colour pick; CR 119.3 life gain scaled by a battlefield-wide
 // `count`.) Same smoke-skip note as Dromar (this file).
 export const treva: CardDefinition = {
     id: "4ee67039-6cee-4a2d-b973-570f5060f550",
@@ -3375,7 +3375,7 @@ export const tinderFarm: CardDefinition = {
 
 // Stormscape Apprentice — {U} Creature — Human Wizard, 1/1. "{W}, {T}: Tap
 // target creature. {B}, {T}: Target player loses 1 life." (CR 602.1
-// activated ability, CR 701.26 tap; CR 119.3b life loss.) Two independent
+// activated ability, CR 701.26 tap; CR 119.3 life loss.) Two independent
 // tap-only activated abilities — same fused-pair shape as Samite Archer
 // (this file, WU tranche) and Stormscape Apprentice's own sibling Sunscape
 // Apprentice (`white.ts`, deferred elsewhere — a DIFFERENT ability pair).
@@ -3426,8 +3426,8 @@ const STORMSCAPE_MASTER_PROTECTION_MODES = protectionColorModes([
 // Stormscape Master — {2}{U}{U} Creature — Human Wizard, 2/2. "{W}{W}, {T}:
 // Target creature gains protection from the color of your choice until end
 // of turn. {B}{B}, {T}: Target player loses 2 life and you gain 2 life."
-// (CR 613.1f keyword grant + CR 700.2 modal colour pick; CR 119.3b life loss
-// + CR 119.3a life gain.)
+// (CR 613.1f keyword grant + CR 700.2 modal colour pick; CR 119.3 life loss
+// + CR 119.3 life gain.)
 export const stormscapeMaster: CardDefinition = {
     id: "9b704165-4587-48f1-8830-c5a07ec666cc",
     rarity: "rare",
@@ -3510,7 +3510,7 @@ export const nightscapeMaster: CardDefinition = {
 
 // Thunderscape Apprentice — {R} Creature — Human Wizard, 1/1. "{B}, {T}:
 // Target player loses 1 life. {G}, {T}: Target creature gets +1/+1 until
-// end of turn." (CR 119.3b life loss; CR 613.4c temporary P/T pump.)
+// end of turn." (CR 119.3 life loss; CR 613.4c temporary P/T pump.)
 export const thunderscapeApprentice: CardDefinition = {
     id: "75a0b075-5414-48d3-a2b1-47dc20213e96",
     rarity: "common",
@@ -3553,8 +3553,8 @@ export const thunderscapeApprentice: CardDefinition = {
 
 // Thunderscape Master — {2}{R}{R} Creature — Human Wizard, 2/2. "{B}{B},
 // {T}: Target player loses 2 life and you gain 2 life. {G}{G}, {T}:
-// Creatures you control get +2/+2 until end of turn." (CR 119.3b life loss
-// + CR 119.3a life gain; CR 613.4c temporary P/T pump swept over a
+// Creatures you control get +2/+2 until end of turn." (CR 119.3 life loss
+// + CR 119.3 life gain; CR 613.4c temporary P/T pump swept over a
 // `forEach` — the exact Sunscape Master (`white.ts`)/Thornscape Master
 // (`green.ts`) "creatures you control get +2/+2" shape, this cycle's third
 // occurrence.)

@@ -80,7 +80,7 @@ flow (`chosenModeId`, the UI mode picker, stack-item dispatch to
 `mode.resolve`). Each mode's `resolve` adds `1 + getAdditionalSacrificeMv()`
 restricted mana of its color via the new `SpellContext.addRestrictedMana`
 primitive. The sacrifice is the card's `additionalCosts.sacrificeFilter`, paid
-at announcement (CR 117.9); its mana value is snapshotted onto the stack item
+at announcement (CR 118.8); its mana value is snapshotted onto the stack item
 and read at resolution.
 
 ## Consequences

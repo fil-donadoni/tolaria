@@ -1,4 +1,4 @@
-// Graveyard stack-order helpers (CR 404.1, 603.6e / 603.4d). A graveyard is an
+// Graveyard stack-order helpers (CR 404.1, 603.6e / 603.4). A graveyard is an
 // ordered pile: index 0 = bottom, last = top, so a card is "above" another when
 // it sits at a higher index. Shared by the graveyard-recursion cards that gate
 // on "N or more creature cards above this card" — Nether Shadow (a graveyard-

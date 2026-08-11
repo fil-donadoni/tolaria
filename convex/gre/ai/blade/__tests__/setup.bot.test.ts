@@ -382,7 +382,7 @@ describe("blade setup — `activate` runs the real activation path (ADR 0070 §4
 });
 
 /**
- * `activate` resolves POST-LAYER abilities (issue #1522, CR 611.1b/613.1f
+ * `activate` resolves POST-LAYER abilities (issue #1522, CR 611.2a/613.1f
  * layer 6) — not the static `CardDefinition` alone. Two directions:
  *   - a native ability another permanent's continuous static effect GRANTED
  *     to this instance must be activatable, even though it never appears on

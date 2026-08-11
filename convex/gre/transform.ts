@@ -5,7 +5,7 @@
  * A double-faced permanent has two DISTINCT printed characteristic sets —
  * front and back — unlike a face-down morph permanent (CR 707.4,
  * `faceDown.ts`), which hides a single REAL identity behind a generic 2/2.
- * Transform information is always PUBLIC (CR 712.1a): both players know
+ * Transform information is always PUBLIC (CR 712.6): both players know
  * both faces, so (unlike `faceDown`) there is no per-viewer hiding at the
  * projection boundary (`gameProjections.ts`) — `slimCard`'s default
  * pass-through already ships `transformed`/`transformedFrom` identically to

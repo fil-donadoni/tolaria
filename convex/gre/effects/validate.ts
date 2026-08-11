@@ -1094,7 +1094,7 @@ function isDomainValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
-/** `{ escaped: { of } }` — SHAPE of the escaped value construct (CR 702.138e,
+/** `{ escaped: { of } }` — SHAPE of the escaped value construct (CR 702.138b,
  *  issue #695). `of` is an object selector (an announced target slot, `$source`,
  *  or a permanents-set forEach `$each`) — family-checked as an OBJECT position
  *  by the ordered ref pass. No other keys are permitted. Mirrors
@@ -3410,7 +3410,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { player: isPlayerRef },
     },
-    // CR 611.1b / 613.1f (issue #843) — grant a keyword static ability to a
+    // CR 611.2a / 613.1f (issue #843) — grant a keyword static ability to a
     // permanent for a limited duration (layer 6). `ability` is the free-form
     // keyword granted; `target` is an object selector (announced slot,
     // `$source`, or a forEach `$each`); `duration` is the phase boundary at

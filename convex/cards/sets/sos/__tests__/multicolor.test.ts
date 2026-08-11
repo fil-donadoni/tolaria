@@ -184,7 +184,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
         ]);
     });
 
-    it("sacrifice-draw mode: single candidate auto-resolves (no pick prompt, CR 701.16b)", () => {
+    it("sacrifice-draw mode: single candidate auto-resolves (no pick prompt, CR 701.21a)", () => {
         // Exactly one sacrificeable permanent → nothing to choose, so the
         // may-pay choice stays a bare Pay/Skip (no battlefield pick fields).
         const fodder = makeInstance(ARTIFACT_ID, {
@@ -208,7 +208,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
         expect(head?.candidateIds).toBeUndefined();
     });
 
-    it("sacrifice-draw mode: MULTIPLE candidates prompt a victim pick; only the chosen one dies (CR 701.16b)", () => {
+    it("sacrifice-draw mode: MULTIPLE candidates prompt a victim pick; only the chosen one dies (CR 701.21a)", () => {
         // Two sacrificeable permanents → the payer must choose which to
         // sacrifice; the other is untouched (the reported Witherbloom Charm bug).
         const keep = makeInstance(ARTIFACT_ID, {
@@ -274,7 +274,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
         ]);
     });
 
-    it("sacrifice-draw mode: accepting without a pick when one is required is rejected (CR 701.16b)", () => {
+    it("sacrifice-draw mode: accepting without a pick when one is required is rejected (CR 701.21a)", () => {
         const a = makeInstance(ARTIFACT_ID, {
             id: "a",
             controllerId: "p1",
@@ -301,7 +301,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
         expect(state.players[0].battlefield).toHaveLength(2);
     });
 
-    it("sacrifice-draw mode: an illegal victim id is rejected (CR 701.16b)", () => {
+    it("sacrifice-draw mode: an illegal victim id is rejected (CR 701.21a)", () => {
         const a = makeInstance(ARTIFACT_ID, {
             id: "a",
             controllerId: "p1",
@@ -352,7 +352,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
         expect(state.players[0].hand).toHaveLength(0);
     });
 
-    it("gain-life mode: you gain 5 life (CR 119.3a)", () => {
+    it("gain-life mode: you gain 5 life (CR 119.3)", () => {
         const state = makeState({
             players: [makePlayer("p1", { life: 20 }), makePlayer("p2")],
         });

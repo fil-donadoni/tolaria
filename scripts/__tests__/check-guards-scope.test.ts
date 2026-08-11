@@ -99,6 +99,15 @@ describe("check:guards scope — the light gate runs the whole node project", ()
         expect(guards).toMatch(/--project\s+bot-node/);
         expect(guards).toMatch(/--project\s+bot-dom/);
     });
+
+    it("runs the CR-citation sweep (#2429)", () => {
+        // Offline and ~1s: it reads only the vendored document, so it does not
+        // break the gate's no-network contract (ADR 0098). Belt and braces with
+        // `scripts/__tests__/cr-citations.test.ts`, which runs the same scan
+        // inside the node project — either alone would catch a bad citation,
+        // and the pair survives one of them being dropped.
+        expect(guards).toContain("cr:lint");
+    });
 });
 
 describe("the node project is the whole backend half of the app suite", () => {

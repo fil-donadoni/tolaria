@@ -20,7 +20,7 @@ import { RABBIT_TOKEN } from "../../sharedTokens";
 //      is exactly that hook (`cards/entersWith.ts` reads `cast.chosenX`);
 //      Walking Ballista (`sets/aer/colorless.ts`) is the reference shape.
 //   2. "If X is 5 or more, draw a card when it enters" — a genuine TRIGGERED
-//      ability with a CR 603.4d intervening-if. It resolves from the stack
+//      ability with a CR 603.4 intervening-if. It resolves from the stack
 //      LATER, once the creature spell's stack item is gone, so the condition
 //      reads `self.chosenXOnCast`: the typed, serialized snapshot
 //      `finalizeSpellResolution` writes onto the permanent (the `wasKicked`
@@ -57,7 +57,7 @@ export const jackedRabbit: CardDefinition = {
     // Ravenous, half 1 (CR 702.156a / 614.1c).
     entersWith: { counters: [{ type: "+1/+1", count: "X" }] },
     triggeredAbilities: [
-        // Ravenous, half 2 (CR 702.156a / 603.4d).
+        // Ravenous, half 2 (CR 702.156a / 603.4).
         enteredTrigger({
             id: "jacked-rabbit-ravenous-draw",
             oracleText:

@@ -120,7 +120,7 @@ describe("Overload (Kicker {2}, CR 702.33 / 202.3)", () => {
 });
 
 // Obliterate — "This spell can't be countered. Destroy all artifacts,
-// creatures, and lands. They can't be regenerated." (CR 701.5c, 701.7,
+// creatures, and lands. They can't be regenerated." (CR 113.6g, 701.7,
 // 701.15c, issue #1065). Same NOT-DSL-migratable shape as Wrath of God /
 // Damnation / Jokulhaups (destroyAll + cantBeRegenerated); the card-specific
 // assertion here is the artifact+creature+LAND scope and the regen-shield
@@ -134,7 +134,7 @@ registerTokenDefinition({
     manaCost: { X: 1 },
     types: ["Artifact"],
 });
-describe("Obliterate (CR 701.5c can't-be-countered, 701.7 destroy, 701.15c regen suppression)", () => {
+describe("Obliterate (CR 113.6g can't-be-countered, 701.7 destroy, 701.15c regen suppression)", () => {
     it("destroys every artifact, creature, and land on both battlefields", () => {
         const artifact = makeInstance(TEST_ARTIFACT_ID, {
             id: "artifact",
@@ -213,7 +213,7 @@ describe("Obliterate (CR 701.5c can't-be-countered, 701.7 destroy, 701.15c regen
 // Urza's Rage — "Kicker {8}{R}. This spell can't be countered. Urza's Rage
 // deals 3 damage to any target. If this spell was kicked, instead it deals
 // 10 damage to that permanent or player and the damage can't be prevented."
-// (CR 701.5c, 702.33, 120.1, 615, issue #1065). The `unpreventable` dealDamage
+// (CR 113.6g, 702.33, 120.1, 615, issue #1065). The `unpreventable` dealDamage
 // param and the can't-be-countered mechanism are proven generically in
 // `interpreter.test.ts`; this asserts the card's specific 3-vs-10 split and
 // declarations.
@@ -226,7 +226,7 @@ function castUrzasRage(kicked: boolean) {
     resolveTopOfStack(state);
     return state.players[1].life;
 }
-describe("Urza's Rage (Kicker {8}{R}, CR 701.5c / 702.33 / 615)", () => {
+describe("Urza's Rage (Kicker {8}{R}, CR 113.6g / 702.33 / 615)", () => {
     it("unkicked deals 3 damage to any target", () => {
         expect(castUrzasRage(false)).toBe(17); // 20 - 3
     });

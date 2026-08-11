@@ -238,7 +238,7 @@ describe("Spectral Shield (Aura +0/+2 + can't be targeted by spells, CR 113.3)",
 
 // --- Multicolour free tranche (#635) ---------------------------------------
 
-describe("Altar of Bone (sac-creature additional cost + tutor to hand, CR 117.9 / 701.19)", () => {
+describe("Altar of Bone (sac-creature additional cost + tutor to hand, CR 118.8 / 701.19)", () => {
     it("searches a creature card into hand and shuffles the library", () => {
         const creature = makeInstance(getCardByName("Grizzly Bears").id, {
             id: "tutored",
@@ -772,7 +772,7 @@ describe("Monsoon — each end step: tap Islands + damage = count (CR 603.6a / 7
     });
 });
 
-describe("Mountain Titan — arms an until-EOT black-cast +1/+1 rider (CR 605 / 611.1b / 122.1)", () => {
+describe("Mountain Titan — arms an until-EOT black-cast +1/+1 rider (CR 605 / 611.2a / 122.1)", () => {
     it("the activated ability grants the cast-watch rider to self until end of turn", () => {
         const titan = makeInstance(mountainTitan.id, {
             id: "titan",
@@ -1770,7 +1770,7 @@ describe("Diabolic Vision (look at top 5, keep 1, reorder the rest on top, CR 40
     });
 });
 
-describe("Elemental Augury ({3}: look at target player's top 3, reorder in place, CR 401 / 114.6-adjacent)", () => {
+describe("Elemental Augury ({3}: look at target player's top 3, reorder in place, CR 401 / 115.7-adjacent)", () => {
     it("reorders the target player's top three cards, known only to the caster (cross-player scry)", () => {
         const state = makeState({
             players: [

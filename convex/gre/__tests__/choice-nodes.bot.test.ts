@@ -13,7 +13,7 @@ import { resolveTopOfStack } from "../state";
 import type { CardDefinition, EffectOp, MayPayCost } from "../../cards/types";
 import { registerTokenDefinition } from "../../cards";
 
-/** A fixed-cardinal sacrifice leg (CR 701.16b) over creatures. */
+/** A fixed-cardinal sacrifice leg (CR 701.21a) over creatures. */
 const SAC_ONE_CREATURE: MayPayCost = {
     permanent: {
         action: "sacrifice",
@@ -243,7 +243,7 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         expect(cands.map((c) => c.key)).toEqual(["may-pay:no"]);
     });
 
-    it("may-pay (CR 701.16b): a fixed sacrifice leg offers a worst-first victim set", () => {
+    it("may-pay (CR 701.21a): a fixed sacrifice leg offers a worst-first victim set", () => {
         const state = stateWithChoice(
             {
                 kind: "may-pay",
@@ -1701,7 +1701,7 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
 
 describe("decidingPlayer / enumerateMoves mirror (issue #1520)", () => {
     it("decidingPlayer is non-null exactly when enumerateMoves is non-empty for a pendingCompanionPay", () => {
-        // CR 116.2 / 702.139f — a live companion payment is a continuation
+        // CR 116.2 / 702.139a — a live companion payment is a continuation
         // the executor drives atomically, not a fresh macro-move (mirrors
         // pendingCast/pendingTarget/pendingActivation). Before the fix,
         // `decidingPlayer` didn't gate on `pendingCompanionPay`, so it named

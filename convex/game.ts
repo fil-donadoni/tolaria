@@ -326,7 +326,7 @@ import { effectivePermanentView } from "./gre/permanentView";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import { makeMulliganState, recordDeclaration } from "./gre/mulligan";
 import type { Phase, ManaRestriction } from "./gre/types";
-// CR 611.1b / 613.1f (issue #1880) — the post-layer activated-ability set now
+// CR 611.2a / 613.1f (issue #1880) — the post-layer activated-ability set now
 // lives at GRE level so the leaf `gre/constants.ts` mana probes can reach it
 // without importing this module; re-exported below for back-compat with every
 // existing `from "./game"` / `from "../../game"` import site.
@@ -711,7 +711,7 @@ async function saveGameTick(
         expectedInputKind: state.expectedInput?.kind,
         // issue #1778 review finding 1: NOT `state.expectedInput?.playerId` —
         // that single id missed the non-active combat-damage assigner
-        // (banding, CR 702.21j-k) and could deadlock a subscriber gating on
+        // (banding, CR 702.22j-k) and could deadlock a subscriber gating on
         // it. `computeOwedPlayerIds` folds in the `damageAssignerIds`
         // sub-flow so every player who genuinely owes input this tick is
         // named, even when it's not `priorityPlayerId`.
@@ -1392,7 +1392,7 @@ function manaTapNeedsChoice(
  *  (no riders), and `choiceIndex` is the ability-LOCAL index a Mana Battery
  *  reads as its counter-removal count. Null when the index is out of range.
  *
- *  CR 113.1 / 611.1b (issue #1880) — the id is resolved against the POST-LAYER
+ *  CR 113.1 / 611.2a (issue #1880) — the id is resolved against the POST-LAYER
  *  effective set, the same list `getManaTapOptionsDetailed` enumerated the
  *  option from. Resolving against `def.activatedAbilities` alone returned
  *  `null` for a GRANTED option, which the caller cannot distinguish from an
@@ -1975,7 +1975,7 @@ function canPayExileFromGraveyard(
  *  graveyard existence, CR 111.7). COLOUR LEG ONLY — delegates to the shared
  *  `isExileCostEligible` (issue #1659) so this authoritative server check can
  *  never drift from the bot view / dialog mirrors. Not `excludeInstanceId`-aware:
- *  callers that also need CR 702.34e's "can't exile itself" check apply that
+ *  callers that also need CR 601.2a's "can't exile itself" check apply that
  *  separately (`recordCastExileCostPick`'s own check at commit carries its own
  *  distinct error message and stays independent of this helper). The sentinel
  *  `""` never matches a real instance id — ids are allocated `1, 2, 3, …`
@@ -1988,8 +1988,9 @@ function graveyardCardMatchesColor(
 }
 
 /** True iff `player`'s OWN graveyard holds `count` cards matching `color`,
- *  EXCLUDING `excludeInstanceId` (the flashback card itself — CR 702.34e "You
- *  can't exile <this> to pay for its own flashback cost"). Gates the legality
+ *  EXCLUDING `excludeInstanceId` (the flashback card itself — casting it moves
+ *  it from the graveyard to the stack before its costs are paid, CR 601.2a, so
+ *  it can never be exiled for its own cost). Gates the legality
  *  of a `flashbackExileFromGraveyard` cost at cast announcement (Flash of
  *  Insight). */
 function canPayFlashbackExile(
@@ -2384,7 +2385,7 @@ export function flashbackStackFlags(zone: CastFromZone): {
 /** CR 702.34 / 702.138 / 305.1-analog / 117.6-analog — the stack-item flags a
  *  graveyard cast adds, choosing between Escape, Flashback, and every OTHER
  *  graveyard-cast mechanism by the card's live capability:
- *   - Escape (CR 702.138e): `castFromGraveyard` + `escaped` — the resulting
+ *   - Escape (CR 702.138b): `castFromGraveyard` + `escaped` — the resulting
  *     permanent escaped. NO `exileOnResolve` (the card resolves normally).
  *   - Flashback (CR 702.34a): `castFromGraveyard` + `exileOnResolve` — the card
  *     is exiled as it leaves the stack.
@@ -2429,7 +2430,7 @@ export function graveyardCastStackFlags(
  *  spell to exile (instead of the graveyard) and schedule its next-upkeep
  *  reflexive Cast/Decline trigger. Gated on BOTH the card having rebound AND
  *  the cast originating from HAND — this single gate is what makes CR
- *  702.88d free: the later exile recast has `zone === "exile"`, so it never
+ *  702.88a free: the later exile recast has `zone === "exile"`, so it never
  *  re-stamps the flag and can never rebound again. Empty for every other
  *  cast (a card with no rebound, or a rebound card recast from exile/
  *  graveyard). Exported for symmetry with `flashbackStackFlags` / a future
@@ -2463,7 +2464,7 @@ export function castRawManaCost(
     if (zone === "exile" && card.castFromExileWithoutPayingManaCost) {
         return {};
     }
-    // CR 702.35d — a card discarded via Madness is cast from exile for its
+    // CR 702.35a — a card discarded via Madness is cast from exile for its
     // madness cost, not its printed mana cost. `Madness {0}` is the empty cost.
     if (zone === "exile" && card.madnessExiled) {
         return getMadnessCost(card) ?? {};
@@ -3172,7 +3173,7 @@ export function tryAutoCommitPendingCast(
     ) {
         return null;
     }
-    // CR 601.2f / 117.9 / 702.51 / 702.34a / 118.9 — every DEFERRED cost pick
+    // CR 601.2f / 118.8 / 702.51 / 702.34a / 118.9 — every DEFERRED cost pick
     // (filtered sacrifice incl. Drought's static tax, the exile additional cost,
     // convoke's creature picker, the flashback/escape/delve graveyard exile, the
     // alternative-cost hand leg) blocks commit until the caster has named the
@@ -3246,7 +3247,7 @@ export function tryAutoCommitPendingCast(
         : undefined;
     commitLandsForCost(player, state.pendingCast.manaCost);
 
-    // CR 117.9 / 701.21a — execute the player-chosen filtered sacrifice(s)
+    // CR 118.8 / 701.21a — execute the player-chosen filtered sacrifice(s)
     // (Drought / own additional cost) through the unified layer. The own-cost
     // requirement is snapshot-flagged: its mana value + subtypes ride on the
     // stack item, read at resolve via SpellContext.getAdditionalSacrificeMv /
@@ -3292,7 +3293,7 @@ export function tryAutoCommitPendingCast(
     // caster's own graveyard to their exile. Re-check presence at commit
     // (vanished-card policy): if any picked card is no longer in the graveyard,
     // drop the pendingCast silently. Runs BEFORE the flashback card itself
-    // leaves the graveyard below (the picks never include it — CR 702.34e).
+    // leaves the graveyard below (the picks never include it — CR 601.2a).
     if (castExile?.pickedCardIds) {
         // CR 702.34a / 118.5 — the picked cost cards leave the caster's own
         // graveyard (default) or hand (`zone: "hand"`, the exile-from-hand
@@ -5235,7 +5236,7 @@ export const playCard = mutation({
     },
 });
 
-/** CR 116.2 / 702.139f (ADR 0064) — the `summon-companion` special action:
+/** CR 116.2 / 702.139a (ADR 0064) — the `summon-companion` special action:
  *  once per game, at sorcery timing, pay {3} (auto-tapped) to move the
  *  declared companion from its slot into hand — no stack item. Legality is
  *  the single `canSummonCompanion` predicate (gre/companion.ts), shared with
@@ -5302,7 +5303,7 @@ export const summonCompanion = mutation({
             const v2 = produced[color];
             if (v2) player.manaPool[color] = (player.manaPool[color] ?? 0) + v2;
         }
-        // CR 702.139f — pay the flat {3}, no card/restricted-mana eligibility
+        // CR 702.139a — pay the flat {3}, no card/restricted-mana eligibility
         // (a special action, not a spell cast — restricted mana never applies).
         payManaCostForSpell(player, COMPANION_SUMMON_COST, [], subs);
         commitLandsForCost(player, COMPANION_SUMMON_COST);
@@ -5644,7 +5645,7 @@ export function finalizeTargetSelection(
     pt: PendingTarget,
     playerId: string
 ): void {
-    // CR 707.10b / 114.6 / 603.3d (issue #2283) — the three ENGINE-RAISED
+    // CR 707.10b / 115.7 / 603.3d (issue #2283) — the three ENGINE-RAISED
     // origins (`"copy-retarget"` / `"retarget"` / `"trigger"`) write their
     // targets onto an object already on the stack and pay nothing. They live in
     // `gre/pendingTargetOrigin.ts` as the SINGLE AUTHORITY, because the bot's
@@ -5760,6 +5761,9 @@ export function finalizeTargetSelection(
                     ability.cost.sacrificeFilter!,
                     {
                         selfControllerId: player.id,
+                        // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact":
+                        // the source is not a legal payment for its own cost.
+                        selfInstanceId: card.id,
                         supertypesOf: liveSupertypesOf,
                     }
                 )
@@ -6175,8 +6179,8 @@ export function finalizeTargetSelection(
     // must open the additional-cost picker BEFORE mana, even when the pool
     // already covers the mana — otherwise the spell would commit without the
     // extra cost being paid. The picker carries the targets along on
-    // pendingCast so the resolve still sees them (CR 117.9 / 601.2f).
-    // CR 117.9 / 601.2f / 701.21a — assemble the cast's player-chosen filtered
+    // pendingCast so the resolve still sees them (CR 118.8 / 601.2f).
+    // CR 118.8 / 601.2f / 701.21a — assemble the cast's player-chosen filtered
     // sacrifices (own additional cost + Drought). The exile additional cost
     // still rides on `pendingCast.additionalCost`. A spell with an exile cost or
     // a non-fungible sacrifice choice parks BEFORE mana so the cost is chosen
@@ -6560,7 +6564,7 @@ function assertStaticAdditionalCostAffordable(
 }
 
 /** Builds the additional-cost picker descriptor for a spell's
- *  `additionalCosts` (CR 117.9 / 601.2f), validating up-front that the caster
+ *  `additionalCosts` (CR 118.8 / 601.2f), validating up-front that the caster
  *  controls at least one legal permanent (the cast is illegal otherwise). Both
  *  the `sacrificeFilter` (sacrifice) and `exileFilter` (exile — Soul Exchange)
  *  forms route through the same picker; the `kind` decides whether the picked
@@ -6589,7 +6593,7 @@ export function buildAdditionalCostPicker(
             selfControllerId: player.id,
         });
     });
-    // CR 117.9 / 601.2f — with `getLegalActions` (convex/gre/rules.ts)
+    // CR 118.8 / 601.2f — with `getLegalActions` (convex/gre/rules.ts)
     // gating "cast" on additional-cost payability, `announceCast` never
     // reaches this function with zero legal candidates (`assertLegalAction`
     // rejects the mutation first). This throw is now an unreachable
@@ -6714,7 +6718,7 @@ export function assertKickerAnnouncementLegal(
 }
 
 /** Apply a selection and extract the snapshot-flagged victim's mv/subtypes/power
- *  for the resulting stack item (CR 117.9 / 602.1 — Priest of Yawgmoth,
+ *  for the resulting stack item (CR 118.8 / 602.1 — Priest of Yawgmoth,
  *  Freyalise Supplicant). Shared by the cast and activation commit paths. */
 function sacrificeSnapshotFromSelection(
     selection: SacrificeSelection | undefined,
@@ -6824,7 +6828,7 @@ export const announceCast = mutation({
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
 
-        // CR 702.35d — the owner accepted the reflexive Madness cast-choice by
+        // CR 702.35a — the owner accepted the reflexive Madness cast-choice by
         // casting the exiled card: consume the choice so the normal cast flow
         // (priority, targets, mana) runs. Must run BEFORE the priority /
         // pending-choice gates below — otherwise the pending choice would make
@@ -7077,7 +7081,16 @@ export const announceCast = mutation({
             // A divide-as-you-choose spell with a zero total (Fire Covenant /
             // Meteor Shower with X = 0) takes no targets — CR 601.2d, there is
             // nothing to divide. Fall through to the no-target cast path.
-            divideTotal !== 0;
+            divideTotal !== 0 &&
+            // CR 601.2c — an "up to X" range (`{ min: 0, max }`, Pest
+            // Infestation / Force of Vigor) with a resolved max of 0 (X = 0,
+            // or a fixed zero-width range) takes no targets, same as the
+            // plain-number `resolvedCount > 0` check above. Without this, an
+            // object-shaped `resolvedCount` always satisfied the first
+            // clause regardless of its value, so X = 0 still routed into a
+            // `{ min: 0, max: 0 }` target-selection banner the caster had to
+            // Confirm past for no reason.
+            (typeof resolvedCount !== "object" || resolvedCount.max !== 0);
 
         if (activeTargetRequirement && requiresTargets) {
             // CR 202.2 / 702.16b: source colors derived from the casting
@@ -7094,13 +7107,23 @@ export const announceCast = mutation({
                 args.playerId,
                 chosenX
             );
-            if (legalTargets.length === 0) {
-                throw new Error("No legal targets available");
-            }
-            // CR 601.2c: must be able to choose enough legal targets.
+            // CR 601.2c: must be able to choose enough legal targets. A
+            // min-0 requirement ("up to X" / "up to N", Pest Infestation /
+            // Force of Vigor) is legal to announce with ZERO legal targets
+            // on the board — the sibling checks already get this right
+            // (`hasEnoughLegalTargets`'s `required <= 0` early return,
+            // gre/rules.ts, and the client hint's identical guard,
+            // src/lib/card-utils.ts) — so `required` must be resolved
+            // BEFORE deciding whether an empty legal-target set is fatal,
+            // not after an unconditional throw on `legalTargets.length ===
+            // 0`.
             const required = minTargetCount(resolvedCount!);
             if (legalTargets.length < required) {
-                throw new Error("Not enough legal targets");
+                throw new Error(
+                    legalTargets.length === 0
+                        ? "No legal targets available"
+                        : "Not enough legal targets"
+                );
             }
             // CR 601.2c — a spell with additional INDEPENDENT target groups
             // (Fumarole's "target creature AND target land") is legal only if
@@ -7355,7 +7378,7 @@ export const announceCast = mutation({
             return;
         }
 
-        // No targets needed — proceed to additional-cost picker (CR 117.9 /
+        // No targets needed — proceed to additional-cost picker (CR 118.8 /
         // 601.2f) or directly to mana payment / cast if no additional cost.
         // CR 702.34a — a Flashback cast pays the flashback cost from the
         // graveyard instead of the printed mana cost.
@@ -7403,7 +7426,7 @@ export const announceCast = mutation({
             "spell"
         );
 
-        // CR 117.9 / 601.2f / 701.21a — assemble the cast's player-chosen
+        // CR 118.8 / 601.2f / 701.21a — assemble the cast's player-chosen
         // filtered sacrifices (own additional cost + Drought). Exile rides on
         // `additionalCost`; a non-fungible sacrifice or an exile cost parks.
         const { selection: ownSac, exilePicker } = buildCastSacrificeSelection(
@@ -7455,7 +7478,7 @@ export const announceCast = mutation({
         // cost "Exile X blue cards from your graveyard". Applies ONLY on a
         // flashback cast (from the graveyard); X = the announced chosenX.
         // Validate the caster's own graveyard holds enough matching cards
-        // (excluding the flashback card itself, CR 702.34e), then open the
+        // (excluding the flashback card itself, CR 601.2a), then open the
         // picker so commit gates on it. A zero-X flashback cast has no exile
         // cost (the spell looks at 0 cards).
         const fbExileSpec =
@@ -8334,7 +8357,7 @@ export const resolveManaSpendChoice = mutation({
 });
 
 /** Cancel a pending cast: rollback all taps (CR 601.2 reversal). */
-/** Picks a permanent to pay the spell's additional cost (CR 117.9 /
+/** Picks a permanent to pay the spell's additional cost (CR 118.8 /
  *  601.2f). Only valid while pendingCast is in its additional-cost picker
  *  stage. On selection, attempts auto-commit; if mana isn't yet covered the
  *  player continues to tap lands and commit completes via tryAutoCommitPendingCast. */
@@ -9104,7 +9127,7 @@ export const selectActivationDiscardCost = mutation({
  *  graveyard" cost (CR 702.34a / 118.5 — Flash of Insight). Validates that the
  *  pick count equals the announced X, that every card is in the caster's OWN
  *  graveyard, matches the colour filter (CR 105.2), is not a duplicate, and is
- *  not the flashback card itself (CR 702.34e). Only RECORDS the pick — the
+ *  not the flashback card itself (CR 601.2a). Only RECORDS the pick — the
  *  cards move graveyard → exile at cast commit (`tryAutoCommitPendingCast`), so
  *  cancelling leaves the graveyard untouched. Pure (no ctx) so it is unit-tested
  *  directly, mirroring the flashback capability suite (issue #944). */
@@ -9159,7 +9182,7 @@ export function recordCastExileCostPick(
     const sourceCards = sourceZone === "hand" ? player.hand : player.graveyard;
     for (const id of cardInstanceIds) {
         if (id === ec.excludeInstanceId) {
-            // CR 702.34e — the flashback card can't pay for its own cost.
+            // CR 601.2a — the flashback card can't pay for its own cost.
             throw new Error(
                 "Can't exile the flashback card itself to pay its cost"
             );
@@ -9243,7 +9266,7 @@ export const selectCastExileCost = mutation({
 /** CR 702.51a / 601.2g (`payWith`, ADR 0063 — issue #1338) — records the
  *  player's Convoke creature picks. Validates each id is an UNTAPPED CREATURE
  *  the caster controls (a creature tapped for convoke is not paying a `{T}`
- *  cost, so summoning sickness is irrelevant — CR 702.51e), that the count is in
+ *  cost, so summoning sickness is irrelevant — CR 602.5a), that the count is in
  *  `min..max`, and that the chosen creatures can COLOUR-COVER the spell's
  *  coloured + guild-hybrid pips (the shared greedy `coverColoredAndHybridPips`).
  *  Then reduces this cast's remaining cost — deleting each single-colour pip
@@ -10150,7 +10173,7 @@ export const cancelTarget = mutation({
             return;
         }
 
-        // CR 707.10b / 114.6 — declining a copy-retarget OR an original-spell
+        // CR 707.10b / 115.7 — declining a copy-retarget OR an original-spell
         // retarget (Reflecting Mirror) is not aborting a cast: the targeted
         // spell stays on the stack with its current targets and a fresh
         // priority round begins (the copying / retargeting effect has already
@@ -10285,7 +10308,7 @@ export const toggleAttacker = mutation({
                     state.combat.attackTargets = undefined;
                 }
             }
-            // CR 702.21e: a deselected attacker leaves any band it was in.
+            // CR 702.22f: a deselected attacker leaves any band it was in.
             // Drop the now-stale member and discard bands that fall below a
             // legal size (need 2+ members, 1+ with banding).
             if (state.combat.bands) {
@@ -10303,7 +10326,7 @@ export const toggleAttacker = mutation({
                                 player.battlefield.find((c) => c.id === id)
                             )
                             .filter((c): c is NonNullable<typeof c> => !!c);
-                        // CR 702.21e / 702.22j — the surviving members must
+                        // CR 702.22c / 702.22j — the surviving members must
                         // still form a legal band (plain or bands-with-other).
                         return isLegalBandComposition(members);
                     });
@@ -10356,7 +10379,7 @@ export const toggleAttacker = mutation({
     },
 });
 
-/** Group selected attackers into a band (CR 702.21e). A band must hold 2+
+/** Group selected attackers into a band (CR 702.22c). A band must hold 2+
  *  attackers, at least one with banding and at most one without, and no
  *  attacker may belong to more than one band. */
 export const createBand = mutation({
@@ -10405,7 +10428,7 @@ export const createBand = mutation({
             return card;
         });
 
-        // CR 702.21e: 1+ creature with banding, at most 1 without.
+        // CR 702.22c: 1+ creature with banding, at most 1 without.
         if (!isLegalBandComposition(members)) {
             throw new Error(
                 "A band needs a creature with banding and at most one creature without"
@@ -10436,7 +10459,7 @@ export const createBand = mutation({
     },
 });
 
-/** Disband a previously declared band (CR 702.21e — band declaration is part
+/** Disband a previously declared band (CR 702.22c — band declaration is part
  *  of the still-open attacker declaration and can be revised). */
 export const removeBand = mutation({
     args: {
@@ -10759,7 +10782,7 @@ export const confirmAttackers = mutation({
         state.combat.attackerIds = foldedAttackers;
         if (droppedAttackers.length > 0) {
             // A dropped attacker takes its planeswalker attack target (CR
-            // 508.1a) and its band membership (CR 702.21e) with it — the same
+            // 508.1a) and its band membership (CR 702.22f) with it — the same
             // cleanup the deselect branch of `toggleAttacker` performs.
             if (state.combat.attackTargets) {
                 for (const id of droppedAttackers) {
@@ -11331,7 +11354,7 @@ export const confirmBlockers = mutation({
         // condition-bearing statics that read `isBlocking`, e.g. Snow Devil's
         // conditional first strike) BEFORE anything downstream reads
         // `staticAbilities`: `drainAutoPasses` below can run all the way into
-        // `advancePhase`'s CR 510.5 first-strike-step skip decision without an
+        // `advancePhase`'s CR 510.4 first-strike-step skip decision without an
         // intervening SBA pass (issue #1826).
         markDeclaredBlockers(state);
 
@@ -11398,7 +11421,7 @@ export const setDamageAssignment = mutation({
         }
 
         const sourceId = args.attackerId;
-        // CR 702.21j-k: the assigner is recorded per source. Without banding
+        // CR 702.22j-k: the assigner is recorded per source. Without banding
         // this is always the active player (the attacker's controller).
         const assignerId = state.combat.damageAssignerIds?.[sourceId];
         if (!assignerId) {
@@ -11481,7 +11504,7 @@ export const setDamageAssignment = mutation({
 });
 
 /** Confirm one assigner's portion of combat damage. Damage applies once every
- *  distinct assigner has confirmed (CR 702.21j-k can split authority between
+ *  distinct assigner has confirmed (CR 702.22j-k can split authority between
  *  the attacking and defending players). */
 export const confirmDamage = mutation({
     args: {
@@ -11638,7 +11661,7 @@ export const passPriority = mutation({
             resolveTopOfStack(state);
             if ((state.pendingChoices?.length ?? 0) > 0) {
                 // Resolution suspended awaiting player choices (CR 608.2) — this
-                // also covers the reflexive Madness cast-choice (CR 702.35d),
+                // also covers the reflexive Madness cast-choice (CR 702.35a),
                 // which resolveTopOfStack pushes as a blocking pending choice.
                 // Hand priority to the chooser; the gate on passPriority and
                 // other priority-driven mutations prevents any action other
@@ -11736,7 +11759,7 @@ export const submitMayPay = mutation({
         gameId: v.id("games"),
         playerId: v.string(),
         accept: v.boolean(),
-        // CR 701.16b — the payer's chosen sacrifice victim id(s) when the
+        // CR 701.21a — the payer's chosen sacrifice victim id(s) when the
         // may-pay's sacrifice leg admits a real choice. Omitted for a plain
         // yes/no may-pay or an auto-resolving single-candidate sacrifice.
         sacrificeIds: v.optional(v.array(v.string())),
@@ -11808,7 +11831,7 @@ export const submitLandEntryChoice = mutation({
     },
 });
 
-/** CR 702.35d — declines a reflexive `madness-cast` choice: puts the exiled
+/** CR 702.35a — declines a reflexive `madness-cast` choice: puts the exiled
  *  card into its owner's graveyard immediately. The ACCEPT ("Cast") is NOT here
  *  — the client fires the ordinary `announceCast` on the exiled card, which
  *  consumes the choice and runs the normal cast flow. This mutation is the
@@ -12675,9 +12698,6 @@ export function activateAbilityOnState(
             [],
             abilitySourcePower
         );
-        if (legal.length === 0) {
-            throw new Error("No legal targets available");
-        }
         let abilityCount = resolveTargetCount(
             effectiveTargetReq.count,
             targetChosenX
@@ -12692,9 +12712,24 @@ export function activateAbilityOnState(
         // 601.2c distinct-targets fix, issue #1951 review round 2, is what
         // makes the dead-end reachable: a repeat pick used to silently
         // paper over the shortfall).
+        //
+        // CR 601.2c — a min-0 requirement ("up to one" / "up to N", Teferi,
+        // Time Raveler's -3 "Return up to one target artifact, creature, or
+        // enchantment... Draw a card", Sorin, Lord of Innistrad's -6, Minsc
+        // & Boo's +1) is legal to activate with ZERO legal targets on the
+        // board — same rule the cast path's `required` reorder above
+        // enforces. `abilityRequired` must therefore be resolved BEFORE
+        // deciding whether an empty legal-target set is fatal, not after an
+        // unconditional throw on `legal.length === 0`: that ordering used to
+        // reject Teferi's -3 outright on an empty board, losing its
+        // unconditional "Draw a card" rider (issue #2369 review round 2).
         const abilityRequired = minTargetCount(abilityCount);
         if (legal.length < abilityRequired) {
-            throw new Error("Not enough legal targets");
+            throw new Error(
+                legal.length === 0
+                    ? "No legal targets available"
+                    : "Not enough legal targets"
+            );
         }
         // CR 601.2d / 120.4 — divide-as-you-choose budget for an activated
         // ability (Arc Mage). Mirrors the spell-cast path: resolve the total
@@ -12815,6 +12850,9 @@ export function activateAbilityOnState(
                 ability.cost.sacrificeFilter!,
                 {
                     selfControllerId: player.id,
+                    // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact":
+                    // the source is not a legal payment for its own cost.
+                    selfInstanceId: card.id,
                     supertypesOf: liveSupertypesOf,
                 }
             )

@@ -186,7 +186,7 @@ export function collapseForcedDelvePick(
 // Unlike Delve (generic-only) Convoke can pay a COLOURED pip — including a
 // guild-hybrid pip (`{B/G}`), which a creature of EITHER colour satisfies. A
 // creature tapped for convoke is NOT paying a `{T}` mana-ability cost, so
-// summoning sickness does NOT prevent convoking (CR 702.51e). Each creature taps
+// summoning sickness does NOT prevent convoking (CR 602.5a). Each creature taps
 // for at most one pip. Modeled as the same Model-2 pre-payment pending choice as
 // Delve (a creature PICKER, `PendingCast.convokeCreatureChoice`), never
 // auto-picked by the solver — tapping your best blocker is a tactical decision.
@@ -203,7 +203,7 @@ export function spellHasConvoke(card: CardInstanceState): boolean {
 
 /** CR 702.51a — the untapped creatures `player` controls that may be tapped for
  *  convoke. Summoning-sick creatures ARE eligible (convoke is not a `{T}`
- *  ability, CR 702.51e); the casting spell is on the stack, not the battlefield,
+ *  ability, CR 602.5a); the casting spell is on the stack, not the battlefield,
  *  so nothing else is excluded. */
 export function convokeEligibleCreatures(
     player: PlayerState

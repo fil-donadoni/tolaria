@@ -1,5 +1,5 @@
 // Integration: announceCast rejects an unpayable additional-cost sacrifice
-// cleanly instead of crashing (issue #944, CR 117.9 / 601.2f). A spell whose
+// cleanly instead of crashing (issue #944, CR 118.8 / 601.2f). A spell whose
 // additional cost is "sacrifice/exile a permanent matching a filter" must be
 // illegal to announce when the caster controls no matching permanent — you
 // can't announce a spell whose additional cost can't be paid.

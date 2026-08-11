@@ -138,7 +138,7 @@ describe("companion.ts — selectCompanion (CR 702.139c, auto-declare)", () => {
     });
 });
 
-describe("companion.ts — canSummonCompanion (CR 116.2 / 702.139f)", () => {
+describe("companion.ts — canSummonCompanion (CR 116.2 / 702.139a)", () => {
     function stateWithCompanion(overrides: Partial<PlayerState> = {}) {
         const p1 = makePlayer("p1", {
             battlefield: [

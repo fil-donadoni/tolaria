@@ -11,7 +11,7 @@
 // derives the tick from the REAL `computeOwedPlayerIds`/`computeExpectedInput`
 // (`convex/gre/expectedInput.ts`) run against `currentState` — NOT a
 // hand-picked `priorityPlayerId` echo — so a fixture where the combat-damage
-// assigner differs from `priorityPlayerId` (banding, CR 702.21j-k) exercises
+// assigner differs from `priorityPlayerId` (banding, CR 702.22j-k) exercises
 // the same gate the server actually applies (review finding 2: the old mock
 // baked in `expectedInputPlayerId: s.priorityPlayerId`, which is exactly the
 // assumption finding 1 proved false).
@@ -632,7 +632,7 @@ describe("useVsAiDriver (issue #110)", () => {
 
     // Issue #1778 review finding 1/2 — the permanent-deadlock regression: the
     // player who owes a multi-blocker/banding combat-damage assignment
-    // (CR 510.1c / 702.21j-k) is NOT necessarily `priorityPlayerId`.
+    // (CR 510.1c / 702.22j-k) is NOT necessarily `priorityPlayerId`.
     // `COMBAT_DAMAGE`/`FIRST_STRIKE_DAMAGE` entry sets
     // `priorityPlayerId = activePlayerId` regardless of who assigns
     // (`phases.ts`), and `setDamageAssignment`/`confirmDamage` gate with

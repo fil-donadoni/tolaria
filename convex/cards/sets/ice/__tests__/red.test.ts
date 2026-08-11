@@ -558,9 +558,9 @@ describe("Stone Spirit (CR 509.1b block restriction)", () => {
     });
 });
 
-// --- Vertigo (2 dmg to flyer + loses flying, CR 120.1 / 611.1b) ------------
+// --- Vertigo (2 dmg to flyer + loses flying, CR 120.1 / 611.2a) ------------
 
-describe("Vertigo (CR 120.1 damage + CR 611.1b lose flying)", () => {
+describe("Vertigo (CR 120.1 damage + CR 611.2a lose flying)", () => {
     it("deals 2 damage and removes flying until end of turn", () => {
         const flyer = vanilla("flyer", 2, 4, {
             controllerId: "p2",

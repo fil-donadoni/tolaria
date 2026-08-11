@@ -2,24 +2,30 @@
 // a second, free cast from exile at its caster's next upkeep instead of going
 // to the graveyard as it resolves.
 //
-// 702.88a "Rebound" means "If this spell is cast from your hand, instead of
-//         putting it into your graveyard as it resolves, exile it. At the
-//         beginning of your next upkeep, you may cast this spell from exile
-//         without paying its mana cost."
-// 702.88c "If a player doesn't cast a spell using its rebound ability, that
-//         spell remains exiled." — Decline leaves the card exiled forever;
-//         no zone change.
-// 702.88d The exile recast pays no mana cost and is NOT itself "cast from
-//         your hand" — it never reboundes again, and resolves to the
-//         graveyard exactly like an ordinary spell. Both follow from the
-//         SAME gate: only a hand-cast spell gets exiled+rescheduled
-//         (`finalizeSpellResolution`, state.ts), gated on the stack item's
-//         `reboundFromHand` flag, which is stamped ONLY at a from-hand cast
-//         commit (`reboundCastStackFlags`, game.ts) — AND consumed
-//         (`delete`d) the instant it redirects the resolution, since the
-//         SAME CardInstanceState object is what the exile recast later
-//         re-pushes onto the stack; leaving a stale `true` on it would
-//         silently re-trigger the redirect and rebound forever.
+// 702.88a Rebound appears on some instants and sorceries. It represents a
+//         static ability that functions while the spell is on the stack and may
+//         create a delayed triggered ability. "Rebound" means "If this spell
+//         was cast from your hand, instead of putting it into your graveyard as
+//         it resolves, exile it and, at the beginning of your next upkeep, you
+//         may cast this card from exile without paying its mana cost."
+// 702.88b Casting a spell as an effect of its rebound ability follows the rules
+//         for paying alternative costs in rules 601.2b and 601.2f–h.
+//
+// Two consequences the rule text does not spell out separately, both read off
+// 702.88a's "was cast from your hand" clause:
+//   • DECLINE leaves the card exiled forever — nothing moves it, so no zone
+//     change (contrast Madness, which bins the card).
+//   • The exile recast pays no mana cost and is NOT itself "cast from
+//     your hand" — it never rebounds again, and resolves to the
+//     graveyard exactly like an ordinary spell. Both follow from the
+//     SAME gate: only a hand-cast spell gets exiled+rescheduled
+//     (`finalizeSpellResolution`, state.ts), gated on the stack item's
+//     `reboundFromHand` flag, which is stamped ONLY at a from-hand cast
+//     commit (`reboundCastStackFlags`, game.ts) — AND consumed
+//     (`delete`d) the instant it redirects the resolution, since the
+//     SAME CardInstanceState object is what the exile recast later
+//     re-pushes onto the stack; leaving a stale `true` on it would
+//     silently re-trigger the redirect and rebound forever.
 //
 // Rebound is engine / cost-system infrastructure, like Flashback
 // (`convex/gre/flashback.ts`) and Madness (`convex/gre/madness.ts`) — NOT an
@@ -28,7 +34,7 @@
 // scheduling, and the alternative Cast/Decline pending-choice window live
 // here.
 //
-// Timing model (mirrors Madness's reflexive-trigger shape, CR 702.35d, but
+// Timing model (mirrors Madness's reflexive-trigger shape, CR 702.35a, but
 // scheduled via the DELAYED TRIGGER infra instead of an immediate
 // event-driven collection — "next upkeep" may be turns away):
 //   1. `finalizeSpellResolution` (state.ts) redirects a resolving hand-cast

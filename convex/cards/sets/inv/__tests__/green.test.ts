@@ -77,7 +77,7 @@ function answer(state: GameState, picks: string[]): void {
     });
 }
 
-describe("Blurred Mongoose (CR 701.5c can't-be-countered, 702.18 Shroud)", () => {
+describe("Blurred Mongoose (CR 113.6g can't-be-countered, 702.18 Shroud)", () => {
     it("shroud makes it an illegal target for a spell/ability, from any source (CR 702.18)", () => {
         const mongoose = makeInstance(blurredMongoose.id, {
             id: "mongoose",
@@ -113,7 +113,7 @@ describe("Blurred Mongoose (CR 701.5c can't-be-countered, 702.18 Shroud)", () =>
     });
 });
 
-describe("Kavu Chameleon (CR 701.5c can't-be-countered, 305.7 / 613.1d colour change)", () => {
+describe("Kavu Chameleon (CR 113.6g can't-be-countered, 305.7 / 613.1d colour change)", () => {
     it("becomes the chosen color and reverts to its printed color at CLEANUP (CR 514.2)", () => {
         const kavu = makeInstance(kavuChameleon.id, {
             id: "kavu",
@@ -163,7 +163,7 @@ describe("Kavu Chameleon (CR 701.5c can't-be-countered, 305.7 / 613.1d colour ch
 // already has a permanent unit test for `times` (ADR 0045 new-construct
 // regime); this is the CARD-level wiring assertion (review finding on issue
 // #1066 / PR #1091).
-describe("Wandering Stream (CR 119.3a life gain, Domain, issue #1066)", () => {
+describe("Wandering Stream (CR 119.3 life gain, Domain, issue #1066)", () => {
     it("gains 2 life for EACH basic land type controlled (times: 2)", () => {
         const state = makeState({
             players: [

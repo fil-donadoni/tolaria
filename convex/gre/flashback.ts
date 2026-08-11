@@ -2,12 +2,20 @@
 // sorcery card be cast from its owner's graveyard for an alternative mana cost,
 // then exiles the card as it resolves or leaves the stack.
 //
-// 702.34a "Flashback [cost]" means "You may cast this card from your graveyard
-//         by paying [cost] rather than paying its mana cost" and "If the
-//         flashback cost was paid, exile this card as it resolves or as it
-//         otherwise leaves the stack."
-// 702.34c Casting a spell using its flashback ability follows the normal cast
-//         timing rules for that card type (a sorcery flashback is sorcery-speed).
+// 702.34a Flashback appears on some instants and sorceries. It represents two
+//         static abilities: one that functions while the card is in a player's
+//         graveyard and another that functions while the card is on the stack.
+//         "Flashback [cost]" means "You may cast this card from your graveyard
+//         if the resulting spell is an instant or sorcery spell by paying
+//         [cost] rather than paying its mana cost" and "If the flashback cost
+//         was paid, exile this card instead of putting it anywhere else any
+//         time it would leave the stack." Casting a spell using its flashback
+//         ability follows the rules for paying alternative costs in rules
+//         601.2b and 601.2f–h.
+//
+// Normal cast-timing rules for the card type still apply (a sorcery flashback
+// is sorcery-speed, CR 117.1a) — flashback grants a cast PERMISSION from the
+// graveyard, not a timing exception.
 //
 // Flashback is engine/cost-system infrastructure, NOT an Effect Script Op — a
 // card's on-resolution effect stays DSL/`resolve()`; only the CAST permission
@@ -105,7 +113,7 @@ export function hasFlashback(card: CardInstanceState): boolean {
     return getNormalizedFlashback(card) !== undefined;
 }
 
-/** CR 702.34a / 118.5 / 702.34e — the number of cards in `player`'s OWN
+/** CR 702.34a / 118.5 / 601.2a — the number of cards in `player`'s OWN
  *  graveyard eligible to pay a `flashbackExileFromGraveyard` cost: matching
  *  `color` (undefined = any card), EXCLUDING `excludeInstanceId` (the flashback
  *  card can't pay for its own cost). This is BOTH the affordability bound

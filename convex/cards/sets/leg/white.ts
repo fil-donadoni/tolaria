@@ -838,7 +838,7 @@ export const alabasterPotion: CardDefinition = {
 // --- Enchantment triggers (CR 603) -----------------------------------------
 
 // Spiritual Sanctuary — "At the beginning of each player's upkeep, if that
-// player controls a Plains, they gain 1 life." (CR 603.6a + 603.4d if-clause.)
+// player controls a Plains, they gain 1 life." (CR 603.6a + 603.4 if-clause.)
 export const spiritualSanctuary: CardDefinition = {
     id: "654dd1e0-a91d-44ee-af20-c025bf360c3f",
     rarity: "rare",
@@ -1046,7 +1046,7 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
 
 // Osai Vultures — flying 1/1 with a carrion-counter death engine. Mirrors the
 // Scavenging Ghoul / Khabál Ghoul "end-step death-tally accrual" shape, but
-// (a) accrues a NAMED `carrion` counter (CR 122.1) gated by a CR 603.4d
+// (a) accrues a NAMED `carrion` counter (CR 122.1) gated by a CR 603.4
 // intervening-if ("if a creature died this turn" — at most one counter per
 // turn regardless of how many died, per the card's printed ruling), and
 // (b) spends two of those counters as a CR 122.6 / 118.5 activation cost to
@@ -1072,7 +1072,7 @@ export const osaiVultures: CardDefinition = {
                 "At the beginning of each end step, if a creature died this turn, put a carrion counter on this creature.",
             phase: "END_STEP",
             scope: "each",
-            // CR 603.4d intervening-if: the trigger only fires (and only
+            // CR 603.4 intervening-if: the trigger only fires (and only
             // resolves) while at least one creature has died this turn. A
             // single carrion counter is placed regardless of the death count
             // (the singular "a creature died this turn" condition, not a
@@ -1081,7 +1081,7 @@ export const osaiVultures: CardDefinition = {
                 (state?.deathsThisTurn ?? 0) > 0,
             // CR 122 (issue #841) — put one carrion counter on the source. The
             // "a creature died this turn" gate is the trigger's interveningIf
-            // (CR 603.4d); the effect itself is a fixed single-counter add.
+            // (CR 603.4); the effect itself is a fixed single-counter add.
             effects: [
                 {
                     op: "counters",
@@ -1170,7 +1170,7 @@ export const glyphOfLife: CardDefinition = {
 //     declare-attackers step, so the allow-list is every pre-blocker phase
 //     where an instant can be cast. Reuses the parametric `castPhaseRestriction`
 //     plumbing (shared by Teleport / Berserk); enforced in rules.ts and game.ts.
-//   • First strike until end of turn (CR 702.7, 611.1b layer 6) —
+//   • First strike until end of turn (CR 702.7, 611.2a layer 6) —
 //     `grantStaticAbility(target, "first strike", end-of-turn)`.
 //   • Conditional rampage 2 until end of turn (CR 702.23) — only if the target
 //     has no rampage at resolution. "Has rampage" is read from the effective
@@ -1202,7 +1202,7 @@ export const rapidFire: CardDefinition = {
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "permanent") return;
-        // First strike until end of turn (CR 702.7, 611.1b).
+        // First strike until end of turn (CR 702.7, 611.2a).
         ctx.grantStaticAbility(target, "first strike", {
             phase: "end-of-turn",
         });
@@ -1444,13 +1444,13 @@ export const clergyOfTheHolyNimbus: CardDefinition = {
 // Wall of Caltrops — {1}{W} 2/1 Wall, Defender. "Whenever this creature blocks
 // a creature, if at least one other Wall creature is blocking that creature and
 // no non-Wall creatures are blocking that creature, this creature gains banding
-// until end of turn." (CR 509.1h — block declaration; CR 603.4d intervening-if;
+// until end of turn." (CR 509.1h — block declaration; CR 603.4 intervening-if;
 // CR 702.22 banding; CR 514.2 cleanup expiry.)
 //
 // COMPOSITION (no new primitive). The "blocks a creature" event is the per-pair
 // BLOCKERS_CONFIRMED where Caltrops is the blocker (same source the Giant Shark
 // / Venom block-time triggers read). The multi-Wall co-block condition is a
-// classic intervening-if (CR 603.4d), re-checked at resolution against the live
+// classic intervening-if (CR 603.4), re-checked at resolution against the live
 // block graph: among every creature blocking the SAME attacker there must be
 // >=1 OTHER Wall and ZERO non-Wall blockers. On satisfaction we reuse the
 // shipped duration-scoped keyword grant (`grantStaticAbility`, Berserk's
@@ -1490,7 +1490,7 @@ function subtypesOf(
     return undefined;
 }
 
-/** The Wall of Caltrops grant condition (CR 603.4d intervening-if): among every
+/** The Wall of Caltrops grant condition (CR 603.4 intervening-if): among every
  *  creature blocking `attackerId`, at least one OTHER (≠ self) is a Wall and
  *  none of them is a non-Wall. Evaluated against the live block graph. */
 function caltropsConditionHolds(
@@ -1538,7 +1538,7 @@ export const wallOfCaltrops: CardDefinition = {
                 if (event.type !== "BLOCKERS_CONFIRMED") return false;
                 return event.blockerId === self.id;
             },
-            // Intervening-if (CR 603.4d): re-check the multi-Wall co-block at
+            // Intervening-if (CR 603.4): re-check the multi-Wall co-block at
             // resolution against the live block graph; fizzles if a non-Wall
             // joined or no other Wall is present.
             interveningIf: (event, self, state) => {

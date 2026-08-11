@@ -100,7 +100,7 @@ export const gravitySphere: CardDefinition = {
 // the may-pay gate (step 1) suspends for player input (CR 608.2 stepped
 // resolution). The "may copy" / "may choose a new target" clauses compose the
 // `copyResolvingSpell` (CR 707.12 "copy this spell") + `requestCopyRetarget`
-// (CR 707.12c new targets) primitives — the copy is a fresh resolution that
+// (CR 707.10c new targets) primitives — the copy is a fresh resolution that
 // can itself chain again if its damaged player pays {R}{R}.
 //
 // "that player or that permanent's controller" (CR 119.3): for a player target

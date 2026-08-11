@@ -1132,7 +1132,7 @@ describe("Part Water (X creatures gain islandwalk EOT, CR 702.19)", () => {
     });
 });
 
-describe("Osai Vultures (end-step carrion accrual + remove-two pump, CR 603.4d / 122 / 700.4)", () => {
+describe("Osai Vultures (end-step carrion accrual + remove-two pump, CR 603.4 / 122 / 700.4)", () => {
     function setup(deaths: number) {
         const vultures = makeInstance(osaiVultures.id, {
             id: "vultures",
@@ -1158,7 +1158,7 @@ describe("Osai Vultures (end-step carrion accrual + remove-two pump, CR 603.4d /
             activePlayerId: playerId,
         }) as StackItem["triggerEvent"];
 
-    it("gains a carrion counter at the end step when a creature died this turn (CR 603.4d)", () => {
+    it("gains a carrion counter at the end step when a creature died this turn (CR 603.4)", () => {
         const { state, vultures } = setup(1);
         resolveTrigger(state, vultures, "osai-vultures-carrion", endStep("p1"));
         const live = state.players[0].battlefield.find(
@@ -1176,7 +1176,7 @@ describe("Osai Vultures (end-step carrion accrual + remove-two pump, CR 603.4d /
         expect(live.counters?.carrion).toBe(1);
     });
 
-    it("adds NO counter on a turn with no deaths (intervening-if fizzles, CR 603.4d)", () => {
+    it("adds NO counter on a turn with no deaths (intervening-if fizzles, CR 603.4)", () => {
         const { state, vultures } = setup(0);
         resolveTrigger(state, vultures, "osai-vultures-carrion", endStep("p1"));
         const live = state.players[0].battlefield.find(
@@ -1370,7 +1370,7 @@ describe("Dwarven Song (creatures become red EOT, CR 305.7 layer 5)", () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rapid Fire ({3}{W} instant, #494) — cast only before blockers are declared
-// (CR 117.1b); target gains first strike EOT (CR 702.7, 611.1b) and, only if it
+// (CR 117.1b); target gains first strike EOT (CR 702.7, 611.2a) and, only if it
 // has no rampage, rampage 2 EOT (CR 702.23). Composes existing rampage (#380)
 // and first-strike grants with a conditional grant + the parametric cast-phase
 // restriction (shared with Teleport / Berserk).
@@ -1446,7 +1446,7 @@ describe("Rapid Fire (CR 117.1b cast timing + CR 702.23 conditional rampage)", (
         }
     });
 
-    it("grants first strike until end of turn (CR 702.7, 611.1b)", () => {
+    it("grants first strike until end of turn (CR 702.7, 611.2a)", () => {
         const { state } = setup(grizzlyBears);
         castAtTarget(state);
         const t = liveTarget(state);
@@ -2799,11 +2799,11 @@ describe("Greater Realm of Preservation (CR 615.1, 615.6 / 202.2)", () => {
 // Exercised through the REAL combat path: `emitBlockersConfirmedEvents` emits
 // the per-pair BLOCKERS_CONFIRMED events and pushes the matching block trigger
 // via `collectTriggers`; `resolveTopOfStack` re-checks the intervening-if
-// (CR 603.4d) against the live block graph before granting banding EOT
+// (CR 603.4) against the live block graph before granting banding EOT
 // (CR 702.22). This proves both the multi-Wall co-block condition and that the
 // granted keyword reaches `getDamageAssignerId`.
 // ──────────────────────────────────────────────────────────────────────────
-describe("Wall of Caltrops (conditional banding grant, CR 509.1h / 603.4d / 702.22)", () => {
+describe("Wall of Caltrops (conditional banding grant, CR 509.1h / 603.4 / 702.22)", () => {
     /** p2 fields an `attacker`; p1 fields Caltrops plus `coBlockers`, all
      *  assigned to that attacker at DECLARE_BLOCKERS. `coBlockers` lists the
      *  card definition for each additional blocker (Wall or not). Returns the

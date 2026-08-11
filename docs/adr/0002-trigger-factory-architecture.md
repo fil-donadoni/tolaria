@@ -85,7 +85,7 @@ This delivers two benefits:
 Two callback fields on every factory:
 
 - `condition?: (event, self, state) => boolean` — CR 603.4, check-time only.
-- `interveningIf?: (event, self, state) => boolean` — CR 603.4d, checked at
+- `interveningIf?: (event, self, state) => boolean` — CR 603.4, checked at
   trigger-check time AND re-checked at resolve time. If false at resolve,
   the trigger fizzles.
 
@@ -126,7 +126,7 @@ another-yours / any-other` set shared across `diedTrigger`,
 
 4. **Engine-level `interveningIf`** (rather than wrapping it inside the
    factory's `resolve`) is mandated by the project's "CR adherence 100%"
-   guideline. CR 603.4d fizzling is a game-event-level concept; the engine
+   guideline. CR 603.4 fizzling is a game-event-level concept; the engine
    should be able to log it, react to it, and present it in the UI as
    distinct from "trigger resolved but effect did nothing."
 

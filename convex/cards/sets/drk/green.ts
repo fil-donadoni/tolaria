@@ -174,7 +174,7 @@ export const elvesOfDeepShadow: CardDefinition = {
 // Wormwood Treefolk — {3}{G}{G} 4/4 Treefolk. "{G}{G}: This creature gains
 // forestwalk until end of turn and deals 2 damage to you.\n{B}{B}: This creature
 // gains swampwalk until end of turn and deals 2 damage to you." (CR 605
-// activated abilities; CR 611.1b temporary keyword grants at layer 6 expiring at
+// activated abilities; CR 611.2a temporary keyword grants at layer 6 expiring at
 // end of turn; CR 702.14 landwalk; each grant pays an additional self-damage.)
 export const wormwoodTreefolk: CardDefinition = {
     id: "2fa20173-e88a-4b14-9c54-14567ca5571c",
@@ -195,7 +195,7 @@ export const wormwoodTreefolk: CardDefinition = {
             cost: { mana: { G: 2 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant
-            // forestwalk until end of turn (CR 611.1b) + 2 damage to controller.
+            // forestwalk until end of turn (CR 611.2a) + 2 damage to controller.
             effects: [
                 {
                     op: "grantAbility",
@@ -213,7 +213,7 @@ export const wormwoodTreefolk: CardDefinition = {
             cost: { mana: { B: 2 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant
-            // swampwalk until end of turn (CR 611.1b) + 2 damage to controller.
+            // swampwalk until end of turn (CR 611.2a) + 2 damage to controller.
             effects: [
                 {
                     op: "grantAbility",
@@ -503,7 +503,7 @@ export const scarwoodHag: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant forestwalk to
-            // the announced target creature until end of turn (CR 611.1b). The
+            // the announced target creature until end of turn (CR 611.2a). The
             // sibling strip ability (removeStaticAbilities, a predicate closure)
             // stays resolve() — not JSON-expressible as an Op.
             effects: [

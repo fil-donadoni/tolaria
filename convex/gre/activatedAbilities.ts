@@ -11,7 +11,7 @@ export interface EffectiveActivatedAbility {
 }
 
 /** Every activated ability actually available on this permanent POST-LAYER
- *  (CR 611.1b / 613.1f, layer 6): native abilities from its `CardDefinition`
+ *  (CR 611.2a / 613.1f, layer 6): native abilities from its `CardDefinition`
  *  — dropped entirely while `abilitiesSuppressedBy` holds a "loses all
  *  abilities" suppression (Titania's Song) — PLUS every ability granted to it
  *  by another source (CR 113.1, e.g. Zombie Master's "{B}: Regenerate ~"

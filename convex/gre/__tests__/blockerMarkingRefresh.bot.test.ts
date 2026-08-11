@@ -10,7 +10,7 @@
 //   - `applyMoveInSearch` (`gre/search.ts`, the ISMCTS `declare-blockers`
 //     case) marked blockers and then called `drainAutoPasses` BEFORE its
 //     `checkStateBasedActions` — the same mark → drain → refresh order the
-//     `confirmBlockers` mutation had, so the search mis-simulated the CR 510.5
+//     `confirmBlockers` mutation had, so the search mis-simulated the CR 510.4
 //     first-strike-step skip;
 //   - `applyBlockAssignments` (`gre/applyMove.ts`, the 1-ply greedy probe)
 //     marked blockers and handed the state straight to `resolveCombatDamage` /
@@ -107,7 +107,7 @@ const BLOCK_MOVE: Move = {
     assignments: [{ blockerId: "wall", attackerId: "bear" }],
 } as Move;
 
-describe("ISMCTS block simulation sees an isBlocking-conditioned grant (CR 611.2c / 510.5, issue #1826)", () => {
+describe("ISMCTS block simulation sees an isBlocking-conditioned grant (CR 611.2c / 510.4, issue #1826)", () => {
     it("applyMoveInSearch materializes the grant before draining auto-passes, so the simulated combat runs the first-strike step", () => {
         const { state } = makeCombatState();
         state.autoPassPlayers = ["p1", "p2"];
@@ -119,7 +119,7 @@ describe("ISMCTS block simulation sees an isBlocking-conditioned grant (CR 611.2
 
         const p1 = state.players.find((p) => p.id === "p1")!;
         const p2 = state.players.find((p) => p.id === "p2")!;
-        // Pre-fix the drain reached the CR 510.5 skip check with stale
+        // Pre-fix the drain reached the CR 510.4 skip check with stale
         // `staticAbilities`, FIRST_STRIKE_DAMAGE was skipped, and both 2/2s
         // traded — so the search scored a blocker-loss line that cannot happen.
         expect(p2.battlefield.map((c) => c.id).sort()).toEqual([
@@ -132,7 +132,7 @@ describe("ISMCTS block simulation sees an isBlocking-conditioned grant (CR 611.2
     });
 });
 
-describe("1-ply greedy block probe sees an isBlocking-conditioned grant (CR 611.2c / 510.5, issue #1826)", () => {
+describe("1-ply greedy block probe sees an isBlocking-conditioned grant (CR 611.2c / 510.4, issue #1826)", () => {
     it("applyMoveForSearch materializes the grant before resolveCombatDamage, so the probe values the block with first strike", () => {
         const { state } = makeCombatState();
 

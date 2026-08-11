@@ -12,7 +12,7 @@
 // `echoPending` instance flag (state.ts): set true when a permanent whose
 // definition declares the `echo` keyword enters the battlefield, and cleared by
 // `ctx.markEchoPaid()` when this trigger resolves on the PAY branch. The
-// trigger's CR 603.4d intervening-if gates on the flag so it fires EXACTLY ONCE
+// trigger's CR 603.4 intervening-if gates on the flag so it fires EXACTLY ONCE
 // — on the controller's first upkeep after the permanent came under control —
 // and never again (the engine re-checks the intervening-if at resolution, and
 // the flag deliberately stays set through any may-pay suspension, only clearing
@@ -52,7 +52,7 @@ export function echoTrigger(args: EchoArgs): TriggeredAbility {
         phase: "UPKEEP",
         scope: "your",
         // CR 702.30a — fire only while the echo cost is still owed. Checked at
-        // trigger time AND re-checked at resolution (CR 603.4d): the flag stays
+        // trigger time AND re-checked at resolution (CR 603.4): the flag stays
         // set through any may-pay suspension and clears only after the pay
         // resolves, so the trigger neither fizzles mid-resolution nor re-fires.
         interveningIf: (_event, self: PermanentView) =>

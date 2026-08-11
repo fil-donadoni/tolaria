@@ -324,7 +324,7 @@ describe("Elvish Healer ({T}: damage prevention, CR 615)", () => {
 
 // --- Kelsinko Ranger ({1}{W}: green creature gains first strike) -----------
 
-describe("Kelsinko Ranger (grant first strike to green, CR 611.1b)", () => {
+describe("Kelsinko Ranger (grant first strike to green, CR 611.2a)", () => {
     it("grants first strike to the target green creature until end of turn", () => {
         const ranger = makeInstance(kelsinkoRanger.id, {
             id: "ranger",
@@ -357,9 +357,9 @@ describe("Kelsinko Ranger (grant first strike to green, CR 611.1b)", () => {
     });
 });
 
-// --- Kjeldoran Knight (self-pumps, CR 611.1b) ------------------------------
+// --- Kjeldoran Knight (self-pumps, CR 611.2a) ------------------------------
 
-describe("Kjeldoran Knight (self-pumps, CR 611.1b)", () => {
+describe("Kjeldoran Knight (self-pumps, CR 611.2a)", () => {
     function setup() {
         const knight = makeInstance(kjeldoranKnight.id, {
             id: "knight",
@@ -395,7 +395,7 @@ describe("Kjeldoran Knight (self-pumps, CR 611.1b)", () => {
 
 // --- Order of the White Shield (first strike grant + pump) ------------------
 
-describe("Order of the White Shield (grants + pump, CR 611.1b)", () => {
+describe("Order of the White Shield (grants + pump, CR 611.2a)", () => {
     function setup() {
         const order = makeInstance(orderOfTheWhiteShield.id, {
             id: "order",
@@ -655,9 +655,9 @@ describe("Hallowed Ground (return your land, CR 701.14)", () => {
     });
 });
 
-// --- Rally (blocking creatures +1/+1, CR 611.1b) ---------------------------
+// --- Rally (blocking creatures +1/+1, CR 611.2a) ---------------------------
 
-describe("Rally (blocking creatures +1/+1, CR 611.1b)", () => {
+describe("Rally (blocking creatures +1/+1, CR 611.2a)", () => {
     it("buffs every creature currently blocking", () => {
         const blocker = vanilla("blk", 1, 1, {
             controllerId: "p1",

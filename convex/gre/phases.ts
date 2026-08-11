@@ -102,7 +102,7 @@ const PHASE_ORDER: Phase[] = [
     "CLEANUP",
 ];
 
-/** Which damage step a creature deals damage in (CR 510.2-510.5, 702.7). */
+/** Which damage step a creature deals damage in (CR 510.2-510.4, 702.7). */
 export type DamageKind = "first-strike" | "regular";
 
 function hasFirstOrDoubleStrike(card: CardInstanceState): boolean {
@@ -112,7 +112,7 @@ function hasFirstOrDoubleStrike(card: CardInstanceState): boolean {
     );
 }
 
-/** CR 510.5: A creature deals damage in the first-strike step iff it has
+/** CR 510.4: A creature deals damage in the first-strike step iff it has
  *  first strike or double strike. It deals damage in the regular step iff
  *  it has no first strike, or it has double strike (which deals twice). */
 function dealsDamageIn(card: CardInstanceState, kind: DamageKind): boolean {
@@ -122,7 +122,7 @@ function dealsDamageIn(card: CardInstanceState, kind: DamageKind): boolean {
     return !fs || ds;
 }
 
-/** CR 510.5: first-strike damage step is skipped if no attacker or blocker
+/** CR 510.4: first-strike damage step is skipped if no attacker or blocker
  *  has first strike or double strike when the step would begin. */
 function anyCombatantHasFirstOrDoubleStrike(state: GameState): boolean {
     if (!state.combat) return false;
@@ -909,7 +909,7 @@ function hasDrawSkipReplacement(state: GameState, playerId: string): boolean {
     return false;
 }
 
-/** attackerId → blocker ids, band-expanded (CR 702.21e): a blocker assigned to
+/** attackerId → blocker ids, band-expanded (CR 702.22h): a blocker assigned to
  *  any band member blocks every member. Reduces to a plain inversion of
  *  blockerAssignments when no bands are declared. */
 function getBlockersPerAttacker(state: GameState): Record<string, string[]> {
@@ -1127,9 +1127,9 @@ function buildDefaultDamageAssignments(
         }
     }
 
-    // Blocker sources with 2+ targets exist only under banding (CR 702.21e): a
+    // Blocker sources with 2+ targets exist only under banding (CR 702.22h): a
     // blocker blocking a band. Seed all of its power onto the first band member
-    // — the assigning player (the attacker, CR 702.21k) redivides in the modal.
+    // — the assigning player (the attacker, CR 702.22k) redivides in the modal.
     const { attackersByBlocker } = getEffectiveBlockGraph(state);
     for (const [blockerId, attackerIds] of Object.entries(attackersByBlocker)) {
         if (attackerIds.length < 2) continue;
@@ -1150,7 +1150,7 @@ function buildDefaultDamageAssignments(
  * the graveyard. When `kind` is "first-strike" only creatures with first
  * strike or double strike deal damage (CR 510.2). When "regular", creatures
  * without first strike deal damage; creatures with double strike deal again
- * (CR 510.5).
+ * (CR 510.4).
  *
  * @param damageAssignments attackerId → { blockerId|defenderId: damage } — used
  *   only for multi-blocker attackers currently dealing damage in this step.
@@ -1166,7 +1166,7 @@ export function applyAllCombatDamage(
     const activePlayer = getPlayer(state, state.activePlayerId);
     const defenderId = getOpponentId(state, state.activePlayerId);
     const defender = getPlayer(state, defenderId);
-    // Band-expanded block graph (CR 702.21e): a blocker assigned to one band
+    // Band-expanded block graph (CR 702.22h): a blocker assigned to one band
     // member blocks the whole band, and every member is blocked.
     const { blockersByAttacker, attackersByBlocker } =
         getEffectiveBlockGraph(state);
@@ -1597,8 +1597,8 @@ export function applyAllCombatDamage(
 
     // --- Blocker damage (CR 510). Each blocker deals once. A blocker blocking
     // a single creature deals its full power to it; a blocker blocking a band
-    // (CR 702.21e) splits its power among the members per the assignment the
-    // attacking player chose (CR 702.21k). ---
+    // (CR 702.22k) splits its power among the members per the assignment the
+    // attacking player chose (CR 702.22k). ---
     for (const [blockerId, blockedAttackerIds] of Object.entries(
         attackersByBlocker
     )) {
@@ -1968,7 +1968,7 @@ function performPhaseEntry(state: GameState): void {
                     state.combat.damageAssignments =
                         buildDefaultDamageAssignments(state, kind);
                     state.combat.damageConfirmed = false;
-                    // CR 702.21j-k: compute who assigns each multi-target
+                    // CR 702.22j-k: compute who assigns each multi-target
                     // source. Normally the source's controller; banding shifts
                     // it to the controller of the banding creature(s) opposite.
                     const assignerIds: Record<string, string> = {};
@@ -2235,7 +2235,7 @@ export function finalizeCleanupDiscard(
     // Collect any such trigger off the CARD_DISCARDED events the discard emitted;
     // if one landed, hand the active player priority and stay in CLEANUP so the
     // owner gets a real window to cast the madness card (the iconic "discard the
-    // extra Rootwalla to hand size, cast it for {0}" line, CR 702.35d). The
+    // extra Rootwalla to hand size, cast it for {0}" line, CR 702.35a). The
     // eventual both-players-pass with an empty stack advances the phase (the
     // "another cleanup step" is a no-op once the hand is at size).
     const cleanupEvents = flushPendingEvents(state);
@@ -2539,7 +2539,7 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
-    // Granted triggered abilities with a duration (CR 611.1b — Rapid Fire's
+    // Granted triggered abilities with a duration (CR 611.2a — Rapid Fire's
     // "gains rampage 2 until end of turn"). Aura-sourced grants carry an
     // `auraId` and no `duration`; they're managed by the aura's lifetime
     // (unapplySourceStaticEffects) and pass through this purge unchanged.
@@ -2559,7 +2559,7 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
-    // Granted activated abilities with a duration (CR 611.1b — Touch of Vitae's
+    // Granted activated abilities with a duration (CR 611.2a — Touch of Vitae's
     // "gains '{0}: Untap this creature. Activate only once.' until end of
     // turn"). Aura-sourced grants carry an `auraId` and no `duration`; they're
     // managed by the aura's lifetime (unapplySourceStaticEffects) and pass
@@ -2581,7 +2581,7 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
-    // Temporarily removed keywords (CR 611.1b layer 6 — Shelkin Brownie /
+    // Temporarily removed keywords (CR 611.2a layer 6 — Shelkin Brownie /
     // Tolaria "loses banding / 'bands with other' until end of turn"). On
     // expiry, push one occurrence of the keyword back into `staticAbilities`
     // (CR 113.1 — a native duplicate present at strip time is not double-added,
@@ -3218,7 +3218,7 @@ export function advancePhase(state: GameState): Phase[] {
         emitBlockersConfirmedEvents(state);
     }
 
-    // CR 510.5: skip the first-strike damage step when no combatant has
+    // CR 510.4: skip the first-strike damage step when no combatant has
     // first strike or double strike.
     const skipFirstStrikeDamage =
         state.phase === "FIRST_STRIKE_DAMAGE" &&
@@ -3408,7 +3408,7 @@ export function drainAutoPasses(state: GameState): void {
             resolveTopOfStack(state);
             if ((state.pendingChoices?.length ?? 0) > 0) {
                 // Resolution suspended on a pending choice (CR 608.2) — this also
-                // covers the reflexive Madness cast-choice (CR 702.35d), pushed
+                // covers the reflexive Madness cast-choice (CR 702.35a), pushed
                 // as a blocking pending choice. Priority moves to the chooser and
                 // auto-drain stops; the submit mutation resumes from here.
                 state.priorityPlayerId = state.pendingChoices![0].playerId;

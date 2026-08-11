@@ -285,7 +285,7 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a player's Domain — the canned generator does not seed basic lands to size it`;
         return;
     }
-    // escaped (CR 702.138e, issue #695): a 0/1 read of whether a permanent
+    // escaped (CR 702.138b, issue #695): a 0/1 read of whether a permanent
     // escaped. The canned generator casts spells from hand, never via escape, so
     // it can't set an escaped=1 outcome; skip-with-reason — the value member's
     // own interpreter test is the behavioural guarantor (new-construct regime).
@@ -846,7 +846,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             return;
         case "grantAbility":
             // `grantAbility` (issue #843) grants a keyword static ability to a
-            // permanent for a duration (CR 611.1b / 613.1f). The generator can
+            // permanent for a duration (CR 611.2a / 613.1f). The generator can
             // assert a grant on an announced permanent slot (it seeds a filler
             // creature there and reads its `staticAbilities` after resolution).
             // A `$source` / `$each` target is not modelled — skip and let the
@@ -1936,7 +1936,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
             },
         };
     },
-    // `grantAbility` (issue #843, CR 611.1b / 613.1f) — a grant on an announced
+    // `grantAbility` (issue #843, CR 611.2a / 613.1f) — a grant on an announced
     // permanent slot is observable as the keyword appearing in the target's
     // `staticAbilities` (the primitive appends it, and the grant is active for
     // the rest of the turn so it reads immediately after resolution).

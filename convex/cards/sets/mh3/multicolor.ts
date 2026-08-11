@@ -19,7 +19,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //  trigger.)
 // "Discard a card: Put a +1/+1 counter on this creature." (CR 122.1 counter.)
 // "Exile three cards from your graveyard: This creature gains flying until end
-//  of turn." (CR 118.5 exile-from-graveyard cost; CR 611.1b temporary keyword
+//  of turn." (CR 118.5 exile-from-graveyard cost; CR 611.2a temporary keyword
 //  grant via `grantStaticAbility`.)
 //
 // FLAGGED SIMPLIFICATION (CR 602.1 / 118.3): the cost union has no "discard a
@@ -104,7 +104,7 @@ export const psychicFrog: CardDefinition = {
             cost: { exileFromGraveyard: { count: 3, owner: "you" } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant flying
-            // until end of turn (CR 611.1b). The three-card graveyard exile is
+            // until end of turn (CR 611.2a). The three-card graveyard exile is
             // an activation cost (handled by the cost field), so the effect is
             // just the grant.
             effects: [
@@ -119,7 +119,7 @@ export const psychicFrog: CardDefinition = {
     ],
 };
 
-// CR 702.138e — "sacrifice it unless it escaped": sacrifice $source when the
+// CR 702.138b — "sacrifice it unless it escaped": sacrifice $source when the
 // escaped flag reads 0 (a non-escape cast). The escaped EffectValue resolves to
 // 1 (escaped) or 0 (not); `< 1` selects the 0 case.
 const phlageSacrificeUnlessEscaped: EffectOp[] = [
@@ -156,7 +156,7 @@ const phlageValueEffects: EffectOp[] = [
 ];
 
 // Phlage, Titan of Fire's Fury — {1}{R}{W} Legendary Creature — Elder Giant 6/6.
-// "When Phlage enters, sacrifice it unless it escaped." (CR 702.138e escaped.)
+// "When Phlage enters, sacrifice it unless it escaped." (CR 702.138b escaped.)
 // "Whenever Phlage enters or attacks, it deals 3 damage to any target and you
 //  gain 3 life."
 // "Escape—{R}{R}{W}{W}, Exile five other cards from your graveyard." (CR 702.138.)

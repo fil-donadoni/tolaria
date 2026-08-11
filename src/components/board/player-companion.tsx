@@ -10,7 +10,7 @@ import CompanionSummonButton from "./companion-summon-button";
  *  deck carries none, or its condition failed) OR once it has been summoned
  *  to hand (`companion.used`) — the slot's job is over the moment the card
  *  moves to hand, and it never comes back for the rest of the game. The
- *  "Companion {3}" summon affordance (CR 116.2 / 702.139f) is gated purely by
+ *  "Companion {3}" summon affordance (CR 116.2 / 702.139a) is gated purely by
  *  the wire-projected `companion.canSummon` (present only on the slot's own
  *  controller's view, `gameProjections.ts`) — the server re-validates on
  *  click regardless. */

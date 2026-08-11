@@ -2150,7 +2150,7 @@ describe("checkSpellTargetFilters — shared offered/accepted gate (ADR 0068, is
         ).not.toBeNull();
     });
 
-    it("spellSingleTargetingController: rejects a spell not solely targeting the chooser, accepts one that does (CR 114.6 / 115.10, Reflecting Mirror)", () => {
+    it("spellSingleTargetingController: rejects a spell not solely targeting the chooser, accepts one that does (CR 115.7 / 115.10, Reflecting Mirror)", () => {
         const targetsChooser = spellItem({
             targets: [{ type: "player", id: "p1" }],
         });

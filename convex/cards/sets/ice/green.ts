@@ -221,7 +221,7 @@ export const chubToad: CardDefinition = {
                 return true;
             },
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+2 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -300,7 +300,7 @@ export const earthlore: CardDefinition = {
                 combatRoleFilter: "blocking",
             },
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+2 EOT
-            // on the announced target (CR 611.1b) via the pump Op.
+            // on the announced target (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -433,7 +433,7 @@ export const essenceFilter: CardDefinition = {
     ],
 };
 // Fanatical Fever — {2}{G}{G} Instant. "Target creature gets +3/+0 and gains
-// trample until end of turn." (CR 611.1c temporary P/T + keyword grant; CR
+// trample until end of turn." (CR 611.2a temporary P/T + keyword grant; CR
 // 514.2 expiry.) The Stampede single-target shape.
 export const fanaticalFever: CardDefinition = {
     id: "2abba7f1-5d07-4137-88a2-5967396a3e42",
@@ -445,7 +445,7 @@ export const fanaticalFever: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #843): +3/0 (CR 613.4c) + grant
-    // trample to the announced target creature until end of turn (CR 611.1b).
+    // trample to the announced target creature until end of turn (CR 611.2a).
     effects: [
         {
             op: "pump",
@@ -483,7 +483,7 @@ export const folkOfThePines: CardDefinition = {
             cost: { mana: { X: 1, G: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -525,7 +525,7 @@ export const forbiddenLore: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+1 EOT
-            // on the announced target (CR 611.1b) via the pump Op.
+            // on the announced target (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1333,7 +1333,7 @@ export const shamblingStrider: CardDefinition = {
             cost: { mana: { R: 1, G: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/-1 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1410,7 +1410,7 @@ export const snowblind: CardDefinition = {
     ],
 };
 // Stampede — "Attacking creatures get +1/+0 and gain trample until end of turn."
-// (CR 611.1c temporary P/T + keyword grant on the set of attackers; CR 514.2
+// (CR 611.2a temporary P/T + keyword grant on the set of attackers; CR 514.2
 // expiry.) Each currently-attacking creature receives the buff and trample.
 export const stampede: CardDefinition = {
     id: "bc8265a1-4621-4d25-8f7f-f0179951a694",
@@ -1488,7 +1488,7 @@ export const tarpan: CardDefinition = {
             scope: "self",
             // Migrated resolve()→effects[] (ADR 0045): diedTrigger's effects[]
             // site binds the source's controller — a plain controller-scoped
-            // gainLife (CR 119.3a) needs nothing from the dead creature's LKI.
+            // gainLife (CR 119.3) needs nothing from the dead creature's LKI.
             effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         }),
     ],
@@ -1585,7 +1585,7 @@ export const tinderWall: CardDefinition = {
 // Touch of Vitae — {2}{G} Instant (issue #738). "Until end of turn, target
 // creature gains haste and '{0}: Untap this creature. Activate only once.'
 // Draw a card at the beginning of the next turn's upkeep." Two until-EOT grants
-// (CR 611.1b): the keyword `haste` and an ACTIVATED ability. The activated
+// (CR 611.2a): the keyword `haste` and an ACTIVATED ability. The activated
 // grant rides the duration-scoped `grantActivatedAbility` seam (#738): the
 // ability template lives on this card's `grantTemplates[]`, and
 // `grantAbility { grantedActivatedId }` pushes it onto the target with an
@@ -1732,7 +1732,7 @@ export const wallOfPineNeedles: CardDefinition = {
         },
     ],
 };
-// Whiteout — Instant: "All creatures lose flying until end of turn." (CR 611.1b
+// Whiteout — Instant: "All creatures lose flying until end of turn." (CR 611.2a
 // layer-6 keyword removal via `removeStaticAbilities`, applied to every creature
 // on every battlefield.) Plus a graveyard-activated ability (CR 113.6b — an
 // ability that states which zone it functions in functions only from that
@@ -1757,7 +1757,7 @@ export const whiteout: CardDefinition = {
     // `SpellContext.removeStaticAbilities`. Blocked on: a keyword-removal Op
     // (or a `grantAbility` "remove" mode).
     resolve: (ctx: SpellContext) => {
-        // CR 611.1b — every creature on every battlefield loses flying until
+        // CR 611.2a — every creature on every battlefield loses flying until
         // end of turn (layer-6 keyword removal).
         for (const pid of ctx.allPlayerIds) {
             for (const id of ctx.getBattlefieldIds(pid, {
@@ -2025,7 +2025,7 @@ export const fyndhornPollen: CardDefinition = {
             cost: { mana: { X: 1, G: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045): forEach every
-            // battlefield's creatures (CR 205), -1/-0 EOT each (CR 611.1b) —
+            // battlefield's creatures (CR 205), -1/-0 EOT each (CR 611.2a) —
             // the Day of Judgment mass-sweep shape with `pump` instead of
             // `destroy`.
             effects: [

@@ -24,8 +24,15 @@ import {
     type StackItem,
 } from "../state";
 import { getDefinition, tryGetDefinition } from "../../cards";
-import { matchesPermanentFilter } from "../../cards/filters";
-import { isSacrificeSelectionComplete } from "../sacrificeChoice";
+import {
+    matchesPermanentFilter,
+    resolveExcludeSource,
+} from "../../cards/filters";
+import {
+    isSacrificeCandidateLegal,
+    isSacrificeSelectionComplete,
+    sacrificeCandidates,
+} from "../sacrificeChoice";
 import {
     atog,
     ashnodsAltar,
@@ -38,6 +45,8 @@ import {
     yotianSoldier,
 } from "../../cards/sets/atq";
 import { grizzlyBears } from "../../cards/sets/lea";
+import { legionExtruder } from "../../cards/sets/big/red";
+import { orcGeneral } from "../../cards/sets/drk/red";
 import {
     makeInstance,
     makePlayer,
@@ -76,9 +85,16 @@ function activateWithSacrificeCost(
     if (ability.cost.tap && card.isTapped) throw new Error("Already tapped");
 
     // CR 602.1 / 118.5 — illegal if no matching permanent on the battlefield.
+    // Threads the SAME `FilterMatchContext` both `game.ts` activation branches
+    // build, including `selfInstanceId` (CR 109.2, issue #2367): without it an
+    // `excludeSource` cost ("Sacrifice another artifact") matches nothing and
+    // this gate would reject a perfectly legal activation.
     if (ability.cost.sacrificeFilter) {
         const candidates = player.battlefield.filter((c) =>
-            matchesPermanentFilter(c, ability.cost.sacrificeFilter!)
+            matchesPermanentFilter(c, ability.cost.sacrificeFilter!, {
+                selfControllerId: player.id,
+                selfInstanceId: card.id,
+            })
         );
         if (candidates.length === 0) {
             throw new Error("No legal permanent to pay the sacrifice cost");
@@ -103,7 +119,18 @@ function activateWithSacrificeCost(
                       reason: def.name,
                       requirements: [
                           {
-                              filter: ability.cost.sacrificeFilter,
+                              // The REAL production lowering (CR 109.2, issue
+                              // #2367): `buildActivationSacrificeSelection`
+                              // bakes `excludeSource` into a concrete
+                              // `excludeInstanceIds` entry at exactly this
+                              // point, so the requirement that rides on
+                              // `pendingActivation` — and reaches the client
+                              // picker — already names the source. Identity for
+                              // every filter without the flag.
+                              filter: resolveExcludeSource(
+                                  ability.cost.sacrificeFilter,
+                                  card.id
+                              ),
                               count: 1,
                               snapshot: true,
                           },
@@ -180,8 +207,11 @@ function selectActivationCost(
     const player = getPlayer(state, playerId);
     const candidate = player.battlefield.find((c) => c.id === cardInstanceId);
     if (!candidate) throw new Error("Not on your battlefield");
-    const req = sel.requirements[0];
-    if (!matchesPermanentFilter(candidate, req.filter)) {
+    // The REAL server gate behind `selectSacrifice` (`gre/sacrificeChoice.ts`),
+    // not a re-implementation: it re-derives the candidate set from the
+    // requirement's own filter, which is why the `excludeSource` lowering above
+    // is what makes a self-naming pick illegal here.
+    if (!isSacrificeCandidateLegal(state, sel, cardInstanceId)) {
         throw new Error("Does not match the sacrifice cost filter");
     }
     sel.picked.push(cardInstanceId);
@@ -422,6 +452,183 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
         );
         expect(state.players[1].battlefield.some((c) => c.id === "art-1")).toBe(
             false
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// "Sacrifice ANOTHER <filter>" — self-exclusion in an activation cost
+// (CR 109.2 / 602.1, issue #2367)
+//
+// `cost.sacrificeFilter` is a STATIC `PermanentFilter` shared by every instance
+// of a card, so "another" has no instance id to write into
+// `excludeInstanceIds`. `PermanentFilter.excludeSource` is the deferred form:
+// the matcher resolves it against `ctx.selfInstanceId`, and
+// `resolveExcludeSource` lowers it to a concrete id when the activation's
+// sacrifice requirement is built. Before this, both shipped "another" costs —
+// Legion Extruder and Orc General, the latter carrying an inert
+// `excludeInstanceIds: []` and a comment CLAIMING the exclusion was enforced —
+// let the source pay its own cost by sacrificing itself.
+// ---------------------------------------------------------------------------
+describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2367)', () => {
+    it("Legion Extruder: NOT activatable when the only artifact on the board is itself", () => {
+        const extruder = makeInstance(legionExtruder.id, { id: "extruder-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [extruder] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(() =>
+            activateWithSacrificeCost(
+                state,
+                "p1",
+                "extruder-1",
+                "legion-extruder-make-golem"
+            )
+        ).toThrow(/sacrifice cost/i);
+    });
+
+    it("Legion Extruder: activatable with a SECOND artifact, and the source is not among the offered picks", () => {
+        const extruder = makeInstance(legionExtruder.id, { id: "extruder-1" });
+        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [extruder, orn] }),
+                makePlayer("p2"),
+            ],
+        });
+        const pa = activateWithSacrificeCost(
+            state,
+            "p1",
+            "extruder-1",
+            "legion-extruder-make-golem"
+        );
+        const req = pa.sacrificeSelection!.requirements[0];
+        // The offered pick set, straight from the REAL candidate scan every
+        // consumer (auto-resolve, the client picker's server twin, the Brain)
+        // reads — the source must not be in it.
+        const offered = sacrificeCandidates(state, "p1", req.filter).map(
+            (c) => c.id
+        );
+        expect(offered).toEqual(["orn-1"]);
+        expect(offered).not.toContain("extruder-1");
+    });
+
+    it("Legion Extruder: the server's own pick gate rejects naming the source, accepts the other artifact", () => {
+        const extruder = makeInstance(legionExtruder.id, { id: "extruder-1" });
+        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [extruder, orn] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateWithSacrificeCost(
+            state,
+            "p1",
+            "extruder-1",
+            "legion-extruder-make-golem"
+        );
+        expect(() => selectActivationCost(state, "p1", "extruder-1")).toThrow(
+            /filter/i
+        );
+        // Still on the battlefield — the illegal pick changed nothing.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "extruder-1")
+        ).toBe(true);
+    });
+
+    it("Legion Extruder: full path — pick the other artifact, sacrifice it, create the 3/3 Golem", () => {
+        const extruder = makeInstance(legionExtruder.id, { id: "extruder-1" });
+        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [extruder, orn],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        activateWithSacrificeCost(
+            state,
+            "p1",
+            "extruder-1",
+            "legion-extruder-make-golem"
+        );
+        selectActivationCost(state, "p1", "orn-1");
+        expect(state.players[0].battlefield.some((c) => c.id === "orn-1")).toBe(
+            false
+        );
+        // The source paid {T}, survived, and made the token.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "extruder-1")!
+                .isTapped
+        ).toBe(true);
+        const golem = state.players[0].battlefield.find((c) =>
+            c.subtypes?.includes("Golem")
+        );
+        expect(golem).toBeDefined();
+        expect(golem!.power).toBe(3);
+        expect(golem!.toughness).toBe(3);
+        expect(golem!.types).toEqual(
+            expect.arrayContaining(["Artifact", "Creature"])
+        );
+    });
+
+    it("Orc General: an Orc General alone cannot sacrifice ITSELF to its own cost (bug-class regression)", () => {
+        // Orc General is itself an Orc, so before issue #2367 its
+        // `{ types: "Creature", subtypes: ["Orc", "Goblin"] }` cost matched the
+        // source and the ability was activatable — and self-payable — on an
+        // otherwise empty board.
+        const general = makeInstance(orcGeneral.id, { id: "general-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [general] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(() =>
+            activateWithSacrificeCost(
+                state,
+                "p1",
+                "general-1",
+                "orc-general-pump"
+            )
+        ).toThrow(/sacrifice cost/i);
+    });
+
+    it("Orc General: with a second Orc, the pump resolves and the source is never the victim", () => {
+        const general = makeInstance(orcGeneral.id, { id: "general-1" });
+        const grunt = makeInstance(orcGeneral.id, { id: "grunt-1" });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            players: [
+                makePlayer("p1", { battlefield: [general, grunt] }),
+                makePlayer("p2"),
+            ],
+        });
+        const pa = activateWithSacrificeCost(
+            state,
+            "p1",
+            "general-1",
+            "orc-general-pump"
+        );
+        expect(
+            sacrificeCandidates(
+                state,
+                "p1",
+                pa.sacrificeSelection!.requirements[0].filter
+            ).map((c) => c.id)
+        ).toEqual(["grunt-1"]);
+        selectActivationCost(state, "p1", "grunt-1");
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "general-1")
+        ).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "grunt-1")).toBe(
+            true
         );
     });
 });

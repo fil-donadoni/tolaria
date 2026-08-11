@@ -595,10 +595,10 @@ describe("Drop of Honey (upkeep: destroy least-power; sac when no creatures)", (
     });
 });
 
-describe("Metamorphosis (CR 106.6 restricted mana / 117.9 additional cost)", () => {
+describe("Metamorphosis (CR 106.6 restricted mana / 118.8 additional cost)", () => {
     // Push Metamorphosis as if cast: a color mode chosen at announcement
     // (CR 700.2c) and the sacrificed creature's mana value snapshotted
-    // (CR 117.9), then resolve so the chosen mode's body runs.
+    // (CR 118.8), then resolve so the chosen mode's body runs.
     function resolveMetamorphosis(
         state: GameState,
         modeId: string,

@@ -15,7 +15,7 @@
 //
 // `condition` runs at trigger-check time only (CR 603.4). `interveningIf`
 // runs at check time and is re-evaluated at resolve time by the engine
-// (CR 603.4d) — false at resolve fizzles the trigger.
+// (CR 603.4) — false at resolve fizzles the trigger.
 
 import type {
     AbilityActivatedEvent,
@@ -49,7 +49,7 @@ export interface AbilityActivatedTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if. Engine re-evaluates at resolve time; false
+    /** CR 603.4 intervening-if. Engine re-evaluates at resolve time; false
      *  resolves to a fizzle (no `resolve` invocation, TRIGGER_FIZZLED event). */
     interveningIf?: (
         event: AbilityActivatedEvent,

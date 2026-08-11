@@ -367,7 +367,7 @@ describe("Shimmering Wings (Aura grants flying; {U}: return to hand; CR 702.9 / 
     });
 });
 
-describe("Sky Weaver ({2}: target white or black creature gains flying EOT; CR 611.1b)", () => {
+describe("Sky Weaver ({2}: target white or black creature gains flying EOT; CR 611.2a)", () => {
     it("grants flying to a legal white-or-black target", () => {
         const weaver = makeInstance(skyWeaver.id, {
             id: "weaver",

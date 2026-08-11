@@ -1,7 +1,7 @@
 // The Clue token (CR 701.16a) — shared spec for `investigate`. To
 // investigate, a player creates a colorless artifact token with subtype Clue
 // and the ability "{2}, Sacrifice this token: Draw a card." ("Investigate N"
-// is N separate token creations, CR 701.16b — expressed by a `createToken`
+// is N separate token creations, CR 701.16a — expressed by a `createToken`
 // Op with `count: N`, not a card-specific primitive).
 //
 // This is exactly a `createToken` Op (CR 111 / 701.7) with an `EffectTokenSpec`
@@ -49,7 +49,7 @@ export const CLUE_TOKEN_SPEC: EffectTokenSpec = {
 /** Sugar for "investigate" (CR 701.16 keyword action) as an Effect Script Op:
  *  create one Clue token (`CLUE_TOKEN_SPEC`) for `controller` (default the
  *  resolving controller, CR 111.2). `count` expresses "investigate N"
- *  (CR 701.16b — N separate Clue tokens); omit for a plain "investigate". */
+ *  (CR 701.16a — N separate Clue tokens); omit for a plain "investigate". */
 export function investigateOp(
     controller: EffectPlayerRef = "controller",
     count?: EffectValue

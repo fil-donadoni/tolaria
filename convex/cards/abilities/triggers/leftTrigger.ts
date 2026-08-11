@@ -104,7 +104,7 @@ export interface LeftTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if. Re-evaluated by the engine immediately
+    /** CR 603.4 intervening-if. Re-evaluated by the engine immediately
      *  before `resolve` runs; false → trigger fizzles (no `resolve`,
      *  `TRIGGER_FIZZLED` event emitted). */
     interveningIf?: (

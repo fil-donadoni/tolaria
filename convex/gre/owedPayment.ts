@@ -99,11 +99,11 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     /** CR 118.4 — a scalar deducted at commit; the payer names nothing. */
     payLife: "non-park",
 
-    // ── PARKS (CR 601.2f/601.2g/117.9/118.9) ───────────────────────────────
+    // ── PARKS (CR 601.2f/601.2g/118.8/118.9) ───────────────────────────────
     /** CR 601.2f / 701.21a — filtered sacrifice (own additional cost + any
      *  board-wide static tax, Drought). Submitted via `selectSacrifice`. */
     sacrificeSelection: "park",
-    /** CR 117.9 — the EXILE additional cost (Soul Exchange). Submitted via
+    /** CR 118.8 — the EXILE additional cost (Soul Exchange). Submitted via
      *  `selectAdditionalCost`. (The sacrifice branch migrated to
      *  `sacrificeSelection`; this picker is exile-only now.) */
     additionalCost: "park",
@@ -350,7 +350,7 @@ export function nextOwedPayment(
         ) {
             return at("cast:sacrificeSelection", "sacrificeSelection");
         }
-        // CR 117.9 — the exile additional cost (Soul Exchange).
+        // CR 118.8 — the exile additional cost (Soul Exchange).
         if (pc.additionalCost && !pc.additionalCost.pickedId) {
             return at("cast:additionalCost", "additionalCost");
         }

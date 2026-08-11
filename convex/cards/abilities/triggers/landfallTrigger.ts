@@ -41,7 +41,7 @@ export interface LandfallTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if, forwarded to `enteredTrigger`. */
+    /** CR 603.4 intervening-if, forwarded to `enteredTrigger`. */
     interveningIf?: (
         event: PermanentEnteredEvent,
         self: PermanentView,

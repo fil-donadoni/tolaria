@@ -47,7 +47,7 @@ import {
 import { getEffectivePower } from "./layers";
 import { effectivePermanentView } from "./permanentView";
 import { tryGetDefinition } from "../cards/index";
-import { matchesPermanentFilter } from "../cards/filters";
+import { matchesPermanentFilter, resolveExcludeSource } from "../cards/filters";
 import { liveSupertypesOf } from "./snow";
 import { handCardMatchesFilter } from "./alternativeCost";
 import {
@@ -195,7 +195,21 @@ export function buildActivationSacrificeSelection(
     const specs: SacrificeRequirement[] = [];
     if (ability.cost.sacrificeFilter) {
         specs.push({
-            filter: ability.cost.sacrificeFilter,
+            // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact". This is
+            // the one point where the ability's STATIC, per-card filter becomes
+            // per-ACTIVATION data: from here it is persisted on
+            // `pendingActivation`, crosses the wire, and is re-read by
+            // `sacrificeCandidates` / `autoResolveFungible` /
+            // `isSacrificeCandidateLegal` / `legalActions` / the Brain / the
+            // client's battlefield picker — none of which sees the source
+            // again. Baking `excludeSource` into a concrete
+            // `excludeInstanceIds` entry here makes all of them correct at
+            // once; the matcher's fail-closed branch is what makes forgetting
+            // it safe rather than permissive.
+            filter: resolveExcludeSource(
+                ability.cost.sacrificeFilter,
+                source.id
+            ),
             count: 1,
             snapshot: true,
         });

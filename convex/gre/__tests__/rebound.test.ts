@@ -13,7 +13,7 @@
 //   - firing builds a reflexive Cast/Decline StackItem; resolving it opens
 //     the caster's single cast window (castableFromExileBy +
 //     castFromExileWithoutPayingManaCost + state.reboundCastWindow)
-//   - CR 702.88d: the exile recast (no `reboundFromHand`) resolves to the
+//   - CR 702.88a: the exile recast (no `reboundFromHand`) resolves to the
 //     graveyard normally and never reboundes again
 //   - CR 702.88c: declining leaves the card in exile, NOT the graveyard
 //   - the frontend-wiring SURFACE: projectPublicState carries the cast
@@ -124,7 +124,7 @@ describe("Rebound capability (CR 702.88)", () => {
         });
     });
 
-    describe("cast-stack-flag gate (CR 702.88a / 702.88d)", () => {
+    describe("cast-stack-flag gate (CR 702.88a)", () => {
         it("stamps reboundFromHand only for a hand cast of a rebound card", () => {
             const card = makeInstance(ephemerate.id, { zone: "hand" });
             expect(reboundCastStackFlags(card, "hand")).toEqual({
@@ -132,7 +132,7 @@ describe("Rebound capability (CR 702.88)", () => {
             });
         });
 
-        it("omits the flag for a non-hand cast zone — CR 702.88d's 'no second rebound' is free from this single gate", () => {
+        it("omits the flag for a non-hand cast zone — CR 702.88a's 'no second rebound' is free from this single gate", () => {
             const card = makeInstance(ephemerate.id, { zone: "exile" });
             expect(reboundCastStackFlags(card, "exile")).toEqual({});
         });
@@ -255,7 +255,7 @@ describe("Rebound capability (CR 702.88)", () => {
         });
     });
 
-    describe("exile recast (CR 702.88d) — resolves to graveyard, never reboundes again", () => {
+    describe("exile recast (CR 702.88a) — resolves to graveyard, never reboundes again", () => {
         it("an exile-cast rebound spell (no reboundFromHand) resolves normally to the graveyard", () => {
             const target = makeInstance(grizzlyBears.id, {
                 id: "bear",
@@ -306,7 +306,7 @@ describe("Rebound capability (CR 702.88)", () => {
             resolveTopOfStack(state);
 
             const player = getPlayer(state, "p1");
-            // CR 702.88d — lands in the graveyard, not exiled again.
+            // CR 702.88a — lands in the graveyard, not exiled again.
             expect(player.graveyard.some((c) => c.id === item.id)).toBe(true);
             expect(player.exile.some((c) => c.id === item.id)).toBe(false);
             // No new delayed trigger was scheduled — it never reboundes again.

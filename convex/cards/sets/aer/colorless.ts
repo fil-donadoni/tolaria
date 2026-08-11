@@ -6,7 +6,7 @@ import type { CardDefinition } from "../../types";
 
 // Walking Ballista — "This creature enters with X +1/+1 counters on it. {4}:
 // Put a +1/+1 counter on this creature. Remove a +1/+1 counter from this
-// creature: It deals 1 damage to any target." (CR 122 counters; CR 305.1e
+// creature: It deals 1 damage to any target." (CR 122 counters; CR 107.3i
 // {X}{X} mana cost, ADR — encoded as `X: "X"` with `xFactor: 2` so the chosen
 // X is paid twice.)
 export const walkingBallista: CardDefinition = {

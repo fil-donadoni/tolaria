@@ -62,7 +62,7 @@ export function isSelectingBlockers(ctx: HasPriorityCtx): boolean {
 }
 
 /** The next player still owing a damage-assignment choice this step (CR
- *  702.21j-k can hand authority to the defending player). Mirrors
+ *  702.22j-k can hand authority to the defending player). Mirrors
  *  `outstandingDamageAssigner` in convex/gre/banding.ts. Falls back to the
  *  active player when no per-source authority map is present (legacy /
  *  non-banding combat). */

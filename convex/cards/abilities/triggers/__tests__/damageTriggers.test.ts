@@ -214,7 +214,7 @@ describe("damageDealtTrigger (CR 120.3 / 603.4)", () => {
         );
     });
 
-    it("interveningIf is mirrored onto the resulting ability (CR 603.4d)", () => {
+    it("interveningIf is mirrored onto the resulting ability (CR 603.4)", () => {
         const ab = damageDealtTrigger({
             id: "t",
             oracleText: "x",

@@ -62,7 +62,7 @@ export interface DiedTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if predicate. Evaluated at trigger-fire AND
+    /** CR 603.4 intervening-if predicate. Evaluated at trigger-fire AND
      *  re-evaluated by the engine at resolve time; if false at resolve, the
      *  trigger fizzles (no `resolve` invocation, TRIGGER_FIZZLED event
      *  emitted). */
@@ -101,7 +101,7 @@ export interface DiedTriggerArgs {
 
 /** Builds a `TriggeredAbility` listening for `CREATURE_DIED` events
  *  (CR 700.4 / 603.2). The factory handles event-type narrowing, scope
- *  gating, filter matching, and CR 603.4 / 603.4d wiring so card authors
+ *  gating, filter matching, and CR 603.4 wiring so card authors
  *  write only the effect body. */
 export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
     if (args.effects === undefined && args.resolve === undefined) {

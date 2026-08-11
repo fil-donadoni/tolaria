@@ -61,7 +61,7 @@
 // same tick twice, nor act on a state the tick has already superseded.
 //
 // `owedPlayerIds` is an ARRAY, not a single id (issue #1778 review finding 1):
-// the CR 510.1c/702.21j-k combat-damage-assignment sub-flow folds into a plain
+// the CR 510.1c/702.22j-k combat-damage-assignment sub-flow folds into a plain
 // `{kind:"priority"}` window gated `anyPlayer: true`, where the real actor is
 // NOT `priorityPlayerId`, and banding can even split authority so both players
 // independently owe a confirmation. The driver MUST gate on membership, never on

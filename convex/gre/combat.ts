@@ -117,7 +117,7 @@ export function recordAttackerDeclared(
  *    A condition that reads `isBlocking` (Snow Devil's "has first strike as
  *    long as it's blocking and you control a snow land", CR 611.2c) is
  *    therefore STALE for every read between the flag write and the next SBA
- *    pass — and the CR 510.5 "skip the first-strike damage step" decision
+ *    pass — and the CR 510.4 "skip the first-strike damage step" decision
  *    (`anyCombatantHasFirstOrDoubleStrike`, `phases.ts`) is taken inside that
  *    window whenever `drainAutoPasses` runs straight off a blocker
  *    confirmation. The window is real and was shipped: with both seats

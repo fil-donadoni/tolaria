@@ -3,15 +3,17 @@
 // triggered ability that goes on the stack when the card is discarded, or else
 // be put into its owner's graveyard.
 //
-// 702.35a "Madness [cost]" represents two abilities: a replacement effect and a
-//         triggered ability.
-// 702.35c The replacement: "If a player would discard a card with madness, that
-//         player discards it, but exiles it instead of putting it into their
-//         graveyard."
-// 702.35d The triggered ability: "When a card with madness is discarded and
-//         exiled this way, its owner may cast it by paying its madness cost
-//         rather than putting it into their graveyard. ... If the player doesn't
-//         cast the card this way, they put it into their graveyard."
+// 702.35a Madness is a keyword that represents two abilities. The first is a
+//         static ability that functions while the card with madness is in a
+//         player's hand. The second is a triggered ability that functions when
+//         the first ability is applied. "Madness [cost]" means "If a player
+//         would discard this card, that player discards it, but exiles it
+//         instead of putting it into their graveyard" and "When this card is
+//         exiled this way, its owner may cast it by paying [cost] rather than
+//         paying its mana cost. If that player doesn't, they put this card into
+//         their graveyard."
+// 702.35b Casting a spell using its madness ability follows the rules for
+//         paying alternative costs in rules 601.2b and 601.2f–h.
 //
 // Like Flashback (`convex/gre/flashback.ts`) and Escape, Madness is engine /
 // cost-system infrastructure, NOT an Effect Script Op — a card's on-resolution
@@ -22,7 +24,7 @@
 // that pays the normal cost) and carries the shared `castableFromExileBy` cast
 // permission — but ONLY while the reflexive trigger's cast window is open.
 //
-// Timing model (CR 702.35d, faithful — replaces the earlier impulse-window
+// Timing model (CR 702.35a, faithful — replaces the earlier impulse-window
 // deviation, #1198):
 //   1. The discard→exile replacement tags the card `madnessExiled` and
 //      `madnessTriggerPending` (`markMadnessExiled`). The card is NOT yet
@@ -69,7 +71,7 @@ export function hasMadness(card: CardInstanceState): boolean {
 }
 
 /** CR 702.35c — mark a card that just moved hand → exile as discarded via
- *  madness. It is exiled and awaits its reflexive cast-trigger (702.35d), which
+ *  madness. It is exiled and awaits its reflexive cast-trigger (702.35a), which
  *  `collectTriggers` builds from the `madnessTriggerPending` tag off the
  *  CARD_DISCARDED event. The card is NOT castable yet: `castableFromExileBy` is
  *  only set once that trigger resolves (`openMadnessCastWindow`). Called by
@@ -79,7 +81,7 @@ export function markMadnessExiled(card: CardInstanceState): void {
     card.madnessTriggerPending = true;
 }
 
-/** CR 702.35d — the reflexive trigger has resolved: open the owner's single
+/** CR 702.35a — the reflexive trigger has resolved: open the owner's single
  *  cast window as a blocking `madness-cast` pending choice. Sets the shared
  *  cast-from-exile permission on the card, records the open window, raises the
  *  Cast/Decline prompt, and hands priority to the owner. Because the choice
@@ -116,7 +118,7 @@ export function openMadnessCastWindow(
     state.priorityPlayerId = ownerId;
 }
 
-/** CR 702.35d accept — the owner cast the exiled card through the ordinary
+/** CR 702.35a accept — the owner cast the exiled card through the ordinary
  *  `announceCast` path: consume the head `madness-cast` choice (if it is this
  *  card's, for this player) so the normal cast flow proceeds. A no-op when the
  *  head is a different choice / card / player. */
@@ -139,7 +141,7 @@ export function consumeMadnessCastChoice(
 }
 
 /** True iff `card` is an exiled madness card whose cast window is currently
- *  open for `playerId` (CR 702.35d). Drives the "cast" legal action for the
+ *  open for `playerId` (CR 702.35a). Drives the "cast" legal action for the
  *  exile — only during the reflexive trigger's window, never before or after. */
 export function isMadnessCastable(
     card: CardInstanceState,
@@ -165,7 +167,7 @@ export function openMadnessWindowCard(
     return { card, ownerId: win.ownerId };
 }
 
-/** CR 702.35d decline — the owner chose NOT to cast the card in its window:
+/** CR 702.35a decline — the owner chose NOT to cast the card in its window:
  *  pop the `madness-cast` choice and put the card into its owner's graveyard
  *  IMMEDIATELY ("if the player doesn't cast the card this way, they put it into
  *  their graveyard"). A no-op (choice + window just cleared) if the card already

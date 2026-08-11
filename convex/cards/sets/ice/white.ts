@@ -971,7 +971,7 @@ export const formation: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #843): grant banding to the
-    // announced target creature until end of turn (CR 611.1b), then the
+    // announced target creature until end of turn (CR 611.2a), then the
     // next-upkeep cantrip as an inline `delayedTrigger` Op (ADR 0048,
     // CR 603.7d).
     effects: [
@@ -1303,7 +1303,7 @@ export const justice: CardDefinition = {
     ],
 };
 // Kelsinko Ranger — {1}{W}: Target green creature gains first strike until end
-// of turn (CR 611.1b temporary keyword grant). Targeting is scoped to green
+// of turn (CR 611.2a temporary keyword grant). Targeting is scoped to green
 // creatures via the color filter.
 export const kelsinkoRanger: CardDefinition = {
     id: "8402543e-5406-404f-95c4-800a1dce35f1",
@@ -1329,7 +1329,7 @@ export const kelsinkoRanger: CardDefinition = {
                 colorFilter: "G",
             },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant first strike
-            // to the announced target creature until end of turn (CR 611.1b).
+            // to the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -1344,7 +1344,7 @@ export const kelsinkoRanger: CardDefinition = {
 // Kjeldoran Elite Guard — instance leave-watch (CR 603.7a / 603.10, issue
 // #731). "{T}: Target creature gets +2/+2 until end of turn. When that creature
 // leaves the battlefield this turn, sacrifice this creature. Activate only
-// during combat." The `pump` Op applies +2/+2 EOT (CR 611.1b); the
+// during combat." The `pump` Op applies +2/+2 EOT (CR 611.2a); the
 // `delayedTrigger` Op with `timing: "leaves-battlefield"` grants a delayed
 // triggered ability keyed to the buffed creature (`watch`) whose inline body
 // sacrifices this Guard (`$guard` = `$source`) when that creature leaves — a
@@ -1478,7 +1478,7 @@ export const kjeldoranKnight: CardDefinition = {
             cost: { mana: { X: 1, W: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1495,7 +1495,7 @@ export const kjeldoranKnight: CardDefinition = {
             cost: { mana: { W: 2 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +0/+2 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1613,7 +1613,7 @@ export const lightningBlow: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #843): grant first strike to the
-    // announced target creature until end of turn (CR 611.1b), then the
+    // announced target creature until end of turn (CR 611.2a), then the
     // next-upkeep cantrip as an inline `delayedTrigger` Op (ADR 0048,
     // CR 603.7d).
     effects: [
@@ -1755,7 +1755,7 @@ export const orderOfTheSacredTorch: CardDefinition = {
     ],
 };
 // Order of the White Shield — protection from black (CR 702.16) plus a first
-// strike grant and a power pump (CR 611.1b), the classic "Order" cycle shape.
+// strike grant and a power pump (CR 611.2a), the classic "Order" cycle shape.
 export const orderOfTheWhiteShield: CardDefinition = {
     id: "92e55b10-375f-4b4f-b676-3b9b8085fdd2",
     name: "Order of the White Shield",
@@ -1776,7 +1776,7 @@ export const orderOfTheWhiteShield: CardDefinition = {
             cost: { mana: { W: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.1b).
+            // strike until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -1792,7 +1792,7 @@ export const orderOfTheWhiteShield: CardDefinition = {
             cost: { mana: { W: 2 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.1b) via the pump Op.
+            // on this creature (CR 611.2a) via the pump Op.
             effects: [
                 {
                     op: "pump",
@@ -1856,7 +1856,7 @@ export const prismaticWard: CardDefinition = {
         },
     ],
 };
-// Rally — "Blocking creatures get +1/+1 until end of turn." (CR 611.1b, 509.1)
+// Rally — "Blocking creatures get +1/+1 until end of turn." (CR 611.2a, 509.1)
 // A combat trick that pumps every creature currently blocking. Blocking
 // creatures are read from the live block graph (attacker → blocker ids).
 export const rally: CardDefinition = {

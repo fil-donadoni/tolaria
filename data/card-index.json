@@ -7760,6 +7760,14 @@
         "firstPrintSet": "snc"
     },
     {
+        "name": "Legion Extruder",
+        "scryfallId": "5a077de0-1893-40d0-a499-ee2e6e2258f1",
+        "oracleId": "c77dc11e-d95d-4e7e-bb24-d971c179e9b0",
+        "firstSet": "big",
+        "firstPrintId": "5a077de0-1893-40d0-a499-ee2e6e2258f1",
+        "firstPrintSet": "big"
+    },
+    {
         "name": "Legions of Lim-Dûl",
         "scryfallId": "75b67eb2-b60e-46b4-9d48-11c284957bec",
         "oracleId": "70b69803-1870-4441-954b-dba5b433fcb2",
@@ -9934,6 +9942,14 @@
         "firstSet": "lea",
         "firstPrintId": "caf9cef4-0f2d-478a-b119-fe1967687f74",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Pest Infestation",
+        "scryfallId": "4720b4f2-e6af-4223-9250-a0ed21ed5693",
+        "oracleId": "1b704798-0c69-4c18-ac7e-42933ce90028",
+        "firstSet": "c21",
+        "firstPrintId": "4720b4f2-e6af-4223-9250-a0ed21ed5693",
+        "firstPrintSet": "c21"
     },
     {
         "name": "Pestilence",

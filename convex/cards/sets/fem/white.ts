@@ -359,7 +359,7 @@ export const icatianInfantry: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.1b).
+            // strike until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -375,7 +375,7 @@ export const icatianInfantry: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant banding
-            // until end of turn (CR 611.1b).
+            // until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -636,7 +636,7 @@ export const icatianScout: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #843): grant first strike
-            // to the announced target creature until end of turn (CR 611.1b).
+            // to the announced target creature until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",
@@ -673,7 +673,7 @@ export const icatianScoutFemD: CardPrint = {
 // DIVERGENCE (tracked-by: #2119): the "Whenever this creature attacks, all
 // creatures banded with it gain first strike until end of turn" trigger is NOT
 // modelled; the printed first strike + banding keywords ship. The band members
-// themselves ARE in game state — `combat.bands[].memberIds` (CR 702.21e),
+// themselves ARE in game state — `combat.bands[].memberIds` (CR 702.22c),
 // populated when attackers are declared — so what is missing is narrower than
 // the original note claimed: a `bandMembers` member of the `EffectListSelector`
 // vocabulary (`cards/types.ts`), whose own doc says it is meant to grow one set
@@ -742,7 +742,7 @@ export const orderOfLeitbur: CardDefinition = {
             cost: { mana: { W: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.1b).
+            // strike until end of turn (CR 611.2a).
             effects: [
                 {
                     op: "grantAbility",

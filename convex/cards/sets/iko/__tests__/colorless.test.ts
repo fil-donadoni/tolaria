@@ -1,7 +1,7 @@
 // IKO (Ikoria) — colorless: the five Triomes (issue #689). Cycling itself is
 // exercised end-to-end in convex/gre/__tests__/cycling.test.ts (built once,
 // reused); these tests lock the `makeTriome` factory output for each card:
-// three basic land subtypes in printed order, always-tapped entry (CR 305.6b),
+// three basic land subtypes in printed order, always-tapped entry (CR 603.6d),
 // a three-colour mana ability, and Cycling {3} (CR 702.29).
 
 import { describe, it, expect } from "vitest";
@@ -21,7 +21,7 @@ function expectTriome(
 ) {
     expect(card.types).toEqual(["Land"]);
     expect(card.subtypes).toEqual(subtypes);
-    // CR 305.6b — Triomes always enter tapped.
+    // CR 603.6d — Triomes always enter tapped.
     expect(card.entersTapped).toBe(true);
     const mana = card.activatedAbilities?.find((a) => a.id.endsWith("-mana"));
     expect(mana?.useStack).toBe(false);

@@ -4100,7 +4100,7 @@ describe("Sunglasses of Urza (spend white as though red, CR 609.4b)", () => {
     });
 });
 
-describe("Helm of Chatzuk (CR 611.1b temporary keyword grant)", () => {
+describe("Helm of Chatzuk (CR 611.2a temporary keyword grant)", () => {
     it("grants banding to the target creature until end of turn", () => {
         const helm = makeInstance(helmOfChatzuk.id, { id: "helm" });
         const lion = makeInstance(grizzlyBearsId(), {
@@ -4195,7 +4195,7 @@ describe("Banding wire format + serialization (W28)", () => {
     });
 });
 
-describe("Banding damage-assignment handshake (CR 702.21j-k, confirmDamage)", () => {
+describe("Banding damage-assignment handshake (CR 702.22j-k, confirmDamage)", () => {
     it("waits for every distinct assigner before applying damage", () => {
         // Mixed authority: defender (p2) assigns one attacker, attacker (p1)
         // assigns a blocker. Both must confirm.

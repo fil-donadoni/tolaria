@@ -81,7 +81,7 @@ describe("owedInputFor — the engine's answer, consumed (ADR 0047)", () => {
         // The producer row a `expectedInput.playerId === botId` check gets
         // wrong: the damage-assignment sub-flow folds into a `priority` window
         // whose `playerId` is the ACTIVE player, while the real actor lives in
-        // `combat.damageAssignerIds` (banding, CR 702.21j-k, can even split it
+        // `combat.damageAssignerIds` (banding, CR 702.22j-k, can even split it
         // across both players).
         const attacker = makeInstance(BEAR, {
             id: "atk",

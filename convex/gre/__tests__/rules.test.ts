@@ -583,13 +583,13 @@ describe("getLegalActions", () => {
     });
 
     // -------------------------------------------------------------------
-    // additional-cost (sacrifice/exile) payability (CR 117.9 / 601.2f) —
+    // additional-cost (sacrifice/exile) payability (CR 118.8 / 601.2f) —
     // issue #944: a spell whose additional cost is unpayable (no legal
     // permanent to sacrifice/exile) must not be offered as castable.
     // Class-wide: covers a `sacrificeFilter` card (Natural Order) AND an
     // `exileFilter` card (Soul Exchange).
     // -------------------------------------------------------------------
-    describe("additional-cost payability (CR 117.9 / 601.2f)", () => {
+    describe("additional-cost payability (CR 118.8 / 601.2f)", () => {
         it('blocks "cast" for a sacrificeFilter spell with no legal permanent to sacrifice', () => {
             const player = makePlayer({ battlefield: [] });
             const state = makeGameState({

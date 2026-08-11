@@ -319,7 +319,7 @@ describe("Buyback — a COUNTERED spell drops buybackPaid at every SpellContext.
 // Non-blocking gap flagged in PR #2412 review round 2: `putSpellOnLibrary`
 // (`SpellContext.putSpellOnLibrary`, the Subtlety CR 701.5-adjacent "put
 // target spell on top/bottom of its owner's library" effect — NOT a counter,
-// CR 701.5c) shares `resetStackTransientState` with `counter()`'s
+// CR 113.6g) shares `resetStackTransientState` with `counter()`'s
 // library-top/exile/hand branches but had no `buybackPaid` coverage of its
 // own. Genuinely reachable with a paid-buyback spell (Subtlety can target
 // any spell on the stack, including one cast with buyback paid), unlike the

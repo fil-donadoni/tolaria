@@ -65,7 +65,7 @@ export interface DamageDealtTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** CR 603.4d intervening-if — checked at trigger time AND re-checked at
+    /** CR 603.4 intervening-if — checked at trigger time AND re-checked at
      *  resolve time by the engine. False at either point fizzles the trigger. */
     interveningIf?: (
         event: DamageDealtEvent,

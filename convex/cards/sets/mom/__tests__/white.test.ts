@@ -201,7 +201,7 @@ describe("Sunfall (CR 701.13 exile, CR 701.53 Incubate, issue #924)", () => {
         expect(getEffectiveToughness(state, flipped)).toBe(2);
 
         // Wire format — the flip and the carried-over counters survive
-        // projection identically (CR 712.1a — transform is always public,
+        // projection identically (CR 712.6 — transform is always public,
         // no per-viewer hiding).
         const projected = projectPublicState(state, 2, "p2");
         const slim = projected.players
