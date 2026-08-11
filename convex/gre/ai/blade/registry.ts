@@ -1474,6 +1474,49 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #2283, second reported shape. Also the `controller: you` half of the census: the enumerator must offer only the bot's OWN lands, because a submission naming an opponent's land is rejected by `applyOneTargetSelection` and re-freezes the bot.",
     },
+    {
+        label: "combo: casts Splinter Twin on Deceiver Exarch with both pieces assembled",
+        spec: {
+            cards: [
+                {
+                    name: "Deceiver Exarch",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Splinter Twin", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Splinter Twin",
+                    target: "Deceiver Exarch",
+                },
+            ],
+        },
+        note: "Twin combo recognition. The bot has Exarch on board and Twin in hand with 2RR available. It should enchant Exarch to start the combo.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

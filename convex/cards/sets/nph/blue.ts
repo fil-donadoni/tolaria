@@ -5,6 +5,8 @@
 // (`convex/gre/phyrexian.ts`, `announceCast.phyrexianLifePips`); the effects
 // below are independent of which cost was paid.
 import type { CardDefinition, SpellContext } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { PERMANENT_TYPES } from "../../types";
 
 // Gitaxian Probe — "Look at target player's hand. Draw a card." Mana cost is a
 // single Phyrexian pip `{U/P}` (pay {U} or 2 life). "Look at target player's
@@ -99,5 +101,50 @@ export const phyrexianMetamorph: CardDefinition = {
                 });
             }
         },
+    ],
+};
+
+// Deceiver Exarch — {2}{U} Creature — Phyrexian Cleric, 1/4. Flash. ETB:
+// target any permanent — if it's yours, untap it; if it's an opponent's, tap
+// it. Splinter Twin combo piece.
+//
+// protocol card: the Oracle text is modal ("choose one — untap target
+// permanent you control, or tap target permanent an opponent controls"), but
+// DSL TriggeredAbility lacks a `modes` field (unlike ActivatedAbility). The
+// mode is auto-deduced from the target's controller: same-controller →
+// untap, other-controller → tap. Functionally identical for all practical
+// in-game decisions — the controller always knows whose permanent they're
+// targeting, and there is no reason to choose a mode illegal for that
+// target.
+export const deceiverExarch: CardDefinition = {
+    id: "1f123ad6-fe84-4fed-9c0f-6b41921e9c26",
+    rarity: "uncommon",
+    name: "Deceiver Exarch",
+    oracleText:
+        "Flash (You may cast this spell any time you could cast an instant.)\nWhen this creature enters, choose one —\n• Untap target permanent you control.\n• Tap target permanent an opponent controls.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Phyrexian", "Cleric"],
+    power: 1,
+    toughness: 4,
+    staticAbilities: ["flash"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "deceiver-exarch-etb",
+            oracleText:
+                "When this creature enters, choose one —\n• Untap target permanent you control.\n• Tap target permanent an opponent controls.",
+            scope: "self",
+            targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (!target) return;
+                const targetController = ctx.getController(target);
+                if (targetController === ctx.controller) {
+                    ctx.untap(target);
+                } else {
+                    ctx.tap(target);
+                }
+            },
+        }),
     ],
 };
