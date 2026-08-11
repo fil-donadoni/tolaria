@@ -248,85 +248,26 @@ prose is the fallback for judgment, not the home of invariants.
 
 ### Quality gates (mandatory, no exceptions)
 
-Full gate mandatory before done/merge — never skipped.
+Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
-**Cadence:**
+| When              | Run                                                                |
+| ----------------- | ------------------------------------------------------------------ |
+| Iterating         | targeted only — `bunx vitest run <path>`. Formatting is automatic. |
+| Pre-PR            | `bunx vitest run <paths touched>` + **`bun run check:pr`**         |
+| Before done/merge | **`bun run check:all`** + **`bun run test`**, both zero-error      |
 
-- **Iterating** — targeted tests only (`bunx vitest run <path>`). Formatting
-  is automatic (husky + lint-staged). No `check:all`/full suite mid-iteration.
-- **Pre-PR (light gate)** — `bunx vitest run <paths touched>` +
-  **`bun run check:pr`** (= `check:all:inner`: format + lint + type-check +
-  `check:index` + `check:stubs`, **plus `check:guards`**; light tier, no
-  mutex). Never hand-pick a subset (#omitting `check:index` broke every
-  card-shipping PR at the merge-train). **`check:guards`** runs two lanes: the
-  bot suite's fast lane (#1912 — `TOLARIA_BOT_FAST=1`, deny-list in
-  `vitest.config.ts`, ~60s), where the catalogue-wide bot guards
-  (`aiEffectsGuard`, `pickRatings`, `opValuerCoverage`, censuses) live; and the
-  **whole node project** (`convex/**` + `scripts/**` + every DOM-free `src`
-  test, 692 files, ~30s at the light tier's 2 workers — no dom env init,
-  `isolate: false`, so the card registry is imported once per worker). The node
-  lane used to be filtered to
-  `scripts/__tests__`, which left every backend catalogue guard
-  (`effects/validate`'s Op-registry/executor/schema coverage,
-  `mechanicsRegistry`, `divergenceMarkers`, `serialize`'s drift check) outside
-  the light gate — a branch reached review with `validate.test.ts` red and a
-  `check:pr` that exited 0. Scope pinned by
-  `scripts/__tests__/check-guards-scope.test.ts`; bot deny-list drift by
-  `bot-fast-lane.test.ts`. A third, ~1s lane runs **`bun run cr:lint`** (#2429)
-  — offline, reads only the vendored CR, so the gate's no-network contract
-  holds.
-  **The dom project is need-classified, not directory-classified**
-  (`scripts/test-env-split.ts`, computed at config load): a `src/**/*.test.ts`
-  with no DOM global, no testing-library import, no jest-dom matcher and no
-  `vi.mock`/spy/fake-timer runs in the **node** project instead — 110 files
-  today, and a file that grows a DOM dependency moves back by itself. Partition
-  pinned by `scripts/__tests__/src-test-env-split.test.ts` (a file selected by
-  NO project runs nowhere and the gate stays green). `bun run test:app` 190s →
-  108s at the heavy tier.
-  **Still outside the light gate: what genuinely needs a DOM** (252 files;
-  issue #2435 swapped the environment to `happy-dom` — measured back-to-back
-  on the same tree, `TOLARIA_VITEST_WORKERS=2 bunx vitest run --project dom`,
-  2207 passed both ways: happy-dom 119.35s wall / 44.33s `environment` vs
-  jsdom 180.05s wall / 113.03s `environment`, ~34% off wall, ~61% off the
-  `environment` phase — per-file environment init still dominates, so no
-  deny-list helps and `--pool=threads` measured identical). Cover `src/`
-  changes with targeted runs. Its one known
-  cross-boundary breakage class — a `vi.mock("@convex/cards")` factory going
-  stale when a name becomes barrel-internal (#2339: 102 tests, 12 files, seen
-  first at the merge-train) — is caught statically instead, by
-  `scripts/__tests__/convex-cards-barrel-mock.test.ts` in the node lane.
-- **Before done/merge** — full gate once: `bun run check:all` (zero errors) +
-  `bun run test` (zero failures).
-
-**Hooks:** `.husky/pre-commit` (lint-staged/prettier on staged files —
-convenience, skipped by merge/rebase/cherry-pick) + `.husky/pre-push`
-(diff-scoped `prettier --check` on pushed commits; a push updating the
-**default branch** also runs the full gate, #2203 — skipped only when the SHA
-is already in `.claude/telemetry/green-sha`, or explicitly via
-`TOLARIA_SKIP_PUSH_GATE=1` which prints a red banner). Both tracked in git,
-guarded by `scripts/__tests__/worktree-bootstrap.test.ts` (a missing husky
-hook is silent — it vanished for six weeks once).
-
-**`check:all` VERIFIES formatting** (`format:check`), it does not repair it —
-on drift, run `bun run format` and re-run (#1807: a gate that repairs what it
-checks can never fail).
-
-**Three suites, one gate command:** `bun run test` = `test:app` (everything not
-`*.bot.test.ts`, ~580 files) then `test:bot` (ISMCTS/eval/driver/self-play,
-`*.bot.test.ts` — separate invocation so heavy episodes get an uncontended
-run) then `test:blade` (must tier, own config, ~42s). **Name any new bot/AI
-test `*.bot.test.ts`** — `scripts/__tests__/bot-suite-boundary.test.ts`
-enforces the boundary. Blade's stretch tier stays report-only and manual
-(`bun run test:blade:stretch`).
-
-**There is no CI.** The three GitHub Actions workflows (`lint`, `test`,
-`blade`) were deleted 2026-08-08: the plan's Actions minutes ran out, and with
-no branch protection on this repo (`/branches/main/protection` → 403, needs
-Pro) they gated nothing — every job duplicated a command the local gate
-already runs. Consequence: **the local gate is the only gate**, so nothing may
-be left to CI, and the merge-train always takes Lane B (local full gate on the
-rebased tree). Re-adding a workflow only makes sense together with branch
-protection — otherwise it is a report nobody blocks on.
+- **Never hand-pick a subset of `check:pr`** — omitting `check:index` once
+  broke every card-shipping PR at the merge-train.
+- **`check:all` VERIFIES formatting**, it does not repair it — on drift run
+  `bun run format` and re-run (#1807).
+- **`bun run test` is three suites** — `test:app` → `test:bot` → `test:blade`.
+  **Name any new bot/AI test `*.bot.test.ts`**; `bot-suite-boundary.test.ts`
+  enforces it.
+- **Cover `src/` changes with targeted runs** — the dom project is outside the
+  light gate.
+- **There is no CI: the local gate is the only gate.** Nothing may be left to
+  CI, and the merge-train always takes Lane B (local full gate on the rebased
+  tree).
 
 **CPU admission control** (`scripts/gate.ts`) — several sessions share this
 machine:
@@ -336,13 +277,11 @@ machine:
 | **heavy** | `bun run test`, `test:app`, `test:bot`, `check:all`                | machine-wide mutex (`~/.cache/tolaria/gate.lock`), `ncpu - 1` workers |
 | **light** | `bunx vitest run <path>`, `check:pr`, `check:ts`, `lint`, `format` | no lock, vitest capped at 2 workers (`TOLARIA_VITEST_WORKERS`)        |
 
-A queued heavy gate is not a hang. Stale locks auto-pruned. **The full gate is
-blocked inside an issue worktree** (`feat/issue-N`/`fix/issue-N` → exit 1):
-the merge-train runs it once per landing tree; `TOLARIA_ALLOW_FULL_SUITE=1`
+A queued heavy gate is not a hang. **The full gate is blocked inside an issue
+worktree** (`feat/issue-N`/`fix/issue-N` → exit 1); `TOLARIA_ALLOW_FULL_SUITE=1`
 is the orchestrator-only escape hatch.
 
-**Fresh worktrees need `bun run worktree:init`** (copies `node_modules`,
-`convex/_generated`, `.env.local`, `.husky/_`). The tell for a missing
+**Fresh worktrees need `bun run worktree:init`.** The tell for a missing
 bootstrap: **`216 files failed, 0 tests failed`** (import errors, not a red
 baseline).
 
