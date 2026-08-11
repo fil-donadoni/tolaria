@@ -1718,7 +1718,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "activate-ability", card: "Deceiver Exarch" }],
         },
-        note: "Twin combo execution. The bot has Twin attached to Exarch and should activate '{T}: Create token copy' to start the combo engine.",
+        note: "Twin combo execution. Twin attached to Exarch via attachedTo. Bot should activate '{T}:' due to executing combo annotation.",
     },
 ];
 

@@ -27,6 +27,10 @@ export interface ComboPiece {
     controller?: "you" | "any";
     /** If true, the permanent must be untapped (only meaningful for battlefield). */
     untapped?: boolean;
+    /** If set, this piece (an Aura/Equipment) must be attached to a permanent
+     *  whose card definition id matches this value. Only meaningful for
+     *  battlefield pieces. */
+    attachedToCardId?: string;
 }
 
 export interface ComboStage {
@@ -101,6 +105,14 @@ function pieceSatisfied(
             if (piece.controller === "you" && perm.controllerId !== player.id)
                 continue;
             if (piece.untapped && perm.isTapped) continue;
+            if (piece.attachedToCardId) {
+                const hostId = (perm as { attachedTo?: string }).attachedTo;
+                if (!hostId) continue;
+                const host = allBattlefield.find((c) => c.id === hostId);
+                if (!host) continue;
+                const hostCid = (host.card as { id?: string }).id;
+                if (hostCid !== piece.attachedToCardId) continue;
+            }
             return true;
         }
     }
@@ -172,7 +184,7 @@ const SPLINTER_TWIN_ID = "2f8f22fb-7291-4517-9b15-e98501f2856b";
 
 registerCombo({
     id: "splinter-twin-combo",
-    name: "Splinter Twin + Deceiver Exarch",
+    name: "Splinter Twin + Deceiver Exarch (cast phase)",
     pieces: [
         {
             cardId: DECEIVER_EXARCH_ID,
@@ -180,8 +192,29 @@ registerCombo({
             controller: "you",
             untapped: true,
         },
-        { cardId: SPLINTER_TWIN_ID, zone: "any" },
+        { cardId: SPLINTER_TWIN_ID, zone: "hand" },
     ],
     manaRequired: 4,
-    stages: [{ piecesOnBoard: 2, boost: 5000 }],
+    stages: [
+        { piecesOnBoard: 1, boost: 200 },
+        { piecesOnBoard: 2, boost: 0 }, // Twin in hand: piecesOnBoard=1 → stage 1 only
+    ],
+});
+
+// Execution-phase: once Twin is enchanting Exarch, the combo is live. Give a
+// massive boost (half WIN_SCORE, into the "won" reward band) so the bot
+// prefers activating over passing, even though ISMCTS can't simulate the
+// token-ETB untap loop (`policyValue` resolves only one stack item).
+registerCombo({
+    id: "splinter-twin-combo-executing",
+    name: "Splinter Twin + Deceiver Exarch (executing)",
+    pieces: [
+        { cardId: DECEIVER_EXARCH_ID, zone: "battlefield", controller: "you" },
+        {
+            cardId: SPLINTER_TWIN_ID,
+            zone: "battlefield",
+            attachedToCardId: DECEIVER_EXARCH_ID,
+        },
+    ],
+    stages: [{ piecesOnBoard: 2, boost: 500_000 }],
 });
