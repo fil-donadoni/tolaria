@@ -145,6 +145,18 @@ export const deceiverExarch: CardDefinition = {
                     ctx.tap(target);
                 }
             },
+            // aiEffects (PRD #1423, issue #1431/#1519) — the body is a bare
+            // `resolve()`, so the value model has nothing to walk. Sketch the
+            // UNTAP arm: both arms score the same `TAP_UNTAP_VALUE`, so the
+            // only thing the choice decides is beneficence (`opValuers.ts`:
+            // untap → beneficial, tap → harmful), i.e. which side's permanent
+            // the bot aims at. Untap is the arm this card exists for (the
+            // Splinter Twin loop untaps your own enchanted creature); the tap
+            // arm is the same Op mirrored and needs no second sketch. Never
+            // executed — only `OP_VALUERS` reads it.
+            aiEffects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+            ],
         }),
     ],
 };

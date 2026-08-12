@@ -92,15 +92,13 @@ Every required check `success` → baseline green, proceed. Any required check f
 **Never work in the shared main checkout.** Other sessions may be editing it live — `git status` showing a dozen modified files is the normal state, not a problem to clean up. Never `git checkout --`, `stash`, or `switch` there, and prefer not to edit files there at all: a concurrent session running `git commit -a` will sweep your edit into an unrelated commit (observed). Make even one-file doc changes in your own worktree.
 
 - If the baseline is **green** → record the tip as the **verified-green SHA** and proceed to selection.
-- If the baseline is **red** → **never select, claim, or branch off it.** Branching off red makes every subagent thrash, fix unrelated tests, or merge red. But do not simply stop either: an unattended loop that halts on someone else's red is dead until a human notices. **Classify the red first, then act** (§0b).
+- If the baseline is **red** → **never select, claim, or branch off it** (branching off red makes every subagent thrash, fix unrelated tests, or merge red). **Classify the red first, then act** (§0b).
 
 #### 0b. Red baseline → classify before acting
 
 Never select, claim or branch off a red baseline — and never simply stop either, or an unattended loop is dead until a human notices. **Classify the red, then act: `references/red-baseline.md`.** Exactly one class (a commit this loop merged) is yours to revert; a red you did not cause is a `bug` issue plus a stop.
 
-**SHA cache (gate dedup).** The orchestrator tracks the verified-green SHA across passes, updating it on every gate that passes on `main`'s tip (baseline, integrate re-gate, post-merge). At the start of each later pass: `git pull --ff-only`, compare the tip with the cached SHA — **identical → skip the baseline suite** (main is green by construction: its tip is the last merged PR, which passed the train's gate); **different** (external push, another process merged) → run the full baseline as above.
-
-**Persist the cache across sessions.** After every full gate that passes on `main`'s tip, write the SHA to `.claude/telemetry/green-sha` (`mkdir -p .claude/telemetry && git rev-parse HEAD > .claude/telemetry/green-sha`, from the main checkout, gitignored). At session start, if `main`'s pulled tip equals the file's SHA → skip the baseline suite entirely (the file is only ever written after a green gate, so the tip is verified by a previous session). Different or missing → run the full baseline, then write the file. This removes the "first pass always pays the full baseline" cost (~the full-suite duration per session).
+**SHA cache (gate dedup), persisted across sessions.** After every full gate that passes on `main`'s tip (baseline, integrate re-gate, post-merge), write the SHA to `.claude/telemetry/green-sha` (`mkdir -p .claude/telemetry && git rev-parse HEAD > .claude/telemetry/green-sha`, from the main checkout, gitignored) — the file is only ever written after a green gate, so a later session can trust it. At the start of every pass: `git pull --ff-only`, compare the tip with it — **identical → skip the baseline suite** (main is green by construction: its tip is the last merged PR, which passed the train's gate); **different or missing** (external push, another process merged) → run the full baseline as above, then write the file. This removes the "first pass always pays the full baseline" cost (~the full-suite duration per session).
 
 Each **subagent** repeats this check inside its worktree before implementing — **unless its branch starts exactly at the verified-green SHA the orchestrator passed in the prompt** (gate dedup: same tree, same result — skip). If the branch base differs (main moved, or a pre-existing WIP branch), run the full suite: if the pre-existing failure set (before any edits) is non-empty, abort immediately and report the reds back — it does **not** implement on top of red. "Not my test" is never an exemption.
 
@@ -197,10 +195,10 @@ Spawn a **fresh** subagent via the `Agent` tool for **each** issue in the batch,
 
 **Investigator-first — the implementer receives a map, it does not explore.**
 Telemetry (2026-08-06): implement-subagents averaged **183k tokens of context
-per message** — most of it files read while wandering — against 68k for
-`investigate` subagents, whose caveman-compressed output costs ~$2.6/run.
-Every file the implementer never opens is content it does not re-read on each
-of its next 150 messages. So, for each batch issue whose `targetFiles` name a
+per message** (files read while wandering) against 68k for `investigate`
+subagents, whose compressed output costs ~$2.6/run — every file the implementer
+never opens is content it does not re-read on each of its next 150 messages.
+So, for each batch issue whose `targetFiles` name a
 glob/module or more than 2 files (engine/cross-module work): spawn an
 `investigate` subagent first (`model: sonnet`, description prefixed
 `investigate`), concurrently across the batch, asking for a compact `file:line`
@@ -328,13 +326,7 @@ Back in the orchestrator (do NOT re-read the diff or re-run tests):
     Do not close a parent on a partial count, and do not close one whose `total` is 0 — a zero means nobody wired the sub-issue edges, not that there is no work left.
 
 - **Post-merge health check.** A gate that passed on the rebased tree can still be followed by a red `main` — a required check that only runs on `main`, a deployment step, a second merge that raced yours. After the last merge of the batch, read the tip's check runs (the §0 `gh api … /check-runs` call). Red → run §0b triage immediately: the culprit is almost certainly a commit **this loop just merged**, which is the revert case. Do not start another batch on a red tip.
-- **AFK handoff — the last action of the pass, after Release and the final report.** Run it on **every** exit path that reaches a report, including a pass that landed nothing:
-
-    ```bash
-    sh scripts/loop-handoff.sh --from-pass
-    ```
-
-    It decides for itself and is a quiet no-op in four cases: the checkout is not **armed** (no `.claude/telemetry/afk.conf` — an ordinary interactive pass must never fork an unattended run), this pass was itself started by the driver (`TOLARIA_LOOP_DRAIN=1` — the driver launches the next pass, not the pass), a driver is already running over this checkout, or the stop-file exists. Otherwise it detaches a `loop:drain` driver that keeps starting fresh passes with no further human input. **A blocked handoff is never an error** — it exits 0 and the batch that just landed stays a success.
+- **AFK handoff — the last action of the pass, after Release and the final report.** Run `sh scripts/loop-handoff.sh --from-pass` on **every** exit path that reaches a report, including a pass that landed nothing. It decides for itself: quiet exit-0 no-op unless the checkout is armed and no driver already owns it, otherwise it detaches a `loop:drain` driver. **A blocked handoff is never an error** — the batch that just landed stays a success. Conditions and flags: `references/afk-driver.md`.
 
 - Pass complete. With `MAX_PASSES = 1` (default), **exit here** — the driver starts a fresh process for the next batch (see § Running unattended).
 
@@ -371,26 +363,11 @@ If issue body contains `⚠️ HITL` or `HITL`:
 
 ## Running unattended (the outer loop)
 
-This skill implements **one pass**. Continuous operation is an outer loop that re-invokes it — and the reason that works is that **no loop state lives in the conversation**:
+This skill implements **one pass**. Continuous operation is an outer loop that re-invokes it, and that works because **no loop state lives in the conversation** — taken issues (`in-progress` label), done issues (issue state), the known-green tree (`.claude/telemetry/green-sha`) and in-flight work (pushed branch + open PR) are all durable outside it, so a fresh process per batch loses nothing and resets context to zero.
 
-| State                     | Where it durably lives              |
-| ------------------------- | ----------------------------------- |
-| which issues are taken    | the `in-progress` label on GitHub   |
-| which issues are done     | issue state (closed by `Closes #N`) |
-| which tree is known green | `.claude/telemetry/green-sha`       |
-| in-flight work            | the pushed branch + open PR         |
+**Do NOT drive this with `/loop`** — it re-fires its prompt inside the SAME conversation, so context never resets and `.claude/hooks/deny-guard.sh` denies the second `bun run queue:plan`, killing pass 2. Never run many passes in one conversation to "save" the startup cost either: context growth across passes is the failure mode this design removes.
 
-So a fresh process per batch loses nothing and resets context to zero. **Do NOT drive this with `/loop`** — `/loop` re-fires its prompt inside the SAME conversation, so context never resets between passes and `.claude/hooks/deny-guard.sh` denies the second `bun run queue:plan` in that session, killing pass 2 immediately. Drive it with the out-of-process driver `scripts/loop-drain.sh` (ADR 0097). **Never** try to run many passes inside one conversation to "save" the startup cost — context growth across passes is the failure mode this design removes.
-
-**One command starts the whole unattended run** (ADR 0099):
-
-```bash
-bun run loop:afk          # arm + detach the driver; then walk away
-bun run loop:afk --status # armed? driver alive? last passes
-bun run loop:afk --stop   # stop after the current pass finishes
-```
-
-`loop:afk` (`scripts/loop-handoff.sh`) **arms** the checkout — writing `.claude/telemetry/afk.conf`, which records in plain text the permission mode the unattended passes will use — and detaches the driver into its own session (setsid + `nohup`, under `caffeinate` so the Mac does not sleep through the run), so it outlives the terminal, the SSH connection, or the Claude Code session that started it. From then on the machine keeps launching fresh `claude -p "/process-gh-issues"` processes on its own; a pass that finishes on an armed checkout hands the baton on (§4 last step) even if the driver itself died. `bun run loop:drain` is still the way to run the driver in the foreground of a terminal you are watching. Details, flags and stop reasons: `references/afk-driver.md`.
+Start an unattended run with **`bun run loop:afk`** (ADR 0097/0099): it arms the checkout and detaches the out-of-process driver into its own session, so the run outlives the terminal, the SSH connection and the Claude Code process that started it, and every finished pass hands the baton on (§4 last step) even if the driver died. `bun run loop:drain` runs the same driver in the foreground. Commands, arming, permission mode, stop reasons, crash retry, budget proxy: `references/afk-driver.md`.
 
 ## The queue is the only source of work
 

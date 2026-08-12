@@ -1,9 +1,10 @@
 // nph blue — Gitaxian Probe (private look + draw, {U/P}) and Phyrexian
 // Metamorph (copy-on-ETB Clone variant, {3}{U/P}). Both exercise the
 // Phyrexian-mana cost (CR 107.4f); the generic cost-system pieces are covered
-// in convex/gre/__tests__/phyrexian.test.ts.
+// in convex/gre/__tests__/phyrexian.test.ts. Deceiver Exarch's `resolve()` ETB
+// (untap-or-tap deduced from the target's controller) is covered here too.
 import { describe, it, expect } from "vitest";
-import { gitaxianProbe, phyrexianMetamorph } from "../blue";
+import { deceiverExarch, gitaxianProbe, phyrexianMetamorph } from "../blue";
 import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { driveCopyChoice } from "../../lea/__tests__/helpers";
@@ -16,7 +17,7 @@ import {
 import { enumerateMoves } from "../../../../gre/moves";
 import { applyMoveForSearch } from "../../../../gre/applyMove";
 import { projectPublicState } from "../../../../gameProjections";
-import type { GameState } from "../../../../gre/state";
+import type { GameState, StackItem } from "../../../../gre/state";
 
 describe("Gitaxian Probe (look at target player's hand, draw; {U/P}, CR 107.4f)", () => {
     function commitHead(state: GameState, picks: string[]) {
@@ -208,5 +209,77 @@ describe("Phyrexian Metamorph (copy artifact/creature, {3}{U/P}, CR 707.2 / 107.
         ).toBe(2);
         const next = applyMoveForSearch(state, "p1", castMove!);
         expect(next.players[0].life).toBe(18);
+    });
+});
+
+// Deceiver Exarch — the ETB is a `resolve()` closure (protocol card: a modal
+// TriggeredAbility has no `modes` field, so the mode is deduced from the
+// target's controller — CR 701.26a tap, CR 701.26b untap). Both arms need a
+// test: the deduction IS the card.
+describe("Deceiver Exarch ETB (untap yours / tap an opponent's, CR 603.6a)", () => {
+    function pushEtb(state: GameState, exarch: StackItem, targetId: string) {
+        state.stack.push({
+            ...exarch,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "deceiver-exarch-etb",
+            triggerSourceId: exarch.id,
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: exarch.id,
+                controllerId: "p1",
+                types: ["Creature"],
+            } as StackItem["triggerEvent"],
+            targets: [{ type: "permanent", id: targetId }],
+        });
+        resolveTopOfStack(state);
+    }
+
+    function board(targetControllerId: string, targetTapped: boolean) {
+        const exarch = makeInstance(deceiverExarch.id, {
+            id: "exarch",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(grizzlyBears.id, {
+            id: "target",
+            controllerId: targetControllerId,
+            ownerId: targetControllerId,
+            isTapped: targetTapped,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield:
+                        targetControllerId === "p1"
+                            ? [exarch, target]
+                            : [exarch],
+                }),
+                makePlayer("p2", {
+                    battlefield: targetControllerId === "p2" ? [target] : [],
+                }),
+            ],
+            activePlayerId: "p1",
+        });
+        return { state, exarch: exarch as StackItem, target };
+    }
+
+    it("untaps a tapped permanent its controller owns", () => {
+        const { state, exarch, target } = board("p1", true);
+        pushEtb(state, exarch, target.id);
+        expect(target.isTapped).toBe(false);
+    });
+
+    it("taps an untapped permanent an opponent controls", () => {
+        const { state, exarch, target } = board("p2", false);
+        pushEtb(state, exarch, target.id);
+        expect(target.isTapped).toBe(true);
+        // Tap state is board-visible, so it must survive the projection the
+        // client actually reads (wire-format row of the card-testing table).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "target"
+        )!;
+        expect(slim.isTapped).toBe(true);
     });
 });
