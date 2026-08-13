@@ -34,7 +34,7 @@ import type {
     StackItem,
 } from "./state";
 import { getPlayer, allocInstanceId } from "./state";
-import { effectiveTriggeredAbilities } from "./copy";
+import { effectiveTriggeredAbilities, findTriggeredAbility } from "./copy";
 import { raiseTriggerTargetSelection } from "./rules";
 
 /** Builds the StackItem a fired delayed triggered ability resolves from (CR
@@ -732,10 +732,15 @@ function isPlainTrigger(item: StackItem): boolean {
 
 /** CR 603.3d — the ADR-0058 identity key for one plain trigger StackItem. Two
  *  items share a key iff they are the SAME printed triggered ability of the SAME
- *  card. A triggered ability in this engine chooses its targets/modes at
- *  RESOLUTION (there is no announcement-time `targetRequirement` on
- *  `TriggeredAbility`), so two identical copies are outcome-interchangeable
- *  regardless of targets — swapping them has one meaningful result (ADR 0003). */
+ *  card AND make no announcement of their own as they go on the stack. Only
+ *  then are they outcome-interchangeable — swapping them has one meaningful
+ *  result (ADR 0003) — and only then may the engine auto-order them.
+ *
+ *  Two announcing shapes break that premise and each gets a per-INSTANCE key:
+ *  a reflexive trigger (its own inline `targetRequirement`) and, since issue
+ *  #2461, a MODAL trigger (its own `modes` list). ADR 0003's original premise —
+ *  that a triggered ability picks everything at RESOLUTION — stopped being true
+ *  for targets with #1193 and for modes with #2461. */
 function triggerOrderKey(item: StackItem): string {
     const cardId = (item.card as { id?: string }).id ?? "";
     // CR 603.3c/603.3d — a reflexive ability DOES announce its own targets as
@@ -744,6 +749,18 @@ function triggerOrderKey(item: StackItem): string {
     // 0003's premise). Key each by its own instance id so a pair of them is
     // put to a real ordering decision rather than auto-ordered.
     if (item.reflexiveTrigger) return `${cardId}::reflexive::${item.id}`;
+    // CR 603.3c (issue #2461) — a MODAL trigger announces its own mode as it is
+    // put on the stack, and each copy announces separately: two copies of one
+    // Deceiver Exarch ETB can become untap-then-tap or tap-then-untap, distinct
+    // outcomes. Key per instance so the controller gets the real CR 603.3b
+    // ordering decision instead of a silent auto-order.
+    if (
+        item.triggeredAbilityId &&
+        (findTriggeredAbility(item, item.triggeredAbilityId)?.modes?.length ??
+            0) > 0
+    ) {
+        return `${cardId}::${item.triggeredAbilityId}::modal::${item.id}`;
+    }
     return `${cardId}::${item.triggeredAbilityId}`;
 }
 

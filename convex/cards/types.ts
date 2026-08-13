@@ -8271,7 +8271,7 @@ export interface TriggeredAbility {
      *  announcement-time `targetRequirement` (CR 700.2d) and the resolution
      *  body. A mode whose required targets have no legal candidates cannot be
      *  chosen, and when no mode can be chosen the ability is removed from the
-     *  stack (CR 603.3c) — both enforced by `raiseTriggerAnnouncement`
+     *  stack (CR 603.3c) — both enforced by `raiseTriggerModeAnnouncement`
      *  (`gre/rules.ts`), which raises a `kind: "trigger-mode"` PendingChoice
      *  for the controller when two or more modes are choosable and
      *  auto-announces when only one is.

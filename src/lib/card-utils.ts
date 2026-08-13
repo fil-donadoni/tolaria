@@ -2462,27 +2462,35 @@ export function getStackAbilityOracleText(item: {
     );
 }
 
-/** One line of a modal spell's oracle text as shown on the stack (CR 700.2c). */
+/** One line of a modal spell's or modal triggered ability's oracle text as shown
+ *  on the stack (CR 700.2c / CR 603.3c). */
 export type StackModeLine = {
     modeId: string;
-    /** The bullet clause for this mode (`SpellMode.oracleText`). */
+    /** The bullet clause for this mode (`SpellMode`/`AbilityMode.oracleText`). */
     oracleText: string;
-    /** Short mode label (`SpellMode.label`) — a fallback if oracleText is thin. */
+    /** Short mode label (`SpellMode`/`AbilityMode.label`) — a fallback if
+     *  oracleText is thin. */
     label: string;
-    /** True for the mode the caster locked in at cast. */
+    /** True for the mode announced when the object went on the stack. */
     chosen: boolean;
 };
 
-/** CR 700.2c (issue #1274) — for a modal spell on the stack that has locked in
- *  a mode, returns each declared mode's oracle line flagged with whether it is
- *  the chosen one, so the stack UI can highlight the chosen mode and
- *  de-emphasize the rest — visible to BOTH players (the mode is public once the
- *  spell is on the stack). Reads `chosenModeId`, which survives the wire
- *  projection (`SlimStackItem` keeps every StackItem field but `card`).
+/** CR 700.2c / CR 603.3c — for a modal object on the stack that has announced a
+ *  mode, returns each declared mode's oracle line flagged with whether it is the
+ *  chosen one, so the stack UI can highlight the chosen mode and de-emphasize
+ *  the rest — visible to BOTH players (the mode is public once the object is on
+ *  the stack). Reads `chosenModeId`, which survives the wire projection
+ *  (`SlimStackItem` keeps every StackItem field but `card`).
  *
- *  Returns null for a stack item that is NOT a modal spell showing a chosen
- *  mode: an ability (activated / triggered / delayed carries no spell mode), a
- *  non-modal spell, a spell with no locked mode, or a `chosenModeId` that
+ *  Two mode lists feed it, one per announcing object:
+ *   - a modal SPELL's `CardDefinition.modes`, locked at cast (issue #1274);
+ *   - a modal TRIGGERED ability's `TriggeredAbility.modes`, announced as the
+ *     ability was put on the stack (CR 603.3c, issue #2461) — the opponent is
+ *     entitled to see which arm they are responding to.
+ *
+ *  Returns null for a stack item showing no mode: an activated or delayed
+ *  ability (their announced mode is not rendered here yet), a non-modal spell
+ *  or trigger, an object with no announced mode, or a `chosenModeId` that
  *  doesn't match any declared mode (defensive against a stale id). */
 export function getStackModeLines(item: {
     card: Record<string, unknown>;
@@ -2492,18 +2500,28 @@ export function getStackModeLines(item: {
     delayedTriggerId?: string;
 }): StackModeLine[] | null {
     if (!item.chosenModeId) return null;
-    // CR 112.1 — only a spell carries a spell-level chosen mode, never an
-    // ability item. The shared discriminator (`gre/constants.ts`), which is
-    // structurally typed precisely so the client's `StackItem` satisfies it.
-    if (!isSpellStackItem(item)) return null;
     // `card.id` is `unknown` on the fat engine `StackItem` (Record-typed card)
     // and `string` on the wire `SlimStackItem` — accept both.
     const cardId = item.card.id;
     if (typeof cardId !== "string") return null;
     const def = tryGetDefinition(cardId);
-    if (!def?.modes || def.modes.length === 0) return null;
-    if (!def.modes.some((m) => m.id === item.chosenModeId)) return null;
-    return def.modes.map((m) => ({
+    if (!def) return null;
+    // CR 112.1 — a SPELL item carries the card-level mode list; a triggered
+    // ability item carries its own ability's. The shared discriminator
+    // (`gre/constants.ts`) is structurally typed precisely so the client's
+    // `StackItem` satisfies it.
+    const modes:
+        | { id: string; label: string; oracleText: string }[]
+        | undefined = isSpellStackItem(item)
+        ? def.modes
+        : item.triggeredAbilityId
+          ? def.triggeredAbilities?.find(
+                (a) => a.id === item.triggeredAbilityId
+            )?.modes
+          : undefined;
+    if (!modes || modes.length === 0) return null;
+    if (!modes.some((m) => m.id === item.chosenModeId)) return null;
+    return modes.map((m) => ({
         modeId: m.id,
         oracleText: m.oracleText,
         label: m.label,

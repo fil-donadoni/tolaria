@@ -5097,6 +5097,32 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     }
                 }
                 delete top.resolutionStep;
+            } else if (ability.modes && ability.modes.length > 0) {
+                // CR 603.3c / 700.2c (issue #2461) — a MODAL triggered ability
+                // dispatches the mode its controller announced as the ability
+                // went on the stack, which rode here as `chosenModeId`. The
+                // ability-level body is ignored (a modal ability has none —
+                // `validateAbilityEffectScript` rejects declaring both), and a
+                // `chosenModeId` that names no declared mode, or a trigger that
+                // somehow reached resolution un-announced, resolves as nothing
+                // (CR 608.2b). The mode body is an `AbilityMode`, the same
+                // shape a modal ACTIVATED ability resolves below, so its
+                // `resolve` takes no event argument.
+                const mode = top.chosenModeId
+                    ? ability.modes.find((m) => m.id === top.chosenModeId)
+                    : undefined;
+                if (mode) {
+                    const scriptFn = getAbilityEffectFn(mode);
+                    if (scriptFn) {
+                        const ctx = buildSpellContext(state, top);
+                        scriptFn(ctx);
+                        if (resolutionSuspendedOnChoice(state)) return null;
+                    } else if (mode.resolve) {
+                        const ctx = buildSpellContext(state, top);
+                        mode.resolve(ctx);
+                        if (resolutionSuspendedOnChoice(state)) return null;
+                    }
+                }
             } else {
                 // ADR 0045 (issue #803) — an Effect Script resolves through the
                 // SAME interpreter seam as a spell-site script; otherwise fall
