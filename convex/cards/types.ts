@@ -7613,6 +7613,22 @@ export interface CardDrawnEvent {
      *  draw (index 0), mirroring `nthSpellThisTurn`'s own fallback
      *  convention for `casterSpellCountThisTurn`. */
     drawIndexThisTurn?: number;
+    /** True only for the turn-based draw-step draw (CR 504.1) — the ONE card
+     *  the active player draws as the draw step's turn-based action. The
+     *  trigger-side twin of `DrawReplacementEvent.isTurnBasedDrawStepDraw`
+     *  (Hullbreacher's replacement reads that one); this is what lets a
+     *  TRIGGER exempt it — Orcish Bowmasters' "whenever an opponent draws a
+     *  card except the first one they draw in each of their draw steps".
+     *
+     *  Deliberately REQUIRED, not optional: it is the fail-closed
+     *  discriminator for a semantic no other field carries.
+     *  `drawIndexThisTurn === 0` is only an approximation of it (a turn with
+     *  two draw steps, or any draw taken before the draw step, makes the two
+     *  diverge), and an optional field would let a future producer leave it
+     *  `undefined` and silently read as "not the draw-step draw". Every
+     *  producer goes through `emitCardDrawn` (`gre/state.ts`), whose own
+     *  parameter is required for the same reason. */
+    isTurnBasedDrawStepDraw: boolean;
 }
 
 /** Emitted whenever a card is discarded — moved from a player's hand to their

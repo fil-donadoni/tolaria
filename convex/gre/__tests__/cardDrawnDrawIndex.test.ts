@@ -31,11 +31,11 @@ describe("emitCardDrawn drawIndexThisTurn stamping (CR 121.1, issue #781)", () =
         p1.library = makeLibrary(3);
 
         drawCard(p1);
-        emitCardDrawn(state, "p1", 1);
+        emitCardDrawn(state, "p1", 1, false);
         drawCard(p1);
-        emitCardDrawn(state, "p1", 1);
+        emitCardDrawn(state, "p1", 1, false);
         drawCard(p1);
-        emitCardDrawn(state, "p1", 1);
+        emitCardDrawn(state, "p1", 1, false);
 
         const draws = (state.pendingEvents ?? []).filter(
             (e) => e.type === "CARD_DRAWN"
@@ -51,7 +51,14 @@ describe("emitCardDrawn drawIndexThisTurn stamping (CR 121.1, issue #781)", () =
         // Mirrors `commitDrawPlan`'s "normal" branch (state.ts): drawCard is
         // called `plan.count` times, THEN emitCardDrawn is called once with
         // the actual drawn count.
-        const drawn = commitDrawPlan(state, "p1", { kind: "normal", count: 3 });
+        const drawn = commitDrawPlan(
+            state,
+            "p1",
+            { kind: "normal", count: 3 },
+            {
+                isTurnBasedDrawStepDraw: false,
+            }
+        );
         expect(drawn).toBe(3);
 
         const draws = (state.pendingEvents ?? []).filter(
@@ -67,8 +74,15 @@ describe("emitCardDrawn drawIndexThisTurn stamping (CR 121.1, issue #781)", () =
         p1.library = makeLibrary(5);
 
         drawCard(p1);
-        emitCardDrawn(state, "p1", 1); // index 0
-        commitDrawPlan(state, "p1", { kind: "normal", count: 2 }); // indices 1, 2
+        emitCardDrawn(state, "p1", 1, false); // index 0
+        commitDrawPlan(
+            state,
+            "p1",
+            { kind: "normal", count: 2 },
+            {
+                isTurnBasedDrawStepDraw: false,
+            }
+        ); // indices 1, 2
 
         const draws = (state.pendingEvents ?? []).filter(
             (e) => e.type === "CARD_DRAWN"
@@ -84,9 +98,9 @@ describe("emitCardDrawn drawIndexThisTurn stamping (CR 121.1, issue #781)", () =
         p2.library = makeLibrary(2, "p2");
 
         drawCard(p2);
-        emitCardDrawn(state, "p2", 1);
+        emitCardDrawn(state, "p2", 1, false);
         drawCard(p1);
-        emitCardDrawn(state, "p1", 1);
+        emitCardDrawn(state, "p1", 1, false);
 
         const draws = (state.pendingEvents ?? []).filter(
             (e) => e.type === "CARD_DRAWN"
@@ -104,7 +118,7 @@ describe("emitCardDrawn drawIndexThisTurn stamping (CR 121.1, issue #781)", () =
         const p1 = getPlayer(state, "p1");
         p1.library = makeLibrary(1);
         drawCard(p1);
-        emitCardDrawn(state, "p1", 1);
+        emitCardDrawn(state, "p1", 1, false);
         expect(p1.drawnThisTurn).toHaveLength(1);
 
         advancePhase(state); // END_STEP -> CLEANUP (auto) -> UNTAP (auto, new turn) -> UPKEEP
@@ -116,10 +130,100 @@ describe("emitCardDrawn drawIndexThisTurn stamping (CR 121.1, issue #781)", () =
         p1After.library = makeLibrary(1);
         state.pendingEvents = [];
         drawCard(p1After);
-        emitCardDrawn(state, "p1", 1);
+        emitCardDrawn(state, "p1", 1, false);
         const draws = (state.pendingEvents ?? []).filter(
             (e) => e.type === "CARD_DRAWN"
         );
         expect(draws[0].drawIndexThisTurn).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// `CardDrawnEvent.isTurnBasedDrawStepDraw` (CR 504.1, issue #2374) — the
+// TRIGGER-side twin of `DrawReplacementEvent.isTurnBasedDrawStepDraw`. One
+// test per row of the producer census in the PR description: every site that
+// reaches `emitCardDrawn` must stamp the flag with the right value, and the
+// two shapes that make `drawIndexThisTurn === 0` a WRONG stand-in for it
+// (a draw before the draw step, a second draw step in one turn) are asserted
+// as divergences, not equivalences.
+// ---------------------------------------------------------------------------
+describe("CardDrawnEvent.isTurnBasedDrawStepDraw (CR 504.1, issue #2374)", () => {
+    // The DRAW-STEP leg (`performDrawStepDraw` → `commitDrawPlan` with
+    // `isTurnBasedDrawStepDraw: true`) is not observable here: `advancePhase`
+    // drains `pendingEvents` into the trigger scan inside the same call. It is
+    // covered end to end by Orcish Bowmasters' own test
+    // (`convex/cards/sets/ltr/__tests__/black.test.ts`), which advances a real
+    // draw step and asserts the trigger does NOT fire on it while it DOES fire
+    // on every other draw.
+    it("an effect-driven draw is flagged false even when it is the player's FIRST draw of the turn (drawIndexThisTurn === 0 is NOT the same predicate)", () => {
+        const state = makeState();
+        const p1 = getPlayer(state, "p1");
+        p1.library = makeLibrary(2);
+
+        // A spell's draw taken before the draw step: index 0, but not the
+        // turn-based draw-step draw.
+        commitDrawPlan(
+            state,
+            "p1",
+            { kind: "normal", count: 1 },
+            { isTurnBasedDrawStepDraw: false }
+        );
+
+        const draw = (state.pendingEvents ?? []).find(
+            (e) => e.type === "CARD_DRAWN"
+        )!;
+        expect(draw.drawIndexThisTurn).toBe(0);
+        expect(draw.isTurnBasedDrawStepDraw).toBe(false);
+    });
+
+    it("the turn-based draw stays flagged true even when it is NOT the player's first draw of the turn", () => {
+        const state = makeState();
+        const p1 = getPlayer(state, "p1");
+        p1.library = makeLibrary(3);
+
+        // An instant-speed draw during the upkeep, then the draw step's draw.
+        commitDrawPlan(
+            state,
+            "p1",
+            { kind: "normal", count: 1 },
+            { isTurnBasedDrawStepDraw: false }
+        );
+        commitDrawPlan(
+            state,
+            "p1",
+            { kind: "normal", count: 1 },
+            { isTurnBasedDrawStepDraw: true }
+        );
+
+        const draws = (state.pendingEvents ?? []).filter(
+            (e) => e.type === "CARD_DRAWN"
+        );
+        expect(draws.map((d) => d.drawIndexThisTurn)).toEqual([0, 1]);
+        expect(draws.map((d) => d.isTurnBasedDrawStepDraw)).toEqual([
+            false,
+            true,
+        ]);
+    });
+
+    it("a fanned-out turn-based batch flags only the FIRST card (CR 504.1 — the turn-based action draws exactly one card)", () => {
+        const state = makeState();
+        const p1 = getPlayer(state, "p1");
+        p1.library = makeLibrary(3);
+
+        commitDrawPlan(
+            state,
+            "p1",
+            { kind: "normal", count: 3 },
+            { isTurnBasedDrawStepDraw: true }
+        );
+
+        const draws = (state.pendingEvents ?? []).filter(
+            (e) => e.type === "CARD_DRAWN"
+        );
+        expect(draws.map((d) => d.isTurnBasedDrawStepDraw)).toEqual([
+            true,
+            false,
+            false,
+        ]);
     });
 });

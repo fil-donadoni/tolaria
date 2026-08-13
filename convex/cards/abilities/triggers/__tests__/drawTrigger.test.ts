@@ -25,6 +25,7 @@ function makeEvent(overrides: Partial<CardDrawnEvent> = {}): CardDrawnEvent {
         type: "CARD_DRAWN",
         playerId: "p2",
         count: 1,
+        isTurnBasedDrawStepDraw: false,
         ...overrides,
     };
 }

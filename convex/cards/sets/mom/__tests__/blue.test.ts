@@ -55,7 +55,7 @@ describe("Faerie Mastermind (CR 121.1 Nth-draw trigger, issue #781)", () => {
     function simulateDraw(state: GameState, drawingPlayerId: string) {
         const player = state.players.find((p) => p.id === drawingPlayerId)!;
         if (drawCard(player) !== null) {
-            emitCardDrawn(state, drawingPlayerId, 1);
+            emitCardDrawn(state, drawingPlayerId, 1, false);
         }
         processPendingActionTriggers(state);
     }

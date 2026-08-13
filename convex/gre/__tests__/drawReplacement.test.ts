@@ -212,7 +212,14 @@ describe("commitDrawPlan (CR 614/704.5b, ADR 0061)", () => {
         const state = makeState({
             players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
         });
-        const drew = commitDrawPlan(state, "p1", { kind: "normal", count: 2 });
+        const drew = commitDrawPlan(
+            state,
+            "p1",
+            { kind: "normal", count: 2 },
+            {
+                isTurnBasedDrawStepDraw: false,
+            }
+        );
         expect(drew).toBe(2);
         expect(state.players[0].hand).toHaveLength(2);
     });
@@ -221,7 +228,14 @@ describe("commitDrawPlan (CR 614/704.5b, ADR 0061)", () => {
         const state = makeState({
             players: [makePlayer("p1", { library: [] }), makePlayer("p2")],
         });
-        const drew = commitDrawPlan(state, "p1", { kind: "prevent" });
+        const drew = commitDrawPlan(
+            state,
+            "p1",
+            { kind: "prevent" },
+            {
+                isTurnBasedDrawStepDraw: false,
+            }
+        );
         expect(drew).toBe(0);
         expect(state.players[0].hasDrawnFromEmpty).toBeFalsy();
     });
@@ -241,12 +255,17 @@ describe("commitDrawPlan (CR 614/704.5b, ADR 0061)", () => {
                 makePlayer("p2"),
             ],
         });
-        const drew = commitDrawPlan(state, "p1", {
-            kind: "create-token",
-            beneficiaryId: "p2",
-            token: TREASURE_TOKEN,
-            count: 1,
-        });
+        const drew = commitDrawPlan(
+            state,
+            "p1",
+            {
+                kind: "create-token",
+                beneficiaryId: "p2",
+                token: TREASURE_TOKEN,
+                count: 1,
+            },
+            { isTurnBasedDrawStepDraw: false }
+        );
         expect(drew).toBe(0);
         // Drawing player drew nothing; library untouched; no empty-library loss.
         expect(state.players[0].hand).toHaveLength(0);

@@ -740,7 +740,11 @@ function drawStep(state: GameState): void {
         if (x <= 0) {
             // No cards to look at — the replacement does nothing beyond the
             // normal draw (which itself flags hasDrawnFromEmpty if empty).
-            if (drawCard(player) !== null) emitCardDrawn(state, player.id, 1);
+            // CR 504.1 — still the draw step's turn-based draw: the draw-look
+            // replacement (Aladdin's Lamp) replaced it, it did not add a
+            // second draw.
+            if (drawCard(player) !== null)
+                emitCardDrawn(state, player.id, 1, true);
             return;
         }
         const topIds = player.library.slice(0, x).map((c) => c.id);
@@ -780,7 +784,8 @@ function performDrawStepDraw(state: GameState, playerId: string): void {
         return;
     }
     // Deterministic / no replacement — commit and emit CARD_DRAWN inline.
-    commitDrawPlan(state, playerId, plan);
+    // CR 504.1 — this IS the draw step's turn-based draw.
+    commitDrawPlan(state, playerId, plan, { isTurnBasedDrawStepDraw: true });
 }
 
 /** Raises the interactive draw-replacement pay-choice (CR 614, ADR 0061 —
@@ -840,7 +845,10 @@ export function finalizeDrawReplacementPay(
             life: 0,
             revealedCardId: head.cardInstanceId ?? "",
         },
-        paid
+        // CR 504.1 — the resumed half of `performDrawStepDraw`'s turn-based
+        // draw: this queue entry is only ever enqueued from the draw step
+        // (`enqueueDrawReplacementPay`).
+        { isTurnBasedDrawStepDraw: true, paid }
     );
 
     queue.shift();
@@ -885,8 +893,10 @@ export function finalizeDrawLookKeep(
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;
 
-    // CR — "then draw a card" (the kept card is now on top).
-    if (drawCard(player) !== null) emitCardDrawn(state, player.id, 1);
+    // CR — "then draw a card" (the kept card is now on top). CR 504.1 — the
+    // draw-look replacement replaced the draw step's turn-based draw, so this
+    // resumed draw IS that draw.
+    if (drawCard(player) !== null) emitCardDrawn(state, player.id, 1, true);
     processPendingActionTriggers(state);
 
     if ((state.pendingChoices?.length ?? 0) > 0) {
