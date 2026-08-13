@@ -24,10 +24,11 @@ import {
 import { deceiverExarch } from "../../cards/sets/nph/blue";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import type { GameState, StackItem } from "../state";
+import type { GameEvent } from "../../cards/types";
 import { resolveTopOfStack } from "../state";
 import { raiseTriggerTargetSelection } from "../rules";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
-import { placeTriggersOnStack } from "../triggers";
+import { collectTriggers, placeTriggersOnStack } from "../triggers";
 import { legalActions } from "../legalActions";
 import { computeExpectedInput } from "../expectedInput";
 import { projectPublicState } from "../../gameProjections";
@@ -218,6 +219,69 @@ describe("modal triggered abilities — announcement (CR 603.3c)", () => {
         expect(() => submitHead(state, "no-such-mode")).toThrow(
             /Not a legal mode/
         );
+    });
+});
+
+describe("modal triggered abilities — the trigger item is built un-announced (CR 603.3c)", () => {
+    it("does not inherit a stale chosenModeId from the source permanent", () => {
+        // `buildTriggerItem` spreads the SOURCE permanent (`...self`) to make
+        // the trigger item, and a battlefield permanent legitimately carries an
+        // instance-level `chosenModeId` from its own modal cast —
+        // `resetStackTransientState` strips it only on a NON-battlefield exit,
+        // because `getEffectiveStaticEffects` reads it on the battlefield. If
+        // the spread carried it onto the trigger,
+        // `raiseTriggerModeAnnouncement` would read the item as already
+        // announced and skip it: no prompt, no error, and a resolution with a
+        // mode nobody chose. CR 700.2b — the mode is chosen as part of putting
+        // the ability on the stack, never inherited.
+        const state = twoSidedBoard();
+        const exarch = makeInstance(deceiverExarch.id, {
+            id: "exarch",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        exarch.chosenModeId = "some-spell-mode";
+        state.players[0].battlefield.push(exarch);
+
+        // The REAL producer path: collect the ETB trigger and put it on the
+        // stack, exactly as the engine does after a permanent enters.
+        const triggers = collectTriggers(state, [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "exarch",
+                controllerId: "p1",
+                types: ["Creature"],
+            } as GameEvent,
+        ]);
+        expect(triggers).toHaveLength(1);
+        expect(triggers[0].chosenModeId).toBeUndefined();
+
+        placeTriggersOnStack(state, triggers);
+        const item = state.stack[0];
+        expect(item.chosenModeId).toBeUndefined();
+        // The announcement is actually owed — the controller is prompted with
+        // both modes rather than the trigger sailing through un-announced.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("trigger-mode");
+        expect(head.options?.map((o) => o.id)).toEqual([
+            "untap-yours",
+            "tap-theirs",
+        ]);
+
+        // …and the announced mode really runs: the opponent's untapped bear
+        // ends up tapped, where an inherited mode resolved as nothing.
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["tap-theirs"],
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "theirs")!
+                .isTapped
+        ).toBe(true);
     });
 });
 

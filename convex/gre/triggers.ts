@@ -142,6 +142,17 @@ function buildTriggerItem(
         // trigger against a target that was never its own. Targeted triggers
         // set their own `targets` after this builder runs.
         targets: undefined,
+        // CR 603.3c / 700.2b (issue #2461) — the SAME stale-spread hazard for
+        // the MODE. A battlefield permanent legitimately carries an
+        // instance-level `chosenModeId` (its own modal cast:
+        // `resetStackTransientState` strips it only on a non-battlefield exit,
+        // because `getEffectiveStaticEffects` reads it there), and `...self`
+        // would copy that id onto its trigger — which
+        // `raiseTriggerModeAnnouncement` reads as "already announced" and skips,
+        // so a modal trigger would go to resolution with a mode nobody chose
+        // and resolve as nothing. The mode is announced as the ability is put
+        // on the stack, never inherited.
+        chosenModeId: undefined,
     };
 }
 
