@@ -13,7 +13,8 @@ Umezawa's Jitte's "Remove a charge counter from ~: Choose one — …"), still
 returns `null`: its `chosenModeId` crosses the wire and drives resolution, but
 neither player sees WHICH mode was announced while the ability sits on the
 stack. Both players are entitled to that information before responding, exactly
-as for the other two — CR 700.2c makes the announcement public.
+as for the other two — the mode is announced as the ability is activated
+(CR 700.2a) and the stack is a public zone (CR 400.2).
 
 **Evidence.** `src/lib/card-utils.ts:2513` selects the mode list from
 `isSpellStackItem(item)` → `def.modes`, else `item.triggeredAbilityId` →

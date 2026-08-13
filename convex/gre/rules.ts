@@ -2839,7 +2839,10 @@ function triggerAbilityModes(item: StackItem): AbilityMode[] | undefined {
     return modes && modes.length > 0 ? modes : undefined;
 }
 
-/** CR 700.2d — the announcement-time `targetRequirement` that actually applies
+/** CR 700.2c — "If a spell or ability targets one or more targets only if a
+ *  particular mode is chosen for it, its controller will need to choose those
+ *  targets only if they chose that mode" — the announcement-time
+ *  `targetRequirement` that actually applies
  *  to a triggered-ability stack item: for a MODAL ability it is the ANNOUNCED
  *  mode's requirement and never the ability-level one (a modal ability has no
  *  ability-level body or requirement to fall back on — the modes carry both);
@@ -2883,7 +2886,10 @@ function triggerModeIsChoosable(
  *  modal, its controller announces the mode choice when putting the ability on
  *  the stack. If one of the modes would be illegal (due to an inability to
  *  choose legal targets, for example), that mode can't be chosen. If no mode is
- *  chosen, the ability is removed from the stack."
+ *  chosen, the ability is removed from the stack." CR 700.2b states the same
+ *  rule from the modal side ("The controller of a modal triggered ability
+ *  chooses the mode(s) as part of putting that ability on the stack … If no
+ *  mode is chosen, the ability is removed from the stack").
  *
  *  Scans the stack top-down, and for the first un-announced modal trigger:
  *   - removes the ability from the stack when NO mode is choosable, then keeps
@@ -2893,7 +2899,8 @@ function triggerModeIsChoosable(
  *   - otherwise raises a `kind: "trigger-mode"` PendingChoice carrying ONLY the
  *     choosable modes, parks priority on the controller and returns `true`
  *     (suspended). The submission lands on `StackItem.chosenModeId`
- *     (`pendingChoiceSubmit.ts`) and is never revisited (CR 700.2c).
+ *     (`pendingChoiceSubmit.ts`) and is never revisited — CR 700.2b makes the
+ *     pick part of PUTTING the ability on the stack, a one-time announcement.
  *
  *  Returns `false` when no mode announcement is owed. Called only from
  *  `raiseTriggerTargetSelection`, which every trigger-placement path already
@@ -2901,8 +2908,9 @@ function triggerModeIsChoosable(
 function raiseTriggerModeAnnouncement(state: GameState): boolean {
     for (let i = state.stack.length - 1; i >= 0; i--) {
         const item: StackItem = state.stack[i];
-        // CR 700.2c — the pick is locked once made; an already-announced
-        // trigger is never re-prompted.
+        // CR 700.2b — the mode is chosen as part of putting the ability on the
+        // stack, once; CR 700.2f — "Changing a spell or ability's target can't
+        // change its mode". An already-announced trigger is never re-prompted.
         if (item.chosenModeId !== undefined) continue;
         const modes = triggerAbilityModes(item);
         if (!modes) continue;
@@ -2942,8 +2950,14 @@ function raiseTriggerModeAnnouncement(state: GameState): boolean {
     return false;
 }
 
-/** CR 603.3d / 603.3c (issue #1193) — lock announcement-time targets for any
- *  TARGETED triggered ability now on the stack. Scans the stack top-down; for
+/** CR 603.3d / 603.3c (issue #1193) — the whole announcement sweep for a
+ *  triggered ability that has just gone on the stack: it raises the MODE
+ *  announcement FIRST and the target selection second, so the name understates
+ *  it (see the mode paragraph below; the rename to `raiseTriggerAnnouncement`
+ *  is deliberately deferred — ~130 references across ~60 catalogue test files
+ *  would bury a correction-grade change in mechanical churn). Locks
+ *  announcement-time targets for any TARGETED triggered ability now on the
+ *  stack. Scans the stack top-down; for
  *  the first not-yet-targeted targeted trigger it either:
  *   - drops a REQUIRED-target trigger with no legal target (CR 603.3c — it is
  *     removed from the stack and does nothing), then keeps scanning;
@@ -2958,13 +2972,13 @@ function raiseTriggerModeAnnouncement(state: GameState): boolean {
  *  normal priority flow). CR 603.3c (issue #2461) — a MODAL trigger's MODE is
  *  announced first (`raiseTriggerModeAnnouncement`, which can itself suspend on
  *  a `trigger-mode` PendingChoice or remove a no-choosable-mode ability from the
- *  stack); only the announced mode's requirement is then read here (CR 700.2d).
+ *  stack); only the announced mode's requirement is then read here (CR 700.2c).
  *  Divide-as-you-choose (Fury) rides on `divideTotal`;
  *  the per-target amounts are assigned through the existing divide UI and
  *  written onto the trigger's `targetAmounts` at `finalizeTargetSelection`. */
 export function raiseTriggerTargetSelection(state: GameState): boolean {
     // CR 603.3c (issue #2461) — a MODAL triggered ability announces its MODE
-    // first: the pick gates which `targetRequirement` even applies (CR 700.2d),
+    // first: the pick gates which `targetRequirement` even applies (CR 700.2c),
     // so no target may be locked before it. Suspends on the announcement when a
     // controller genuinely has to choose.
     if (raiseTriggerModeAnnouncement(state)) return true;

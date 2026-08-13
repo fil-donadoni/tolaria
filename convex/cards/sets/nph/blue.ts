@@ -111,7 +111,7 @@ export const phyrexianMetamorph: CardDefinition = {
 //
 // The mode is announced as the trigger goes on the stack, before targets, and
 // each mode carries its own controller-filtered `targetRequirement` so only the
-// chosen mode's targets are ever considered (CR 700.2d).
+// chosen mode's targets are ever considered (CR 700.2c).
 export const deceiverExarch: CardDefinition = {
     id: "1f123ad6-fe84-4fed-9c0f-6b41921e9c26",
     rarity: "uncommon",

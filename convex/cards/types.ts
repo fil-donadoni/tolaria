@@ -808,14 +808,14 @@ export interface SpellMode extends ModeOption {
     color?: Color;
 }
 
-/** One mode of a MODAL ABILITY — activated (CR 700.2 + CR 602.2b — Umezawa's
+/** One mode of a MODAL ABILITY — activated (CR 700.2a + CR 602.2b — Umezawa's
  *  Jitte's "Remove a charge counter from ~: Choose one — …") or TRIGGERED
- *  (CR 603.3c — Deceiver Exarch's "When this creature enters, choose one — …",
- *  issue #2461). The announcing player picks exactly one mode as the ability is
- *  announced, BEFORE targets are chosen (CR 601.2b applied to activation via
- *  CR 602.2b; CR 603.3c for a trigger, as it is put on the stack), so only the
- *  CHOSEN mode's `targetRequirement` is declared and only its targets need
- *  legal candidates (CR 700.2d). The two flavors differ only in WHERE the
+ *  (CR 700.2b / 603.3c — Deceiver Exarch's "When this creature enters, choose
+ *  one — …", issue #2461). The announcing player picks exactly one mode as the
+ *  ability is announced, BEFORE targets are chosen (CR 700.2a — as part of
+ *  activating; CR 700.2b — as part of putting the trigger on the stack), so
+ *  only the CHOSEN mode's `targetRequirement` is declared and only its targets
+ *  need legal candidates (CR 700.2c). The two flavors differ only in WHERE the
  *  announcement happens — a client-supplied argument on `activateAbility` for
  *  an activated ability, an engine-raised `kind: "trigger-mode"` PendingChoice
  *  for a trigger — never in what a mode IS, which is why one type serves both.
@@ -8264,11 +8264,12 @@ export interface TriggeredAbility {
      *  majority), unchanged. Reverses ADR 0002's "triggers carry no
      *  targetRequirement" simplification. */
     targetRequirement?: TargetRequirement;
-    /** CR 603.3c (issue #2461) — a MODAL triggered ability ("When this creature
-     *  enters, choose one — • … • …"). The controller announces exactly one
-     *  mode as the ability is PUT ON THE STACK, before targets, and the pick
-     *  never changes afterwards; the chosen mode alone supplies the
-     *  announcement-time `targetRequirement` (CR 700.2d) and the resolution
+    /** CR 603.3c / 700.2b (issue #2461) — a MODAL triggered ability ("When this
+     *  creature enters, choose one — • … • …"). The controller announces
+     *  exactly one mode as the ability is PUT ON THE STACK, before targets, and
+     *  the pick never changes afterwards (CR 700.2f — changing a target can't
+     *  change the mode); the chosen mode alone supplies the
+     *  announcement-time `targetRequirement` (CR 700.2c) and the resolution
      *  body. A mode whose required targets have no legal candidates cannot be
      *  chosen, and when no mode can be chosen the ability is removed from the
      *  stack (CR 603.3c) — both enforced by `raiseTriggerModeAnnouncement`
@@ -8278,8 +8279,9 @@ export interface TriggeredAbility {
      *
      *  Deliberately the SAME {@link AbilityMode} list `ActivatedAbility.modes`
      *  uses, riding the SAME `chosenModeId` plumbing (stack item → resolution
-     *  dispatch, CR 700.2c) — a triggered ability's modes differ from an
-     *  activated ability's only in WHEN the announcement happens, never in what
+     *  dispatch) — a triggered ability's modes differ from an activated
+     *  ability's only in WHEN the announcement happens (CR 700.2a as part of
+     *  activating vs CR 700.2b as part of going on the stack), never in what
      *  a mode is. Cardinality is therefore whatever the shared announce-time
      *  mode-list model says (exactly one today; ADR 0094's `ModeSelection`
      *  applies here unchanged when it lands) — never a trigger-local variant.

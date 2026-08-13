@@ -645,9 +645,11 @@ export function applyPendingChoiceSubmit(
     // (a resolution-time answer written into `collectedChoices`) this is an
     // ANNOUNCEMENT — it is written onto the stack item's `chosenModeId`, which
     // is what resolution dispatch and the stack UI read, and it is locked from
-    // here on (CR 700.2c): the choice is consumed, so there is no second
-    // submission that could change it. The trigger's TARGETS are announced
-    // next, under this mode's requirement alone (CR 700.2d). ---
+    // here on (CR 700.2b — the mode is chosen as part of PUTTING the ability on
+    // the stack): the choice is consumed, so there is no second submission that
+    // could change it, and CR 700.2f keeps a later retarget from changing it
+    // either. The trigger's TARGETS are announced next, under this mode's
+    // requirement alone (CR 700.2c). ---
     if (head.kind === "trigger-mode") {
         const id = args.cardInstanceIds[0];
         if (!head.options?.some((o) => o.id === id)) {
@@ -667,8 +669,9 @@ export function applyPendingChoiceSubmit(
         }
         // Continue the CR 603.3c announcement sweep: this trigger's targets,
         // then any further trigger still owing a mode or a target. When
-        // nothing is owed, the active player's priority window opens
-        // (CR 117.3c) — the trigger has NOT resolved, it is on the stack.
+        // nothing is owed, the active player's priority window opens: CR 603.3b
+        // ends "Then the appropriate player gets priority", once the triggers
+        // are on the stack — the trigger has NOT resolved, it is on the stack.
         if (!raiseTriggerTargetSelection(state)) {
             state.priorityPlayerId = state.activePlayerId;
             state.passCount = 0;

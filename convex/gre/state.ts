@@ -5098,14 +5098,16 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 }
                 delete top.resolutionStep;
             } else if (ability.modes && ability.modes.length > 0) {
-                // CR 603.3c / 700.2c (issue #2461) — a MODAL triggered ability
+                // CR 603.3c / 700.2b (issue #2461) — a MODAL triggered ability
                 // dispatches the mode its controller announced as the ability
                 // went on the stack, which rode here as `chosenModeId`. The
                 // ability-level body is ignored (a modal ability has none —
-                // `validateAbilityEffectScript` rejects declaring both), and a
-                // `chosenModeId` that names no declared mode, or a trigger that
-                // somehow reached resolution un-announced, resolves as nothing
-                // (CR 608.2b). The mode body is an `AbilityMode`, the same
+                // `validateAbilityEffectScript` rejects declaring both). A
+                // `chosenModeId` naming no declared mode, or a trigger that
+                // somehow reached resolution un-announced, resolves as nothing:
+                // a defensive engine fallback, not a rules case — CR 700.2b
+                // removes a mode-less ability from the stack long before this.
+                // The mode body is an `AbilityMode`, the same
                 // shape a modal ACTIVATED ability resolves below, so its
                 // `resolve` takes no event argument.
                 const mode = top.chosenModeId

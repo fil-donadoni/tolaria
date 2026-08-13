@@ -2463,7 +2463,8 @@ export function getStackAbilityOracleText(item: {
 }
 
 /** One line of a modal spell's or modal triggered ability's oracle text as shown
- *  on the stack (CR 700.2c / CR 603.3c). */
+ *  on the stack (CR 601.2b for a spell, CR 603.3c for a trigger — the mode is
+ *  ANNOUNCED, and CR 400.2 makes the stack a public zone). */
 export type StackModeLine = {
     modeId: string;
     /** The bullet clause for this mode (`SpellMode`/`AbilityMode.oracleText`). */
@@ -2475,11 +2476,12 @@ export type StackModeLine = {
     chosen: boolean;
 };
 
-/** CR 700.2c / CR 603.3c — for a modal object on the stack that has announced a
+/** CR 601.2b / CR 603.3c — for a modal object on the stack that has announced a
  *  mode, returns each declared mode's oracle line flagged with whether it is the
  *  chosen one, so the stack UI can highlight the chosen mode and de-emphasize
- *  the rest — visible to BOTH players (the mode is public once the object is on
- *  the stack). Reads `chosenModeId`, which survives the wire projection
+ *  the rest — visible to BOTH players: the mode is ANNOUNCED as the object goes
+ *  on the stack, and CR 400.2 makes the stack a public zone. Reads
+ *  `chosenModeId`, which survives the wire projection
  *  (`SlimStackItem` keeps every StackItem field but `card`).
  *
  *  Two mode lists feed it, one per announcing object:

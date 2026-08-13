@@ -219,7 +219,7 @@ describe("Phyrexian Metamorph (copy artifact/creature, {3}{U/P}, CR 707.2 / 107.
 // control. • Tap target permanent an opponent controls." Each mode carries its
 // own controller-filtered `targetRequirement` and its own Effect Script; the
 // controller announces the mode as the trigger is put on the stack, BEFORE
-// targets, and only the chosen mode's requirement constrains them (CR 700.2d).
+// targets, and only the chosen mode's requirement constrains them (CR 700.2c).
 // The engine-side rules that make that true are covered generically in
 // `gre/__tests__/modalTriggers.test.ts`; this block is the card's own end-to-end
 // proof that both arms actually fire.
@@ -317,7 +317,7 @@ describe("Deceiver Exarch ETB (modal: untap yours / tap an opponent's, CR 603.3c
             "untap-yours",
             "tap-theirs",
         ]);
-        // CR 700.2d — no target is chosen before the mode is.
+        // CR 700.2c — no target is chosen before the mode is.
         expect(trig.targets).toBeUndefined();
         expect(state.pendingTarget).toBeUndefined();
 
@@ -325,7 +325,7 @@ describe("Deceiver Exarch ETB (modal: untap yours / tap an opponent's, CR 603.3c
         expect(trig.chosenModeId).toBe("tap-theirs");
         // The opponent's bear is the ONLY legal target UNDER THIS MODE, so it
         // auto-selects. It would not if the Exarch's own untap requirement
-        // still applied — that is CR 700.2d in one assertion.
+        // still applied — that is CR 700.2c in one assertion.
         expect(trig.targets).toEqual([{ type: "permanent", id: "their-bear" }]);
         expect(state.pendingChoices).toBeUndefined();
 

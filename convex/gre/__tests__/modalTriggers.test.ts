@@ -7,9 +7,9 @@
 // Everything a modal trigger needs that a modal SPELL already had is here:
 // the announcement itself (there is no player-initiated mutation putting a
 // trigger on the stack, so the engine raises the choice), the per-mode target
-// legality CR 603.3c makes mode legality depend on, the CR 700.2d rule that only
-// the chosen mode's requirement constrains targets, the CR 700.2c immutability
-// of the pick, the CR 603.3b consequence that two copies stop being
+// legality CR 603.3c makes mode legality depend on, the CR 700.2c rule that only
+// the chosen mode's requirement constrains targets, the CR 700.2b/700.2f
+// immutability of the pick, the CR 603.3b consequence that two copies stop being
 // interchangeable, and the wire/serialization seams the announcement rides.
 //
 // Deceiver Exarch is the catalogue's modal trigger; these tests drive the shared
@@ -122,12 +122,12 @@ describe("modal triggered abilities — announcement (CR 603.3c)", () => {
         // announcing a mode is not resolving the ability.
         expect(state.priorityPlayerId).toBe("p1");
         expect(state.stack).toHaveLength(1);
-        // No target is chosen before the mode is (CR 700.2d).
+        // No target is chosen before the mode is (CR 700.2c).
         expect(trig.targets).toBeUndefined();
         expect(state.pendingTarget).toBeUndefined();
     });
 
-    it("only the chosen mode's requirement constrains the targets (CR 700.2d)", () => {
+    it("only the chosen mode's requirement constrains the targets (CR 700.2c)", () => {
         const state = twoSidedBoard();
         const trig = mkTrigger("t1");
         state.stack.push(trig);
@@ -186,7 +186,7 @@ describe("modal triggered abilities — announcement (CR 603.3c)", () => {
         expect(state.pendingTarget).toBeUndefined();
     });
 
-    it("the announced mode is immutable and drives resolution (CR 700.2c / 608.2b)", () => {
+    it("the announced mode is immutable and drives resolution (CR 700.2b / 700.2f)", () => {
         const state = twoSidedBoard();
         const trig = mkTrigger("t1");
         state.stack.push(trig);
