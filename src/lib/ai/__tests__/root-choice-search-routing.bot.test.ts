@@ -25,6 +25,7 @@ import {
 } from "@convex/gre/ai/choiceCandidates";
 import type { PendingChoiceKind } from "@convex/gre";
 import { projectPublicState } from "@convex/gameProjections";
+import { raiseTriggerTargetSelection } from "@convex/gre/rules";
 import {
     makeInstance,
     makePlayer,
@@ -107,6 +108,58 @@ function stateWithBotLibrarySearch(names: string[]): GameState {
     );
 }
 
+/** CR 603.3c (issue #2461) — a modal TRIGGERED ability's announce-time mode
+ *  choice (Deceiver Exarch's "untap yours / tap an opponent's"), raised by the
+ *  ENGINE itself as the trigger goes on the stack rather than hand-written
+ *  here: the fixture then cannot drift from the choice the engine really
+ *  raises, and both modes are provably choosable on this board (the bot has a
+ *  tapped permanent, the human an untapped one). */
+function stateWithBotModalTrigger(): GameState {
+    const bears = getCardByName("Grizzly Bears").id;
+    const state = makeState({
+        players: [
+            makePlayer(HUMAN, {
+                battlefield: [
+                    makeInstance(bears, {
+                        id: "their-bear",
+                        controllerId: HUMAN,
+                        ownerId: HUMAN,
+                        zone: "battlefield",
+                    }),
+                ],
+            }),
+            makePlayer(BOT, {
+                battlefield: [
+                    makeInstance(bears, {
+                        id: "my-bear",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "battlefield",
+                        isTapped: true,
+                    }),
+                ],
+            }),
+        ],
+        activePlayerId: BOT,
+        priorityPlayerId: BOT,
+    });
+    state.stack = [
+        {
+            ...makeInstance(getCardByName("Deceiver Exarch").id, {
+                id: "stack-1",
+                controllerId: BOT,
+                ownerId: BOT,
+                zone: "stack",
+            }),
+            castById: BOT,
+            triggeredAbilityId: "deceiver-exarch-etb",
+            triggerSourceId: "exarch",
+        } as unknown as GameState["stack"][number],
+    ];
+    raiseTriggerTargetSelection(state);
+    return state;
+}
+
 /** One fixture per generator-covered choice kind. A kind added to
  *  `CHOICE_CANDIDATE_GENERATORS` with no entry here fails the sweep below —
  *  that is the point: the new kind must be proven to reach the search. */
@@ -140,6 +193,8 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
                 { id: "mode-b", label: "Mode B" },
             ],
         } as Partial<PendingChoice> & Pick<PendingChoice, "kind">),
+    // CR 603.3c (issue #2461) — the announce-time mode of a modal TRIGGER.
+    "trigger-mode": stateWithBotModalTrigger,
     "search-library": () =>
         stateWithBotLibrarySearch(["Forest", "Craw Wurm", "Grizzly Bears"]),
     // CR 705.2 / ADR 0023 (generator added by issue #1511) — a degenerate
