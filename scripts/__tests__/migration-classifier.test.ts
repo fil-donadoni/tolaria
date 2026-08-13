@@ -1614,19 +1614,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // unchanged at 15, Op-blocked unchanged at 150. Partition:
         // 314+15+150=479.
         //
-        // Deceiver Exarch (nph/blue.ts) ADDS one `resolve()` closure: the ETB
-        // that untaps a permanent you control or taps one an opponent controls
-        // (CR 701.26a/b). It calls only `ctx.untap`/`ctx.tap`, both covered, so
-        // the sweep counts it FREE — it STAYS `resolve()` because the Oracle
-        // text is MODAL and `TriggeredAbility` has no `modes` field (the mode
-        // is deduced from the target's controller), a DSL-expressivity gap the
-        // classifier does not model. Carries a per-card test
-        // (`nph/__tests__/blue.test.ts`), so AFK-ready too. Net: total
-        // 479->480, FREE 314->315, AFK-ready 305->306; X-only unchanged at 15,
-        // Op-blocked unchanged at 150. Partition: 315+15+150=480.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(480);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(315);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(306);
+        // Deceiver Exarch (nph/blue.ts) briefly ADDED one `resolve()` closure
+        // for its ETB (the mode deduced from the target's controller) because
+        // `TriggeredAbility` had no `modes` field. Issue #2461 SHIPPED that
+        // field (CR 603.3c), so the card is now two mode-level Effect Scripts
+        // and the closure is GONE — the DSL-expressivity gap that justified it
+        // no longer exists. Net: total 480->479, FREE 315->314, AFK-ready
+        // 306->305; X-only unchanged at 15, Op-blocked unchanged at 150.
+        // Partition: 314+15+150=479.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(479);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(314);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(305);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
     });

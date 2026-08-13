@@ -215,6 +215,28 @@ export type OrderChoiceKind = "mulligan-bottom" | "trigger-order";
  *  mutation. */
 export type OptionChoiceKind = "option-pick";
 
+/** Announce the mode of a MODAL TRIGGERED ability (CR 603.3c, issue #2461) —
+ *  "When this creature enters, choose one — …". Its own family rather than an
+ *  `option-pick` member because the two answer different questions at different
+ *  times: `option-pick` is a RESOLUTION-time pick (CR 614.12) whose answer is
+ *  written into the resolving stack item's `collectedChoices` for a resolve step
+ *  to read back, whereas this is an ANNOUNCEMENT-time pick (CR 700.2a applied to
+ *  a trigger via 603.3c) whose answer is written onto the stack item's
+ *  `chosenModeId` — locked before targets are chosen and before any player gets
+ *  priority, exactly like a modal spell's or activated ability's mode.
+ *
+ *  Every other modal announcement in the engine rides an argument on the
+ *  mutation the player initiated (`announceCast`, `activateAbility`); a trigger
+ *  has no such mutation, so the engine raises this choice itself as the ability
+ *  goes on the stack. `PendingChoice.options` carries the CHOOSABLE modes only
+ *  — a mode whose required targets have no legal candidates is filtered out
+ *  before the prompt (CR 603.3c), and a trigger with no choosable mode never
+ *  raises this at all: it is removed from the stack. The submission is the
+ *  chosen mode's id, validated against `options`, through the ordinary
+ *  `submitResolutionChoice` mutation (no dedicated mutation, like
+ *  `option-pick`). */
+export type TriggerModeChoiceKind = "trigger-mode";
+
 /** Open name-a-card choice (CR 202.3 / 701.x "chooses a card name"). The
  *  chooser names ANY card — the candidate set is the whole card registry, not
  *  a zone or an author-supplied allow-list. Unlike every other family the
@@ -352,6 +374,7 @@ export type PendingChoiceKind =
     | LandEntryChoiceKind
     | OrderChoiceKind
     | OptionChoiceKind
+    | TriggerModeChoiceKind
     | NameCardChoiceKind
     | RandomRevealKind
     | DividePilesKind

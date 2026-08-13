@@ -55,6 +55,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "trigger-order": "Order triggers",
     // option family
     "option-pick": "Choose",
+    // modal triggered ability's announce-time mode (CR 603.3c)
+    "trigger-mode": "Choose a mode",
     // name-card family (CR 202.3)
     "name-card": "Name a card",
     // random-reveal family (CR 705, ADR 0023)

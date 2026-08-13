@@ -690,7 +690,12 @@ function buildOwedChoice(
     // an abstract option id, not a zone member. The options aren't in any zone,
     // so append them from the choice's `options` list with a neutral value;
     // the bot's minimal-legal default (ADR 0016) takes the first.
-    if (head.kind === "option-pick" && head.options) {
+    // CR 603.3c (issue #2461) — a `trigger-mode` announcement is the same
+    // shape: the choosable modes ride on `options`, not in any zone.
+    if (
+        (head.kind === "option-pick" || head.kind === "trigger-mode") &&
+        head.options
+    ) {
         for (const opt of head.options) {
             candidates.push({ id: opt.id, value: 0 });
         }

@@ -1,8 +1,8 @@
 // nph blue — Gitaxian Probe (private look + draw, {U/P}) and Phyrexian
 // Metamorph (copy-on-ETB Clone variant, {3}{U/P}). Both exercise the
 // Phyrexian-mana cost (CR 107.4f); the generic cost-system pieces are covered
-// in convex/gre/__tests__/phyrexian.test.ts. Deceiver Exarch's `resolve()` ETB
-// (untap-or-tap deduced from the target's controller) is covered here too.
+// in convex/gre/__tests__/phyrexian.test.ts. Deceiver Exarch's MODAL ETB
+// trigger (CR 603.3c — untap yours / tap an opponent's) is covered here too.
 import { describe, it, expect } from "vitest";
 import { deceiverExarch, gitaxianProbe, phyrexianMetamorph } from "../blue";
 import { grizzlyBears } from "../../lea/green";
@@ -10,6 +10,8 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { driveCopyChoice } from "../../lea/__tests__/helpers";
 import { finalizeTargetSelection } from "../../../../game";
 import { resolveTopOfStack } from "../../../../gre/state";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -212,14 +214,24 @@ describe("Phyrexian Metamorph (copy artifact/creature, {3}{U/P}, CR 707.2 / 107.
     });
 });
 
-// Deceiver Exarch — the ETB is a `resolve()` closure (protocol card: a modal
-// TriggeredAbility has no `modes` field, so the mode is deduced from the
-// target's controller — CR 701.26a tap, CR 701.26b untap). Both arms need a
-// test: the deduction IS the card.
-describe("Deceiver Exarch ETB (untap yours / tap an opponent's, CR 603.6a)", () => {
-    function pushEtb(state: GameState, exarch: StackItem, targetId: string) {
-        state.stack.push({
+// Deceiver Exarch — the catalogue's MODAL triggered ability (CR 603.3c, issue
+// #2461): "When this creature enters, choose one — • Untap target permanent you
+// control. • Tap target permanent an opponent controls." Each mode carries its
+// own controller-filtered `targetRequirement` and its own Effect Script; the
+// controller announces the mode as the trigger is put on the stack, BEFORE
+// targets, and only the chosen mode's requirement constrains them (CR 700.2d).
+// The engine-side rules that make that true are covered generically in
+// `gre/__tests__/modalTriggers.test.ts`; this block is the card's own end-to-end
+// proof that both arms actually fire.
+describe("Deceiver Exarch ETB (modal: untap yours / tap an opponent's, CR 603.3c)", () => {
+    /** Puts the ETB trigger on the stack un-announced (no mode, no targets) and
+     *  runs the CR 603.3c announcement sweep — exactly what
+     *  `placeTriggersOnStack` does for a real ETB. Returns the on-stack item and
+     *  whether the sweep suspended on a player decision. */
+    function announceEtb(state: GameState, exarch: StackItem) {
+        const trig: StackItem = {
             ...exarch,
+            id: "exarch-trig",
             zone: "stack",
             castById: "p1",
             triggeredAbilityId: "deceiver-exarch-etb",
@@ -230,56 +242,147 @@ describe("Deceiver Exarch ETB (untap yours / tap an opponent's, CR 603.6a)", () 
                 controllerId: "p1",
                 types: ["Creature"],
             } as StackItem["triggerEvent"],
-            targets: [{ type: "permanent", id: targetId }],
-        });
-        resolveTopOfStack(state);
+        };
+        state.stack.push(trig);
+        const suspended = raiseTriggerTargetSelection(state);
+        return { trig, suspended };
     }
 
-    function board(targetControllerId: string, targetTapped: boolean) {
+    /** Submits the head `trigger-mode` choice through the SAME entry point the
+     *  `submitResolutionChoice` mutation uses. */
+    function announceMode(state: GameState, modeId: string) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [modeId],
+        });
+    }
+
+    function board(opts: {
+        /** p1's board besides the Exarch itself. */
+        ownTapped?: boolean;
+        /** p2 controls an untapped Grizzly Bears. */
+        opponentPermanent?: boolean;
+        /** The Exarch itself is on the battlefield (it normally is — its ETB
+         *  trigger is on the stack while the creature is in play). */
+        exarchInPlay?: boolean;
+    }) {
         const exarch = makeInstance(deceiverExarch.id, {
             id: "exarch",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const target = makeInstance(grizzlyBears.id, {
-            id: "target",
-            controllerId: targetControllerId,
-            ownerId: targetControllerId,
-            isTapped: targetTapped,
+        const ownBear = makeInstance(grizzlyBears.id, {
+            id: "own-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const theirBear = makeInstance(grizzlyBears.id, {
+            id: "their-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
         });
         const state = makeState({
             players: [
                 makePlayer("p1", {
-                    battlefield:
-                        targetControllerId === "p1"
-                            ? [exarch, target]
-                            : [exarch],
+                    battlefield: [
+                        ...(opts.exarchInPlay === false ? [] : [exarch]),
+                        ...(opts.ownTapped ? [ownBear] : []),
+                    ],
                 }),
                 makePlayer("p2", {
-                    battlefield: targetControllerId === "p2" ? [target] : [],
+                    battlefield: opts.opponentPermanent ? [theirBear] : [],
                 }),
             ],
             activePlayerId: "p1",
         });
-        return { state, exarch: exarch as StackItem, target };
+        return { state, exarch: exarch as StackItem, ownBear, theirBear };
     }
 
-    it("untaps a tapped permanent its controller owns", () => {
-        const { state, exarch, target } = board("p1", true);
-        pushEtb(state, exarch, target.id);
-        expect(target.isTapped).toBe(false);
-    });
+    it("announces the mode before targets; the tap arm taps the opponent's permanent", () => {
+        // Both modes are choosable (the Exarch itself is a legal untap target,
+        // the opponent's bear a legal tap target), so a real choice is owed.
+        const { state, exarch, theirBear } = board({ opponentPermanent: true });
+        const { trig, suspended } = announceEtb(state, exarch);
+        expect(suspended).toBe(true);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("trigger-mode");
+        expect(head.playerId).toBe("p1");
+        expect(head.options?.map((o) => o.id)).toEqual([
+            "untap-yours",
+            "tap-theirs",
+        ]);
+        // CR 700.2d — no target is chosen before the mode is.
+        expect(trig.targets).toBeUndefined();
+        expect(state.pendingTarget).toBeUndefined();
 
-    it("taps an untapped permanent an opponent controls", () => {
-        const { state, exarch, target } = board("p2", false);
-        pushEtb(state, exarch, target.id);
-        expect(target.isTapped).toBe(true);
+        announceMode(state, "tap-theirs");
+        expect(trig.chosenModeId).toBe("tap-theirs");
+        // The opponent's bear is the ONLY legal target UNDER THIS MODE, so it
+        // auto-selects. It would not if the Exarch's own untap requirement
+        // still applied — that is CR 700.2d in one assertion.
+        expect(trig.targets).toEqual([{ type: "permanent", id: "their-bear" }]);
+        expect(state.pendingChoices).toBeUndefined();
+
+        resolveTopOfStack(state);
+        expect(theirBear.isTapped).toBe(true);
         // Tap state is board-visible, so it must survive the projection the
         // client actually reads (wire-format row of the card-testing table).
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[1].battlefield.find(
-            (c) => c.id === "target"
+            (c) => c.id === "their-bear"
         )!;
         expect(slim.isTapped).toBe(true);
+    });
+
+    it("the untap arm untaps the chosen own permanent", () => {
+        const { state, exarch, ownBear } = board({
+            ownTapped: true,
+            opponentPermanent: true,
+        });
+        const { trig } = announceEtb(state, exarch);
+        announceMode(state, "untap-yours");
+        expect(trig.chosenModeId).toBe("untap-yours");
+        // Two legal targets under this mode (the Exarch and the tapped bear),
+        // so the controller is prompted through the ordinary trigger
+        // PendingTarget rather than auto-selected.
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("trigger");
+        expect(pt.cardInstanceId).toBe(trig.id);
+        pt.selected = [{ type: "permanent", id: "own-bear" }];
+        finalizeTargetSelection(state, pt, "p1");
+
+        resolveTopOfStack(state);
+        expect(ownBear.isTapped).toBe(false);
+    });
+
+    it("CR 603.3c — a mode with no legal target can't be chosen, so a sole choosable mode is announced with no prompt", () => {
+        // The opponent controls nothing, so the tap mode is illegal; only the
+        // untap mode remains and the engine announces it without asking.
+        const { state, exarch, ownBear } = board({ ownTapped: true });
+        const { trig } = announceEtb(state, exarch);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(trig.chosenModeId).toBe("untap-yours");
+        const pt = state.pendingTarget!;
+        pt.selected = [{ type: "permanent", id: "own-bear" }];
+        finalizeTargetSelection(state, pt, "p1");
+        resolveTopOfStack(state);
+        expect(ownBear.isTapped).toBe(false);
+    });
+
+    it("CR 603.3c — with no choosable mode the trigger is removed from the stack", () => {
+        // The Exarch died in response, so neither player controls a permanent:
+        // both modes are illegal, no mode is chosen, the ability does nothing.
+        const { state, exarch } = board({ exarchInPlay: false });
+        const { suspended } = announceEtb(state, exarch);
+        expect(suspended).toBe(false);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.pendingTarget).toBeUndefined();
     });
 });

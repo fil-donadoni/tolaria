@@ -1026,6 +1026,16 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "option-pick":
             return candidates.slice(0, min).map((c) => c.id);
 
+        // CR 603.3c (issue #2461) — announce the mode of a modal TRIGGERED
+        // ability. Only the CHOOSABLE modes reach `options` (a mode with no
+        // legal target is filtered out engine-side), so the first one in author
+        // order is always a legal announcement and the bot never stalls on a
+        // modal trigger. This is the FALLBACK policy only: the real decision is
+        // an in-tree ISMCTS node via `CHOICE_CANDIDATE_GENERATORS`
+        // (`gre/ai/choiceCandidates.ts`), which values each mode's own script.
+        case "trigger-mode":
+            return candidates.slice(0, min).map((c) => c.id);
+
         // ADR 0053 (pile division) — step 2 of the divide-then-choose family:
         // pick pile "A" or "B" (appended as neutral-value synthetic
         // candidates in `buildOwedChoice`, like `option-pick`'s options). A

@@ -639,6 +639,44 @@ export function applyPendingChoiceSubmit(
         return;
     }
 
+    // --- Modal triggered ability's mode announcement (CR 603.3c, issue
+    // #2461): the submission is one mode id from the CHOOSABLE modes the
+    // engine offered as the trigger went on the stack. Unlike `option-pick`
+    // (a resolution-time answer written into `collectedChoices`) this is an
+    // ANNOUNCEMENT — it is written onto the stack item's `chosenModeId`, which
+    // is what resolution dispatch and the stack UI read, and it is locked from
+    // here on (CR 700.2c): the choice is consumed, so there is no second
+    // submission that could change it. The trigger's TARGETS are announced
+    // next, under this mode's requirement alone (CR 700.2d). ---
+    if (head.kind === "trigger-mode") {
+        const id = args.cardInstanceIds[0];
+        if (!head.options?.some((o) => o.id === id)) {
+            throw new Error("Not a legal mode");
+        }
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId);
+        if (!stackItem) throw new Error("Stack item not found");
+        stackItem.chosenModeId = id;
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+        if (queue.length > 0) {
+            // Another choice is still queued (a second controller's own
+            // announcement): stay suspended on it rather than resuming
+            // priority — the announcement sweep runs when the queue drains.
+            state.priorityPlayerId = queue[0].playerId;
+            return;
+        }
+        // Continue the CR 603.3c announcement sweep: this trigger's targets,
+        // then any further trigger still owing a mode or a target. When
+        // nothing is owed, the active player's priority window opens
+        // (CR 117.3c) — the trigger has NOT resolved, it is on the stack.
+        if (!raiseTriggerTargetSelection(state)) {
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+        }
+        checkStateBasedActions(state);
+        return;
+    }
+
     // --- Pick a pile (ADR 0053, pile division — step 2 of the divide-then-
     // choose family): the submission is the literal label "A" or "B", not a
     // zone member id. Validates against the two completed piles' labels

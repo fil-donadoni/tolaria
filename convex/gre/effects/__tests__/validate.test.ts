@@ -4388,3 +4388,71 @@ describe("validateEffectScript — reflexiveTrigger inline targetRequirement (CR
         );
     });
 });
+
+describe("validateAbilityEffectScript — modes[] XOR ability-level body (CR 700.2 / 603.3c, issue #2461)", () => {
+    // A MODAL ability's body lives on its modes; resolution dispatches the
+    // chosen mode and IGNORES an ability-level body, so declaring both is a
+    // silently-dead effect. The check has to run even though the ability
+    // carries no `effects[]` of its own — that is the normal shape of a modal
+    // ability, and the spell-site pattern (keyed off `def.effects`) would never
+    // fire for it.
+    const modes = [
+        {
+            id: "a",
+            label: "A",
+            oracleText: "A.",
+            effects: [{ op: "draw", count: 1 }],
+        },
+    ];
+
+    it("rejects modes[] alongside an ability-level effects[]", () => {
+        const errors = validateAbilityEffectScript(
+            {
+                id: "ab",
+                modes,
+                effects: [{ op: "draw", count: 1 }],
+            },
+            "Test Card (test-id)"
+        );
+        expect(errors.join("\n")).toMatch(
+            /declares both modes\[\] and effects — a modal ability's body lives on its modes/
+        );
+    });
+
+    it("rejects modes[] alongside an ability-level resolve()", () => {
+        const errors = validateAbilityEffectScript(
+            {
+                id: "ab",
+                modes,
+                resolve: () => {},
+            },
+            "Test Card (test-id)"
+        );
+        expect(errors.join("\n")).toMatch(
+            /declares both modes\[\] and resolve/
+        );
+    });
+
+    it("rejects modes[] alongside ability-level resolveSteps", () => {
+        const errors = validateAbilityEffectScript(
+            {
+                id: "ab",
+                modes,
+                resolveSteps: [() => {}],
+            },
+            "Test Card (test-id)"
+        );
+        expect(errors.join("\n")).toMatch(
+            /declares both modes\[\] and resolveSteps/
+        );
+    });
+
+    it("accepts a modal ability with no ability-level body", () => {
+        expect(
+            validateAbilityEffectScript(
+                { id: "ab", modes },
+                "Test Card (test-id)"
+            )
+        ).toEqual([]);
+    });
+});

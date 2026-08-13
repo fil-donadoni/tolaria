@@ -11,7 +11,12 @@
 // interveningIf wiring. The only differences are the event kind and the
 // payload field naming exposed to `resolve`.
 
-import type { CardType, EffectOp, TargetRequirement } from "../../types";
+import type {
+    AbilityMode,
+    CardType,
+    EffectOp,
+    TargetRequirement,
+} from "../../types";
 import type {
     GameEvent,
     PermanentEnteredEvent,
@@ -111,6 +116,14 @@ export interface EnteredTriggerArgs {
      *  sacrifice a land" — is the canonical example. Mutually exclusive with
      *  `resolve`. */
     effects?: EffectOp[];
+    /** CR 603.3c (issue #2461) — announce-time mode list for a MODAL ETB
+     *  trigger ("When this creature enters, choose one — • … • …"). Each mode
+     *  carries its own `targetRequirement` and its own Effect Script; the
+     *  controller announces exactly one as the trigger is put on the stack,
+     *  before targets. Mutually exclusive with `resolve` / `effects` — the
+     *  body lives on the modes — and forwarded verbatim onto the built
+     *  `TriggeredAbility`. */
+    modes?: AbilityMode[];
     /** AI-only SHADOW Effect Script for a `resolve()` body (PRD #1423, issue
      *  #1519) — never executed, only walked by `OP_VALUERS` so the value model
      *  can see what an imperative ETB trigger does. Passed straight through to
@@ -174,20 +187,30 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
         // resolution context. Because an ETB ability belongs to its source,
         // `ctx.controller` is the source's controller for every scope.
         // Mutually exclusive with `resolve`.
-        ...(args.effects
-            ? { effects: args.effects }
-            : {
-                  resolve: (ctx: SpellContext, event: GameEvent) => {
-                      if (event.type !== "PERMANENT_ENTERED") return;
-                      const entered: EnteredPermanentInfo = {
-                          id: event.instanceId,
-                          controllerId: event.controllerId,
-                          types: event.types,
-                      };
-                      args.resolve!(ctx, event, entered);
-                  },
-              }),
+        // CR 603.3c (issue #2461) — a MODAL trigger has NEITHER: its body lives
+        // on the announced mode, so the factory must not synthesize the
+        // event-narrowing `resolve` wrapper (there is no `args.resolve` to call
+        // and an ability-level body would be ignored at resolution anyway, and
+        // rejected by `validateAbilityEffectScript`).
+        ...(args.modes
+            ? {}
+            : args.effects
+              ? { effects: args.effects }
+              : {
+                    resolve: (ctx: SpellContext, event: GameEvent) => {
+                        if (event.type !== "PERMANENT_ENTERED") return;
+                        const entered: EnteredPermanentInfo = {
+                            id: event.instanceId,
+                            controllerId: event.controllerId,
+                            types: event.types,
+                        };
+                        args.resolve!(ctx, event, entered);
+                    },
+                }),
     };
+    if (args.modes !== undefined) {
+        ability.modes = args.modes;
+    }
     if (args.targetRequirement !== undefined) {
         ability.targetRequirement = args.targetRequirement;
     }

@@ -21,7 +21,15 @@ import type { CardDefinition } from "../types";
  *  the card-level `validateEffectScript` pass returns early and never reaches
  *  them). */
 export function abilitySites(card: CardDefinition): {
-    ability: { id: string; effects?: unknown; aiEffects?: unknown };
+    ability: {
+        id: string;
+        effects?: unknown;
+        aiEffects?: unknown;
+        /** CR 700.2 / 603.3c — declared so the modal mutual-exclusivity check
+         *  in `validateAbilityEffectScript` sees the field it validates rather
+         *  than relying on it riding along untyped (issue #2461). */
+        modes?: unknown;
+    };
     label: string;
     triggerEventType?: string;
 }[] {
@@ -61,7 +69,20 @@ export function abilitySites(card: CardDefinition): {
     // exclusive with the mode's own `resolve`. Wrapped as a synthetic ability
     // so the same validator walks it (the ability-site twin of `modeSites`
     // below, which covers the cast-time `modes[]` of a SPELL).
-    const abilityModes = (card.activatedAbilities ?? []).flatMap((ability) =>
+    //
+    // CR 603.3c (issue #2461) — each mode of a modal TRIGGERED ability is the
+    // same kind of site: same `AbilityMode` shape, same `$source`/`$host`
+    // bindings, same mutual exclusivity with the mode's own `resolve`. It is
+    // wrapped identically, WITHOUT threading `triggerEventType`: an
+    // announcement-time mode script cannot read `$event` (the interpreter binds
+    // the event only for an ability-level trigger script), so pinning the
+    // firing type here would legalize a ref the runtime never fills.
+    const abilityModes = [
+        ...(card.activatedAbilities ?? []),
+        ...(card.grantTemplates ?? []),
+        ...(card.triggeredAbilities ?? []),
+        ...(card.triggeredGrantTemplates ?? []),
+    ].flatMap((ability) =>
         (ability.modes ?? []).map((mode) => ({
             ability: {
                 id: `${ability.id}#${mode.id}`,

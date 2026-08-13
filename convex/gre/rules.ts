@@ -1,4 +1,5 @@
 import type {
+    AbilityMode,
     CardSupertype,
     CardType,
     Color,
