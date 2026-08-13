@@ -104,18 +104,14 @@ export const phyrexianMetamorph: CardDefinition = {
     ],
 };
 
-// Deceiver Exarch — {2}{U} Creature — Phyrexian Cleric, 1/4. Flash. ETB:
-// target any permanent — if it's yours, untap it; if it's an opponent's, tap
-// it. Splinter Twin combo piece.
+// Deceiver Exarch — {2}{U} Creature — Phyrexian Cleric, 1/4. Flash. ETB is a
+// MODAL triggered ability (CR 603.3c): choose one — untap target permanent you
+// control, or tap target permanent an opponent controls. Splinter Twin combo
+// piece (the untap mode is the loop half).
 //
-// protocol card: the Oracle text is modal ("choose one — untap target
-// permanent you control, or tap target permanent an opponent controls"), but
-// DSL TriggeredAbility lacks a `modes` field (unlike ActivatedAbility). The
-// mode is auto-deduced from the target's controller: same-controller →
-// untap, other-controller → tap. Functionally identical for all practical
-// in-game decisions — the controller always knows whose permanent they're
-// targeting, and there is no reason to choose a mode illegal for that
-// target.
+// The mode is announced as the trigger goes on the stack, before targets, and
+// each mode carries its own controller-filtered `targetRequirement` so only the
+// chosen mode's targets are ever considered (CR 700.2c).
 export const deceiverExarch: CardDefinition = {
     id: "1f123ad6-fe84-4fed-9c0f-6b41921e9c26",
     rarity: "uncommon",
@@ -134,28 +130,47 @@ export const deceiverExarch: CardDefinition = {
             oracleText:
                 "When this creature enters, choose one —\n• Untap target permanent you control.\n• Tap target permanent an opponent controls.",
             scope: "self",
-            targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                const targetController = ctx.getController(target);
-                if (targetController === ctx.controller) {
-                    ctx.untap(target);
-                } else {
-                    ctx.tap(target);
-                }
-            },
-            // aiEffects (PRD #1423, issue #1431/#1519) — the body is a bare
-            // `resolve()`, so the value model has nothing to walk. Sketch the
-            // UNTAP arm: both arms score the same `TAP_UNTAP_VALUE`, so the
-            // only thing the choice decides is beneficence (`opValuers.ts`:
-            // untap → beneficial, tap → harmful), i.e. which side's permanent
-            // the bot aims at. Untap is the arm this card exists for (the
-            // Splinter Twin loop untaps your own enchanted creature); the tap
-            // arm is the same Op mirrored and needs no second sketch. Never
-            // executed — only `OP_VALUERS` reads it.
-            aiEffects: [
-                { op: "tapUntap", action: "untap", target: { target: 0 } },
+            // CR 603.3c — exactly one mode is announced as the trigger is put
+            // on the stack; a mode whose `targetRequirement` has no legal
+            // candidate can't be chosen, and with an empty board on both sides
+            // (no permanent at all besides the Exarch itself, which its own
+            // untap mode may legally target) the announcement resolves without
+            // a prompt.
+            modes: [
+                {
+                    id: "untap-yours",
+                    label: "Untap target permanent you control",
+                    oracleText: "Untap target permanent you control.",
+                    targetRequirement: {
+                        type: [...PERMANENT_TYPES],
+                        count: 1,
+                        controller: "you",
+                    },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { target: 0 },
+                        },
+                    ],
+                },
+                {
+                    id: "tap-theirs",
+                    label: "Tap target permanent an opponent controls",
+                    oracleText: "Tap target permanent an opponent controls.",
+                    targetRequirement: {
+                        type: [...PERMANENT_TYPES],
+                        count: 1,
+                        controller: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { target: 0 },
+                        },
+                    ],
+                },
             ],
         }),
     ],

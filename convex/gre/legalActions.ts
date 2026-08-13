@@ -333,8 +333,12 @@ function choiceActions(
         });
 
     // CR 614.12 — abstract option pick: exactly one of the author-supplied
-    // option ids.
-    if (head.kind === "option-pick") {
+    // option ids. CR 603.3c (issue #2461) — a modal TRIGGER's announce-time
+    // mode pick is the same submission shape, and `options` already holds only
+    // the CHOOSABLE modes, so every enumerated action is a legal announcement.
+    // Without this branch the announcement falls through to the zone-pick
+    // enumerator, finds no zone, and returns nothing — a frozen game (ADR 0047).
+    if (head.kind === "option-pick" || head.kind === "trigger-mode") {
         return (head.options ?? []).map((o) => submit([o.id]));
     }
 

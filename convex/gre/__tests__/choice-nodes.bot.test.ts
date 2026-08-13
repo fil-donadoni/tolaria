@@ -188,7 +188,11 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // A kind outside these tranches is NOT an in-tree node yet — additive
         // by design: no generator means the historical no-decision behavior.
         expect(hasChoiceCandidateGenerator("discard-hand")).toBe(false);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(7);
+        // CR 603.3c (issue #2461) — announcing a modal TRIGGER's mode is a real
+        // decision (which arm the trigger becomes), so it is an in-tree node,
+        // sharing `option-pick`'s options-shaped generator.
+        expect(hasChoiceCandidateGenerator("trigger-mode")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(8);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {

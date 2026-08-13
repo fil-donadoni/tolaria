@@ -19,6 +19,7 @@
 // client-importable `cardValue` barrel.
 
 import type {
+    AbilityMode,
     CardDefinition,
     EffectOp,
     PermanentView,
@@ -145,6 +146,24 @@ function modesScriptOpValue(
     return best;
 }
 
+/** The best-mode `OpValue` of an ABILITY-site mode list (CR 700.2 / 603.3c) —
+ *  the `AbilityMode` twin of `modesScriptOpValue` above. `undefined` when there
+ *  are no modes, or when no mode carries a script (an all-`resolve()` modal
+ *  ability contributes nothing, same convention as a modal spell's). */
+function bestModeOpValue(
+    modes: AbilityMode[] | undefined,
+    ctx: GroundingContext
+): OpValue | undefined {
+    let best: OpValue | undefined;
+    for (const mode of modes ?? []) {
+        const script = effectiveScript(mode);
+        if (!script) continue;
+        const value = valueEffectScript(script, ctx);
+        if (!best || value.points > best.points) best = value;
+    }
+    return best;
+}
+
 /** The DSL spell-script value of a NON-CREATURE card (context-free): its real
  *  `effects[]` script if present, else its `aiEffects` shadow script (issue
  *  #1431) — either walked identically through `OP_VALUERS`. `undefined` when
@@ -196,6 +215,7 @@ export function dslAbilityScriptOpValue(
     const abilities: {
         effects?: EffectOp[];
         aiEffects?: EffectOp[];
+        modes?: AbilityMode[];
         gate?: TriggeredAbility["gate"];
     }[] = [
         ...(def.activatedAbilities ?? []),
@@ -203,12 +223,20 @@ export function dslAbilityScriptOpValue(
     ];
     for (const ability of abilities) {
         const script = effectiveScript(ability);
-        if (!script) continue;
+        // CR 700.2 / 603.3c — a MODAL ability (activated, issue #1341; or
+        // triggered, issue #2461) carries its resolution in per-mode scripts,
+        // so the plain reader above finds nothing. Value it at its BEST mode,
+        // exactly as `modesScriptOpValue` does for a modal SPELL: the announcer
+        // picks the mode, so the ability is worth the arm they would pick. This
+        // is what replaces a hand-written `aiEffects` shadow sketch of one arm.
+        const raw = script
+            ? valueEffectScript(script, ctx)
+            : bestModeOpValue(ability.modes, ctx);
+        if (!raw) continue;
         // CR 603.4 (issue #1936) — an ability that only fires under a
         // condition is not worth (or is not charged) its full script value.
         const weight = gateWeight(ability, self);
         if (weight === 0) continue;
-        const raw = valueEffectScript(script, ctx);
         // Tags are a MEMBERSHIP fact, not a magnitude — a weighted ability
         // still loads onto the same feature dimension, so only points scale
         // (same treatment `ABILITY_SCRIPT_DISCOUNT` gets below).

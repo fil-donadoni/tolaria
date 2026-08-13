@@ -1,4 +1,5 @@
 import type {
+    AbilityMode,
     CardSupertype,
     CardType,
     Color,
@@ -2725,8 +2726,238 @@ function triggerTargetMinMax(count: TargetRequirement["count"]): {
     return { min: count.min, max };
 }
 
-/** CR 603.3d / 603.3c (issue #1193) — lock announcement-time targets for any
- *  TARGETED triggered ability now on the stack. Scans the stack top-down; for
+/** The announcement-time target legality of ONE trigger stack item under ONE
+ *  requirement (CR 603.3d) — the shared half of "which targets are legal right
+ *  now", used both to decide whether a MODE is choosable at all (CR 603.3c) and
+ *  to lock/prompt the targets themselves. Extracted verbatim from
+ *  `raiseTriggerTargetSelection` so the mode-legality question is answered by
+ *  the SAME code that later announces the targets — a mode offered here must
+ *  never turn out to have no legal target one step later. */
+function triggerTargetLegality(
+    state: GameState,
+    item: StackItem,
+    req: TargetRequirement
+): {
+    effectiveReq: TargetRequirement;
+    effectiveLegal: TargetSelection[];
+    sourcePower: number | undefined;
+} {
+    // CR 702.21a (Ward) — a reflexive requirement resolves its own
+    // instance filter dynamically instead of from static card data:
+    // `spellTargetsSelfSource` pins `spellTargetsInstanceIds` to THIS
+    // trigger's own source permanent (`triggerSourceId`, set by
+    // `buildTriggerItem` to the permanent carrying the ability), so
+    // "counter that spell or ability" resolves to whatever is CURRENTLY
+    // on the stack targeting this permanent — reusing the Mistfolk
+    // instance filter rather than a parallel event→stack-item mechanism.
+    let effectiveReq: TargetRequirement =
+        req.spellTargetsSelfSource && item.triggerSourceId
+            ? { ...req, spellTargetsInstanceIds: [item.triggerSourceId] }
+            : req;
+    // Reflexive self-EXCLUDE (inverse of `spellTargetsSelfSource`) — an
+    // "exile ANOTHER target permanent" / "up to one OTHER target ~" trigger
+    // cannot pick its own source permanent. Merge the source id into any
+    // author-time `excludeInstanceIds` (CR 603.3d).
+    if (effectiveReq.excludeSource && item.triggerSourceId) {
+        effectiveReq = {
+            ...effectiveReq,
+            excludeInstanceIds: [
+                ...(effectiveReq.excludeInstanceIds ?? []),
+                item.triggerSourceId,
+            ],
+        };
+    }
+
+    // A triggered ability's source characteristics come from the on-stack
+    // trigger item (a `...self` snapshot of the source), read the same way
+    // a retargeted spell reads its stack item (CR 109.5). ALL FIVE
+    // dimensions come from the one factory — CR 113.3 (a triggered ability
+    // is not a spell) included. This site is why `TargetingSource` is one
+    // required-field object: it used to assemble colours/types/subtypes by
+    // hand and take the `[]` default for CR 205.4a supertypes, which made a
+    // supertype-bearing protection quality invisible on the ENTIRE
+    // triggered-ability path — including the CR 603.3c/603.3d auto-select
+    // in the caller, which locks a target with no later mutation-side
+    // re-check (issue #1120 review).
+    const triggerSource = pendingTargetingSource(state, item.id, "trigger");
+    // Issue #1378 — CR 603.3d: the source's live effective power, read
+    // NOW (as this trigger's target is chosen) for a `mvFilter` bound of
+    // `"sourcePower"` (Guardian Scalelord). `item.triggerSourceId` is the
+    // BATTLEFIELD permanent carrying the ability (`buildTriggerItem`) —
+    // distinct from `item.id`, the synthetic stack-item id
+    // `triggerSource` above reads from.
+    const sourcePower = getTriggerSourcePower(state, item.triggerSourceId);
+    const legal = getLegalTargets(
+        state,
+        effectiveReq,
+        triggerSource,
+        item.controllerId,
+        undefined,
+        [],
+        sourcePower
+    );
+
+    // CR 702.21a (issue #1361) — when TWO+ spells/abilities simultaneously
+    // target the same warded permanent, `legal` above (filtered only by
+    // "targets THIS permanent") holds every one of them: ambiguous, no
+    // single-legal-target auto-select. But THIS trigger instance already
+    // knows exactly which one caused it — `item.triggerEvent` is the
+    // BECAME_TARGET event that fired it (`buildTriggerItem`), and that
+    // event now carries `sourceInstanceId`, the causing stack item's OWN
+    // id (issue #1361, `emitBecameTargetEvents`). Narrow `legal` down to
+    // that exact object when it's present among the candidates — it always
+    // is, since it is what caused this very trigger — so ward forces the
+    // precise triggering object instead of falling back to a player
+    // choice. Left broad (defensive fallback, never expected to trigger)
+    // when the causing event is absent or the pin misses.
+    let effectiveLegal = legal;
+    if (req.spellTargetsSelfSource) {
+        const causingEvent = item.triggerEvent;
+        const pinnedInstanceId =
+            causingEvent?.type === "BECAME_TARGET"
+                ? causingEvent.sourceInstanceId
+                : undefined;
+        if (pinnedInstanceId) {
+            const pinned = legal.filter(
+                (t) => t.type === "spell" && t.id === pinnedInstanceId
+            );
+            if (pinned.length > 0) effectiveLegal = pinned;
+        }
+    }
+
+    return { effectiveReq, effectiveLegal, sourcePower };
+}
+
+/** The announce-time mode list of a triggered ability stack item, or
+ *  `undefined` when the ability is not modal (CR 603.3c, issue #2461).
+ *  `findTriggeredAbility` is the same union-of-printed-and-granted lookup
+ *  resolution uses (CR 707.9d), so a modal trigger granted by a copy effect
+ *  announces exactly like a printed one. */
+function triggerAbilityModes(item: StackItem): AbilityMode[] | undefined {
+    if (!item.triggeredAbilityId) return undefined;
+    const modes = findTriggeredAbility(item, item.triggeredAbilityId)?.modes;
+    return modes && modes.length > 0 ? modes : undefined;
+}
+
+/** CR 700.2c — "If a spell or ability targets one or more targets only if a
+ *  particular mode is chosen for it, its controller will need to choose those
+ *  targets only if they chose that mode" — the announcement-time
+ *  `targetRequirement` that actually applies
+ *  to a triggered-ability stack item: for a MODAL ability it is the ANNOUNCED
+ *  mode's requirement and never the ability-level one (a modal ability has no
+ *  ability-level body or requirement to fall back on — the modes carry both);
+ *  for every other trigger it is the ability's own. Returns `undefined` for a
+ *  modal trigger whose mode has not been announced yet, so no target can be
+ *  locked ahead of the mode. */
+function triggerAnnouncedRequirement(
+    item: StackItem
+): TargetRequirement | undefined {
+    if (!item.triggeredAbilityId) return undefined;
+    const ability = findTriggeredAbility(item, item.triggeredAbilityId);
+    if (!ability) return undefined;
+    const modes = triggerAbilityModes(item);
+    if (!modes) return ability.targetRequirement;
+    if (!item.chosenModeId) return undefined;
+    return modes.find((m) => m.id === item.chosenModeId)?.targetRequirement;
+}
+
+/** CR 603.3c — is `mode` a legal choice for this trigger right now? "If one of
+ *  the modes would be illegal (due to an inability to choose legal targets, for
+ *  example), that mode can't be chosen." A mode with no target requirement is
+ *  always choosable; a mode with a REQUIRED one (min ≥ 1) is choosable only
+ *  while the board supplies at least that many legal candidates. An "up to"
+ *  requirement (min 0) stays choosable with nothing legal — choosing zero
+ *  targets is legal. */
+function triggerModeIsChoosable(
+    state: GameState,
+    item: StackItem,
+    mode: AbilityMode
+): boolean {
+    const req = mode.targetRequirement;
+    if (!req) return true;
+    const { min } = triggerTargetMinMax(req.count);
+    if (min === 0) return true;
+    const { effectiveLegal } = triggerTargetLegality(state, item, req);
+    return effectiveLegal.length >= min;
+}
+
+/** CR 603.3c (issue #2461) — announce the MODE of every modal triggered ability
+ *  now on the stack that has not announced one yet. "If a triggered ability is
+ *  modal, its controller announces the mode choice when putting the ability on
+ *  the stack. If one of the modes would be illegal (due to an inability to
+ *  choose legal targets, for example), that mode can't be chosen. If no mode is
+ *  chosen, the ability is removed from the stack." CR 700.2b states the same
+ *  rule from the modal side ("The controller of a modal triggered ability
+ *  chooses the mode(s) as part of putting that ability on the stack … If no
+ *  mode is chosen, the ability is removed from the stack").
+ *
+ *  Scans the stack top-down, and for the first un-announced modal trigger:
+ *   - removes the ability from the stack when NO mode is choosable, then keeps
+ *     scanning (CR 603.3c's last sentence);
+ *   - auto-announces the sole choosable mode with no prompt — there is no
+ *     decision to make, the same way a sole legal target auto-selects;
+ *   - otherwise raises a `kind: "trigger-mode"` PendingChoice carrying ONLY the
+ *     choosable modes, parks priority on the controller and returns `true`
+ *     (suspended). The submission lands on `StackItem.chosenModeId`
+ *     (`pendingChoiceSubmit.ts`) and is never revisited — CR 700.2b makes the
+ *     pick part of PUTTING the ability on the stack, a one-time announcement.
+ *
+ *  Returns `false` when no mode announcement is owed. Called only from
+ *  `raiseTriggerTargetSelection`, which every trigger-placement path already
+ *  funnels through, so the announcement rides all four of them for free. */
+function raiseTriggerModeAnnouncement(state: GameState): boolean {
+    for (let i = state.stack.length - 1; i >= 0; i--) {
+        const item: StackItem = state.stack[i];
+        // CR 700.2b — the mode is chosen as part of putting the ability on the
+        // stack, once; CR 700.2f — "Changing a spell or ability's target can't
+        // change its mode". An already-announced trigger is never re-prompted.
+        if (item.chosenModeId !== undefined) continue;
+        const modes = triggerAbilityModes(item);
+        if (!modes) continue;
+
+        const choosable = modes.filter((m) =>
+            triggerModeIsChoosable(state, item, m)
+        );
+        if (choosable.length === 0) {
+            state.stack.splice(i, 1);
+            continue;
+        }
+        if (choosable.length === 1) {
+            item.chosenModeId = choosable[0].id;
+            continue;
+        }
+
+        state.pendingChoices = [
+            ...(state.pendingChoices ?? []),
+            {
+                stackItemId: item.id,
+                step: 0,
+                choiceId: `trigger-mode-${item.id}`,
+                playerId: item.controllerId,
+                kind: "trigger-mode",
+                count: 1,
+                // Only the CHOOSABLE modes cross the wire — an illegal mode is
+                // not offered at all (CR 603.3c), so every option the chooser
+                // (or the Bot) can submit is a legal announcement.
+                options: choosable.map((m) => ({ id: m.id, label: m.label })),
+                prompt: "Choose a mode for this triggered ability.",
+            },
+        ];
+        state.priorityPlayerId = state.pendingChoices[0].playerId;
+        state.passCount = 0;
+        return true;
+    }
+    return false;
+}
+
+/** CR 603.3d / 603.3c (issue #1193) — the whole announcement sweep for a
+ *  triggered ability that has just gone on the stack: it raises the MODE
+ *  announcement FIRST and the target selection second, so the name understates
+ *  it (see the mode paragraph below; the rename to `raiseTriggerAnnouncement`
+ *  is deliberately deferred — ~130 references across ~60 catalogue test files
+ *  would bury a correction-grade change in mechanical churn). Locks
+ *  announcement-time targets for any TARGETED triggered ability now on the
+ *  stack. Scans the stack top-down; for
  *  the first not-yet-targeted targeted trigger it either:
  *   - drops a REQUIRED-target trigger with no legal target (CR 603.3c — it is
  *     removed from the stack and does nothing), then keeps scanning;
@@ -2738,10 +2969,19 @@ function triggerTargetMinMax(count: TargetRequirement["count"]): {
  *     the SAME machinery a spell/activated ability uses — and returns `true`
  *     (suspended; priority parked on the chooser).
  *  Returns `false` when no further target choice is owed (callers resume the
- *  normal priority flow). Divide-as-you-choose (Fury) rides on `divideTotal`;
+ *  normal priority flow). CR 603.3c (issue #2461) — a MODAL trigger's MODE is
+ *  announced first (`raiseTriggerModeAnnouncement`, which can itself suspend on
+ *  a `trigger-mode` PendingChoice or remove a no-choosable-mode ability from the
+ *  stack); only the announced mode's requirement is then read here (CR 700.2c).
+ *  Divide-as-you-choose (Fury) rides on `divideTotal`;
  *  the per-target amounts are assigned through the existing divide UI and
  *  written onto the trigger's `targetAmounts` at `finalizeTargetSelection`. */
 export function raiseTriggerTargetSelection(state: GameState): boolean {
+    // CR 603.3c (issue #2461) — a MODAL triggered ability announces its MODE
+    // first: the pick gates which `targetRequirement` even applies (CR 700.2c),
+    // so no target may be locked before it. Suspends on the announcement when a
+    // controller genuinely has to choose.
+    if (raiseTriggerModeAnnouncement(state)) return true;
     for (let i = state.stack.length - 1; i >= 0; i--) {
         const item: StackItem = state.stack[i];
         // Already-targeted (or engine-locked to []) and non-targeted triggers
@@ -2755,93 +2995,12 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         const req: TargetRequirement | undefined = item.inlineTargetRequirement
             ? item.inlineTargetRequirement
             : item.triggeredAbilityId
-              ? findTriggeredAbility(item, item.triggeredAbilityId)
-                    ?.targetRequirement
+              ? triggerAnnouncedRequirement(item)
               : undefined;
         if (!req) continue;
 
-        // CR 702.21a (Ward) — a reflexive requirement resolves its own
-        // instance filter dynamically instead of from static card data:
-        // `spellTargetsSelfSource` pins `spellTargetsInstanceIds` to THIS
-        // trigger's own source permanent (`triggerSourceId`, set by
-        // `buildTriggerItem` to the permanent carrying the ability), so
-        // "counter that spell or ability" resolves to whatever is CURRENTLY
-        // on the stack targeting this permanent — reusing the Mistfolk
-        // instance filter rather than a parallel event→stack-item mechanism.
-        let effectiveReq: TargetRequirement =
-            req.spellTargetsSelfSource && item.triggerSourceId
-                ? { ...req, spellTargetsInstanceIds: [item.triggerSourceId] }
-                : req;
-        // Reflexive self-EXCLUDE (inverse of `spellTargetsSelfSource`) — an
-        // "exile ANOTHER target permanent" / "up to one OTHER target ~" trigger
-        // cannot pick its own source permanent. Merge the source id into any
-        // author-time `excludeInstanceIds` (CR 603.3d).
-        if (effectiveReq.excludeSource && item.triggerSourceId) {
-            effectiveReq = {
-                ...effectiveReq,
-                excludeInstanceIds: [
-                    ...(effectiveReq.excludeInstanceIds ?? []),
-                    item.triggerSourceId,
-                ],
-            };
-        }
-
-        // A triggered ability's source characteristics come from the on-stack
-        // trigger item (a `...self` snapshot of the source), read the same way
-        // a retargeted spell reads its stack item (CR 109.5). ALL FIVE
-        // dimensions come from the one factory — CR 113.3 (a triggered ability
-        // is not a spell) included. This site is why `TargetingSource` is one
-        // required-field object: it used to assemble colours/types/subtypes by
-        // hand and take the `[]` default for CR 205.4a supertypes, which made a
-        // supertype-bearing protection quality invisible on the ENTIRE
-        // triggered-ability path — including the CR 603.3c/603.3d auto-select
-        // below, which locks a target with no later mutation-side re-check
-        // (issue #1120 review).
-        const triggerSource = pendingTargetingSource(state, item.id, "trigger");
-        // Issue #1378 — CR 603.3d: the source's live effective power, read
-        // NOW (as this trigger's target is chosen) for a `mvFilter` bound of
-        // `"sourcePower"` (Guardian Scalelord). `item.triggerSourceId` is the
-        // BATTLEFIELD permanent carrying the ability (`buildTriggerItem`) —
-        // distinct from `item.id`, the synthetic stack-item id
-        // `triggerSource` above reads from.
-        const sourcePower = getTriggerSourcePower(state, item.triggerSourceId);
-        const legal = getLegalTargets(
-            state,
-            effectiveReq,
-            triggerSource,
-            item.controllerId,
-            undefined,
-            [],
-            sourcePower
-        );
-
-        // CR 702.21a (issue #1361) — when TWO+ spells/abilities simultaneously
-        // target the same warded permanent, `legal` above (filtered only by
-        // "targets THIS permanent") holds every one of them: ambiguous, no
-        // single-legal-target auto-select. But THIS trigger instance already
-        // knows exactly which one caused it — `item.triggerEvent` is the
-        // BECAME_TARGET event that fired it (`buildTriggerItem`), and that
-        // event now carries `sourceInstanceId`, the causing stack item's OWN
-        // id (issue #1361, `emitBecameTargetEvents`). Narrow `legal` down to
-        // that exact object when it's present among the candidates — it always
-        // is, since it is what caused this very trigger — so ward forces the
-        // precise triggering object instead of falling back to a player
-        // choice. Left broad (defensive fallback, never expected to trigger)
-        // when the causing event is absent or the pin misses.
-        let effectiveLegal = legal;
-        if (req.spellTargetsSelfSource) {
-            const causingEvent = item.triggerEvent;
-            const pinnedInstanceId =
-                causingEvent?.type === "BECAME_TARGET"
-                    ? causingEvent.sourceInstanceId
-                    : undefined;
-            if (pinnedInstanceId) {
-                const pinned = legal.filter(
-                    (t) => t.type === "spell" && t.id === pinnedInstanceId
-                );
-                if (pinned.length > 0) effectiveLegal = pinned;
-            }
-        }
+        const { effectiveReq, effectiveLegal, sourcePower } =
+            triggerTargetLegality(state, item, req);
 
         const { min, max } = triggerTargetMinMax(req.count);
 

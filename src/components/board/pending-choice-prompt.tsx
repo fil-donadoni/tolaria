@@ -98,7 +98,13 @@ export default function PendingChoicePrompt({
     // as may-pay, only the submit mutation differs (dispatched below).
     const isDrawReplacement = choice.kind === "draw-replacement";
     const isYesNoPay = isMayPay || isLandEntry || isDrawReplacement;
-    const isOptionPick = choice.kind === "option-pick";
+    // CR 614.12 `option-pick` and CR 603.3c `trigger-mode` (issue #2461) share
+    // one surface: a row of author-labelled buttons, one of which is submitted
+    // immediately. They differ in WHEN the answer applies (during resolution vs
+    // as the trigger is announced), which is entirely the backend's concern —
+    // the chooser sees the same thing either way.
+    const isOptionPick =
+        choice.kind === "option-pick" || choice.kind === "trigger-mode";
     // CR 702.35a — reflexive Madness cast-choice: Cast (fires the ordinary
     // announceCast on the exiled card, which consumes this choice) or Decline
     // (submitMadnessDecline → graveyard). Its own two-button branch — the Cast

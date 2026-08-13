@@ -5718,6 +5718,12 @@ export type AbilityEffectScriptHost = {
     resolve?: unknown;
     resolveSteps?: unknown;
     aiEffects?: unknown;
+    /** CR 700.2 / 603.3c — the announce-time mode list of a modal ACTIVATED
+     *  (issue #1341) or TRIGGERED (issue #2461) ability. Read only to enforce
+     *  its mutual exclusivity with an ability-level body below; the modes'
+     *  own scripts are validated as separate synthetic sites
+     *  (`cards/__tests__/effectSites.ts`). */
+    modes?: unknown;
 };
 
 /** Validates an ABILITY-SITE Effect Script (activated / triggered, issue
@@ -5737,8 +5743,32 @@ export function validateAbilityEffectScript(
     triggerEventType?: string
 ): string[] {
     const errors: string[] = [];
-    if (ability.effects === undefined) return errors;
     const label = `${cardLabel} ability "${ability.id}"`;
+
+    // CR 700.2 / 603.3c (issue #2461) — a MODAL ability's body lives on its
+    // modes; declaring an ability-level body TOO is a silent bug, because
+    // resolution dispatches the mode and ignores the ability-level one (see the
+    // modal branches in `resolveTopOfStack`). Checked BEFORE the
+    // `effects === undefined` early return below: the whole point of a modal
+    // ability is that it has no ability-level `effects[]` to hang the check
+    // off, so the spell-site pattern (which keys off `def.effects`) would never
+    // fire here. This closes the same gap for `ActivatedAbility.modes`, which
+    // has been unguarded since #1341.
+    if (ability.modes) {
+        for (const [field, present] of [
+            ["effects", ability.effects !== undefined],
+            ["resolve", !!ability.resolve],
+            ["resolveSteps", !!ability.resolveSteps],
+        ] as const) {
+            if (present) {
+                errors.push(
+                    `${label}: declares both modes[] and ${field} — a modal ability's body lives on its modes`
+                );
+            }
+        }
+    }
+
+    if (ability.effects === undefined) return errors;
 
     if (ability.resolve) {
         errors.push(

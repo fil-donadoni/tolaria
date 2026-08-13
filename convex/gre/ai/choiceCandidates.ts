@@ -377,7 +377,10 @@ const randomRevealAckCandidates: ChoiceCandidateGenerator = (
 const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
     const options = choice.options ?? [];
     return options.map((option) => ({
-        key: `option-pick:${option.id}`,
+        // Keyed by KIND as well as option id (issue #2461) — the same generator
+        // now serves the announce-time `trigger-mode` choice (CR 603.3c), and
+        // two kinds sharing an option id must not collide on one key.
+        key: `${choice.kind}:${option.id}`,
         move: {
             kind: "resolution-choice",
             stackItemId: choice.stackItemId,
@@ -616,6 +619,12 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     "land-entry-tapped": landEntryCandidates,
     "draw-replacement": drawReplacementCandidates,
     "option-pick": optionPickCandidates,
+    // CR 603.3c (issue #2461) — announcing a modal trigger's mode IS a real
+    // decision (which half of Deceiver Exarch's "untap yours / tap theirs" the
+    // trigger becomes), so it is an in-tree search node, not a minimal-legal
+    // default. Same `options`-shaped submission as `option-pick`, so the same
+    // generator serves it.
+    "trigger-mode": optionPickCandidates,
     "search-library": searchLibraryCandidates,
     "random-reveal": randomRevealAckCandidates,
     "choose-hand-card": handPickCandidates,

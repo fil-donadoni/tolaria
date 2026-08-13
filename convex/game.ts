@@ -10124,6 +10124,8 @@ export function cancelTriggerTargetSelection(state: GameState): void {
         if (trig) trig.targets = [];
     }
     state.pendingTarget = undefined;
+    // Despite its name this also runs the CR 603.3c MODE announcement for any
+    // still-un-announced modal trigger left on the stack (issue #2461).
     if (!raiseTriggerTargetSelection(state)) {
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;

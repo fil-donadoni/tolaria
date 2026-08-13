@@ -270,9 +270,12 @@ function resolvePending(state: GameState): boolean {
         // Trigger-time "up to one target player" (CR 115.1a, Endurance) —
         // minimal-legal default (ADR 0016): decline (min is 0).
         ids = [];
-    } else if (head.kind === "option-pick") {
+    } else if (head.kind === "option-pick" || head.kind === "trigger-mode") {
         // CR 614.12 — body-on-entry options aren't zone cards. Minimal-legal
-        // default (ADR 0016): pick the first author-listed option.
+        // default (ADR 0016): pick the first author-listed option. CR 603.3c
+        // (issue #2461) — a modal trigger's announced mode is the same shape,
+        // and `options` already holds only the CHOOSABLE modes, so the first is
+        // always a legal announcement.
         const optId = head.options?.[0]?.id;
         ids = optId ? [optId] : [];
     } else if (head.kind === "trigger-order") {
