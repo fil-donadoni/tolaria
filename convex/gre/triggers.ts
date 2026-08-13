@@ -700,9 +700,17 @@ export function collectStateTriggers(state: GameState): StackItem[] {
     return out;
 }
 
-/** Pushes any newly-triggered state abilities onto the stack and restarts
- *  priority at the active player (CR 117.3c). Called from the stable
- *  checkpoint that follows SBA evaluation (CR 117.5). */
+/** Pushes any newly-triggered state abilities onto the stack (CR 603.8 — they
+ *  "go onto the stack at the next available opportunity") and restarts priority
+ *  at the active player, per CR 603.3b's last sentence, "Then the appropriate
+ *  player gets priority". Called from the stable checkpoint that follows SBA
+ *  evaluation (CR 117.5).
+ *
+ *  Unlike every other trigger-placement path this one does NOT run
+ *  `raiseTriggerTargetSelection`, so a state trigger announces neither targets
+ *  (CR 603.3d) nor a mode (CR 603.3c). Unreachable today — no shipped
+ *  `STATE_CHECK` ability declares `targetRequirement` or `modes` — and
+ *  pre-existing; drafted in `docs/findings/2461-state-triggers-skip-announcement.md`. */
 export function applyStateTriggers(state: GameState): boolean {
     const triggers = collectStateTriggers(state);
     if (triggers.length === 0) return false;
@@ -849,6 +857,8 @@ export function placeTriggersOnStack(
         // real choice, we suspend on a `kind:"trigger"` PendingTarget (parked on
         // the chooser), reported to callers as the not-yet-placed / suspended
         // signal (return false), same contract as the ordering-suspend path.
+        // Despite its name it also runs the CR 603.3c MODE announcement first
+        // (issue #2461) — a modal trigger is announced here, nowhere else.
         if (raiseTriggerTargetSelection(state)) return false;
         return true;
     }

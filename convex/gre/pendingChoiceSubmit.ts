@@ -764,7 +764,8 @@ export function applyPendingChoiceSubmit(
         // each targeted one chooses its target(s) as it is placed. If a
         // controller must choose, suspend on the `kind:"trigger"` PendingTarget
         // (priority already parked on the chooser); otherwise resume the active
-        // player's priority window.
+        // player's priority window. Despite its name the same call also runs
+        // the CR 603.3c MODE announcement first (issue #2461).
         if (!raiseTriggerTargetSelection(state)) {
             state.priorityPlayerId = state.activePlayerId;
             state.passCount = 0;

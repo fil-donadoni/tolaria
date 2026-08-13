@@ -187,26 +187,31 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
         // resolution context. Because an ETB ability belongs to its source,
         // `ctx.controller` is the source's controller for every scope.
         // Mutually exclusive with `resolve`.
-        // CR 603.3c (issue #2461) — a MODAL trigger has NEITHER: its body lives
-        // on the announced mode, so the factory must not synthesize the
-        // event-narrowing `resolve` wrapper (there is no `args.resolve` to call
-        // and an ability-level body would be ignored at resolution anyway, and
-        // rejected by `validateAbilityEffectScript`).
-        ...(args.modes
-            ? {}
-            : args.effects
-              ? { effects: args.effects }
-              : {
-                    resolve: (ctx: SpellContext, event: GameEvent) => {
-                        if (event.type !== "PERMANENT_ENTERED") return;
-                        const entered: EnteredPermanentInfo = {
-                            id: event.instanceId,
-                            controllerId: event.controllerId,
-                            types: event.types,
-                        };
-                        args.resolve!(ctx, event, entered);
-                    },
-                }),
+        // CR 603.3c / 700.2b (issue #2461) — a MODAL trigger normally has
+        // NEITHER: its body lives on the announced mode, so with `modes` alone
+        // the factory synthesizes no `resolve` wrapper (there would be no
+        // `args.resolve` to call).
+        //
+        // A body passed ALONGSIDE `modes` is NOT swallowed here: it is
+        // forwarded verbatim so `validateAbilityEffectScript` — the
+        // catalogue-wide authority on modes[]-XOR-body — actually SEES the
+        // conflict and fails the gate. Dropping it silently is how an author's
+        // mode-less body would ship inert, and it would make that check
+        // unreachable for every factory-authored card.
+        ...(args.effects ? { effects: args.effects } : {}),
+        ...(args.resolve || (!args.effects && !args.modes)
+            ? {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (event.type !== "PERMANENT_ENTERED") return;
+                      const entered: EnteredPermanentInfo = {
+                          id: event.instanceId,
+                          controllerId: event.controllerId,
+                          types: event.types,
+                      };
+                      args.resolve!(ctx, event, entered);
+                  },
+              }
+            : {}),
     };
     if (args.modes !== undefined) {
         ability.modes = args.modes;

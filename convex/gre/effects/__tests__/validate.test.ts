@@ -5,8 +5,9 @@
 // 1:1 correspondence.
 
 import { describe, it, expect } from "vitest";
-import type { CardType, EffectOp } from "../../../cards/types";
+import type { AbilityMode, CardType, EffectOp } from "../../../cards/types";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
+import { enteredTrigger } from "../../../cards/abilities/triggers/enteredTrigger";
 import { OP_EXECUTORS } from "../interpreter";
 import {
     SCHEMA_OP_NAMES,
@@ -4453,6 +4454,63 @@ describe("validateAbilityEffectScript — modes[] XOR ability-level body (CR 700
                 { id: "ab", modes },
                 "Test Card (test-id)"
             )
+        ).toEqual([]);
+    });
+
+    /** The same one-mode list, typed as the factory's `modes` parameter. */
+    const typedModes: AbilityMode[] = [
+        {
+            id: "a",
+            label: "A",
+            oracleText: "A.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ];
+
+    // The three checks above are only reachable if the ability the AUTHOR wrote
+    // is the ability the validator sees. `enteredTrigger` builds most ETB
+    // triggers in the catalogue, so if it dropped a body passed alongside
+    // `modes` the conflict would be invisible catalogue-wide and the mode-less
+    // body would ship inert.
+    it("sees a body the enteredTrigger factory was given alongside modes[]", () => {
+        const built = enteredTrigger({
+            id: "ab",
+            oracleText: "When this creature enters, choose one — • A.",
+            scope: "self",
+            modes: typedModes,
+            effects: [
+                { op: "draw", player: "controller", count: 1 },
+            ] as EffectOp[],
+        });
+        expect(
+            validateAbilityEffectScript(built, "Test Card (test-id)").join("\n")
+        ).toMatch(/declares both modes\[\] and effects/);
+    });
+
+    it("sees a resolve() the enteredTrigger factory was given alongside modes[]", () => {
+        const built = enteredTrigger({
+            id: "ab",
+            oracleText: "When this creature enters, choose one — • A.",
+            scope: "self",
+            modes: typedModes,
+            resolve: () => {},
+        });
+        expect(
+            validateAbilityEffectScript(built, "Test Card (test-id)").join("\n")
+        ).toMatch(/declares both modes\[\] and resolve/);
+    });
+
+    it("a modal enteredTrigger with no body stays body-less", () => {
+        const built = enteredTrigger({
+            id: "ab",
+            oracleText: "When this creature enters, choose one — • A.",
+            scope: "self",
+            modes: typedModes,
+        });
+        expect(built.effects).toBeUndefined();
+        expect(built.resolve).toBeUndefined();
+        expect(
+            validateAbilityEffectScript(built, "Test Card (test-id)")
         ).toEqual([]);
     });
 });

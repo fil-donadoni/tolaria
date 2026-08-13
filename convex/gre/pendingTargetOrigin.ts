@@ -272,6 +272,8 @@ export function applyRaisedTargetFinalization(
         // triggers (Leovold) for this trigger's controller.
         emitBecameTargetEvents(state, targets, trig.controllerId, trig.id);
     }
+    // Despite its name this also runs the CR 603.3c MODE announcement for any
+    // still-un-announced modal trigger of the batch first (issue #2461).
     if (raiseTriggerTargetSelection(state)) return true;
     state.priorityPlayerId = state.activePlayerId;
     state.passCount = 0;

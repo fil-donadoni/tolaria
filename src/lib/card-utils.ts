@@ -42,6 +42,7 @@ import {
     getEffectiveActivatedAbilities,
     grantOutrankedByAbilityLoss,
 } from "@convex/gre/activatedAbilities";
+import { findTriggeredAbility } from "@convex/gre/copy";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
@@ -2512,13 +2513,21 @@ export function getStackModeLines(item: {
     // ability item carries its own ability's. The shared discriminator
     // (`gre/constants.ts`) is structurally typed precisely so the client's
     // `StackItem` satisfies it.
+    //
+    // The trigger lookup is `findTriggeredAbility`, the SAME
+    // printed-plus-granted union the engine announces and resolves through
+    // (`gre/copy.ts`, CR 707.9d) — not a bare `def.triggeredAbilities` scan. A
+    // modal trigger granted by a copy effect or a `grantTriggeredAbility` Op is
+    // announced server-side and must render its mode lines here too; two
+    // different lookups for one question is how the client silently drops it.
     const modes:
         | { id: string; label: string; oracleText: string }[]
         | undefined = isSpellStackItem(item)
         ? def.modes
         : item.triggeredAbilityId
-          ? def.triggeredAbilities?.find(
-                (a) => a.id === item.triggeredAbilityId
+          ? findTriggeredAbility(
+                item as unknown as CardInstanceState,
+                item.triggeredAbilityId
             )?.modes
           : undefined;
     if (!modes || modes.length === 0) return null;
