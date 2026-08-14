@@ -3611,6 +3611,19 @@ export type GameState = {
      *  Scepter). Cleared once the discards land and the remainder of CLEANUP
      *  (CR 514.2 — damage wipe, "until end of turn" expiry) runs. */
     pendingCleanupDiscard?: { playerId: string };
+    /** CR 514.3a (issue #2472) — "another cleanup step begins" marker. The
+     *  cleanup step normally grants no priority (CR 514.3); the single
+     *  exception fires when state-based actions or triggered abilities are
+     *  waiting at that point (a `next-cleanup-step` delayed trigger, or a
+     *  trigger raised by the 514.1 discard itself — Madness). When that
+     *  happens the active player gets priority and, once the stack empties and
+     *  all players pass, ANOTHER cleanup step begins. This flag is what carries
+     *  that obligation across the priority window (which spans mutations, so it
+     *  must persist): set by `openCleanupPriorityWindow` (`gre/phases.ts`) as
+     *  the window opens, consumed by `advancePhase`, which re-enters CLEANUP
+     *  instead of ending the turn. Undefined at every other point — a cleanup
+     *  step that puts nothing on the stack stays priority-less and single. */
+    pendingExtraCleanupStep?: boolean;
     /** Armed one-shot draw replacements (CR 614 — Aladdin's Lamp). Each entry
      *  replaces the NEXT draw `playerId` would take this turn: look at the top
      *  `x` cards, keep one to draw, bottom the rest in a random order. The

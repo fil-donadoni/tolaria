@@ -2082,8 +2082,58 @@ function performPhaseEntry(state: GameState): void {
             // discards land.
             if (tryEnqueueCleanupDiscard(state)) break;
             finalizeCleanup(state);
+            // CR 514.3a — "the game checks to see if any state-based actions
+            // would be performed and/or any triggered abilities are waiting to
+            // be put onto the stack (including those that trigger 'at the
+            // beginning of the next cleanup step')". Fired AFTER the 514.1
+            // discard and the 514.2 turn-based actions, matching the rule's own
+            // ordering — and, critically, after `finalizeCleanup`'s watch purge,
+            // which lists only the "this turn" instance watches and therefore
+            // leaves `next-cleanup-step` instances intact for this very fire.
+            {
+                const stackBefore = state.stack.length;
+                fireDelayedTriggers(state, "next-cleanup-step");
+                openCleanupPriorityWindow(state, stackBefore);
+            }
             break;
     }
+}
+
+/** CR 514.3 / 514.3a — open the cleanup step's ONE priority window.
+ *
+ *  CR 514.3: "Normally, no player receives priority during the cleanup step, so
+ *  no spells can be cast and no abilities can be activated. However, this rule
+ *  is subject to the following exception:" — CR 514.3a: "…those triggered
+ *  abilities are put on the stack, then the active player gets priority.
+ *  Players may cast spells and activate abilities. Once the stack is empty and
+ *  all players pass in succession, another cleanup step begins."
+ *
+ *  `stackBefore` is the stack height sampled before the caller put this
+ *  cleanup step's triggers on it. Returns true when something landed (or is
+ *  held off-stack awaiting a CR 603.3b ordering choice) and CLEANUP must
+ *  therefore STAY open: the `pendingExtraCleanupStep` flag it sets is read by
+ *  `advancePhase` twice — to suppress the auto-phase recursion that would
+ *  otherwise discard the priority window in the same tick, and, when the window
+ *  eventually closes, to re-enter CLEANUP rather than end the turn. Returns
+ *  false when nothing triggered, leaving cleanup priority-less and single. */
+function openCleanupPriorityWindow(
+    state: GameState,
+    stackBefore: number
+): boolean {
+    const landed = state.stack.length > stackBefore;
+    // CR 603.3b (ADR 0058) — a same-controller batch needing an explicit order
+    // is held OFF the stack in `pendingTriggerBatch` until the ordering choice
+    // commits. Nothing is on the stack yet, but the window is just as owed.
+    const heldOffStack = !!state.pendingTriggerBatch;
+    if (!landed && !heldOffStack) return false;
+    state.pendingExtraCleanupStep = true;
+    // A suspended placement (ordering batch, or CR 603.3d trigger targeting)
+    // has already parked priority on the chooser — do not steal it back; the
+    // active player receives priority when that choice commits.
+    if (heldOffStack || state.pendingTarget) return true;
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+    return true;
 }
 
 /** Returns the effective maximum hand size for a player (CR 402.2). The
@@ -2245,9 +2295,15 @@ export function finalizeCleanupDiscard(
     // Collect any such trigger off the CARD_DISCARDED events the discard emitted;
     // if one landed, hand the active player priority and stay in CLEANUP so the
     // owner gets a real window to cast the madness card (the iconic "discard the
-    // extra Rootwalla to hand size, cast it for {0}" line, CR 702.35a). The
-    // eventual both-players-pass with an empty stack advances the phase (the
-    // "another cleanup step" is a no-op once the hand is at size).
+    // extra Rootwalla to hand size, cast it for {0}" line, CR 702.35a).
+    const stackBefore = state.stack.length;
+    // CR 514.3a — the same check also puts the delayed triggers that trigger
+    // "at the beginning of the next cleanup step" on the stack. Fired here too,
+    // not only in the non-discard CLEANUP arm, so a hand-size discard cannot
+    // swallow the boundary: `performPhaseEntry` bailed out of CLEANUP the
+    // moment it enqueued the discard prompt, and this commit handler is the
+    // ONLY continuation of that suspended step.
+    fireDelayedTriggers(state, "next-cleanup-step");
     const cleanupEvents = flushPendingEvents(state);
     const cleanupTriggers =
         cleanupEvents.length > 0 ? collectTriggers(state, cleanupEvents) : [];
@@ -2255,13 +2311,15 @@ export function finalizeCleanupDiscard(
     // CLEANUP so the owner gets a real window (CR 514.3). SUSPENDED (a rare
     // two-Madness-discard ordering): the helper parked priority on the chooser;
     // stay in CLEANUP until the ordered batch lands.
-    if (placeTriggersOnStack(state, cleanupTriggers)) {
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
+    placeTriggersOnStack(state, cleanupTriggers);
+    if (openCleanupPriorityWindow(state, stackBefore)) {
+        // The suspended branch owes an ordering/targeting choice, not a pass —
+        // draining auto-passes there would act on the chooser's parked priority.
+        if (!state.pendingTriggerBatch && !state.pendingTarget) {
+            drainAutoPasses(state);
+        }
         return;
     }
-    if (state.pendingTriggerBatch) return;
 
     // CLEANUP is an auto-phase. Leaving it lands at the next turn's UNTAP →
     // UPKEEP via the normal auto-phase recursion (CR 500.1). Drain any
@@ -3129,7 +3187,20 @@ export function advancePhase(state: GameState): Phase[] {
     // CR 511.2/511.3: combat teardown happens as the END_OF_COMBAT step ends.
     if (state.phase === "END_OF_COMBAT") endCombatStep(state);
 
-    const next = nextPhase(state.phase);
+    // CR 514.3a — "Once the stack is empty and all players pass in succession,
+    // another cleanup step begins." A cleanup step that opened the 514.3
+    // priority window owes exactly one more cleanup step; taking it here (as a
+    // phase transition CLEANUP → CLEANUP) means the additional step re-runs the
+    // real 514.1 hand-size discard and the real 514.2 turn-based actions via
+    // `performPhaseEntry`, rather than jumping back into the middle of the
+    // previous one. The flag is cleared BEFORE the step runs, so the repeat is
+    // owed again only if that step's own 514.3a check finds something new —
+    // which is what terminates the loop.
+    const repeatCleanupStep =
+        state.phase === "CLEANUP" && !!state.pendingExtraCleanupStep;
+    if (repeatCleanupStep) state.pendingExtraCleanupStep = undefined;
+
+    const next = repeatCleanupStep ? "CLEANUP" : nextPhase(state.phase);
 
     if (next === null) {
         // End of turn → advance to next turn
@@ -3255,8 +3326,19 @@ export function advancePhase(state: GameState): Phase[] {
         (skipUnblockableCombat || skipCamouflageBlockers) &&
         state.stack.length > stackBeforeBlockerConfirm;
 
+    // CR 514.3 / 514.3a — CLEANUP is an AUTO_PHASE, so without this the
+    // recursion below would step straight into the next turn and silently throw
+    // away the one priority window the cleanup step is allowed to open. The
+    // `pendingChoices` early-return above does NOT cover it: a fired
+    // `next-cleanup-step` delayed trigger enqueues no choice at all — it puts a
+    // StackItem on the stack and hands the active player priority, which is
+    // exactly the state this flag records.
+    const cleanupWindowOpen =
+        state.phase === "CLEANUP" && !!state.pendingExtraCleanupStep;
+
     if (
         !blockerConfirmPushedTriggers &&
+        !cleanupWindowOpen &&
         (AUTO_PHASES.has(state.phase) ||
             drawStepSkippedForActivePlayer ||
             skipEmptyCombat ||

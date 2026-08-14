@@ -2463,3 +2463,217 @@ describe("passPriority wrong-player guard (ADR 0047)", () => {
         expect(simPassPriorityHead(state, "p1")).toBe(true);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Cleanup-step delayed triggers (CR 514.3 / 514.3a / 603.7)
+// ---------------------------------------------------------------------------
+//
+// CR 514.3: "Normally, no player receives priority during the cleanup step, so
+// no spells can be cast and no abilities can be activated. However, this rule
+// is subject to the following exception:"
+//
+// CR 514.3a: "At this point, the game checks to see if any state-based actions
+// would be performed and/or any triggered abilities are waiting to be put onto
+// the stack (including those that trigger 'at the beginning of the next cleanup
+// step'). If so, those state-based actions are performed, then those triggered
+// abilities are put on the stack, then the active player gets priority. Players
+// may cast spells and activate abilities. Once the stack is empty and all
+// players pass in succession, another cleanup step begins."
+
+describe("cleanup-step delayed triggers (CR 514.3a / 603.7)", () => {
+    function cleanupHand(n: number): CardInstanceState[] {
+        return Array.from({ length: n }, (_, i) =>
+            makeCard({ id: `cl-hand-${i}`, zone: "hand", ownerId: "p1" })
+        );
+    }
+
+    function endStepState(handSize = 0): GameState {
+        return makeGameState({
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer({ id: "p1", hand: cleanupHand(handSize) }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+    }
+
+    /** A `next-cleanup-step` delayed trigger with an inline body (ADR 0048)
+     *  whose only effect is observable in one field. */
+    function scheduleCleanupTrigger(state: GameState, id: string): void {
+        state.delayedTriggers = [
+            ...(state.delayedTriggers ?? []),
+            {
+                id,
+                sourceCardId: cloakOfConfusion.id,
+                triggerId: "$inline-effects",
+                controller: "p1",
+                timing: "next-cleanup-step",
+                payload: {},
+                effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+                oracleText:
+                    "At the beginning of the next cleanup step, you gain 1 life.",
+            },
+        ];
+    }
+
+    it("fires at CLEANUP, stacks the ability and hands the active player priority", () => {
+        const state = endStepState();
+        scheduleCleanupTrigger(state, "dt-cleanup-1");
+
+        const traversed = advancePhase(state);
+
+        // CR 514.3a — the trigger is on the stack and the active player has
+        // priority. The step must NOT have been recursed past: `advancePhase`
+        // treats CLEANUP as an auto-phase, and without the cleanup-window guard
+        // the turn would have rolled over and discarded this window silently.
+        expect(traversed).toEqual(["CLEANUP"]);
+        expect(state.phase).toBe("CLEANUP");
+        expect(state.turn).toBe(1);
+        expect(state.activePlayerId).toBe("p1");
+        expect(state.stack.length).toBe(1);
+        expect(state.priorityPlayerId).toBe("p1");
+        expect(state.passCount).toBe(0);
+        expect(state.pendingExtraCleanupStep).toBe(true);
+        // CR 603.7b — a single-shot delayed trigger is dequeued by firing.
+        expect(state.delayedTriggers).toBeUndefined();
+    });
+
+    it("leaves cleanup priority-less and single when nothing triggers (CR 514.3)", () => {
+        const state = endStepState();
+
+        const traversed = advancePhase(state);
+
+        expect(traversed).toEqual(["CLEANUP", "UNTAP", "UPKEEP"]);
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.turn).toBe(2);
+        expect(state.stack.length).toBe(0);
+        expect(state.pendingExtraCleanupStep).toBeUndefined();
+    });
+
+    it("begins another cleanup step once the stack empties and all players pass", () => {
+        const state = endStepState();
+        state.players[0].battlefield = [
+            makeCard({
+                id: "bear",
+                types: ["Creature"],
+                power: 2,
+                toughness: 2,
+            }),
+        ];
+        scheduleCleanupTrigger(state, "dt-cleanup-1");
+        advancePhase(state);
+
+        // Resolve the cleanup trigger through the real stack machinery.
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(21);
+        expect(state.stack.length).toBe(0);
+        // Something damaged the bear during the 514.3a priority window. The
+        // ADDITIONAL cleanup step must wipe it (CR 514.2 runs again) — proof
+        // that a real second step ran rather than a jump to the next turn.
+        state.players[0].battlefield[0].damageMarked = 1;
+
+        // Both players pass with an empty stack → `passPriority`'s advance.
+        const traversed = advancePhase(state);
+
+        expect(traversed[0]).toBe("CLEANUP");
+        expect(state.players[0].battlefield[0].damageMarked).toBeUndefined();
+        // Nothing new triggered in the additional step, so it stays
+        // priority-less and the turn ends — the loop terminates.
+        expect(traversed).toEqual(["CLEANUP", "UNTAP", "UPKEEP"]);
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.turn).toBe(2);
+        expect(state.pendingExtraCleanupStep).toBeUndefined();
+        expect(state.delayedTriggers).toBeUndefined();
+    });
+
+    it("re-runs the CR 514.1 hand-size discard in the additional cleanup step", () => {
+        const state = endStepState();
+        scheduleCleanupTrigger(state, "dt-cleanup-1");
+        advancePhase(state);
+        resolveTopOfStack(state);
+
+        // The active player drew into an oversized hand during the 514.3a
+        // window; the additional cleanup step re-runs 514.1 on it.
+        state.players[0].hand = cleanupHand(10);
+
+        const traversed = advancePhase(state);
+
+        expect(traversed).toEqual(["CLEANUP"]);
+        expect(state.phase).toBe("CLEANUP");
+        expect(state.turn).toBe(1);
+        expect(state.pendingCleanupDiscard).toEqual({ playerId: "p1" });
+        expect(state.pendingChoices?.length).toBe(1);
+        expect(state.pendingChoices![0].kind).toBe("discard-hand");
+        expect(state.pendingChoices![0].count).toBe(3);
+    });
+
+    it("does not re-fire the dequeued instance, so the repeat terminates", () => {
+        const state = endStepState();
+        scheduleCleanupTrigger(state, "dt-cleanup-1");
+        advancePhase(state);
+        resolveTopOfStack(state);
+
+        advancePhase(state);
+
+        // One firing only: life went 20 → 21, not 22.
+        expect(state.players[0].life).toBe(21);
+        expect(state.stack.length).toBe(0);
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.turn).toBe(2);
+    });
+
+    it("survives the CR 514.2 watch purge that expires the this-turn watches", () => {
+        const state = endStepState();
+        state.delayedTriggers = [
+            {
+                id: "dt-leave-1",
+                sourceCardId: cloakOfConfusion.id,
+                triggerId: "$inline-effects",
+                controller: "p1",
+                timing: "leaves-battlefield",
+                payload: {},
+                watchInstanceId: "gone",
+                effects: [{ op: "gainLife", player: "controller", amount: 5 }],
+                oracleText:
+                    "When that creature leaves the battlefield this turn, you gain 5 life.",
+            },
+        ];
+        scheduleCleanupTrigger(state, "dt-cleanup-1");
+
+        advancePhase(state);
+
+        // The this-turn leave-watch expired unfired in `finalizeCleanup`; the
+        // step-boundary cleanup timing fired instead of being swept with it.
+        expect(state.stack.length).toBe(1);
+        expect(state.phase).toBe("CLEANUP");
+        expect(state.delayedTriggers).toBeUndefined();
+    });
+
+    it("composes with the CR 514.1 discard suspend/resume path", () => {
+        const state = endStepState(8);
+        scheduleCleanupTrigger(state, "dt-cleanup-1");
+
+        advancePhase(state);
+
+        // 514.1 comes first: the step suspends on the discard prompt and the
+        // cleanup trigger has NOT fired yet.
+        expect(state.phase).toBe("CLEANUP");
+        expect(state.pendingChoices?.length).toBe(1);
+        expect(state.stack.length).toBe(0);
+        expect(state.delayedTriggers?.length).toBe(1);
+
+        finalizeCleanupDiscard(state, [state.players[0].hand[0].id]);
+
+        // Resumed out of the commit handler: 514.2 then the 514.3a check.
+        expect(state.players[0].hand.length).toBe(7);
+        expect(state.phase).toBe("CLEANUP");
+        expect(state.turn).toBe(1);
+        expect(state.stack.length).toBe(1);
+        expect(state.priorityPlayerId).toBe("p1");
+        expect(state.pendingExtraCleanupStep).toBe(true);
+        expect(state.delayedTriggers).toBeUndefined();
+    });
+});

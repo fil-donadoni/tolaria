@@ -2466,6 +2466,12 @@ const DELAYED_TIMINGS = new Set([
     "next-draw-step",
     "next-main-phase",
     "next-upkeep",
+    // Cleanup-step boundary (CR 603.7 / 514.3a, issue #2472) — fires at the
+    // beginning of the next cleanup step, the one step that normally grants no
+    // priority (CR 514.3). Firing it opens the 514.3a exception window and an
+    // additional cleanup step follows (phases.ts). A phase-boundary timing:
+    // rejects both `targetPlayer` and `watch` (checked below).
+    "next-cleanup-step",
     // Instance leave-watch (CR 603.7a / 603.10, issue #731) — fires on the
     // watched permanent's PERMANENT_LEFT, not a step boundary. Requires
     // `watch`; rejects `targetPlayer` (checked below).
