@@ -147,6 +147,10 @@ _Avoid_: Target (the Host is chosen by targeting, but "host" is the ongoing rela
 An **Enchantment** **Attachment**. If its **Host** becomes illegal or it ends up unattached, it is put into its owner's **Graveyard** (CR 704.5m/704.5n) — with one exception, a **Bestowed Permanent**, which stays on the **Battlefield** and becomes a **Creature** instead.
 _Avoid_: Enchantment (broader — not every enchantment is an Aura)
 
+**Enchant Restriction**:
+What an **Aura** may legally be attached to (CR 303.4 — "defined by its enchant keyword ability"). Two origins, resolved by ONE predicate in instance-first / printed-second order: **printed**, normalized from the card's cast-time target requirement (Control Magic's "enchant creature"), and **granted**, stamped on a single **Permanent** that _becomes_ an Aura while on the **Battlefield** ("it becomes an Aura with enchant creature"). A granted restriction may name one specific object rather than a characteristic, which no printed one can, and dies with the object on any zone change (CR 400.7). Both the offered **Host** set (CR 303.4f) and the enforced one (the CR 704.5m **SBA**) read the same predicate — two copies of the check is precisely how the two sets drift.
+_Avoid_: Target requirement (that is the cast-time announcement; the enchant restriction outlives it and applies to a Permanent), enchant ability
+
 **Bestowed Permanent**:
 An enchantment creature card cast for its **Bestow** cost, which is an **Aura** for as long as it stays attached (CR 702.103). While attached it is **not a Creature**; the moment it becomes unattached it stops being an Aura and reverts to being a creature on the **Battlefield**, rather than going to the **Graveyard**. The type change is a **Continuous Effect**, recomputed at every read (ADR 0084) — never a stored rewrite of the card's types, which is reserved for copiable-value changes like **Turn Face Up** and transform.
 _Avoid_: Aura (a Bestowed Permanent is one only conditionally), Enchantment Creature (that is the card; "bestowed" is how it was cast)
