@@ -62,6 +62,13 @@ let heldMutation: { active: boolean; release?: () => void } = {
     active: false,
     release: undefined,
 };
+// When active, every mutation REJECTS — the server refusing the bot's
+// submission (issue #2470: a rejection is one of the two ways a decision dies
+// without changing the board, and it must leave a breadcrumb).
+let rejectMutation: { active: boolean; message: string } = {
+    active: false,
+    message: "",
+};
 
 // Tag each mutation/query by a plain string so assertions never touch Convex's
 // FunctionReference proxies (which throw on primitive coercion in the matcher).
@@ -160,12 +167,19 @@ vi.mock("convex/react", () => ({
                 heldMutation.release = () => resolve(null);
             });
         }
+        if (rejectMutation.active) {
+            return Promise.reject(new Error(rejectMutation.message));
+        }
         return Promise.resolve(null);
     },
 }));
 
 // Imported after the mocks so the hook picks up the mocked transport.
 const { useVsAiDriver, BOT_WATCHDOG_MS } = await import("../useVsAiDriver");
+// The client-only AI rings the driver writes (issue #2470). Not mocked — the
+// store IS the subject here.
+const { getAiDecisions, clearAiDecisions } =
+    await import("~/lib/ai/trace-store");
 
 /** Flush the driver's NORMAL decision path — the think beat, the inline search
  *  and the mutation promises — without reaching the liveness watchdog's deadline
@@ -241,6 +255,8 @@ describe("useVsAiDriver (issue #110)", () => {
         clearPublicStateOverride();
         forceNullTick = false;
         heldMutation = { active: false, release: undefined };
+        rejectMutation = { active: false, message: "" };
+        clearAiDecisions();
         vi.useFakeTimers();
         // Deterministic random pick (first move).
         vi.spyOn(Math, "random").mockReturnValue(0);
@@ -744,5 +760,75 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("passPriority");
         expect(result.current.thinking).toBe(false);
+    });
+    // ── Decision breadcrumbs (issue #2470) ──────────────────────────────────
+    //
+    // The bot runs in the reporter's own tab, so a decision that dies leaves no
+    // server-side trace at all: #2450 arrived with a perfect board snapshot and
+    // nothing about the decision that produced it. Every exit below must append
+    // exactly one record, INCLUDING the healthy ones — a run of successes is
+    // what tells a reader the Brain was answering and the passes were meant.
+
+    it("records the trivial pass that never consulted the Brain", async () => {
+        currentState = botState({ priorityPlayerId: BOT });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const records = getAiDecisions();
+        expect(records).toHaveLength(1);
+        expect(records[0]).toMatchObject({
+            outcome: "skip-pass",
+            expectedKind: "priority",
+            phase: "PRECOMBAT_MAIN",
+            seq: 1,
+        });
+        // No Worker was consulted, so the record must not claim one.
+        expect(records[0].via).toBeUndefined();
+    });
+
+    it("records the consult's own verdict when the window IS searched", async () => {
+        currentState = botState({
+            priorityPlayerId: BOT,
+            players: [
+                {
+                    ...player(BOT),
+                    hand: [
+                        makeInstance(MOUNTAIN, {
+                            controllerId: BOT,
+                            ownerId: BOT,
+                            id: "land1",
+                            zone: "hand",
+                        }),
+                    ],
+                },
+                player(HUMAN),
+            ],
+        });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        // jsdom has no Worker, so the consult ran through the inline fallback —
+        // the same handler, reported as such.
+        const consult = getAiDecisions().find((d) => d.outcome === "move");
+        expect(consult).toBeDefined();
+        expect(consult).toMatchObject({ via: "inline", moveKind: "play-land" });
+        // A healthy consult carries no failure text.
+        expect(consult!.message).toBeUndefined();
+    });
+
+    it("records a submission the server rejected", async () => {
+        rejectMutation = { active: true, message: "not your priority" };
+        currentState = botState({ priorityPlayerId: BOT });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const rejected = getAiDecisions().find(
+            (d) => d.outcome === "submit-error"
+        );
+        expect(rejected).toBeDefined();
+        expect(rejected).toMatchObject({
+            moveKind: "pass",
+            message: "not your priority",
+        });
     });
 });

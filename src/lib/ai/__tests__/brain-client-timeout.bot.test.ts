@@ -29,6 +29,33 @@ class SilentWorker {
     terminate() {}
 }
 
+/** A Worker that answers with whatever `reply` builds from the request — the
+ *  healthy path and the search-threw path (issue #2470). */
+let reply: (req: { id: number }) => unknown = (req) => ({
+    id: req.id,
+    move: null,
+    trace: null,
+});
+class ReplyingWorker {
+    onmessage: ((e: { data: unknown }) => void) | null = null;
+    onerror: unknown = null;
+    postMessage(req: { id: number }) {
+        this.onmessage?.({ data: reply(req) });
+    }
+    terminate() {}
+}
+
+/** A Worker that fails outright — `onerror`, the path that used to discard the
+ *  reason and resolve every pending consult to a bare "no move". */
+class FailingWorker {
+    onmessage: unknown = null;
+    onerror: ((e: unknown) => void) | null = null;
+    postMessage() {
+        this.onerror?.({ message: "Script error" });
+    }
+    terminate() {}
+}
+
 const originalWorker = globalThis.Worker;
 
 beforeEach(() => {
@@ -56,7 +83,12 @@ describe("consultBrain always settles (issue #2284)", () => {
         expect(settled).toBe(false);
 
         await vi.advanceTimersByTimeAsync(2);
-        await expect(promise).resolves.toEqual({ move: null, trace: null });
+        await expect(promise).resolves.toEqual({
+            move: null,
+            trace: null,
+            outcome: "timeout",
+            via: "worker",
+        });
     });
 
     it("sits between the hardest search budget and the watchdog deadline", () => {
@@ -68,5 +100,69 @@ describe("consultBrain always settles (issue #2284)", () => {
         // …and below the watchdog, so a wedged consult has released the driver's
         // in-flight guard by the time the first escalation deadline arrives.
         expect(BRAIN_CONSULT_TIMEOUT_MS).toBeLessThan(BOT_WATCHDOG_MS);
+    });
+});
+
+// ── The consult's verdict (issue #2470) ─────────────────────────────────────
+//
+// All four endings below used to resolve the SAME `{ move: null }` the driver
+// gets when the bot legitimately has nothing to do. Telling them apart is what
+// makes "the bot did nothing all game" answerable from a bug report (#2450).
+describe("consultBrain reports HOW the consult ended (issue #2470)", () => {
+    it("tags a chosen move", async () => {
+        (globalThis as { Worker?: unknown }).Worker =
+            ReplyingWorker as unknown as typeof Worker;
+        reply = (req) => ({ id: req.id, move: { kind: "pass" }, trace: null });
+
+        await expect(
+            consultBrain({} as unknown as PublicGameState, "u1-p2")
+        ).resolves.toMatchObject({
+            outcome: "move",
+            via: "worker",
+            move: { kind: "pass" },
+        });
+    });
+
+    it("tags a healthy search that simply had no move", async () => {
+        (globalThis as { Worker?: unknown }).Worker =
+            ReplyingWorker as unknown as typeof Worker;
+        reply = (req) => ({ id: req.id, move: null, trace: null });
+
+        await expect(
+            consultBrain({} as unknown as PublicGameState, "u1-p2")
+        ).resolves.toMatchObject({ outcome: "no-move", via: "worker" });
+    });
+
+    it("tags a search that THREW, carrying its message", async () => {
+        (globalThis as { Worker?: unknown }).Worker =
+            ReplyingWorker as unknown as typeof Worker;
+        reply = (req) => ({
+            id: req.id,
+            move: null,
+            trace: null,
+            error: { name: "Error", message: "Unknown card id" },
+        });
+
+        await expect(
+            consultBrain({} as unknown as PublicGameState, "u1-p2")
+        ).resolves.toMatchObject({
+            outcome: "search-error",
+            via: "worker",
+            message: "Unknown card id",
+            move: null,
+        });
+    });
+
+    it("tags a Worker that failed outright", async () => {
+        (globalThis as { Worker?: unknown }).Worker =
+            FailingWorker as unknown as typeof Worker;
+
+        await expect(
+            consultBrain({} as unknown as PublicGameState, "u1-p2")
+        ).resolves.toMatchObject({
+            outcome: "worker-error",
+            via: "worker",
+            message: "Script error",
+        });
     });
 });

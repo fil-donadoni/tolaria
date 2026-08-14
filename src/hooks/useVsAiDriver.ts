@@ -88,7 +88,12 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor } from "@convex/gre";
 import { consultBrain } from "~/lib/ai/brain-client";
-import { recordAiEscalation, setLatestAiTrace } from "~/lib/ai/trace-store";
+import {
+    recordAiDecision,
+    recordAiEscalation,
+    setLatestAiTrace,
+} from "~/lib/ai/trace-store";
+import type { AiDecisionOutcome } from "~/lib/ai/trace-store";
 import {
     decideBotAction,
     botActionRealisation,
@@ -380,14 +385,60 @@ export function useVsAiDriver(
     // stops re-driving, leaving the window to the watchdog. Before #2284 the
     // catch simply cleared the signature and nothing ever re-drove: a rejected
     // mutation changes no state, so no new tick arrives.
-    const dispatch = (signature: string, run: () => Promise<unknown>) => {
+    // ── The decision breadcrumb (issue #2470) ───────────────────────────────
+    //
+    // One record per decision EXIT, successes included: the diagnosis is the
+    // RUN, not the single record. A ring of `move` says the Brain was healthy
+    // and the bot meant its passes; a ring of `search-error` / `worker-error` /
+    // `timeout` says the Brain never answered and the passes the player saw
+    // came from the escalation ladder (issue #2450, which could not be
+    // root-caused because nothing distinguished the two).
+    //
+    // Pure observation, off the authoritative path (ADR 0074) — it can only
+    // append to a bounded client-side ring, never change what the bot does.
+    const note = (
+        outcome: AiDecisionOutcome,
+        extra: {
+            expectedKind: ExpectedInputKind;
+            via?: "worker" | "inline";
+            moveKind?: string;
+            message?: string;
+        }
+    ) => {
+        if (!botState) return;
+        recordAiDecision({
+            outcome,
+            phase: botState.phase,
+            seq: botState.seq,
+            ...extra,
+        });
+    };
+
+    const dispatch = (
+        signature: string,
+        run: () => Promise<unknown>,
+        // issue #2470 — what to say in the breadcrumb if this submission is
+        // REJECTED. Optional because the escalation rungs record themselves
+        // through the escalation ring; a rung that is also rejected is a
+        // rejection like any other and still deserves the note.
+        meta?: { expectedKind: ExpectedInputKind; moveKind?: string }
+    ) => {
         if (inFlight.current) return;
         inFlight.current = true;
         lastSignature.current = signature;
         void run()
-            .catch(() => {
+            .catch((e: unknown) => {
                 // Stale/illegal submissions are rejected server-side; allow
-                // the next state change to re-drive this state.
+                // the next state change to re-drive this state. A rejection is
+                // one of the two ways a decision dies silently (the other is a
+                // failed consult) — record it before it is swallowed.
+                if (meta) {
+                    note("submit-error", {
+                        expectedKind: meta.expectedKind,
+                        moveKind: meta.moveKind,
+                        message: e instanceof Error ? e.message : String(e),
+                    });
+                }
                 lastSignature.current = null;
                 if (retrySignature.current !== signature) {
                     retrySignature.current = signature;
@@ -565,8 +616,14 @@ export function useVsAiDriver(
             action.kind === "pass" &&
             !shouldThink(projectedToGameState(botState), botId)
         ) {
-            dispatch(signature, () =>
-                mutations.passPriority({ gameId, playerId: botId })
+            // Recorded too (issue #2470): this pass never consulted the Brain,
+            // so it is NOT evidence about the Brain's health — a ring that did
+            // not say so would read as "the search kept choosing to pass".
+            note("skip-pass", { expectedKind: view.owedInput!.kind });
+            dispatch(
+                signature,
+                () => mutations.passPriority({ gameId, playerId: botId }),
+                { expectedKind: view.owedInput!.kind, moveKind: "pass" }
             );
             return;
         }
@@ -579,40 +636,63 @@ export function useVsAiDriver(
             // server move path is untouched — this only tunes how hard the
             // client-side brain thinks.
             const budget = budgetFor(getStoredDifficulty());
-            dispatch(signature, () =>
-                consultBrain(botState, botId, budget, ownDeck).then(
-                    ({ move, trace }) => {
-                        // Surface the reasoning to the Debug panel (client-only).
-                        setLatestAiTrace(trace);
-                        // Safety net for a searched pending choice (issue #1506)
-                        // and for a searched engine-raised TARGET selection
-                        // (issue #2283): either window suppresses every other
-                        // move, so if the search surfaced none the bot would sit
-                        // on the frozen priority. Fall back to the minimal-legal
-                        // answer the gate already enumerated through the same
-                        // authority the search reads. (The watchdog is the
-                        // general backstop — this is the cheap local one.)
-                        const chosen =
-                            move ??
-                            (action.kind === "search-choice" && view.owedChoice
-                                ? botActionToMove(
-                                      chooseOwedChoiceAction(view.owedChoice),
-                                      botState,
-                                      botId
-                                  )
-                                : action.kind === "search-target" &&
-                                    view.owedTarget
-                                  ? botActionToMove(
-                                        chooseOwedTargetAction(view.owedTarget),
-                                        botState,
-                                        botId
-                                    )
-                                  : null);
-                        return chosen
-                            ? executeMove(chosen, { gameId, botId, mutations })
-                            : undefined;
-                    }
-                )
+            dispatch(
+                signature,
+                () =>
+                    consultBrain(botState, botId, budget, ownDeck).then(
+                        ({ move, trace, outcome, via, message }) => {
+                            // Surface the reasoning to the Debug panel (client-only).
+                            setLatestAiTrace(trace);
+                            // issue #2470 — the consult's own verdict, recorded
+                            // BEFORE the fallbacks below rewrite what happens
+                            // next: `no-move` after a healthy search and
+                            // `worker-error` after a dead one both arrive here
+                            // as `move === null`, and only this says which.
+                            note(outcome, {
+                                expectedKind: view.owedInput!.kind,
+                                via,
+                                message,
+                                ...(move ? { moveKind: move.kind } : {}),
+                            });
+                            // Safety net for a searched pending choice (issue #1506)
+                            // and for a searched engine-raised TARGET selection
+                            // (issue #2283): either window suppresses every other
+                            // move, so if the search surfaced none the bot would sit
+                            // on the frozen priority. Fall back to the minimal-legal
+                            // answer the gate already enumerated through the same
+                            // authority the search reads. (The watchdog is the
+                            // general backstop — this is the cheap local one.)
+                            const chosen =
+                                move ??
+                                (action.kind === "search-choice" &&
+                                view.owedChoice
+                                    ? botActionToMove(
+                                          chooseOwedChoiceAction(
+                                              view.owedChoice
+                                          ),
+                                          botState,
+                                          botId
+                                      )
+                                    : action.kind === "search-target" &&
+                                        view.owedTarget
+                                      ? botActionToMove(
+                                            chooseOwedTargetAction(
+                                                view.owedTarget
+                                            ),
+                                            botState,
+                                            botId
+                                        )
+                                      : null);
+                            return chosen
+                                ? executeMove(chosen, {
+                                      gameId,
+                                      botId,
+                                      mutations,
+                                  })
+                                : undefined;
+                        }
+                    ),
+                { expectedKind: view.owedInput!.kind }
             );
         }, THINK_DELAY_MS);
 
