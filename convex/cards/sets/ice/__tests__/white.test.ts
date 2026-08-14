@@ -2812,7 +2812,9 @@ describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #7
         // Top is a creature → put into the graveyard, no draw.
         const binPlan = planDrawStep(state, "p1", 1, false);
         expect(binPlan.kind).toBe("bin");
-        commitDrawPlan(state, "p1", binPlan);
+        commitDrawPlan(state, "p1", binPlan, {
+            isTurnBasedDrawStepDraw: false,
+        });
         expect(state.players[0].graveyard.map((c) => c.id)).toContain(
             "top-creature"
         );
@@ -2821,7 +2823,9 @@ describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #7
         // Top is now the land → drawn to hand.
         const drawPlan = planDrawStep(state, "p1", 1, false);
         expect(drawPlan.kind).toBe("normal");
-        commitDrawPlan(state, "p1", drawPlan);
+        commitDrawPlan(state, "p1", drawPlan, {
+            isTurnBasedDrawStepDraw: false,
+        });
         expect(state.players[0].hand.map((c) => c.id)).toContain("top-land");
     });
 
@@ -2844,7 +2848,7 @@ describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #7
         // p2 has no Enduring Renewal effect on their draws → normal draw.
         const plan = planDrawStep(state, "p2", 1, false);
         expect(plan.kind).toBe("normal");
-        commitDrawPlan(state, "p2", plan);
+        commitDrawPlan(state, "p2", plan, { isTurnBasedDrawStepDraw: false });
         expect(state.players[1].hand.map((c) => c.id)).toContain("opp-top");
     });
 

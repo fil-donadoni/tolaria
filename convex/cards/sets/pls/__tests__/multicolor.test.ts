@@ -400,7 +400,12 @@ function simulateTyrannyDraw(state: GameState, drawingPlayerId: string): void {
     const drawn = player.library.shift();
     if (drawn) player.hand.push(drawn);
     state.pendingEvents = [
-        { type: "CARD_DRAWN", playerId: drawingPlayerId, count: 1 },
+        {
+            type: "CARD_DRAWN",
+            playerId: drawingPlayerId,
+            count: 1,
+            isTurnBasedDrawStepDraw: false,
+        },
     ];
     processPendingActionTriggers(state);
 }
@@ -419,7 +424,7 @@ function simulateTyrannyBatchDraw(
         const drawn = player.library.shift();
         if (drawn) player.hand.push(drawn);
     }
-    emitCardDrawn(state, drawingPlayerId, n);
+    emitCardDrawn(state, drawingPlayerId, n, false);
     processPendingActionTriggers(state);
 }
 
@@ -634,6 +639,7 @@ describe("Phyrexian Tyranny — APNAP ordering when simultaneous (CR 603.3b)", (
             type: "CARD_DRAWN" as const,
             playerId: "p2",
             count: 1,
+            isTurnBasedDrawStepDraw: false,
         };
         const placed = collectTriggers(state, [drawEvent]);
         // Both permanents' abilities fire off the SAME "each" draw — APNAP

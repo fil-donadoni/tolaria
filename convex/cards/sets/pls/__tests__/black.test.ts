@@ -375,7 +375,7 @@ describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () 
         // PERMANENT_LEFT is ever involved — the card was never a
         // battlefield permanent.
         expect(drawCard(getPlayer(state, "p1"))).not.toBeNull();
-        emitCardDrawn(state, "p1", 1);
+        emitCardDrawn(state, "p1", 1, false);
         processPendingActionTriggers(state);
         expect(state.stack).toHaveLength(stackBefore);
         expect(state.pendingChoices ?? []).toHaveLength(0);

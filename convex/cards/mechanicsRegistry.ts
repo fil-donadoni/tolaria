@@ -530,7 +530,9 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Amass",
         kind: "keyword-action",
         cr: "701.47",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/cards/abilities/amass.ts amassOps",
+        note: 'CR 701.47a — "To amass [subtype] N means \'If you don\'t control an Army creature, create a 0/0 black [subtype] Army creature token. Choose an Army creature you control. Put N +1/+1 counters on that creature. If it isn\'t a [subtype], it becomes a [subtype] in addition to its other types.\'" Like Adapt (CR 701.46) it is a keyword ACTION, never a bare `staticAbilities[]` grant string — it appears as the tail of another effect ("Then amass Orcs 1."), so the row is the CR 701 census entry and the name authority for the `amassOps` factory. NO new Op (primitive reuse, ADR 0045 § primitive reuse): all four steps of CR 701.47a decompose into ALREADY-exercised primitives — the `if` construct\'s comparison predicate over a `count` EffectValue (battlefield permanents filtered `{ type: "Creature", subtype: "Army" }` under `controller`) for "if you don\'t control an Army creature"; `createToken` with `makeArmyTokenSpec(subtype)` for the 0/0 black token; the `choice` Op (kind `choose-permanents`) piped into `forEach { set: "bound" }` — the Frantic Search shape (sets/ulg/blue.ts, issue #1284) — for "choose an Army creature you control", raised ONLY in the `else` arm where 2+ Armies exist, since `choose-permanents` has no single-candidate auto-resolve and a zero-branch prompt is a UX regression (the forced 0/1-Army path is the `then` arm, which is also the arm the bot script walker values); and `counters` (action add, "+1/+1") + `addSubtype` (CR 613.1d layer 4, cumulative across amass sources) on the `$each` loop variable. Shipped on Orcish Bowmasters (convex/cards/sets/ltr/black.ts). N accepts any `EffectValue`, so a dynamic "amass X" composes without engine work.',
     },
     // 701.48 Learn
     {

@@ -9144,6 +9144,16 @@ function collectSelfCastTriggers(
  *  later drained — `resolveTopOfStack`, the draw step's explicit drain — use
  *  this so the trigger scan picks it up.
  *
+ *  `isTurnBasedDrawStepDraw` is the draw step's turn-based action flag
+ *  (CR 504.1), passed down from the call chain that reached this choke point
+ *  — it is NOT derivable here (the draw step and a spell's draw both land in
+ *  `commitDrawPlan`), which is exactly why the parameter is required rather
+ *  than defaulted: a new producer has to state which it is. It is the
+ *  trigger-side twin of `DrawReplacementEvent.isTurnBasedDrawStepDraw` and
+ *  the ONLY faithful reading of "except the first one they draw in each of
+ *  their draw steps" (Orcish Bowmasters) — `drawIndexThisTurn === 0` is not
+ *  the same predicate.
+ *
  *  Each event also carries `drawIndexThisTurn` (0-based, CR 121.1, issue
  *  #781) — the trigger-side twin of `DrawReplacementEvent.drawIndexThisTurn`
  *  (`cards/types.ts`). Every call site (`drawStep`, `finalizeDrawLookKeep`,
@@ -9159,7 +9169,8 @@ function collectSelfCastTriggers(
 export function emitCardDrawn(
     state: GameState,
     playerId: string,
-    count: number
+    count: number,
+    isTurnBasedDrawStepDraw: boolean
 ): void {
     if (count <= 0) return;
     const player = getPlayer(state, playerId);
@@ -9173,6 +9184,13 @@ export function emitCardDrawn(
         playerId,
         count: 1,
         drawIndexThisTurn: base + i,
+        // CR 504.1 — the draw step's turn-based action draws exactly ONE
+        // card, so at most the first event of a turn-based batch can be it.
+        // A replacement that fans the draw-step draw out into several cards
+        // (a "draw an additional card" modify-count outcome) leaves only that
+        // first card exempt from Orcish Bowmasters' "except the first one
+        // they draw in each of their draw steps".
+        isTurnBasedDrawStepDraw: isTurnBasedDrawStepDraw && i === 0,
     }));
     state.pendingEvents = [...(state.pendingEvents ?? []), ...perCard];
 }
@@ -12317,17 +12335,30 @@ export function buildSpellContext(
                     // `convex/cards/__tests__/drawPrimitiveGuard.test.ts`'s
                     // `DRAW_PRIMITIVE_ALLOWLIST`, which fails CI if a NEW
                     // resolve()/resolveSteps closure calls this primitive.
-                    commitDrawPlan(state, playerId, plan, false);
+                    // CR 504.1 — an effect-driven draw is never the draw
+                    // step's turn-based draw (that one goes through
+                    // `performDrawStepDraw`, phases.ts).
+                    commitDrawPlan(state, playerId, plan, {
+                        isTurnBasedDrawStepDraw: false,
+                        paid: false,
+                    });
                     continue;
                 }
-                commitDrawPlan(state, playerId, plan);
+                commitDrawPlan(state, playerId, plan, {
+                    isTurnBasedDrawStepDraw: false,
+                });
             }
         },
         planDraw(playerId, requestedCount): DrawStepPlan {
             return planDrawStep(state, playerId, requestedCount, false);
         },
         commitDraw(playerId, plan, paid): number {
-            return commitDrawPlan(state, playerId, plan, paid);
+            // CR 504.1 — the DSL `draw` Op is an effect-driven draw; the
+            // turn-based draw-step draw never routes through SpellContext.
+            return commitDrawPlan(state, playerId, plan, {
+                isTurnBasedDrawStepDraw: false,
+                paid,
+            });
         },
         // CR 701.17: mill the top `amount` cards library → graveyard, one at a
         // time — re-reading the LIVE top each pass so successive mills chase the
@@ -17047,15 +17078,26 @@ export function planDrawStep(
 
 /** Applies a computed `DrawStepPlan` (ADR 0061) and returns how many cards
  *  actually entered `playerId`'s hand (emitting CARD_DRAWN per card, CR 121.1).
- *  `paid` is the `may-pay-bin` answer — true bins the revealed top card (the
- *  chooser's life is paid by the CALLER as the cost), false draws it; ignored
- *  for other plan kinds. */
+ *
+ *  `opts.paid` is the `may-pay-bin` answer — true bins the revealed top card
+ *  (the chooser's life is paid by the CALLER as the cost), false draws it;
+ *  ignored for other plan kinds.
+ *
+ *  `opts.isTurnBasedDrawStepDraw` (CR 504.1) is the same flag `planDrawStep`
+ *  took to discover the replacement, restated at commit time because the plan
+ *  itself does not carry it: this ONE function is reached both by the draw
+ *  step (`performDrawStepDraw`, `finalizeDrawReplacementPay`) and by every
+ *  effect-driven draw (`SpellContext.drawCards` / the DSL `draw` Op), and
+ *  nothing in `DrawStepPlan` tells them apart. Required, not defaulted — a
+ *  new caller must state which it is, or the exemption fails open (every
+ *  draw would look like a non-draw-step draw to Orcish Bowmasters). */
 export function commitDrawPlan(
     state: GameState,
     playerId: string,
     plan: DrawStepPlan,
-    paid?: boolean
+    opts: { isTurnBasedDrawStepDraw: boolean; paid?: boolean }
 ): number {
+    const { paid, isTurnBasedDrawStepDraw } = opts;
     const player = getPlayer(state, playerId);
     switch (plan.kind) {
         case "prevent":
@@ -17080,7 +17122,7 @@ export function commitDrawPlan(
                 if (drawCard(player) !== null) drawn++;
                 else break; // library empty (CR 704.5b flagged by drawCard)
             }
-            emitCardDrawn(state, playerId, drawn);
+            emitCardDrawn(state, playerId, drawn, isTurnBasedDrawStepDraw);
             return drawn;
         }
         case "may-pay-bin":
@@ -17089,7 +17131,7 @@ export function commitDrawPlan(
                 return 0;
             }
             if (drawCard(player) !== null) {
-                emitCardDrawn(state, playerId, 1);
+                emitCardDrawn(state, playerId, 1, isTurnBasedDrawStepDraw);
                 return 1;
             }
             return 0;

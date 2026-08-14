@@ -695,7 +695,12 @@ describe("Fasting (CR 504/614 skip-draw + CR 603.6a hunger counters)", () => {
         // draw choke point; scan it as resolveTopOfStack does post-resolution.
         p1.hand.push(p1.library.shift()!);
         state.pendingEvents = [
-            { type: "CARD_DRAWN", playerId: "p1", count: 1 },
+            {
+                type: "CARD_DRAWN",
+                playerId: "p1",
+                count: 1,
+                isTurnBasedDrawStepDraw: false,
+            },
         ];
         processPendingActionTriggers(state);
         expect(
@@ -718,7 +723,12 @@ describe("Fasting (CR 504/614 skip-draw + CR 603.6a hunger counters)", () => {
             turn: 2,
         });
         state.pendingEvents = [
-            { type: "CARD_DRAWN", playerId: "p2", count: 1 },
+            {
+                type: "CARD_DRAWN",
+                playerId: "p2",
+                count: 1,
+                isTurnBasedDrawStepDraw: false,
+            },
         ];
         processPendingActionTriggers(state);
         expect(

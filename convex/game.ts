@@ -1269,7 +1269,10 @@ export function applyDrawCardOnTap(
     const player = getPlayer(state, activatorId);
     for (let i = 0; i < count; i++) {
         if (drawCardFromLibrary(player) !== null) {
-            emitCardDrawn(state, activatorId, 1);
+            // CR 504.1 — a mana ability's draw rider (Chromatic Sphere) is
+            // never the draw step's turn-based draw, whatever phase it is
+            // activated in.
+            emitCardDrawn(state, activatorId, 1, false);
         }
     }
 }

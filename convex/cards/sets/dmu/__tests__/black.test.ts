@@ -46,7 +46,12 @@ describe("Sheoldred, the Apocalypse (CR 121.1 draw-triggered life swing)", () =>
         const drawn = player.library.shift();
         if (drawn) player.hand.push(drawn);
         state.pendingEvents = [
-            { type: "CARD_DRAWN", playerId: drawingPlayerId, count: 1 },
+            {
+                type: "CARD_DRAWN",
+                playerId: drawingPlayerId,
+                count: 1,
+                isTurnBasedDrawStepDraw: false,
+            },
         ];
         processPendingActionTriggers(state);
     }
@@ -123,7 +128,7 @@ describe("Sheoldred, the Apocalypse (CR 121.1 draw-triggered life swing)", () =>
             const drawn = player.library.shift();
             if (drawn) player.hand.push(drawn);
         }
-        emitCardDrawn(state, drawingPlayerId, n);
+        emitCardDrawn(state, drawingPlayerId, n, false);
         processPendingActionTriggers(state);
     }
 

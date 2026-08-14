@@ -9624,6 +9624,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Orcish Bowmasters",
+        "scryfallId": "7c024bae-5631-4e20-ac69-df392ac9e109",
+        "oracleId": "ea5103f5-27e0-4eb1-902c-7f34652d6bf3",
+        "firstSet": "ltr",
+        "firstPrintId": "7c024bae-5631-4e20-ac69-df392ac9e109",
+        "firstPrintSet": "ltr"
+    },
+    {
         "name": "Orcish Cannoneers",
         "scryfallId": "a4309a2f-27f5-4652-b0b4-6a6119436f75",
         "oracleId": "9ebf3eeb-1a1b-4b88-a760-887c2188d287",
