@@ -132,6 +132,29 @@ suspends land entry on a stackless **Pending Choice** rather than resolving
 synchronously (ADR 0051). Paying satisfies only the land's own tapped clause —
 any other tapped source (Kismet) still applies independently.
 
+**As-Enters Choice**:
+A player decision a **Replacement Effect** requires before a **Permanent**
+enters the **Battlefield** (CR 614.1c / 614.12a) — the copy pick of a Clone, the
+colour of Voice of All, the name of Meddling Mage, the body of Primal Clay, and
+the **Land-Entry Pay-Choice** as its land-only special case. Declared as data on
+`entersWith.asEnters`, never as an **Effect Script**: a replacement is a
+declaration, not an effect that resolves. Owed on _every_ entry path, not only
+on a cast (ADR 0100), and the owed list GROWS mid-flight — a copy's choice is
+answered first, and the copied card's own as-enters choices are then discovered
+and owed afresh (CR 707.6).
+_Avoid_: ETB choice (an ETB **Trigger** resolves off the **Stack** after the
+permanent has entered — the opposite timing)
+
+**Staged Entry**:
+A **Permanent** that has left its origin zone but has not yet entered the
+**Battlefield** because its controller still owes an **As-Enters Choice**. Held
+in `GameState.stagedEntries`, **off every zone**, so no **SBA** sweep and no
+wire projection ever observes it mid-choice — which is what keeps a copy card
+from entering as its printed 0/0 and dying (CR 704.5f) before it becomes a copy
+(CR 707.5). Resumed by a single finalize once the owed list empties.
+_Avoid_: pending entry, provisional entry (that is the opposite shape — the
+permanent already on the battlefield with its event deferred)
+
 **Token**:
 A **Permanent** not represented by a physical card. Created by effects. Ceases to exist when it leaves the **Battlefield**.
 
