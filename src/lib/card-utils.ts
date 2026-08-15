@@ -373,6 +373,28 @@ export function getActivatedManaMenuEntry(
             return null;
         }
     }
+    // CR 602.1 / 118.8 (issue #2371) — the SAME unpayable-`tapOtherFilter`
+    // gate {@link getManaCostMenuAbility} applies, because the two can offer
+    // the SAME ability: Urza, Lord High Artificer's "Tap an untapped artifact
+    // you control: Add {U}." has neither a mana leg nor a {T} leg, so it is a
+    // `getManaCostMenuAbility` entry, and this helper's toggle is suppressed
+    // only when that entry is actually present. With every artifact tapped the
+    // entry is (correctly) withheld — and the toggle then leaked the identical
+    // ability id back into the menu as a doomed dispatch. Withheld here too,
+    // and for the affordability reason: until issue #2021 this case was masked
+    // by an unconditional summoning-sickness gate in `getActivatable`, which
+    // CR 302.6 does not license for a cost containing no tap symbol.
+    if (ability.cost.tapOtherFilter && stateView) {
+        const candidates = tapOtherCostCandidates(
+            ability.cost.tapOtherFilter,
+            card.id,
+            card.controllerId,
+            stateView
+        );
+        if (!canPayTapOtherCost(ability.cost.tapOtherFilter, candidates)) {
+            return null;
+        }
+    }
     return { id: ability.id, oracleText: ability.oracleText };
 }
 
