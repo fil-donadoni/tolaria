@@ -105,9 +105,10 @@ export function subscribeAiEscalations(listener: () => void): () => void {
 // authoritative (ADR 0074); it reaches a maintainer only when the reporter
 // files a bug report, which attaches it.
 
-/** Why a decision ended the way it did. The Brain's own outcomes plus the two
- *  the DRIVER owns: the fast path that never consulted, and a submission the
- *  server rejected. */
+/** Why a decision ended the way it did. The Brain's own outcomes, plus the ones
+ *  the DRIVER owns: the fast path that never consulted, a non-search
+ *  realisation, a decision that realised into nothing, a window with no answer,
+ *  and a submission the server rejected. */
 export type AiDecisionOutcome =
     | BrainOutcome
     /** `shouldThink` said the window was trivial: passed without consulting. */

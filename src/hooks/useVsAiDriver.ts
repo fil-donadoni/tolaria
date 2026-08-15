@@ -335,6 +335,15 @@ export function useVsAiDriver(
             : null;
 
     const inFlight = useRef(false);
+    // The latest `botState`, for the breadcrumb writer above — see its header:
+    // the escalation ladder reaches `note` through a closure frozen at the
+    // first render, where this value does not exist yet. Synced in an effect
+    // rather than assigned during render, so the render stays side-effect free;
+    // the only reader is a timer-driven path that always runs after the commit.
+    const botStateRef = useRef<typeof botState>(undefined);
+    useEffect(() => {
+        botStateRef.current = botState;
+    }, [botState]);
     const lastSignature = useRef<string | null>(null);
     const lastGameId = useRef<Id<"games"> | null>(null);
     // issue #2284 — the escalation bookkeeping, all keyed to the state version
@@ -398,6 +407,18 @@ export function useVsAiDriver(
     //
     // Pure observation, off the authoritative path (ADR 0074) — it can only
     // append to a bounded client-side ring, never change what the bot does.
+    // The `try` is what makes that literally true rather than nearly true: a
+    // throwing store subscriber would otherwise propagate out of `dispatch`
+    // AFTER the in-flight guard is set and BEFORE `run()` installs its
+    // `.finally`, wedging the driver on a latch nothing clears. An observation
+    // ring must not be able to do that.
+    //
+    // Reads the state through a REF, not through the render closure: `escalate`
+    // is a `useCallback([], …)` and so permanently captures the FIRST render's
+    // `dispatch` — and on that render `tick` is still loading, so `botState` is
+    // `undefined`. Closing over it directly made every breadcrumb reached
+    // through the escalation ladder a silent no-op, which is precisely the
+    // "recorded nothing" shape this ring exists to remove (review round 2).
     const note = (
         outcome: AiDecisionOutcome,
         extra: {
@@ -408,13 +429,18 @@ export function useVsAiDriver(
             message?: string;
         }
     ) => {
-        if (!botState) return;
-        recordAiDecision({
-            outcome,
-            phase: botState.phase,
-            seq: botState.seq,
-            ...extra,
-        });
+        const state = botStateRef.current;
+        if (!state) return;
+        try {
+            recordAiDecision({
+                outcome,
+                phase: state.phase,
+                seq: state.seq,
+                ...extra,
+            });
+        } catch {
+            // An unrecordable breadcrumb is a lost diagnostic, never a lost move.
+        }
     };
 
     const dispatch = (
@@ -546,7 +572,9 @@ export function useVsAiDriver(
             setStuckAt({ signature, expectedKind: kind });
         },
         // Everything this closes over is a ref, a stable setState, or an
-        // argument: `dispatch` is rebuilt each render but only touches refs, and
+        // argument: `dispatch` is rebuilt each render but reads only refs (the
+        // breadcrumb writer included — `note` goes through `botStateRef`
+        // precisely because THIS closure is frozen at the first render), and
         // the ladder is a pure function of what it is handed. Stable on purpose
         // — the watchdog effect depends on it.
         []
