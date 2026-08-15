@@ -58,8 +58,11 @@ Two sites are **deliberate carve-outs**, outside the chokepoint by design:
   `ManualCardInstance` in the paper-mode verb engine. Different state type, no
   rules engine behind it, out of scope here.
 - `convex/gre/scenarioBuilder.ts:403` (and the land filler at `:414`/`:415`)
-  pushes instances **straight onto `player.battlefield`** with no `zone` write
-  and no chokepoint — its own comment at `:238` calls it "a raw
+  pushes instances **straight onto `player.battlefield`**. Its local
+  `makeInstance` does set `zone` from its parameter (`:173`) — what keeps the
+  census closed under its own grep-based definition is that there is **no literal
+  `zone = "battlefield"` assignment site and no `enterBattlefieldDestinationFor`
+  call** on this path. Its own comment at `:238` calls it "a raw
   `battlefield.push` that emits nothing", because a seeded board must not fire
   every ETB trigger in the catalogue. **Consequence for slices 2–4: a preset
   debug scenario can never be the proof that the chokepoint works.** A seeded
@@ -238,12 +241,54 @@ player (`:10457-10462`) and returns, and the `choose-aura-host` branch of
 pick is left on the stack with its checkpoint set and resumes only after a full
 **priority round-trip** — a window in which either player may act mid-resolution,
 whereas CR 117.3b gives the active player priority only _after_ the spell or
-ability resolves. The as-enters finalize takes the **generic tail**
-instead (`gre/pendingChoiceSubmit.ts:1103-1119`): shift the queue, and when both
-`owed` and `state.pendingChoices` are empty call `resolveTopOfStack(state)` in
-the same mutation, restoring priority only once the resolution actually
-completes. Because D2 folds the Aura host pick into the shared finalize, it
-acquires this behaviour rather than keeping its own.
+ability resolves. The as-enters finalize takes the **generic tail** instead
+(`gre/pendingChoiceSubmit.ts:1103-1119`) — shift the queue, and when both `owed`
+and `state.pendingChoices` are empty run the tail's completion branch — **but it
+routes on `StagedEntry.origin`, because the tail's two branches are not
+interchangeable**:
+
+- **`origin: "effect"` (row B) and `origin: "token"` (row C)** take the
+  `resolveTopOfStack(state)` branch (`:1106-1107`). The stack item that parked
+  the entry is still on the stack (peek-and-pop: the pop happens only after the
+  resolution finishes), so the suspended resolution really does resume, in the
+  same mutation, and priority is restored only once it completes.
+- **`origin: "spell"` (row A)** must **not** call `resolveTopOfStack`.
+  `resolveTopOfStackInner` already popped the item (`state.ts:4894`, `:5248`)
+  before `finalizeSpellResolution` ran, so there is nothing left to resume — the
+  finalize itself runs the remainder of the entry tail and the resolution is
+  over. Calling it here is wrong twice over: on an otherwise-empty stack it
+  throws `Stack is empty` (`state.ts:4766`) and the player can never answer their
+  own choice — a hard freeze on a **cast** Clone or Primal Clay, the primary case
+  #2043 exists for; on a non-empty stack it resolves the **next** item in the
+  same mutation with no priority round, which is precisely the CR 117.3b
+  violation this decision sets out to avoid, and it fails silently. Row A takes
+  the tail's **else** branch instead (`:1110-1115`) — priority back to the
+  active player, `passCount = 0`, `drainAutoPasses`.
+
+The routing cannot be recovered from the choice record, which is why D2 carries
+an explicit discriminator: `stackItemId === ""` never reaches the tail at all —
+the generic path throws `Stack item not found` at `:1019-1020` first, and that is
+exactly why all four shipped stackless finalizes return early (`:975` draw-look-keep,
+`:979` legend-keep, `:992` choose-aura-host, `:1004` discard-hand).
+
+Because D2 folds the Aura host pick into the shared finalize, it acquires this
+behaviour rather than keeping its own: it is row B, so it moves from "set
+priority and wait for a round-trip" (`finalizeAuraHost`, `state.ts:10457-10462`)
+onto the `resolveTopOfStack` branch. That is a **live behaviour change to a
+shipped path, and slice 1 owns it** — with two obligations attached:
+
+1. **The `gameOver` guard must survive the move.** `finalizeAuraHost` resumes
+   only `if ((state.pendingChoices?.length ?? 0) === 0 && !state.gameOver)`
+   (`state.ts:10460`); the generic tail has no `state.gameOver` check. Without
+   it, an attach that kills a player through `checkStateBasedActions` would go on
+   to resolve the next stack item in a finished game. The shared finalize carries
+   the check.
+2. **It needs its own guarding test**, named here because nothing else
+   distinguishes the new tail from the old shape: _park a non-cast Aura entry on
+   the host pick, answer it, and assert the suspended resolution COMPLETES in the
+   same mutation_ — the stack item is gone and priority is the active player's,
+   with no intervening priority window. Its proof-of-failure is the old shape:
+   restore the "set `priorityPlayerId` and return" behaviour and watch it go red.
 
 **What replays.** Resume is a **re-entry, not a continuation** — and the Op that
 parked the entry is the one that re-runs:
@@ -269,8 +314,19 @@ Row C is load-bearing work for slice 4, not a detail: the token-entry Op must
 guard its commit under its own checkpointed position via
 `recallChoice`/`noteChoice` — the idempotent-commit idiom `castDuringResolution`
 (`interpreter.ts:2080-2082`) and `coinFlipSync` already use — or the slice
-duplicates the token. No test written for the _choice_ would catch it; the
-guarding test is "park a token entry, answer it, assert exactly one token".
+duplicates the token. No test written for the _choice_ would catch it.
+
+The marker must be **per token, not per Op**, because `createToken` takes a
+resolved `count` and creates the whole batch in one call
+(`interpreter.ts:3804`, `:3855`), and `createTokenCopy` has its own `count`
+(`:3883`). A plain done-marker written at the Op's checkpoint short-circuits the
+**entire** Op on re-entry, so a `count: 3` Op parked on the second token's choice
+yields **one** token instead of three — the mirror of the duplicate bug, equally
+silent. Either record which tokens of the batch were already created, or write
+the marker for the whole batch at creation-and-staging time, before the first
+park. The guarding test is therefore "park a token entry with `count: N`, answer
+every owed choice, assert exactly N tokens" — run for `N = 1` **and** `N > 1`,
+since the two values fail in opposite directions.
 
 The rejected alternative is exempting as-enters choices from
 `resolutionSuspendedOnChoice` (`state.ts:4759`) the way `land-entry-tapped`
@@ -322,8 +378,10 @@ engine tests only and no card wired to it.
   #2283/#2284). This is a per-slice obligation, and it is why slices 2–4 each
   ship their kinds' bot arms rather than slice 1 stubbing all six.
 - **Slice 1 wires no card.** It lands this ADR, the `StagedEntry` generalisation,
-  the chokepoint verdict, D5's resume tail (including moving the Aura host pick
-  onto it), and the CR 614.12b batch constraint, with the `asEnters` union
+  the chokepoint verdict, D5's per-`origin` resume tail — **including the one
+  live behaviour change in the slice**: moving the Aura host pick onto that tail,
+  carrying its `gameOver` guard and shipping the same-mutation-completion test
+  D5 names — and the CR 614.12b batch constraint, with the `asEnters` union
   declared and no `CardDefinition` populating it. The ten cards arrive in
   slices 2–4.
 - **Client surface.** The staged permanent is in no zone, so the choice dialog
