@@ -971,11 +971,19 @@ _Avoid_: Start casting, begin cast
 
 **Payment Park**:
 A cost-payment decision suspended inside the announcement window of a **Cast** or an **Activated Ability** (CR 601.2 / 602.2), while the object is announced but not yet on the **Stack**: which permanent to sacrifice, which card to discard or exile, which creatures to tap. The announcement stays parked and cannot commit until the payer submits the pick — mana coverage alone is never enough. Distinct from a **Pending Choice**, which happens mid-resolution, after the object is already on the **Stack**. The engine's commit gate is the single authority on which payments a given announcement still owes.
-_Avoid_: Pending Choice (that one is mid-resolution), picker, prompt, parked choice
+_Avoid_: Pending Choice (that one is mid-resolution), **Entry Park** (that one is entry-time), picker, prompt, parked choice
 
 **Pending Choice**:
 A mid-resolution decision point where a **Spell** or **Ability** requires a **Player** to make a selection (choose targets, divide damage, search library). **Priority** is frozen until the choice is submitted.
 _Avoid_: Prompt, dialog, selection, **Payment Park** (that one is announcement-time)
+
+**As-Enters Choice**:
+A decision a **Permanent** requires before it enters the **Battlefield** (CR 614.12a): which colour, which name, which body, which **Permanent** to copy, which host to enchant, whether to pay a cost. It belongs to the entry, not to the **Cast** — the same choice is made whether the **Permanent** is cast, reanimated, put onto the **Battlefield** by an effect, created as a **Token**, or played as a land.
+_Avoid_: ETB choice (that reads as a **Triggered Ability**, which resolves once the **Permanent** is already there), mode (a modal **Spell**'s mode is announced instead, CR 601.2b), entry replacement
+
+**Entry Park**:
+A **Permanent** held outside every **Zone** while its **As-Enters Choices** are answered. Being in no **Zone** is the point: no **SBA**, no layer, no **Target** and no projection can reach it, and the entry completes only once every choice has been submitted. The entry-time sibling of the **Payment Park**.
+_Avoid_: Staging, limbo, pending entry, **Payment Park** (that one is announcement-time)
 
 **Random Reveal**:
 A special **Pending Choice** where the engine — not a **Player** — produces the value: it draws a random outcome from the seeded PRNG, persists it, and suspends the resolving step **before the consequence is applied**, so both clients can animate the outcome first. The chooser's client auto-acknowledges when the animation ends; the engine then resumes and applies the effect. Generalizes over **Coin Flips** and future die rolls.

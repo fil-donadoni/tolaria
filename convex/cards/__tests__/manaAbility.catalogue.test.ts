@@ -64,6 +64,21 @@ import type { ActivatedAbility, ManaCost } from "../types";
  *     Add {G}{G}` is correctly hidden behind its plain `{T}: Add {G}`.
  */
 
+/** Every descriptor that makes a `useStack: false` ability RECOGNISABLE as a
+ *  mana ability (CR 605.1a). The engine and the client both answer "is this a
+ *  mana ability" by exactly this disjunction — `getActivatedManaAbility` /
+ *  `isUntappedManaSource` / `hasNonManaActivatedAbility` (`gre/constants.ts`)
+ *  and `findClientManaAbility` (`src/lib/card-utils.ts`). An ability declaring
+ *  NONE of them is invisible to all of them at once. */
+function declaresManaOutput(a: ActivatedAbility): boolean {
+    return (
+        a.manaProduced !== undefined ||
+        a.manaChoices !== undefined ||
+        a.manaColorSource !== undefined ||
+        a.getManaChoices !== undefined
+    );
+}
+
 /** A tap mana ability with a FIXED declared output — the assertable shape. */
 function fixedTapManaAbilities(
     abilities: readonly ActivatedAbility[] | undefined
@@ -236,6 +251,38 @@ describe("mana abilities, catalogue-wide (CR 605.1a)", () => {
         // the current count so it tracks a real regression, not catalogue churn.
         expect(RESULT.checked).toBeGreaterThan(50);
         expect(RESULT.cards.size).toBeGreaterThan(40);
+    });
+
+    // ── The sweep's own blind spot, closed (CR 605.1a) ──────────────────────
+    // `fixedTapManaAbilities` selects on `manaProduced !== undefined`, so an
+    // ability that declares NO mana descriptor at all is filtered out of the
+    // sweep above rather than failing it: the shape is invisible to the sweep
+    // for exactly the reason it is broken in the game. Shelldock Isle shipped
+    // that way — a `useStack: false` "{T}: Add {U}." whose only output was an
+    // `effect: (ctx) => ctx.addMana(...)` closure, which a fixed-output tap
+    // ability never executes (the mana is deposited structurally from
+    // `manaProduced`). Result: the land was not a mana source on ANY surface —
+    // no tap-for-mana affordance, no entry in `getManaTapOptionsDetailed`, not
+    // counted by the bot — leaving only its {U},{T} hideaway-play ability
+    // clickable, which nothing on the board could pay for.
+    it("every non-stack ability declares a mana output descriptor", () => {
+        const undeclared: string[] = [];
+        for (const def of getAllCards()) {
+            for (const a of def.activatedAbilities ?? []) {
+                if (a.useStack === false && !declaresManaOutput(a)) {
+                    undeclared.push(
+                        `${def.name} (${def.id}) / ${a.id}: "${a.oracleText ?? ""}" is ` +
+                            `useStack: false but declares none of manaProduced / ` +
+                            `manaChoices / manaColorSource / getManaChoices, so no ` +
+                            `mana authority (engine tap options, client tap ` +
+                            `affordance, bot mana census) can see it produce mana. ` +
+                            `An \`effect\`/\`effects\` body is NOT enough: a fixed-output ` +
+                            `tap ability never runs one.`
+                    );
+                }
+            }
+        }
+        expect(undeclared, undeclared.join("\n\n")).toEqual([]);
     });
 
     it("every skipped ability records why it was skipped", () => {

@@ -551,7 +551,14 @@ export function abilitiesSuppressed(card: CardInstanceState): boolean {
 export function getActivatedManaColor(card: CardInstanceState): Color | null {
     if (abilitiesSuppressed(card)) return null;
     const ability = getEffectiveActivatedAbilities(card).find(
-        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaProduced
+        // ADR 0039 / CR 605.1a — a one-shot mana ability is paid by TAPPING
+        // and/or SACRIFICING its source, and the sacrifice-ONLY shape (Eldrazi
+        // Spawn's "Sacrifice this token: Add {C}.") is a fixed-output mana
+        // ability exactly like a {T} one. Requiring `cost.tap` here made
+        // `tapSourceIntoPayment` reject it with "Card does not produce mana"
+        // even though `getManaTapOptionsDetailed` had offered it.
+        ({ ability: a }) =>
+            (a.cost.tap || a.cost.sacrifice) && !a.useStack && a.manaProduced
     )?.ability;
     if (!ability?.manaProduced) return null;
     const colors = Object.entries(ability.manaProduced)
@@ -568,7 +575,11 @@ export function getActivatedManaProduced(
 ): ManaCost | null {
     if (abilitiesSuppressed(card)) return null;
     const ability = getEffectiveActivatedAbilities(card).find(
-        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaProduced
+        // ADR 0039 — tap and/or sacrifice, same as `getActivatedManaColor`
+        // above: the sacrifice-ONLY fixed-output shape must resolve its amount
+        // here or `getFixedManaAmount` falls back to a bare 1.
+        ({ ability: a }) =>
+            (a.cost.tap || a.cost.sacrifice) && !a.useStack && a.manaProduced
     )?.ability;
     return ability?.manaProduced ?? null;
 }
@@ -1553,6 +1564,43 @@ export function getActivatedManaAbility(
         return null;
     }
     return ability;
+}
+
+/** CR 302.6 — true when this permanent's mana ability is paid PURELY by
+ *  sacrificing the source: no {T} leg, and no intrinsic basic-land mana that
+ *  would be tapped for instead (Eldrazi Spawn's "Sacrifice this token: Add
+ *  {C}.", Lion's Eye Diamond's "Discard your hand, Sacrifice this artifact:
+ *  …").
+ *
+ *  Such an ability is reachable in two states the two standard tap gates
+ *  otherwise refuse:
+ *    • SUMMONING SICK — CR 302.6 restricts an activated ability only when its
+ *      cost contains {T} or {Q}, so a freshly-created Eldrazi Spawn may be
+ *      sacrificed for mana the turn it arrives.
+ *    • ALREADY TAPPED — "already tapped" is a statement about paying {T};
+ *      sacrificing a tapped permanent is legal.
+ *
+ *  A {T}+sacrifice ability (Basal Thrull) is deliberately NOT included: it has
+ *  a tap leg, so both gates keep applying to it exactly as before.
+ *
+ *  Scope note — this exception belongs to the EXPLICIT payment path
+ *  (`tapSourceIntoPayment`, `convex/game.ts`), where the player picked this
+ *  source. It is deliberately NOT wired into the castability mana census
+ *  (`getProducibleManaOptions` / `getProducibleManaUnits`, `gre/rules.ts`):
+ *  those pass `requireTap: true` so the AUTO-tap planner can never commit a
+ *  sacrifice-only source on the player's behalf — auto-sacrificing a token, or
+ *  discarding a hand to Lion's Eye Diamond, is a decision the planner has no
+ *  standing to make. */
+export function manaAbilityPaidWithoutTapping(
+    card: CardInstanceState,
+    state?: TriggerStateView
+): boolean {
+    const ability = getActivatedManaAbility(card, state);
+    return (
+        ability?.cost.sacrifice === true &&
+        ability.cost.tap !== true &&
+        getBasicLandMana(card) === null
+    );
 }
 
 /** Returns true if a card has a tap mana ability (basic land subtype or

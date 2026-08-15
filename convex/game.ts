@@ -345,6 +345,7 @@ import {
     applyLandManaReplacement,
     hybridCostKey,
     getActivatedManaAbility,
+    manaAbilityPaidWithoutTapping,
     getActivatedManaColor,
     getActivatedManaRestriction,
     getDynamicManaProduced,
@@ -1630,16 +1631,25 @@ export function tapSourceIntoPayment(
     manaChoiceIndex: number | undefined,
     tappedLandIds: string[]
 ): void {
-    if (card.isTapped) throw new Error("Card already tapped");
-    // CR 302.1 — creatures with summoning sickness cannot pay a {T} cost.
-    // Lands and other non-creature mana sources are unaffected.
-    if (isTapLockedBySummoningSickness(card)) {
-        throw new Error("Creature has summoning sickness");
-    }
     // CR 602.5b (issue #947) — gate on the ability's own `canActivate`
     // precondition so an un-imprinted Chrome Mox is treated as having no
     // usable mana ability at all.
     const ability = getActivatedManaAbility(card, state);
+    // CR 302.6 — a mana ability paid PURELY by sacrificing the source has
+    // neither a {T} leg nor anything to untap, so neither the "already tapped"
+    // nor the summoning-sickness gate applies to it (see
+    // `manaAbilityPaidWithoutTapping`, the single authority this shares with
+    // the castability mana census in `gre/rules.ts`). Narrow by construction:
+    // both gates keep their exact pre-existing behaviour for every source whose
+    // payment does tap it, a {T}+sacrifice ability (Basal Thrull) included.
+    if (!manaAbilityPaidWithoutTapping(card, state)) {
+        if (card.isTapped) throw new Error("Card already tapped");
+        // CR 302.6 — creatures with summoning sickness cannot pay a {T} cost.
+        // Lands and other non-creature mana sources are unaffected.
+        if (isTapLockedBySummoningSickness(card)) {
+            throw new Error("Creature has summoning sickness");
+        }
+    }
 
     // CR 106.4 / 605.1a — snapshot life before the mana ability's inline self-
     // damage / life-cost riders run, so an untapForPayment that reverses this

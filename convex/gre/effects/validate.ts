@@ -671,6 +671,7 @@ function isTokenActivatedAbility(value: unknown): boolean {
         "useStack",
         "effects",
         "manaChoices",
+        "manaProduced",
     ]);
     if (!Object.keys(a).every((k) => allowed.has(k))) return false;
     if (typeof a.id !== "string" || a.id.length === 0) return false;
@@ -687,6 +688,25 @@ function isTokenActivatedAbility(value: unknown): boolean {
             a.manaChoices.length > 0 &&
             a.manaChoices.every((m) => isManaCost(m) && hasManaCostPip(m))
         )
+    ) {
+        return false;
+    }
+    // CR 605.1a — the FIXED-output twin of `manaChoices` above. A token's
+    // "Sacrifice this token: Add {C}." (Eldrazi Spawn) is a mana ability only
+    // if it says so in a DESCRIPTOR: every mana authority — the tap-option
+    // list, the client's tap affordance, the bot's mana census — recognises a
+    // mana ability as `!useStack && (manaProduced | manaChoices |
+    // manaColorSource | getManaChoices)` and never by reading an `effects`
+    // body, which a fixed-output mana ability does not execute at all (the
+    // mana is deposited structurally from this field). Rejecting the field
+    // here forced token authors to ship the descriptor-less shape, which is
+    // inert in the engine — the same defect Shelldock Isle shipped at the card
+    // level. Validated with the SAME fail-closed pair as `manaChoices`: a real
+    // `ManaCost` carrying at least one positive pip, so an empty `{}` cannot
+    // report the token AS HAVING a mana ability while producing nothing.
+    if (
+        "manaProduced" in a &&
+        !(isManaCost(a.manaProduced) && hasManaCostPip(a.manaProduced))
     ) {
         return false;
     }

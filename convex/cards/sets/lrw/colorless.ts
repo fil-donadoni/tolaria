@@ -48,6 +48,17 @@ export const shelldockIsle: CardDefinition = {
             oracleText: "{T}: Add {U}.",
             cost: { tap: true },
             useStack: false, // mana ability (CR 605.3a)
+            // CR 605.1a — the mana DESCRIPTOR is what makes this an ability the
+            // engine can see at all: `getManaTapOptionsDetailed`, the client's
+            // tap-for-mana affordance (`findClientManaAbility`) and the bot's
+            // mana census all recognise a mana ability as `!useStack &&
+            // (manaProduced | manaChoices | manaColorSource | getManaChoices)`.
+            // A fixed-output tap ability's mana is deposited STRUCTURALLY from
+            // this field — the `effect` closure below is never executed on that
+            // path — so without it the land tapped for nothing (Shelldock's
+            // {U} was unreachable from every surface, leaving only the {U},{T}
+            // hideaway-play ability in the menu).
+            manaProduced: { U: 1 },
             effect: (ctx) => ctx.addMana({ U: 1 }),
         },
         {
