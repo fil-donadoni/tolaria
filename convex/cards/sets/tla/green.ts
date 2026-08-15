@@ -15,8 +15,8 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // additional {G}."
 //
 // Earthbend N is censused in mechanicsRegistry.ts (`SET_KEYWORDS`, id
-// "earthbend") — a new TLA-set keyword-action, not a CR 701/702 entry, but
-// its own reminder-text-carrying rule, CR 701.66a: "'Earthbend N' means
+// "earthbend") — a TLA-set keyword action that IS its own numbered CR
+// section, CR 701.66a: "'Earthbend N' means
 // 'Target land you control becomes a 0/0 land creature with haste in
 // addition to its other types. Put N +1/+1 counters on it. When that land
 // dies or is put into exile, return it to the battlefield tapped under your
@@ -29,8 +29,9 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // target is chosen when the trigger is put on the stack). No new Op for the
 // keyword itself (primitive-reuse mandate).
 //
-// The reminder text's THIRD sentence — "When it dies or is exiled, return it
-// to the battlefield tapped." — is a delayed triggered ability (CR 603.7a)
+// CR 701.66a's THIRD sentence — "When that land dies or is put into exile,
+// return it to the battlefield tapped under your control." — is a delayed
+// triggered ability (CR 603.7a)
 // watching that one land for the rest of the game, built as a third
 // `delayedTrigger` Op with the INDEFINITE instance leave-watch timing
 // `leaves-battlefield-indefinite` (issue #1470): the same `watch` +

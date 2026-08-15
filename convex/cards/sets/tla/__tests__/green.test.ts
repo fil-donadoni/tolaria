@@ -397,6 +397,42 @@ describe("Badgermole Cub — earthbend return clause (CR 603.7a indefinite leave
         expect(back.isTapped).toBe(true);
     });
 
+    // Same owner/controller split as above, but the land departs via the
+    // EXILE branch of the delayed trigger's body (the second `moveZone` Op,
+    // `from: "exile"`) rather than the graveyard branch. CR 701.66a covers
+    // both departures in one sentence ("When that land dies or is put into
+    // exile, return it to the battlefield tapped under your control") and
+    // the two `moveZone` Ops carry the `controller: "controller"` field
+    // independently — deleting it from only one branch left the other
+    // branch's test green, so this branch needs its own regression guard.
+    it("owner/controller split, EXILE branch: the land returns under the earthbending player's control, not its owner's", () => {
+        const state = earthbend("splitExiled", "p2"); // p1 controls, p2 owns
+        const preReturn = state.players[0].battlefield.find(
+            (c) => c.id === "splitExiled"
+        )!;
+        expect(preReturn.controllerId).toBe("p1"); // earthbent under p1
+        expect(preReturn.ownerId).toBe("p2"); // still owned by p2
+
+        // CR 400.7/800.4a — a departing permanent goes to its OWNER's
+        // exile-adjacent pile, not its controller's.
+        removePermanentTo(state, "splitExiled", "exile");
+        expect(state.players[1].exile.some((c) => c.id === "splitExiled")).toBe(
+            true
+        );
+
+        drainDelayedTriggers(state);
+        const back = state.players[0].battlefield.find(
+            (c) => c.id === "splitExiled"
+        )!;
+        expect(back).toBeDefined();
+        // CR 701.66a: "return it to the battlefield tapped under YOUR
+        // control" — "you" is the earthbending player (p1), fixed at
+        // scheduling time, regardless of who owns the land.
+        expect(back.controllerId).toBe("p1");
+        expect(back.ownerId).toBe("p2"); // ownership never changes (CR 108.3)
+        expect(back.isTapped).toBe(true);
+    });
+
     it("no-op (CR 608.2b): the land left the graveyard before the trigger resolved", () => {
         const state = earthbend("goneLand");
         removePermanentTo(state, "goneLand", "graveyard");
