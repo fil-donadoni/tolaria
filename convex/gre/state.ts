@@ -109,6 +109,12 @@ import {
 } from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
 import { castProhibitionReason } from "../cards/castRestrictions";
+// CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared "cast off sorcery
+// timing" snapshot predicate, called only inside function bodies below
+// (never at module top level), so this is safe despite `phases.ts` itself
+// importing from this module (the same lazy-cycle shape already used for
+// `./effects/interpreter` above).
+import { wasCastOffSorceryTiming } from "./phases";
 import {
     hasControlledSinceTurnStart,
     recordControlChangeThisTurn,
@@ -1318,6 +1324,24 @@ export type CardInstanceState = {
      *  step" half of Dash fires. See {@link PermanentView.dashed} for the
      *  full doc. */
     dashed?: boolean;
+    /** CR 307.1 / 117.1a / 601.3a — true iff this spell was cast at a moment
+     *  a sorcery couldn't have been cast (stack non-empty, not the caster's
+     *  main phase, or not the caster's turn) — the memory "if you cast it
+     *  any time a sorcery couldn't have been cast, …" clauses key on
+     *  (Necromancy, PRD #1975, #2392). A pure snapshot of board state at cast
+     *  time, NOT a legality verdict: it is stamped whether or not the cast
+     *  itself was legal at instant speed, and it is stamped `false`/absent
+     *  for a perfectly ordinary sorcery-speed cast. Derived ONCE, at the
+     *  shared stack-item-build site, from `isSorceryTimingFor` (the CASTER-
+     *  aware predicate `castTimingBaseLegal` already uses — `phases.ts`,
+     *  issue #1690) rather than re-derived per cast path, so every producer
+     *  (normal cast, alternative/additional cost, flashback/other-zone cast,
+     *  cast-during-resolution) gets it for free. Rides onto the resulting
+     *  battlefield permanent for free (a stack item IS its CardInstanceState,
+     *  the `escaped`/`evoked`/`dashed` precedent). Engine capability only in
+     *  this slice — no shipped card reads it yet; Necromancy (#2392) will.
+     *  See {@link PermanentView.castOffSorceryTiming} for the full doc. */
+    castOffSorceryTiming?: boolean;
     /** CR 106.4 / 202.3 — per-colour mana spent to CAST this permanent,
      *  captured once at ETB (`resolveTopOfStack`) from the originating stack
      *  item's `notedManaSpent`. See {@link PermanentView.notedManaSpentOnCast}
@@ -5639,6 +5663,12 @@ function resetStackTransientState(item: StackItem): void {
     delete item.evoked;
     delete item.dashed;
     delete item.escaped;
+    // CR 307.1 / 117.1a / 601.3a (issue #2473) — same leak shape as
+    // `evoked`/`dashed`/`escaped` immediately above: a COUNTERED (or
+    // otherwise stack-leaving-without-resolving) spell must not carry this
+    // cast's timing snapshot into whatever object picks up the same
+    // `CardInstanceState` for its NEXT, genuinely independent cast.
+    delete item.castOffSorceryTiming;
     delete item.abilityId;
     delete item.grantedSourceCardId;
     delete item.triggeredAbilityId;
@@ -10227,6 +10257,12 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.evoked;
     delete card.dashed;
     delete card.escaped;
+    // CR 307.1 / 117.1a / 601.3a (issue #2473) — same one-shot-fact-about-
+    // the-OBJECT-that-was-cast shape as the trio immediately above: a
+    // permanent bounced directly off the battlefield (never re-entering the
+    // stack) must not carry its OLD cast's timing snapshot onto whatever
+    // re-enters using this same `CardInstanceState`.
+    delete card.castOffSorceryTiming;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only
@@ -16247,6 +16283,18 @@ export function buildSpellContext(
                 ...card,
                 zone: "stack",
                 castById: item.castById,
+                // CR 307.1 / 117.1a / 601.3a / 608.2g (issue #2473) — this
+                // cast happens mid-resolution of `item` itself, which is
+                // still on the stack (popped only after `item`'s `resolve()`
+                // returns), so the stack is provably non-empty here: the
+                // timing predicate is near-always true by construction, but
+                // it is still a computed snapshot, not a hardcoded `true` —
+                // deliberately waiving the sorcery-timing LEGALITY check
+                // (CR 601.3a, above) does not exempt this site from stamping
+                // the factual flag.
+                ...(wasCastOffSorceryTiming(state, item.castById)
+                    ? { castOffSorceryTiming: true }
+                    : {}),
             };
             // The currently-resolving item (`item`) is on top of the stack and
             // is popped by `resolveTopOfStack` once its resolve returns. Insert
@@ -16693,6 +16741,19 @@ export function buildSpellContext(
                 castById: controllerId,
                 actingPlayerId,
                 ...(usedRiderMana ? { dynamicCantBeCountered: true } : {}),
+                // CR 307.1 / 117.1a / 601.3a / 608.2g (issue #2473) — the
+                // timing SNAPSHOT is keyed on the spell's CASTER
+                // (`controllerId`), matching the `castProhibitionReason`
+                // gate above and the doc comment there — never the Acting
+                // Player. Word of Command's controlled cast and the DSL
+                // `castDuringResolution` Op both reach this site; both are
+                // mid-resolution casts (the resolving spell/ability is still
+                // on the stack), so the stack is provably non-empty and this
+                // is near-always `true` by construction — still computed,
+                // not hardcoded, exactly like `castFaceDown` above.
+                ...(wasCastOffSorceryTiming(state, controllerId)
+                    ? { castOffSorceryTiming: true }
+                    : {}),
             };
             // CR 601.2c — the targets chosen by the Acting Player ride onto the
             // stack item so the spell resolves against them, exactly like a

@@ -3662,3 +3662,22 @@ export function isSorceryTimingFor(
         state.priorityPlayerId === playerId
     );
 }
+
+/** CR 307.1 / 117.1a / 601.3a — true iff `playerId` casting a spell RIGHT NOW
+ *  could not have been done at sorcery speed: exactly the condition "if you
+ *  cast it any time a sorcery couldn't have been cast" clauses (Necromancy,
+ *  PRD #1975 / #2392, issue #2473) key on. A pure negation of
+ *  {@link isSorceryTimingFor} kept as its own named export so every
+ *  cast-commit site (~8 producers: normal cast, alternative/additional cost,
+ *  cast from a non-hand zone, cast during another spell's resolution, the bot
+ *  search-tree executor) reads the SAME sense of the flag instead of each
+ *  re-deriving `!isSorceryTimingFor(...)` and risking an accidental double
+ *  negative at one of them. This is a board-state SNAPSHOT, not a legality
+ *  verdict — it is computed and stamped regardless of whether the cast
+ *  itself was legal at instant speed. */
+export function wasCastOffSorceryTiming(
+    state: GameState,
+    playerId: string
+): boolean {
+    return !isSorceryTimingFor(state, playerId);
+}

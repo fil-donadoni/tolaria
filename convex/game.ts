@@ -325,6 +325,7 @@ import {
     emitAttackersDeclaredEvents,
     finalizeDrawReplacementPay,
     isSorceryTiming,
+    wasCastOffSorceryTiming,
 } from "./gre/phases";
 import { effectivePermanentView } from "./gre/permanentView";
 import { freshSeed, seededShuffle } from "./gre/rng";
@@ -3498,6 +3499,18 @@ export function tryAutoCommitPendingCast(
         // through `PendingCast.dashed` (set at announcement) so it still
         // lands on the stack item once mana is covered / the picker completes.
         ...(state.pendingCast.dashed ? { dashed: true } : {}),
+        // CR 307.1 / 117.1a / 601.3a (issue #2473) — snapshot the timing
+        // memory Necromancy-shaped clauses key on, evaluated on THIS state
+        // (the item has not been pushed yet, so `state.stack.length` still
+        // reflects the pre-cast stack). Safe to evaluate here rather than at
+        // `announceCast` time: the guard above (`state.priorityPlayerId !==
+        // playerId → return null`, line ~3215) already forces phase/stack/
+        // priority to be unchanged from announcement for every legal
+        // deferred-commit flow — nothing else can have touched the stack
+        // while this caster still holds priority.
+        ...(wasCastOffSorceryTiming(state, playerId)
+            ? { castOffSorceryTiming: true }
+            : {}),
         ...graveyardCastStackFlags(state, spellCard, castFromZone),
         ...reboundCastStackFlags(spellCard, castFromZone),
     };
@@ -6583,6 +6596,12 @@ export function finalizeTargetSelection(
             ...(immediateUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
+            // CR 307.1 / 117.1a / 601.3a (issue #2473) — targeted-spell
+            // immediate-commit branch (mana already covered, no park). See
+            // the matching comment in `tryAutoCommitPendingCast`.
+            ...(wasCastOffSorceryTiming(state, playerId)
+                ? { castOffSorceryTiming: true }
+                : {}),
             ...graveyardCastStackFlags(state, card, castZone),
             ...reboundCastStackFlags(card, castZone),
         };
@@ -7447,6 +7466,12 @@ export const announceCast = mutation({
                 ...(altUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
                 ...(isEvokeCost ? { evoked: true } : {}),
                 ...(isDashCost ? { dashed: true } : {}),
+                // CR 307.1 / 117.1a / 601.3a (issue #2473) — `announceCast`
+                // no-target + alternative-cost immediate-commit branch. See
+                // the matching comment in `tryAutoCommitPendingCast`.
+                ...(wasCastOffSorceryTiming(state, args.playerId)
+                    ? { castOffSorceryTiming: true }
+                    : {}),
             };
             state.stack.push(stackItem);
             state.passCount = 0;
@@ -7838,6 +7863,12 @@ export const announceCast = mutation({
                 // the `tryAutoCommitPendingCast` stack item.
                 ...(normalUsedRiderMana
                     ? { dynamicCantBeCountered: true }
+                    : {}),
+                // CR 307.1 / 117.1a / 601.3a (issue #2473) — `announceCast`
+                // no-target + normal-cost immediate-commit branch. See the
+                // matching comment in `tryAutoCommitPendingCast`.
+                ...(wasCastOffSorceryTiming(state, args.playerId)
+                    ? { castOffSorceryTiming: true }
                     : {}),
                 ...graveyardCastStackFlags(state, card, castFromZone),
                 ...reboundCastStackFlags(card, castFromZone),

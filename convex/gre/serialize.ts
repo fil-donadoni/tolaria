@@ -466,6 +466,13 @@ function compactCard(
     if (card.dashed) {
         out.dashed = card.dashed;
     }
+    // CR 307.1 / 117.1a / 601.3a (issue #2473) — the "cast when a sorcery
+    // couldn't have been cast" timing snapshot must survive a save/load
+    // between the cast committing and a later check-time predicate (e.g. a
+    // cleanup-step delayed trigger reading it) resolving.
+    if (card.castOffSorceryTiming) {
+        out.castOffSorceryTiming = card.castOffSorceryTiming;
+    }
     // CR 106.4 / 202.3 — the persistent per-colour spent-mana record (issue
     // #900) must survive a save/load so a later ETB trigger's condition still
     // reads it correctly after a DB round-trip.
@@ -835,6 +842,11 @@ function expandCard(
     // CR 702.109a — restore the Dash cast marker.
     if (compact.dashed) {
         result.dashed = compact.dashed as boolean;
+    }
+    // CR 307.1 / 117.1a / 601.3a (issue #2473) — restore the "cast off
+    // sorcery timing" snapshot.
+    if (compact.castOffSorceryTiming) {
+        result.castOffSorceryTiming = compact.castOffSorceryTiming as boolean;
     }
     // CR 106.4 / 202.3 — restore the persistent per-colour spent-mana record.
     if (compact.notedManaSpentOnCast) {
