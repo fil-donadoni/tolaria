@@ -35,22 +35,39 @@ PRD #2043 collects them; this ADR is its slice 1 (#2466) and unblocks slices 2
 
 ### 1. Entry-path census
 
-The census is not an enumeration of card effects — it is the set of code sites
-that write `zone = "battlefield"` for a `CardInstanceState`. There are **three**:
+The census is not an enumeration of card effects — it is the set of code paths
+that put a `CardInstanceState` onto the battlefield. There are **four**: three
+that pass through the CR 614 replacement chokepoint, and one that does not.
 
-| #   | Site                                                                                                                                    | Covers                                                                                                                                                                                                                                                                                       | Stack item |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| A   | `finalizeSpellResolution` — `gre/state.ts:5634`, writes `zone` at `:5737`                                                               | a permanent spell resolving off the stack                                                                                                                                                                                                                                                    | **yes**    |
-| B   | `stageReanimatedOnBattlefield` — `gre/state.ts:10068` (+ `finishReanimatedEntry` `:10191`)                                              | every non-cast entry: `moveZone` → battlefield (`:12055`, `:12070`), blink / return from exile (`:12231`), reanimated Aura + host bundle (`:8798`, `:8827`), the batch path `putReanimatedSetOnBattlefield` (`:10272`, #1094), **and land play** (`gre/playLand.ts:383`, `:417` funnel here) | no         |
-| C   | `createTokenPermanents` — `gre/state.ts:16683`, writes `zone` at `:16772` (+ `SpellContext.createTokenCopyOf` `:13391`, which calls it) | token creation and token copies                                                                                                                                                                                                                                                              | no         |
+| #   | Site                                                                                                                                                                                                                                                                                                      | Covers                                                                                                                                                                                                                                                                                                                                                              | Chokepoint | Stack item                            |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------- |
+| A   | `finalizeSpellResolution` — `gre/state.ts:5634`, writes `zone` at `:5737`                                                                                                                                                                                                                                 | a permanent spell resolving off the stack                                                                                                                                                                                                                                                                                                                           | yes        | **yes**                               |
+| B   | `stageReanimatedOnBattlefield` — `gre/state.ts:10068` (+ `finishReanimatedEntry` `:10191`)                                                                                                                                                                                                                | every non-cast entry: `moveZone` → battlefield (`:12055`, `:12070`), blink / return from exile (`:12231`), reanimated Aura + host bundle (`:8798`, `:8827`), the batch path `putReanimatedSetOnBattlefield` (`:10272`, #1094), and a land put onto the battlefield **by an effect** (`playLand.ts:562-567`, whose deferred entry `finalizeLandEntry` later commits) | yes        | no                                    |
+| C   | `createTokenPermanents` — `gre/state.ts:16683`, writes `zone` at `:16772` (+ `SpellContext.createTokenCopyOf` `:13391`, which calls it)                                                                                                                                                                   | token creation and token copies                                                                                                                                                                                                                                                                                                                                     | yes        | no                                    |
+| D   | the **play-land family** — `applyPlayLand` (`gre/playLand.ts:117`), `applyPlayLandFromExile` (`:193`, `:194`), `applyPlayLandFromGraveyard` (`:238`), `applyPlayLandFromLibraryTop` (`:291`), `finalizeLandEntry`'s play branch (`:553`), every one of them settling through `settleEnteredLand` (`:369`) | a land **played** (CR 305) from hand, exile, graveyard or library top                                                                                                                                                                                                                                                                                               | **no**     | no — CR 305.1 requires an empty stack |
 
-**Why the list is closed, rather than merely long.** The CR 614
+**Why rows A–C are closed, rather than merely long.** The CR 614
 enters-the-battlefield **replacement** chokepoint, `enterBattlefieldDestinationFor`
 (`gre/replacements.ts:692`), has exactly three callers: `state.ts:5669`,
-`:10091`, `:16827` — one per row above. An entry path that did not pass through
-it would already be a live bug today (Containment Priest, #1148, would miss it),
-so the census is guarded by an invariant the suite already exercises rather than
-by this document's diligence.
+`:10091`, `:16827` — one per row A/B/C. A spell/effect/token entry path that did
+not pass through it would already be a live bug today (Containment Priest, #1148,
+would miss it), so those three rows are guarded by an invariant the suite already
+exercises rather than by this document's diligence.
+
+**Row D is outside that chokepoint, and outside that invariant.** A played land
+reaches the battlefield through the generic `moveCard` primitive (or
+`moveCardAcrossPlayers`, `playLand.ts:130-152`, for a cross-player exile grant)
+and then `settleEnteredLand`; **no play-land entry site calls
+`enterBattlefieldDestinationFor`** — the name does not occur in `playLand.ts` at
+all. Nor do `playLand.ts:383` / `:417` say otherwise: `:383` is about
+`resetBattlefieldTransientState` and reads "the play-a-land entry is the one that
+didn't" funnel through `stageReanimatedOnBattlefield`, and `:417` distinguishes
+`finalizeLandEntry`'s **effect**-entry branch (which does go through row B) from
+its play branch (which does not). The three-caller invariant therefore cannot
+vouch for row D, and neither can the Containment Priest suite: that replacement
+keys on nontoken **creatures**, so a played land skipping the chokepoint is
+unobservable today. This is a standing gap, not a live bug — and it is exactly
+what #1980 costs (D6).
 
 Two sites are **deliberate carve-outs**, outside the chokepoint by design:
 
@@ -59,10 +76,10 @@ Two sites are **deliberate carve-outs**, outside the chokepoint by design:
   rules engine behind it, out of scope here.
 - `convex/gre/scenarioBuilder.ts:403` (and the land filler at `:414`/`:415`)
   pushes instances **straight onto `player.battlefield`**. Its local
-  `makeInstance` does set `zone` from its parameter (`:173`) — what keeps the
-  census closed under its own grep-based definition is that there is **no literal
-  `zone = "battlefield"` assignment site and no `enterBattlefieldDestinationFor`
-  call** on this path. Its own comment at `:238` calls it "a raw
+  `makeInstance` does set `zone` from its parameter (`:173`) — what puts it
+  outside the census is that it performs no **entry**: no
+  `enterBattlefieldDestinationFor` call, no entry settlement, no event. Its own
+  comment at `:238` calls it "a raw
   `battlefield.push` that emits nothing", because a seeded board must not fire
   every ETB trigger in the catalogue. **Consequence for slices 2–4: a preset
   debug scenario can never be the proof that the chokepoint works.** A seeded
@@ -128,8 +145,12 @@ interface StagedEntry {
     /** The permanent, off every zone until every owed choice is answered. */
     card: CardInstanceState;
     controllerId: string;
-    /** Which census row is resuming it. */
+    /** Which census row is resuming it — selects WHICH entry tail to run. */
     origin: "spell" | "effect" | "token";
+    /** The stack item whose resolution parked this entry, if there was one.
+     *  This — not `origin` — is what D5's resume branches on: still on the
+     *  stack ⇒ resume it; absent or already popped ⇒ finish here. */
+    parkedStackItemId?: string;
     /** Answered head-first; may GROW mid-flight (see D4). */
     owed: AsEntersChoice[];
 }
@@ -241,48 +262,82 @@ player (`:10457-10462`) and returns, and the `choose-aura-host` branch of
 pick is left on the stack with its checkpoint set and resumes only after a full
 **priority round-trip** — a window in which either player may act mid-resolution,
 whereas CR 117.3b gives the active player priority only _after_ the spell or
-ability resolves. The as-enters finalize takes the **generic tail** instead
+ability resolves. The as-enters finalize reproduces the **generic tail** instead
 (`gre/pendingChoiceSubmit.ts:1103-1119`) — shift the queue, and when both `owed`
-and `state.pendingChoices` are empty run the tail's completion branch — **but it
-routes on `StagedEntry.origin`, because the tail's two branches are not
-interchangeable**:
+and `state.pendingChoices` are empty run the tail's completion branch — **but the
+tail's two branches are not interchangeable, and the predicate that picks between
+them is `StagedEntry.parkedStackItemId` still being on the stack**:
 
-- **`origin: "effect"` (row B) and `origin: "token"` (row C)** take the
-  `resolveTopOfStack(state)` branch (`:1106-1107`). The stack item that parked
-  the entry is still on the stack (peek-and-pop: the pop happens only after the
-  resolution finishes), so the suspended resolution really does resume, in the
-  same mutation, and priority is restored only once it completes.
-- **`origin: "spell"` (row A)** must **not** call `resolveTopOfStack`.
-  `resolveTopOfStackInner` already popped the item (`state.ts:4894`, `:5248`)
-  before `finalizeSpellResolution` ran, so there is nothing left to resume — the
-  finalize itself runs the remainder of the entry tail and the resolution is
-  over. Calling it here is wrong twice over: on an otherwise-empty stack it
-  throws `Stack is empty` (`state.ts:4766`) and the player can never answer their
-  own choice — a hard freeze on a **cast** Clone or Primal Clay, the primary case
-  #2043 exists for; on a non-empty stack it resolves the **next** item in the
-  same mutation with no priority round, which is precisely the CR 117.3b
-  violation this decision sets out to avoid, and it fails silently. Row A takes
-  the tail's **else** branch instead (`:1110-1115`) — priority back to the
-  active player, `passCount = 0`, `drainAutoPasses`.
+- **A live parking stack item** (`state.stack.some(s => s.id === parkedStackItemId)`)
+  takes the `resolveTopOfStack(state)` branch (`:1106-1107`). Resolution is
+  peek-and-pop — the pop happens only after the resolution finishes — so the item
+  that parked the entry is still there and the suspended resolution really does
+  resume, in the same mutation, with priority restored only once it completes.
+- **No live parking stack item** must **not** call `resolveTopOfStack`: there is
+  nothing left to resume, so the finalize itself runs the remainder of the entry
+  tail and takes the tail's **else** branch (`:1110-1115`) — priority back to the
+  active player, `passCount = 0`, `drainAutoPasses`. Calling `resolveTopOfStack`
+  here is wrong twice over: on an otherwise-empty stack it throws `Stack is empty`
+  (`state.ts:4766`, reached unguarded through `resolveTopOfStack` at `:4441-4447`)
+  and the player can never answer their own choice — a hard freeze; on a non-empty
+  stack it resolves the **next**, unrelated item in the same mutation with no
+  priority round, precisely the CR 117.3b violation this decision sets out to
+  avoid, and it fails silently.
 
-The routing cannot be recovered from the choice record, which is why D2 carries
-an explicit discriminator: `stackItemId === ""` never reaches the tail at all —
-the generic path throws `Stack item not found` at `:1019-1020` first, and that is
-exactly why all four shipped stackless finalizes return early (`:975` draw-look-keep,
-`:979` legend-keep, `:992` choose-aura-host, `:1004` discard-hand).
+**The census row is the illustration, not the rule.** How each row lands under
+that predicate _today_:
+
+| Origin     | Live parking item today | Branch | Why                                                                                                                                                                                                      |
+| ---------- | ----------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A — spell  | **no**                  | else   | `resolveTopOfStackInner` already popped the item (`state.ts:4894`, `:5248`) before `finalizeSpellResolution` ran — a hard freeze on a **cast** Clone or Primal Clay, the primary case #2043 exists for   |
+| B — effect | yes                     | resume | `enqueueAuraHostChoice` (`state.ts:10354`) has one caller, `putReanimatedSetOnBattlefield` (`:10314`), whose only callers are `SpellContext` methods (`:11991`, `:12035`) — every park is mid-resolution |
+| C — token  | yes                     | resume | token-creation Ops likewise run inside a resolution                                                                                                                                                      |
+
+Routing on `origin` would therefore be correct today and **fail open tomorrow**.
+The moment D6's own #1980 promise is kept and the census row D play-land sites are
+routed onto the chokepoint, `origin: "effect"` acquires an off-stack member: CR
+305.1 — _"A player who has priority may play a land card from their hand during a
+main phase of their turn **when the stack is empty**"_ — so every such park would
+take the `resolveTopOfStack` branch onto an empty stack and throw. That is round
+2's freeze relocated from row A into a row-B subpopulation. Branching on the
+parking stack item makes a stackless park take the else branch **by construction**
+rather than by census bookkeeping; `origin` stays, but only to select which entry
+tail the finalize runs.
+
+The predicate cannot be read off the choice record either, which is why D2 carries
+`parkedStackItemId` on the staged entry: an as-enters park enqueues with
+`stackItemId: ""` (as `enqueueAuraHostChoice` and `enqueueLandEntryChoice`,
+`playLand.ts:494`, already do), so the `PendingChoice` says only that the park was
+stackless, never which resolution — if any — is waiting on it.
+
+That `stackItemId: ""` is also why the as-enters finalize must **reproduce** the
+tail rather than fall into it: a stackless choice never reaches `:1103-1119`,
+because the generic path throws `Stack item not found` at `:1019-1020` first
+(`state.stack.find(s => s.id === "")` is undefined on any real stack). The
+as-enters finalize is therefore a **fifth early-return finalize** beside the four
+shipped ones (`:975` draw-look-keep, `:979` legend-keep, `:992` choose-aura-host,
+`:1004` discard-hand), and it carries a copy of the tail's completion logic.
+"Takes the generic tail" throughout this decision means "reproduces those lines",
+never "reaches them".
 
 Because D2 folds the Aura host pick into the shared finalize, it acquires this
-behaviour rather than keeping its own: it is row B, so it moves from "set
-priority and wait for a round-trip" (`finalizeAuraHost`, `state.ts:10457-10462`)
-onto the `resolveTopOfStack` branch. That is a **live behaviour change to a
-shipped path, and slice 1 owns it** — with two obligations attached:
+behaviour rather than keeping its own: it is row B and its park always has a live
+parking stack item, so it moves from "set priority and wait for a round-trip"
+(`finalizeAuraHost`, `state.ts:10457-10462`) onto the `resolveTopOfStack` branch.
+That is a **live behaviour change to a shipped path, and slice 1 owns it** — with
+two obligations attached, each with a named guarding test, because a guard shipped
+without one is invisible when it rots:
 
 1. **The `gameOver` guard must survive the move.** `finalizeAuraHost` resumes
    only `if ((state.pendingChoices?.length ?? 0) === 0 && !state.gameOver)`
    (`state.ts:10460`); the generic tail has no `state.gameOver` check. Without
    it, an attach that kills a player through `checkStateBasedActions` would go on
    to resolve the next stack item in a finished game. The shared finalize carries
-   the check.
+   the check, and the test that says so: _park an entry whose attach kills a
+   player through `checkStateBasedActions`, put a second item on the stack behind
+   it, answer the choice, and assert the game is over and that second item has
+   NOT resolved._ Proof-of-failure: drop the `!state.gameOver` clause from the
+   shared finalize and watch the second item resolve.
 2. **It needs its own guarding test**, named here because nothing else
    distinguishes the new tail from the old shape: _park a non-cast Aura entry on
    the host pick, answer it, and assert the suspended resolution COMPLETES in the
@@ -316,13 +371,15 @@ guard its commit under its own checkpointed position via
 (`interpreter.ts:2080-2082`) and `coinFlipSync` already use — or the slice
 duplicates the token. No test written for the _choice_ would catch it.
 
-The marker must be **per token, not per Op**, because `createToken` takes a
-resolved `count` and creates the whole batch in one call
-(`interpreter.ts:3804`, `:3855`), and `createTokenCopy` has its own `count`
-(`:3883`). A plain done-marker written at the Op's checkpoint short-circuits the
-**entire** Op on re-entry, so a `count: 3` Op parked on the second token's choice
-yields **one** token instead of three — the mirror of the duplicate bug, equally
-silent. Either record which tokens of the batch were already created, or write
+The marker must be **per token, not per Op**, because `createToken` resolves
+`count` once (`interpreter.ts:3804`) and creates the whole batch in a single
+`ctx.createToken(token, controllerId, count)` call (`:3855`) — `createTokenCopy`
+has its own `count` (`:3883`). A plain done-marker written at the Op's checkpoint
+short-circuits the **entire** Op on re-entry, so whatever part of a `count: N`
+batch the park left unfinished is never created at all: the Op under-delivers by
+an amount that depends on where the park landed, up to the whole batch. The
+mirror of the duplicate bug, equally silent. Either record which tokens of the
+batch were already created, or write
 the marker for the whole batch at creation-and-staging time, before the first
 park. The guarding test is therefore "park a token entry with `count: N`, answer
 every owed choice, assert exactly N tokens" — run for `N = 1` **and** `N > 1`,
@@ -338,11 +395,30 @@ provisional-entry shape that would make it safe.
 
 ### D6 — Scope
 
-| Question                       | Answer | Why                                                                                                                                                                                                                                       |
-| ------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Token copies (CR 707.6)        | **in** | Census row C is already a chokepoint caller, so covering them costs nothing and excluding them would cost a deliberate branch. CR 614.12's own worked example is a **token copy of Voice of All** — the exact card #2019 is about.        |
-| #1980 (land played from exile) | **in** | Same CR 614.12 family (pay 2 life as it enters) on census row B, which land play already funnels through. Subsumed by construction; the slice that lands it closes #1980.                                                                 |
-| CR 614.12b (simultaneous)      | **in** | Against this ADR's own initial recommendation, by maintainer decision. Shipped as an **engine capability with no card exercising it** (`.claude/rules/gre-development.md` — intermediate slices are capabilities, not partial mechanics). |
+| Question                       | Answer               | Why                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Token copies (CR 707.6)        | **in**               | Census row C is already a chokepoint caller, so covering them costs nothing and excluding them would cost a deliberate branch. CR 614.12's own worked example is a **token copy of Voice of All** — the exact card #2019 is about.                                                                                                                                                                                                                |
+| #1980 (land played from exile) | **in, and not free** | Same CR 614.12 family (pay 2 life as it enters), but it is census row **D**, outside the chokepoint: `applyPlayLandFromExile` (`playLand.ts:169-213`) moves the card with `moveCard`/`moveCardAcrossPlayers` and settles through `settleEnteredLand`, never reaching `enterBattlefieldDestinationFor`, and carries no `entersTappedUnlessPay` branch at all — the gap is marked in-tree at `playLand.ts:533` (`tracked-by: #1980`). Priced below. |
+| CR 614.12b (simultaneous)      | **in**               | Against this ADR's own initial recommendation, by maintainer decision. Shipped as an **engine capability with no card exercising it** (`.claude/rules/gre-development.md` — intermediate slices are capabilities, not partial mechanics).                                                                                                                                                                                                         |
+
+**What #1980 costs.** Two pieces of real work, neither of them bookkeeping.
+(1) **Route the row-D entry sites onto the chokepoint** — `applyPlayLand`
+(`playLand.ts:117`), `applyPlayLandFromExile` (`:193`/`:194`),
+`applyPlayLandFromGraveyard` (`:238`), `applyPlayLandFromLibraryTop` (`:291`) and
+`finalizeLandEntry`'s play branch (`:553`) — so a played land is subject to the
+CR 614 replacement pass at all. That closes the census under one invariant instead
+of three-plus-an-exception, and it is what makes Containment Priest-shaped
+replacements observable on played permanents. (2) **Reconcile with ADR 0051's
+pre-move park.** The shipped `entersTappedUnlessPay` choice is enqueued
+_before_ the zone move (`playLand.ts:102` from hand, `:276` from library top,
+via `enqueueLandEntryChoice` `:483-506`) and leaves the land **in its source
+zone** for the choice window, with `finalizeLandEntry` sourcing from hand or
+library-top by position. That is the opposite shape from D2's staged entry, which
+holds the permanent off **every** zone; the two parks must be unified, or #1980's
+land owes its choice through one mechanism while the shock land owes it through
+another. The exile and graveyard origins have no such branch today at all, which
+is the bug #1980 names. Scoped in on that understanding — the slice that lands it
+closes #1980, and it is the slice that also brings row D under the chokepoint.
 
 CR 614.12b — _"that player may not make choices for those effects that would
 cause the combined costs of those effects to not be payable"_ — binds only the
@@ -356,9 +432,12 @@ engine tests only and no card wired to it.
 
 ## Consequences
 
-- **One place to forget.** A fourth entry path added later cannot skip the
-  as-enters choice without also skipping the CR 614 replacement check, which
-  the Containment Priest suite already fails on.
+- **One place to forget — for three of the four rows.** A new spell/effect/token
+  entry path cannot skip the as-enters choice without also skipping the CR 614
+  replacement check, which the Containment Priest suite already fails on. Census
+  row D (played lands) is the standing exception until #1980 routes it in: it
+  reaches the battlefield without touching the chokepoint, and no shipped
+  replacement can currently observe that it does.
 - **`stagedAuraEntries` is renamed, not duplicated.** Slice 1 carries a
   mechanical rename plus the serializer key swap; the CR 303.4f/g behaviour
   moves under the shared finalize unchanged and keeps its tests. Read the rule
@@ -378,7 +457,7 @@ engine tests only and no card wired to it.
   #2283/#2284). This is a per-slice obligation, and it is why slices 2–4 each
   ship their kinds' bot arms rather than slice 1 stubbing all six.
 - **Slice 1 wires no card.** It lands this ADR, the `StagedEntry` generalisation,
-  the chokepoint verdict, D5's per-`origin` resume tail — **including the one
+  the chokepoint verdict, D5's parking-stack-item resume tail — **including the one
   live behaviour change in the slice**: moving the Aura host pick onto that tail,
   carrying its `gameOver` guard and shipping the same-mutation-completion test
   D5 names — and the CR 614.12b batch constraint, with the `asEnters` union
@@ -391,8 +470,8 @@ engine tests only and no card wired to it.
 ## References
 
 - CR 614.1c, 614.12, 614.12a, 614.12b, 614.12c, 704.5f, 704.5m, 707.5, 707.6
-- CR 117.3b, 303.4f, 303.4g, 608.2b (all printed from
+- CR 117.3b, 303.4f, 303.4g, 305.1, 608.2b (all printed from
   `data/cr/comprehensive-rules.txt`, ADR 0098)
-- PRD #2043; slices #2466 (this), #2019, #2467, #2451; subsumed #1980
+- PRD #2043; slices #2466 (this), #2019, #2467, #2451; scoped-in #1980
 - ADR 0047 (Expected Input), ADR 0051 (land entry pay-choice — the stackless
   `PendingChoice` prototype), ADR 0078 §7 (deferred entry-counter events)
