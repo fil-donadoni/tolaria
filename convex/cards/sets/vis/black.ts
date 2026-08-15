@@ -66,17 +66,22 @@ export const vampiricTutor: CardDefinition = {
 // ANOTHER creature (`bro/colorless.ts:129` Phyrexian, `mh3/white.ts:93`
 // Angel), so the self-transform-into-Aura shape is unexercised, not proven.
 // The four gaps: (a) per-instance enchant restriction (CR 303.4 / 704.5m) —
-// `checkAuraAttachmentSBA` (`convex/gre/sba.ts:141`, call site `sba.ts:166`)
-// calls `hostMatchesAuraRestriction` (`sba.ts:247`), which resolves the
-// restriction from the COMPILE-TIME `def.targetRequirement` and bails
-// `if (!req) return false` (`sba.ts:253-254`) — never from the instance
-// `addSubtype` just mutated. Necromancy has no cast-time `targetRequirement`
-// (its host is chosen by the ETB trigger, CR 303.4i), so the aura is judged
-// illegally attached the instant the trigger resolves and `removePermanentTo`
-// bins it. Same compile-time-vs-per-instance shape as Carnage's
-// `hasAttackRequirement` (`spm/multicolor.ts`) above and as #1972. Dance of
-// the Dead (`ice/black.ts:409-415`) is NOT a usable precedent — it works only
-// because it is PRINTED as an Aura with a cast-time `targetRequirement`;
+// CLOSED by #2471. `checkAuraAttachmentSBA` (`convex/gre/sba.ts:141`) no
+// longer resolves the restriction from the COMPILE-TIME
+// `def.targetRequirement`: it and the CR 303.4f candidate scan share the one
+// predicate `resolveEnchantRestriction` / `hostMatchesEnchantRestriction`
+// (`convex/gre/state.ts`), which collects EVERY instance of enchant the object
+// has (CR 702.5c) — the printed clause and the one granted at runtime by
+// `addSubtype`'s `enchantRestriction` field, `CardInstanceState
+// .grantedEnchantRestriction`. So Necromancy no longer needs a cast-time
+// `targetRequirement` (its host is chosen by the ETB trigger, CR 303.4i): the
+// ETB grants "enchant creature" + the specific reanimated object at the same
+// time it grants the Aura subtype, and the SBA reads it. That granted clause
+// is BATTLEFIELD-SCOPED (CR 400.7) and dies with the object. Note the sibling
+// shape is still open: Carnage's `hasAttackRequirement` (`spm/multicolor.ts`
+// above) and #1972 remain compile-time-only. Dance of the Dead
+// (`ice/black.ts:409-415`) was never a usable precedent for this — it works
+// only because it is PRINTED as an Aura with a cast-time `targetRequirement`;
 // giving Necromancy that shape would force a target at cast time and diverge
 // from modern Oracle text (ADR 0004). (b) no cleanup-step delayed-trigger
 // boundary — `DelayedTriggerTiming` (`convex/cards/types.ts:4882-4958`) has

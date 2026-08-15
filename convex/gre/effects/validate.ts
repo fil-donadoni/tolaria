@@ -3510,6 +3510,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             subtype: isNonEmptyString,
         },
         optional: { enchantRestriction: isEnchantRestrictionSpec },
+        // CR 303.4 — "What an Aura can be attached to is defined by its
+        // enchant keyword ability": an enchant clause is only meaningful on an
+        // object that is an Aura, and this Op is the only thing that can make
+        // one at runtime. Fail-closed, because the failure is silent: stamped
+        // on a non-Aura grant the restriction sits inert on the instance and
+        // goes live the moment anything ELSE grants that permanent the Aura
+        // subtype, with a clause nobody authored for it.
+        check: (entry) =>
+            entry.enchantRestriction !== undefined && entry.subtype !== "Aura"
+                ? [
+                      '"enchantRestriction" is only valid with subtype "Aura" (CR 303.4)',
+                  ]
+                : [],
     },
     // CR 613.1e layer 5 (issue #1083) — set a target's color(s). `target` is
     // an object selector (announced slot, `$source`, or a forEach `$each`);

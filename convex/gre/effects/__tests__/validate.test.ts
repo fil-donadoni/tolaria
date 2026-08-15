@@ -4579,3 +4579,114 @@ describe("validateEffectScript — delayedTrigger next-cleanup-step (CR 514.3a)"
         expect(errors.some((e) => /"watch" is only valid/.test(e))).toBe(true);
     });
 });
+
+// CR 303.4 / 702.5a (issue #2471) — the enchant clause an `addSubtype` Op
+// grants alongside an `"Aura"` subtype. Every assertion below runs through the
+// real `validateEffectScript`, and every rejection is a shape that would
+// otherwise be SILENT: a misspelt key is dropped into a restriction nothing
+// can satisfy (the Aura is binned by the next CR 704.5m sweep), and a clause
+// stamped on a non-Aura subtype sits inert on the instance until something
+// else grants that permanent the Aura subtype.
+describe("validateEffectScript — addSubtype enchantRestriction (CR 303.4, issue #2471)", () => {
+    const grant = (op: Record<string, unknown>): string[] =>
+        validateEffectScript(host({ effects: [op as never] }));
+
+    it("accepts the full authored shape (types + players + host selector)", () => {
+        expect(
+            grant({
+                op: "addSubtype",
+                target: { target: 0 },
+                subtype: "Aura",
+                enchantRestriction: {
+                    types: ["Creature"],
+                    players: false,
+                    host: { target: 0 },
+                },
+            })
+        ).toEqual([]);
+    });
+
+    it("accepts the Op with no enchantRestriction at all (the shipped shape)", () => {
+        expect(
+            grant({
+                op: "addSubtype",
+                target: { target: 0 },
+                subtype: "Angel",
+            })
+        ).toEqual([]);
+    });
+
+    it("rejects an unknown key inside the clause", () => {
+        const errors = grant({
+            op: "addSubtype",
+            target: { target: 0 },
+            subtype: "Aura",
+            enchantRestriction: { type: "Creature" },
+        });
+        expect(
+            errors.some((e) => /field "enchantRestriction" has invalid/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects `hostId` — the RESOLVED shape, never the authored one", () => {
+        const errors = grant({
+            op: "addSubtype",
+            target: { target: 0 },
+            subtype: "Aura",
+            enchantRestriction: { types: ["Creature"], hostId: "bear-1" },
+        });
+        expect(
+            errors.some((e) => /field "enchantRestriction" has invalid/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects an empty clause — a restriction that restricts nothing", () => {
+        const errors = grant({
+            op: "addSubtype",
+            target: { target: 0 },
+            subtype: "Aura",
+            enchantRestriction: {},
+        });
+        expect(
+            errors.some((e) => /field "enchantRestriction" has invalid/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects a non-CardType in `types`", () => {
+        const errors = grant({
+            op: "addSubtype",
+            target: { target: 0 },
+            subtype: "Aura",
+            enchantRestriction: { types: ["Goblin"] },
+        });
+        expect(
+            errors.some((e) => /field "enchantRestriction" has invalid/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects a non-object clause", () => {
+        const errors = grant({
+            op: "addSubtype",
+            target: { target: 0 },
+            subtype: "Aura",
+            enchantRestriction: "creature",
+        });
+        expect(
+            errors.some((e) => /field "enchantRestriction" has invalid/.test(e))
+        ).toBe(true);
+    });
+
+    it("CR 303.4 — rejects a clause on any subtype other than Aura", () => {
+        const errors = grant({
+            op: "addSubtype",
+            target: { target: 0 },
+            subtype: "Angel",
+            enchantRestriction: { types: ["Creature"] },
+        });
+        expect(
+            errors.some((e) =>
+                /"enchantRestriction" is only valid with subtype "Aura"/.test(e)
+            )
+        ).toBe(true);
+    });
+});

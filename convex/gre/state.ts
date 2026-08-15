@@ -628,19 +628,22 @@ export type CardInstanceState = {
      *  runtime, when an effect made it an Aura while it was already on the
      *  battlefield ("it becomes an Aura with enchant creature"). A printed
      *  Aura has none: its restriction is derived from the card definition's
-     *  cast-time `targetRequirement`. `resolveEnchantRestriction` reads this
-     *  field FIRST and the printed form second, so the CR 303.4c / 704.5m
-     *  attachment SBA and the CR 303.4f host scan both see the granted
-     *  clause — without it, a permanent flipped to an Aura has no readable
-     *  restriction and is binned the instant it attaches.
+     *  cast-time `targetRequirement`. `resolveEnchantRestriction` returns this
+     *  clause ALONGSIDE any printed one (CR 702.5c — all instances of enchant
+     *  apply, the host must match every one), so the CR 303.4c / 704.5m
+     *  attachment SBA sees the granted clause — without it, a permanent
+     *  flipped to an Aura has no readable restriction and is binned the
+     *  instant it attaches.
      *
      *  It lives on the INSTANCE and not on the definition for the same reason
      *  `escaped` / `evoked` / `dashed` do (see their docs below): it is a fact
      *  about THIS object, not about the card. Stronger, in fact — the
      *  restriction may name a specific object (`hostId`), which no definition
-     *  could express. Battlefield-scoped: cleared by
-     *  `resetBattlefieldTransientState` on every zone change (CR 400.7, the
-     *  object that re-enters is a new one). Persisted through
+     *  could express. Battlefield-scoped: `clearGrantedEnchantRestriction`
+     *  drops it on every departure and before every entry-time legality
+     *  question (CR 400.7, the object that re-enters is a new one), so no
+     *  legality site ever reads a granted clause off an object that is not on
+     *  the battlefield. Persisted through
      *  `compactCard`/`expandCard` (`serialize.ts`) — there is no definition to
      *  re-derive it from, so a dropped field means the Aura is binned by the
      *  first SBA sweep after a save/load. */
@@ -7312,32 +7315,44 @@ export function applyExistingGrantsTo(
 /** CR 303.4 — "What an Aura can be attached to is defined by its enchant
  *  keyword ability (see rule 702.5)." THE single resolver for that
  *  restriction, and the reason there is only one: an Aura's restriction has
- *  two possible origins and every legality site must read both in the same
- *  order, or the OFFERED host set (CR 303.4f, `findAllLegalAuraHosts`) and the
+ *  two possible origins and every legality site must read both the same way,
+ *  or the OFFERED host set (CR 303.4f, `findAllLegalAuraHosts`) and the
  *  ENFORCED host set (CR 303.4c / 704.5m, `checkAuraAttachmentSBA`) drift.
  *
- *  Resolution order, instance-first / printed-second:
+ *  Returns EVERY instance of enchant the object currently has, because CR
+ *  702.5c says all of them apply: "If an Aura has multiple instances of
+ *  enchant, all of them apply. … The Aura can enchant only objects or players
+ *  that match all of its enchant abilities." So this is a CONJUNCTION, not a
+ *  precedence list — a granted clause narrows the printed one, it does not
+ *  replace it.
  *
  *  1. `aura.grantedEnchantRestriction` — a runtime grant (a permanent that
  *     BECAME an Aura on the battlefield, `addSubtype` + `enchantRestriction`).
- *     It WINS outright: an effect that redefines what an object enchants
- *     replaces the printed clause rather than adding to it.
+ *     BATTLEFIELD-SCOPED data: it is cleared on every departure
+ *     (`removePermanentTo`) and before any entry-time legality question is
+ *     asked (`clearGrantedEnchantRestriction`), because CR 400.7 makes the
+ *     object that left a new one with no memory of what it enchanted. An
+ *     object that is not on the battlefield therefore has only its printed
+ *     clause — at BOTH consumers, which is what keeps them in agreement.
  *  2. the printed cast-time `targetRequirement`, normalized — Control Magic's
  *     `{ type: "Creature" }` is "enchant creature". `player` becomes the
  *     `players` flag (never a battlefield object, see `auraEnchantsPlayers`);
  *     `any` / `spell` / `spell-or-permanent` / `card` are dropped, none of
  *     them being expressible as an enchant clause.
  *
- *  `null` means the object declares no restriction at all — no host is legal
- *  (CR 704.5m then bins it if it is somehow attached). */
+ *  An EMPTY array means the object declares no enchant ability at all — no
+ *  host is legal (CR 704.5m then bins it if it is somehow attached). */
 export function resolveEnchantRestriction(
     aura: CardInstanceState
-): EnchantRestriction | null {
-    if (aura.grantedEnchantRestriction) return aura.grantedEnchantRestriction;
+): EnchantRestriction[] {
+    const clauses: EnchantRestriction[] = [];
+    if (aura.grantedEnchantRestriction) {
+        clauses.push(aura.grantedEnchantRestriction);
+    }
     const cardId = (aura.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : null;
     const req = def?.targetRequirement;
-    if (!req) return null;
+    if (!req) return clauses;
     const reqTypes = Array.isArray(req.type) ? req.type : [req.type];
     const types: CardType[] = [];
     let players = false;
@@ -7355,43 +7370,73 @@ export function resolveEnchantRestriction(
             continue;
         types.push(t);
     }
-    return { types, players };
+    clauses.push({ types, players });
+    return clauses;
 }
 
-/** CR 303.4 / 702.5a: true if the PERMANENT `host` satisfies `aura`'s enchant
- *  restriction, whichever origin that restriction has
- *  (`resolveEnchantRestriction`). Two independent clauses, both of which must
- *  hold:
+/** CR 303.4 / 702.5a ("The enchant ability restricts … what an Aura can
+ *  enchant"): true if the PERMANENT `host` satisfies EVERY instance of
+ *  enchant `aura` has (CR 702.5c), whatever their origin
+ *  (`resolveEnchantRestriction`). Each clause contributes two independent
+ *  conditions, both of which must hold:
  *
- *  - the characteristic clause — `host` has one of the restricted card types
+ *  - the characteristic condition — `host` has one of that clause's card types
  *    (Control Magic enchants creatures, Steal Artifact enchants artifacts);
- *  - CR 303.4's specific-object clause — when the restriction names ONE object
+ *  - CR 303.4's specific-object condition — when the clause names ONE object
  *    (`hostId`, only ever a runtime grant: "enchant creature put onto the
  *    battlefield with Necromancy"), no other permanent qualifies.
  *
- *  A `players`-only restriction matches no permanent by construction (empty
+ *  An object with NO enchant ability at all has no legal host. A
+ *  `players`-only clause matches no permanent by construction (empty
  *  `types`) — see `auraEnchantsPlayers` for that branch. */
 export function hostMatchesEnchantRestriction(
     host: CardInstanceState,
     aura: CardInstanceState
 ): boolean {
-    const restriction = resolveEnchantRestriction(aura);
-    if (!restriction) return false;
-    if (restriction.hostId !== undefined && restriction.hostId !== host.id) {
-        return false;
-    }
-    return (restriction.types ?? []).some((t) => host.types.includes(t));
+    const clauses = resolveEnchantRestriction(aura);
+    if (clauses.length === 0) return false;
+    return clauses.every((clause) => {
+        if (clause.hostId !== undefined && clause.hostId !== host.id) {
+            return false;
+        }
+        return (clause.types ?? []).some((t) => host.types.includes(t));
+    });
 }
 
 /** CR 303.4: true if `aura`'s enchant restriction accepts a PLAYER host (an
  *  "Enchant player" Aura — Curse-cycle style). Reads the SAME resolved
- *  restriction as `hostMatchesEnchantRestriction`, just testing the branch
- *  that predicate deliberately skips (a player is never a battlefield
- *  object). Exported for `sba.ts`'s CR 704.5m ongoing-legality sweep, which
- *  must recognize a player-attached Aura as legitimately attached rather than
- *  "attached to nothing on the battlefield". */
+ *  clauses as `hostMatchesEnchantRestriction`, just testing the branch that
+ *  predicate deliberately skips (a player is never a battlefield object), and
+ *  under the same CR 702.5c conjunction: a player is a legal host only if
+ *  EVERY instance of enchant accepts players. Exported for `sba.ts`'s CR
+ *  704.5m ongoing-legality sweep, which must recognize a player-attached Aura
+ *  as legitimately attached rather than "attached to nothing on the
+ *  battlefield". */
 export function auraEnchantsPlayers(aura: CardInstanceState): boolean {
-    return resolveEnchantRestriction(aura)?.players === true;
+    const clauses = resolveEnchantRestriction(aura);
+    return clauses.length > 0 && clauses.every((c) => c.players === true);
+}
+
+/** CR 400.7 — "An object that moves from one zone to another becomes a new
+ *  object with no memory of, or relation to, its previous existence." A
+ *  runtime-granted enchant restriction is BATTLEFIELD-SCOPED data: it can only
+ *  be stamped on a permanent that is on the battlefield (`SpellContext
+ *  .addSubtype` resolves its target through `findOnBattlefield`), and the
+ *  object that leaves takes no clause with it.
+ *
+ *  Called at every boundary of that scope, and the last one is the load-bearing
+ *  one:
+ *
+ *  - `removePermanentTo` — the departure itself;
+ *  - `resetBattlefieldTransientState` — the shared entry-side reset;
+ *  - `putReanimatedSetOnBattlefield`, BEFORE the CR 303.4f candidate scan —
+ *    because that scan reads the restriction off an instance that is not on
+ *    the battlefield yet, while the entry-side reset above runs only once a
+ *    host has already been chosen. Clearing after the offer instead of before
+ *    it is exactly how the offered set (CR 303.4f) and the enforced set
+ *    (CR 303.4c / 704.5m) come to disagree about the same object. */
+export function clearGrantedEnchantRestriction(card: CardInstanceState): void {
+    delete card.grantedEnchantRestriction;
 }
 
 /** CR 303.4 / 702.16b — the FULL host-legality predicate for a PERMANENT
@@ -7401,17 +7446,17 @@ export function auraEnchantsPlayers(aura: CardInstanceState): boolean {
  *  "can't be enchanted" (Guardian Beast, CR 303.4). This is the same
  *  three-part gate the cast path applies at resolution (CR 608.2b) —
  *  factored out so the non-cast entry paths (`findAllLegalAuraHosts`,
- *  reanimation) enforce it identically instead of the type-only
- *  `isLegalAuraHost`. `aura` may be a resolving StackItem or a reanimated
+ *  reanimation) enforce it identically rather than through a private
+ *  type-only copy. `aura` may be a resolving StackItem or a reanimated
  *  CardInstanceState (both carry `.card` + `types`). A PLAYER host has no
  *  permanent-shaped `CardInstanceState` to run through this predicate — see
  *  `auraEnchantsPlayers` for that branch, applied separately by every caller
  *  below (this engine's card pool models no protection-from-color or
  *  cantBeEnchanted guard scoped to a player, so a still-legal player target
  *  is unconditionally a legal host — CR 702.16b/303.4's restriction there is
- *  purely the enchant-type match). Note the type-only fallback it replaced is
- *  no longer even nameable: `hostMatchesEnchantRestriction` is the ONLY
- *  restriction predicate. */
+ *  purely the enchant-type match). `hostMatchesEnchantRestriction` is the ONLY
+ *  restriction predicate there is; the per-consumer copies it replaced are
+ *  gone. */
 function isFullyLegalAuraHost(
     state: GameState,
     host: CardInstanceState,
@@ -8564,11 +8609,8 @@ export function removePermanentTo(
     // restriction ("it becomes an Aura with enchant creature") is a property
     // of the object that was on the battlefield. It must be cleared on EVERY
     // departure, not only the hand/library one that runs
-    // `resetBattlefieldTransientState` below: the CR 303.4f candidate scan
-    // reads the restriction off the GRAVEYARD instance, before the entry-side
-    // reset runs, so a reanimated permanent would otherwise be host-restricted
-    // by a clause its previous existence received.
-    delete creature.grantedEnchantRestriction;
+    // `resetBattlefieldTransientState` below.
+    clearGrantedEnchantRestriction(creature);
     // CR 707.2 — a copy effect lasts only while the object is on the
     // battlefield. Restore the printed identity now (after LKI snapshots, so
     // death triggers still read the copied P/T) so the card re-casts and
@@ -10111,11 +10153,11 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // CR 303.4 / 400.7 — a runtime-granted enchant restriction ("it becomes an
     // Aura with enchant creature") belongs to the object that was on the
     // battlefield. The object that leaves — and the one that re-enters — is a
-    // new one, with no memory of what it once enchanted; left uncleared, a
-    // reanimated permanent would still be host-restricted by a clause it never
-    // received (the CR 303.4f candidate scan reads the restriction off the
-    // graveyard instance BEFORE staging).
-    delete card.grantedEnchantRestriction;
+    // new one, with no memory of what it once enchanted. This is the ENTRY-side
+    // half of the scope; the CR 303.4f candidate scan is cleared separately and
+    // earlier (`putReanimatedSetOnBattlefield`), because it asks its legality
+    // question before this reset runs.
+    clearGrantedEnchantRestriction(card);
     // CR 111 / 400.7 (issue #791/#1319) — the per-source exile provenance
     // link is only meaningful while the card sits in exile. This helper is
     // the shared chokepoint for every reanimation-style entry
@@ -10414,6 +10456,15 @@ export function putReanimatedSetOnBattlefield(
     cards: { card: CardInstanceState; controllerId: string }[]
 ): string[] {
     if (cards.length === 0) return [];
+
+    // CR 400.7 / 303.4 — every entering object is a NEW object: whatever
+    // enchant clause its previous existence was granted is gone. Cleared HERE,
+    // before the CR 303.4f candidate scan below reads it, and not only in the
+    // entry-side `resetBattlefieldTransientState` (which runs later, once a
+    // host has already been chosen) — otherwise the offer narrows by a clause
+    // the CR 303.4c / 704.5m sweep can no longer see, and bins the Aura one
+    // call after offering it a host.
+    for (const { card } of cards) clearGrantedEnchantRestriction(card);
 
     const nonAuras = cards.filter((c) => !isAura(c.card));
     const auras = cards.filter((c) => isAura(c.card));

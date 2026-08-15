@@ -18,6 +18,7 @@ import {
     auraEnchantsPlayers,
     hostMatchesEnchantRestriction,
     putReanimatedSetOnBattlefield,
+    resetBattlefieldTransientState,
     resolveEnchantRestriction,
     resolveTopOfStack,
     type CardInstanceState,
@@ -245,14 +246,87 @@ describe("runtime-granted enchant restriction (CR 303.4)", () => {
     });
 });
 
-describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () => {
-    it("the CR 303.4f non-cast candidate scan honours a granted restriction", () => {
-        // The candidate scan (`findAllLegalAuraHosts`, state.ts) reads the
-        // aura instance BEFORE it is staged onto the battlefield. Its copy of
-        // the type-match loop was independent of the SBA's until #2471; this
-        // asserts the collapsed predicate reaches it — a restriction naming
-        // ONE object narrows the offered set to that object, so the scan
-        // auto-attaches instead of prompting between two legal creatures.
+// One predicate is necessary but NOT sufficient: the CR 303.4f candidate scan
+// asks its legality question BEFORE the Aura is on the battlefield, and the CR
+// 303.4c / 704.5m sweep asks it after. If the granted clause is still readable
+// at the first moment and gone at the second, the two sites read the same code
+// over DIFFERENT data — the offer honours a clause the enforcement cannot see,
+// and bins the Aura one call later. So the clause has a scope, and these tests
+// pin it: a runtime grant exists only while its object is on the battlefield
+// (CR 400.7), and it is cleared BEFORE the entry-time offer, not after it.
+describe("granted restrictions are battlefield-scoped (CR 400.7 / 303.4f)", () => {
+    /** Puts `aura` (already spliced out of every zone, as the reanimation
+     *  helpers require) onto the battlefield through the real CR 303.4f entry
+     *  path, with `bear-1` (Creature) and `sol-1` (Artifact) as candidates. */
+    function reanimate(aura: CardInstanceState): {
+        state: GameState;
+        entered: string[];
+    } {
+        const artifact = makeInstance(mountain.id, {
+            id: "sol-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        artifact.types = ["Artifact"];
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "bear-1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        artifact,
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const entered = putReanimatedSetOnBattlefield(state, [
+            { card: aura, controllerId: "p1" },
+        ]);
+        return { state, entered };
+    }
+
+    it("the CR 303.4f offer and the CR 303.4c/704.5m sweep agree — a stale granted clause steers neither", () => {
+        // Control Magic is PRINTED "enchant creature". Its graveyard instance
+        // carries a granted "enchant artifact" clause left over from a
+        // previous existence on the battlefield. CR 400.7: the object that
+        // moved zones is a NEW object with no memory of it.
+        //
+        // Before the fix the offer read the stale clause (artifact only) and
+        // auto-attached to `sol-1`; staging then dropped the clause, the sweep
+        // re-read the printed one, and Control Magic was binned attached to a
+        // host it had just been offered.
+        const aura = makeInstance(controlMagic.id, {
+            id: "cm-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+            grantedEnchantRestriction: { types: ["Artifact"] },
+        });
+
+        const { state, entered } = reanimate(aura);
+
+        expect(entered).toContain("cm-1");
+        const live = find(state, "cm-1")!;
+        expect(live.grantedEnchantRestriction).toBeUndefined();
+        // The printed clause is the only one either site can see, so both see
+        // exactly one legal host — the creature.
+        expect(live.attachedTo).toBe("bear-1");
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // …and the enforcement agrees with the offer it was handed.
+        expect(checkAuraAttachmentSBA(state)).toBe(false);
+        expect(find(state, "cm-1")).toBeDefined();
+    });
+
+    it("CR 303.4g — an Aura whose ONLY clause was a runtime grant has no legal host on re-entry and never enters", () => {
+        // The reviewer's probe, as a permanent test. The Necromancy shape has
+        // NO printed `targetRequirement`, so once CR 400.7 has taken the
+        // granted clause away the object declares no enchant ability at all:
+        // zero legal hosts, and CR 303.4g leaves it in the graveyard rather
+        // than letting it enter and be binned by the very next sweep.
         const aura = makeInstance(TEST_BECOMES_AURA_ID, {
             id: "aura-1",
             controllerId: "p1",
@@ -261,53 +335,54 @@ describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () =>
             subtypes: ["Aura"],
             grantedEnchantRestriction: {
                 types: ["Creature"],
-                hostId: "bear-2",
+                hostId: "bear-1",
             },
         });
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    graveyard: [aura],
-                    battlefield: [
-                        makeInstance(grizzlyBears.id, {
-                            id: "bear-1",
-                            controllerId: "p1",
-                            ownerId: "p1",
-                        }),
-                        makeInstance(grizzlyBears.id, {
-                            id: "bear-2",
-                            controllerId: "p1",
-                            ownerId: "p1",
-                        }),
-                    ],
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        state.players[0].graveyard = [];
 
-        const entered = putReanimatedSetOnBattlefield(state, [
-            { card: aura, controllerId: "p1" },
-        ]);
+        const { state, entered } = reanimate(aura);
 
-        // Exactly one candidate → auto-attach, no prompt (ADR 0003).
+        expect(entered).not.toContain("aura-1");
+        expect(find(state, "aura-1")).toBeUndefined();
         expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(entered).toContain("aura-1");
-        expect(find(state, "aura-1")!.attachedTo).toBe("bear-2");
+        const binned = state.players[0].graveyard.find(
+            (c) => c.id === "aura-1"
+        )!;
+        expect(binned).toBeDefined();
+        expect(binned.attachedTo).toBeUndefined();
+        expect(binned.grantedEnchantRestriction).toBeUndefined();
     });
 
-    it("resolveEnchantRestriction: instance-granted wins over printed", () => {
-        // Control Magic is PRINTED "enchant creature"; a granted clause
-        // replaces it rather than adding to it.
+    it("the entry-side reset drops the clause too (CR 400.7)", () => {
+        // The `resetBattlefieldTransientState` half of the scope, exercised
+        // directly: it is the reset every entry path shares, and the one that
+        // catches a grant arriving by any route the reanimation helpers above
+        // don't own.
+        const aura = makeInstance(TEST_BECOMES_AURA_ID, {
+            id: "aura-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            grantedEnchantRestriction: { types: ["Creature"] },
+        });
+        resetBattlefieldTransientState(aura);
+        expect(aura.grantedEnchantRestriction).toBeUndefined();
+        expect(resolveEnchantRestriction(aura)).toEqual([]);
+    });
+});
+
+describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () => {
+    it("CR 702.5c — a granted clause NARROWS the printed one, it does not replace it", () => {
+        // "If an Aura has multiple instances of enchant, all of them apply. …
+        // The Aura can enchant only objects or players that match all of its
+        // enchant abilities." Control Magic is printed "enchant creature"; a
+        // granted "enchant artifact" leaves only artifact creatures legal.
         const printed = makeInstance(controlMagic.id, {
             id: "cm-1",
             controllerId: "p1",
             ownerId: "p1",
         });
-        expect(resolveEnchantRestriction(printed)).toEqual({
-            types: ["Creature"],
-            players: false,
-        });
+        expect(resolveEnchantRestriction(printed)).toEqual([
+            { types: ["Creature"], players: false },
+        ]);
 
         const granted = makeInstance(controlMagic.id, {
             id: "cm-2",
@@ -315,18 +390,37 @@ describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () =>
             ownerId: "p1",
             grantedEnchantRestriction: { types: ["Artifact"] },
         });
-        expect(resolveEnchantRestriction(granted)).toEqual({
-            types: ["Artifact"],
-        });
+        expect(resolveEnchantRestriction(granted)).toEqual([
+            { types: ["Artifact"] },
+            { types: ["Creature"], players: false },
+        ]);
+
         const artifactHost = makeInstance(mountain.id, {
             id: "art-1",
             controllerId: "p1",
             ownerId: "p1",
         });
         artifactHost.types = ["Artifact"];
-        expect(hostMatchesEnchantRestriction(artifactHost, granted)).toBe(true);
+        // Matches the granted clause but not the printed one → illegal.
+        expect(hostMatchesEnchantRestriction(artifactHost, granted)).toBe(
+            false
+        );
         expect(hostMatchesEnchantRestriction(artifactHost, printed)).toBe(
             false
+        );
+
+        const artifactCreature = makeInstance(grizzlyBears.id, {
+            id: "ac-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        artifactCreature.types = ["Artifact", "Creature"];
+        // Matches BOTH clauses → the only shape that is legal for `granted`.
+        expect(hostMatchesEnchantRestriction(artifactCreature, granted)).toBe(
+            true
+        );
+        expect(hostMatchesEnchantRestriction(artifactCreature, printed)).toBe(
+            true
         );
     });
 
@@ -337,7 +431,7 @@ describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () =>
             ownerId: "p1",
         });
         // Grizzly Bears has no `targetRequirement` at all.
-        expect(resolveEnchantRestriction(bear)).toBeNull();
+        expect(resolveEnchantRestriction(bear)).toEqual([]);
         expect(hostMatchesEnchantRestriction(bear, bear)).toBe(false);
         expect(auraEnchantsPlayers(bear)).toBe(false);
     });
