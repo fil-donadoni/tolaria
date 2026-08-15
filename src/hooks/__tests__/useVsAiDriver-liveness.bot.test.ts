@@ -150,12 +150,33 @@ vi.mock("convex/react", () => ({
 // resolves EVERY in-flight consult with exactly that, and a search over a
 // window with no enumerated move does the same. That is the shape that used to
 // latch the driver: the runner resolves having sent no mutation at all.
-let brainResult: { move: unknown; trace: unknown } = {
+let brainResult: {
+    move: unknown;
+    trace: unknown;
+    outcome?: string;
+    via?: string;
+    message?: string;
+} = {
     move: null,
     trace: null,
+    // The real contract since issue #2470 — a consult always says HOW it
+    // ended, and the driver records that verdict. A stub that omitted it would
+    // file every record under `outcome: undefined`.
+    outcome: "no-move",
+    via: "worker",
 };
+/** Hold the consult UNRESOLVED so a test can advance the board while the search
+ *  is still running — the only way to tell the version a verdict is filed under
+ *  apart from the latest one. */
+let deferConsult = false;
+let releaseConsult: ((result: unknown) => void) | undefined;
 vi.mock("~/lib/ai/brain-client", () => ({
-    consultBrain: () => Promise.resolve(brainResult),
+    consultBrain: () =>
+        deferConsult
+            ? new Promise((resolve) => {
+                  releaseConsult = resolve;
+              })
+            : Promise.resolve(brainResult),
     disposeBrain: () => {},
 }));
 
@@ -163,6 +184,11 @@ vi.mock("~/lib/ai/brain-client", () => ({
 // ladder is built from `chooseOwedChoiceAction` / `chooseOwedTargetAction` /
 // `decidePriorityAction`, and stubbing those too would be testing nothing.
 let stubDecideNone = true;
+/** Force the "the engine says the bot owes input and the Brain has no answer
+ *  for that window" decision (ADR 0047's `unanswered`) — a DEFECT the driver
+ *  escalates immediately, and a decision exit that must not be described by
+ *  silence. */
+let stubDecideUnanswered = false;
 vi.mock("~/lib/ai/brain", async (importOriginal) => {
     const actual = await importOriginal<typeof import("~/lib/ai/brain")>();
     return {
@@ -170,9 +196,11 @@ vi.mock("~/lib/ai/brain", async (importOriginal) => {
         decideBotAction: (
             view: Parameters<typeof actual.decideBotAction>[0]
         ) =>
-            stubDecideNone
-                ? ({ kind: "none" } as const)
-                : actual.decideBotAction(view),
+            stubDecideUnanswered
+                ? ({ kind: "unanswered" } as const)
+                : stubDecideNone
+                  ? ({ kind: "none" } as const)
+                  : actual.decideBotAction(view),
     };
 });
 
@@ -438,6 +466,9 @@ beforeEach(() => {
     mutationsThrow = false;
     onMutation = undefined;
     stubDecideNone = true;
+    stubDecideUnanswered = false;
+    deferConsult = false;
+    releaseConsult = undefined;
     clearAiDecisions();
     brainResult = { move: null, trace: null };
     clearAiEscalations();
@@ -679,6 +710,75 @@ describe("bot liveness invariant (issue #2284)", () => {
         expect(rejected.length).toBeGreaterThan(0);
         expect(rejected[0].message).toContain("server rejected");
         expect(rejected[0].seq).toBe(42);
+    });
+
+    // Review of #2475 (post-merge) — the CONSULT verdict was the one record
+    // that still read "the latest committed state" instead of the version the
+    // search actually ran on. It is also the record type #2450 exists to
+    // produce (`worker-error` / `timeout` / `no-move` / `move`), and its window
+    // is the widest in the driver: Worker startup plus a full difficulty
+    // budget. A verdict filed under a version the search never saw cannot be
+    // lined up with the board snapshot beside it.
+    it("files the consult verdict under the version the SEARCH ran on", async () => {
+        stubDecideNone = false;
+        deferConsult = true;
+        // A land in hand makes this a window worth searching — otherwise
+        // `shouldThink` short-circuits to a trivial pass and no consult happens.
+        const board = priorityBoard();
+        board.players[1].hand = [
+            makeInstance(FOREST, {
+                id: "land1",
+                controllerId: BOT,
+                ownerId: BOT,
+                zone: "hand",
+            }),
+        ];
+        publish(board, 1);
+
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+        expect(releaseConsult).toBeDefined();
+
+        // The board moves on while the search is still running.
+        publish(board, 2);
+        rerender();
+        await advance(50);
+
+        // …and only THEN does the Brain answer, badly.
+        releaseConsult!({
+            move: null,
+            trace: null,
+            outcome: "worker-error",
+            via: "worker",
+            message: "Script error",
+        });
+        await advance(50);
+
+        const verdict = getAiDecisions().find(
+            (d) => d.outcome === "worker-error"
+        );
+        expect(verdict).toBeDefined();
+        expect(verdict!.seq).toBe(1);
+    });
+
+    // The `unanswered` exit: the engine names the bot, the Brain has no answer,
+    // and the driver escalates immediately without dispatching. It records
+    // nothing anywhere but the escalation ring unless this breadcrumb exists —
+    // and the escalation ring says which rung FIRED, never why the normal path
+    // produced nothing.
+    it("records the window the Brain had no answer for", async () => {
+        stubDecideUnanswered = true;
+        publish(priorityBoard(), 7);
+
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+
+        const unanswered = getAiDecisions().find(
+            (d) => d.outcome === "unanswered"
+        );
+        expect(unanswered).toBeDefined();
+        expect(unanswered!.expectedKind).toBe("priority");
+        expect(unanswered!.seq).toBe(7);
     });
 
     it("rung 5 hands the player a control that advances the game (end-to-end)", async () => {

@@ -429,17 +429,25 @@ export function useVsAiDriver(
                 actionKind?: BotAction["kind"];
                 message?: string;
             },
-            /** The board version this decision was taken ON. Passed in rather
-             *  than read here, because the two are not the same moment: a
-             *  `submit-error` note fires from a promise rejection that can land
-             *  hundreds of ms after the submission, by which time the ref has
-             *  moved on — and a record whose `seq` does not match the state the
-             *  decision was made against cannot be lined up with the board
-             *  snapshot beside it, which is the whole job of these two fields.
-             *  Omitted → the current committed state. */
-            at?: { phase: Phase; seq: number }
+            /** The board version this decision was taken ON — REQUIRED, and
+             *  every caller states it.
+             *
+             *  It cannot be read here, because "now" and "when the decision was
+             *  taken" are different moments for every async caller: a
+             *  `submit-error` fires from a promise rejection, and the consult
+             *  verdict from a search that ran for up to a full difficulty
+             *  budget. A record whose `seq` names a version the decision never
+             *  saw cannot be lined up with the board snapshot beside it, which
+             *  is the entire job of these two fields.
+             *
+             *  It was briefly optional, defaulting to the latest committed
+             *  state — and the one caller that omitted it was the CONSULT
+             *  verdict, i.e. the record type #2450 exists to produce. An
+             *  optional correctness argument is one every future call site gets
+             *  to lose; a required parameter is one the compiler wins. */
+            at: { phase: Phase; seq: number } | undefined
         ) => {
-            const state = at ?? botStateRef.current;
+            const state = at;
             if (!state) return;
             try {
                 recordAiDecision({
@@ -702,7 +710,11 @@ export function useVsAiDriver(
         // the watchdog effect below, immediately (issue #2284). Recorded first:
         // it is a decision EXIT, and one the ring must not describe by silence.
         if (action.kind === "unanswered") {
-            note("unanswered", { expectedKind: view.owedInput!.kind });
+            note(
+                "unanswered",
+                { expectedKind: view.owedInput!.kind },
+                { phase: botState.phase, seq: botState.seq }
+            );
             return;
         }
 
@@ -728,10 +740,14 @@ export function useVsAiDriver(
                 // record (issue #2470 review, finding 1) the ring showed the
                 // previous decision, a gap, then escalation rungs: exactly the
                 // "died leaving no trace" shape this ring exists to remove.
-                note("unrealisable", {
-                    expectedKind: view.owedInput!.kind,
-                    actionKind: action.kind,
-                });
+                note(
+                    "unrealisable",
+                    {
+                        expectedKind: view.owedInput!.kind,
+                        actionKind: action.kind,
+                    },
+                    { phase: botState.phase, seq: botState.seq }
+                );
             }
             return;
         }
@@ -770,6 +786,14 @@ export function useVsAiDriver(
             // server move path is untouched — this only tunes how hard the
             // client-side brain thinks.
             const budget = budgetFor(getStoredDifficulty());
+            // The version the SEARCH is about to run on. Captured before the
+            // consult, not read when it resolves: a search takes up to a full
+            // difficulty budget plus Worker startup, and its verdict —
+            // `worker-error`, `timeout`, `no-move`, `move` — is the record type
+            // #2450 exists to produce. Filing it under whatever version happens
+            // to be committed when it lands is exactly the mismatch that makes
+            // a breadcrumb unusable next to the board snapshot.
+            const at = { phase: botState.phase, seq: botState.seq };
             dispatch(
                 signature,
                 () =>
@@ -782,12 +806,16 @@ export function useVsAiDriver(
                             // next: `no-move` after a healthy search and
                             // `worker-error` after a dead one both arrive here
                             // as `move === null`, and only this says which.
-                            note(outcome, {
-                                expectedKind: view.owedInput!.kind,
-                                via,
-                                message,
-                                ...(move ? { moveKind: move.kind } : {}),
-                            });
+                            note(
+                                outcome,
+                                {
+                                    expectedKind: view.owedInput!.kind,
+                                    via,
+                                    message,
+                                    ...(move ? { moveKind: move.kind } : {}),
+                                },
+                                at
+                            );
                             // Safety net for a searched pending choice (issue #1506)
                             // and for a searched engine-raised TARGET selection
                             // (issue #2283): either window suppresses every other
