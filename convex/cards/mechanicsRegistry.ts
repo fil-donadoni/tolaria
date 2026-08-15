@@ -2444,13 +2444,17 @@ const ABILITY_WORDS: MechanicRow[] = [
 /** Named mechanics reused across a specific SET's cards, censused for the
  *  SAME reason CR 701/702 keywords are (a real, parametrized, machine-checked
  *  name — not a card-specific one-off, which belongs in
- *  `ENGINE_INTERNAL_MARKERS` instead) but with no CR 701/702 section of their
- *  own: Universes Beyond set-original keywords (issue #1317's Earthbend, from
- *  Avatar: The Last Airbender / TLA). Kept in its own array — not appended to
- *  `KEYWORD_ACTIONS` / `KEYWORD_ABILITIES`, whose header comments document a
- *  closed, exact CR-702/701-numbered census — so those two stay a faithful CR
- *  census while `SET_KEYWORDS` still feeds `MECHANICS_REGISTRY` (and therefore
- *  `isNamedMechanic`) like any other row. */
+ *  `ENGINE_INTERNAL_MARKERS` instead): Universes Beyond set-original keywords
+ *  (issue #1317's Earthbend, from Avatar: The Last Airbender / TLA). Kept in
+ *  its own array — not appended to `KEYWORD_ACTIONS` / `KEYWORD_ABILITIES`,
+ *  whose header comments document a closed, hand-maintained CR-702/701-
+ *  numbered census — so those two stay a faithful CR census while
+ *  `SET_KEYWORDS` still feeds `MECHANICS_REGISTRY` (and therefore
+ *  `isNamedMechanic`) like any other row. (Issue #2446: Earthbend itself DOES
+ *  have a numbered CR section as of the vendored CR document — CR 701.66,
+ *  `bun run cr 701.66` — so "no CR section of their own" is no longer true
+ *  set-wide; a row still stays here rather than migrating array on that
+ *  basis alone.) */
 const SET_KEYWORDS: MechanicRow[] = [
     // Earthbend N — TLA (Avatar: The Last Airbender) set keyword, issue #1317.
     // Invoked as a VERB inside a triggered/activated ability's effect text
@@ -2465,12 +2469,21 @@ const SET_KEYWORDS: MechanicRow[] = [
         id: "earthbend",
         name: "Earthbend",
         kind: "keyword-action",
-        cr: "not a CR 701/702 entry — TLA (Avatar: The Last Airbender) set keyword",
+        // CR 701.66 (issue #2446 correction) — the vendored CR document DOES
+        // carry a numbered section for this TLA (Avatar: The Last Airbender)
+        // keyword action (`bun run cr 701.66`); the earlier "not a CR 701/702
+        // entry" citation predated that formalization and was wrong. Left in
+        // `SET_KEYWORDS` rather than moved to `KEYWORD_ACTIONS` — that array's
+        // header comments document a closed, hand-maintained CR-701-numbered
+        // census, and moving a row is a bigger structural change than this
+        // fix warrants; the `cr` field below is what `isNamedMechanic` and
+        // every reader actually consult.
+        cr: "701.66",
         status: "implemented",
         bindingPattern: /^earthbend \d+$/i,
         binding:
-            "animate + counters Ops (Badgermole Cub's ETB effects[], tla/green.ts)",
-        note: 'Oracle reminder text (Badgermole Cub, Scryfall, confirmed uniform across 28 TLA earthbend cards): "Target land you control becomes a 0/0 creature with haste that\'s still a land. Put N +1/+1 counters on it. When it dies or is exiled, return it to the battlefield tapped." Decomposes into TWO already-general Ops (primitive-reuse mandate) on a `targetRequirement: { type: "Land", count: 1, controller: "you" }` triggered ability: `animate` (base 0/0, `subtype: "Elemental"`, `grantedAbilities: ["haste"]`, no `duration` — CR 611.2b indefinite, since the reminder text carries no "until end of turn" clause) then `counters` (`action: "add"`, "+1/+1", count N). The reminder text\'s THIRD sentence — "When it dies or is exiled, return it to the battlefield tapped." — is a delayed triggered ability (CR 603.7a) watching one specific object indefinitely, and SHIPPED with issue #1470: a third `delayedTrigger` Op with the new INDEFINITE instance-leave-watch timing `leaves-battlefield-indefinite` (same `watch` + PERMANENT_LEFT match in `gre/triggers.ts` as `"leaves-battlefield"`, but EXCLUDED from the CLEANUP purge in `gre/phases.ts`, so the watch survives end of turn), whose body is two `moveZone` return-a-departed-object Ops (issue #1469) — `from: "graveyard"` (dies) and `from: "exile"` (exiled, or a `graveyardDestinationFor` redirect), both `tapped: true` and under the land\'s OWNER\'s control (earthbend has no controller-override clause). Exactly one finds the card; the other, and the whole body when the land has moved on, is a CR 608.2b no-op. CR 400.7 hygiene (plain land back, no counters / haste / animation) is handled at `resetBattlefieldTransientState` — see the `animate` row above.',
+            "animate + counters + delayedTrigger Ops (Badgermole Cub's ETB effects[], tla/green.ts)",
+        note: 'CR 701.66a: "\'Earthbend N\' means \'Target land you control becomes a 0/0 land creature with haste in addition to its other types. Put N +1/+1 counters on it. When that land dies or is put into exile, return it to the battlefield tapped under your control.\'" Decomposes into TWO already-general Ops (primitive-reuse mandate) on a `targetRequirement: { type: "Land", count: 1, controller: "you" }` triggered ability: `animate` (base 0/0, NO subtype — the rule grants the card type Creature "in addition to its other types", not a creature subtype; `grantedAbilities: ["haste"]`, no `duration` — CR 611.2b indefinite, since the rule text carries no "until end of turn" clause) then `counters` (`action: "add"`, "+1/+1", count N). The rule\'s THIRD sentence — "When that land dies or is put into exile, return it to the battlefield tapped under your control." — is a delayed triggered ability (CR 603.7a) watching one specific object indefinitely, and SHIPPED with issue #1470: a third `delayedTrigger` Op with the new INDEFINITE instance-leave-watch timing `leaves-battlefield-indefinite` (same `watch` + PERMANENT_LEFT match in `gre/triggers.ts` as `"leaves-battlefield"`, but EXCLUDED from the CLEANUP purge in `gre/phases.ts`, so the watch survives end of turn), whose body is two `moveZone` return-a-departed-object Ops (issue #1469) — `from: "graveyard"` (dies) and `from: "exile"` (exiled, or a `graveyardDestinationFor` redirect), both `tapped: true` and both `controller: "controller"` (issue #2446 — CR 701.66a\'s own "under your control" clause: the earthbending player, fixed at scheduling time, NOT the land\'s owner). Exactly one finds the card; the other, and the whole body when the land has moved on, is a CR 608.2b no-op. CR 400.7 hygiene (plain land back, no counters / haste / animation) is handled at `resetBattlefieldTransientState` — see the `animate` row above. CR 701.66b ("An ability that triggers whenever a player earthbends triggers when the delayed triggered ability described in rule 701.66a is created") is N/A: Badgermole Cub is the only card in the catalogue that reaches this keyword, and no card triggers off "whenever a player earthbends" — nothing to wire up yet.',
     },
 ];
 
@@ -2921,7 +2934,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "208.2 / 611.1",
         binding: "SpellContext.animateAsCreature",
-        note: 'Turns a permanent into a creature with a given base P/T, optional subtype/additionalTypes/permanently-granted keyword abilities, for `duration` (a temporary Mishra\'s-Factory-style animation, CR 611.2) or INDEFINITELY when `duration` is omitted (CR 611.2b — no revert until the permanent leaves the battlefield). A thin declarative skin over the pre-existing SpellContext primitive `animateAsCreature` (previously reachable only from a `resolve()` closure — Mishra\'s Factory, atq/colorless.ts — never a DSL Op), one execution path (ADR 0045). `target` is an announced slot, the resolving source (`$source`), or a forEach `$each`; `power`/`toughness` are the animation\'s base stats (a later `counters`/`pump` Op still applies on top, CR 613.4). Issue #1317 (Earthbend N, TLA — Badgermole Cub): `animate` (0/0, subtype "Elemental", `grantedAbilities: ["haste"]`, no `duration`) composes with the pre-existing `counters` Op (`action: "add"`, "+1/+1", count N) to fully decompose "Target land you control becomes a 0/0 creature with haste that\'s still a land. Put N +1/+1 counters on it." — no earthbend-specific Op needed (primitive-reuse mandate). Issue #1470 closed the INDEFINITE animation\'s CR 400.7 end-of-life gap: an animation mutates the instance IN PLACE (`types`/`subtypes`/`power`/`toughness`), and a `duration`-less one has no tick to revert it, so a land that left the battlefield and came back was still a 0/0 creature-land with the granted haste. `resetBattlefieldTransientState` (`gre/state.ts`) — the shared chokepoint for both the hand/library departure and every reanimation-style ENTRY — now calls the exported `revertAnimation` and splices the animation-granted keywords back out of `staticAbilities`, so the returning object is a plain land (also fixing the same class for a bounced manland). See the `earthbend` row below for the keyword\'s own census entry.',
+        note: 'Turns a permanent into a creature with a given base P/T, optional subtype/additionalTypes/permanently-granted keyword abilities, for `duration` (a temporary Mishra\'s-Factory-style animation, CR 611.2) or INDEFINITELY when `duration` is omitted (CR 611.2b — no revert until the permanent leaves the battlefield). A thin declarative skin over the pre-existing SpellContext primitive `animateAsCreature` (previously reachable only from a `resolve()` closure — Mishra\'s Factory, atq/colorless.ts — never a DSL Op), one execution path (ADR 0045). `target` is an announced slot, the resolving source (`$source`), or a forEach `$each`; `power`/`toughness` are the animation\'s base stats (a later `counters`/`pump` Op still applies on top, CR 613.4). Issue #1317 (Earthbend N, TLA — Badgermole Cub): `animate` (0/0, NO subtype — CR 701.66a grants the card type Creature "in addition to its other types", not a creature subtype; `grantedAbilities: ["haste"]`, no `duration`; corrected in issue #2446 after shipping with an ungranted `subtype: "Elemental"`) composes with the pre-existing `counters` Op (`action: "add"`, "+1/+1", count N) to fully decompose CR 701.66a\'s "Target land you control becomes a 0/0 land creature with haste in addition to its other types. Put N +1/+1 counters on it." — no earthbend-specific Op needed (primitive-reuse mandate). Issue #1470 closed the INDEFINITE animation\'s CR 400.7 end-of-life gap: an animation mutates the instance IN PLACE (`types`/`subtypes`/`power`/`toughness`), and a `duration`-less one has no tick to revert it, so a land that left the battlefield and came back was still a 0/0 creature-land with the granted haste. `resetBattlefieldTransientState` (`gre/state.ts`) — the shared chokepoint for both the hand/library departure and every reanimation-style ENTRY — now calls the exported `revertAnimation` and splices the animation-granted keywords back out of `staticAbilities`, so the returning object is a plain land (also fixing the same class for a bounced manland). See the `earthbend` row below for the keyword\'s own census entry.',
     },
     {
         op: "setBasePT",
