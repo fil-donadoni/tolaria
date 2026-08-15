@@ -1622,9 +1622,24 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // no longer exists. Net: total 480->479, FREE 315->314, AFK-ready
         // 306->305; X-only unchanged at 15, Op-blocked unchanged at 150.
         // Partition: 314+15+150=479.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(479);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(314);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(305);
+        //
+        // Doomsday (wth/black.ts, issue #2381) ADDS one `resolveSteps` closure.
+        // Every primitive it calls is covered (requestChoice / moveCardById /
+        // putLibraryCardsOnTop / getLife / loseLife), so the classifier's
+        // coarse "does it call an uncovered primitive" heuristic files it
+        // FREE — the same false-FREE shape as Vaultborn Tyrant above. What
+        // actually keeps it `resolve()` is CONTROL FLOW the DSL's four frozen
+        // constructs cannot express: a choice whose COUNT depends on an
+        // earlier choice's result, a move set defined as the COMPLEMENT of a
+        // choice, and a reorder driven by a choice's ORDER (the
+        // reorder-FROM-choice gap the `libraryLook` registry row names). It
+        // carries a per-card test (`wth/__tests__/black.test.ts`), so
+        // AFK-ready too. Net: total 479->480, FREE 314->315, AFK-ready
+        // 305->306; X-only unchanged at 15, Op-blocked unchanged at 150.
+        // Partition: 315+15+150=480.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(480);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(315);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(306);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
     });
