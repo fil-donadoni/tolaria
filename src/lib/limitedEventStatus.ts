@@ -53,3 +53,20 @@ export function limitedEventStatusHint(
     }
     return event.completed ? "ready to play" : "deckbuilding";
 }
+
+/** The viewer's own match record for a list row (issue #2357), formatted
+ *  the standard "wins-losses[-draws]" way — draws appended only when there
+ *  ARE any (a `0`-draw event never shows the trailing `-0`). `null` (render
+ *  nothing) when the row carries no record at all: an event that hasn't
+ *  reached the play phase yet — see `limitedEventSummaryValidator`'s
+ *  `viewerMatchRecord` (`convex/limitedEvents.ts`), which is already blank
+ *  rather than `{ wins: 0, losses: 0, draws: 0 }` in that case, so this never
+ *  has to re-derive the "reached the play phase" question itself. */
+export function formatLimitedMatchRecord(
+    record: { wins: number; losses: number; draws: number } | undefined
+): string | null {
+    if (!record) return null;
+    return record.draws > 0
+        ? `${record.wins}-${record.losses}-${record.draws}`
+        : `${record.wins}-${record.losses}`;
+}

@@ -96,6 +96,7 @@ import {
     type ResolvePairingPresence,
     type ResolveSeatStrength,
 } from "./limited/rounds";
+import { computeStandings } from "./limited/standings";
 import {
     projectLimitedEvent,
     type HumanDeckView,
@@ -469,7 +470,20 @@ const limitedEventSummarySeatValidator = v.object({
     hasDeck: v.boolean(),
 });
 
-const limitedEventSummaryValidator = v.object({
+/** The viewer's own match record for a list row (issue #2357) — the
+ *  standings module's totals for the viewer's seat, `wins`/`losses`/`draws`
+ *  rather than `computeStandings`'s full `StandingsRow` (points,
+ *  game-win %, opponent match-win % are the event DETAIL's Standings table's
+ *  job, never a list row's — see the issue's "Out of scope"). Absent on the
+ *  summary itself (not this object) whenever the event hasn't reached the
+ *  play phase yet — see `viewerMatchRecordFor`. */
+const limitedEventMatchRecordValidator = v.object({
+    wins: v.number(),
+    losses: v.number(),
+    draws: v.number(),
+});
+
+export const limitedEventSummaryValidator = v.object({
     _id: v.string(),
     createdBy: v.string(),
     type: eventTypeValidator,
@@ -483,6 +497,10 @@ const limitedEventSummaryValidator = v.object({
     seats: v.array(limitedEventSummarySeatValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
+    // Blank (absent), never `{ wins: 0, losses: 0, draws: 0 }`, for an event
+    // that never reached the play phase (issue #2357 AC) — a row with no
+    // record renders nothing, not a false "0-0".
+    viewerMatchRecord: v.optional(limitedEventMatchRecordValidator),
 });
 
 /** The list-row view, derived from its validator so the two can't drift. */
@@ -1162,6 +1180,38 @@ export async function cascadeEventRounds(
     });
 }
 
+/** The viewer's own match record for a list row (issue #2357), derived from
+ *  `computeStandings` — the single authority `convex/limited/standings.ts`
+ *  folds every decided Pairing into — and keyed to the viewer's OWN seat, so
+ *  this never re-walks Pairings itself. Reads only `event.seats`/
+ *  `event.rounds`, both already embedded on the row (ADR 0076): no extra
+ *  fetch, no `limitedSeats` read.
+ *
+ *  `undefined` (blank, not a `0-0`) whenever:
+ *  - the viewer isn't seated in this event, or
+ *  - the event hasn't reached the play phase yet (`areRoundsRunning`/
+ *    `isEventConcluded` both false) — a Draft/Sealed/deckbuilding event has
+ *    no rounds to have a record from. */
+export function viewerMatchRecordFor(
+    event: Doc<"limitedEvents">,
+    viewerUserId: string | null
+): Infer<typeof limitedEventMatchRecordValidator> | undefined {
+    if (viewerUserId === null) return undefined;
+    if (!areRoundsRunning(event.status) && !isEventConcluded(event.status)) {
+        return undefined;
+    }
+    const seat = event.seats.find((s) => s.userId === viewerUserId);
+    if (!seat) return undefined;
+    const standings = computeStandings(event.seats, event.rounds ?? []);
+    const row = standings.find((r) => r.seatIndex === seat.seatIndex);
+    if (!row) return undefined;
+    return {
+        wins: row.matchWins,
+        losses: row.matchLosses,
+        draws: row.matchDraws,
+    };
+}
+
 /** Projects one event for a LIST row — see `limitedEventSummaryValidator`.
  *
  *  Reads NOTHING beyond the event row itself and the (indexed, per-event)
@@ -1169,7 +1219,7 @@ export async function cascadeEventRounds(
  *  Auto-Build. That is the whole point — these two queries scan multiple
  *  events and re-run on every write to any of them, so anything they load per
  *  event is paid once per draft pick, per subscribed client. */
-async function projectEventSummary(
+export async function projectEventSummary(
     ctx: QueryCtx,
     event: Doc<"limitedEvents">,
     viewerUserId: string | null
@@ -1199,6 +1249,7 @@ async function projectEventSummary(
         seatsWithDeck: completion.seatsWithDeck,
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
+        viewerMatchRecord: viewerMatchRecordFor(event, viewerUserId),
         seats: event.seats.map((seat) => ({
             seatIndex: seat.seatIndex,
             userId: seat.userId,
@@ -1358,6 +1409,42 @@ export const myLimitedEvents = query({
         return Promise.all(
             events
                 .filter((event) => event.seats.some((s) => s.userId === userId))
+                .map((event) => projectEventSummary(ctx, event, userId))
+        );
+    },
+});
+
+/** Every event the current user occupies a Seat in that HASN'T concluded yet
+ *  (issue #2357) — the narrowed view backing the "Your Current Events"
+ *  surfaces: the dashboard's Limited box and the Limited Events page's own
+ *  seated-events section. Both want live re-entry points, not a scoreboard
+ *  of everything the viewer has ever sat at. `/limited/events`
+ *  (`myLimitedEvents`, unchanged) is where a concluded event's record lives.
+ *
+ *  Same slim scan + `projectEventSummary` as `myLimitedEvents` above — this
+ *  is a NEW query rather than a client-side filter over that one specifically
+ *  so the cut is server-side (issue #2357 AC: "no component re-derives it")
+ *  and so `myLimitedEvents` itself can keep returning every status: the Draft
+ *  Lab's replay picker reads THAT one to list completed Drafts (most of which
+ *  are concluded events) — narrowing it in place would silently empty that
+ *  picker. */
+export const myCurrentLimitedEvents = query({
+    args: {},
+    returns: v.array(limitedEventSummaryValidator),
+    handler: async (ctx) => {
+        const user = await getCurrentUser(ctx);
+        const userId = user._id;
+        const events = await ctx.db
+            .query("limitedEvents")
+            .order("desc")
+            .take(MY_EVENTS_SCAN_LIMIT);
+        return Promise.all(
+            events
+                .filter(
+                    (event) =>
+                        event.seats.some((s) => s.userId === userId) &&
+                        !isEventConcluded(event.status)
+                )
                 .map((event) => projectEventSummary(ctx, event, userId))
         );
     },
@@ -1556,15 +1643,32 @@ export const leaveLimitedEvent = mutation({
     },
 });
 
-/** The event's creator cancels the whole event while it's still OPEN (issue
- *  #1579): a hard delete, same as an admin's preset delete
- *  (`decks.deletePreset`) — an open event that never started carries no
- *  Pool/Draft state worth keeping around, so there's nothing to archive.
- *  Removing the row drops it from `listOpenLimitedEvents` (by_status index)
- *  and every occupant's `myLimitedEvents` reactively. Rejected once the
- *  event has `started` (an in-progress/completed event's Pools/decks are
- *  real player work — cancelling it is a different, undesigned, action) and
- *  for anyone but the creator. */
+/** The event's creator closes the event — the ONE manual creator action, for
+ *  the whole life of the event (issue #2357, extending issue #1579's
+ *  OPEN-only cancel). What it does depends on the phase, asked through
+ *  `eventStatus.ts`'s named predicates (ADR 0076) rather than a literal
+ *  status comparison:
+ *
+ *  - **Seating still open** (`isSeatingOpen`): unchanged from #1579 — a hard
+ *    delete of the event row plus its seat rows, same as an admin's preset
+ *    delete (`decks.deletePreset`). Nothing has been dealt yet, so there's
+ *    nothing worth archiving. Removing the row drops it from
+ *    `listOpenLimitedEvents` (by_status index) and every occupant's
+ *    `myLimitedEvents` reactively.
+ *  - **Already concluded** (`isEventConcluded`): a no-op, not an error — a
+ *    second close (a race between two clicks, or a creator revisiting a
+ *    naturally-finished event) must never throw. The union gains no new
+ *    member for this: a force-closed event is `finished`, indistinguishable
+ *    from one that reached it by the last Round resolving.
+ *  - **Otherwise** (started/drafting/playing): force-finishes. Pools,
+ *    submitted and Auto-Built decks, Rounds, Pairings and their recorded
+ *    results all survive untouched — only `status` flips to the terminal
+ *    value. Standings are derived at read time (`convex/limited/
+ *    standings.ts`), so a force-closed event simply reports the results it
+ *    actually has; an undecided Pairing is never retroactively assigned a
+ *    winner.
+ *
+ *  Rejected for anyone but the creator, at every phase. */
 export const cancelLimitedEvent = mutation({
     args: { eventId: v.id("limitedEvents") },
     returns: v.null(),
@@ -1573,16 +1677,29 @@ export const cancelLimitedEvent = mutation({
         const event = await ctx.db.get(args.eventId);
         if (!event) throw new Error("Event not found");
         if (event.createdBy !== user._id) {
-            throw new Error("Only the event's creator can cancel it.");
+            throw new Error("Only the event's creator can close it.");
         }
-        if (!isSeatingOpen(event.status)) {
-            throw new Error("This event has already started.");
+        if (isEventConcluded(event.status)) {
+            // Idempotent no-op (issue #2357 AC) — already closed, whether by
+            // this action or by the last Round resolving on its own.
+            return null;
         }
-        // An open event has no Pools, so there is normally nothing to clean
-        // up — but delete unconditionally rather than assume it, since an
-        // orphaned `limitedSeats` row would be unreachable forever.
-        await deleteSeats(ctx, args.eventId);
-        await ctx.db.delete(args.eventId);
+        if (isSeatingOpen(event.status)) {
+            // An open event has no Pools, so there is normally nothing to
+            // clean up — but delete unconditionally rather than assume it,
+            // since an orphaned `limitedSeats` row would be unreachable
+            // forever.
+            await deleteSeats(ctx, args.eventId);
+            await ctx.db.delete(args.eventId);
+            return null;
+        }
+        // Started/drafting/playing: force-finish in place. Every other field
+        // (seats, rounds, pools) is left exactly as it stands — only the
+        // terminal status is written.
+        await ctx.db.patch(args.eventId, {
+            status: "finished",
+            updatedAt: Date.now(),
+        });
         return null;
     },
 });

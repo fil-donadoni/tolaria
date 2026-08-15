@@ -61,11 +61,28 @@ export function useOpenLimitedEvents(): LimitedEventSummaryView[] | undefined {
     );
 }
 
-/** Every event (any status) the current user occupies a Seat in. */
+/** Every event (any status) the current user occupies a Seat in — backs
+ *  `/limited/events` and the Draft Lab's replay picker. Includes concluded
+ *  events; see `useMyCurrentLimitedEvents` for the narrowed, live-only cut. */
 export function useMyLimitedEvents(): LimitedEventSummaryView[] | undefined {
     const pageVisible = usePageVisible();
     return useQuery(
         api.limitedEvents.myLimitedEvents,
+        pageVisible ? {} : "skip"
+    );
+}
+
+/** Every event the current user occupies a Seat in that hasn't concluded yet
+ *  (issue #2357) — feeds the dashboard's Limited box and the Limited Events
+ *  page's own seated-events section ("Your Current Events"). Narrower than
+ *  `useMyLimitedEvents`: a concluded event drops off this one but stays on
+ *  `/limited/events`. */
+export function useMyCurrentLimitedEvents():
+    | LimitedEventSummaryView[]
+    | undefined {
+    const pageVisible = usePageVisible();
+    return useQuery(
+        api.limitedEvents.myCurrentLimitedEvents,
         pageVisible ? {} : "skip"
     );
 }

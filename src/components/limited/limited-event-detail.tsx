@@ -122,13 +122,18 @@ export default function LimitedEventDetail({
     const isCreator = user !== null && event.createdBy === user._id;
     const canJoin = seatingOpen && !viewerSeat;
     const canStart = seatingOpen && isCreator;
-    // An occupant can leave their own Seat; the creator can cancel the whole
-    // event — both OPEN-only (issue #1579's out-of-scope note: dropping from
-    // a started event is a different, undesigned, concession/replacement
-    // policy). Independent of each other: the creator, if ALSO seated, sees
-    // both actions.
+    // An occupant can leave their own Seat, OPEN-only (issue #1579's
+    // out-of-scope note: dropping from a started event is a different,
+    // undesigned, concession/replacement policy). Independent of `canClose`:
+    // the creator, if ALSO seated, sees both actions.
     const canLeave = seatingOpen && !!viewerSeat;
-    const canCancel = seatingOpen && isCreator;
+    // The creator's ONE close action, for the whole life of the event (issue
+    // #2357) — no longer OPEN-only. What it DOES branches by phase (hard
+    // delete while seating is open, force-finish once started); a second
+    // close on an already-concluded event is a harmless no-op the mutation
+    // itself absorbs (idempotent), so the affordance never has to hide once
+    // the event is done.
+    const canClose = isCreator;
     // Mirrors `isEventPoolFinal` (`convex/limited/autoBuild.ts`, issue
     // #1115): the point at which every bot seat's Pool — and therefore its
     // Auto-Built deck — is final and the vs-AI hookup can offer it. Stays true
@@ -182,10 +187,14 @@ export default function LimitedEventDetail({
     };
     const handleCancel = () => {
         setConfirmCancel(false);
-        // Cancel deletes the row — `getLimitedEvent` reactively flips to
-        // `null` and the `event === null` branch above takes over, so no
-        // explicit navigate is needed here (and racing one against the
-        // reactive update would be strictly worse).
+        // While seating is open this still deletes the row —
+        // `getLimitedEvent` reactively flips to `null` and the
+        // `event === null` branch above takes over, so no explicit navigate
+        // is needed here (and racing one against the reactive update would
+        // be strictly worse). Once the event has started, the SAME mutation
+        // force-finishes it in place instead (issue #2357): the row survives
+        // and this page's own `isEventConcluded` branches re-render it as
+        // concluded, no navigation needed there either.
         void runMutation(() => cancel({ eventId }));
     };
 
@@ -224,10 +233,10 @@ export default function LimitedEventDetail({
                             disabled={pending}
                         />
                     )}
-                    {canCancel && (
+                    {canClose && (
                         <ActionButton
                             onClick={() => setConfirmCancel(true)}
-                            label="Cancel Event"
+                            label={seatingOpen ? "Cancel Event" : "Close Event"}
                             tone="destructive"
                             disabled={pending}
                         />
@@ -376,8 +385,12 @@ export default function LimitedEventDetail({
             <GameDialog
                 open={confirmCancel}
                 onOpenChange={setConfirmCancel}
-                title="Cancel this event?"
-                subtitle="This removes it for every seated player. This action cannot be undone."
+                title={seatingOpen ? "Cancel this event?" : "Close this event?"}
+                subtitle={
+                    seatingOpen
+                        ? "This removes it for every seated player. This action cannot be undone."
+                        : "This ends the event now. Pools, decks, Rounds and results already recorded stay intact — nothing new can be played. This action cannot be undone."
+                }
             >
                 <div className="mt-4 flex justify-end gap-2">
                     <ActionButton
@@ -387,7 +400,7 @@ export default function LimitedEventDetail({
                     />
                     <ActionButton
                         onClick={handleCancel}
-                        label="Cancel Event"
+                        label={seatingOpen ? "Cancel Event" : "Close Event"}
                         tone="destructive"
                         disabled={pending}
                     />
