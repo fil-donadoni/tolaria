@@ -5,19 +5,30 @@ import type { CardDefinition, SpellContext } from "../../types";
 // cards and exile the rest. Put the chosen cards on top of your library in any
 // order. You lose half your life, rounded up."
 //
-// protocol card: three DEPENDENT player decisions in one resolution, each
+// protocol card: TWO DEPENDENT player decisions in one resolution, each
 // consuming the previous one's result. (1) The graveyard pick's COUNT is fixed
-// by how many cards the library pick found. (2) The exile sweep is the
-// COMPLEMENT of both picks — "everything not chosen", which no `moveZone`
-// shape expresses (its filter-driven `fromZones` sweep matches on
-// characteristics, never on "is not in this choice's result"). (3) The final
-// ordering choice's ORDER feeds back into a library-order call — the
-// reorder-FROM-choice gap the `libraryLook` registry row names by card
-// (convex/cards/mechanicsRegistry.ts: "reads an opaque choice result back into
-// reorderLibraryTop … stays a planned backlog Op until a choice-driven reorder
-// construct exists"). The Effect Script's four frozen constructs
-// (bind/ref/if/forEach) express none of the three linkages, so this is the
-// sanctioned escape hatch, not a missing-Op stop-and-issue.
+// by how many cards the library pick found — "five minus the library picks" —
+// and `choice.count` (convex/cards/types.ts) is `number | { min, max }` with
+// LITERAL members only, so a count derived from an earlier choice's size is
+// inexpressible. (2) The exile sweep is the COMPLEMENT of both picks —
+// "everything not chosen", which no `moveZone` shape expresses (its
+// filter-driven `fromZones` sweep matches on characteristics, never on "is not
+// in this choice's result"), and `bindOther` — the one construct that inverts a
+// choice — snapshots exactly ONE unpicked candidate and is validator-restricted
+// to battlefield candidates, never an N-card cross-zone complement. The Effect
+// Script's four frozen constructs (bind/ref/if/forEach) express neither
+// linkage, so this is the sanctioned escape hatch, not a missing-Op
+// stop-and-issue.
+//
+// The final ordering step is NOT a third blocker: `scryReorder` ships
+// (convex/cards/mechanicsRegistry.ts, `status: "implemented"`, binding
+// `SpellContext.orderTop`) and `destination: "none"` is exactly the order-only
+// shape this card's last clause needs — its pick is consumed INSIDE `orderTop`,
+// so nothing has to read a choice's ORDER back out, and `orderTop` slices the
+// top of the library itself, so a literal `count: 5` clamps to a shorter
+// library on its own. The reorder-FROM-choice gap the older `libraryLook`
+// registry note describes closed with that Op; only (1) and (2) keep this card
+// imperative.
 //
 // Composed from EXISTING SpellContext primitives only — no new Op, no new
 // PendingChoice kind, no new EffectValue, no new UI reducer (Primitive Reuse):

@@ -104,7 +104,9 @@ describe("Doomsday (search library + graveyard for five, exile the rest, CR 701.
         const p1 = state.players[0];
         expect(ids(p1.library)).toEqual(["g3", "l7", "g2", "l1", "l3"]);
         // CR 701.13a — everything else in BOTH searched zones is exiled. The
-        // graveyard is left holding only Doomsday itself (CR 608.2m).
+        // graveyard is left holding only Doomsday itself (CR 608.2n — as the
+        // final part of a sorcery's resolution it goes to its owner's
+        // graveyard).
         expect(p1.graveyard.map((c) => c.card.id)).toEqual([doomsday.id]);
         expect(ids(p1.exile).sort()).toEqual([
             "g1",

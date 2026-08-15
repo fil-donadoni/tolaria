@@ -1630,9 +1630,11 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // FREE — the same false-FREE shape as Vaultborn Tyrant above. What
         // actually keeps it `resolve()` is CONTROL FLOW the DSL's four frozen
         // constructs cannot express: a choice whose COUNT depends on an
-        // earlier choice's result, a move set defined as the COMPLEMENT of a
-        // choice, and a reorder driven by a choice's ORDER (the
-        // reorder-FROM-choice gap the `libraryLook` registry row names). It
+        // earlier choice's result (`choice.count` takes literals only), and a
+        // move set defined as the COMPLEMENT of a choice (`bindOther`
+        // snapshots ONE unpicked battlefield candidate, never an N-card
+        // cross-zone complement). Its final ordering step is NOT a blocker —
+        // `scryReorder { destination: "none" }` ships and covers it. It
         // carries a per-card test (`wth/__tests__/black.test.ts`), so
         // AFK-ready too. Net: total 479->480, FREE 314->315, AFK-ready
         // 305->306; X-only unchanged at 15, Op-blocked unchanged at 150.
