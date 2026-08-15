@@ -204,3 +204,26 @@ registerEmblemDefinition({
         },
     ],
 });
+
+/** Tamiyo, Seasoned Scholar −7 emblem (MH3, issue #2385). A STATIC emblem
+ *  (CR 114.4, 611.2b) — "You have no maximum hand size" — the SAME
+ *  `hand-size-override` continuous static effect Library of Leng / Reliquary
+ *  Tower carry on a permanent (`StaticHandSizeOverride`, `cards/types.ts`),
+ *  reused here on a command-zone source instead of a battlefield one
+ *  (`effectiveMaxHandSize`, `gre/phases.ts`, scans `state.emblems` for this
+ *  exact kind). Owner-scoped: `appliesTo` omitted defaults to the emblem's
+ *  own owner (CR 114.3 "you"), never the `chosen-player` shape Cursed Rack
+ *  uses. */
+export const TAMIYO_SEASONED_SCHOLAR_EMBLEM_ID =
+    "tamiyo-seasoned-scholar-emblem";
+
+registerEmblemDefinition({
+    id: TAMIYO_SEASONED_SCHOLAR_EMBLEM_ID,
+    name: "Tamiyo, Seasoned Scholar emblem",
+    text: "You have no maximum hand size.",
+    // Scryfall print of the emblem card (set `tmh3`, layout `emblem`) — the
+    // MH3-era emblem printing matching Tamiyo's own set, per the token/emblem
+    // art rule (the card's own printing where present).
+    imagePrintId: "c88e2bea-9c95-447e-bc9d-7d7f8ea40567",
+    staticEffects: [{ kind: "hand-size-override", value: "unlimited" }],
+});

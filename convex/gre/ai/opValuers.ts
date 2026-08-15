@@ -945,6 +945,23 @@ const setProtectionFromEverything: Valuer<
     tags: ["protection"],
 });
 
+// "Until your next turn, whenever a creature attacks you or a planeswalker
+// you control, it gets -1/-0 until end of turn" (Tamiyo, Seasoned Scholar
+// +2, CR 606 / 603.7a) — a much softer defensive effect than either
+// protection Op above: it shrinks, never blocks, and only ONE stat point per
+// attacker (mirrors a single `pump { power: -1, toughness: 0 }` at
+// PUMP_PER_STAT, not a full removal/block). Valued as a flat guaranteed hit
+// rather than scaled by an unknown future attacker count — the static
+// valuer cannot see who the opponent will attack with next turn, so it
+// prices the single most-likely case (one attacker discouraged or shrunk)
+// the same way `restrictCombat`'s uncertain future application is priced by
+// its own guaranteed-target magnitude.
+const ATTACKER_DEBUFF_WINDOW_VALUE = 15; // player-wide -1/-0 to attackers for a full turn cycle — weaker than ISLAND_SANCTUARY_PROTECTION_VALUE (near-total ground block)
+const grantAttackerDebuffWindow: Valuer<"grantAttackerDebuffWindow"> = () => ({
+    points: ATTACKER_DEBUFF_WINDOW_VALUE,
+    tags: ["protection"],
+});
+
 const reveal: Valuer<"reveal"> = () => ZERO_OP_VALUE;
 
 // A private look at a random hand card grants information, no board material.
@@ -1093,6 +1110,7 @@ export const OP_VALUERS: {
     restrictCombat,
     setIslandSanctuaryProtection,
     setProtectionFromEverything,
+    grantAttackerDebuffWindow,
     reveal,
     lookRandomHand,
     scryReorder,
@@ -1241,6 +1259,7 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     returnExiledForSource: "beneficial",
     setProtectionFromEverything: "beneficial",
     setIslandSanctuaryProtection: "beneficial",
+    grantAttackerDebuffWindow: "beneficial",
     emblem: "beneficial",
     // CR 712 / 400.7 (issue #2380) — the ORI flip-walker template: the
     // permanent's OWNER gets it back, upgraded to its planeswalker face. Always

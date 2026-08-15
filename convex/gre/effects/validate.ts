@@ -1231,15 +1231,46 @@ function isScaledValue(value: unknown): boolean {
     return isScaledOperand(s.value);
 }
 
+/** `{ divide: { value, by, rounding } }` — SHAPE of the division value
+ *  construct (issue #2385, Tamiyo Seasoned Scholar's "half the number of
+ *  cards in your library, rounded up"). Exactly three keys, all required:
+ *  `value` a terminal operand (`isDifferenceOperand` — literal or count, the
+ *  same non-X terminal set `difference` uses, since no shipped divide card
+ *  needs an X dividend), `by` a positive-int literal divisor (mirrors
+ *  `scaled.times`'s literal-only rule), `rounding` the CR 107.1a fractional-
+ *  result direction — mandatory, no default (MTG never rounds to nearest or
+ *  truncates toward zero; the Oracle text always states the direction).
+ *  Mirrors `isDifferenceValue`/`isScaledValue`'s shape check. */
+function isDivideValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "divide") return false;
+    const spec = (value as { divide: unknown }).divide;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (
+        !Object.keys(s).every(
+            (k) => k === "value" || k === "by" || k === "rounding"
+        )
+    ) {
+        return false;
+    }
+    if (!isPositiveInt(s.by)) return false;
+    if (s.rounding !== "up" && s.rounding !== "down") return false;
+    return isDifferenceOperand(s.value);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
  *  on a selected object (issue #1015), a selected object's `manaValue` (issue
  *  #680), a player's `domain` (issue #1066), an object's `escaped` flag
  *  (issue #695), the resolving triggered ability's `abilityResolutionCount`
- *  (issue #1189), the `difference` of two terminals (issue #2006), or a
- *  terminal `scaled` by a fixed multiplier (issue #2366). Exactly those — one
- *  non-nestable subtraction, one non-nestable multiplication, and beyond them
- *  no arithmetic and no expressions. */
+ *  (issue #1189), the `difference` of two terminals (issue #2006), a
+ *  terminal `scaled` by a fixed multiplier (issue #2366), or a terminal
+ *  `divide`d by a fixed divisor with explicit rounding (issue #2385).
+ *  Exactly those — one non-nestable subtraction, one non-nestable
+ *  multiplication, one non-nestable division, and beyond them no arithmetic
+ *  and no expressions. */
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
@@ -1255,7 +1286,8 @@ function isEffectValue(value: unknown): boolean {
         isAbilityResolutionCountValue(value) ||
         isLifeGainedThisTurnValue(value) ||
         isDifferenceValue(value) ||
-        isScaledValue(value)
+        isScaledValue(value) ||
+        isDivideValue(value)
     );
 }
 
@@ -2218,6 +2250,23 @@ function isPredicate(value: unknown): boolean {
     ) {
         return (
             isBareRef(obj.picksMatchFilter) &&
+            isPlayerRef(obj.player) &&
+            isCardFilter(obj.filter)
+        );
+    }
+    // targetMatchesGraveyardFilter form (issue #2385) — an OBJECT SELECTOR
+    // (announced target slot / `$source` / forEach `$each`), plus `player`
+    // (whose graveyard to resolve it against) and `filter` (the card shape
+    // to test). The announced-target sibling of `picksMatchFilter` — same
+    // three-key shape, just a selector position instead of a bare picks ref.
+    if (
+        keys.length === 3 &&
+        keys.includes("targetMatchesGraveyardFilter") &&
+        keys.includes("player") &&
+        keys.includes("filter")
+    ) {
+        return (
+            isObjectSelector(obj.targetMatchesGraveyardFilter) &&
             isPlayerRef(obj.player) &&
             isCardFilter(obj.filter)
         );
@@ -4215,6 +4264,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     setProtectionFromEverything: {
         required: { player: isPlayerRef },
     },
+    // CR 606 / 603.7a (issue #2385) — Tamiyo, Seasoned Scholar's +2 attacker-
+    // debuff window. `player` is the protected player (defaults to
+    // "controller" at the interpreter, so the field is optional here); the
+    // duration is intrinsic, so no other fields.
+    grantAttackerDebuffWindow: {
+        required: {},
+        optional: { player: isPlayerRef },
+    },
     // CR 118.4 / 121.1 (issue #1283) — a single ranged 0..N "drawn this turn"
     // hand pick with a per-NOT-chosen life cost (Sylvan Library). `pool` is
     // the candidate-set discriminator (only `"drawn-this-turn"` today); `max`
@@ -4581,6 +4638,18 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
     // caught exactly as at every other selector site.
     if ("objectMatchesFilter" in p) {
         collectRefUses(p.objectMatchesFilter, "objectMatchesFilter", out);
+        return;
+    }
+    // targetMatchesGraveyardFilter (issue #2385) — an object SELECTOR (same
+    // routing as objectMatchesFilter), plus a player-position ref on `player`
+    // (same routing as picksMatchFilter's `player`).
+    if ("targetMatchesGraveyardFilter" in p) {
+        collectRefUses(
+            p.targetMatchesGraveyardFilter,
+            "targetMatchesGraveyardFilter",
+            out
+        );
+        collectRefUses(p.player, "player", out);
         return;
     }
     // sharesColor (issue #1955) — TWO object selectors, each of which may be a

@@ -13568,6 +13568,14 @@
         "firstPrintSet": "mrd"
     },
     {
+        "name": "Tamiyo, Inquisitive Student",
+        "scryfallId": "2a717b98-cdac-416d-bf6c-f6b6638e65d1",
+        "oracleId": "1ed9e351-0000-4b75-8ecb-d15bd88df68a",
+        "firstSet": "mh3",
+        "firstPrintId": "2a717b98-cdac-416d-bf6c-f6b6638e65d1",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Tangle",
         "scryfallId": "6b37e39c-8aa4-4938-a492-7dac5de98dfb",
         "oracleId": "f627e125-15af-4e53-b34e-82b60e4ec87b",

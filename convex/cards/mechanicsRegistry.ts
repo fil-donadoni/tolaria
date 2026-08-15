@@ -3214,6 +3214,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'The One Ring\'s player-scoped "you gain protection from everything until your next turn" (CR 702.16b/e/i applied to a player via CR 115.4, issue #674). A thin declarative skin over the single SpellContext primitive `setPlayerProtectionFromEverything`, one execution path (ADR 0045): appends `player`\'s id to `state.playerProtectionFromEverything` (a LIST, not a slot — both players can hold the protection at once when each casts their own copy on successive turns), and the grantee\'s entry is dropped at the START of their OWN next turn (`gre/phases.ts` advanceTurn) — mirroring `setIslandSanctuaryProtection` / `grantCastTiming`\'s "until your next turn" boundary, NOT CLEANUP, because the protection must survive the whole intervening opponent turn. Exactly two of protection\'s clauses have a player analogue and this Op wires both through ONE predicate, `playerHasProtectionFromEverything` (`gre/protection.ts`): CR 702.16b targeting — read by BOTH `getLegalTargets` (the offered set) and the `selectTarget` mutation (the accepted set), so offered and accepted can\'t diverge; and CR 702.16e damage — read at the top of `applyPlayerDamagePrevention`, the single chokepoint every player-damage sink (spell/ability, redirect, combat) already routes through, checked BEFORE the shield walk so no finite shield is spent on damage that never lands. Damage flagged unpreventable bypasses it exactly as it bypasses every other prevention (those sinks skip the function). The remaining clauses (can\'t be blocked / enchanted / equipped, CR 702.16c/d/f) are permanent-only; being ATTACKED stays legal (protection prevents the damage, it does not bar the attack). UNCONDITIONAL, unlike every other protection surface: the card-scoped keyword (`staticAbilities: ["protection from <colour>"]`) is colour-parametrized and lives on a permanent, `preventDamage` establishes a FINITE / source-matched shield — protection from EVERYTHING is protection from each and every object regardless of characteristics with no controller exception (the protected player\'s OWN spells and sources are barred too), so there is nothing to parametrize and the Op stays a single-purpose skin rather than a generalized "player gains protection from Q" grammar (ADR 0045 "generalize, don\'t add" — The One Ring is the only printed card with this shape). Duration is intrinsic, so no `duration` field. Skipped when the player cannot be resolved (CR 608.2b).',
     },
     {
+        op: "grantAttackerDebuffWindow",
+        status: "implemented",
+        cr: "606.1",
+        binding: "SpellContext.grantAttackerDebuffWindow",
+        note: "Tamiyo, Seasoned Scholar's +2: \"Until your next turn, whenever a creature attacks you or a planeswalker you control, it gets -1/-0 until end of turn\" (CR 606 / 603.7a, issue #2385). A thin declarative skin over the single SpellContext primitive `grantAttackerDebuffWindow`, one execution path (ADR 0045): appends `player`'s id to `state.attackerDebuffUntilNextTurn` (a LIST, not a slot — mirrors `setPlayerProtectionFromEverything`, since both players could hold the window at once), and the grantee's entry is dropped at the START of their OWN next turn (`gre/phases.ts` advanceTurn) — the same \"until your next turn\" boundary `setIslandSanctuaryProtection` / `setProtectionFromEverything` use, NOT CLEANUP. Applied DIRECTLY by `emitAttackersDeclaredEvents` (`gre/phases.ts`) rather than through a real stack-based delayed triggered ability (CR 603.7a): `CardBackFace` — this ability's home, synthesized through `tokenDefinitionId`'s content-derived-id codec (`gre/transform.ts`) — carries no native `triggeredAbilities` / `triggeredGrantTemplates` slot, because a `TriggeredAbility.matches` predicate is a closure and the back-face codec can only round-trip JSON-pure data (the same reason `CardBackFace.staticEffectKeys` is a KEY, not a `StaticEffect` object). The generic `grantAbility`/`grantedTriggeredId` primitive (CR 611.2a, Guardian Scalelord, `moc/white.ts`) therefore can't reach a back face either. This is a documented simplification, mirroring Xantid Swarm's `restrictSpellCasting` flag-and-gate shape (also skips the stack for a per-combat effect): in the engine's 2-player scope, every attacker in one `ATTACKERS_DECLARED` batch is by construction attacking either the defending player directly or a planeswalker THEY control (CR 508.1d), so the window being open for the defender already qualifies every attacker in the batch — no per-attacker `combat.attackTargets` check needed. Duration is intrinsic, so no `duration` field. Skipped when the player cannot be resolved (CR 608.2b).",
+    },
+    {
         op: "rangedTopdeck",
         status: "implemented",
         cr: "118.4",
@@ -3339,7 +3346,27 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `{ of/value, times }` shape to any terminal, rather than a card-shaped
  *  `{ twiceX: true }`, is "generalize, don't add". One operator, one
  *  non-literal operand, that operand a TERMINAL — the value grammar stays
- *  depth-1 exactly as `difference` keeps it. */
+ *  depth-1 exactly as `difference` keeps it.
+ *  `divide` (issue #2385, `{ divide: { value, by, rounding } }`) IS a new
+ *  value-grammar member — the FIFTEENTH — and the value grammar's ONE
+ *  division operator, `scaled`'s inverse (`difference` subtracts, `scaled`
+ *  multiplies, `divide` divides). Same non-Op, non-ADR-0045-reopening
+ *  status as every member since `X`. Its operand type is
+ *  `EffectDifferenceOperand` (a literal or a `count`) — narrower than
+ *  `EffectScaledOperand`, deliberately: no shipped divide card needs `X` as
+ *  the dividend, so it stays as narrow as `difference`'s own operand rather
+ *  than widening "just in case" (the same discipline that kept `difference`
+ *  X-free when `scaled` needed X). Reason to exist: Tamiyo, Seasoned
+ *  Scholar (MH3, #2385) is "draw cards equal to half the number of cards in
+ *  your library, rounded up" — a `count` divided by a constant, which no
+ *  existing member reaches (`scaled` only MULTIPLIES). `by` is a plain
+ *  positive-integer literal divisor (mirrors `scaled.times`); `rounding`
+ *  (`"up" | "down"`) is MANDATORY with no default, per CR 107.1a — the
+ *  Oracle text always states which way a fractional result rounds, and
+ *  requiring the field forces every card author to transcribe that instead
+ *  of the grammar silently assuming one. One operator, one non-literal
+ *  operand, that operand a TERMINAL — the value grammar stays depth-1
+ *  exactly as `difference`/`scaled` keep it. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

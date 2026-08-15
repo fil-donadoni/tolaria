@@ -1960,6 +1960,113 @@ describe("Effect Script value: scaled (multiplication, issue #2366)", () => {
     // Suspicions), that consumer earns the same wire test `difference` has.
 });
 
+// `{ divide: { value, by, rounding } }` (issue #2385) — a FIFTEENTH
+// EffectValue grammar member, the value grammar's division counterpart to
+// `scaled`'s multiplication. Its own permanent test (new-grammar-member
+// regime): unblocks Tamiyo, Seasoned Scholar's "draw cards equal to half
+// the number of cards in your library, rounded up".
+describe("Effect Script value: divide (division, issue #2385)", () => {
+    it("divides a literal operand, rounding up", () => {
+        const id = registerScript("test-divide-literal-up", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { divide: { value: 7, by: 2, rounding: "up" } },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(24); // 20 + ceil(7/2) = 20 + 4
+    });
+
+    it("divides a literal operand, rounding down", () => {
+        const id = registerScript("test-divide-literal-down", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { divide: { value: 7, by: 2, rounding: "down" } },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(23); // 20 + floor(7/2) = 20 + 3
+    });
+
+    it("divides a `count` operand — Tamiyo, Seasoned Scholar's exact shape (half the library, rounded up)", () => {
+        const id = registerScript("test-divide-count", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    divide: {
+                        value: {
+                            count: {
+                                zone: "library",
+                                controller: "controller",
+                            },
+                        },
+                        by: 2,
+                        rounding: "up",
+                    },
+                },
+            },
+        ]);
+        const library = Array.from({ length: 5 }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `divide-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [], library }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // ceil(5/2) = 3 cards drawn.
+        expect(state.players[0].hand).toHaveLength(3);
+        expect(state.players[0].library).toHaveLength(2);
+    });
+
+    it("an even count rounds to the same value either direction", () => {
+        const up = registerScript("test-divide-even-up", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { divide: { value: 6, by: 2, rounding: "up" } },
+            },
+        ]);
+        const down = registerScript("test-divide-even-down", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { divide: { value: 6, by: 2, rounding: "down" } },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, up, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(23); // 20 + 6/2 = 23 either way
+        const state2 = makeState();
+        pushSpell(state2, down, "p1");
+        resolveTopOfStack(state2);
+        expect(state2.players[0].life).toBe(23);
+    });
+
+    // No wire-format test here — same reasoning as the `scaled` block above:
+    // `EffectValue` is static `CardDefinition` script data, never a
+    // `GameState`/`CardInstanceState` field. Tamiyo, Seasoned Scholar's own
+    // card test (`sets/mh3/__tests__/blue.test.ts`) carries the mandatory
+    // wire-format assertion for the VISIBLE consumer (drawn cards changing
+    // hand size), per the GRE testing convention for activated abilities.
+});
+
 describe("Effect Script Op: gainLife (CR 119.3)", () => {
     it("the selected player gains life", () => {
         const id = registerScript("test-op-gain", [
@@ -2606,6 +2713,70 @@ describe("Effect Script Op: setProtectionFromEverything (CR 702.16b/e/i, issue #
         // The window spans the opponent's whole turn, so it MUST survive the
         // DB writes in between (PERSISTED_OPTIONAL_KEYS, serialize.ts).
         expect(restored.playerProtectionFromEverything).toEqual(["p2"]);
+    });
+});
+
+describe("Effect Script Op: grantAttackerDebuffWindow (CR 606 / 603.7a, issue #2385)", () => {
+    it("opens the window for the resolving controller", () => {
+        const id = registerScript("test-op-attacker-debuff-controller", [
+            { op: "grantAttackerDebuffWindow", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+    });
+
+    it("defaults to the resolving controller when `player` is omitted", () => {
+        const id = registerScript("test-op-attacker-debuff-default", [
+            { op: "grantAttackerDebuffWindow" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+    });
+
+    it("APPENDS rather than overwrites, so both players can hold a window at once", () => {
+        const id = registerScript("test-op-attacker-debuff-append", [
+            { op: "grantAttackerDebuffWindow", player: "opponent" },
+        ]);
+        const state = makeState();
+        state.attackerDebuffUntilNextTurn = ["p1"];
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.attackerDebuffUntilNextTurn).toEqual(["p1", "p2"]);
+    });
+
+    it("is idempotent per player (a re-grant while the window is already open is a no-op)", () => {
+        const id = registerScript("test-op-attacker-debuff-idempotent", [
+            { op: "grantAttackerDebuffWindow", player: "controller" },
+        ]);
+        const state = makeState();
+        state.attackerDebuffUntilNextTurn = ["p1"];
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+    });
+
+    it("the window survives projection (wire format)", () => {
+        const id = registerScript("test-op-attacker-debuff-wire", [
+            { op: "grantAttackerDebuffWindow", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+    });
+
+    it("round-trips through compactState/expandState (persisted, not transient)", () => {
+        const state = makeState();
+        state.attackerDebuffUntilNextTurn = ["p2"];
+        const restored = expandState(compactState(state));
+        // The window spans the opponent's whole turn, so it MUST survive the
+        // DB writes in between (PERSISTED_OPTIONAL_KEYS, serialize.ts).
+        expect(restored.attackerDebuffUntilNextTurn).toEqual(["p2"]);
     });
 });
 
@@ -14343,6 +14514,148 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
             expect(slim.staticAbilities).toContain("trample");
             expect(slim.counters?.["+1/+1"]).toBe(1);
         });
+    });
+});
+
+// targetMatchesGraveyardFilter (issue #2385) — `picksMatchFilter`'s
+// ANNOUNCED-TARGET sibling: true iff the resolved object selector names a
+// card currently in `player`'s graveyard AND that card matches `filter`.
+// Reuses `picksMatchFilter`'s own `getGraveyardCards` + `matchesCardFilter`
+// reader, keyed by a target/object selector instead of a picks binding —
+// this is the predicate's own permanent test (any later card reusing it
+// inherits this coverage free). Tamiyo, Seasoned Scholar's -3 exact shape:
+// "Return target instant or sorcery card from your graveyard to your hand.
+// If it's a green card, add one mana of any color" — the colour gate
+// checked BEFORE the `moveZone` (a card's colour doesn't change with zone).
+const GREEN_CARD_ID = "test-target-gy-filter-green-card";
+registerTokenDefinition({
+    id: GREEN_CARD_ID,
+    name: GREEN_CARD_ID,
+    rarity: "common",
+    manaCost: { G: 1 },
+    types: ["Instant"],
+});
+
+const COLORLESS_ARTIFACT_ID = "test-target-gy-filter-colorless-card";
+registerTokenDefinition({
+    id: COLORLESS_ARTIFACT_ID,
+    name: COLORLESS_ARTIFACT_ID,
+    rarity: "common",
+    manaCost: { X: 2 },
+    types: ["Instant"],
+});
+
+describe("targetMatchesGraveyardFilter predicate (issue #2385)", () => {
+    function graveyardTargetScript(id: string): string {
+        return registerScript(
+            id,
+            [
+                {
+                    op: "if",
+                    predicate: {
+                        targetMatchesGraveyardFilter: { target: 0 },
+                        player: "controller",
+                        filter: { color: "G" },
+                    },
+                    then: [
+                        { op: "addMana", mana: { G: 1 }, player: "controller" },
+                    ],
+                },
+                { op: "moveZone", target: { target: 0 }, to: "hand" },
+            ],
+            {
+                types: ["Sorcery"],
+                targetRequirement: {
+                    type: "card",
+                    count: 1,
+                    zone: "graveyard",
+                    controller: "you",
+                },
+            }
+        );
+    }
+
+    it("a GREEN graveyard card matches — mana added, then returned to hand", () => {
+        const id = graveyardTargetScript("test-target-gy-filter-green");
+        const gy = makeInstance(GREEN_CARD_ID, {
+            id: "gy-green",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [gy] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-green", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.G).toBe(1);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("gy-green");
+        // The resolving SORCERY itself lands in the graveyard too (CR
+        // 608.2m) — assert the TARGETED card specifically left, not that
+        // the graveyard is empty.
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "gy-green"
+        );
+    });
+
+    it("a NON-green graveyard card (colourless) does not match — no mana added", () => {
+        const id = graveyardTargetScript("test-target-gy-filter-colorless");
+        const gy = makeInstance(COLORLESS_ARTIFACT_ID, {
+            id: "gy-colorless",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [gy] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-colorless", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.G ?? 0).toBe(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "gy-colorless"
+        );
+    });
+
+    it("reads FALSE for a card no longer in that graveyard (CR 608.2b) — no mana added", () => {
+        const id = graveyardTargetScript("test-target-gy-filter-gone");
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [] }), makePlayer("p2")],
+        });
+        // Target announced but the graveyard is empty by resolution — the
+        // Op itself no-ops (moveZone finds nothing), and the predicate must
+        // not throw or fail open.
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "already-gone", playerId: "p1" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].manaPool.G ?? 0).toBe(0);
+    });
+
+    it("survives projection (wire format) — the added mana is board-visible", () => {
+        const id = graveyardTargetScript("test-target-gy-filter-wire");
+        const gy = makeInstance(GREEN_CARD_ID, {
+            id: "gy-green-wire",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [gy] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-green-wire", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].manaPool.G).toBe(1);
+        expect(
+            projected.players[0].hand.some((c) => c?.id === "gy-green-wire")
+        ).toBe(true);
     });
 });
 

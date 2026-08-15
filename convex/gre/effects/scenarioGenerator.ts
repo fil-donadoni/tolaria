@@ -337,6 +337,15 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount is a scaled (multiplied) terminal — the canned predictor sizes exactly one unscaled count set`;
         return;
     }
+    // divide (issue #2385): a terminal divided by a fixed divisor. Same
+    // unmodelable-magnitude reason as `scaled` — the quotient is a fresh
+    // number `predictAmount`'s fixed COUNT_SET_SIZE contract doesn't cover.
+    // Skip-with-reason — the member's own interpreter test is the
+    // behavioural guarantor (new-grammar-member regime).
+    if ("divide" in value) {
+        req.skip ??= `amount is a divided terminal — the canned predictor sizes exactly one undivided count set`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
@@ -1256,6 +1265,17 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // own interpreter tests plus The One Ring's hand-written tests.
             req.skip ??= `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`;
             return;
+        case "grantAttackerDebuffWindow":
+            // CR 606 / 603.7a (issue #2385) — a GLOBAL player-scoped window
+            // (`GameState.attackerDebuffUntilNextTurn`), mirroring
+            // `setProtectionFromEverything`'s skip: its observable effect
+            // (a -1/-0 P/T mod on a declared attacker) only manifests at a
+            // LATER `emitAttackersDeclaredEvents` call the canned single-
+            // resolution generator never reaches. Explicit skip for
+            // exhaustiveness — covered by the Op's own interpreter test plus
+            // Tamiyo, Seasoned Scholar's hand-written combat test.
+            req.skip ??= `Op "grantAttackerDebuffWindow" only manifests at a later declare-attackers step — covered by hand-written tests`;
+            return;
         case "rangedTopdeck":
             // CR 118.4 / 121.1 (issue #1283) — a suspending ranged `choose-
             // hand-card` pick over a "drawn this turn" candidate pool the
@@ -1421,6 +1441,7 @@ function predictAmount(value: EffectValue): number | null {
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
     if ("difference" in value) return null; // skipped earlier — defensive
     if ("scaled" in value) return null; // skipped earlier — defensive
+    if ("divide" in value) return null; // skipped earlier — defensive
     return COUNT_SET_SIZE;
 }
 
@@ -2532,6 +2553,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // interpreter tests plus The One Ring's hand-written targeting/damage/
     // expiry tests are the behavioural guarantor.
     setProtectionFromEverything() {
+        return null;
+    },
+    // `grantAttackerDebuffWindow` (CR 606 / 603.7a, issue #2385) — never
+    // reached: `analyseOp` skips every script with this Op (a global
+    // player-scoped designation whose effect only manifests at a LATER
+    // declare-attackers step). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter tests plus Tamiyo, Seasoned Scholar's hand-written combat
+    // test are the behavioural guarantor.
+    grantAttackerDebuffWindow() {
         return null;
     },
     // `rangedTopdeck` (CR 118.4 / 121.1, issue #1283) — never reached:

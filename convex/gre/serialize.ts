@@ -1511,6 +1511,11 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "islandSanctuaryProtection",
     "playerProtectionFromEverything",
     "castTimingFlashGrants",
+    // CR 606 / 603.7a (issue #2385) — Tamiyo, Seasoned Scholar's +2 attacker-
+    // debuff window: an "until your next turn" grant that must survive every
+    // stable-point DB round-trip within the intervening opponent turn,
+    // mirroring `playerProtectionFromEverything` / `castTimingFlashGrants`.
+    "attackerDebuffUntilNextTurn",
     "allCreaturesMustAttack",
     "abilityResolutionCounts",
     "destroyReplacementShields",

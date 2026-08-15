@@ -97,6 +97,22 @@ export function contextFreeGrounding(): GroundingContext {
                 scaling: inner.scaling,
             };
         }
+        // divide (issue #2385) — a terminal divided by a fixed divisor,
+        // rounded per `rounding`. Mirrors `scaled`'s recursion: the operand
+        // (a literal or a `count`) grounds through the SAME closure, then the
+        // quotient is rounded the way the card's Oracle text specifies (CR
+        // 107.1a) rather than falling through to a generic floor.
+        if ("divide" in v) {
+            const inner = value(v.divide.value);
+            const quotient = inner.amount / v.divide.by;
+            return {
+                amount:
+                    v.divide.rounding === "up"
+                        ? Math.ceil(quotient)
+                        : Math.floor(quotient),
+                scaling: inner.scaling,
+            };
+        }
         // counters / manaValue / domain / kickerCount / kickerPaid / escaped /
         // abilityResolutionCount / lifeGainedThisTurn — dynamic reads off
         // runtime state.

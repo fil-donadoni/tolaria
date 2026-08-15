@@ -51,6 +51,7 @@ import {
     tickDuration,
 } from "./state";
 import { tryGetDefinition } from "../cards";
+import { tryGetEmblemDefinition } from "../cards/emblems";
 import { resetControlContinuity } from "./controlContinuity";
 import { effectivePermanentView } from "./permanentView";
 import { advanceSagasAtPrecombatMain } from "./sagas";
@@ -1878,6 +1879,7 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
  *  control attack" ability fires exactly once. */
 export function emitAttackersDeclaredEvents(state: GameState): void {
     if (!state.combat || state.combat.attackerIds.length === 0) return;
+    applyAttackerDebuffWindow(state, state.combat.attackerIds);
     const event: GameEvent = {
         type: "ATTACKERS_DECLARED",
         attackingPlayerId: state.activePlayerId,
@@ -1888,6 +1890,38 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
     if (placeTriggersOnStack(state, triggers)) {
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
+    }
+}
+
+/** Tamiyo, Seasoned Scholar's +2 (CR 606 / 603.7a, issue #2385): while the
+ *  attacker-debuff window is open for the DEFENDING player, every creature
+ *  just declared as an attacker gets -1/-0 until end of turn. Applied
+ *  directly here rather than through a real stack-based delayed triggered
+ *  ability — see `grantAttackerDebuffWindow`'s Op doc (`cards/types.ts`) for
+ *  why (`CardBackFace` carries no native `TriggeredAbility` slot). In this
+ *  engine's 2-player scope every attacker in `attackerIds` is, by
+ *  construction, attacking either the defending player directly or a
+ *  planeswalker THEY control (CR 508.1d — a creature can only attack the
+ *  defending player or a permanent that player controls), so no
+ *  per-attacker `combat.attackTargets` check is needed: the window being
+ *  open for the defender already qualifies every attacker in the batch. */
+function applyAttackerDebuffWindow(
+    state: GameState,
+    attackerIds: string[]
+): void {
+    const defenderId = getOpponentId(state, state.activePlayerId);
+    if (!(state.attackerDebuffUntilNextTurn ?? []).includes(defenderId)) {
+        return;
+    }
+    const attacker = state.players.find((p) => p.id === state.activePlayerId);
+    if (!attacker) return;
+    for (const id of attackerIds) {
+        const card = attacker.battlefield.find((c) => c.id === id);
+        if (!card) continue;
+        card.temporaryPTMods = [
+            ...(card.temporaryPTMods ?? []),
+            { power: -1, toughness: 0, duration: { phase: "end-of-turn" } },
+        ];
     }
 }
 
@@ -2193,6 +2227,24 @@ export function effectiveMaxHandSize(
                     if (effect.appliesTo !== "chosen-player") continue;
                     if (consider(effect.value)) return Infinity;
                 }
+            }
+        }
+    }
+
+    // CR 114 (issue #2385) — command-zone emblem sources of a hand-size
+    // override (Tamiyo, Seasoned Scholar's ultimate: "You get an emblem with
+    // 'You have no maximum hand size.'"). Mirrors the battlefield-permanent
+    // scan above; only the emblem's OWNER is affected (CR 114.3 "you") — no
+    // shipped emblem uses the `chosen-player` shape, so only the default
+    // scope is read here.
+    if (state) {
+        for (const emblem of state.emblems ?? []) {
+            if (emblem.ownerId !== player.id) continue;
+            const def = tryGetEmblemDefinition(emblem.emblemId);
+            for (const effect of def?.staticEffects ?? []) {
+                if (effect.kind !== "hand-size-override") continue;
+                if (effect.appliesTo === "chosen-player") continue;
+                if (consider(effect.value)) return Infinity;
             }
         }
     }
@@ -3152,6 +3204,19 @@ function advanceTurn(state: GameState): void {
         );
         if (state.castTimingFlashGrants.length === 0) {
             state.castTimingFlashGrants = undefined;
+        }
+    }
+    // Tamiyo, Seasoned Scholar +2 (CR 606 / 603.7a, issue #2385) — the
+    // attacker-debuff window lasts "until your next turn"; drop the
+    // grantee's entries the moment their own next turn begins (same
+    // boundary as islandSanctuaryProtection / playerProtectionFromEverything).
+    if (state.attackerDebuffUntilNextTurn) {
+        state.attackerDebuffUntilNextTurn =
+            state.attackerDebuffUntilNextTurn.filter(
+                (id) => id !== state.activePlayerId
+            );
+        if (state.attackerDebuffUntilNextTurn.length === 0) {
+            state.attackerDebuffUntilNextTurn = undefined;
         }
     }
     // Storm (CR 702.40a, ADR 0052) — "this turn" resets at the start of each
