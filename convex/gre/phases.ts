@@ -61,6 +61,7 @@ import {
     getEffectiveToughness,
     STATIC_EFFECT_CTX,
 } from "./layers";
+import { attackTargetExcessSink, lethalForBlocker } from "./damageAssignment";
 import { isProtectedFromSource } from "./protection";
 import { isCombatDamagePreventedFromSource } from "./combatDamagePrevention";
 import {
@@ -976,28 +977,6 @@ function getManualAssignmentSourceIds(
     return ids;
 }
 
-/** CR 508.1a / 702.19e (issue #1220) — the id that a trampling attacker's
- *  excess-over-blockers damage is assigned to: the planeswalker it declared as
- *  its attack target (if that planeswalker is still on the battlefield), else
- *  the defending player. Used to seed the auto/default damage assignments so a
- *  blocked trampler attacking a planeswalker spills its excess onto the
- *  planeswalker's loyalty rather than the player. */
-function attackTargetExcessSink(
-    state: GameState,
-    attackerId: string,
-    defenderId: string,
-    defender: PlayerState
-): string {
-    const pwId = state.combat?.attackTargets?.[attackerId];
-    if (
-        pwId &&
-        defender.battlefield.some((c) => c.id === pwId && isPlaneswalker(c))
-    ) {
-        return pwId;
-    }
-    return defenderId;
-}
-
 /** Build auto damage assignments for attackers with 0 or 1 blocker. */
 export function buildAutoDamageAssignments(
     state: GameState,
@@ -1024,8 +1003,7 @@ export function buildAutoDamageAssignments(
         const excessSink = attackTargetExcessSink(
             state,
             attackerId,
-            defenderId,
-            defender
+            defenderId
         );
 
         if (blockers.length === 1) {
@@ -1033,8 +1011,15 @@ export function buildAutoDamageAssignments(
                 (c) => c.id === blockers[0]
             );
             if (hasTrample && blocker) {
-                // Trample: assign lethal damage to blocker, excess to defender
-                const lethal = getCardToughness(state, blocker);
+                // Trample: assign lethal damage to blocker, excess to defender.
+                // Lethal is the CR 702.19b budget (marked damage and same-step
+                // damage from other creatures subtracted), not raw toughness.
+                const lethal = lethalForBlocker(
+                    state,
+                    attacker,
+                    blocker,
+                    result
+                );
                 const toBlocker = Math.min(
                     getCardPower(state, attacker),
                     lethal
@@ -1062,7 +1047,7 @@ export function buildAutoDamageAssignments(
  *  With trample, assigns lethal to each blocker in declaration order, excess
  *  to defender. CR 510.1c/d let the attacker freely re-divide damage in the
  *  damage-assignment modal — this just seeds a sensible default. */
-function buildDefaultDamageAssignments(
+export function buildDefaultDamageAssignments(
     state: GameState,
     kind: DamageKind
 ): Record<string, Record<string, number>> {
@@ -1085,8 +1070,7 @@ function buildDefaultDamageAssignments(
         const excessSink = attackTargetExcessSink(
             state,
             attackerId,
-            defenderId,
-            defender
+            defenderId
         );
 
         if (blockers.length === 1) {
@@ -1094,7 +1078,10 @@ function buildDefaultDamageAssignments(
                 const blocker = defender.battlefield.find(
                     (c) => c.id === blockers[0]
                 );
-                const lethal = blocker ? getCardToughness(state, blocker) : 0;
+                // CR 702.19b budget, not raw toughness (see lethalForBlocker).
+                const lethal = blocker
+                    ? lethalForBlocker(state, attacker, blocker, result)
+                    : 0;
                 const toBlocker = Math.min(
                     getCardPower(state, attacker),
                     lethal
@@ -1119,8 +1106,10 @@ function buildDefaultDamageAssignments(
                     const blocker = defender.battlefield.find(
                         (c) => c.id === blockerId
                     );
+                    // CR 702.19b budget, not raw toughness (see
+                    // lethalForBlocker).
                     const lethal = blocker
-                        ? getCardToughness(state, blocker)
+                        ? lethalForBlocker(state, attacker, blocker, result)
                         : 0;
                     const toThis = Math.min(remaining, lethal);
                     assignment[blockerId] = toThis;

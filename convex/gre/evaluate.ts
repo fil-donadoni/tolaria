@@ -24,6 +24,7 @@
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { isCombatDamageImmune, sourcePreventionShieldApplies } from "./state";
+import { lethalDamageThreshold } from "./lethalDamage";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -961,14 +962,42 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
             (sum, b) => sum + Math.max(0, getEffectivePower(state, b)),
             0
         );
-        if (blockPower >= atkTough) deadAttackers.push(atk);
+        // "Lethal damage" is NOT raw toughness (CR 702.19b): damage already
+        // marked on the creature counts, and CR 702.2c makes any nonzero
+        // amount from a deathtouch source lethal. Both sides of this exchange
+        // go through `lethalDamageThreshold`, the same arithmetic the real
+        // assignment path uses (`gre/damageAssignment.ts`), so the bot never
+        // values a combat the engine then resolves differently — a deathtouch
+        // trade or a chump-block into an already-damaged blocker used to price
+        // as if nothing died.
+        const blockerDeathtouch = blockers.some(
+            (b) =>
+                Math.max(0, getEffectivePower(state, b)) > 0 &&
+                b.staticAbilities.includes("deathtouch")
+        );
+        const atkLethal = lethalDamageThreshold({
+            effectiveToughness: atkTough,
+            damageMarked: atk.damageMarked,
+            sourceHasDeathtouch: blockerDeathtouch,
+        });
+        if (blockPower >= atkLethal) deadAttackers.push(atk);
         // Attacker assigns its power to blockers in listed order, lethal first.
+        // CR 510.1a — a creature with 0 power assigns no combat damage at all,
+        // so it kills nothing.
+        const atkDeathtouch = atk.staticAbilities.includes("deathtouch");
         let remaining = atkPower;
         for (const b of blockers) {
-            const bTough = Math.max(0, getEffectiveToughness(state, b));
-            if (remaining >= bTough) {
+            const bLethal = lethalDamageThreshold({
+                effectiveToughness: Math.max(
+                    0,
+                    getEffectiveToughness(state, b)
+                ),
+                damageMarked: b.damageMarked,
+                sourceHasDeathtouch: atkDeathtouch,
+            });
+            if (atkPower > 0 && remaining >= bLethal) {
                 deadBlockers.push(b);
-                remaining -= bTough;
+                remaining -= bLethal;
             }
         }
     }

@@ -233,6 +233,10 @@ import {
 } from "./gre/phyrexian";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
 import {
+    attackTargetExcessSink,
+    damageAssignmentLethalViolation,
+} from "./gre/damageAssignment";
+import {
     canPayTapOtherCost,
     totalTapOtherPower,
     type TapOtherCandidate,
@@ -11549,8 +11553,20 @@ export const setDamageAssignment = mutation({
                 : (graph.attackersByBlocker[sourceId] ?? [])
         );
 
+        // CR 702.19b — trample excess goes to "the player, planeswalker, or
+        // battle the creature is attacking", which is ONE object: per
+        // CR 702.19f a creature without trample-over-planeswalkers attacking a
+        // planeswalker may assign NONE of its combat damage to the defending
+        // player. So the sink is the attacked planeswalker when it is still on
+        // the battlefield, else the defending player — the same id the seed
+        // builders put in the pre-filled default (`attackTargetExcessSink`), so
+        // the assigner can always edit its own default.
+        const excessSinkIds = isAttacker
+            ? [attackTargetExcessSink(state, sourceId, defenderId)]
+            : [];
+
         for (const targetId of Object.keys(assignments)) {
-            if (isAttacker && targetId === defenderId) {
+            if (isAttacker && excessSinkIds.includes(targetId)) {
                 if (!hasTrample) {
                     throw new Error(
                         "Only creatures with trample can assign damage to the defending player"
@@ -11563,6 +11579,29 @@ export const setDamageAssignment = mutation({
                     `${targetId} is not a legal damage target for ${sourceId}`
                 );
             }
+        }
+
+        // CR 702.19b — "The attacking creature's controller need not assign
+        // lethal damage to all those blocking creatures but in that case can't
+        // assign any damage to the player or planeswalker it's attacking."
+        // Deliberate under-assignment is therefore LEGAL on its own; it is only
+        // the PAIR (a blocker below its lethal threshold AND damage to the
+        // sink) that is rejected. The thresholds come from the same shared
+        // helper the seed builders use, so the modal's pre-filled default can
+        // never be rejected here. `state.combat.damageAssignments` is this
+        // step's map (the damage step rebuilds it wholesale on entry), which is
+        // the "damage from other creatures that's being assigned during the
+        // same combat damage step" the threshold subtracts.
+        const violation = damageAssignmentLethalViolation(
+            state,
+            sourceId,
+            assignments,
+            excessSinkIds
+        );
+        if (violation) {
+            throw new Error(
+                `${violation.blockerId} must be assigned lethal damage (${violation.threshold}) before damage is assigned to the player or planeswalker`
+            );
         }
 
         if (!state.combat.damageAssignments) {
