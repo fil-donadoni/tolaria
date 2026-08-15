@@ -18,6 +18,7 @@ import {
     type DurationSpec,
     type EffectCardFilter,
     type EffectOp,
+    type EnchantRestriction,
     type FlashbackCost,
     type EmblemInstance,
     type GameEvent,
@@ -623,6 +624,27 @@ export type CardInstanceState = {
      *  the Equipment stays on the battlefield). A permanent with neither
      *  capability leaves this undefined. */
     attachedTo?: string;
+    /** CR 303.4 — the enchant restriction this permanent was GRANTED at
+     *  runtime, when an effect made it an Aura while it was already on the
+     *  battlefield ("it becomes an Aura with enchant creature"). A printed
+     *  Aura has none: its restriction is derived from the card definition's
+     *  cast-time `targetRequirement`. `resolveEnchantRestriction` reads this
+     *  field FIRST and the printed form second, so the CR 303.4c / 704.5m
+     *  attachment SBA and the CR 303.4f host scan both see the granted
+     *  clause — without it, a permanent flipped to an Aura has no readable
+     *  restriction and is binned the instant it attaches.
+     *
+     *  It lives on the INSTANCE and not on the definition for the same reason
+     *  `escaped` / `evoked` / `dashed` do (see their docs below): it is a fact
+     *  about THIS object, not about the card. Stronger, in fact — the
+     *  restriction may name a specific object (`hostId`), which no definition
+     *  could express. Battlefield-scoped: cleared by
+     *  `resetBattlefieldTransientState` on every zone change (CR 400.7, the
+     *  object that re-enters is a new one). Persisted through
+     *  `compactCard`/`expandCard` (`serialize.ts`) — there is no definition to
+     *  re-derive it from, so a dropped field means the Aura is binned by the
+     *  first SBA sweep after a save/load. */
+    grantedEnchantRestriction?: EnchantRestriction;
     /** Stack of control-changing effects currently applied to this permanent
      *  (CR 613.1b, layer 2). Each entry records the aura that imposed the
      *  change and `previousControllerId` — whoever controlled the card right
@@ -7287,54 +7309,94 @@ export function applyExistingGrantsTo(
     }
 }
 
-/** CR 303.4 / 702.5a: a host is legal if it satisfies the aura's enchant
- *  restriction. The restriction is read from the aura's `targetRequirement`
- *  — e.g. Control Magic enchants creatures, Steal Artifact enchants
- *  artifacts. Only `CardType` restrictions are supported here; a `player`
- *  restriction never matches a permanent (see `auraEnchantsPlayers` for that
- *  branch) and `any`/`spell`/`spell-or-permanent`/`card` don't make sense for
- *  an aura's enchant clause. */
-function isLegalAuraHost(
-    host: CardInstanceState,
+/** CR 303.4 — "What an Aura can be attached to is defined by its enchant
+ *  keyword ability (see rule 702.5)." THE single resolver for that
+ *  restriction, and the reason there is only one: an Aura's restriction has
+ *  two possible origins and every legality site must read both in the same
+ *  order, or the OFFERED host set (CR 303.4f, `findAllLegalAuraHosts`) and the
+ *  ENFORCED host set (CR 303.4c / 704.5m, `checkAuraAttachmentSBA`) drift.
+ *
+ *  Resolution order, instance-first / printed-second:
+ *
+ *  1. `aura.grantedEnchantRestriction` — a runtime grant (a permanent that
+ *     BECAME an Aura on the battlefield, `addSubtype` + `enchantRestriction`).
+ *     It WINS outright: an effect that redefines what an object enchants
+ *     replaces the printed clause rather than adding to it.
+ *  2. the printed cast-time `targetRequirement`, normalized — Control Magic's
+ *     `{ type: "Creature" }` is "enchant creature". `player` becomes the
+ *     `players` flag (never a battlefield object, see `auraEnchantsPlayers`);
+ *     `any` / `spell` / `spell-or-permanent` / `card` are dropped, none of
+ *     them being expressible as an enchant clause.
+ *
+ *  `null` means the object declares no restriction at all — no host is legal
+ *  (CR 704.5m then bins it if it is somehow attached). */
+export function resolveEnchantRestriction(
     aura: CardInstanceState
-): boolean {
+): EnchantRestriction | null {
+    if (aura.grantedEnchantRestriction) return aura.grantedEnchantRestriction;
     const cardId = (aura.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : null;
     const req = def?.targetRequirement;
-    if (!req) return false;
-    const types = Array.isArray(req.type) ? req.type : [req.type];
-    for (const t of types) {
+    if (!req) return null;
+    const reqTypes = Array.isArray(req.type) ? req.type : [req.type];
+    const types: CardType[] = [];
+    let players = false;
+    for (const t of reqTypes) {
+        if (t === "player") {
+            players = true;
+            continue;
+        }
         if (
-            t === "player" ||
             t === "any" ||
             t === "spell" ||
             t === "spell-or-permanent" ||
             t === "card"
         )
             continue;
-        if (host.types.includes(t)) return true;
+        types.push(t);
     }
-    return false;
+    return { types, players };
+}
+
+/** CR 303.4 / 702.5a: true if the PERMANENT `host` satisfies `aura`'s enchant
+ *  restriction, whichever origin that restriction has
+ *  (`resolveEnchantRestriction`). Two independent clauses, both of which must
+ *  hold:
+ *
+ *  - the characteristic clause — `host` has one of the restricted card types
+ *    (Control Magic enchants creatures, Steal Artifact enchants artifacts);
+ *  - CR 303.4's specific-object clause — when the restriction names ONE object
+ *    (`hostId`, only ever a runtime grant: "enchant creature put onto the
+ *    battlefield with Necromancy"), no other permanent qualifies.
+ *
+ *  A `players`-only restriction matches no permanent by construction (empty
+ *  `types`) — see `auraEnchantsPlayers` for that branch. */
+export function hostMatchesEnchantRestriction(
+    host: CardInstanceState,
+    aura: CardInstanceState
+): boolean {
+    const restriction = resolveEnchantRestriction(aura);
+    if (!restriction) return false;
+    if (restriction.hostId !== undefined && restriction.hostId !== host.id) {
+        return false;
+    }
+    return (restriction.types ?? []).some((t) => host.types.includes(t));
 }
 
 /** CR 303.4: true if `aura`'s enchant restriction accepts a PLAYER host (an
- *  "Enchant player" Aura — Curse-cycle style, `targetRequirement.type`
- *  includes `"player"`). Read from the same `targetRequirement` source as
- *  `isLegalAuraHost`'s type-match loop, just testing the branch that loop
- *  deliberately skips. Exported for `sba.ts`'s CR 704.5m ongoing-legality
- *  sweep, which must recognize a player-attached Aura as legitimately
- *  attached rather than "attached to nothing on the battlefield". */
+ *  "Enchant player" Aura — Curse-cycle style). Reads the SAME resolved
+ *  restriction as `hostMatchesEnchantRestriction`, just testing the branch
+ *  that predicate deliberately skips (a player is never a battlefield
+ *  object). Exported for `sba.ts`'s CR 704.5m ongoing-legality sweep, which
+ *  must recognize a player-attached Aura as legitimately attached rather than
+ *  "attached to nothing on the battlefield". */
 export function auraEnchantsPlayers(aura: CardInstanceState): boolean {
-    const cardId = (aura.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : null;
-    const req = def?.targetRequirement;
-    if (!req) return false;
-    const types = Array.isArray(req.type) ? req.type : [req.type];
-    return types.includes("player");
+    return resolveEnchantRestriction(aura)?.players === true;
 }
 
 /** CR 303.4 / 702.16b — the FULL host-legality predicate for a PERMANENT
- *  host: `host` satisfies `aura`'s enchant restriction (`isLegalAuraHost`),
+ *  host: `host` satisfies `aura`'s enchant restriction
+ *  (`hostMatchesEnchantRestriction`, printed or runtime-granted alike),
  *  is not protected from the Aura's color (CR 702.16b), and hasn't become
  *  "can't be enchanted" (Guardian Beast, CR 303.4). This is the same
  *  three-part gate the cast path applies at resolution (CR 608.2b) —
@@ -7347,7 +7409,9 @@ export function auraEnchantsPlayers(aura: CardInstanceState): boolean {
  *  below (this engine's card pool models no protection-from-color or
  *  cantBeEnchanted guard scoped to a player, so a still-legal player target
  *  is unconditionally a legal host — CR 702.16b/303.4's restriction there is
- *  purely the enchant-type match). */
+ *  purely the enchant-type match). Note the type-only fallback it replaced is
+ *  no longer even nameable: `hostMatchesEnchantRestriction` is the ONLY
+ *  restriction predicate. */
 function isFullyLegalAuraHost(
     state: GameState,
     host: CardInstanceState,
@@ -7362,7 +7426,7 @@ function isFullyLegalAuraHost(
     auraIsSpell: boolean
 ): boolean {
     return (
-        isLegalAuraHost(host, aura) &&
+        hostMatchesEnchantRestriction(host, aura) &&
         !isProtectedFromSource(host, aura, auraIsSpell) &&
         !isGuardedAgainst(state, host, "cantBeEnchanted")
     );
@@ -8496,6 +8560,15 @@ export function removePermanentTo(
     // new object on any re-entry (CR 400.7), so it must be re-stamped as a
     // fresh world permanent — clear the stale seq on every departure.
     delete creature.worldSeq;
+    // CR 303.4 / 400.7 — same reasoning, same site: a runtime-granted enchant
+    // restriction ("it becomes an Aura with enchant creature") is a property
+    // of the object that was on the battlefield. It must be cleared on EVERY
+    // departure, not only the hand/library one that runs
+    // `resetBattlefieldTransientState` below: the CR 303.4f candidate scan
+    // reads the restriction off the GRAVEYARD instance, before the entry-side
+    // reset runs, so a reanimated permanent would otherwise be host-restricted
+    // by a clause its previous existence received.
+    delete creature.grantedEnchantRestriction;
     // CR 707.2 — a copy effect lasts only while the object is on the
     // battlefield. Restore the printed identity now (after LKI snapshots, so
     // death triggers still read the copied P/T) so the card re-casts and
@@ -10035,6 +10108,14 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // CR 612.7 — a text-changing effect ends when the object changes zones
     // (it becomes a new object). Same lifecycle as colorOverride above.
     delete card.textChanges;
+    // CR 303.4 / 400.7 — a runtime-granted enchant restriction ("it becomes an
+    // Aura with enchant creature") belongs to the object that was on the
+    // battlefield. The object that leaves — and the one that re-enters — is a
+    // new one, with no memory of what it once enchanted; left uncleared, a
+    // reanimated permanent would still be host-restricted by a clause it never
+    // received (the CR 303.4f candidate scan reads the restriction off the
+    // graveyard instance BEFORE staging).
+    delete card.grantedEnchantRestriction;
     // CR 111 / 400.7 (issue #791/#1319) — the per-source exile provenance
     // link is only meaningful while the card sits in exile. This helper is
     // the shared chokepoint for every reanimation-style entry
@@ -11868,11 +11949,27 @@ export function buildSpellContext(
         // effect below in `applySourceStaticEffects`). Writes the SAME
         // `grantedSubtypesAdd` markers that static effect uses, keyed to the
         // `"indefinite"` sentinel source id — mirrors `setSupertype` exactly.
-        addSubtype(target: TargetSelection, subtype: string): void {
+        addSubtype(
+            target: TargetSelection,
+            subtype: string,
+            enchantRestriction?: EnchantRestriction
+        ): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             const card = found.card;
+            // CR 303.4 — "it becomes an Aura with enchant creature": the
+            // enchant clause arrives WITH the subtype and is a property of
+            // this object, so it is stamped on the instance for
+            // `resolveEnchantRestriction` to read instance-first. Written
+            // BEFORE the subtype idempotency check below: re-granting the
+            // Aura subtype with a different restriction (a second effect
+            // re-pointing what the permanent enchants) must still update the
+            // restriction, and a permanent that is ALREADY an Aura is exactly
+            // the case that check short-circuits.
+            if (enchantRestriction) {
+                card.grantedEnchantRestriction = { ...enchantRestriction };
+            }
             const origins = card.grantedSubtypesAdd ?? [];
             const already = origins.some(
                 (o) => o.auraId === "indefinite" && o.subtype === subtype

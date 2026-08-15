@@ -1,6 +1,7 @@
 import type { CardInstanceState, GameState } from "./state";
 import {
     auraEnchantsPlayers,
+    hostMatchesEnchantRestriction,
     destroyWithReplacements,
     getOpponentId,
     processPendingActionTriggers,
@@ -131,9 +132,14 @@ export function checkGameOverSBA(state: GameState): boolean {
  * `CardDefinition.exemptFromProtectionDetach`.
  *
  * Illegal host means: no longer on the battlefield, or no longer satisfies
- * the aura's enchant restriction (derived from the aura's `targetRequirement`
- * type — e.g. Control Magic requires a Creature, Steal Artifact requires an
- * Artifact).
+ * the aura's enchant restriction. That restriction comes from
+ * `resolveEnchantRestriction` (state.ts) — the SAME single predicate the CR
+ * 303.4f candidate scan offers hosts from, so what is offered and what is
+ * enforced cannot disagree. It resolves the aura's RUNTIME grant first ("it
+ * becomes an Aura with enchant creature", `grantedEnchantRestriction`) and its
+ * printed `targetRequirement` second (Control Magic requires a Creature,
+ * Steal Artifact an Artifact). An object with neither has no legal host at
+ * all and is binned here.
  *
  * Called after any action that may invalidate an attachment: resolution,
  * combat damage, destroy effects, acquiring protection, etc.
@@ -163,7 +169,7 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
                 continue;
             }
             const host = findOnBattlefield(state, hostId);
-            if (!host || !hostMatchesAuraRestriction(card, host)) {
+            if (!host || !hostMatchesEnchantRestriction(host, card)) {
                 toDetach.push(card.id);
                 continue;
             }
@@ -239,32 +245,6 @@ export function checkAttachmentSBA(state: GameState): boolean {
         found.attachedTo = undefined;
     }
     return toDetach.length > 0;
-}
-
-/** True if `host` still satisfies the aura's enchant restriction. The
- *  restriction is read from the aura's `targetRequirement.type` — auras in
- *  this codebase encode "Enchant X" as a `CardType` target. */
-function hostMatchesAuraRestriction(
-    aura: CardInstanceState,
-    host: CardInstanceState
-): boolean {
-    const cardId = (aura.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : null;
-    const req = def?.targetRequirement;
-    if (!req) return false;
-    const types = Array.isArray(req.type) ? req.type : [req.type];
-    for (const t of types) {
-        if (
-            t === "player" ||
-            t === "any" ||
-            t === "spell" ||
-            t === "spell-or-permanent" ||
-            t === "card"
-        )
-            continue;
-        if (host.types.includes(t)) return true;
-    }
-    return false;
 }
 
 /** CR 702.16c with the 702.16n exemption: true when the aura's color matches
