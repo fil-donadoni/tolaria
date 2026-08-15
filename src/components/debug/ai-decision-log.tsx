@@ -20,10 +20,13 @@ const OUTCOME: Record<AiDecisionOutcome, { label: string; bad: boolean }> = {
     move: { label: "chose a move", bad: false },
     "no-move": { label: "no move offered", bad: false },
     "skip-pass": { label: "trivial pass (no search)", bad: false },
+    direct: { label: "answered directly (no search)", bad: false },
     "search-error": { label: "SEARCH THREW", bad: true },
     "worker-error": { label: "WORKER FAILED", bad: true },
     timeout: { label: "CONSULT TIMED OUT", bad: true },
     "submit-error": { label: "SUBMISSION REJECTED", bad: true },
+    unrealisable: { label: "NOTHING SUBMITTED", bad: true },
+    unanswered: { label: "NO ANSWER FOR THIS WINDOW", bad: true },
 };
 
 export default function AiDecisionLog() {
@@ -63,7 +66,9 @@ export default function AiDecisionLog() {
                     >
                         #{d.seq} {d.phase} · {d.expectedKind} →{" "}
                         {OUTCOME[d.outcome].label}
-                        {d.moveKind ? ` (${d.moveKind})` : ""}
+                        {d.moveKind || d.actionKind
+                            ? ` (${d.moveKind ?? d.actionKind})`
+                            : ""}
                         {d.message ? `: ${d.message}` : ""}
                     </li>
                 ))}

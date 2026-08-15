@@ -73,6 +73,24 @@ describe("collectAiDiagnostics (issue #2470)", () => {
         expect(getAiDecisions()).toHaveLength(1);
     });
 
+    // Review finding 5: record COUNT was bounded, record SIZE was not. A
+    // rejected Convex mutation's client-side message carries the server error
+    // text and a stack; 60 unclamped ones can approach the 1 MB document limit,
+    // at which point the insert throws and the reporter loses the whole report
+    // — the opposite of what the field is for.
+    it("clamps a runaway failure message", () => {
+        recordAiDecision({
+            outcome: "submit-error",
+            expectedKind: "priority",
+            phase: "PRECOMBAT_MAIN",
+            seq: 4,
+            message: "x".repeat(50_000),
+        });
+        const message = collectAiDiagnostics()!.decisions[0].message!;
+        expect(message.length).toBeLessThanOrEqual(501);
+        expect(message.endsWith("…")).toBe(true);
+    });
+
     it("keeps the ring bounded over a long game", () => {
         for (let i = 0; i < 200; i++) {
             recordAiDecision({

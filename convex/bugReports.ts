@@ -369,6 +369,7 @@ export async function listBugReportsHandler(ctx: QueryCtx) {
         issueNumber: row.issueNumber,
         hasSnapshot: row.state !== undefined,
         hasAttachment: row.attachmentId !== undefined,
+        hasDiagnostics: row.clientDiagnostics !== undefined,
     }));
 }
 
@@ -383,6 +384,7 @@ export const listBugReports = query({
             issueNumber: v.optional(v.number()),
             hasSnapshot: v.boolean(),
             hasAttachment: v.boolean(),
+            hasDiagnostics: v.boolean(),
         })
     ),
     handler: listBugReportsHandler,
@@ -414,6 +416,12 @@ export async function getBugReportHandler(
         gameId: row.gameId,
         seq: row.seq,
         state: row.state,
+        // issue #2470 — the AI rings. This admin query, not the internal
+        // `getReport`, is what the `/admin/bug-reports` page renders: a field
+        // added only to `getReport` would be readable ONLY through
+        // `bunx convex run … --prod`, which is the access path #2250 built this
+        // page to route around.
+        clientDiagnostics: row.clientDiagnostics,
         issueNumber: row.issueNumber,
         issueUrl: row.issueUrl,
         filedAt: row._creationTime,
@@ -435,6 +443,7 @@ export const getBugReport = query({
             gameId: v.optional(v.id("games")),
             seq: v.optional(v.number()),
             state: v.optional(v.any()),
+            clientDiagnostics: v.optional(v.any()),
             issueNumber: v.optional(v.number()),
             issueUrl: v.optional(v.string()),
             filedAt: v.number(),

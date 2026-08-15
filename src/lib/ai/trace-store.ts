@@ -7,9 +7,10 @@
 // (a `useSyncExternalStore` hook). Only the latest decision is kept — by design
 // (see the grill: "ultima decisione, sempre visibile"). Never persisted.
 
-import type { DecisionTrace } from "@convex/gre";
+import type { DecisionTrace, Move, Phase } from "@convex/gre";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import type { BrainOutcome } from "./brain-request";
+import type { BotAction } from "./brain";
 
 let latest: DecisionTrace | null = null;
 const listeners = new Set<() => void>();
@@ -111,7 +112,20 @@ export type AiDecisionOutcome =
     | BrainOutcome
     /** `shouldThink` said the window was trivial: passed without consulting. */
     | "skip-pass"
-    /** The chosen move was submitted and the mutation rejected it. */
+    /** A non-search realisation (a parked payment, a mulligan declaration, a
+     *  decline): answered directly, without consulting the Brain at all. This
+     *  is the MAJORITY of `BotAction` kinds — `botActionRealisation` routes
+     *  only five to the Worker. */
+    | "direct"
+    /** The bot decided on an action and `realiseBotAction` produced no runner
+     *  for it: nothing was submitted. A defect — the window is left to the
+     *  watchdog, and without this record it is the very "died leaving no
+     *  trace" shape this ring exists to remove. */
+    | "unrealisable"
+    /** The engine named the bot as owing input and the Brain had no answer for
+     *  that window (ADR 0047's `unanswered`). Escalated immediately. */
+    | "unanswered"
+    /** The chosen answer was submitted and the mutation rejected it. */
     | "submit-error";
 
 /** One decision, as the Debug panel and a bug report show it. */
@@ -122,15 +136,28 @@ export type AiDecisionRecord = {
     /** The Expected Input kind the game was resting on (ADR 0047). */
     expectedKind: ExpectedInputKind;
     /** Phase and state version, so a record can be lined up against the board
-     *  snapshot a bug report captures alongside it. */
-    phase: string;
+     *  snapshot a bug report captures alongside it. The ENGINE's `Phase`, for
+     *  the same reason `expectedKind` above is the engine's union: a loose
+     *  `string` lets a typo render as a plausible-looking blank. */
+    phase: Phase;
     seq: number;
-    /** The `Move.kind` the bot chose, when it chose one. */
-    moveKind?: string;
-    /** Failure text for the error outcomes. */
+    /** The `Move` kind the SEARCH chose, when it chose one. */
+    moveKind?: Move["kind"];
+    /** The `BotAction` kind a non-search exit submitted. Distinct from
+     *  `moveKind` on purpose — the two unions overlap in places (`pass`) and
+     *  diverge in most, so collapsing them into one `string` would hide which
+     *  layer answered. */
+    actionKind?: BotAction["kind"];
+    /** Failure text for the error outcomes, clamped — see `MAX_MESSAGE_CHARS`. */
     message?: string;
     at: number;
 };
+
+/** A rejected Convex mutation's client-side message routinely carries the
+ *  server's error text and a stack. 60 of those, unclamped, can approach the
+ *  1 MB document limit — at which point the insert throws and the reporter
+ *  LOSES THE WHOLE REPORT, which is the opposite of what this field is for. */
+const MAX_MESSAGE_CHARS = 500;
 
 /** Long enough to cover several turns of decisions — the shape of the failure
  *  is a RUN of identical outcomes, and one record cannot show a run. Bounded
@@ -142,9 +169,14 @@ let decisions: AiDecisionRecord[] = [];
 const decisionListeners = new Set<() => void>();
 
 export function recordAiDecision(record: Omit<AiDecisionRecord, "at">): void {
-    decisions = [...decisions, { ...record, at: Date.now() }].slice(
-        -DECISION_LOG_LIMIT
-    );
+    const message =
+        record.message && record.message.length > MAX_MESSAGE_CHARS
+            ? `${record.message.slice(0, MAX_MESSAGE_CHARS)}…`
+            : record.message;
+    decisions = [
+        ...decisions,
+        { ...record, ...(message ? { message } : {}), at: Date.now() },
+    ].slice(-DECISION_LOG_LIMIT);
     for (const l of decisionListeners) l();
 }
 

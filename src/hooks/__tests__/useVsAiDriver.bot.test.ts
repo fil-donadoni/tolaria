@@ -174,6 +174,21 @@ vi.mock("convex/react", () => ({
     },
 }));
 
+// issue #2470 review, finding 1 — `realiseBotAction` returns null on several
+// branches, and the driver then submits NOTHING. Off by default (every other
+// test in this file exercises the real realisation); flipped on for the one
+// test that asserts the silent-death exit now leaves a breadcrumb.
+let forceUnrealisable = false;
+vi.mock("~/lib/ai/realise", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("~/lib/ai/realise")>();
+    return {
+        ...actual,
+        realiseBotAction: (
+            ...args: Parameters<typeof actual.realiseBotAction>
+        ) => (forceUnrealisable ? null : actual.realiseBotAction(...args)),
+    };
+});
+
 // Imported after the mocks so the hook picks up the mocked transport.
 const { useVsAiDriver, BOT_WATCHDOG_MS } = await import("../useVsAiDriver");
 // The client-only AI rings the driver writes (issue #2470). Not mocked — the
@@ -256,6 +271,7 @@ describe("useVsAiDriver (issue #110)", () => {
         forceNullTick = false;
         heldMutation = { active: false, release: undefined };
         rejectMutation = { active: false, message: "" };
+        forceUnrealisable = false;
         clearAiDecisions();
         vi.useFakeTimers();
         // Deterministic random pick (first move).
@@ -830,5 +846,83 @@ describe("useVsAiDriver (issue #110)", () => {
             moveKind: "pass",
             message: "not your priority",
         });
+    });
+
+    /** The bot's own mulligan window — a NON-search realisation (the keep/mull
+     *  declaration is the cheap gate heuristic, issue #145), i.e. the branch
+     *  review finding 1 found uninstrumented. */
+    function mulliganState() {
+        const botSeat = player(BOT);
+        botSeat.hand = [
+            makeInstance(MOUNTAIN, {
+                id: "m1",
+                controllerId: BOT,
+                zone: "hand",
+            }),
+            makeInstance(BEARS, { id: "b1", controllerId: BOT, zone: "hand" }),
+        ] as never;
+        return botState({
+            phase: "MULLIGAN",
+            players: [botSeat, player(HUMAN)],
+            mulligan: {
+                mulligansTaken: [0, 0],
+                declarations: [null, null],
+                locked: [false, false],
+                declaringPlayerId: BOT,
+                bottoming: false,
+            },
+        });
+    }
+
+    // Review finding 1: the direct/executor realisation branch — the exit taken
+    // by the MAJORITY of BotAction kinds (`botActionRealisation` routes only
+    // five to the Worker) — recorded nothing at all in the first pass.
+    it("records a non-search realisation", async () => {
+        currentState = mulliganState();
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const direct = getAiDecisions().find((d) => d.outcome === "direct");
+        expect(direct).toBeDefined();
+        // The BotAction kind, not a Move kind: this exit never reached a Move.
+        expect(direct!.actionKind).toBeDefined();
+        expect(direct!.moveKind).toBeUndefined();
+    });
+
+    // Review finding 1, second half: the bot decided, `realiseBotAction`
+    // produced no runner, and NOTHING was submitted. Without this record the
+    // ring shows the previous decision, a gap, then escalation rungs — the
+    // "died leaving no trace" shape the ring exists to remove.
+    it("records a decision that realised into nothing", async () => {
+        forceUnrealisable = true;
+        currentState = mulliganState();
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        expect(calls).toHaveLength(0);
+        expect(getAiDecisions().some((d) => d.outcome === "unrealisable")).toBe(
+            true
+        );
+    });
+
+    // Review finding 4: `note` used to fire BEFORE `dispatch`'s in-flight
+    // guard, so a suppressed dispatch still appended a record — the ring
+    // claimed answers the bot never submitted, a lie in the "looks healthy"
+    // direction.
+    it("records nothing for a dispatch the in-flight guard suppresses", async () => {
+        heldMutation = { active: true, release: undefined };
+        currentState = botState({ seq: 1, priorityPlayerId: BOT });
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+        expect(getAiDecisions()).toHaveLength(1);
+
+        // The first submission never settles; a new state version arrives.
+        currentState = botState({ seq: 2, priorityPlayerId: BOT });
+        rerender();
+        await settleDriver();
+
+        // Still one: the second dispatch was suppressed, so it is not an answer.
+        expect(getAiDecisions()).toHaveLength(1);
+        expect(calls).toHaveLength(1);
     });
 });

@@ -83,7 +83,7 @@ describe("handleBrainRequest (issue #2470)", () => {
         expect(res.id).toBe(7);
     });
 
-    it("is deterministic given the seed", () => {
+    it("forwards the caller's seed verbatim, so a search is reproducible", () => {
         const seen: number[] = [];
         const search = vi
             .fn()

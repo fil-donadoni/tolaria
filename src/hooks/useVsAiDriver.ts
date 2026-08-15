@@ -87,6 +87,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor } from "@convex/gre";
+import type { Move } from "@convex/gre";
 import { consultBrain } from "~/lib/ai/brain-client";
 import {
     recordAiDecision,
@@ -99,6 +100,7 @@ import {
     botActionRealisation,
     chooseOwedChoiceAction,
     chooseOwedTargetAction,
+    type BotAction,
     type BotView,
 } from "~/lib/ai/brain";
 import { escalationLadder } from "~/lib/ai/owed-input";
@@ -401,7 +403,8 @@ export function useVsAiDriver(
         extra: {
             expectedKind: ExpectedInputKind;
             via?: "worker" | "inline";
-            moveKind?: string;
+            moveKind?: Move["kind"];
+            actionKind?: BotAction["kind"];
             message?: string;
         }
     ) => {
@@ -417,15 +420,32 @@ export function useVsAiDriver(
     const dispatch = (
         signature: string,
         run: () => Promise<unknown>,
-        // issue #2470 — what to say in the breadcrumb if this submission is
-        // REJECTED. Optional because the escalation rungs record themselves
-        // through the escalation ring; a rung that is also rejected is a
-        // rejection like any other and still deserves the note.
-        meta?: { expectedKind: ExpectedInputKind; moveKind?: string }
+        // issue #2470 — the breadcrumb this submission is worth. `outcome`
+        // is recorded the moment the dispatch actually STARTS (never before
+        // the in-flight guard below, or the ring would show answers the bot
+        // never submitted — a lie in the "looks healthy" direction); the rest
+        // is what to say if the submission is REJECTED.
+        //
+        // The worker branch omits `outcome`: it records the consult's own
+        // verdict from inside the run instead, which is strictly more
+        // informative than "a dispatch started".
+        meta?: {
+            expectedKind: ExpectedInputKind;
+            outcome?: AiDecisionOutcome;
+            moveKind?: Move["kind"];
+            actionKind?: BotAction["kind"];
+        }
     ) => {
         if (inFlight.current) return;
         inFlight.current = true;
         lastSignature.current = signature;
+        if (meta?.outcome) {
+            note(meta.outcome, {
+                expectedKind: meta.expectedKind,
+                moveKind: meta.moveKind,
+                actionKind: meta.actionKind,
+            });
+        }
         void run()
             .catch((e: unknown) => {
                 // Stale/illegal submissions are rejected server-side; allow
@@ -436,6 +456,7 @@ export function useVsAiDriver(
                     note("submit-error", {
                         expectedKind: meta.expectedKind,
                         moveKind: meta.moveKind,
+                        actionKind: meta.actionKind,
                         message: e instanceof Error ? e.message : String(e),
                     });
                 }
@@ -471,13 +492,20 @@ export function useVsAiDriver(
             }
 
             // Rung 1 — re-run the normal decision path once, to absorb a stale
-            // view or a transient Worker failure. Not recorded in the trace:
-            // only escalations PAST the first rung are, per the issue.
+            // view or a transient Worker failure. Not recorded in the ESCALATION
+            // ring: only escalations PAST the first rung are, per the issue. It
+            // still carries dispatch meta, so a rung-1 submission the server
+            // REJECTS leaves a `submit-error` breadcrumb rather than falling
+            // through both rings (issue #2470 review, finding 3).
             if (escalationAttempt.current === 0) {
                 escalationAttempt.current = 1;
-                const runner = realiseBotAction(decideBotAction(view), ctx);
+                const action = decideBotAction(view);
+                const runner = realiseBotAction(action, ctx);
                 if (runner) {
-                    dispatch(signature, runner);
+                    dispatch(signature, runner, {
+                        expectedKind: kind,
+                        actionKind: action.kind,
+                    });
                     return;
                 }
                 // The same view produced the same nothing — waiting another
@@ -500,7 +528,10 @@ export function useVsAiDriver(
                     expectedKind: kind,
                     action: step.action.kind,
                 });
-                dispatch(signature, runner);
+                dispatch(signature, runner, {
+                    expectedKind: kind,
+                    actionKind: step.action.kind,
+                });
                 return;
             }
 
@@ -590,8 +621,12 @@ export function useVsAiDriver(
         }
 
         // A window the bot cannot answer is not dispatched — it is escalated by
-        // the watchdog effect below, immediately (issue #2284).
-        if (action.kind === "unanswered") return;
+        // the watchdog effect below, immediately (issue #2284). Recorded first:
+        // it is a decision EXIT, and one the ring must not describe by silence.
+        if (action.kind === "unanswered") {
+            note("unanswered", { expectedKind: view.owedInput!.kind });
+            return;
+        }
 
         // Every non-search realisation is submitted directly — the parked
         // payment families, the combat-damage confirmation, the brain-resolved
@@ -603,7 +638,23 @@ export function useVsAiDriver(
         const realisation = botActionRealisation(action.kind);
         if (realisation !== "worker") {
             const runner = realiseBotAction(action, realisationContext);
-            if (runner) dispatch(signature, runner);
+            if (runner) {
+                dispatch(signature, runner, {
+                    expectedKind: view.owedInput!.kind,
+                    outcome: "direct",
+                    actionKind: action.kind,
+                });
+            } else {
+                // `realiseBotAction` returns null on several branches — the bot
+                // decided on an action and NOTHING was submitted. Before this
+                // record (issue #2470 review, finding 1) the ring showed the
+                // previous decision, a gap, then escalation rungs: exactly the
+                // "died leaving no trace" shape this ring exists to remove.
+                note("unrealisable", {
+                    expectedKind: view.owedInput!.kind,
+                    actionKind: action.kind,
+                });
+            }
             return;
         }
 
@@ -619,11 +670,16 @@ export function useVsAiDriver(
             // Recorded too (issue #2470): this pass never consulted the Brain,
             // so it is NOT evidence about the Brain's health — a ring that did
             // not say so would read as "the search kept choosing to pass".
-            note("skip-pass", { expectedKind: view.owedInput!.kind });
+            // Recorded BY `dispatch`, so a dispatch the in-flight guard
+            // suppresses records nothing (review finding 4).
             dispatch(
                 signature,
                 () => mutations.passPriority({ gameId, playerId: botId }),
-                { expectedKind: view.owedInput!.kind, moveKind: "pass" }
+                {
+                    expectedKind: view.owedInput!.kind,
+                    outcome: "skip-pass",
+                    moveKind: "pass",
+                }
             );
             return;
         }
