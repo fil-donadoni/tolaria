@@ -25,6 +25,7 @@ const LIST = [
         issueNumber: 42,
         hasSnapshot: true,
         hasAttachment: true,
+        hasDiagnostics: true,
     },
     {
         _id: "report-2",
@@ -34,6 +35,7 @@ const LIST = [
         issueNumber: undefined,
         hasSnapshot: false,
         hasAttachment: false,
+        hasDiagnostics: false,
     },
 ];
 
@@ -46,6 +48,19 @@ const DETAIL: Record<string, unknown> = {
         userAgent: "Mozilla/5.0",
         attachmentName: "board.png",
         attachmentUrl: "https://storage.example/board.png",
+        clientDiagnostics: {
+            decisions: [
+                {
+                    outcome: "worker-error",
+                    expectedKind: "priority",
+                    phase: "PRECOMBAT_MAIN",
+                    seq: 7,
+                    message: "Script error",
+                    at: 1700000000000,
+                },
+            ],
+            escalations: [],
+        },
         gameId: "game-1",
         seq: 7,
         state: {
@@ -99,6 +114,36 @@ describe("BugReportsAdminPanel", () => {
         expect(screen.getByText("#42")).toBeTruthy();
         expect(screen.getByText("Grace")).toBeTruthy();
         expect(screen.getByText("Lobby is blank")).toBeTruthy();
+    });
+
+    // issue #2470 — the rings are the ONLY record of why a client-hosted bot's
+    // decision failed (ADR 0074). An admin scanning the list must be able to
+    // tell which reports carry them without opening each one, and the detail
+    // must actually render them.
+    it("flags the reports carrying AI diagnostics, and renders them on selection", () => {
+        render(<BugReportsAdminPanel />);
+        expect(screen.getAllByText("AI").length).toBe(1);
+
+        fireEvent.click(screen.getByText("Ada"));
+        expect(screen.getByText("AI diagnostics")).toBeTruthy();
+    });
+
+    it("shows no AI section for a report that carries no rings", () => {
+        // A real detail row for Grace — without one the panel renders "Report
+        // not found" and the assertion below would pass for the wrong reason
+        // (it did, until the proof-of-failure sweep caught it).
+        DETAIL["report-2"] = {
+            name: "Grace",
+            email: "grace@example.com",
+            description: "Lobby is blank",
+            attachmentUrl: null,
+            filedAt: 1700000100000,
+        };
+        render(<BugReportsAdminPanel />);
+        fireEvent.click(screen.getByText("Grace"));
+
+        expect(screen.getByText("grace@example.com")).toBeTruthy();
+        expect(screen.queryByText("AI diagnostics")).toBeNull();
     });
 
     it("shows nothing selected by default", () => {

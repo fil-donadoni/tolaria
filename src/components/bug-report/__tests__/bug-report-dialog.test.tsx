@@ -8,6 +8,8 @@ import BugReportDialog from "../bug-report-dialog";
 // pending-disable, success state) is exercised without a live backend.
 
 let currentUser: { nickname: string; email?: string } | null;
+/** What `collectAiDiagnostics` reports for the next submit. */
+let aiDiagnostics: unknown;
 const submitBugReport = vi.fn();
 const generateUploadUrl = vi.fn();
 
@@ -15,6 +17,13 @@ vi.mock("convex/react", () => ({
     useQuery: () => currentUser,
     useMutation: () => generateUploadUrl,
     useAction: () => submitBugReport,
+}));
+// issue #2470 — the AI rings themselves are a bot-subsystem concern (and
+// importing them here would put this jsdom test in the bot suite, which the
+// boundary guard rejects). The dialog's own contract is narrower: attach
+// whatever the collector returns, and nothing when it returns nothing.
+vi.mock("~/lib/ai/diagnostics", () => ({
+    collectAiDiagnostics: () => aiDiagnostics,
 }));
 vi.mock("@convex/_generated/api", () => ({
     api: {
@@ -34,6 +43,7 @@ describe("BugReportDialog", () => {
         submitBugReport.mockResolvedValue({
             issueUrl: "https://github.com/fil-donadoni/tolaria/issues/42",
         });
+        aiDiagnostics = undefined;
     });
 
     it("prefills name and email from the signed-in account", () => {
@@ -129,5 +139,59 @@ describe("BugReportDialog", () => {
                 "Bug reporting is not configured (missing GITHUB_TOKEN)"
             )
         ).toBeTruthy();
+    });
+    // issue #2470 — the play bot runs in THIS tab (ADR 0074), so a report is
+    // the only way its decision history ever reaches a maintainer. #2450
+    // arrived with a full board snapshot and nothing about the decision that
+    // produced it, and could not be root-caused for exactly that reason.
+    it("attaches the bot's decision ring when the bot has decided", async () => {
+        aiDiagnostics = {
+            decisions: [
+                {
+                    outcome: "worker-error",
+                    expectedKind: "priority",
+                    phase: "PRECOMBAT_MAIN",
+                    seq: 9,
+                    message: "Script error",
+                    at: 0,
+                },
+            ],
+            escalations: [],
+        };
+
+        const { getByRole, getByPlaceholderText } = render(
+            <BugReportDialog open onOpenChange={() => {}} />
+        );
+        fireEvent.change(
+            getByPlaceholderText("What happened? What did you expect?"),
+            { target: { value: "BOT doesn't play any land" } }
+        );
+        fireEvent.click(getByRole("button", { name: "Submit" }));
+
+        await waitFor(() => expect(submitBugReport).toHaveBeenCalledTimes(1));
+        const args = submitBugReport.mock.calls[0][0] as {
+            clientDiagnostics?: { decisions: { outcome: string }[] };
+        };
+        expect(args.clientDiagnostics?.decisions).toHaveLength(1);
+        expect(args.clientDiagnostics?.decisions[0].outcome).toBe(
+            "worker-error"
+        );
+    });
+
+    it("omits the diagnostics entirely when there is no bot history", async () => {
+        const { getByRole, getByPlaceholderText } = render(
+            <BugReportDialog open onOpenChange={() => {}} />
+        );
+        fireEvent.change(
+            getByPlaceholderText("What happened? What did you expect?"),
+            { target: { value: "Typo in the lobby" } }
+        );
+        fireEvent.click(getByRole("button", { name: "Submit" }));
+
+        await waitFor(() => expect(submitBugReport).toHaveBeenCalledTimes(1));
+        const args = submitBugReport.mock.calls[0][0] as {
+            clientDiagnostics?: unknown;
+        };
+        expect(args.clientDiagnostics).toBeUndefined();
     });
 });

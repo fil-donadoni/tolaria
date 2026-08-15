@@ -12,6 +12,7 @@ import { useState } from "react";
 import { Panel } from "~/components/ui/panel";
 import AiDecisionTrace from "./ai-decision-trace";
 import AiEscalationLog from "./ai-escalation-log";
+import AiDecisionLog from "./ai-decision-log";
 
 export default function AiDecisionTraceBox() {
     const [open, setOpen] = useState(true);
@@ -34,6 +35,10 @@ export default function AiDecisionTraceBox() {
                         own list. Renders nothing while the liveness invariant
                         holds normally. */}
                     <AiEscalationLog />
+                    {/* issue #2470 — how each decision ENDED. The escalation
+                        list above says what fired after the normal path
+                        produced nothing; this says why it produced nothing. */}
+                    <AiDecisionLog />
                     <AiDecisionTrace />
                 </div>
             )}

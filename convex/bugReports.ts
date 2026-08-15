@@ -262,6 +262,7 @@ export const createReportRow = internalMutation({
         gameId: v.optional(v.id("games")),
         seq: v.optional(v.number()),
         state: v.optional(v.any()),
+        clientDiagnostics: v.optional(v.any()),
     },
     returns: v.id("bugReports"),
     handler: async (ctx, args) => {
@@ -311,6 +312,7 @@ export const getReport = internalQuery({
             gameId: v.optional(v.id("games")),
             seq: v.optional(v.number()),
             state: v.optional(v.any()),
+            clientDiagnostics: v.optional(v.any()),
             issueNumber: v.optional(v.number()),
             issueUrl: v.optional(v.string()),
             filedAt: v.number(),
@@ -332,6 +334,7 @@ export const getReport = internalQuery({
             gameId: row.gameId,
             seq: row.seq,
             state: row.state,
+            clientDiagnostics: row.clientDiagnostics,
             issueNumber: row.issueNumber,
             issueUrl: row.issueUrl,
             filedAt: row._creationTime,
@@ -366,6 +369,7 @@ export async function listBugReportsHandler(ctx: QueryCtx) {
         issueNumber: row.issueNumber,
         hasSnapshot: row.state !== undefined,
         hasAttachment: row.attachmentId !== undefined,
+        hasDiagnostics: row.clientDiagnostics !== undefined,
     }));
 }
 
@@ -380,6 +384,7 @@ export const listBugReports = query({
             issueNumber: v.optional(v.number()),
             hasSnapshot: v.boolean(),
             hasAttachment: v.boolean(),
+            hasDiagnostics: v.boolean(),
         })
     ),
     handler: listBugReportsHandler,
@@ -411,6 +416,12 @@ export async function getBugReportHandler(
         gameId: row.gameId,
         seq: row.seq,
         state: row.state,
+        // issue #2470 — the AI rings. This admin query, not the internal
+        // `getReport`, is what the `/admin/bug-reports` page renders: a field
+        // added only to `getReport` would be readable ONLY through
+        // `bunx convex run … --prod`, which is the access path #2250 built this
+        // page to route around.
+        clientDiagnostics: row.clientDiagnostics,
         issueNumber: row.issueNumber,
         issueUrl: row.issueUrl,
         filedAt: row._creationTime,
@@ -432,6 +443,7 @@ export const getBugReport = query({
             gameId: v.optional(v.id("games")),
             seq: v.optional(v.number()),
             state: v.optional(v.any()),
+            clientDiagnostics: v.optional(v.any()),
             issueNumber: v.optional(v.number()),
             issueUrl: v.optional(v.string()),
             filedAt: v.number(),
@@ -460,6 +472,12 @@ export const submitBugReport = action({
         // The game the reporter is sitting in, if any. Only an id — the state
         // itself is read server-side and only for a participant.
         gameId: v.optional(v.id("games")),
+        // Client-side AI diagnostics (issue #2470). Unlike the board state,
+        // this CANNOT be re-read server-side: the play bot runs in the
+        // reporter's own tab (ADR 0074), so the rings only exist there. Stored
+        // verbatim and never parsed here — it is evidence for a human, and a
+        // report must not fail because a diagnostic field moved on.
+        clientDiagnostics: v.optional(v.any()),
     },
     returns: v.object({ issueUrl: v.string() }),
     handler: async (ctx, args): Promise<{ issueUrl: string }> => {
@@ -496,6 +514,7 @@ export const submitBugReport = action({
                 gameId: args.gameId,
                 seq: snapshot?.seq,
                 state: snapshot?.state,
+                clientDiagnostics: args.clientDiagnostics,
             }
         );
 

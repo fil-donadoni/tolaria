@@ -119,6 +119,7 @@ describe("listBugReports / getBugReport admin gate (issue #2250)", () => {
             issueNumber: undefined,
             hasSnapshot: true,
             hasAttachment: false,
+            hasDiagnostics: false,
         });
         expect(rows[0]).not.toHaveProperty("state");
     });
@@ -132,6 +133,35 @@ describe("listBugReports / getBugReport admin gate (issue #2250)", () => {
         expect(result?.email).toBe("ada@example.com");
         expect(result?.state).toEqual({ turn: 3, phase: "COMBAT" });
         expect(result?.attachmentUrl).toBeNull();
+    });
+
+    // issue #2470 — the AI rings reach the DB from the reporter's own tab
+    // (ADR 0074) and are the only record of why a bot decision failed. This
+    // admin query, not the internal `getReport`, is what the page renders: a
+    // field added only there would be readable ONLY through
+    // `bunx convex run … --prod`, which is the access path this page exists to
+    // route around.
+    it("exposes the AI diagnostics on both admin queries", async () => {
+        const diagnosed: Row = {
+            ...REPORT,
+            _id: "report-2",
+            clientDiagnostics: {
+                decisions: [{ outcome: "worker-error", seq: 9 }],
+                escalations: [],
+            },
+        };
+        const ctx = makeCtx("admin-1", [ADMIN, diagnosed]);
+
+        const rows = (await runListBugReports(ctx)) as Row[];
+        expect(rows[0].hasDiagnostics).toBe(true);
+
+        const detail = (await runGetBugReport(ctx, {
+            reportId: "report-2" as Id<"bugReports">,
+        })) as Row | null;
+        expect(detail?.clientDiagnostics).toEqual({
+            decisions: [{ outcome: "worker-error", seq: 9 }],
+            escalations: [],
+        });
     });
 
     it("returns null from getBugReport for a missing row, after the gate passes", async () => {
