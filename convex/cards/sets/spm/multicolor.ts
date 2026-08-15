@@ -18,6 +18,22 @@
 // `def.staticEffects`; the only per-instance flag, `mustAttackThisTurn`
 // (`convex/gre/state.ts`), is transient and cleared at cleanup — the wrong
 // duration for a permanent grant → tracked-by #1972.
+//
+// PATTERN for (ii), landed for the Aura twin in #2471 (CR 303.4 enchant
+// restriction, `convex/gre/state.ts`): a normalized restriction interface in
+// `cards/types.ts`; an optional `CardInstanceState` field granted by a new
+// OPTIONAL FIELD on an existing Op rather than a new Op; ONE exported resolver
+// that every legality site calls, with the per-consumer copies DELETED, not a
+// second reader added; a hand-written `compactCard` / `expandCard` branch plus
+// a round-trip assertion (`PERSISTED_OPTIONAL_KEYS` guards only top-level
+// `GameState` keys, so it will not catch a missing instance field).
+//
+// The part that is easy to get wrong, and did get wrong on the first pass:
+// ONE predicate is necessary but NOT sufficient. Two sites calling the same
+// function still disagree if they call it at moments where the DATA differs.
+// Decide the grant's scope, then clear it at every boundary of that scope —
+// including before any legality question asked during an entry sequence, not
+// only in the entry-side reset that runs after the answer has been used.
 // tracked-by: #1971
 // tracked-by: #1972
 // export const carnageCrimsonChaos: CardDefinition = {

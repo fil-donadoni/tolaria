@@ -134,12 +134,14 @@ export function checkGameOverSBA(state: GameState): boolean {
  * Illegal host means: no longer on the battlefield, or no longer satisfies
  * the aura's enchant restriction. That restriction comes from
  * `resolveEnchantRestriction` (state.ts) — the SAME single predicate the CR
- * 303.4f candidate scan offers hosts from, so what is offered and what is
- * enforced cannot disagree. It resolves the aura's RUNTIME grant first ("it
- * becomes an Aura with enchant creature", `grantedEnchantRestriction`) and its
- * printed `targetRequirement` second (Control Magic requires a Creature,
- * Steal Artifact an Artifact). An object with neither has no legal host at
- * all and is binned here.
+ * 303.4f candidate scan offers hosts from, reading the same
+ * battlefield-scoped data, so what is offered and what is enforced cannot
+ * disagree. It collects EVERY instance of enchant the object has (CR 702.5c:
+ * "all of them apply") — its RUNTIME grant ("it becomes an Aura with enchant
+ * creature", `grantedEnchantRestriction`) and its printed `targetRequirement`
+ * (Control Magic requires a Creature, Steal Artifact an Artifact) — and the
+ * host must match all of them. An object with no enchant ability at all has
+ * no legal host and is binned here.
  *
  * Called after any action that may invalidate an attachment: resolution,
  * combat damage, destroy effects, acquiring protection, etc.
