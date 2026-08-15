@@ -26,6 +26,15 @@ export type HasPriorityCtx = {
      *  projection (top-level GameState key kept in `PublicGameState`), so the
      *  client's "who selects blockers" mirror flips to match the server. */
     meleeCombat?: boolean;
+    /** CR 514.3a (issue #2472) — set while the cleanup step's ONE priority
+     *  window is open. CLEANUP is otherwise a no-priority step (CR 514.3), so
+     *  without this the client's own reducers refuse to believe the server:
+     *  `computeHasPriority` returns false and `computePriorityState` returns
+     *  `"none"` for the player who actually holds priority, no Pass button
+     *  renders, Space is a no-op, and the board deadlocks with the cleanup
+     *  trigger on the stack. Survives the wire projection (top-level
+     *  `GameState` key kept by `PublicGameState`). */
+    pendingExtraCleanupStep?: boolean;
 };
 
 /** The seat that declares this combat's blocks (CR 509.1): the defending
@@ -112,6 +121,22 @@ export function isWaitingOnOpponent(ctx: HasPriorityCtx): boolean {
 /** Phases where no player ever receives priority (CR 502/514 + pre-game). */
 const NON_PRIORITY_PHASES = new Set(["MULLIGAN", "UNTAP", "CLEANUP"]);
 
+/** True while the step in progress hands out no priority at all.
+ *
+ *  CR 514.3 makes CLEANUP a member of that set only "normally": CR 514.3a is
+ *  the exception — when a triggered ability is put onto the stack during the
+ *  cleanup step "the active player gets priority. Players may cast spells and
+ *  activate abilities." The engine records exactly that window on
+ *  `pendingExtraCleanupStep` (`convex/gre/phases.ts`,
+ *  `openCleanupPriorityWindow`), which is also the flag that makes it re-enter
+ *  CLEANUP once the window closes. While it is set the cleanup step is a real
+ *  priority step and the client must render the Pass affordance like any
+ *  other, or the board deadlocks with the trigger on the stack. */
+function isNonPriorityPhase(ctx: HasPriorityCtx): boolean {
+    if (ctx.phase === "CLEANUP" && ctx.pendingExtraCleanupStep) return false;
+    return NON_PRIORITY_PHASES.has(ctx.phase);
+}
+
 export function computeHasPriority(ctx: HasPriorityCtx): boolean {
     // No player holds priority in a pre-priority / turn-based phase (CR 502/514
     // + pre-game mulligan). Without this guard the client believes it has
@@ -119,7 +144,7 @@ export function computeHasPriority(ctx: HasPriorityCtx): boolean {
     // so Space → `handlePass` → `passPriority`, which the server rejects
     // ("Cannot pass priority during mulligan phase"). `computePriorityState`
     // already gates on this set; `computeHasPriority` must too.
-    if (NON_PRIORITY_PHASES.has(ctx.phase)) return false;
+    if (isNonPriorityPhase(ctx)) return false;
     return (
         ctx.playerId === ctx.priorityPlayerId &&
         !ctx.pendingCast &&
@@ -142,14 +167,15 @@ export function computeHasPriority(ctx: HasPriorityCtx): boolean {
  *                   sub-action, or their combat decision).
  *  - `"none"`     — no one is being asked for input: the game is over, a
  *                   pre-priority/turn-based phase is running (mulligan, untap,
- *                   cleanup), or the stack/step is auto-resolving. */
+ *                   cleanup — except during the CR 514.3a cleanup priority
+ *                   window), or the stack/step is auto-resolving. */
 export type PriorityState = "mine" | "opponent" | "none";
 
 export type PriorityStateCtx = HasPriorityCtx & { gameOver?: GameOver };
 
 export function computePriorityState(ctx: PriorityStateCtx): PriorityState {
     if (ctx.gameOver) return "none";
-    if (NON_PRIORITY_PHASES.has(ctx.phase)) return "none";
+    if (isNonPriorityPhase(ctx)) return "none";
 
     // Turn-based combat decisions (CR 508/509/510) suspend priority. The
     // selecting/assigning helpers are defined from the local player's seat, so

@@ -232,9 +232,34 @@ export function resolveDuration(
  *  expired. Non-matching boundaries return the duration unchanged. The
  *  caller is responsible for splicing out expired entries and any side
  *  effects (e.g. removing granted keywords from `staticAbilities`). */
+/** The boundary a {@link tickDuration} call represents. */
+export type DurationTickView = {
+    phase: Phase;
+    activePlayerId: string;
+    /** CR 514.3a (issue #2472) — true when this TURN's boundary tick has
+     *  already been counted and the engine is running the same boundary again
+     *  (the "another cleanup step begins" repeat). A `skip` counter is a
+     *  per-TURN countdown ("until end of your next turn") expressed as a
+     *  BOUNDARY count, so a second tick in one turn ends the effect a full
+     *  turn early. When set, `tickDuration` is a no-op.
+     *
+     *  Scoped to durations only. The turn-scoped GLOBAL flags that
+     *  `tickAllDurations` clears alongside them (`highTideThisTurn`,
+     *  `preventAllCombatDamageThisTurn`, the cast/activation locks) are plain
+     *  clear-to-`undefined` statements outside `tickDuration` and DO re-run on
+     *  the repeat step, so an instant cast in the CR 514.3a priority window
+     *  cannot arm one and leak it into the next turn.
+     *
+     *  Residual, pre-existing and unchanged by this flag: a DURATION created
+     *  during that same window misses this turn's tick and ends one turn late.
+     *  It already did before the window existed — `finalizeCleanup` has always
+     *  run before anything the cleanup step's own priority window creates. */
+    boundaryAlreadyCounted?: boolean;
+};
+
 export function tickDuration(
     duration: Duration,
-    view: { phase: Phase; activePlayerId: string }
+    view: DurationTickView
 ): Duration | null {
     const boundary: Phase =
         duration.phase === "end-of-turn"
@@ -251,6 +276,13 @@ export function tickDuration(
     ) {
         return duration;
     }
+    // CR 514.3a — an additional cleanup step re-runs this boundary inside the
+    // SAME turn. A `Duration` counts BOUNDARIES as a proxy for turns, and that
+    // proxy holds only while a boundary is hit once per turn: ticked twice, an
+    // "until end of your next turn" grant (`skip: 1`) decrements to 0 on the
+    // first pass and expires on the second, both in the turn it was created.
+    // So the repeat leaves every duration exactly as it found it.
+    if (view.boundaryAlreadyCounted) return duration;
     const skip = duration.skip ?? 0;
     if (skip === 0) return null;
     const next: Duration = { ...duration, skip: skip - 1 };
@@ -3611,6 +3643,33 @@ export type GameState = {
      *  Scepter). Cleared once the discards land and the remainder of CLEANUP
      *  (CR 514.2 — damage wipe, "until end of turn" expiry) runs. */
     pendingCleanupDiscard?: { playerId: string };
+    /** CR 514.3a (issue #2472) — "another cleanup step begins" marker. The
+     *  cleanup step normally grants no priority (CR 514.3); the single
+     *  exception fires when state-based actions or triggered abilities are
+     *  waiting at that point (a `next-cleanup-step` delayed trigger, or a
+     *  trigger raised by the 514.1 discard itself — Madness). When that
+     *  happens the active player gets priority and, once the stack empties and
+     *  all players pass, ANOTHER cleanup step begins. This flag is what carries
+     *  that obligation across the priority window (which spans mutations, so it
+     *  must persist): set by `openCleanupPriorityWindow` (`gre/phases.ts`) as
+     *  the window opens, consumed by `advancePhase`, which re-enters CLEANUP
+     *  instead of ending the turn. Undefined at every other point — a cleanup
+     *  step that puts nothing on the stack stays priority-less and single. */
+    pendingExtraCleanupStep?: boolean;
+    /** CR 514.3a (issue #2472) — the `turn` whose ONCE-PER-TURN cleanup
+     *  bookkeeping has already run. Because 514.3a can start an additional
+     *  cleanup step, `finalizeCleanup` (`gre/phases.ts`) runs more than once
+     *  per turn. Almost all of it genuinely re-runs — removing damage that is
+     *  already gone and ending effects that already ended are no-ops, and the
+     *  repeat step MUST still end effects created during the 514.3a priority
+     *  window. Exactly two things are keyed to the TURN rather than the step
+     *  and are gated on this marker: the `skip` COUNTDOWN inside
+     *  {@link tickDuration} (via `DurationTickView.boundaryAlreadyCounted`),
+     *  and the per-creature `attackedDuringLastTurn` roll-forward (a snapshot
+     *  of a flag the same pass clears). Persisted, because the 514.3a priority
+     *  window spans mutations and a step suspended on a CR 514.1 discard
+     *  prompt resumes in a later one. */
+    cleanupBookkeepingTurn?: number;
     /** Armed one-shot draw replacements (CR 614 — Aladdin's Lamp). Each entry
      *  replaces the NEXT draw `playerId` would take this turn: look at the top
      *  `x` cards, keep one to draw, bottom the rest in a random order. The

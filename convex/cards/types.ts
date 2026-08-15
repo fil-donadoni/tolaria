@@ -5088,6 +5088,40 @@ export type DelayedTriggerTiming =
     | "next-draw-step"
     | "next-main-phase"
     | "next-upkeep"
+    /** CR 603.7 / 514.3a — "at the beginning of the next cleanup step". A
+     *  phase-boundary timing like its five siblings above, but the ONLY one
+     *  whose step normally grants no priority at all: CR 514.3 says "Normally,
+     *  no player receives priority during the cleanup step", and CR 514.3a is
+     *  the single exception — a triggered ability waiting to be put onto the
+     *  stack there (explicitly "including those that trigger 'at the beginning
+     *  of the next cleanup step'") is put on the stack, the active player gets
+     *  priority, and once the stack empties and all players pass, ANOTHER
+     *  cleanup step begins. `gre/phases.ts` implements the TRIGGERED-ABILITY
+     *  half of that check: the CLEANUP arm fires this timing AFTER the 514.1
+     *  discard and the 514.2 turn-based actions, opens the priority window
+     *  when something landed, and re-enters CLEANUP once the window closes.
+     *
+     *  NOT the state-based-action half. CR 514.3a's condition is "any
+     *  state-based actions would be performed AND/OR any triggered abilities
+     *  are waiting"; `openCleanupPriorityWindow`'s condition is only "the
+     *  stack grew". `checkStateBasedActions` is never called from
+     *  `gre/phases.ts` at all — the engine's SBA seam sits in the `game.ts`
+     *  mutation layer, i.e. after `advancePhase` has already returned — so the
+     *  canonical SBA case (an "until end of turn" pump ending at 514.2 drops a
+     *  creature to 0 toughness) opens no window and starts no additional
+     *  cleanup step; the death lands in the next turn's UPKEEP instead. That
+     *  is an engine-wide phase-machine gap rather than a property of this
+     *  timing: no phase entry anywhere checks SBAs. Documented in
+     *  `docs/findings/2472-cleanup-step-sba-half.md`.
+     *
+     *  NOT a synonym for `next-end-step`: the cleanup step happens after the
+     *  end step (CR 514), so the two are different, ordered boundaries.
+     *  Deliberately absent from the CLEANUP watch purge in `gre/phases.ts` —
+     *  it is a step boundary, not a "this turn" instance watch, and a purge
+     *  that swept it would delete the instance in the very step it fires in.
+     *  Rejects `targetPlayer` and `watch` like every other phase-boundary
+     *  timing (validate.ts). */
+    | "next-cleanup-step"
     /** CR 603.7a / 603.10 — an INSTANCE-scoped, this-turn-bounded leave-watch:
      *  "When that creature leaves the battlefield this turn, …" (Kjeldoran
      *  Elite Guard, Kjeldoran Guard, Phantasmal Mount). Unlike the
@@ -12477,6 +12511,9 @@ export type EffectOp =
      *  inside the body). `targetPlayer` scopes the player-gated timings
      *  (`next-draw-step` / `next-main-phase`, CR 504/505) to one player's
      *  step; the global-boundary timings reject it (validator-enforced).
+     *  `next-cleanup-step` (CR 514.3a) is a global-boundary timing with one
+     *  extra consequence: firing it opens the cleanup step's single priority
+     *  window and an additional cleanup step follows (gre/phases.ts).
      *  Does not nest inside another delayedTrigger body. The two grammar gaps
      *  ADR 0048 tracked have since closed (ADR 0049): event-field captures
      *  (`$event.<field>`, issue #865) and list-valued captures

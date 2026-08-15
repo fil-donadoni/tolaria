@@ -4514,3 +4514,68 @@ describe("validateAbilityEffectScript — modes[] XOR ability-level body (CR 700
         ).toEqual([]);
     });
 });
+
+// --- delayedTrigger `next-cleanup-step` timing (CR 603.7 / 514.3a, #2472) ---
+// The cleanup boundary is a PHASE-boundary timing: accepted by the Op's
+// vocabulary, and — like its five siblings — rejecting both `targetPlayer`
+// (player-scoped only, CR 504/505) and `watch` (instance-scoped only,
+// CR 603.7a).
+describe("validateEffectScript — delayedTrigger next-cleanup-step (CR 514.3a)", () => {
+    const body: EffectOp[] = [
+        { op: "gainLife", player: "controller", amount: 1 },
+    ];
+
+    it("accepts the cleanup-step boundary timing", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-cleanup-step",
+                            oracleText:
+                                "At the beginning of the next cleanup step, sacrifice it.",
+                            effects: body,
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects targetPlayer on the cleanup-step timing (CR 504/505)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-cleanup-step",
+                        oracleText: "x",
+                        targetPlayer: "controller",
+                        effects: body,
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.some((e) => /"targetPlayer" is only valid/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects watch on the cleanup-step timing (CR 603.7a)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-cleanup-step",
+                        oracleText: "x",
+                        watch: { ref: "$source" },
+                        effects: body,
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.some((e) => /"watch" is only valid/.test(e))).toBe(true);
+    });
+});

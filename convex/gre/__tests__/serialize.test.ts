@@ -1924,6 +1924,18 @@ describe("optional field round-trip smoke tests", () => {
         });
     });
 
+    it("pendingExtraCleanupStep (CR 514.3a)", () => {
+        const state = freshState();
+        state.pendingExtraCleanupStep = true;
+        expect(roundTrip(state).pendingExtraCleanupStep).toBe(true);
+    });
+
+    it("cleanupBookkeepingTurn (CR 514.3a)", () => {
+        const state = freshState();
+        state.cleanupBookkeepingTurn = 7;
+        expect(roundTrip(state).cleanupBookkeepingTurn).toBe(7);
+    });
+
     it("maxHandSizeOverride on PlayerState (CR 402.2)", () => {
         const state = freshState();
         state.players[0].maxHandSizeOverride = "unlimited";
