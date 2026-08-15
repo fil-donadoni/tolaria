@@ -3392,6 +3392,14 @@
         "firstPrintSet": "nem"
     },
     {
+        "name": "Doomsday",
+        "scryfallId": "5b3c6d87-9383-450b-bba5-33435b6b0d08",
+        "oracleId": "721eb5a2-d7cf-4db0-8013-ef3f596c52a5",
+        "firstSet": "wth",
+        "firstPrintId": "5b3c6d87-9383-450b-bba5-33435b6b0d08",
+        "firstPrintSet": "wth"
+    },
+    {
         "name": "Doomsday Specter",
         "scryfallId": "85206cc1-5484-40c6-b11d-b8d6fad4fc5c",
         "oracleId": "5811effb-5010-44b9-bb97-9d7eb358327f",
