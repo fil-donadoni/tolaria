@@ -122,6 +122,73 @@ describe("viewerMatchRecordFor (issue #2357): the list row's derived match recor
         });
     });
 
+    it("keys the row by seatIndex, not by position in the SORTED standings", () => {
+        // `computeStandings` returns rows sorted by points, so on a two-seat
+        // event the winner's seatIndex and its sort position coincide and
+        // `standings[seatIndex]` reads correctly by accident. Three seats
+        // where the LAST seat wins everything breaks that coincidence: the
+        // viewer at seat 0 sits at sort position 1+, so a positional lookup
+        // hands back the leader's record instead of the viewer's.
+        let seats = buildEmptySeats(3);
+        seats = assignFreeSeat(seats, "user1", "Alice");
+        seats = assignFreeSeat(seats, "user2", "Bob");
+        seats = assignFreeSeat(seats, "user3", "Carol");
+        const event = {
+            ...buildEvent({ status: "finished" }),
+            seatCount: 3,
+            seats,
+            rounds: [
+                {
+                    roundNumber: 1,
+                    startedAt: 0,
+                    pairings: [
+                        {
+                            seatA: 2,
+                            seatB: 0,
+                            result: { winsA: 2, winsB: 0, source: "played" },
+                        },
+                    ],
+                },
+                {
+                    roundNumber: 2,
+                    startedAt: 0,
+                    pairings: [
+                        {
+                            seatA: 2,
+                            seatB: 1,
+                            result: { winsA: 2, winsB: 0, source: "played" },
+                        },
+                    ],
+                },
+            ],
+        } as unknown as Doc<"limitedEvents">;
+
+        // Seat 2 is the leader, so it is standings[0].
+        expect(viewerMatchRecordFor(event, "user3")).toEqual({
+            wins: 2,
+            losses: 0,
+            draws: 0,
+        });
+        // Seat 0 lost — a positional read would report the leader's 2-0.
+        expect(viewerMatchRecordFor(event, "user1")).toEqual({
+            wins: 0,
+            losses: 1,
+            draws: 0,
+        });
+    });
+
+    it("is blank on a force-closed event that never paired anyone — not a 0-0", () => {
+        // The flow this whole issue exists to create: the creator closes a
+        // stalled deckbuilding table, so the status jumps straight to the
+        // terminal one with no rounds ever created. The phase gate alone
+        // passes here (`isEventConcluded` is true), and
+        // `computeStandings(seats, [])` would hand back a zeroed row — the
+        // `0-0` the AC forbids. Emptiness has to be read off the DATA.
+        const event = buildEvent({ status: "finished" });
+        expect(event.rounds).toBeUndefined();
+        expect(viewerMatchRecordFor(event, "user1")).toBeUndefined();
+    });
+
     it("is final once concluded, with draws surfaced only when the viewer has one", () => {
         const event = buildEvent({
             status: "finished",
@@ -464,20 +531,60 @@ describe("full path (issue #2357 AC): close removes the event from the in-progre
 });
 
 describe("autoPickSeatTimeout no-ops once the event has concluded (issue #2357 AC)", () => {
-    it("a stale Auto-Pick firing against a finished event does nothing", async () => {
-        const event = buildEvent({ status: "finished" });
-        const withDraft = {
+    /** A draft event whose seat 0 genuinely has something to Auto-Pick: a
+     *  REAL `currentPack` (one card) plus a matching `pickSeq` — everything
+     *  `autoPickSeatTimeout`'s preconditions (`event.type`, `event.seed`,
+     *  `event.timerEnabled`, `event.draftCompletedAt`, the slim seat's
+     *  `pickSeq`) and `resolveAutoPickTimeout` (`draftEngine.ts`) need to
+     *  return a real pick id instead of `null` for a reason OTHER than the
+     *  phase gate.
+     *
+     *  `hydrateSeats` (`limitedSeatStore.ts`) falls back to a seat's OWN
+     *  inline `pool`/`currentPack` fields when no `limitedSeats` child row
+     *  exists for it yet (the legacy-row tolerance) — so setting
+     *  `currentPack` directly on the seat here is enough; no `limitedSeats`
+     *  row needs seeding.
+     *
+     *  `draftPacksRemaining: 1` with a one-card pack means this single pick
+     *  drains the pack AND (since `packSlots` — from `buildEvent` — has only
+     *  one entry) completes the draft in the same `applyPick` call, so the
+     *  fixture never needs `getRuntimeBoosterConfig`/real set data to deal a
+     *  next round or pass a pack to seat 1. */
+    function buildLiveDraftEvent(
+        status: Doc<"limitedEvents">["status"]
+    ): Doc<"limitedEvents"> {
+        const event = buildEvent({ status });
+        return {
             ...event,
             type: "draft" as const,
             seed: 1,
             timerEnabled: true,
+            draftRound: 0,
+            draftPacksRemaining: 1,
             seats: event.seats.map((s, i) =>
-                i === 0 ? { ...s, isBot: false, pickSeq: 3 } : s
+                i === 0
+                    ? {
+                          ...s,
+                          isBot: false,
+                          pickSeq: 3,
+                          currentPack: [
+                              {
+                                  pickId: "r0-p0-c0",
+                                  scryfallId: "test-card",
+                                  cardId: "test-card",
+                                  cardName: "Test Card",
+                              },
+                          ],
+                      }
+                    : s
             ),
-        };
-        const db = makeInMemoryDb({
-            limitedEvents: [withDraft as unknown as InMemoryRow],
-        });
+        } as unknown as Doc<"limitedEvents">;
+    }
+
+    function runAutoPick(
+        ctx: MutationCtx,
+        eventId: Id<"limitedEvents">
+    ): Promise<null> {
         const handler = (
             autoPickSeatTimeout as unknown as {
                 _handler: (
@@ -490,11 +597,46 @@ describe("autoPickSeatTimeout no-ops once the event has concluded (issue #2357 A
                 ) => Promise<null>;
             }
         )._handler;
-        const result = await handler(db.ctx, {
-            eventId: event._id,
-            seatIndex: 0,
-            expectedSeq: 3,
+        return handler(ctx, { eventId, seatIndex: 0, expectedSeq: 3 });
+    }
+
+    it("positive control: the SAME fixture, with Auto-Picks legal (status started), actually Auto-Picks — proves the no-op below comes from the phase gate, not an inert fixture", async () => {
+        const event = buildLiveDraftEvent("started");
+        const db = makeInMemoryDb({
+            limitedEvents: [event as unknown as InMemoryRow],
         });
+        const result = await runAutoPick(db.ctx, event._id);
+        // The handler's return type is always null (success or no-op) — the
+        // proof of life is in the WRITES, not the return value.
+        expect(result).toBeNull();
+        expect(db.writes.length).toBeGreaterThan(0);
+
+        // The event row's slim seat 0 shows the drained pack (poolCount
+        // moved from 0 to 1)...
+        const patchedEvent = db.tables.limitedEvents[0];
+        const slimSeat0 = (patchedEvent.seats as { poolCount?: number }[])[0];
+        expect(slimSeat0.poolCount).toBe(1);
+        // ...and the heavy payload split off to `limitedSeats` shows the
+        // actual picked card landed in the pool and the pack is gone.
+        const seatRow = (db.tables.limitedSeats ?? []).find(
+            (r) => r.seatIndex === 0
+        );
+        expect(seatRow?.pool).toEqual([
+            {
+                scryfallId: "test-card",
+                cardId: "test-card",
+                cardName: "Test Card",
+            },
+        ]);
+        expect(seatRow?.currentPack).toBeUndefined();
+    });
+
+    it("a stale Auto-Pick firing against a finished event does nothing", async () => {
+        const event = buildLiveDraftEvent("finished");
+        const db = makeInMemoryDb({
+            limitedEvents: [event as unknown as InMemoryRow],
+        });
+        const result = await runAutoPick(db.ctx, event._id);
         expect(result).toBeNull();
         // No write at all — the guard returns before touching anything.
         expect(db.writes).toHaveLength(0);
