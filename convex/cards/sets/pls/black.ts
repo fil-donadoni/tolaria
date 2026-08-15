@@ -487,33 +487,34 @@ export const maggotCarrier: CardDefinition = {
 // Morgue Toad — {2}{B} Creature — Frog, 2/2. "Sacrifice this creature: Add
 // {U}{R}." (CR 605.1a mana ability, sacrifice-self cost, NO tap component.)
 //
-// STOP-AND-ISSUE (issue #1950 review round 2, BLOCKER 3) — this is a genuine
-// ENGINE BUG, not a card-data problem: neither mutation that can activate a
-// mana ability correctly handles a cost that is sacrifice-only with no `{T}`.
-// `tapUntap`'s redirect guard (`convex/game.ts`) only sends a `!cost.tap &&
-// cost.mana` shape to `activateManaAbility`; a `!cost.tap && cost.sacrifice`
-// shape (this card) falls through into `tapUntap`'s sacrifice branch, which
-// looks up the produced mana via `getActivatedManaColor`/
-// `getActivatedManaProduced` (`gre/constants.ts`) — BOTH of which require
-// `cost.tap` to match at all — so it silently produces NO mana while still
-// sacrificing the source. `activateManaAbility` explicitly REJECTS
-// `cost.sacrifice` outright ("Use tapUntap for tap mana abilities"), so
-// there is no working path today. Confirmed the SAME bug already affects the
-// shipped Tinder Wall (`ice/green.ts`, "Sacrifice this creature: Add
-// {R}{R}.") — Lotus Petal (`tmp/colorless.ts`) is NOT a counter-example,
-// its cost is `{T}, Sacrifice...` (tap-based, sacrifice merely additional),
-// which both functions already handle via the `cost.tap` branch. Left as a
-// commented stub rather than shipped with a broken ability. tracked-by: #2021
-// export const morgueToad: CardDefinition = {
-//     id: "77d8ae73-70d1-4082-8581-5f74c1aaa63b", // PLS 46
-//     name: "Morgue Toad",
-//     rarity: "common",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Frog"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Shipped with issue #2021's fix (it was a commented stub until then): the
+// engine now has a path for a sacrifice-only, tap-less mana ability
+// (`getFixedSacrificeManaAbility` + `activateFixedSacrificeManaAbility`,
+// `gre/constants.ts` / `game.ts`), including the MULTI-colour output this card
+// needs — the old fixed branches resolved a single `Color` through
+// `getActivatedManaColor`, which returns null for {U}{R} even when it matches.
+// CR 302.6 — no {T} in the cost, so summoning sickness does not gate it: the
+// Toad can be sacrificed for mana the turn it enters.
+export const morgueToad: CardDefinition = {
+    id: "77d8ae73-70d1-4082-8581-5f74c1aaa63b", // PLS 46
+    name: "Morgue Toad",
+    rarity: "common",
+    oracleText: "Sacrifice this creature: Add {U}{R}.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Frog"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "morgue-toad-mana",
+            oracleText: "Sacrifice this creature: Add {U}{R}.",
+            cost: { sacrifice: true },
+            useStack: false, // mana ability (CR 605.3a)
+            manaProduced: { U: 1, R: 1 },
+        },
+    ],
+};
 
 // Nightscape Battlemage — {2}{B} Creature — Zombie Wizard, 2/2. "Kicker
 // {2}{U} and/or {2}{R}. When this creature enters, if it was kicked with

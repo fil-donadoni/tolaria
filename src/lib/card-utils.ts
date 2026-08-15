@@ -51,6 +51,7 @@ import {
     assignHybridPips,
     getActivatedManaAbility,
     getEffectiveManaChoices,
+    getFixedSacrificeManaAbility,
     getManaTapOptions,
     hybridCostKey,
     isSpellStackItem,
@@ -611,6 +612,37 @@ export function getActivatedManaColor(card: CardInstance): Color | null {
         .filter(([k, v]) => k !== "X" && typeof v === "number" && v > 0)
         .map(([k]) => k as Color);
     return colors.length === 1 ? colors[0] : null;
+}
+
+/** True when this source's mana ability has a FIXED output paid by sacrificing
+ *  it, with no {T} leg (CR 605.1a, issue #2021) — Tinder Wall, Gaea's Touch,
+ *  the Invasion Attendants, the Eldrazi Spawn token. Client mirror of the
+ *  engine's `getFixedSacrificeManaAbility`, read by the same board gates that
+ *  ask `getActivatedManaColor` about a tap source: that probe answers null here
+ *  (no `cost.tap`, and a multi-colour output has no single `Color` anyway), so
+ *  without this the source is not clickable as a payment source. */
+export function hasFixedSacrificeManaAbility(card: CardInstance): boolean {
+    return (
+        getFixedSacrificeManaAbility(card as unknown as CardInstanceState) !==
+        null
+    );
+}
+
+/** True when activating this source for mana would pay a {T} cost (CR 302.6) —
+ *  an intrinsic basic-land tap or an activated mana ability with `cost.tap`.
+ *
+ *  The summoning-sickness gates on the board read THIS rather than
+ *  `isTapLockedBySummoningSickness` alone (issue #2021): CR 302.6 restricts an
+ *  ability whose cost contains the tap or untap symbol, and nothing else, so a
+ *  sacrifice-only mana creature (an Eldrazi Spawn token, which is summoning
+ *  sick the turn it is created — the only turn it usually matters) must stay
+ *  activatable. Mirrors the `requiresTap` gate in `tapUntap` /
+ *  `tapSourceIntoPayment` server-side. */
+export function manaActivationRequiresTap(card: CardInstance): boolean {
+    if (getLandManaColor(card) !== null) return true;
+    return getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).some(({ ability: a }) => !a.useStack && a.cost.tap === true);
 }
 
 /** Returns true if the target requirement includes permanents (not player-only). */
