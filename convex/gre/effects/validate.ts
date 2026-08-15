@@ -671,6 +671,7 @@ function isTokenActivatedAbility(value: unknown): boolean {
         "useStack",
         "effects",
         "manaChoices",
+        "manaProduced",
     ]);
     if (!Object.keys(a).every((k) => allowed.has(k))) return false;
     if (typeof a.id !== "string" || a.id.length === 0) return false;
@@ -687,6 +688,21 @@ function isTokenActivatedAbility(value: unknown): boolean {
             a.manaChoices.length > 0 &&
             a.manaChoices.every((m) => isManaCost(m) && hasManaCostPip(m))
         )
+    ) {
+        return false;
+    }
+    // `manaProduced` (issue #2021) — the FIXED-output sibling of
+    // `manaChoices`, and a plain `ManaCost` like it. The Eldrazi Spawn token
+    // ("Sacrifice this token: Add {C}.") declared its output only as an
+    // `effects: [{ op: "addMana" }]` body, which no mana authority reads — a
+    // fixed-output mana ability never executes one, its mana is deposited
+    // structurally from this field — so the token was inert as a mana source
+    // on every surface. Same fail-closed pip check `manaChoices` gets: an
+    // empty `{}` is truthy and would report the token AS HAVING a mana
+    // ability while producing nothing.
+    if (
+        "manaProduced" in a &&
+        !(isManaCost(a.manaProduced) && hasManaCostPip(a.manaProduced))
     ) {
         return false;
     }

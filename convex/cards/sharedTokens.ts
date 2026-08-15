@@ -110,6 +110,15 @@ export const ELDRAZI_SPAWN_TOKEN: EffectTokenSpec = {
             oracleText: "Sacrifice this token: Add {C}.",
             cost: { sacrifice: true },
             useStack: false,
+            // CR 605.1a (issue #2021) — `manaProduced` is the DESCRIPTOR every
+            // mana authority reads: `getManaTapOptionsDetailed` (engine tap
+            // options + the bot's mana census), `findClientManaAbility` (the
+            // board's tap-for-mana affordance) and the fixed-sacrifice
+            // activation path itself. None of them reads an `effects`/`effect`
+            // body — a fixed-output mana ability never executes one, its mana
+            // is deposited structurally from this field. Without it the token
+            // was inert as a mana source on every surface at once.
+            manaProduced: { C: 1 },
             effects: [{ op: "addMana", mana: { C: 1 } }],
         },
     ],

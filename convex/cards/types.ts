@@ -2024,7 +2024,11 @@ export interface EffectTokenSpec {
      *  (an Effect Script, DSL-only — `resolve`/`effect` are rejected) and
      *  `manaChoices` (a plain `ManaCost[]`, mirroring the card-level
      *  `ActivatedAbility.manaChoices` above — "{T}, Sacrifice this artifact:
-     *  Add one mana of any color.") are accepted, enforced by
+     *  Add one mana of any color.") and `manaProduced` (its FIXED-output
+     *  sibling, a plain `ManaCost` — issue #2021, the Eldrazi Spawn token's
+     *  "Sacrifice this token: Add {C}."; the DESCRIPTOR is what every mana
+     *  authority reads, never the `effects` body, which a fixed-output mana
+     *  ability does not execute) are accepted, enforced by
      *  `isTokenActivatedAbility` in `gre/effects/validate.ts`. Each ability's
      *  `effects[]` is validated and ref-checked as its OWN independently-scoped
      *  script (fresh `$source` = the token itself once created — see

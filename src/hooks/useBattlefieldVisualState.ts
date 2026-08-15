@@ -15,6 +15,8 @@ import {
     matchesPermanentTargetFilters,
     wantsPermanentTarget,
     isTapLockedBySummoningSickness,
+    manaActivationRequiresTap,
+    hasFixedSacrificeManaAbility,
     canAffordManaAbilityCost,
     getLandManaColor,
     getActivatedManaColor,
@@ -530,10 +532,18 @@ export function useBattlefieldVisualState(
 
         if (!isMe || !hasManaAbility(card, manaGateView, allPlayers))
             return false;
-        // CR 302.1 — creatures with summoning sickness can't pay {T}, so
-        // their mana ability isn't activatable. Untapping (refunding floating
-        // mana) is still allowed — it reverses an earlier activation.
-        if (isTapLockedBySummoningSickness(card) && !card.isTapped) {
+        // CR 302.6 — summoning sickness gates an ability whose cost contains
+        // the tap (or untap) symbol, and nothing else, so the gate asks
+        // whether THIS source's mana activation actually pays a {T}: a
+        // sacrifice-only mana creature (Tinder Wall, an Eldrazi Spawn token —
+        // summoning sick on exactly the turn it matters) stays activatable
+        // (issue #2021). Untapping (refunding floating mana) is still allowed
+        // regardless — it reverses an earlier activation.
+        if (
+            isTapLockedBySummoningSickness(card) &&
+            !card.isTapped &&
+            manaActivationRequiresTap(card)
+        ) {
             return false;
         }
         if (isInPayment) {
@@ -548,6 +558,12 @@ export function useBattlefieldVisualState(
                 ? tappedDuringPayment
                 : getLandManaColor(card) !== null ||
                       getActivatedManaColor(card) !== null ||
+                      // CR 605.1a (issue #2021) — a FIXED-output sacrifice
+                      // source answers null to `getActivatedManaColor` (no
+                      // `cost.tap`, and a multi-colour output has no single
+                      // colour), so it needs its own probe or it is not
+                      // clickable while paying a cost.
+                      hasFixedSacrificeManaAbility(card) ||
                       getManaChoices(card) !== null;
         }
         // CR 605.3b: mana abilities require priority (outside payment).

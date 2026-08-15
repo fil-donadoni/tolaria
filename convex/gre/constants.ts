@@ -573,6 +573,43 @@ export function getActivatedManaProduced(
     return ability?.manaProduced ?? null;
 }
 
+/** The card's FIXED-output mana ability whose cost is "Sacrifice this" with NO
+ *  {T} component (CR 605.1a, issue #2021), or null.
+ *
+ *  Deliberately a SEPARATE probe from {@link getActivatedManaColor} /
+ *  {@link getActivatedManaProduced} above rather than a loosening of their
+ *  `a.cost.tap &&` filter: those two answer "what does TAPPING this source
+ *  produce", and every one of their callers (the board's tap-for-mana colour
+ *  cue, the tap/untap refund arithmetic, the auto-tap planner's fixed branch)
+ *  is built around a tap that can be reversed. A sacrifice-only activation has
+ *  no tap to reverse and no untap branch — widening those probes would have
+ *  made every one of those callers answer for a source they cannot model.
+ *
+ *  Tinder Wall ("Sacrifice this creature: Add {R}{R}."), Gaea's Touch, Coal
+ *  Golem and the five Invasion Attendants ("{1}, Sacrifice this creature: Add
+ *  {U}{B}{R}.") are this shape, as is the Eldrazi Spawn token. A `manaChoices`
+ *  sacrifice ability (Lion's Eye Diamond) is NOT: it resolves through the
+ *  unified choice branch, which already handles a tap-less cost.
+ *
+ *  CR 113.1 / 611.2a — POST-LAYER effective set, like every other mana probe. */
+export function getFixedSacrificeManaAbility(
+    card: CardInstanceState
+): ActivatedAbility | null {
+    if (abilitiesSuppressed(card)) return null;
+    return (
+        getEffectiveActivatedAbilities(card).find(
+            ({ ability: a }) =>
+                !a.useStack &&
+                a.cost.sacrifice === true &&
+                a.cost.tap !== true &&
+                !!a.manaProduced &&
+                !a.manaChoices &&
+                !a.getManaChoices &&
+                !a.manaColorSource
+        )?.ability ?? null
+    );
+}
+
 /** Amount of a single color produced by a card's fixed (non-choice) tap mana
  *  ability. Basic lands and abilities without an explicit count default to 1;
  *  abilities like Sol Ring ({T}: Add {C}{C}) return 2.
