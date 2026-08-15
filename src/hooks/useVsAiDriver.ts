@@ -87,7 +87,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor } from "@convex/gre";
-import type { Move } from "@convex/gre";
+import type { Move, Phase } from "@convex/gre";
 import { consultBrain } from "~/lib/ai/brain-client";
 import {
     recordAiDecision,
@@ -419,88 +419,136 @@ export function useVsAiDriver(
     // `undefined`. Closing over it directly made every breadcrumb reached
     // through the escalation ladder a silent no-op, which is precisely the
     // "recorded nothing" shape this ring exists to remove (review round 2).
-    const note = (
-        outcome: AiDecisionOutcome,
-        extra: {
-            expectedKind: ExpectedInputKind;
-            via?: "worker" | "inline";
-            moveKind?: Move["kind"];
-            actionKind?: BotAction["kind"];
-            message?: string;
-        }
-    ) => {
-        const state = botStateRef.current;
-        if (!state) return;
-        try {
-            recordAiDecision({
-                outcome,
-                phase: state.phase,
-                seq: state.seq,
-                ...extra,
-            });
-        } catch {
-            // An unrecordable breadcrumb is a lost diagnostic, never a lost move.
-        }
-    };
+    const note = useCallback(
+        (
+            outcome: AiDecisionOutcome,
+            extra: {
+                expectedKind: ExpectedInputKind;
+                via?: "worker" | "inline";
+                moveKind?: Move["kind"];
+                actionKind?: BotAction["kind"];
+                message?: string;
+            },
+            /** The board version this decision was taken ON. Passed in rather
+             *  than read here, because the two are not the same moment: a
+             *  `submit-error` note fires from a promise rejection that can land
+             *  hundreds of ms after the submission, by which time the ref has
+             *  moved on — and a record whose `seq` does not match the state the
+             *  decision was made against cannot be lined up with the board
+             *  snapshot beside it, which is the whole job of these two fields.
+             *  Omitted → the current committed state. */
+            at?: { phase: Phase; seq: number }
+        ) => {
+            const state = at ?? botStateRef.current;
+            if (!state) return;
+            try {
+                recordAiDecision({
+                    outcome,
+                    phase: state.phase,
+                    seq: state.seq,
+                    ...extra,
+                });
+            } catch {
+                // An unrecordable breadcrumb is a lost diagnostic, never a lost
+                // move: a throwing store subscriber must not propagate out of
+                // `dispatch` between the in-flight guard and `run()`'s
+                // `.finally`, which would wedge the driver on a latch nothing
+                // clears.
+            }
+        },
+        // Genuinely stable — after the ref indirection this closes over NOTHING
+        // render-scoped, which is what lets `escalate`'s frozen closure reach a
+        // LIVE writer. Declared to the linter rather than asserted in a comment:
+        // an `eslint-disable` here would have silenced the one warning that
+        // names this exact hazard.
+        []
+    );
 
-    const dispatch = (
-        signature: string,
-        run: () => Promise<unknown>,
-        // issue #2470 — the breadcrumb this submission is worth. `outcome`
-        // is recorded the moment the dispatch actually STARTS (never before
-        // the in-flight guard below, or the ring would show answers the bot
-        // never submitted — a lie in the "looks healthy" direction); the rest
-        // is what to say if the submission is REJECTED.
-        //
-        // The worker branch omits `outcome`: it records the consult's own
-        // verdict from inside the run instead, which is strictly more
-        // informative than "a dispatch started".
-        meta?: {
-            expectedKind: ExpectedInputKind;
-            outcome?: AiDecisionOutcome;
-            moveKind?: Move["kind"];
-            actionKind?: BotAction["kind"];
-        }
-    ) => {
-        if (inFlight.current) return;
-        inFlight.current = true;
-        lastSignature.current = signature;
-        if (meta?.outcome) {
-            note(meta.outcome, {
-                expectedKind: meta.expectedKind,
-                moveKind: meta.moveKind,
-                actionKind: meta.actionKind,
-            });
-        }
-        void run()
-            .catch((e: unknown) => {
-                // Stale/illegal submissions are rejected server-side; allow
-                // the next state change to re-drive this state. A rejection is
-                // one of the two ways a decision dies silently (the other is a
-                // failed consult) — record it before it is swallowed.
-                if (meta) {
-                    note("submit-error", {
+    const dispatch = useCallback(
+        (
+            signature: string,
+            run: () => Promise<unknown>,
+            // issue #2470 — the breadcrumb this submission is worth. `outcome`
+            // is recorded the moment the dispatch actually STARTS (never before
+            // the in-flight guard below, or the ring would show answers the bot
+            // never submitted — a lie in the "looks healthy" direction); the rest
+            // is what to say if the submission is REJECTED.
+            //
+            // The worker branch omits `outcome`: it records the consult's own
+            // verdict from inside the run instead, which is strictly more
+            // informative than "a dispatch started".
+            meta?: {
+                expectedKind: ExpectedInputKind;
+                outcome?: AiDecisionOutcome;
+                moveKind?: Move["kind"];
+                actionKind?: BotAction["kind"];
+            }
+        ) => {
+            if (inFlight.current) return;
+            inFlight.current = true;
+            lastSignature.current = signature;
+            // The version this submission is being made against, captured ONCE:
+            // the rejection below fires from a promise callback, by which time the
+            // committed state may have moved on, and a breadcrumb that cannot be
+            // lined up with the board it describes is not evidence.
+            const at = botStateRef.current
+                ? {
+                      phase: botStateRef.current.phase,
+                      seq: botStateRef.current.seq,
+                  }
+                : undefined;
+            if (meta?.outcome) {
+                note(
+                    meta.outcome,
+                    {
                         expectedKind: meta.expectedKind,
                         moveKind: meta.moveKind,
                         actionKind: meta.actionKind,
-                        message: e instanceof Error ? e.message : String(e),
-                    });
-                }
-                lastSignature.current = null;
-                if (retrySignature.current !== signature) {
-                    retrySignature.current = signature;
-                    retries.current = 0;
-                }
-                retries.current += 1;
-            })
-            .finally(() => {
-                inFlight.current = false;
-                setThinking(false);
-                // Re-run the effects even though no new tick arrived: this is
-                // the only thing that un-latches a failed submission.
-                setSettleNonce((n) => n + 1);
-            });
-    };
+                    },
+                    at
+                );
+            }
+            void run()
+                .catch((e: unknown) => {
+                    // Stale/illegal submissions are rejected server-side; allow
+                    // the next state change to re-drive this state. A rejection is
+                    // one of the two ways a decision dies silently (the other is a
+                    // failed consult) — record it before it is swallowed.
+                    if (meta) {
+                        note(
+                            "submit-error",
+                            {
+                                expectedKind: meta.expectedKind,
+                                moveKind: meta.moveKind,
+                                actionKind: meta.actionKind,
+                                message:
+                                    e instanceof Error ? e.message : String(e),
+                            },
+                            at
+                        );
+                    }
+                    lastSignature.current = null;
+                    if (retrySignature.current !== signature) {
+                        retrySignature.current = signature;
+                        retries.current = 0;
+                    }
+                    retries.current += 1;
+                })
+                .finally(() => {
+                    inFlight.current = false;
+                    setThinking(false);
+                    // Re-run the effects even though no new tick arrived: this is
+                    // the only thing that un-latches a failed submission.
+                    setSettleNonce((n) => n + 1);
+                });
+        },
+        // Stable for the same reason `note` is, and it matters for the same
+        // reason: `escalate` below is frozen at the first render, so a
+        // `dispatch` rebuilt every render would leave that ladder calling a
+        // first-render copy forever. Everything else it touches is a ref or a
+        // setState, both of which React guarantees stable.
+        [note]
+    );
 
     // ── Rung 1..5: the escalation ladder ────────────────────────────────────
     const escalate = useCallback(
@@ -571,13 +619,15 @@ export function useVsAiDriver(
             });
             setStuckAt({ signature, expectedKind: kind });
         },
-        // Everything this closes over is a ref, a stable setState, or an
-        // argument: `dispatch` is rebuilt each render but reads only refs (the
-        // breadcrumb writer included — `note` goes through `botStateRef`
-        // precisely because THIS closure is frozen at the first render), and
-        // the ladder is a pure function of what it is handed. Stable on purpose
-        // — the watchdog effect depends on it.
-        []
+        // Everything this closes over is a ref, a stable setState, an argument,
+        // or `dispatch` — which is itself stable, and had to become so: this
+        // callback is frozen at the FIRST render, and a `dispatch` rebuilt each
+        // render would leave the ladder submitting through a first-render copy
+        // whose breadcrumb writer closed over a `botState` that did not exist
+        // yet (the bug this dependency now makes structurally impossible rather
+        // than merely commented). The ladder itself is a pure function of what
+        // it is handed. Stable on purpose — the watchdog effect depends on it.
+        [dispatch]
     );
 
     // ── The normal decision path ────────────────────────────────────────────

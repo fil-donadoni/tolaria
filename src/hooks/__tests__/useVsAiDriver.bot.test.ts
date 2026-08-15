@@ -58,9 +58,17 @@ function clearPublicStateOverride() {
 let forceNullTick = false;
 // When active, every mutation returns a promise that only settles once
 // `heldMutation.release()` is called (issue #1209).
-let heldMutation: { active: boolean; release?: () => void } = {
+let heldMutation: {
+    active: boolean;
+    release?: () => void;
+    /** Settle the held mutation as a REJECTION instead (issue #2470): the only
+     *  way to make a submission fail AFTER the board has moved on, which is
+     *  what tells a `submit-error` breadcrumb's `seq` apart from the latest. */
+    fail?: (message: string) => void;
+} = {
     active: false,
     release: undefined,
+    fail: undefined,
 };
 // When active, every mutation REJECTS — the server refusing the bot's
 // submission (issue #2470: a rejection is one of the two ways a decision dies
@@ -163,8 +171,10 @@ vi.mock("convex/react", () => ({
         // observe the window in which a multi-step realisation is half-done
         // (the `inFlight` race the seam closes).
         if (heldMutation.active) {
-            return new Promise<null>((resolve) => {
+            return new Promise<null>((resolve, reject) => {
                 heldMutation.release = () => resolve(null);
+                heldMutation.fail = (message: string) =>
+                    reject(new Error(message));
             });
         }
         if (rejectMutation.active) {
@@ -269,7 +279,7 @@ describe("useVsAiDriver (issue #110)", () => {
         currentState = undefined;
         clearPublicStateOverride();
         forceNullTick = false;
-        heldMutation = { active: false, release: undefined };
+        heldMutation = { active: false, release: undefined, fail: undefined };
         rejectMutation = { active: false, message: "" };
         forceUnrealisable = false;
         clearAiDecisions();
@@ -924,5 +934,33 @@ describe("useVsAiDriver (issue #110)", () => {
         // Still one: the second dispatch was suppressed, so it is not an answer.
         expect(getAiDecisions()).toHaveLength(1);
         expect(calls).toHaveLength(1);
+    });
+
+    // Review round 3 — a `submit-error` breadcrumb fires from a promise
+    // rejection that can land long after the submission, by which time the
+    // board has moved on. A record whose `seq` names a version the decision was
+    // never made against cannot be lined up with the snapshot beside it, which
+    // is the entire job of that field.
+    it("records a rejection at the version it was SUBMITTED on, not the latest", async () => {
+        heldMutation = { active: true, release: undefined, fail: undefined };
+        currentState = botState({ seq: 1, priorityPlayerId: BOT });
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+        expect(calls).toHaveLength(1);
+
+        // The board advances while the submission is still in flight.
+        currentState = botState({ seq: 2, priorityPlayerId: BOT });
+        rerender();
+        await settleDriver();
+
+        // …and only THEN does the server reject it.
+        heldMutation.fail!("not your priority");
+        await settleDriver();
+
+        const rejected = getAiDecisions().find(
+            (d) => d.outcome === "submit-error"
+        );
+        expect(rejected).toBeDefined();
+        expect(rejected!.seq).toBe(1);
     });
 });
