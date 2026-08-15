@@ -4,7 +4,7 @@ import "./index.css";
 import { ConvexReactClient } from "convex/react";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { TooltipProvider } from "~/components/ui/tooltip";
-import { AppRouter } from "./router";
+import { AppRouter } from "./app-router";
 import * as Sentry from "@sentry/react";
 // Side-effect: hydrates the card-definition registry with the full catalogue
 // (~1872 cards). Extracted into a separate chunk by the Vite `manualChunks`

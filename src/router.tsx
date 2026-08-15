@@ -1,5 +1,4 @@
 import {
-    RouterProvider,
     createRootRoute,
     createRoute,
     createRouter,
@@ -13,6 +12,7 @@ import DeckDetailRoute from "./routes/deck-detail.route";
 import GameRoute from "./routes/game.route";
 import JoinRoute from "./routes/join.route";
 import LimitedEventsRoute from "./routes/limited-events.route";
+import LimitedYourEventsRoute from "./routes/limited-your-events.route";
 import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
 import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
 import DesignSystemRoute from "./routes/design-system.route";
@@ -110,6 +110,22 @@ const limitedEventsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/limited",
     component: LimitedEventsRoute,
+});
+
+// Your-events page (issue #2357) — a STATIC sibling of the dynamic
+// `/limited/$eventId` below. TanStack Router ranks a literal path segment
+// above a `$param` one regardless of registration order (same static-beats-
+// dynamic precedence already proven by `/decks/create` vs `/decks/$slug`
+// above), so `/limited/events` never gets swallowed by the `$eventId`
+// matcher — see `src/routes/__tests__/router-limited-precedence.test.ts`
+// for the assertion.
+// Declared BEFORE the dynamic route here anyway, mirroring the decks pair,
+// so the source order documents the precedence instead of relying on it
+// silently.
+const limitedYourEventsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/limited/events",
+    component: LimitedYourEventsRoute,
 });
 
 const limitedEventDetailRoute = createRoute({
@@ -210,6 +226,7 @@ const routeTree = rootRoute.addChildren([
     gameRoute,
     joinRoute,
     limitedEventsRoute,
+    limitedYourEventsRoute,
     limitedEventDetailRoute,
     limitedDeckBuilderRoute,
     adminRoute.addChildren([
@@ -229,7 +246,12 @@ const routeTree = rootRoute.addChildren([
 // is the SAME component the admin gate renders for a non-admin — that is what
 // makes an admin surface indistinguishable from a path that doesn't exist
 // (see `admin-route-gate.tsx`).
-const router = createRouter({
+//
+// Exported (not just used by `AppRouter` below) so a test can call
+// `router.getMatchedRoutes(path)` directly — issue #2357's static-vs-dynamic
+// precedence check (`/limited/events` vs `/limited/$eventId`) needs the REAL
+// route tree, not a hand-built replica that could silently drift from it.
+export const router = createRouter({
     routeTree,
     defaultNotFoundComponent: NotFoundPage,
 });
@@ -238,8 +260,4 @@ declare module "@tanstack/react-router" {
     interface Register {
         router: typeof router;
     }
-}
-
-export function AppRouter() {
-    return <RouterProvider router={router} />;
 }

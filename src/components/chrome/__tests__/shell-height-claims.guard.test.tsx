@@ -593,6 +593,13 @@ const ROUTE_ROOTS: Record<
             { rel: "components/ui/loading-screen.tsx" },
         ],
     },
+    LimitedYourEventsRoute: {
+        routePath: "/limited/events",
+        files: [
+            { rel: "components/limited/limited-your-events-page.tsx" },
+            { rel: "components/ui/loading-screen.tsx" },
+        ],
+    },
     LimitedEventDetailRoute: {
         routePath: "/limited/abc123",
         files: [

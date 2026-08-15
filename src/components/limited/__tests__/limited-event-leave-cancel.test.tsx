@@ -1,8 +1,11 @@
-// Leave Seat / Cancel Event (issue #1579): an occupant can leave their Seat,
-// the creator can cancel the whole event, while it's still OPEN — both gated
-// behind a confirmation dialog and disabled while the mutation is in-flight
-// (CLAUDE.md: UI buttons firing Convex mutations must disable while
-// in-flight). Mirrors `limited-event-detail.test.tsx`'s mocking discipline.
+// Leave Seat / Cancel-or-Close Event (issue #1579, extended by issue #2357):
+// an occupant can leave their Seat while it's still OPEN; the creator's one
+// close action now spans the WHOLE life of the event — "Cancel Event" (hard
+// delete) while seating is open, "Close Event" (force-finish in place)
+// afterwards — both gated behind a confirmation dialog and disabled while the
+// mutation is in-flight (CLAUDE.md: UI buttons firing Convex mutations must
+// disable while in-flight). Mirrors `limited-event-detail.test.tsx`'s
+// mocking discipline.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
@@ -65,6 +68,10 @@ function makeEvent(overrides: Partial<LimitedEventView>): LimitedEventView {
         viewerIncomingChallenges: [],
         viewerOutgoingChallenge: null,
         packSlots: ["lea"],
+        // Only read once `isEventConcluded` (`LimitedEventWinnerBanner`) —
+        // empty is fine for every fixture in this file, none of which
+        // exercises the banner's own content.
+        standings: [],
         seats: [
             {
                 seatIndex: 0,
@@ -163,7 +170,7 @@ describe("LimitedEventDetail — Leave Seat (issue #1579)", () => {
     });
 });
 
-describe("LimitedEventDetail — Cancel Event (issue #1579)", () => {
+describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2357)", () => {
     it("shows a Cancel Event button for the creator of an OPEN event", () => {
         eventMock.mockReturnValue(
             makeEvent({ status: "open", createdBy: "user-1" })
@@ -172,20 +179,40 @@ describe("LimitedEventDetail — Cancel Event (issue #1579)", () => {
         expect(screen.getByText("Cancel Event")).toBeTruthy();
     });
 
-    it("hides the Cancel Event button for a non-creator", () => {
-        eventMock.mockReturnValue(
-            makeEvent({ status: "open", createdBy: "admin-1" })
-        );
-        render(<LimitedEventDetail eventId={"event-1" as never} />);
-        expect(screen.queryByText("Cancel Event")).toBeNull();
+    it("hides the close affordance for a non-creator, at every phase", () => {
+        for (const status of [
+            "open",
+            "started",
+            "playing",
+            "finished",
+        ] as const) {
+            eventMock.mockReturnValue(
+                makeEvent({ status, createdBy: "admin-1" })
+            );
+            const { unmount } = render(
+                <LimitedEventDetail eventId={"event-1" as never} />
+            );
+            expect(screen.queryByText("Cancel Event")).toBeNull();
+            expect(screen.queryByText("Close Event")).toBeNull();
+            unmount();
+        }
     });
 
-    it("hides the Cancel Event button once the event has STARTED, even for the creator", () => {
+    it("shows a Close Event button (not Cancel Event) once the event has STARTED — the creator's one action spans the whole life of the event (issue #2357)", () => {
         eventMock.mockReturnValue(
             makeEvent({ status: "started", createdBy: "user-1" })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
         expect(screen.queryByText("Cancel Event")).toBeNull();
+        expect(screen.getByText("Close Event")).toBeTruthy();
+    });
+
+    it("still shows Close Event for the creator once the event has concluded — closing again is a harmless no-op", () => {
+        eventMock.mockReturnValue(
+            makeEvent({ status: "finished", createdBy: "user-1" })
+        );
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+        expect(screen.getByText("Close Event")).toBeTruthy();
     });
 
     it("requires confirmation before calling the cancel mutation", () => {
@@ -210,6 +237,19 @@ describe("LimitedEventDetail — Cancel Event (issue #1579)", () => {
 
         fireEvent.click(screen.getByText("Cancel Event"));
         const confirmButtons = screen.getAllByText("Cancel Event");
+        fireEvent.click(confirmButtons[confirmButtons.length - 1]);
+        expect(cancelMock).toHaveBeenCalledWith({ eventId: "event-1" });
+    });
+
+    it("calls the SAME cancel mutation once the Close Event dialog is confirmed on a started event (issue #2357) — the server branches by phase, not the client", () => {
+        eventMock.mockReturnValue(
+            makeEvent({ status: "started", createdBy: "user-1" })
+        );
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        fireEvent.click(screen.getByText("Close Event"));
+        expect(screen.getByText("Close this event?")).toBeTruthy();
+        const confirmButtons = screen.getAllByText("Close Event");
         fireEvent.click(confirmButtons[confirmButtons.length - 1]);
         expect(cancelMock).toHaveBeenCalledWith({ eventId: "event-1" });
     });

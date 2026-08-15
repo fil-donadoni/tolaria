@@ -59,39 +59,58 @@ export function makeInMemoryDb(
             }
             return null;
         },
-        query: (table: string) => ({
-            withIndex: (
-                _name: string,
-                build?: (q: {
-                    eq: (field: string, value: unknown) => unknown;
-                }) => unknown
-            ) => {
-                const filters: [string, unknown][] = [];
-                if (build) {
-                    const q = {
-                        eq(field: string, value: unknown) {
-                            filters.push([field, value]);
-                            return q;
-                        },
-                    };
-                    build(q);
-                }
-                const matching = () =>
-                    (tables[table] ?? [])
-                        .filter((row) =>
+        query: (table: string) => {
+            // Terminal methods shared by both the indexed path (below) and
+            // the bare unindexed scan (`myLimitedEvents`,
+            // `myCurrentLimitedEvents`: `ctx.db.query(table).order(...).take(n)`,
+            // no `withIndex` at all — the whole reason this got added, issue
+            // #2357). `order` is a no-op here (rows are read back in
+            // insertion order, same as `.withIndex`'s `matching()`); nothing
+            // in this project's test suite asserts ORDER through this
+            // fixture, only membership.
+            const terminal = (rows: () => InMemoryRow[]) => ({
+                // `direction` is part of the real Convex signature (callers
+                // pass "desc") but this fixture reads rows back in insertion
+                // order regardless — see the comment above.
+                order: (direction: "asc" | "desc") => {
+                    void direction;
+                    return terminal(rows);
+                },
+                unique: async () => rows()[0] ?? null,
+                collect: async () => rows(),
+                first: async () => rows()[0] ?? null,
+                take: async (n: number) => rows().slice(0, n),
+            });
+            const allRows = () =>
+                (tables[table] ?? []).map((r) => structuredClone(r));
+            return {
+                ...terminal(allRows),
+                withIndex: (
+                    _name: string,
+                    build?: (q: {
+                        eq: (field: string, value: unknown) => unknown;
+                    }) => unknown
+                ) => {
+                    const filters: [string, unknown][] = [];
+                    if (build) {
+                        const q = {
+                            eq(field: string, value: unknown) {
+                                filters.push([field, value]);
+                                return q;
+                            },
+                        };
+                        build(q);
+                    }
+                    const matching = () =>
+                        allRows().filter((row) =>
                             filters.every(
                                 ([field, value]) => row[field] === value
                             )
-                        )
-                        .map((r) => structuredClone(r));
-                return {
-                    unique: async () => matching()[0] ?? null,
-                    collect: async () => matching(),
-                    first: async () => matching()[0] ?? null,
-                    take: async (n: number) => matching().slice(0, n),
-                };
-            },
-        }),
+                        );
+                    return terminal(matching);
+                },
+            };
+        },
         insert: async (table: string, doc: Record<string, unknown>) => {
             const _id = `${table}-${nextId++}`;
             (tables[table] ??= []).push(structuredClone({ ...doc, _id }));

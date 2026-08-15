@@ -1,10 +1,15 @@
-// Events page "your events" wiring (issue #1578): `myLimitedEvents` /
-// `useMyLimitedEvents` already existed but were wired to no component, so a
-// started event vanished from the page the moment `listOpenLimitedEvents`
+// Events page "your CURRENT events" wiring (issue #1578, narrowed to
+// in-progress-only by issue #2357): `myCurrentLimitedEvents` /
+// `useMyCurrentLimitedEvents` backs this page's own seated-events section, so
+// a started event vanished from the page the moment `listOpenLimitedEvents`
 // stopped listing it — a participant who navigated away had no in-app way
 // back short of a bookmarked/shared URL. Drives the SURFACE assertion
 // through the real page component (not a hand-built view), mirroring
-// `limited-vs-ai-panel.test.tsx`'s mocking discipline.
+// `limited-vs-ai-panel.test.tsx`'s mocking discipline. A concluded event
+// drops off this section entirely and lives on `/limited/events` instead
+// (`LimitedYourEventsPage`) — this file covers the narrowed section + the
+// "Your Events (all)" link out to that page, not the full-history page
+// itself.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, cleanup, screen } from "@testing-library/react";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
@@ -21,12 +26,12 @@ vi.mock("~/hooks/useCurrentUser", () => ({
 }));
 
 const openEventsMock = vi.fn();
-const myEventsMock = vi.fn();
+const myCurrentEventsMock = vi.fn();
 const draftableSetsMock = vi.fn();
 
 vi.mock("~/hooks/useLimitedEvent", () => ({
     useOpenLimitedEvents: () => openEventsMock(),
-    useMyLimitedEvents: () => myEventsMock(),
+    useMyCurrentLimitedEvents: () => myCurrentEventsMock(),
     useDraftableSets: () => draftableSetsMock(),
     useLimitedEventMutations: () => ({
         create: vi.fn(),
@@ -75,14 +80,14 @@ function makeEvent(overrides: Partial<LimitedEventView>): LimitedEventView {
     } as unknown as LimitedEventView;
 }
 
-describe("LimitedEventsPage — your events section (issue #1578)", () => {
-    it("lists a seated STARTED event under 'Your Events' even though it's absent from the open-events list", () => {
+describe("LimitedEventsPage — your CURRENT events section (issue #1578, narrowed by #2357)", () => {
+    it("lists a seated STARTED event under 'Your Current Events' even though it's absent from the open-events list", () => {
         openEventsMock.mockReturnValue([]);
-        myEventsMock.mockReturnValue([makeEvent({ status: "started" })]);
+        myCurrentEventsMock.mockReturnValue([makeEvent({ status: "started" })]);
 
         render(<LimitedEventsPage />);
 
-        expect(screen.getByText("Your Events")).toBeTruthy();
+        expect(screen.getByText("Your Current Events")).toBeTruthy();
         expect(screen.getByText(/sealed/i)).toBeTruthy();
         // The row shows the derived PHASE, not the raw `status` enum (ADR
         // 0076): a started Sealed event with no decks in yet is
@@ -94,7 +99,7 @@ describe("LimitedEventsPage — your events section (issue #1578)", () => {
 
     it("navigates to the event detail page when its View button is clicked", () => {
         openEventsMock.mockReturnValue([]);
-        myEventsMock.mockReturnValue([makeEvent({ status: "started" })]);
+        myCurrentEventsMock.mockReturnValue([makeEvent({ status: "started" })]);
 
         render(<LimitedEventsPage />);
 
@@ -106,12 +111,23 @@ describe("LimitedEventsPage — your events section (issue #1578)", () => {
         });
     });
 
-    it("renders no 'Your Events' section when the viewer has no seated events", () => {
+    it("renders no 'Your Current Events' section when the viewer has no in-progress seated events", () => {
         openEventsMock.mockReturnValue([]);
-        myEventsMock.mockReturnValue([]);
+        myCurrentEventsMock.mockReturnValue([]);
 
         render(<LimitedEventsPage />);
 
-        expect(screen.queryByText("Your Events")).toBe(null);
+        expect(screen.queryByText("Your Current Events")).toBe(null);
+    });
+
+    it("navigates to /limited/events when 'Your Events (all)' is clicked (issue #2357)", () => {
+        openEventsMock.mockReturnValue([]);
+        myCurrentEventsMock.mockReturnValue([]);
+
+        render(<LimitedEventsPage />);
+
+        fireEvent.click(screen.getByText("Your Events (all) →"));
+
+        expect(navigate).toHaveBeenCalledWith({ to: "/limited/events" });
     });
 });
