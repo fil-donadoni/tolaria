@@ -82,6 +82,7 @@ export function useControllerActions(): ControllerState {
         autoPassPlayers,
         queuedEndTurn,
         combat,
+        pendingExtraCleanupStep,
         allPlayers,
     } = useGameContext();
 
@@ -124,6 +125,12 @@ export function useControllerActions(): ControllerState {
         pendingActivation,
         pendingTarget,
         combat,
+        // CR 514.3a (issue #2472) — CLEANUP is a no-priority step (CR 514.3)
+        // EXCEPT while this window is open. Without it `computeHasPriority`
+        // returns false for the player the server just handed priority to, the
+        // Pass action is filtered out of `actions` below and Space early-returns
+        // in `handlePass`, deadlocking the board on the cleanup trigger.
+        pendingExtraCleanupStep,
     };
 
     const isPayingCast = !!pendingCast && pendingCast.playerId === playerId;

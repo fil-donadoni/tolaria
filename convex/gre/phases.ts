@@ -7,6 +7,7 @@ import type {
 import type {
     CardInstanceState,
     DelayedTriggerInstance,
+    DurationTickView,
     GameState,
     PlayerState,
 } from "./state";
@@ -2331,9 +2332,52 @@ export function finalizeCleanupDiscard(
 /** CR 514.2 — runs after the (possibly empty) 514.1 discard. Exported so
  *  the commit handler in `game.ts` can resume CLEANUP after the discards
  *  land. "Until end of turn" effects expire, marked damage is removed from
- *  every permanent, and turn-scoped combat flags are cleared. */
+ *  every permanent, and turn-scoped combat flags are cleared.
+ *
+ *  **RUNS MORE THAN ONCE PER TURN.** CR 514.3a can start an additional cleanup
+ *  step ("Once the stack is empty and all players pass in succession, another
+ *  cleanup step begins"), and that step re-runs the real CR 514.2 turn-based
+ *  actions through `performPhaseEntry` — so every statement in this function
+ *  must be safe to repeat. In a real game repetition is free: removing damage
+ *  that is already gone and ending "until end of turn" effects that already
+ *  ended are no-ops. The whole body below was audited against that bar:
+ *
+ *  - Every per-permanent clause clears a field to `undefined` (or `delete`s
+ *    it) under an `if (defined)` guard — idempotent by construction.
+ *  - The exile / graveyard cast-permission sweeps and the Flashback-grant
+ *    sweep `delete` keys — idempotent.
+ *  - The `delayedTriggers` purge filters by `timing` — filtering an already
+ *    filtered list is a fixpoint.
+ *  - `tickAllDurations` does two things. Clearing the turn-scoped GLOBAL flags
+ *    (`highTideThisTurn`, `preventAllCombatDamageThisTurn`, the cast and
+ *    activation locks) is idempotent and re-runs on the repeat step — it has
+ *    to, since an instant cast in the 514.3a window can arm one. Ticking the
+ *    parametric DURATIONS is not: a `Duration` counts boundaries as a proxy
+ *    for turns, so a second tick in one turn ends an "until end of your next
+ *    turn" grant a full turn early. Only that half is suppressed, through
+ *    `DurationTickView.boundaryAlreadyCounted`.
+ *  - The `attackedDuringLastTurn` roll-forward is a SNAPSHOT of
+ *    `hasAttackedThisTurn`, which the same pass then clears. A second pass
+ *    would read the cleared flag and wipe the snapshot to `undefined` for
+ *    every creature the active player controls (read by Giant Turtle's self
+ *    attack-restriction and by Halls of Mist), so it is gated too.
+ *
+ *  Both gates key off {@link GameState.cleanupBookkeepingTurn} — the turn
+ *  number rather than an "is this a repeat" flag, so they are correct no
+ *  matter which entry point resumed CLEANUP: `performPhaseEntry` directly, or
+ *  `finalizeCleanupDiscard` continuing a step that suspended on a CR 514.1
+ *  discard prompt across a mutation boundary.
+ *
+ *  Anything added here later must be classified the same way: repeatable CR
+ *  514.2 turn-based action, or once-per-turn bookkeeping behind the gate. */
 export function finalizeCleanup(state: GameState): void {
-    // CR 514.2 — "until end of turn" effects end at the cleanup step.
+    const firstCleanupStepThisTurn =
+        state.cleanupBookkeepingTurn !== state.turn;
+
+    // CR 514.2 — "until end of turn" effects end at the cleanup step. Called
+    // unconditionally so the turn-scoped GLOBAL flag clears re-run on a repeat
+    // step; it reads `cleanupBookkeepingTurn` itself and suppresses only the
+    // per-duration tick there (see the doc comment).
     tickAllDurations(state);
     // CR 514.2 — marked damage is removed from all permanents, and
     // turn-scoped combat flags are cleared.
@@ -2353,8 +2397,12 @@ export function finalizeCleanup(state: GameState): void {
             // turn, snapshotted BEFORE `hasAttackedThisTurn` is cleared below.
             // Only the active player's creatures are updated, so the flag
             // always reflects the controller's most recent PRIOR turn — read
-            // by the self attack-restriction predicate (Giant Turtle, LEG).
-            if (p.id === state.activePlayerId) {
+            // by the self attack-restriction predicate (Giant Turtle, LEG) and
+            // by Halls of Mist (ICE).
+            // Once per turn (CR 514.3a): the snapshot reads a flag this same
+            // pass clears, so an additional cleanup step would re-snapshot the
+            // already-cleared flag and wipe the history to `undefined`.
+            if (firstCleanupStepThisTurn && p.id === state.activePlayerId) {
                 card.attackedDuringLastTurn = card.hasAttackedThisTurn
                     ? true
                     : undefined;
@@ -2511,6 +2559,12 @@ export function finalizeCleanup(state: GameState): void {
         );
         state.delayedTriggers = kept.length > 0 ? kept : undefined;
     }
+
+    // CR 514.3a — record that this turn's cleanup bookkeeping has run, so an
+    // additional cleanup step (and `finalizeCleanupDiscard` resuming one)
+    // repeats the turn-based actions without re-running the two turn-keyed
+    // steps. Stamped LAST so the gate above reads the pre-call value.
+    state.cleanupBookkeepingTurn = state.turn;
 }
 
 /** Advances all parametric durations on the current game state by one
@@ -2518,7 +2572,19 @@ export function finalizeCleanup(state: GameState): void {
  *  (CR 514.2); `tickDuration` itself filters by phase+playerId so entries
  *  scoped to a different boundary are left untouched. */
 function tickAllDurations(state: GameState): void {
-    const view = { phase: state.phase, activePlayerId: state.activePlayerId };
+    const view: DurationTickView = {
+        phase: state.phase,
+        activePlayerId: state.activePlayerId,
+        // CR 514.3a (issue #2472) — an additional cleanup step re-runs the
+        // CLEANUP boundary inside the same turn. Everything this function does
+        // is idempotent EXCEPT a `skip` countdown, which is per-TURN; the flag
+        // suppresses that one decrement and nothing else, so the repeat step
+        // still expires effects created during the 514.3a priority window
+        // (Fog, High Tide — both instants castable in that window).
+        boundaryAlreadyCounted:
+            state.phase === "CLEANUP" &&
+            state.cleanupBookkeepingTurn === state.turn,
+    };
 
     // CR 611.2b / 613.1b (layer 2) — "gain control until end of turn" control
     // changes (Ray of Command, Magus of the Unseen, issue #730). A duration-

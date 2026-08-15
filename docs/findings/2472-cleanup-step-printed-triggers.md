@@ -13,7 +13,7 @@ cannot fire, because `advancePhase` never scans for beginning-of-step triggers
 during CLEANUP at all.
 
 **Evidence.** `convex/gre/phases.ts:144` — `AUTO_PHASES = new Set(["UNTAP",
-"CLEANUP"])`. `convex/gre/phases.ts:3177` gates the CR 603.6a scan on it:
+"CLEANUP"])`. `convex/gre/phases.ts:3295` gates the CR 603.6a scan on it:
 
 ```ts
 if (!AUTO_PHASES.has(state.phase)) {

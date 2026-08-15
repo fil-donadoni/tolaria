@@ -2676,4 +2676,121 @@ describe("cleanup-step delayed triggers (CR 514.3a / 603.7)", () => {
         expect(state.pendingExtraCleanupStep).toBe(true);
         expect(state.delayedTriggers).toBeUndefined();
     });
+
+    // -----------------------------------------------------------------------
+    // `finalizeCleanup` idempotency across the additional cleanup step.
+    //
+    // CR 514.3a's "another cleanup step begins" makes `finalizeCleanup` run
+    // more than once per turn. Every CR 514.2 turn-based action genuinely
+    // re-runs (removing damage that is already gone is a no-op); the engine
+    // bookkeeping keyed to the TURN must not. Both cases below assert the
+    // once-per-turn half through the real `advancePhase` machinery.
+    // -----------------------------------------------------------------------
+
+    it("keeps attackedDuringLastTurn across the additional cleanup step (CR 514.2)", () => {
+        const state = endStepState();
+        state.players[0].battlefield = [
+            makeCard({
+                id: "turtle",
+                types: ["Creature"],
+                power: 1,
+                toughness: 3,
+                hasAttackedThisTurn: true,
+            }),
+        ];
+        scheduleCleanupTrigger(state, "dt-cleanup-1");
+
+        advancePhase(state);
+
+        // First cleanup step: the history rolled forward and the this-turn
+        // flag was cleared (CR 508.1 / 514.2).
+        const turtle = state.players[0].battlefield[0];
+        expect(turtle.hasAttackedThisTurn).toBeUndefined();
+        expect(turtle.attackedDuringLastTurn).toBe(true);
+
+        resolveTopOfStack(state);
+        advancePhase(state);
+
+        // The additional cleanup step ran and the turn then ended. The
+        // roll-forward reads a flag the FIRST pass already cleared, so a
+        // second unguarded pass would blank the history for every creature
+        // the active player controls — silently letting Giant Turtle (LEG)
+        // attack on consecutive turns and Halls of Mist (ICE) stop forbidding.
+        expect(state.turn).toBe(2);
+        expect(state.players[0].battlefield[0].attackedDuringLastTurn).toBe(
+            true
+        );
+    });
+
+    it("ticks a skip-bearing duration once per TURN, not once per cleanup step (CR 514.2)", () => {
+        const state = endStepState();
+        // "until end of your next turn" (`DurationSpec`, cards/types.ts): the
+        // first end-of-turn boundary is SKIPPED, the second expires the grant.
+        state.players[0].grantedAbilities = [
+            {
+                id: "grant-1",
+                sourceCardId: cloakOfConfusion.id,
+                abilityId: "cloak-of-confusion-a1",
+                duration: { phase: "end-of-turn", skip: 1 },
+                grantedAtTurn: 1,
+            },
+        ];
+        scheduleCleanupTrigger(state, "dt-cleanup-1");
+
+        advancePhase(state);
+
+        // One tick consumed by this turn's cleanup: still armed, `skip` gone.
+        expect(state.players[0].grantedAbilities?.[0].duration).toEqual({
+            phase: "end-of-turn",
+        });
+
+        resolveTopOfStack(state);
+        advancePhase(state);
+
+        expect(state.turn).toBe(2);
+        // The additional cleanup step must NOT consume the second tick — that
+        // would expire an "until end of your next turn" grant a full turn
+        // early. `tickDuration` decrements a counter, so it is once-per-turn
+        // bookkeeping, not a repeatable CR 514.2 turn-based action.
+        expect(state.players[0].grantedAbilities?.[0].duration).toEqual({
+            phase: "end-of-turn",
+        });
+    });
+
+    it("still re-runs the repeatable CR 514.2 turn-based actions in the additional step", () => {
+        const state = endStepState();
+        state.players[0].battlefield = [
+            makeCard({
+                id: "bear",
+                types: ["Creature"],
+                power: 2,
+                toughness: 2,
+                hasAttackedThisTurn: true,
+            }),
+        ];
+        scheduleCleanupTrigger(state, "dt-cleanup-1");
+        advancePhase(state);
+        resolveTopOfStack(state);
+
+        // Damage marked during the 514.3a priority window, a fresh "this turn"
+        // combat flag, and a turn-scoped lock re-armed in that window: the
+        // additional step's CR 514.2 pass owes all three a wipe. Gating the
+        // once-per-turn bookkeeping must not turn the whole function — or the
+        // whole `tickAllDurations` call — into a one-shot.
+        state.players[0].battlefield[0].damageMarked = 1;
+        state.players[0].battlefield[0].cantBlockThisTurn = true;
+        // CR 601.3a — cleared ONLY at the CLEANUP boundary (`tickAllDurations`
+        // gates it on `view.phase === "CLEANUP"`), so unlike the flags cleared
+        // on every tick this one genuinely leaks into the next turn if the
+        // additional cleanup step skips the call.
+        state.cannotCastSpellsThisTurn = [{ playerId: "p2" }];
+
+        advancePhase(state);
+
+        expect(state.players[0].battlefield[0].damageMarked).toBeUndefined();
+        expect(
+            state.players[0].battlefield[0].cantBlockThisTurn
+        ).toBeUndefined();
+        expect(state.cannotCastSpellsThisTurn).toBeUndefined();
+    });
 });

@@ -5092,10 +5092,23 @@ export type DelayedTriggerTiming =
      *  stack there (explicitly "including those that trigger 'at the beginning
      *  of the next cleanup step'") is put on the stack, the active player gets
      *  priority, and once the stack empties and all players pass, ANOTHER
-     *  cleanup step begins. `gre/phases.ts` implements exactly that: the
-     *  CLEANUP arm fires this timing AFTER the 514.1 discard and the 514.2
-     *  turn-based actions, opens the priority window when something landed,
-     *  and re-enters CLEANUP once the window closes.
+     *  cleanup step begins. `gre/phases.ts` implements the TRIGGERED-ABILITY
+     *  half of that check: the CLEANUP arm fires this timing AFTER the 514.1
+     *  discard and the 514.2 turn-based actions, opens the priority window
+     *  when something landed, and re-enters CLEANUP once the window closes.
+     *
+     *  NOT the state-based-action half. CR 514.3a's condition is "any
+     *  state-based actions would be performed AND/OR any triggered abilities
+     *  are waiting"; `openCleanupPriorityWindow`'s condition is only "the
+     *  stack grew". `checkStateBasedActions` is never called from
+     *  `gre/phases.ts` at all — the engine's SBA seam sits in the `game.ts`
+     *  mutation layer, i.e. after `advancePhase` has already returned — so the
+     *  canonical SBA case (an "until end of turn" pump ending at 514.2 drops a
+     *  creature to 0 toughness) opens no window and starts no additional
+     *  cleanup step; the death lands in the next turn's UPKEEP instead. That
+     *  is an engine-wide phase-machine gap rather than a property of this
+     *  timing: no phase entry anywhere checks SBAs. Documented in
+     *  `docs/findings/2472-cleanup-step-sba-half.md`.
      *
      *  NOT a synonym for `next-end-step`: the cleanup step happens after the
      *  end step (CR 514), so the two are different, ordered boundaries.

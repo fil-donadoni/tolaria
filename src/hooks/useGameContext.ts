@@ -64,6 +64,12 @@ type GameContext = {
      *  combat. Flows from the projected GameState so block-declaration UI flips
      *  to the right seat. */
     meleeCombat?: boolean;
+    /** CR 514.3a (issue #2472) — the cleanup step's ONE priority window is
+     *  open. Forwarded from the wire `GameState.pendingExtraCleanupStep` so
+     *  `computeHasPriority` / `computePriorityState` stop treating CLEANUP as a
+     *  no-priority step for the duration: without it the Pass affordance never
+     *  renders and the board deadlocks with the cleanup trigger on the stack. */
+    pendingExtraCleanupStep?: boolean;
     /** Player ids under Abeyance's turn-scoped "can't activate abilities that
      *  aren't mana abilities" lock (CR 602.1 / 605.1a, issue #1124). Forwarded
      *  from the wire `GameState.cannotActivateAbilitiesThisTurn` to

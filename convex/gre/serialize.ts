@@ -1457,6 +1457,11 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // Set while the cleanup step's one priority window is open (itself a stable
     // save point), so it must survive the DB round-trip; undefined otherwise.
     "pendingExtraCleanupStep",
+    // CR 514.3a (issue #2472) — the turn whose once-per-turn cleanup
+    // bookkeeping already ran. Read on every subsequent cleanup step of the
+    // same turn, and the 514.3a window between them spans mutations, so it
+    // must survive the DB round-trip.
+    "cleanupBookkeepingTurn",
     // CR 702.35a — the open Madness cast window. Transiently set only while its
     // owner owes a cast-or-decline decision (itself a stable save point), so it
     // must survive the DB round-trip. Undefined at a fully-resolved point.
