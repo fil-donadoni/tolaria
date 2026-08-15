@@ -29,6 +29,9 @@ const REGISTRY: Record<string, { id: string; name: string }> = {
     "def-archers": { id: "def-archers", name: "Elvish Archers" },
     "def-lions": { id: "def-lions", name: "Savannah Lions" },
     "def-unicorn": { id: "def-unicorn", name: "Pearled Unicorn" },
+    "def-mammoth": { id: "def-mammoth", name: "War Mammoth" },
+    "def-wall": { id: "def-wall", name: "Wall of Stone" },
+    "def-liliana": { id: "def-liliana", name: "Liliana of the Veil" },
 };
 import {
     mockInstanceManaCost,
@@ -221,5 +224,169 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
             expect(btn.className).toContain("w-11");
             expect(btn.className).toContain("h-11");
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CR 702.19b / CR 702.2c lethal-minimum gating (issue #2444; review finding on
+// PR #2483 — the `{...rowGating(...)}` spreads shipped with no test at all,
+// so deleting both of them left the whole suite green).
+//
+// `bun run cr 702.19b`: "The attacking creature's controller need not assign
+// lethal damage to all those blocking creatures but in that case can't assign
+// any damage to the player or planeswalker it's attacking."
+//
+// `setDamageAssignment` refuses exactly that pair, so the modal must never
+// OFFER it: a click the server rejects surfaces as an unexplained mutation
+// error. These tests render the real panel and read the buttons' `disabled`
+// state, i.e. they run through the same `damageAssignmentPlan` /
+// `assignmentIsRejected` path the component uses.
+// ---------------------------------------------------------------------------
+
+/** A 4/4 trampler blocked by a 3/3 wall; `p2` is the defending player. */
+function trampleScenario(
+    attackerAbilities: string[] = ["trample"],
+    damageAssignments: Record<string, Record<string, number>> = {},
+    withPlaneswalker = false
+): { combat: Combat; allPlayers: Player[] } {
+    const mammoth = creature("mammoth", "def-mammoth", 4, 4, "p1", {
+        isAttacking: true,
+        staticAbilities: attackerAbilities,
+    });
+    const wall = creature("wall", "def-wall", 0, 3, "p2", {
+        isBlocking: true,
+    });
+    const liliana = creature("liliana", "def-liliana", 0, 0, "p2", {
+        types: ["Planeswalker"],
+        counters: { loyalty: 3 },
+    });
+    const combat = {
+        attackerIds: ["mammoth"],
+        confirmed: true,
+        blockersConfirmed: true,
+        damageConfirmed: false,
+        blockerAssignments: { wall: ["mammoth"] },
+        damageAssignerIds: { mammoth: "p1" },
+        damageAssignments,
+        ...(withPlaneswalker ? { attackTargets: { mammoth: "liliana" } } : {}),
+    } as Combat;
+    return {
+        combat,
+        allPlayers: [
+            makePlayer("p1", [mammoth]),
+            makePlayer("p2", withPlaneswalker ? [wall, liliana] : [wall]),
+        ],
+    };
+}
+
+/** `[blockerRowButton, sinkRowButton]` — the sink row renders last. */
+const steppers = (getAllByText: (t: string) => HTMLElement[], glyph: string) =>
+    getAllByText(glyph) as HTMLButtonElement[];
+
+describe("DamageAssignmentPanel lethal-minimum gating (CR 702.19b / CR 702.2c, issue #2444)", () => {
+    it("disables + on the Defending Player row while the blocker is under-assigned", () => {
+        const { combat, allPlayers } = trampleScenario();
+        const { getAllByText, getByText } = renderPanel(combat, allPlayers);
+        expect(getByText("Defending Player")).toBeTruthy();
+
+        const plus = steppers(getAllByText, "+");
+        // Blocker row stays live — assigning to the blocker is always legal.
+        expect(plus[0].disabled).toBe(false);
+        // Sink row is closed: 0 of the required 3 is on the blocker.
+        expect(plus[1].disabled).toBe(true);
+    });
+
+    it("a disabled sink + dispatches nothing when clicked", () => {
+        const { combat, allPlayers } = trampleScenario();
+        const { getAllByText } = renderPanel(combat, allPlayers);
+        fireEvent.click(steppers(getAllByText, "+")[1]);
+        expect(setDamageAssignment).not.toHaveBeenCalled();
+    });
+
+    it("opens the Defending Player row once the blocker has lethal damage", () => {
+        const { combat, allPlayers } = trampleScenario(["trample"], {
+            mammoth: { wall: 3 },
+        });
+        const { getAllByText } = renderPanel(combat, allPlayers);
+
+        const plus = steppers(getAllByText, "+");
+        expect(plus[1].disabled).toBe(false);
+        fireEvent.click(plus[1]);
+        expect(setDamageAssignment).toHaveBeenCalledWith(
+            expect.objectContaining({
+                attackerId: "mammoth",
+                assignments: { wall: 3, p2: 1 },
+            })
+        );
+    });
+
+    it("disables - on the blocker row when the decrement would strand damage on the player", () => {
+        // 3 on the blocker (lethal) + 1 through. Stepping the blocker down to 2
+        // while a point sits on the player is the illegal pair, so the server
+        // would refuse it and the button must be dead.
+        const { combat, allPlayers } = trampleScenario(["trample"], {
+            mammoth: { wall: 3, p2: 1 },
+        });
+        const { getAllByText } = renderPanel(combat, allPlayers);
+
+        const minus = steppers(getAllByText, "-");
+        expect(minus[0].disabled).toBe(true);
+        // The sink row's own - stays live: taking damage OFF the player is
+        // always legal.
+        expect(minus[1].disabled).toBe(false);
+    });
+
+    it("a deathtouch trampler opens the sink at 1 on the blocker (CR 702.2c)", () => {
+        const withDeathtouch = trampleScenario(["trample", "deathtouch"], {
+            mammoth: { wall: 1 },
+        });
+        const dt = renderPanel(
+            withDeathtouch.combat,
+            withDeathtouch.allPlayers
+        );
+        expect(steppers(dt.getAllByText, "+")[1].disabled).toBe(false);
+
+        cleanup();
+
+        // Control: the same 1-on-the-blocker board WITHOUT deathtouch still
+        // needs 3, so the sink stays closed. This is what proves the pass above
+        // is CR 702.2c and not a blanket permission.
+        const plain = trampleScenario(["trample"], { mammoth: { wall: 1 } });
+        const p = renderPanel(plain.combat, plain.allPlayers);
+        expect(steppers(p.getAllByText, "+")[1].disabled).toBe(true);
+    });
+
+    it("switches the sink row to the attacked planeswalker (CR 702.19f)", () => {
+        const { combat, allPlayers } = trampleScenario(
+            ["trample"],
+            { mammoth: { wall: 3 } },
+            true
+        );
+        const { getAllByText, getByText, queryByText } = renderPanel(
+            combat,
+            allPlayers
+        );
+
+        // The row is labelled for the planeswalker, not the player: a creature
+        // without trample-over-planeswalkers may assign NONE of its damage to
+        // the defending player while attacking a planeswalker.
+        expect(getByText("Liliana of the Veil")).toBeTruthy();
+        expect(queryByText("Defending Player")).toBeNull();
+
+        const plus = steppers(getAllByText, "+");
+        expect(plus[1].disabled).toBe(false);
+        fireEvent.click(plus[1]);
+        expect(setDamageAssignment).toHaveBeenCalledWith(
+            expect.objectContaining({
+                attackerId: "mammoth",
+                assignments: { wall: 3, liliana: 1 },
+            })
+        );
+    });
+
+    it("gates the planeswalker sink row on the same lethal minimum", () => {
+        const { combat, allPlayers } = trampleScenario(["trample"], {}, true);
+        const { getAllByText } = renderPanel(combat, allPlayers);
+        expect(steppers(getAllByText, "+")[1].disabled).toBe(true);
     });
 });
