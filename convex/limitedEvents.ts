@@ -1191,7 +1191,14 @@ export async function cascadeEventRounds(
  *  - the viewer isn't seated in this event, or
  *  - the event hasn't reached the play phase yet (`areRoundsRunning`/
  *    `isEventConcluded` both false) — a Draft/Sealed/deckbuilding event has
- *    no rounds to have a record from. */
+ *    no rounds to have a record from, or
+ *  - the event has NO rounds at all. The phase check alone is not enough: a
+ *    creator closing a stalled deckbuilding table force-finishes it, so
+ *    `isEventConcluded` goes true on an event that never paired anyone, and
+ *    `computeStandings(seats, [])` would hand back a zeroed row — a `0-0` for
+ *    an event that never played a round. That is the flow this close action
+ *    exists to create, so the emptiness is checked on the DATA, not the
+ *    status. */
 export function viewerMatchRecordFor(
     event: Doc<"limitedEvents">,
     viewerUserId: string | null
@@ -1200,6 +1207,7 @@ export function viewerMatchRecordFor(
     if (!areRoundsRunning(event.status) && !isEventConcluded(event.status)) {
         return undefined;
     }
+    if ((event.rounds ?? []).length === 0) return undefined;
     const seat = event.seats.find((s) => s.userId === viewerUserId);
     if (!seat) return undefined;
     const standings = computeStandings(event.seats, event.rounds ?? []);
