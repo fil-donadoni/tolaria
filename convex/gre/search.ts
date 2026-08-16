@@ -123,6 +123,7 @@ import { beginDominanceDecision, endDominanceDecision } from "./ai/dominance";
 // activation could just as well happen in a later, better-informed window.
 import {
     effectiveAbilityOf,
+    effectiveActivatedAbilityEntryOf,
     isDeferrableStackAbility,
     isTransientOnlyAbility,
 } from "./ai/abilityTiming";
@@ -748,9 +749,17 @@ export function applyMoveInSearch(
             // reference, that the mutation path uses (`activateAbilityOnState`,
             // `convex/game.ts`).
             const source = findActivationSource(state, move.cardInstanceId);
-            const activated = source
-                ? effectiveAbilityOf(source, move.abilityId)
+            // CR 113.1 (issue #2468) — the ENTRY, not just the template: when
+            // the ability reached `source` through a grant (an Aura's
+            // `activated-grant` static effect, `grantActivatedAbility` /
+            // `grantActivatedAbilityPermanent`), the granting card's
+            // definition id has to ride along to the push below, or
+            // `resolveTopOfStack` cannot find the template to resolve and the
+            // item pops as a silent no-op.
+            const activatedEntry = source
+                ? effectiveActivatedAbilityEntryOf(source, move.abilityId)
                 : undefined;
+            const activated = activatedEntry?.ability;
             applyTapPlan(state, playerId, move.tapPlan);
             // CR 602.1 / 118 (issue #2155) — every non-mana cost leg, paid
             // through the SAME helper the greedy sandbox
@@ -787,13 +796,17 @@ export function applyMoveInSearch(
                 // mutation commit sites use (`activationCommit.ts`), so the
                 // fields `resolveTopOfStack` reads cannot drift between the
                 // tree and live play. The announcement data all rides on the
-                // move; the two fields that do NOT are derived server-side
-                // during payment and are deliberately absent here, matching
-                // what the search's coarse mana model can know:
-                // `notedManaSpent` (CR 106.10 — needs an exact pool delta, and
-                // `applyTapPlan` taps sources without draining the pool
-                // coin-exact) and `additionalSacrificeSnapshot` (CR 601.2f —
-                // the victim IS removed by the cost helper above, only its
+                // move, plus `grantedSourceCardId` (CR 113.1) off the entry
+                // resolved above when the ability came from a grant — without
+                // it `resolveTopOfStack` cannot find the granted template and
+                // the item pops as a no-op (issue #2468). The two fields that
+                // do NOT ride the move are derived server-side during payment
+                // and are deliberately absent here, matching what the
+                // search's coarse mana model can know: `notedManaSpent` (CR
+                // 106.10 — needs an exact pool delta, and `applyTapPlan` taps
+                // sources without draining the pool coin-exact) and
+                // `additionalSacrificeSnapshot` (CR 601.2f — the victim IS
+                // removed by the cost helper above, only its
                 // mana-value/power snapshot is not reconstructed).
                 state.stack.push(
                     buildActivatedAbilityStackItem(source, {
@@ -807,6 +820,12 @@ export function applyMoveInSearch(
                             : {}),
                         ...(move.chosenX !== undefined
                             ? { chosenX: move.chosenX }
+                            : {}),
+                        ...(activatedEntry?.grantedSourceCardId
+                            ? {
+                                  grantedSourceCardId:
+                                      activatedEntry.grantedSourceCardId,
+                              }
                             : {}),
                     })
                 );
