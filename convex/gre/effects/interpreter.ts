@@ -4778,15 +4778,6 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.setPlayerProtectionFromEverything(playerId);
     },
-    // CR 606 / 603.7a (issue #2385) — Tamiyo, Seasoned Scholar's +2 attacker
-    // debuff window. A thin declarative skin over the single SpellContext
-    // primitive `grantAttackerDebuffWindow`, one execution path (ADR 0045).
-    // Skipped when the player cannot be resolved (CR 608.2b).
-    grantAttackerDebuffWindow(ctx, op) {
-        const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
-        if (playerId === undefined) return;
-        ctx.grantAttackerDebuffWindow(playerId);
-    },
     // CR 118.4 / 121.1 (issue #1283) — a single ranged 0..N pick over the
     // resolved player's "drawn this turn" hand cards: each NOT selected costs
     // `costPerKept` life (CR 119.4 floor clamp), each selected goes to the

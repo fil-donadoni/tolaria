@@ -53,6 +53,7 @@ import {
     fireDelayedTriggers,
     finalizeCleanup,
     applyAllCombatDamage,
+    emitAttackersDeclaredEvents,
 } from "../../phases";
 import {
     checkConditionalControlChanges,
@@ -2716,67 +2717,200 @@ describe("Effect Script Op: setProtectionFromEverything (CR 702.16b/e/i, issue #
     });
 });
 
-describe("Effect Script Op: grantAttackerDebuffWindow (CR 606 / 603.7a, issue #2385)", () => {
-    it("opens the window for the resolving controller", () => {
-        const id = registerScript("test-op-attacker-debuff-controller", [
-            { op: "grantAttackerDebuffWindow", player: "controller" },
+// New DelayedTriggerTiming member (issue #2385, review round 2 on PR #2487)
+// → full per-Op regime: `delayedTrigger` itself already has permanent
+// coverage above (Battle Cry's "this-turn-creature-blocks"), so what earns
+// its OWN test here is the NEW timing's engine mechanism — the "until your
+// next turn" (not "this turn") repeating bound, and the multi-attacker
+// synthetic-event fan-out `gre/triggers.ts` builds for it (`ATTACKERS_
+// DECLARED` carries the WHOLE batch as one event, unlike `BLOCKERS_
+// CONFIRMED`'s one-per-pair shape).
+describe("delayedTrigger timing: until-next-turn-creature-attacks-you (CR 606 / 603.7a / 508.1b, issue #2385)", () => {
+    const TIMING = "until-next-turn-creature-attacks-you" as const;
+
+    /** Opens the window for `controllerId` via the real `delayedTrigger` Op
+     *  (Tamiyo, Seasoned Scholar's +2 shape) — never hand-built. */
+    function openWindow(state: GameState, controllerId: string): void {
+        const id = registerScript(`test-op-attack-window-${controllerId}`, [
+            {
+                op: "delayedTrigger",
+                timing: TIMING,
+                oracleText:
+                    "Whenever a creature attacks you or a planeswalker you control, it gets -1/-0 until end of turn.",
+                effects: [
+                    {
+                        op: "pump",
+                        target: { ref: "$event.soleAttacker" },
+                        power: -1,
+                        toughness: 0,
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
         ]);
-        const state = makeState();
-        pushSpell(state, id, "p1");
+        pushSpell(state, id, controllerId);
         resolveTopOfStack(state);
-        expect(state.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+    }
+
+    /** Declares attackers through the real production entry point (CR
+     *  508.1), mirroring `mh3/blue.test.ts`'s own convention — a hand-built
+     *  stack item would never exercise the delayed-trigger fire path. This
+     *  is a REAL CR 603.7a triggered ability (review round 2): firing only
+     *  QUEUES the stack item, exactly like Battle Cry's own
+     *  "this-turn-creature-blocks" test convention (`ice/__tests__/
+     *  white.test.ts`) — draining the stack is what actually resolves the
+     *  `pump`. */
+    function declareAttackers(
+        state: GameState,
+        activePlayerId: string,
+        attackerIds: string[]
+    ): void {
+        state.activePlayerId = activePlayerId;
+        state.phase = "DECLARE_ATTACKERS";
+        state.combat = {
+            attackerIds,
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        emitAttackersDeclaredEvents(state);
+        while (state.stack.some((s) => s.delayedTriggerId !== undefined)) {
+            resolveTopOfStack(state);
+        }
+    }
+
+    it("schedules a delayed trigger for the resolving controller", () => {
+        const state = makeState();
+        openWindow(state, "p1");
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers?.[0]).toMatchObject({
+            timing: TIMING,
+            controller: "p1",
+        });
     });
 
-    it("defaults to the resolving controller when `player` is omitted", () => {
-        const id = registerScript("test-op-attacker-debuff-default", [
-            { op: "grantAttackerDebuffWindow" },
-        ]);
-        const state = makeState();
-        pushSpell(state, id, "p1");
-        resolveTopOfStack(state);
-        expect(state.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+    it("pumps EACH attacker -1/-0 when the OTHER player declares attackers (multi-attacker fan-out)", () => {
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "attacker-1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(bear.id, {
+                            id: "attacker-2",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        declareAttackers(state, "p2", ["attacker-1", "attacker-2"]);
+        for (const id of ["attacker-1", "attacker-2"]) {
+            const attacker = state.players[1].battlefield.find(
+                (c) => c.id === id
+            )!;
+            // 2/2 Grizzly Bears -1/-0 reads as 1/2 (layer 7c).
+            expect(getEffectivePower(state, attacker)).toBe(1);
+            expect(getEffectiveToughness(state, attacker)).toBe(2);
+        }
     });
 
-    it("APPENDS rather than overwrites, so both players can hold a window at once", () => {
-        const id = registerScript("test-op-attacker-debuff-append", [
-            { op: "grantAttackerDebuffWindow", player: "opponent" },
-        ]);
-        const state = makeState();
-        state.attackerDebuffUntilNextTurn = ["p1"];
-        pushSpell(state, id, "p1");
-        resolveTopOfStack(state);
-        expect(state.attackerDebuffUntilNextTurn).toEqual(["p1", "p2"]);
+    it("does NOT pump when the WINDOW'S OWN controller declares attackers (CR 508.1b — a creature can't attack itself)", () => {
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "own-attacker",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        openWindow(state, "p1");
+        declareAttackers(state, "p1", ["own-attacker"]);
+        const attacker = state.players[0].battlefield.find(
+            (c) => c.id === "own-attacker"
+        )!;
+        expect(getEffectivePower(state, attacker)).toBe(2);
     });
 
-    it("is idempotent per player (a re-grant while the window is already open is a no-op)", () => {
-        const id = registerScript("test-op-attacker-debuff-idempotent", [
-            { op: "grantAttackerDebuffWindow", player: "controller" },
-        ]);
-        const state = makeState();
-        state.attackerDebuffUntilNextTurn = ["p1"];
-        pushSpell(state, id, "p1");
-        resolveTopOfStack(state);
-        expect(state.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+    it("is REPEATING — fires again on a LATER declare-attackers step, not consumed by the first firing", () => {
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "first-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(bear.id, {
+                            id: "second-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        declareAttackers(state, "p2", ["first-attacker"]);
+        expect(state.delayedTriggers).toHaveLength(1); // still queued
+        declareAttackers(state, "p2", ["second-attacker"]);
+        const second = state.players[1].battlefield.find(
+            (c) => c.id === "second-attacker"
+        )!;
+        expect(getEffectivePower(state, second)).toBe(1);
     });
 
-    it("the window survives projection (wire format)", () => {
-        const id = registerScript("test-op-attacker-debuff-wire", [
-            { op: "grantAttackerDebuffWindow", player: "controller" },
-        ]);
-        const state = makeState();
-        pushSpell(state, id, "p1");
-        resolveTopOfStack(state);
-        const projected = projectPublicState(state, 1, "p1");
-        expect(projected.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+    it("the pump survives projection (wire format)", () => {
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "wire-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        declareAttackers(state, "p2", ["wire-attacker"]);
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "wire-attacker"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
     });
 
     it("round-trips through compactState/expandState (persisted, not transient)", () => {
         const state = makeState();
-        state.attackerDebuffUntilNextTurn = ["p2"];
+        openWindow(state, "p1");
         const restored = expandState(compactState(state));
         // The window spans the opponent's whole turn, so it MUST survive the
-        // DB writes in between (PERSISTED_OPTIONAL_KEYS, serialize.ts).
-        expect(restored.attackerDebuffUntilNextTurn).toEqual(["p2"]);
+        // DB writes in between (PERSISTED_OPTIONAL_KEYS, serialize.ts —
+        // covered generically by `delayedTriggers`, checked again here as
+        // this timing's own regression pin).
+        expect(restored.delayedTriggers).toEqual(state.delayedTriggers);
     });
 });
 

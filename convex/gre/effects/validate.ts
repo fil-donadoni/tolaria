@@ -2589,6 +2589,17 @@ const DELAYED_TIMINGS = new Set([
     // turn (Forth Eorlingas!). Rejects both `targetPlayer` and `watch`, same
     // shape as "this-turn-creature-blocks".
     "this-turn-creature-deals-combat-damage-to-player",
+    // Repeating combat-event watch, "UNTIL YOUR NEXT TURN" bound rather than
+    // "this turn" (CR 606 / 603.7a / 508.1b, issue #2385) — fires once per
+    // attacker in an ATTACKERS_DECLARED batch that attacks the instance's
+    // controller, for the rest of THIS turn AND the whole intervening
+    // opponent turn (Tamiyo, Seasoned Scholar's +2). Same repeating SHAPE as
+    // "this-turn-creature-blocks" (stays queued after firing, its body may
+    // read `$event` — checked below) but purged at the controller's own
+    // next-turn start instead of CLEANUP (`gre/phases.ts` advanceTurn).
+    // Rejects both `targetPlayer` and `watch`, same shape as
+    // "this-turn-creature-blocks".
+    "until-next-turn-creature-attacks-you",
     // Instance unblocked-attack watch (CR 603.7a / 509.1h) — fires on the
     // WATCHED permanent's ATTACKER_UNBLOCKED event ("This turn, when target
     // creature you control attacks and isn't blocked, …", Delif's Cone /
@@ -4264,14 +4275,6 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     setProtectionFromEverything: {
         required: { player: isPlayerRef },
     },
-    // CR 606 / 603.7a (issue #2385) — Tamiyo, Seasoned Scholar's +2 attacker-
-    // debuff window. `player` is the protected player (defaults to
-    // "controller" at the interpreter, so the field is optional here); the
-    // duration is intrinsic, so no other fields.
-    grantAttackerDebuffWindow: {
-        required: {},
-        optional: { player: isPlayerRef },
-    },
     // CR 118.4 / 121.1 (issue #1283) — a single ranged 0..N "drawn this turn"
     // hand pick with a per-NOT-chosen life cost (Sylvan Library). `pool` is
     // the candidate-set discriminator (only `"drawn-this-turn"` today); `max`
@@ -4472,7 +4475,18 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                             // like `target`. No other field in the vocabulary is
                             // named `with`.
                             keyHint === "sharesColor" ||
-                            keyHint === "with"
+                            keyHint === "with" ||
+                            // `targetMatchesGraveyardFilter` (issue #2385) — the
+                            // announced graveyard-zone target under test, an
+                            // `EffectObjectSelector` exactly like `target` /
+                            // `objectMatchesFilter`. Review finding: this row
+                            // was missing, so a `{ ref: "$each" }` here mis-tagged
+                            // as "number" and a forEach's `$each` form was
+                            // rejected as a malformed ref even though the predicate
+                            // routes it through the identical object-selector path
+                            // one line below (`collectRefUses(p.
+                            // targetMatchesGraveyardFilter, "targetMatchesGraveyardFilter", out)`).
+                            keyHint === "targetMatchesGraveyardFilter"
                           ? "object"
                           : "number",
         });
@@ -5261,23 +5275,30 @@ function checkOpListRefs(
                     );
                 }
             }
-            // "this-turn-creature-blocks" (issue #884) is the ONE delayed
-            // timing whose firing event is still live at fire time: it
-            // re-fires per BLOCKERS_CONFIRMED event, and `triggers.ts` threads
-            // that event onto the built StackItem exactly like a normal
-            // triggered ability — so its body may read `$event.blockerId`
-            // directly (no capture needed). Every OTHER timing's body runs at
-            // a phase boundary / after the watched permanent already left, so
-            // `$event` stays illegal there (ADR 0049) — `inDelayedBody` flips
-            // on for those.
-            const eventBody = entry.timing === "this-turn-creature-blocks";
+            // "this-turn-creature-blocks" (issue #884) and
+            // "until-next-turn-creature-attacks-you" (issue #2385) are the
+            // TWO delayed timings whose firing event is still live at fire
+            // time: each re-fires per its own combat event, and
+            // `triggers.ts` threads that event onto the built StackItem
+            // exactly like a normal triggered ability — so the body may read
+            // `$event.<field>` directly (no capture needed). Every OTHER
+            // timing's body runs at a phase boundary / after the watched
+            // permanent already left, so `$event` stays illegal there (ADR
+            // 0049) — `inDelayedBody` flips on for those.
+            const eventBody =
+                entry.timing === "this-turn-creature-blocks" ||
+                entry.timing === "until-next-turn-creature-attacks-you";
+            const liveEventType =
+                entry.timing === "until-next-turn-creature-attacks-you"
+                    ? "ATTACKERS_DECLARED"
+                    : "BLOCKERS_CONFIRMED";
             checkOpListRefs(
                 entry.effects,
                 (j) => `${at}: effects[${j}]`,
                 errors,
                 bodyScope,
                 eventBody
-                    ? { eventType: "BLOCKERS_CONFIRMED", inDelayedBody: false }
+                    ? { eventType: liveEventType, inDelayedBody: false }
                     : { eventType: eventScope.eventType, inDelayedBody: true }
             );
         }

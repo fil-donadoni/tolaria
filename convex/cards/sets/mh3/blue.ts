@@ -42,17 +42,31 @@ import { TAMIYO_SEASONED_SCHOLAR_EMBLEM_ID } from "../../emblems";
 //
 // Back face (Tamiyo, Seasoned Scholar, starting loyalty 2):
 //   • +2 — "Until your next turn, whenever a creature attacks you or a
-//     planeswalker you control, it gets -1/-0 until end of turn." NOT a real
-//     CR 603.7a delayed triggered ability: `CardBackFace` (this ability's
-//     home, synthesized through `tokenDefinitionId`'s content-derived-id
-//     codec, `gre/transform.ts`) carries no native `TriggeredAbility` slot —
-//     a `matches` predicate is a closure and the codec only round-trips
-//     JSON-pure data. `grantAttackerDebuffWindow` (new single-purpose Op,
-//     mirroring `setPlayerProtectionFromEverything`'s "The One Ring" shape)
-//     opens a player-scoped window instead, applied DIRECTLY by
-//     `emitAttackersDeclaredEvents` (`gre/phases.ts`) — see that Op's doc
-//     comment (`cards/types.ts`) for the full rationale. Documented
-//     simplification, mirroring Xantid Swarm's flag-and-gate shape.
+//     planeswalker you control, it gets -1/-0 until end of turn." A REAL
+//     CR 603.7a delayed triggered ability after all (review round 2,
+//     PR #2487): the delayed trigger is created at RESOLUTION time
+//     (`bun run cr 603.7a`) and lives on `state.delayedTriggers` as
+//     JSON-pure data — it never touches `CardBackFace` or a closure-bearing
+//     `TriggeredAbility.matches` at all, so the original "the codec can't
+//     carry a closure" justification for a dedicated Op was a non-sequitur.
+//     `delayedTrigger` (ADR 0048/0049) is an ordinary `EffectOp`, usable
+//     inside `backFace.activatedAbilities[].effects` exactly like any other
+//     Op — Jace, Telepath Unbound's own back face already rides the SAME
+//     codec (`sets/ori/blue.ts`, `backFaceAsTokenSpec`,
+//     `gre/transform.ts:84`). This +2 uses the NEW `until-next-turn-
+//     creature-attacks-you` timing (`cards/types.ts` `DelayedTriggerTiming`)
+//     — the "until your next turn" twin of the existing
+//     `this-turn-creature-blocks` repeating family (Battle Cry,
+//     `sets/ice/white.ts`), generalized rather than duplicated: same
+//     repeating shape (fires once per matching combat event, stays queued),
+//     different purge boundary (the controller's own next-turn start,
+//     `gre/phases.ts` advanceTurn, instead of CLEANUP — the same boundary
+//     `playerProtectionFromEverything` / `castTimingFlashGrants` use). The
+//     P/T delta (-1/-0) is plain `pump` data in the card's OWN inline body,
+//     not hardcoded in the engine, so a different-magnitude card reuses the
+//     identical timing. See the timing's own doc comment for the full
+//     mechanism (multi-attacker batching via a synthetic per-attacker event,
+//     the 2-player attack-target collapse).
 //   • −3 — "Return target instant or sorcery card from your graveyard to
 //     your hand. If it's a green card, add one mana of any color." The
 //     return is Regrowth's own `moveZone` (`sets/lea/green.ts`); "add one
@@ -138,7 +152,21 @@ export const tamiyoInquisitiveStudent: CardDefinition = {
                 oracleText:
                     "+2: Until your next turn, whenever a creature attacks you or a planeswalker you control, it gets -1/-0 until end of turn.",
                 effects: [
-                    { op: "grantAttackerDebuffWindow", player: "controller" },
+                    {
+                        op: "delayedTrigger",
+                        timing: "until-next-turn-creature-attacks-you",
+                        oracleText:
+                            "Whenever a creature attacks you or a planeswalker you control, it gets -1/-0 until end of turn.",
+                        effects: [
+                            {
+                                op: "pump",
+                                target: { ref: "$event.soleAttacker" },
+                                power: -1,
+                                toughness: 0,
+                                duration: { phase: "end-of-turn" },
+                            },
+                        ],
+                    },
                 ],
             },
             {

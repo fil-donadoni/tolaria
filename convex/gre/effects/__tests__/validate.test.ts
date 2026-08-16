@@ -4170,17 +4170,29 @@ describe("validateEffectScript — divide (issue #2385)", () => {
     });
 });
 
-// --- grantAttackerDebuffWindow Op (CR 606 / 603.7a, issue #2385) ------------
+// --- delayedTrigger "until-next-turn-creature-attacks-you" timing
+// (CR 606 / 603.7a / 508.1b, issue #2385, review round 2) ------------------
 
-describe("validateEffectScript — grantAttackerDebuffWindow (issue #2385)", () => {
-    it("accepts an explicit player ref", () => {
+describe("validateEffectScript — delayedTrigger until-next-turn-creature-attacks-you (issue #2385)", () => {
+    it("accepts the timing with an $event.soleAttacker-reading body, no targetPlayer/watch", () => {
         expect(
             validateEffectScript(
                 host({
                     effects: [
                         {
-                            op: "grantAttackerDebuffWindow",
-                            player: "controller",
+                            op: "delayedTrigger",
+                            timing: "until-next-turn-creature-attacks-you",
+                            oracleText:
+                                "Whenever a creature attacks you or a planeswalker you control, it gets -1/-0 until end of turn.",
+                            effects: [
+                                {
+                                    op: "pump",
+                                    target: { ref: "$event.soleAttacker" },
+                                    power: -1,
+                                    toughness: 0,
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
                         },
                     ],
                 })
@@ -4188,28 +4200,40 @@ describe("validateEffectScript — grantAttackerDebuffWindow (issue #2385)", () 
         ).toEqual([]);
     });
 
-    it("accepts an omitted player (defaults to controller at the interpreter)", () => {
-        expect(
-            validateEffectScript(
-                host({ effects: [{ op: "grantAttackerDebuffWindow" }] })
-            )
-        ).toEqual([]);
+    it("rejects targetPlayer on this timing (phase-boundary-only field)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "until-next-turn-creature-attacks-you",
+                        targetPlayer: "controller",
+                        oracleText: "x",
+                        effects: [{ op: "becomeMonarch" }],
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(/"targetPlayer".*only valid/);
     });
 
-    it("rejects an extra field", () => {
-        expect(
-            validateEffectScript(
-                host({
-                    effects: [
-                        {
-                            op: "grantAttackerDebuffWindow",
-                            player: "controller",
-                            duration: { phase: "end-of-turn" },
-                        } as unknown as EffectOp,
-                    ],
-                })
-            ).length
-        ).toBeGreaterThan(0);
+    it("rejects watch on this timing (instance-scoped-only field)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "until-next-turn-creature-attacks-you",
+                        watch: { ref: "$source" },
+                        oracleText: "x",
+                        effects: [{ op: "becomeMonarch" }],
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(/"watch".*only valid/);
     });
 });
 
@@ -4266,6 +4290,44 @@ describe("validateEffectScript — targetMatchesGraveyardFilter (issue #2385)", 
                 ).length
             ).toBeGreaterThan(0);
         }
+    });
+
+    // Review round 2 (PR #2487) — `collectRefUses`'s object-family keyHint
+    // list was missing "targetMatchesGraveyardFilter", so a `{ ref: "$each"
+    // }` there mis-tagged as a NUMBER ref and failed as a "malformed ref"
+    // even though the predicate routes through the identical object-selector
+    // path `objectMatchesFilter` uses one line above it (validate.ts). The
+    // type doc on `targetMatchesGraveyardFilter` advertises this exact form
+    // (a forEach-driven graveyard sweep, not just an announced target).
+    it("accepts the $each form inside a forEach (review round 2, #2487)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "graveyard",
+                                controller: "controller",
+                            },
+                            effects: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        targetMatchesGraveyardFilter: {
+                                            ref: "$each",
+                                        },
+                                        player: "controller",
+                                        filter: { color: "G" },
+                                    },
+                                    then: [],
+                                },
+                            ],
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
     });
 });
 

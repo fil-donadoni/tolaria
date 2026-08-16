@@ -3901,21 +3901,6 @@ export type GameState = {
      *  player's next turn (via `advanceTurn`) — the "until your next turn"
      *  boundary, mirroring `islandSanctuaryProtection`, NOT CLEANUP. */
     castTimingFlashGrants?: { playerId: string; cardTypes?: CardType[] }[];
-    /** CR 606 / 603.7a (issue #2385) — Tamiyo, Seasoned Scholar's +2: "Until
-     *  your next turn, whenever a creature attacks you or a planeswalker you
-     *  control, it gets -1/-0 until end of turn." A LIST of grantee player
-     *  ids (mirrors `playerProtectionFromEverything`/`castTimingFlashGrants`,
-     *  NOT a single slot like `islandSanctuaryProtection` — both players
-     *  could hold the window at once). Applied directly by
-     *  `emitAttackersDeclaredEvents` (`gre/phases.ts`) rather than as a real
-     *  stack-based delayed triggered ability — see
-     *  `grantAttackerDebuffWindow`'s Op doc (`cards/types.ts`) for why:
-     *  `CardBackFace` carries no native `TriggeredAbility` slot for a
-     *  closure-bearing `matches` predicate to live on. Each grantee's entry
-     *  is dropped at the START of THEIR OWN next turn (via `advanceTurn`) —
-     *  the same "until your next turn" boundary
-     *  `playerProtectionFromEverything` uses, NOT CLEANUP. */
-    attackerDebuffUntilNextTurn?: string[];
     /** Player whose creatures must all attack this combat if able (CR 508.1d,
      *  Siren's Call). Checked in `getRequiredAttackerIds` alongside the
      *  per-creature `mustAttackThisTurn`. Cleared at CLEANUP. */
@@ -14325,17 +14310,6 @@ export function buildSpellContext(
             const list = state.playerProtectionFromEverything ?? [];
             if (!list.includes(playerId)) list.push(playerId);
             state.playerProtectionFromEverything = list;
-        },
-
-        grantAttackerDebuffWindow(playerId: string): void {
-            // CR 606 / 603.7a (issue #2385) — Tamiyo, Seasoned Scholar's +2.
-            // Idempotent per player, mirroring `setPlayerProtectionFromEverything`:
-            // a re-grant while the window is already open is a no-op rather than
-            // a second entry. The window is re-derived from the grantee's next
-            // turn start in `advanceTurn`, so re-arming can't extend it.
-            const list = state.attackerDebuffUntilNextTurn ?? [];
-            if (!list.includes(playerId)) list.push(playerId);
-            state.attackerDebuffUntilNextTurn = list;
         },
 
         grantCastTiming(playerId: string, cardTypes?: CardType[]): void {

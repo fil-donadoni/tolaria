@@ -1265,17 +1265,6 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // own interpreter tests plus The One Ring's hand-written tests.
             req.skip ??= `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`;
             return;
-        case "grantAttackerDebuffWindow":
-            // CR 606 / 603.7a (issue #2385) — a GLOBAL player-scoped window
-            // (`GameState.attackerDebuffUntilNextTurn`), mirroring
-            // `setProtectionFromEverything`'s skip: its observable effect
-            // (a -1/-0 P/T mod on a declared attacker) only manifests at a
-            // LATER `emitAttackersDeclaredEvents` call the canned single-
-            // resolution generator never reaches. Explicit skip for
-            // exhaustiveness — covered by the Op's own interpreter test plus
-            // Tamiyo, Seasoned Scholar's hand-written combat test.
-            req.skip ??= `Op "grantAttackerDebuffWindow" only manifests at a later declare-attackers step — covered by hand-written tests`;
-            return;
         case "rangedTopdeck":
             // CR 118.4 / 121.1 (issue #1283) — a suspending ranged `choose-
             // hand-card` pick over a "drawn this turn" candidate pool the
@@ -2553,15 +2542,6 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // interpreter tests plus The One Ring's hand-written targeting/damage/
     // expiry tests are the behavioural guarantor.
     setProtectionFromEverything() {
-        return null;
-    },
-    // `grantAttackerDebuffWindow` (CR 606 / 603.7a, issue #2385) — never
-    // reached: `analyseOp` skips every script with this Op (a global
-    // player-scoped designation whose effect only manifests at a LATER
-    // declare-attackers step). Kept for the 1:1 coverage guard; the Op's own
-    // interpreter tests plus Tamiyo, Seasoned Scholar's hand-written combat
-    // test are the behavioural guarantor.
-    grantAttackerDebuffWindow() {
         return null;
     },
     // `rangedTopdeck` (CR 118.4 / 121.1, issue #1283) — never reached:

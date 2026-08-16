@@ -4,12 +4,17 @@
 // The exile-and-return-transformed flip template's OWN Op-level coverage
 // (CR 400.7 new-object semantics, CR 306.5b starting loyalty, wire format)
 // lives with the Op itself in `convex/gre/effects/__tests__/interpreter.test.ts`
-// (Jace, Vryn's Prodigy is the tracer). What is tested HERE is what only
-// this card can prove: the front face's own investigate/flip triggers fire
-// off the real engine entry points, and each of the three back-face loyalty
-// abilities does what it says — including the two genuinely new primitives
-// this card required (`grantAttackerDebuffWindow`, the `divide` value
-// grammar member) and the emblem's hand-size override.
+// (Jace, Vryn's Prodigy is the tracer). The +2's OWN delayed-trigger
+// mechanism — the new `until-next-turn-creature-attacks-you` timing,
+// multi-attacker fan-out, repeating/expiry — also has its permanent test
+// there (`interpreter.test.ts`, review round 2 on PR #2487); what's tested
+// HERE is what only THIS CARD can prove: the front face's own
+// investigate/flip triggers fire off the real engine entry points, +2
+// scheduled through the real loyalty-ability activation path and surviving
+// the intervening opponent turn, and the −3/−7 abilities do what they say —
+// including the two genuinely new primitives this card required
+// (`targetMatchesGraveyardFilter`, the `divide` value grammar member) and
+// the emblem's hand-size override.
 
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
@@ -218,14 +223,21 @@ describe("Tamiyo, Seasoned Scholar — the three loyalty abilities (CR 606)", ()
         resolveTopOfStack(state);
     }
 
-    describe("+2 — attacker-debuff window (CR 606 / 603.7a)", () => {
-        it("opens the window; the next attacking creature gets -1/-0 until end of turn", () => {
+    describe("+2 — attacker-debuff window (CR 606 / 603.7a / 508.1b)", () => {
+        it("schedules a REAL delayed triggered ability; the next attacking creature gets -1/-0 until end of turn", () => {
             const { state } = flippedBoard();
             activate(state, "tamiyo-seasoned-scholar-plus2");
             const tamiyo = state.players[0].battlefield.find(
                 (c) => c.id === "tamiyo"
             )!;
             expect(tamiyo.counters?.loyalty).toBe(4); // 2 + 2
+            // Review round 2 (PR #2487) — a real CR 603.7a delayed trigger,
+            // not the old direct-application flag.
+            expect(state.delayedTriggers).toHaveLength(1);
+            expect(state.delayedTriggers?.[0]).toMatchObject({
+                timing: "until-next-turn-creature-attacks-you",
+                controller: "p1",
+            });
 
             const bear = makeInstance(grizzlyBears.id, {
                 id: "attacker-bear",
@@ -235,6 +247,8 @@ describe("Tamiyo, Seasoned Scholar — the three loyalty abilities (CR 606)", ()
             state.players[1].battlefield.push(bear);
 
             declareAttackers(state, "p2", ["attacker-bear"]);
+            // Firing only QUEUES the triggered ability (CR 603.3) — drain it.
+            resolveTopOfStack(state);
             // 2/2 Grizzly Bears -1/-0 reads as 1/2 (layer 7c).
             expect(getEffectivePower(state, bear)).toBe(1);
             expect(getEffectiveToughness(state, bear)).toBe(2);
@@ -257,27 +271,42 @@ describe("Tamiyo, Seasoned Scholar — the three loyalty abilities (CR 606)", ()
             state.players[1].battlefield.push(bear);
             // No +2 activated yet.
             declareAttackers(state, "p2", ["early-bear"]);
+            expect(state.stack).toHaveLength(0);
             expect(getEffectivePower(state, bear)).toBe(2);
         });
 
-        it('clears at the grantee\'s own next turn ("until your next turn")', () => {
+        it('clears at the grantee\'s own next turn ("until your next turn"), NOT the unconditional CLEANUP purge', () => {
             const { state } = flippedBoard();
             activate(state, "tamiyo-seasoned-scholar-plus2");
-            expect(state.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+            expect(
+                state.delayedTriggers?.some(
+                    (t) => t.timing === "until-next-turn-creature-attacks-you"
+                )
+            ).toBe(true);
 
-            // p2's whole intervening turn — the window must survive it.
+            // p2's whole intervening turn — the window must survive it,
+            // including p2's own CLEANUP (the "this-turn-*" repeating
+            // timings would be purged there; this one must not be).
             state.activePlayerId = "p1";
             state.phase = "END_STEP";
             advancePhase(state);
             expect(state.activePlayerId).toBe("p2");
-            expect(state.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+            expect(
+                state.delayedTriggers?.some(
+                    (t) => t.timing === "until-next-turn-creature-attacks-you"
+                )
+            ).toBe(true);
 
             // p1's OWN next turn begins — the window closes.
             state.activePlayerId = "p2";
             state.phase = "END_STEP";
             advancePhase(state);
             expect(state.activePlayerId).toBe("p1");
-            expect(state.attackerDebuffUntilNextTurn ?? []).not.toContain("p1");
+            expect(
+                state.delayedTriggers?.some(
+                    (t) => t.timing === "until-next-turn-creature-attacks-you"
+                ) ?? false
+            ).toBe(false);
         });
     });
 
@@ -458,11 +487,11 @@ describe("Tamiyo, Seasoned Scholar — the three loyalty abilities (CR 606)", ()
         ).toThrow(/already been activated/);
     });
 
-    it("round-trips the attacker-debuff window through compactState/expandState", () => {
+    it("round-trips the attacker-debuff window's delayed trigger through compactState/expandState", () => {
         const { state } = flippedBoard();
         activate(state, "tamiyo-seasoned-scholar-plus2");
-        expect(state.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+        expect(state.delayedTriggers).toHaveLength(1);
         const restored = expandState(compactState(state));
-        expect(restored.attackerDebuffUntilNextTurn).toEqual(["p1"]);
+        expect(restored.delayedTriggers).toEqual(state.delayedTriggers);
     });
 });

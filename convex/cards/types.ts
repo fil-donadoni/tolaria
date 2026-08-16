@@ -3896,16 +3896,6 @@ export interface SpellContext {
      *  and sources are barred too. Idempotent per player (CR 702.16m);
      *  the grant is dropped at the START of that player's next turn. */
     setPlayerProtectionFromEverything: (playerId: string) => void;
-    /** Opens `playerId`'s attacker-debuff window (CR 606 / 603.7a, Tamiyo,
-     *  Seasoned Scholar's +2): until the START of their own next turn, every
-     *  creature declared as an attacker this combat gets -1/-0 until end of
-     *  turn (applied directly by `emitAttackersDeclaredEvents`, `gre/
-     *  phases.ts` — see `grantAttackerDebuffWindow`'s Op doc for why this
-     *  bypasses a real delayed triggered ability). Idempotent per player
-     *  (a re-grant while one is already open is a no-op — mirrors
-     *  `setPlayerProtectionFromEverything`); the window is dropped at the
-     *  START of that player's next turn. */
-    grantAttackerDebuffWindow: (playerId: string) => void;
     /** Adds a one-shot damage cap shield (Forcefield, CR 615). The next time
      *  an unblocked creature deals combat damage to `playerId`, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
@@ -5253,7 +5243,37 @@ export type DelayedTriggerTiming =
      *  battlefield seed re-snapshots it live and `{ ref: "$c.power" }` reads
      *  its EFFECTIVE power (CR 613) at resolution. `$event` stays illegal
      *  here, exactly as for the leave-watch timings. */
-    | "attacks-unblocked";
+    | "attacks-unblocked"
+    /** CR 606 / 603.7a / 508.1b (issue #2385) — a REPEATING window, bounded
+     *  "until your next turn" rather than "this turn": "Until your next
+     *  turn, whenever a creature attacks you or a planeswalker you control,
+     *  …" (Tamiyo, Seasoned Scholar's +2). Shares `this-turn-creature-
+     *  blocks`'s repeating SHAPE (stays queued after firing, the firing
+     *  event is threaded onto the built StackItem so the body may read
+     *  `$event` directly) but a DIFFERENT bound: it is deliberately excluded
+     *  from the CLEANUP purge (`gre/phases.ts`) — same precedent as
+     *  `leaves-battlefield-indefinite` for a timing surviving CLEANUP — and
+     *  is instead purged at the START of the delayed trigger's OWN
+     *  controller's next turn (`advanceTurn`, `gre/phases.ts`), the same
+     *  "until your next turn" boundary `playerProtectionFromEverything` /
+     *  `castTimingFlashGrants` use.
+     *
+     *  Fires once PER ATTACKER named in an `ATTACKERS_DECLARED` event whose
+     *  `attackingPlayerId` is NOT this instance's controller — CR 508.1b: a
+     *  creature only attacks the defending player or a permanent that player
+     *  controls, so in this engine's 2-player scope "the attacking player
+     *  isn't the instance's controller" already identifies every attacker in
+     *  the batch as attacking the controller (or their planeswalker). Unlike
+     *  `BLOCKERS_CONFIRMED` (already one event per attacker/blocker pair),
+     *  `ATTACKERS_DECLARED` carries the WHOLE batch as one event
+     *  (`attackerIds: string[]`) — `collectTriggers` (`gre/triggers.ts`)
+     *  builds one synthetic single-attacker `ATTACKERS_DECLARED` event per
+     *  attacker so the body can read `{ ref: "$event.soleAttacker" }`,
+     *  reusing the EXISTING `soleAttacker` `EVENT_FIELD_REGISTRY` row (ADR
+     *  0049) rather than adding a new one — a length-1 `attackerIds` array is
+     *  exactly what that row already flattens. Rejects `targetPlayer` /
+     *  `watch`, like the other repeating combat-event timings. */
+    | "until-next-turn-creature-attacks-you";
 
 /** ADR 0048 — the inline body of an Effect-Script-scheduled delayed trigger
  *  (CR 603.7a): a pure-JSON Op list persisted ON the `DelayedTriggerInstance`
@@ -12860,35 +12880,6 @@ export type EffectOp =
      *  this shape). Duration is intrinsic, no `duration` field.
      *  Skipped when the player cannot be resolved (CR 608.2b). */
     | { op: "setProtectionFromEverything"; player: EffectPlayerRef }
-    /** CR 606 / 603.7a (issue #2385) — Tamiyo, Seasoned Scholar's +2: "Until
-     *  your next turn, whenever a creature attacks you or a planeswalker you
-     *  control, it gets -1/-0 until end of turn." A thin declarative skin
-     *  over the single SpellContext primitive `grantAttackerDebuffWindow`,
-     *  one execution path (ADR 0045): appends `player`'s id to
-     *  `state.attackerDebuffUntilNextTurn` (a LIST, not a slot — mirrors
-     *  `setPlayerProtectionFromEverything`, since both players could hold the
-     *  window at once), read directly by `emitAttackersDeclaredEvents`
-     *  (`gre/phases.ts`) — which applies "-1/-0 until end of turn" to every
-     *  attacker the moment attackers are declared, rather than through a real
-     *  stack-based delayed triggered ability — and cleared at the START of
-     *  the grantee's own next turn (`advanceTurn`, `gre/phases.ts`), the same
-     *  "until your next turn" boundary `setIslandSanctuaryProtection` /
-     *  `setProtectionFromEverything` use, NOT CLEANUP.
-     *
-     *  Applied directly rather than as a genuine CR 603.7a delayed triggered
-     *  ability because `CardBackFace` (this ability's home — a back face
-     *  synthesized through `tokenDefinitionId`'s content-derived-id codec,
-     *  `gre/transform.ts`) carries no native `triggeredAbilities` /
-     *  `triggeredGrantTemplates` slot: a `TriggeredAbility.matches` predicate
-     *  is a closure, and the back-face codec can only round-trip JSON-pure
-     *  data (the same reason `CardBackFace.staticEffectKeys` is a KEY, not a
-     *  `StaticEffect` object). The generic `grantAbility`/`grantedTriggeredId`
-     *  primitive (CR 611.2a, Guardian Scalelord) therefore can't reach a back
-     *  face either — this is the documented simplification, mirroring Xantid
-     *  Swarm's `restrictSpellCasting` flag-and-gate shape (also skips the
-     *  stack for a per-combat effect). Duration is intrinsic, no `duration`
-     *  field. Skipped when the player cannot be resolved (CR 608.2b). */
-    | { op: "grantAttackerDebuffWindow"; player?: EffectPlayerRef }
     /** CR 118.4 / 121.1 (issue #1283) — Sylvan Library's single ranged 0..N
      *  "cards drawn this turn" hand pick, with a per-NOT-chosen life cost. A
      *  thin declarative composition over EXISTING SpellContext primitives —
