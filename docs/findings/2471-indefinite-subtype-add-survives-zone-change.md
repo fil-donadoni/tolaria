@@ -37,5 +37,21 @@ ticket. Counter-argument: the same in-place mutation is what the CR 400.7 revert
 right beside it exist to undo, so the omission looks like an oversight rather
 than a decision, and it gets worse as soon as a card cares about the granted
 subtype (a Kindred/changeling-style anthem, or the Aura grant this issue's
-`enchantRestriction` rides on — that one IS cleared, at
-`convex/gre/state.ts:8497-8506`).
+`enchantRestriction` rides on — that one IS cleared, by
+`clearGrantedEnchantRestriction`).
+
+**The concrete consequence of the asymmetry.** Because the granted `"Aura"`
+SUBTYPE survives a zone change while the granted enchant RESTRICTION does not,
+a permanent that became an Aura at runtime and then died returns from the
+graveyard still typed Aura but with no enchant clause of its own. If it has no
+printed `targetRequirement` either — the Necromancy shape — it then has no legal
+host at all, so CR 303.4g keeps it in the graveyard permanently: it can never
+re-enter the battlefield by any non-cast means. That is parity with pre-#2471
+behaviour (nothing changed about the subtype half) and it is the CR-correct
+outcome for the restriction half taken alone, but the pair is only coherent if
+BOTH halves die with the object. Fixing `grantedSubtypesAdd` is what makes it
+coherent; the test
+`CR 303.4g — an Aura whose ONLY clause was a runtime grant has no legal host on
+re-entry and never enters`
+(`convex/gre/__tests__/granted-enchant-restriction.test.ts`) pins the current
+behaviour meanwhile.

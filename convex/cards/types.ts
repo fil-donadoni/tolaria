@@ -301,15 +301,21 @@ export type Rarity = "common" | "uncommon" | "rare" | "mythic";
  *    field; Necromancy's "it becomes an Aura with enchant creature").
  *    `CardInstanceState.grantedEnchantRestriction` is where it lives.
  *
- *  Both are resolved instance-first / printed-second by the single predicate
- *  `resolveEnchantRestriction` (`convex/gre/state.ts`), which every legality
- *  site reads — the CR 303.4c / 704.5m attachment SBA and the CR 303.4f
- *  non-cast host scan alike — so the OFFERED host set and the ENFORCED host
- *  set cannot diverge. */
+ *  An object can carry BOTH at once, and then both apply: CR 702.5c — "If an
+ *  Aura has multiple instances of enchant, all of them apply. … The Aura can
+ *  enchant only objects or players that match all of its enchant abilities."
+ *  The single predicate `resolveEnchantRestriction` (`convex/gre/state.ts`)
+ *  returns every clause and every legality site conjoins them — the CR 303.4c
+ *  / 704.5m attachment SBA and the CR 303.4f non-cast host scan alike — so the
+ *  OFFERED host set and the ENFORCED host set cannot diverge. The granted
+ *  clause is battlefield-scoped (CR 400.7): an object off the battlefield
+ *  carries only its printed one, at both sites. */
 export interface EnchantRestriction {
-    /** Card types, ANY of which a PERMANENT host must have (CR 303.4a
-     *  "enchant creature"). Absent or empty accepts no permanent — an Aura
-     *  restricted only to players (`players: true`) legitimately has none. */
+    /** Card types, ANY of which a PERMANENT host must have (CR 702.5a — "The
+     *  enchant ability restricts what an Aura spell can target and what an
+     *  Aura can enchant"; "enchant creature"). Absent or empty accepts no
+     *  permanent — an Aura restricted only to players (`players: true`)
+     *  legitimately has none. */
     types?: CardType[];
     /** CR 303.4 "enchant player" — a player is a legal host in its own right.
      *  Never a battlefield object, so it is a separate flag rather than a
@@ -11150,11 +11156,13 @@ export type EffectOp =
           subtype: string;
           /** CR 303.4 — the enchant restriction the target gains TOGETHER with
            *  the subtype ("it becomes an Aura with enchant creature"). Only
-           *  meaningful when `subtype` is `"Aura"`: it is stamped on the
+           *  valid when `subtype` is `"Aura"` — the validator rejects it
+           *  otherwise (`OP_SCHEMAS.addSubtype.check`). It is stamped on the
            *  instance as `CardInstanceState.grantedEnchantRestriction` and
-           *  read instance-first by `resolveEnchantRestriction`, the single
-           *  predicate behind the CR 303.4c / 704.5m attachment SBA and the
-           *  CR 303.4f host scan. Without it a permanent flipped to an Aura
+           *  read by `resolveEnchantRestriction`, the single predicate behind
+           *  the CR 303.4c / 704.5m attachment SBA and the CR 303.4f host
+           *  scan, alongside any printed clause (CR 702.5c — all instances of
+           *  enchant apply). Without it a permanent flipped to an Aura
            *  has NO restriction the SBA can read and is binned the instant it
            *  attaches. `host` is an object selector resolved AT GRANT TIME to
            *  the instance id it names (the CR 303.4 "specific object" form —
