@@ -317,6 +317,10 @@ export default function Board({
     const queuedEndTurn = state.queuedEndTurn;
     const combat = state.combat;
     const meleeCombat = state.meleeCombat;
+    // CR 514.3a (issue #2472) — the cleanup step's one priority window. Read
+    // by `computeHasPriority` / `computePriorityState` (via GameContext), which
+    // otherwise treat CLEANUP as a no-priority step and render no Pass button.
+    const pendingExtraCleanupStep = state.pendingExtraCleanupStep;
     // CR 602.1 / 605.1a (issue #1124) — Abeyance's turn-scoped "can't activate
     // abilities that aren't mana abilities" lock, forwarded to
     // `buildTriggerStateView` call sites via GameContext.
@@ -381,6 +385,7 @@ export default function Board({
                 queuedEndTurn,
                 combat,
                 meleeCombat,
+                pendingExtraCleanupStep,
                 cannotActivateAbilitiesThisTurn,
                 lifeGainedThisTurn: state.lifeGainedThisTurn,
                 controlChangedThisTurn: state.controlChangedThisTurn,

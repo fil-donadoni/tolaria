@@ -58,9 +58,24 @@ function clearPublicStateOverride() {
 let forceNullTick = false;
 // When active, every mutation returns a promise that only settles once
 // `heldMutation.release()` is called (issue #1209).
-let heldMutation: { active: boolean; release?: () => void } = {
+let heldMutation: {
+    active: boolean;
+    release?: () => void;
+    /** Settle the held mutation as a REJECTION instead (issue #2470): the only
+     *  way to make a submission fail AFTER the board has moved on, which is
+     *  what tells a `submit-error` breadcrumb's `seq` apart from the latest. */
+    fail?: (message: string) => void;
+} = {
     active: false,
     release: undefined,
+    fail: undefined,
+};
+// When active, every mutation REJECTS — the server refusing the bot's
+// submission (issue #2470: a rejection is one of the two ways a decision dies
+// without changing the board, and it must leave a breadcrumb).
+let rejectMutation: { active: boolean; message: string } = {
+    active: false,
+    message: "",
 };
 
 // Tag each mutation/query by a plain string so assertions never touch Convex's
@@ -156,16 +171,40 @@ vi.mock("convex/react", () => ({
         // observe the window in which a multi-step realisation is half-done
         // (the `inFlight` race the seam closes).
         if (heldMutation.active) {
-            return new Promise<null>((resolve) => {
+            return new Promise<null>((resolve, reject) => {
                 heldMutation.release = () => resolve(null);
+                heldMutation.fail = (message: string) =>
+                    reject(new Error(message));
             });
+        }
+        if (rejectMutation.active) {
+            return Promise.reject(new Error(rejectMutation.message));
         }
         return Promise.resolve(null);
     },
 }));
 
+// issue #2470 review, finding 1 — `realiseBotAction` returns null on several
+// branches, and the driver then submits NOTHING. Off by default (every other
+// test in this file exercises the real realisation); flipped on for the one
+// test that asserts the silent-death exit now leaves a breadcrumb.
+let forceUnrealisable = false;
+vi.mock("~/lib/ai/realise", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("~/lib/ai/realise")>();
+    return {
+        ...actual,
+        realiseBotAction: (
+            ...args: Parameters<typeof actual.realiseBotAction>
+        ) => (forceUnrealisable ? null : actual.realiseBotAction(...args)),
+    };
+});
+
 // Imported after the mocks so the hook picks up the mocked transport.
 const { useVsAiDriver, BOT_WATCHDOG_MS } = await import("../useVsAiDriver");
+// The client-only AI rings the driver writes (issue #2470). Not mocked — the
+// store IS the subject here.
+const { getAiDecisions, clearAiDecisions } =
+    await import("~/lib/ai/trace-store");
 
 /** Flush the driver's NORMAL decision path — the think beat, the inline search
  *  and the mutation promises — without reaching the liveness watchdog's deadline
@@ -240,7 +279,10 @@ describe("useVsAiDriver (issue #110)", () => {
         currentState = undefined;
         clearPublicStateOverride();
         forceNullTick = false;
-        heldMutation = { active: false, release: undefined };
+        heldMutation = { active: false, release: undefined, fail: undefined };
+        rejectMutation = { active: false, message: "" };
+        forceUnrealisable = false;
+        clearAiDecisions();
         vi.useFakeTimers();
         // Deterministic random pick (first move).
         vi.spyOn(Math, "random").mockReturnValue(0);
@@ -744,5 +786,181 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("passPriority");
         expect(result.current.thinking).toBe(false);
+    });
+    // ── Decision breadcrumbs (issue #2470) ──────────────────────────────────
+    //
+    // The bot runs in the reporter's own tab, so a decision that dies leaves no
+    // server-side trace at all: #2450 arrived with a perfect board snapshot and
+    // nothing about the decision that produced it. Every exit below must append
+    // exactly one record, INCLUDING the healthy ones — a run of successes is
+    // what tells a reader the Brain was answering and the passes were meant.
+
+    it("records the trivial pass that never consulted the Brain", async () => {
+        currentState = botState({ priorityPlayerId: BOT });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const records = getAiDecisions();
+        expect(records).toHaveLength(1);
+        expect(records[0]).toMatchObject({
+            outcome: "skip-pass",
+            expectedKind: "priority",
+            phase: "PRECOMBAT_MAIN",
+            seq: 1,
+        });
+        // No Worker was consulted, so the record must not claim one.
+        expect(records[0].via).toBeUndefined();
+    });
+
+    it("records the consult's own verdict when the window IS searched", async () => {
+        currentState = botState({
+            priorityPlayerId: BOT,
+            players: [
+                {
+                    ...player(BOT),
+                    hand: [
+                        makeInstance(MOUNTAIN, {
+                            controllerId: BOT,
+                            ownerId: BOT,
+                            id: "land1",
+                            zone: "hand",
+                        }),
+                    ],
+                },
+                player(HUMAN),
+            ],
+        });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        // jsdom has no Worker, so the consult ran through the inline fallback —
+        // the same handler, reported as such.
+        const consult = getAiDecisions().find((d) => d.outcome === "move");
+        expect(consult).toBeDefined();
+        expect(consult).toMatchObject({ via: "inline", moveKind: "play-land" });
+        // A healthy consult carries no failure text.
+        expect(consult!.message).toBeUndefined();
+    });
+
+    it("records a submission the server rejected", async () => {
+        rejectMutation = { active: true, message: "not your priority" };
+        currentState = botState({ priorityPlayerId: BOT });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const rejected = getAiDecisions().find(
+            (d) => d.outcome === "submit-error"
+        );
+        expect(rejected).toBeDefined();
+        expect(rejected).toMatchObject({
+            moveKind: "pass",
+            message: "not your priority",
+        });
+    });
+
+    /** The bot's own mulligan window — a NON-search realisation (the keep/mull
+     *  declaration is the cheap gate heuristic, issue #145), i.e. the branch
+     *  review finding 1 found uninstrumented. */
+    function mulliganState() {
+        const botSeat = player(BOT);
+        botSeat.hand = [
+            makeInstance(MOUNTAIN, {
+                id: "m1",
+                controllerId: BOT,
+                zone: "hand",
+            }),
+            makeInstance(BEARS, { id: "b1", controllerId: BOT, zone: "hand" }),
+        ] as never;
+        return botState({
+            phase: "MULLIGAN",
+            players: [botSeat, player(HUMAN)],
+            mulligan: {
+                mulligansTaken: [0, 0],
+                declarations: [null, null],
+                locked: [false, false],
+                declaringPlayerId: BOT,
+                bottoming: false,
+            },
+        });
+    }
+
+    // Review finding 1: the direct/executor realisation branch — the exit taken
+    // by the MAJORITY of BotAction kinds (`botActionRealisation` routes only
+    // five to the Worker) — recorded nothing at all in the first pass.
+    it("records a non-search realisation", async () => {
+        currentState = mulliganState();
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const direct = getAiDecisions().find((d) => d.outcome === "direct");
+        expect(direct).toBeDefined();
+        // The BotAction kind, not a Move kind: this exit never reached a Move.
+        expect(direct!.actionKind).toBeDefined();
+        expect(direct!.moveKind).toBeUndefined();
+    });
+
+    // Review finding 1, second half: the bot decided, `realiseBotAction`
+    // produced no runner, and NOTHING was submitted. Without this record the
+    // ring shows the previous decision, a gap, then escalation rungs — the
+    // "died leaving no trace" shape the ring exists to remove.
+    it("records a decision that realised into nothing", async () => {
+        forceUnrealisable = true;
+        currentState = mulliganState();
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        expect(calls).toHaveLength(0);
+        expect(getAiDecisions().some((d) => d.outcome === "unrealisable")).toBe(
+            true
+        );
+    });
+
+    // Review finding 4: `note` used to fire BEFORE `dispatch`'s in-flight
+    // guard, so a suppressed dispatch still appended a record — the ring
+    // claimed answers the bot never submitted, a lie in the "looks healthy"
+    // direction.
+    it("records nothing for a dispatch the in-flight guard suppresses", async () => {
+        heldMutation = { active: true, release: undefined };
+        currentState = botState({ seq: 1, priorityPlayerId: BOT });
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+        expect(getAiDecisions()).toHaveLength(1);
+
+        // The first submission never settles; a new state version arrives.
+        currentState = botState({ seq: 2, priorityPlayerId: BOT });
+        rerender();
+        await settleDriver();
+
+        // Still one: the second dispatch was suppressed, so it is not an answer.
+        expect(getAiDecisions()).toHaveLength(1);
+        expect(calls).toHaveLength(1);
+    });
+
+    // Review round 3 — a `submit-error` breadcrumb fires from a promise
+    // rejection that can land long after the submission, by which time the
+    // board has moved on. A record whose `seq` names a version the decision was
+    // never made against cannot be lined up with the snapshot beside it, which
+    // is the entire job of that field.
+    it("records a rejection at the version it was SUBMITTED on, not the latest", async () => {
+        heldMutation = { active: true, release: undefined, fail: undefined };
+        currentState = botState({ seq: 1, priorityPlayerId: BOT });
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+        expect(calls).toHaveLength(1);
+
+        // The board advances while the submission is still in flight.
+        currentState = botState({ seq: 2, priorityPlayerId: BOT });
+        rerender();
+        await settleDriver();
+
+        // …and only THEN does the server reject it.
+        heldMutation.fail!("not your priority");
+        await settleDriver();
+
+        const rejected = getAiDecisions().find(
+            (d) => d.outcome === "submit-error"
+        );
+        expect(rejected).toBeDefined();
+        expect(rejected!.seq).toBe(1);
     });
 });

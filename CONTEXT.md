@@ -132,6 +132,29 @@ suspends land entry on a stackless **Pending Choice** rather than resolving
 synchronously (ADR 0051). Paying satisfies only the land's own tapped clause —
 any other tapped source (Kismet) still applies independently.
 
+**As-Enters Choice**:
+A player decision a **Replacement Effect** requires before a **Permanent**
+enters the **Battlefield** (CR 614.1c / 614.12a) — the copy pick of a Clone, the
+colour of Voice of All, the name of Meddling Mage, the body of Primal Clay, and
+the **Land-Entry Pay-Choice** as its land-only special case. Declared as data on
+`entersWith.asEnters`, never as an **Effect Script**: a replacement is a
+declaration, not an effect that resolves. Owed on _every_ entry path, not only
+on a cast (ADR 0100), and the owed list GROWS mid-flight — a copy's choice is
+answered first, and the copied card's own as-enters choices are then discovered
+and owed afresh (CR 707.6).
+_Avoid_: ETB choice (an ETB **Trigger** resolves off the **Stack** after the
+permanent has entered — the opposite timing)
+
+**Staged Entry**:
+A **Permanent** that has left its origin zone but has not yet entered the
+**Battlefield** because its controller still owes an **As-Enters Choice**. Held
+in `GameState.stagedEntries`, **off every zone**, so no **SBA** sweep and no
+wire projection ever observes it mid-choice — which is what keeps a copy card
+from entering as its printed 0/0 and dying (CR 704.5f) before it becomes a copy
+(CR 707.5). Resumed by a single finalize once the owed list empties.
+_Avoid_: pending entry, provisional entry (that is the opposite shape — the
+permanent already on the battlefield with its event deferred)
+
 **Token**:
 A **Permanent** not represented by a physical card. Created by effects. Ceases to exist when it leaves the **Battlefield**.
 
@@ -146,6 +169,10 @@ _Avoid_: Target (the Host is chosen by targeting, but "host" is the ongoing rela
 **Aura**:
 An **Enchantment** **Attachment**. If its **Host** becomes illegal or it ends up unattached, it is put into its owner's **Graveyard** (CR 704.5m/704.5n) — with one exception, a **Bestowed Permanent**, which stays on the **Battlefield** and becomes a **Creature** instead.
 _Avoid_: Enchantment (broader — not every enchantment is an Aura)
+
+**Enchant Restriction**:
+What an **Aura** may legally be attached to (CR 303.4 — "defined by its enchant keyword ability"). Two origins, resolved by ONE predicate in instance-first / printed-second order: **printed**, normalized from the card's cast-time target requirement (Control Magic's "enchant creature"), and **granted**, stamped on a single **Permanent** that _becomes_ an Aura while on the **Battlefield** ("it becomes an Aura with enchant creature"). A granted restriction may name one specific object rather than a characteristic, which no printed one can, and dies with the object on any zone change (CR 400.7). Both the offered **Host** set (CR 303.4f) and the enforced one (the CR 704.5m **SBA**) read the same predicate — two copies of the check is precisely how the two sets drift.
+_Avoid_: Target requirement (that is the cast-time announcement; the enchant restriction outlives it and applies to a Permanent), enchant ability
 
 **Bestowed Permanent**:
 An enchantment creature card cast for its **Bestow** cost, which is an **Aura** for as long as it stays attached (CR 702.103). While attached it is **not a Creature**; the moment it becomes unattached it stops being an Aura and reverts to being a creature on the **Battlefield**, rather than going to the **Graveyard**. The type change is a **Continuous Effect**, recomputed at every read (ADR 0084) — never a stored rewrite of the card's types, which is reserved for copiable-value changes like **Turn Face Up** and transform.
@@ -721,7 +748,7 @@ A card's print rarity (`common` / `uncommon` / `rare`), carried per **Card Print
 _Avoid_: Frequency, tier
 
 **Limited Event**:
-An admin-created gathering of N **Players** that produces one **Limited**-legal **Deck** per **Seat** and then plays it out: setup (admin picks sets/boosters, **Match Format**, optional **Round Deadline**) → pool generation (**Sealed**) or **Draft** → deckbuild from the **Pool** → **Play Phase** (Swiss **Rounds**, ending in **Standings**). The Event owns the whole arc; it orchestrates its round **Matches** through the existing Match flow rather than replacing it. Its lifecycle is a four-member status — `open` → `started` → `playing` → `finished` — whose meaning is only ever read through named predicates, never a literal comparison (ADR 0076).
+An admin-created gathering of N **Players** that produces one **Limited**-legal **Deck** per **Seat** and then plays it out: setup (admin picks sets/boosters, **Match Format**, optional **Round Deadline**) → pool generation (**Sealed**) or **Draft** → deckbuild from the **Pool** → **Play Phase** (Swiss **Rounds**, ending in **Standings**). The Event owns the whole arc; it orchestrates its round **Matches** through the existing Match flow rather than replacing it. Its lifecycle is a four-member status — `open` → `started` → `playing` → `finished` — whose meaning is only ever read through named predicates, never a literal comparison (ADR 0076). The terminal status is reached either way: the last **Round** resolving on its own, or the creator manually **closing** the Event (issue #2357) — the two are indistinguishable once reached, by design (no separate "abandoned" status).
 _Historical_: ADR 0055 originally stopped the Event at the built Deck, with pairing/rounds/standings deferred; ADR 0076 reverses that — a drafted deck whose performance is never recorded loses the study loop the environment exists for.
 _Avoid_: Lobby (that's constructed matchmaking)
 

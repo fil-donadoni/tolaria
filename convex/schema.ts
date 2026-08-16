@@ -874,6 +874,14 @@ export default defineSchema({
         gameId: v.optional(v.id("games")),
         seq: v.optional(v.number()),
         state: v.optional(v.any()),
+        // Client-side AI diagnostics captured at filing time (issue #2470).
+        // The play bot is client-hosted (ADR 0074), so the ONLY record of why
+        // one of its decisions failed lives in the reporter's own tab and dies
+        // with it: #2450 could not be root-caused because a bot that failed
+        // every consult and a bot that chose to pass produce the same board.
+        // `v.any()` for the same reason `state` is — a frozen diagnostic copy,
+        // read by a human, must not go unwritable because its shape moved on.
+        clientDiagnostics: v.optional(v.any()),
         // Back-reference to the filed issue, patched in after the GitHub POST
         // succeeds. Absent when the POST failed — the row is written FIRST so
         // a GitHub outage loses the issue, never the report.

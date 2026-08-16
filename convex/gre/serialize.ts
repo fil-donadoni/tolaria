@@ -424,6 +424,15 @@ function compactCard(
     if (card.grantedFlashback) {
         out.grantedFlashback = card.grantedFlashback;
     }
+    // CR 303.4 / 704.5m — a RUNTIME-granted enchant restriction ("it becomes
+    // an Aura with enchant creature") exists only on the instance: there is no
+    // definition to re-derive it from, unlike a printed Aura's cast-time
+    // `targetRequirement`. Dropped here, the Aura would read as having no
+    // restriction after a save/load and the very next SBA sweep would bin it
+    // (CR 704.5m) with its host still on the battlefield.
+    if (card.grantedEnchantRestriction) {
+        out.grantedEnchantRestriction = card.grantedEnchantRestriction;
+    }
     // CR 702.138b — a permanent that escaped carries the flag for the life of
     // the permanent (Uro/Phlage "unless it escaped", Nethergoyf "as long as ~
     // escaped"); it must survive save/load.
@@ -796,6 +805,12 @@ function expandCard(
     if (compact.grantedFlashback) {
         result.grantedFlashback =
             compact.grantedFlashback as CardInstanceState["grantedFlashback"];
+    }
+    // CR 303.4 / 704.5m — restore the runtime-granted enchant restriction; see
+    // the compact side for why losing it is fatal to the Aura.
+    if (compact.grantedEnchantRestriction) {
+        result.grantedEnchantRestriction =
+            compact.grantedEnchantRestriction as CardInstanceState["grantedEnchantRestriction"];
     }
     // CR 702.138b — restore the escaped flag on the permanent.
     if (compact.escaped) {
@@ -1453,6 +1468,15 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "spellsCastThisTurn",
     "pendingUntapStep",
     "pendingCleanupDiscard",
+    // CR 514.3a (issue #2472) — the "another cleanup step begins" obligation.
+    // Set while the cleanup step's one priority window is open (itself a stable
+    // save point), so it must survive the DB round-trip; undefined otherwise.
+    "pendingExtraCleanupStep",
+    // CR 514.3a (issue #2472) — the turn whose once-per-turn cleanup
+    // bookkeeping already ran. Read on every subsequent cleanup step of the
+    // same turn, and the 514.3a window between them spans mutations, so it
+    // must survive the DB round-trip.
+    "cleanupBookkeepingTurn",
     // CR 702.35a — the open Madness cast window. Transiently set only while its
     // owner owes a cast-or-decline decision (itself a stable save point), so it
     // must survive the DB round-trip. Undefined at a fully-resolved point.

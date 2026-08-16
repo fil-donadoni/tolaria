@@ -3392,6 +3392,14 @@
         "firstPrintSet": "nem"
     },
     {
+        "name": "Doomsday",
+        "scryfallId": "5b3c6d87-9383-450b-bba5-33435b6b0d08",
+        "oracleId": "721eb5a2-d7cf-4db0-8013-ef3f596c52a5",
+        "firstSet": "wth",
+        "firstPrintId": "5b3c6d87-9383-450b-bba5-33435b6b0d08",
+        "firstPrintSet": "wth"
+    },
+    {
         "name": "Doomsday Specter",
         "scryfallId": "85206cc1-5484-40c6-b11d-b8d6fad4fc5c",
         "oracleId": "5811effb-5010-44b9-bb97-9d7eb358327f",
@@ -9022,6 +9030,14 @@
         "firstSet": "drk",
         "firstPrintId": "c4104546-abd9-4bfb-a65e-5928cdd4522f",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Morgue Toad",
+        "scryfallId": "77d8ae73-70d1-4082-8581-5f74c1aaa63b",
+        "oracleId": "c615540b-bf85-4e16-8ac2-9d541cba732f",
+        "firstSet": "pls",
+        "firstPrintId": "77d8ae73-70d1-4082-8581-5f74c1aaa63b",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Moss Monster",

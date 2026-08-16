@@ -1,8 +1,10 @@
 // First-class Limited dashboard box (issue #1582): equal-weight Panel next
 // to DashboardPlayBox, Browse/Create action, and a quick re-entry list of the
-// viewer's seated events with a status hint sourced from projected fields
-// (`limitedEventStatusHint`, exercised through the real event shape here —
-// not a hand-built status string).
+// viewer's CURRENT (in-progress) seated events with a status hint sourced
+// from projected fields (`limitedEventStatusHint`, exercised through the
+// real event shape here — not a hand-built status string). A concluded
+// event drops off this box; `onViewAllEvents` (issue #2357) is the link to
+// `/limited/events`, where it still lives with its final record.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, cleanup, screen } from "@testing-library/react";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
@@ -36,11 +38,12 @@ describe("DashboardLimitedBox (issue #1582)", () => {
                 events={[]}
                 onBrowse={vi.fn()}
                 onOpen={vi.fn()}
+                onViewAllEvents={vi.fn()}
             />
         );
         expect(screen.getByText("Limited")).toBeTruthy();
         expect(screen.getByText("Browse / Create Events")).toBeTruthy();
-        expect(screen.queryByText("Your Events")).toBeNull();
+        expect(screen.queryByText("Your Current Events")).toBeNull();
     });
 
     it("fires onBrowse when the Browse/Create action is clicked", () => {
@@ -50,10 +53,25 @@ describe("DashboardLimitedBox (issue #1582)", () => {
                 events={[]}
                 onBrowse={onBrowse}
                 onOpen={vi.fn()}
+                onViewAllEvents={vi.fn()}
             />
         );
         fireEvent.click(screen.getByText("Browse / Create Events"));
         expect(onBrowse).toHaveBeenCalledTimes(1);
+    });
+
+    it("fires onViewAllEvents when 'Your Events (all)' is clicked (issue #2357)", () => {
+        const onViewAllEvents = vi.fn();
+        render(
+            <DashboardLimitedBox
+                events={[]}
+                onBrowse={vi.fn()}
+                onOpen={vi.fn()}
+                onViewAllEvents={onViewAllEvents}
+            />
+        );
+        fireEvent.click(screen.getByText("Your Events (all)"));
+        expect(onViewAllEvents).toHaveBeenCalledTimes(1);
     });
 
     it("lists a seated event with its status hint and opens it on click", () => {
@@ -69,9 +87,10 @@ describe("DashboardLimitedBox (issue #1582)", () => {
                 ]}
                 onBrowse={vi.fn()}
                 onOpen={onOpen}
+                onViewAllEvents={vi.fn()}
             />
         );
-        expect(screen.getByText("Your Events")).toBeTruthy();
+        expect(screen.getByText("Your Current Events")).toBeTruthy();
         expect(screen.getByText("open")).toBeTruthy();
         fireEvent.click(screen.getByText("Limited Edition Alpha Draft"));
         expect(onOpen).toHaveBeenCalledWith("event-open");
@@ -91,6 +110,7 @@ describe("DashboardLimitedBox (issue #1582)", () => {
                 ]}
                 onBrowse={vi.fn()}
                 onOpen={vi.fn()}
+                onViewAllEvents={vi.fn()}
             />
         );
         expect(screen.getByText("drafting")).toBeTruthy();
@@ -109,6 +129,7 @@ describe("DashboardLimitedBox (issue #1582)", () => {
                 ]}
                 onBrowse={vi.fn()}
                 onOpen={vi.fn()}
+                onViewAllEvents={vi.fn()}
             />
         );
         expect(screen.getByText("deckbuilding")).toBeTruthy();
@@ -127,6 +148,7 @@ describe("DashboardLimitedBox (issue #1582)", () => {
                 ]}
                 onBrowse={vi.fn()}
                 onOpen={vi.fn()}
+                onViewAllEvents={vi.fn()}
             />
         );
         expect(screen.getByText("ready to play")).toBeTruthy();
@@ -141,6 +163,7 @@ describe("DashboardLimitedBox (issue #1582)", () => {
                 ]}
                 onBrowse={vi.fn()}
                 onOpen={vi.fn()}
+                onViewAllEvents={vi.fn()}
             />
         );
         expect(screen.getAllByText("Limited Edition Alpha Sealed").length).toBe(

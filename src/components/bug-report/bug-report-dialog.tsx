@@ -9,6 +9,7 @@ import GameDialog from "@/components/ui/game-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getStoredSession } from "~/lib/session";
+import { collectAiDiagnostics } from "~/lib/ai/diagnostics";
 import { describeSubmitError } from "./describe-submit-error";
 
 type BugReportDialogProps = {
@@ -115,6 +116,13 @@ export default function BugReportDialog({
                 route: window.location.pathname,
                 userAgent: navigator.userAgent,
                 gameId: gameId ?? undefined,
+                // The AI rings (issue #2470). Read at submit time like the game
+                // id above, and for a stronger reason: the play bot runs in
+                // THIS tab (ADR 0074), so nothing server-side can reconstruct
+                // why one of its decisions failed. Omitted entirely when both
+                // rings are empty, so a report from the lobby or from a
+                // human-vs-human game carries no empty scaffolding.
+                clientDiagnostics: collectAiDiagnostics(),
             });
             setIssueUrl(result.issueUrl);
         } catch (err) {

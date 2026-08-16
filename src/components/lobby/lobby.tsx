@@ -7,7 +7,7 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { canEditPresets } from "~/lib/adminGating";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
-import { useMyLimitedEvents } from "~/hooks/useLimitedEvent";
+import { useMyCurrentLimitedEvents } from "~/hooks/useLimitedEvent";
 import {
     deckPayload,
     filterDecksByFormat,
@@ -98,7 +98,7 @@ function Lobby() {
     );
     // First-class Limited dashboard box (issue #1582): reuses the my-events
     // query wired in by #1589 for its quick re-entry list — no new query.
-    const myLimitedEvents = useMyLimitedEvents();
+    const myLimitedEvents = useMyCurrentLimitedEvents();
 
     const presetLobbyDecks = useMemo<LobbyDeck[]>(
         () => (presetDecks ?? []).map((d) => toPresetLobbyDeck(d)),
@@ -265,6 +265,10 @@ function Lobby() {
             to: "/limited/$eventId",
             params: { eventId },
         });
+    };
+
+    const handleViewAllLimitedEvents = () => {
+        void navigate({ to: "/limited/events" });
     };
 
     const handleFocusDeck = (presetId: string) => {
@@ -495,6 +499,7 @@ function Lobby() {
                         events={myLimitedEvents}
                         onBrowse={handleBrowseLimitedEvents}
                         onOpen={handleOpenLimitedEvent}
+                        onViewAllEvents={handleViewAllLimitedEvents}
                     />
                 </div>
 

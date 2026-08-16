@@ -13,6 +13,7 @@ import { assertDeckLegal, type GateDeck } from "../formats";
 import { getDefinitionProducibleColors, manaValue } from "../gre/constants";
 import { makeRng } from "../gre/rng";
 import { computeEventCompletion } from "../limited/completion";
+import { isEventConcluded, isSeatingOpen } from "../limited/eventStatus";
 import {
     CUBE_SOURCE_KEY,
     CUBE_PACK_SIZE,
@@ -2362,20 +2363,28 @@ describe("Limited Event leave/cancel (issue #1579): leaveLimitedEvent + cancelLi
         };
     }
 
-    /** Mirrors `cancelLimitedEvent`'s handler body exactly: creator-only
-     *  ownership guard, then OPEN-only guard, then a hard delete — modeled
-     *  here as returning `null` (the row no longer exists). */
+    /** Mirrors `cancelLimitedEvent`'s handler body exactly (issue #2357):
+     *  creator-only ownership guard, then branches on phase — concluded is an
+     *  idempotent no-op (the SAME row, unchanged), seating-open is a hard
+     *  delete (modeled here as `null`, the row no longer exists), and
+     *  anything else force-finishes in place (status flips to `"finished"`,
+     *  every other field untouched). Must move in lockstep with the real
+     *  handler — this is a HAND MIRROR, not a call into it (project
+     *  convention, no convex-test harness). */
     function applyCancelLimitedEvent(
         event: LimitedEventRow,
         callerUserId: string
     ): LimitedEventRow | null {
         if (event.createdBy !== callerUserId) {
-            throw new Error("Only the event's creator can cancel it.");
+            throw new Error("Only the event's creator can close it.");
         }
-        if (event.status !== "open") {
-            throw new Error("This event has already started.");
+        if (isEventConcluded(event.status)) {
+            return event;
         }
-        return null;
+        if (isSeatingOpen(event.status)) {
+            return null;
+        }
+        return { ...event, status: "finished", updatedAt: event.updatedAt + 1 };
     }
 
     function openTwoSeatEvent(): LimitedEventRow {
@@ -2438,8 +2447,8 @@ describe("Limited Event leave/cancel (issue #1579): leaveLimitedEvent + cancelLi
         });
     });
 
-    describe("cancelLimitedEvent", () => {
-        it("the creator cancelling an OPEN event removes it entirely", () => {
+    describe("cancelLimitedEvent (issue #2357: the creator's one whole-life close action)", () => {
+        it("the creator closing an OPEN event removes it entirely", () => {
             const event = openTwoSeatEvent();
             const after = applyCancelLimitedEvent(event, "creator1");
             expect(after).toBeNull();
@@ -2452,10 +2461,34 @@ describe("Limited Event leave/cancel (issue #1579): leaveLimitedEvent + cancelLi
             );
         });
 
-        it("rejects cancelling a STARTED event, even by the creator", () => {
+        it("the creator closing a STARTED event force-finishes it — every other field survives untouched", () => {
             const event = { ...openTwoSeatEvent(), status: "started" as const };
-            expect(() => applyCancelLimitedEvent(event, "creator1")).toThrow(
-                /already started/
+            const after = applyCancelLimitedEvent(event, "creator1");
+            expect(after).not.toBeNull();
+            expect(after!.status).toBe("finished");
+            expect(after!.seats).toEqual(event.seats);
+            expect(after!.createdBy).toBe(event.createdBy);
+        });
+
+        it("the creator closing a PLAYING event (mid-Round) force-finishes it too", () => {
+            const event = { ...openTwoSeatEvent(), status: "playing" as const };
+            const after = applyCancelLimitedEvent(event, "creator1");
+            expect(after!.status).toBe("finished");
+        });
+
+        it("closing an already-CONCLUDED event is an idempotent no-op — same row, unchanged", () => {
+            const event = {
+                ...openTwoSeatEvent(),
+                status: "finished" as const,
+            };
+            const after = applyCancelLimitedEvent(event, "creator1");
+            expect(after).toEqual(event);
+        });
+
+        it("rejects a non-creator caller even on a started event", () => {
+            const event = { ...openTwoSeatEvent(), status: "started" as const };
+            expect(() => applyCancelLimitedEvent(event, "user1")).toThrow(
+                /Only the event's creator/
             );
         });
     });

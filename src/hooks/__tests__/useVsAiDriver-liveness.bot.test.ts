@@ -178,8 +178,12 @@ vi.mock("~/lib/ai/brain", async (importOriginal) => {
 
 const { useVsAiDriver, BOT_WATCHDOG_MS, BOT_SUBMIT_RETRY_LIMIT } =
     await import("../useVsAiDriver");
-const { getAiEscalations, clearAiEscalations } =
-    await import("~/lib/ai/trace-store");
+const {
+    getAiEscalations,
+    clearAiEscalations,
+    getAiDecisions,
+    clearAiDecisions,
+} = await import("~/lib/ai/trace-store");
 // The real mount point, so the rung-5 test exercises the actual UI seam
 // (`VsAiDriver` → `BotStuckNotice` → `resolveStuck`) rather than a stand-in.
 const VsAiDriver = (await import("~/components/board/vs-ai-driver")).default;
@@ -434,6 +438,7 @@ beforeEach(() => {
     mutationsThrow = false;
     onMutation = undefined;
     stubDecideNone = true;
+    clearAiDecisions();
     brainResult = { move: null, trace: null };
     clearAiEscalations();
     vi.useFakeTimers();
@@ -632,6 +637,48 @@ describe("bot liveness invariant (issue #2284)", () => {
         expect(calls.length).toBeGreaterThan(1);
         expect(calls.length).toBeGreaterThanOrEqual(BOT_SUBMIT_RETRY_LIMIT);
         expect(calls.every((c) => c.ref === "passPriority")).toBe(true);
+    });
+
+    // Review round 2, finding A — the breadcrumb reached through the ESCALATION
+    // ladder used to be written by a closure frozen at the first render, where
+    // `botState` does not exist yet (`tick` is still loading, so the fat query
+    // is "skip"). Every `submit-error` note the ladder produced was therefore a
+    // silent no-op: the exact "recorded nothing" shape the ring exists to
+    // remove, reintroduced by the fix for it. The `seq` assertion is the
+    // load-bearing half — a record written from the mount-time closure would
+    // carry a stale version and line up against the wrong board.
+    it("records a REJECTED escalation submission, at the current state version", async () => {
+        // `stubDecideNone` stays TRUE (the file default): the bot answers
+        // "nothing owed" while the engine says it owes, so the normal decision
+        // path dispatches NOTHING and every submission below comes from the
+        // ladder. Without that isolation the test passes on the normal path's
+        // own breadcrumb and proves nothing about the ladder's — which is
+        // exactly what the first version of it did.
+        mutationsThrow = true;
+
+        // Mount with NO data, exactly as production does: `tick` is a live
+        // query, so on the first render it is `undefined`, the fat state query
+        // is "skip", and `botState` does not exist yet. That first render is
+        // the one `escalate` (a `useCallback([], …)`) freezes forever — mount
+        // the hook with the state already present, as this harness's
+        // synchronous query mock otherwise allows, and the frozen closure
+        // captures a usable state, so the bug cannot show.
+        currentState = undefined;
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+
+        // The data arrives on a LATER render. A non-default seq pins the
+        // record to the version actually on screen.
+        publish(priorityBoard(), 42);
+        rerender();
+        await runToWatchdog();
+        await runToWatchdog();
+
+        const rejected = getAiDecisions().filter(
+            (d) => d.outcome === "submit-error"
+        );
+        expect(rejected.length).toBeGreaterThan(0);
+        expect(rejected[0].message).toContain("server rejected");
+        expect(rejected[0].seq).toBe(42);
     });
 
     it("rung 5 hands the player a control that advances the game (end-to-end)", async () => {

@@ -1768,6 +1768,34 @@ function isObjectSelector(value: unknown): boolean {
     return isTargetRef(value) || isBareRef(value) || isEventRefValue(value);
 }
 
+/** CR 303.4 — the enchant clause an `addSubtype` Op grants alongside an
+ *  `"Aura"` subtype ("it becomes an Aura with enchant creature"). Fail-closed
+ *  in the same posture as every selector above: the exact key set is
+ *  enumerated, so a misspelt field (`type`, `player`, `hostId` — the last
+ *  being the RESOLVED shape stored on the instance, never the authored one)
+ *  is rejected rather than silently dropped into a restriction nothing can
+ *  satisfy. `host` is an object selector, resolved to a concrete instance id
+ *  at grant time by the interpreter. */
+function isEnchantRestrictionSpec(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const entries = Object.entries(value);
+    if (entries.length === 0) return false;
+    for (const [key, v] of entries) {
+        if (key === "types") {
+            if (!isStringArray(v, TOKEN_CARD_TYPES)) return false;
+        } else if (key === "players") {
+            if (typeof v !== "boolean") return false;
+        } else if (key === "host") {
+            if (!isObjectSelector(v)) return false;
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** CR 404.3 (issue #1967) — the DETERMINISTIC positional graveyard selector
  *  (`{ zone: "graveyard", position: "top" | "bottom", player?, filter? }`),
  *  "the top creature card of your graveyard" (Shallow Grave, Corpse Dance).
@@ -2486,6 +2514,12 @@ const DELAYED_TIMINGS = new Set([
     "next-draw-step",
     "next-main-phase",
     "next-upkeep",
+    // Cleanup-step boundary (CR 603.7 / 514.3a, issue #2472) — fires at the
+    // beginning of the next cleanup step, the one step that normally grants no
+    // priority (CR 514.3). Firing it opens the 514.3a exception window and an
+    // additional cleanup step follows (phases.ts). A phase-boundary timing:
+    // rejects both `targetPlayer` and `watch` (checked below).
+    "next-cleanup-step",
     // Instance leave-watch (CR 603.7a / 603.10, issue #731) — fires on the
     // watched permanent's PERMANENT_LEFT, not a step boundary. Requires
     // `watch`; rejects `targetPlayer` (checked below).
@@ -3479,6 +3513,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
             subtype: isNonEmptyString,
         },
+        optional: { enchantRestriction: isEnchantRestrictionSpec },
     },
     // CR 613.1e layer 5 (issue #1083) — set a target's color(s). `target` is
     // an object selector (announced slot, `$source`, or a forEach `$each`);

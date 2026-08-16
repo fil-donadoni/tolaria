@@ -892,6 +892,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 req.skip ??= `Op "addSubtype" targets $source/$each — covered by the card's own per-card test`;
                 return;
             }
+            // CR 303.4 / 704.5m — a grant that makes the target an AURA is not
+            // scenarioizable: the canned scenario attaches it to nothing, so
+            // the attachment SBA correctly bins it before the check can read
+            // its subtypes. The observable outcome there is the attachment
+            // itself, which needs the effect's own `attach` leg.
+            if (op.subtype === "Aura" || op.enchantRestriction) {
+                req.skip ??= `Op "addSubtype" grants the Aura subtype (CR 303.4) — attachment is not modelled by the canned scenario`;
+                return;
+            }
             recordSlot(req, op.target.target, "permanent");
             return;
         case "setColor":

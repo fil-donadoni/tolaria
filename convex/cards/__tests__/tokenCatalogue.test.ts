@@ -94,4 +94,44 @@ describe("token catalogue (CR 111 / 707.2)", () => {
         expect(findTokenSpec("Not A Token At All")).toBeUndefined();
         expect(findTokenSpec("   ")).toBeUndefined();
     });
+
+    // ── Mana descriptor on a token's own mana ability (CR 605.1a, #2021) ────
+    // A `useStack: false` ability is a MANA ability to the engine only through
+    // its declared output: `getManaTapOptionsDetailed` (engine tap options and
+    // the bot's mana census), `findClientManaAbility` (the board's affordance)
+    // and the fixed-output activation paths all key on `manaProduced` /
+    // `manaChoices` / `manaColorSource` / `getManaChoices`. None of them reads
+    // an `effects`/`effect` body — a fixed-output mana ability never executes
+    // one, its mana is deposited structurally.
+    //
+    // The Eldrazi Spawn token shipped with only `effects: [{ op: "addMana" }]`
+    // and was therefore inert as a mana source on every surface at once: no tap
+    // option, no client affordance, invisible to the bot — and nothing failed.
+    // The catalogue-wide sweep for CARDS lives in `manaAbility.catalogue.test.ts`;
+    // token specs have no `CardDefinition`, so they need this one to be covered
+    // at all.
+    it("every token's non-stack ability declares a mana output descriptor", () => {
+        const undeclared: string[] = [];
+        for (const entry of listTokenCatalogue()) {
+            for (const a of entry.spec.activatedAbilities ?? []) {
+                if (a.useStack !== false) continue;
+                if (
+                    a.manaProduced !== undefined ||
+                    a.manaChoices !== undefined ||
+                    a.manaColorSource !== undefined ||
+                    a.getManaChoices !== undefined
+                ) {
+                    continue;
+                }
+                undeclared.push(
+                    `${entry.key} / ${a.id}: "${a.oracleText ?? ""}" is useStack: false ` +
+                        `but declares none of manaProduced / manaChoices / ` +
+                        `manaColorSource / getManaChoices, so no mana authority can ` +
+                        `see it produce mana. An \`effects\`/\`effect\` body is NOT ` +
+                        `enough: a fixed-output mana ability never runs one.`
+                );
+            }
+        }
+        expect(undeclared, undeclared.join("\n\n")).toEqual([]);
+    });
 });

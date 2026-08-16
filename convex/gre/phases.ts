@@ -7,6 +7,7 @@ import type {
 import type {
     CardInstanceState,
     DelayedTriggerInstance,
+    DurationTickView,
     GameState,
     PlayerState,
 } from "./state";
@@ -60,6 +61,7 @@ import {
     getEffectiveToughness,
     STATIC_EFFECT_CTX,
 } from "./layers";
+import { attackTargetExcessSink, lethalForBlocker } from "./damageAssignment";
 import { isProtectedFromSource } from "./protection";
 import { isCombatDamagePreventedFromSource } from "./combatDamagePrevention";
 import {
@@ -975,28 +977,6 @@ function getManualAssignmentSourceIds(
     return ids;
 }
 
-/** CR 508.1a / 702.19e (issue #1220) — the id that a trampling attacker's
- *  excess-over-blockers damage is assigned to: the planeswalker it declared as
- *  its attack target (if that planeswalker is still on the battlefield), else
- *  the defending player. Used to seed the auto/default damage assignments so a
- *  blocked trampler attacking a planeswalker spills its excess onto the
- *  planeswalker's loyalty rather than the player. */
-function attackTargetExcessSink(
-    state: GameState,
-    attackerId: string,
-    defenderId: string,
-    defender: PlayerState
-): string {
-    const pwId = state.combat?.attackTargets?.[attackerId];
-    if (
-        pwId &&
-        defender.battlefield.some((c) => c.id === pwId && isPlaneswalker(c))
-    ) {
-        return pwId;
-    }
-    return defenderId;
-}
-
 /** Build auto damage assignments for attackers with 0 or 1 blocker. */
 export function buildAutoDamageAssignments(
     state: GameState,
@@ -1023,8 +1003,7 @@ export function buildAutoDamageAssignments(
         const excessSink = attackTargetExcessSink(
             state,
             attackerId,
-            defenderId,
-            defender
+            defenderId
         );
 
         if (blockers.length === 1) {
@@ -1032,8 +1011,15 @@ export function buildAutoDamageAssignments(
                 (c) => c.id === blockers[0]
             );
             if (hasTrample && blocker) {
-                // Trample: assign lethal damage to blocker, excess to defender
-                const lethal = getCardToughness(state, blocker);
+                // Trample: assign lethal damage to blocker, excess to defender.
+                // Lethal is the CR 702.19b budget (marked damage and same-step
+                // damage from other creatures subtracted), not raw toughness.
+                const lethal = lethalForBlocker(
+                    state,
+                    attacker,
+                    blocker,
+                    result
+                );
                 const toBlocker = Math.min(
                     getCardPower(state, attacker),
                     lethal
@@ -1061,7 +1047,7 @@ export function buildAutoDamageAssignments(
  *  With trample, assigns lethal to each blocker in declaration order, excess
  *  to defender. CR 510.1c/d let the attacker freely re-divide damage in the
  *  damage-assignment modal — this just seeds a sensible default. */
-function buildDefaultDamageAssignments(
+export function buildDefaultDamageAssignments(
     state: GameState,
     kind: DamageKind
 ): Record<string, Record<string, number>> {
@@ -1084,8 +1070,7 @@ function buildDefaultDamageAssignments(
         const excessSink = attackTargetExcessSink(
             state,
             attackerId,
-            defenderId,
-            defender
+            defenderId
         );
 
         if (blockers.length === 1) {
@@ -1093,7 +1078,10 @@ function buildDefaultDamageAssignments(
                 const blocker = defender.battlefield.find(
                     (c) => c.id === blockers[0]
                 );
-                const lethal = blocker ? getCardToughness(state, blocker) : 0;
+                // CR 702.19b budget, not raw toughness (see lethalForBlocker).
+                const lethal = blocker
+                    ? lethalForBlocker(state, attacker, blocker, result)
+                    : 0;
                 const toBlocker = Math.min(
                     getCardPower(state, attacker),
                     lethal
@@ -1118,8 +1106,10 @@ function buildDefaultDamageAssignments(
                     const blocker = defender.battlefield.find(
                         (c) => c.id === blockerId
                     );
+                    // CR 702.19b budget, not raw toughness (see
+                    // lethalForBlocker).
                     const lethal = blocker
-                        ? getCardToughness(state, blocker)
+                        ? lethalForBlocker(state, attacker, blocker, result)
                         : 0;
                     const toThis = Math.min(remaining, lethal);
                     assignment[blockerId] = toThis;
@@ -2082,8 +2072,58 @@ function performPhaseEntry(state: GameState): void {
             // discards land.
             if (tryEnqueueCleanupDiscard(state)) break;
             finalizeCleanup(state);
+            // CR 514.3a — "the game checks to see if any state-based actions
+            // would be performed and/or any triggered abilities are waiting to
+            // be put onto the stack (including those that trigger 'at the
+            // beginning of the next cleanup step')". Fired AFTER the 514.1
+            // discard and the 514.2 turn-based actions, matching the rule's own
+            // ordering — and, critically, after `finalizeCleanup`'s watch purge,
+            // which lists only the "this turn" instance watches and therefore
+            // leaves `next-cleanup-step` instances intact for this very fire.
+            {
+                const stackBefore = state.stack.length;
+                fireDelayedTriggers(state, "next-cleanup-step");
+                openCleanupPriorityWindow(state, stackBefore);
+            }
             break;
     }
+}
+
+/** CR 514.3 / 514.3a — open the cleanup step's ONE priority window.
+ *
+ *  CR 514.3: "Normally, no player receives priority during the cleanup step, so
+ *  no spells can be cast and no abilities can be activated. However, this rule
+ *  is subject to the following exception:" — CR 514.3a: "…those triggered
+ *  abilities are put on the stack, then the active player gets priority.
+ *  Players may cast spells and activate abilities. Once the stack is empty and
+ *  all players pass in succession, another cleanup step begins."
+ *
+ *  `stackBefore` is the stack height sampled before the caller put this
+ *  cleanup step's triggers on it. Returns true when something landed (or is
+ *  held off-stack awaiting a CR 603.3b ordering choice) and CLEANUP must
+ *  therefore STAY open: the `pendingExtraCleanupStep` flag it sets is read by
+ *  `advancePhase` twice — to suppress the auto-phase recursion that would
+ *  otherwise discard the priority window in the same tick, and, when the window
+ *  eventually closes, to re-enter CLEANUP rather than end the turn. Returns
+ *  false when nothing triggered, leaving cleanup priority-less and single. */
+function openCleanupPriorityWindow(
+    state: GameState,
+    stackBefore: number
+): boolean {
+    const landed = state.stack.length > stackBefore;
+    // CR 603.3b (ADR 0058) — a same-controller batch needing an explicit order
+    // is held OFF the stack in `pendingTriggerBatch` until the ordering choice
+    // commits. Nothing is on the stack yet, but the window is just as owed.
+    const heldOffStack = !!state.pendingTriggerBatch;
+    if (!landed && !heldOffStack) return false;
+    state.pendingExtraCleanupStep = true;
+    // A suspended placement (ordering batch, or CR 603.3d trigger targeting)
+    // has already parked priority on the chooser — do not steal it back; the
+    // active player receives priority when that choice commits.
+    if (heldOffStack || state.pendingTarget) return true;
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+    return true;
 }
 
 /** Returns the effective maximum hand size for a player (CR 402.2). The
@@ -2245,9 +2285,15 @@ export function finalizeCleanupDiscard(
     // Collect any such trigger off the CARD_DISCARDED events the discard emitted;
     // if one landed, hand the active player priority and stay in CLEANUP so the
     // owner gets a real window to cast the madness card (the iconic "discard the
-    // extra Rootwalla to hand size, cast it for {0}" line, CR 702.35a). The
-    // eventual both-players-pass with an empty stack advances the phase (the
-    // "another cleanup step" is a no-op once the hand is at size).
+    // extra Rootwalla to hand size, cast it for {0}" line, CR 702.35a).
+    const stackBefore = state.stack.length;
+    // CR 514.3a — the same check also puts the delayed triggers that trigger
+    // "at the beginning of the next cleanup step" on the stack. Fired here too,
+    // not only in the non-discard CLEANUP arm, so a hand-size discard cannot
+    // swallow the boundary: `performPhaseEntry` bailed out of CLEANUP the
+    // moment it enqueued the discard prompt, and this commit handler is the
+    // ONLY continuation of that suspended step.
+    fireDelayedTriggers(state, "next-cleanup-step");
     const cleanupEvents = flushPendingEvents(state);
     const cleanupTriggers =
         cleanupEvents.length > 0 ? collectTriggers(state, cleanupEvents) : [];
@@ -2255,13 +2301,15 @@ export function finalizeCleanupDiscard(
     // CLEANUP so the owner gets a real window (CR 514.3). SUSPENDED (a rare
     // two-Madness-discard ordering): the helper parked priority on the chooser;
     // stay in CLEANUP until the ordered batch lands.
-    if (placeTriggersOnStack(state, cleanupTriggers)) {
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
+    placeTriggersOnStack(state, cleanupTriggers);
+    if (openCleanupPriorityWindow(state, stackBefore)) {
+        // The suspended branch owes an ordering/targeting choice, not a pass —
+        // draining auto-passes there would act on the chooser's parked priority.
+        if (!state.pendingTriggerBatch && !state.pendingTarget) {
+            drainAutoPasses(state);
+        }
         return;
     }
-    if (state.pendingTriggerBatch) return;
 
     // CLEANUP is an auto-phase. Leaving it lands at the next turn's UNTAP →
     // UPKEEP via the normal auto-phase recursion (CR 500.1). Drain any
@@ -2273,9 +2321,52 @@ export function finalizeCleanupDiscard(
 /** CR 514.2 — runs after the (possibly empty) 514.1 discard. Exported so
  *  the commit handler in `game.ts` can resume CLEANUP after the discards
  *  land. "Until end of turn" effects expire, marked damage is removed from
- *  every permanent, and turn-scoped combat flags are cleared. */
+ *  every permanent, and turn-scoped combat flags are cleared.
+ *
+ *  **RUNS MORE THAN ONCE PER TURN.** CR 514.3a can start an additional cleanup
+ *  step ("Once the stack is empty and all players pass in succession, another
+ *  cleanup step begins"), and that step re-runs the real CR 514.2 turn-based
+ *  actions through `performPhaseEntry` — so every statement in this function
+ *  must be safe to repeat. In a real game repetition is free: removing damage
+ *  that is already gone and ending "until end of turn" effects that already
+ *  ended are no-ops. The whole body below was audited against that bar:
+ *
+ *  - Every per-permanent clause clears a field to `undefined` (or `delete`s
+ *    it) under an `if (defined)` guard — idempotent by construction.
+ *  - The exile / graveyard cast-permission sweeps and the Flashback-grant
+ *    sweep `delete` keys — idempotent.
+ *  - The `delayedTriggers` purge filters by `timing` — filtering an already
+ *    filtered list is a fixpoint.
+ *  - `tickAllDurations` does two things. Clearing the turn-scoped GLOBAL flags
+ *    (`highTideThisTurn`, `preventAllCombatDamageThisTurn`, the cast and
+ *    activation locks) is idempotent and re-runs on the repeat step — it has
+ *    to, since an instant cast in the 514.3a window can arm one. Ticking the
+ *    parametric DURATIONS is not: a `Duration` counts boundaries as a proxy
+ *    for turns, so a second tick in one turn ends an "until end of your next
+ *    turn" grant a full turn early. Only that half is suppressed, through
+ *    `DurationTickView.boundaryAlreadyCounted`.
+ *  - The `attackedDuringLastTurn` roll-forward is a SNAPSHOT of
+ *    `hasAttackedThisTurn`, which the same pass then clears. A second pass
+ *    would read the cleared flag and wipe the snapshot to `undefined` for
+ *    every creature the active player controls (read by Giant Turtle's self
+ *    attack-restriction and by Halls of Mist), so it is gated too.
+ *
+ *  Both gates key off {@link GameState.cleanupBookkeepingTurn} — the turn
+ *  number rather than an "is this a repeat" flag, so they are correct no
+ *  matter which entry point resumed CLEANUP: `performPhaseEntry` directly, or
+ *  `finalizeCleanupDiscard` continuing a step that suspended on a CR 514.1
+ *  discard prompt across a mutation boundary.
+ *
+ *  Anything added here later must be classified the same way: repeatable CR
+ *  514.2 turn-based action, or once-per-turn bookkeeping behind the gate. */
 export function finalizeCleanup(state: GameState): void {
-    // CR 514.2 — "until end of turn" effects end at the cleanup step.
+    const firstCleanupStepThisTurn =
+        state.cleanupBookkeepingTurn !== state.turn;
+
+    // CR 514.2 — "until end of turn" effects end at the cleanup step. Called
+    // unconditionally so the turn-scoped GLOBAL flag clears re-run on a repeat
+    // step; it reads `cleanupBookkeepingTurn` itself and suppresses only the
+    // per-duration tick there (see the doc comment).
     tickAllDurations(state);
     // CR 514.2 — marked damage is removed from all permanents, and
     // turn-scoped combat flags are cleared.
@@ -2295,8 +2386,12 @@ export function finalizeCleanup(state: GameState): void {
             // turn, snapshotted BEFORE `hasAttackedThisTurn` is cleared below.
             // Only the active player's creatures are updated, so the flag
             // always reflects the controller's most recent PRIOR turn — read
-            // by the self attack-restriction predicate (Giant Turtle, LEG).
-            if (p.id === state.activePlayerId) {
+            // by the self attack-restriction predicate (Giant Turtle, LEG) and
+            // by Halls of Mist (ICE).
+            // Once per turn (CR 514.3a): the snapshot reads a flag this same
+            // pass clears, so an additional cleanup step would re-snapshot the
+            // already-cleared flag and wipe the history to `undefined`.
+            if (firstCleanupStepThisTurn && p.id === state.activePlayerId) {
                 card.attackedDuringLastTurn = card.hasAttackedThisTurn
                     ? true
                     : undefined;
@@ -2453,6 +2548,12 @@ export function finalizeCleanup(state: GameState): void {
         );
         state.delayedTriggers = kept.length > 0 ? kept : undefined;
     }
+
+    // CR 514.3a — record that this turn's cleanup bookkeeping has run, so an
+    // additional cleanup step (and `finalizeCleanupDiscard` resuming one)
+    // repeats the turn-based actions without re-running the two turn-keyed
+    // steps. Stamped LAST so the gate above reads the pre-call value.
+    state.cleanupBookkeepingTurn = state.turn;
 }
 
 /** Advances all parametric durations on the current game state by one
@@ -2460,7 +2561,19 @@ export function finalizeCleanup(state: GameState): void {
  *  (CR 514.2); `tickDuration` itself filters by phase+playerId so entries
  *  scoped to a different boundary are left untouched. */
 function tickAllDurations(state: GameState): void {
-    const view = { phase: state.phase, activePlayerId: state.activePlayerId };
+    const view: DurationTickView = {
+        phase: state.phase,
+        activePlayerId: state.activePlayerId,
+        // CR 514.3a (issue #2472) — an additional cleanup step re-runs the
+        // CLEANUP boundary inside the same turn. Everything this function does
+        // is idempotent EXCEPT a `skip` countdown, which is per-TURN; the flag
+        // suppresses that one decrement and nothing else, so the repeat step
+        // still expires effects created during the 514.3a priority window
+        // (Fog, High Tide — both instants castable in that window).
+        boundaryAlreadyCounted:
+            state.phase === "CLEANUP" &&
+            state.cleanupBookkeepingTurn === state.turn,
+    };
 
     // CR 611.2b / 613.1b (layer 2) — "gain control until end of turn" control
     // changes (Ray of Command, Magus of the Unseen, issue #730). A duration-
@@ -3129,7 +3242,20 @@ export function advancePhase(state: GameState): Phase[] {
     // CR 511.2/511.3: combat teardown happens as the END_OF_COMBAT step ends.
     if (state.phase === "END_OF_COMBAT") endCombatStep(state);
 
-    const next = nextPhase(state.phase);
+    // CR 514.3a — "Once the stack is empty and all players pass in succession,
+    // another cleanup step begins." A cleanup step that opened the 514.3
+    // priority window owes exactly one more cleanup step; taking it here (as a
+    // phase transition CLEANUP → CLEANUP) means the additional step re-runs the
+    // real 514.1 hand-size discard and the real 514.2 turn-based actions via
+    // `performPhaseEntry`, rather than jumping back into the middle of the
+    // previous one. The flag is cleared BEFORE the step runs, so the repeat is
+    // owed again only if that step's own 514.3a check finds something new —
+    // which is what terminates the loop.
+    const repeatCleanupStep =
+        state.phase === "CLEANUP" && !!state.pendingExtraCleanupStep;
+    if (repeatCleanupStep) state.pendingExtraCleanupStep = undefined;
+
+    const next = repeatCleanupStep ? "CLEANUP" : nextPhase(state.phase);
 
     if (next === null) {
         // End of turn → advance to next turn
@@ -3255,8 +3381,19 @@ export function advancePhase(state: GameState): Phase[] {
         (skipUnblockableCombat || skipCamouflageBlockers) &&
         state.stack.length > stackBeforeBlockerConfirm;
 
+    // CR 514.3 / 514.3a — CLEANUP is an AUTO_PHASE, so without this the
+    // recursion below would step straight into the next turn and silently throw
+    // away the one priority window the cleanup step is allowed to open. The
+    // `pendingChoices` early-return above does NOT cover it: a fired
+    // `next-cleanup-step` delayed trigger enqueues no choice at all — it puts a
+    // StackItem on the stack and hands the active player priority, which is
+    // exactly the state this flag records.
+    const cleanupWindowOpen =
+        state.phase === "CLEANUP" && !!state.pendingExtraCleanupStep;
+
     if (
         !blockerConfirmPushedTriggers &&
+        !cleanupWindowOpen &&
         (AUTO_PHASES.has(state.phase) ||
             drawStepSkippedForActivePlayer ||
             skipEmptyCombat ||

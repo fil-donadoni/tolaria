@@ -2900,7 +2900,25 @@ export const OP_EXECUTORS: {
     addSubtype(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
-        ctx.addSubtype(target, op.subtype);
+        // CR 303.4 — "it becomes an Aura with enchant creature": the enchant
+        // clause is granted together with the subtype. `host` is resolved to a
+        // concrete instance id HERE, at grant time, so what gets stored on the
+        // instance is plain JSON (the CR 303.4 "specific object" form names an
+        // object, and that object is whatever the ref pointed at now). A
+        // `host` ref that resolves to nothing (the named permanent already
+        // left, CR 608.2b) yields no `hostId` clause rather than a restriction
+        // nothing can satisfy.
+        const spec = op.enchantRestriction;
+        if (!spec) {
+            ctx.addSubtype(target, op.subtype);
+            return;
+        }
+        const host = spec.host ? resolveObjectRef(ctx, spec.host) : undefined;
+        ctx.addSubtype(target, op.subtype, {
+            ...(spec.types ? { types: spec.types } : {}),
+            ...(spec.players ? { players: true } : {}),
+            ...(host && host.type === "permanent" ? { hostId: host.id } : {}),
+        });
     },
     // CR 613.1e layer 5 (issue #1083) — set a target's color(s), replacing all
     // other derivation. A thin declarative skin over `setColorOverride`, ONE

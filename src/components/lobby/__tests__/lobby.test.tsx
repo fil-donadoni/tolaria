@@ -260,7 +260,10 @@ describe("Lobby dashboard Limited box (issue #1582)", () => {
                 updatedAt: 0,
             },
         ]);
-        expect(getByText("Your Events")).toBeTruthy();
+        // "Your Current Events" since #2357: the box reads the narrowed
+        // `myCurrentLimitedEvents`, so a concluded event is no longer here —
+        // it lives on `/limited/events` instead.
+        expect(getByText("Your Current Events")).toBeTruthy();
         expect(getByText("ready to play")).toBeTruthy();
         fireEvent.click(getByText("Limited Edition Alpha Sealed"));
         expect(navigate).toHaveBeenCalledWith({

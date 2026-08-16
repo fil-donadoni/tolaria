@@ -1,7 +1,8 @@
-// "Your events" list component (issue #1578): renders nothing when the
-// viewer has no seated events, otherwise one row per event with only a View
-// affordance (the viewer already has a Seat everywhere it appears, so Join
-// never applies).
+// "Your Current Events" list component (issue #1578, heading narrowed to
+// in-progress-only by issue #2357): renders nothing when the viewer has no
+// seated events, otherwise one row per event with only a View affordance
+// (the viewer already has a Seat everywhere it appears, so Join never
+// applies).
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, cleanup, screen } from "@testing-library/react";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
@@ -44,7 +45,7 @@ describe("LimitedMyEventsList (issue #1578)", () => {
             />
         );
 
-        expect(screen.getByText("Your Events")).toBeTruthy();
+        expect(screen.getByText("Your Current Events")).toBeTruthy();
         expect(screen.getByText("View")).toBeTruthy();
         expect(screen.queryByText("Join")).toBe(null);
     });

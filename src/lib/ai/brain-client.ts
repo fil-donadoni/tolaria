@@ -12,14 +12,33 @@
 
 import type { PublicGameState } from "@convex/gameProjections";
 import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
-import { searchWithTrace, DEFAULT_BUDGET } from "@convex/gre";
-import { projectedToGameState } from "./state-adapter";
+import { DEFAULT_BUDGET } from "@convex/gre";
 import type { OwnDeckList } from "./state-adapter";
-import type { BrainRequest, BrainResponse } from "./brain.worker";
+import { handleBrainRequest } from "./brain-request";
+import type {
+    BrainOutcome,
+    BrainRequest,
+    BrainResponse,
+} from "./brain-request";
 
-/** The Brain's reply: the chosen move plus the read-only DecisionTrace of what
- *  it weighed (null when there was no real decision to explain). */
-export type BrainResult = { move: Move | null; trace: DecisionTrace | null };
+/** The Brain's reply: the chosen move, the read-only DecisionTrace of what it
+ *  weighed (null when there was no real decision to explain), and HOW the
+ *  consult ended.
+ *
+ *  `outcome` exists because the three failure paths below — the search threw,
+ *  the Worker died, the Worker never answered — all used to resolve the same
+ *  bare `move: null` the driver gets when the bot legitimately has nothing to
+ *  do. Indistinguishable at the call site, and therefore invisible in a bug
+ *  report: a bot failing every consult looks exactly like a bot passing every
+ *  window (issue #2450). `via` says whether a Worker was involved at all. */
+export type BrainResult = {
+    move: Move | null;
+    trace: DecisionTrace | null;
+    outcome: BrainOutcome;
+    via: "worker" | "inline";
+    /** The failure text, for the error outcomes only. */
+    message?: string;
+};
 
 type Pending = (result: BrainResult) => void;
 
@@ -55,15 +74,27 @@ function getWorker(): Worker | null {
         const resolve = pending.get(e.data.id);
         if (resolve) {
             pending.delete(e.data.id);
-            resolve({ move: e.data.move, trace: e.data.trace });
+            resolve(fromResponse(e.data, "worker"));
         }
     };
-    worker.onerror = () => {
+    worker.onerror = (e) => {
         // On a worker error, fail all in-flight consults to a safe null so the
-        // driver never hangs; the next state change re-consults.
+        // driver never hangs; the next state change re-consults. The reason is
+        // no longer dropped: `worker-error` is the one outcome that says the
+        // search may never have run at all (issue #2470).
+        const message =
+            typeof e === "object" && e !== null && "message" in e
+                ? String((e as { message?: unknown }).message)
+                : "worker error";
         for (const [id, resolve] of pending) {
             pending.delete(id);
-            resolve({ move: null, trace: null });
+            resolve({
+                move: null,
+                trace: null,
+                outcome: "worker-error",
+                via: "worker",
+                message,
+            });
         }
     };
     return worker;
@@ -80,14 +111,16 @@ export function consultBrain(
 ): Promise<BrainResult> {
     const w = getWorker();
     if (!w) {
-        const seed = (Math.random() * 0x100000000) | 0;
-        const { move, trace } = searchWithTrace(
-            projectedToGameState(state, ownDeck),
-            botId,
-            budget,
-            seed
+        // No Worker (SSR, tests): the SAME handler, on this thread. It reports
+        // a throw as `error` rather than propagating, so the inline path and
+        // the Worker path fail identically.
+        const id = nextId++;
+        return Promise.resolve(
+            fromResponse(
+                handleBrainRequest({ id, state, botId, budget, ownDeck }),
+                "inline"
+            )
         );
-        return Promise.resolve({ move, trace });
     }
 
     const id = nextId++;
@@ -97,7 +130,13 @@ export function consultBrain(
         // `BRAIN_CONSULT_TIMEOUT_MS`. A reply that arrives afterwards finds no
         // pending entry and is dropped.
         const timer = setTimeout(() => {
-            if (pending.delete(id)) resolve({ move: null, trace: null });
+            if (pending.delete(id))
+                resolve({
+                    move: null,
+                    trace: null,
+                    outcome: "timeout",
+                    via: "worker",
+                });
         }, BRAIN_CONSULT_TIMEOUT_MS);
         pending.set(id, (result) => {
             clearTimeout(timer);
@@ -105,6 +144,30 @@ export function consultBrain(
         });
         w.postMessage(request);
     });
+}
+
+/** Classify a Brain response into the result the driver records. The search
+ *  itself never distinguishes "chose nothing" from "failed" — the response's
+ *  `error` field does, and it is the whole point of the breadcrumb. */
+function fromResponse(
+    res: BrainResponse,
+    via: "worker" | "inline"
+): BrainResult {
+    if (res.error) {
+        return {
+            move: null,
+            trace: null,
+            outcome: "search-error",
+            via,
+            message: res.error.message,
+        };
+    }
+    return {
+        move: res.move,
+        trace: res.trace,
+        outcome: res.move ? "move" : "no-move",
+        via,
+    };
 }
 
 /** Tear down the Worker (e.g. on leaving a game). Tests may call this too. */

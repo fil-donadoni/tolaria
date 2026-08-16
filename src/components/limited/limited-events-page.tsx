@@ -5,7 +5,7 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import {
     useDraftableSets,
     useLimitedEventMutations,
-    useMyLimitedEvents,
+    useMyCurrentLimitedEvents,
     useOpenLimitedEvents,
 } from "~/hooks/useLimitedEvent";
 import { canCreateLimitedEvents } from "~/lib/limitedGating";
@@ -26,7 +26,7 @@ export default function LimitedEventsPage() {
     const navigate = useNavigate();
     const user = useCurrentUser();
     const events = useOpenLimitedEvents();
-    const myEvents = useMyLimitedEvents();
+    const myEvents = useMyCurrentLimitedEvents();
     const draftableSets = useDraftableSets();
     const { create, join } = useLimitedEventMutations();
 
@@ -52,6 +52,12 @@ export default function LimitedEventsPage() {
             params: { eventId },
         });
     };
+
+    // Every event the viewer has ever sat at — in progress and concluded,
+    // each with its final/partial match record (issue #2357). This page's
+    // own "Your Current Events" section (below) narrows to events still in
+    // progress; a concluded event's outcome lives only here.
+    const handleViewAllEvents = () => void navigate({ to: "/limited/events" });
 
     const handleJoin = async (eventId: Id<"limitedEvents">) => {
         if (joinPendingEventId) return;
@@ -92,6 +98,16 @@ export default function LimitedEventsPage() {
                 <PanelHeader title="Limited Events" />
                 <PanelBody>
                     {joinError && <Banner tone="danger">{joinError}</Banner>}
+
+                    <div className="flex justify-end">
+                        <Button
+                            variant="link"
+                            size="sm"
+                            onClick={handleViewAllEvents}
+                        >
+                            Your Events (all) →
+                        </Button>
+                    </div>
 
                     <LimitedMyEventsList
                         events={myEvents}

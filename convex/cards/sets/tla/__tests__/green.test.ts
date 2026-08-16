@@ -53,8 +53,8 @@ function earthbendTriggerOnStack(
     return trig;
 }
 
-describe("Badgermole Cub — earthbend ETB (CR 603.3d target + CR 208.2/611.1 animate + CR 122 counters, issue #1317)", () => {
-    it("targets a land the controller controls, animates it to a 0/0-plus-counter Elemental creature with haste, still a land, indefinitely", () => {
+describe("Badgermole Cub — earthbend ETB (CR 701.66a target + animate + counters, issue #1317, corrected #2446)", () => {
+    it("targets a land the controller controls, animates it to a 0/0-plus-counter land creature with haste (no granted subtype, CR 701.66a), indefinitely", () => {
         const cub = makeInstance(badgermoleCub.id, {
             id: "cub1",
             controllerId: "p1",
@@ -86,7 +86,10 @@ describe("Badgermole Cub — earthbend ETB (CR 603.3d target + CR 208.2/611.1 an
         )!;
         expect(animated.types).toContain("Creature");
         expect(animated.types).toContain("Land"); // CR 208.2 — still a land
-        expect(animated.subtypes).toContain("Elemental");
+        // CR 701.66a grants the CARD TYPE Creature "in addition to its other
+        // types" — no creature subtype. Neither the rule nor the oracle text
+        // grants "Elemental" (issue #2446).
+        expect(animated.subtypes).not.toContain("Elemental");
         expect(animated.subtypes).toContain("Forest"); // printed subtype kept
         expect(animated.staticAbilities).toContain("haste");
         expect(animated.counters?.["+1/+1"]).toBe(1);
@@ -104,7 +107,7 @@ describe("Badgermole Cub — earthbend ETB (CR 603.3d target + CR 208.2/611.1 an
         )!;
         expect(slim.types).toContain("Creature");
         expect(slim.types).toContain("Land");
-        expect(slim.subtypes).toContain("Elemental");
+        expect(slim.subtypes).not.toContain("Elemental");
         expect(slim.staticAbilities).toContain("haste");
         expect(getEffectivePower(projected, slim)).toBe(1);
         expect(getEffectiveToughness(projected, slim)).toBe(1);
@@ -238,8 +241,15 @@ describe("Badgermole Cub — mana doubler (CR 605.4, tap a creature for mana, is
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Earthbends `landId` (a Forest p1 controls) with Badgermole Cub's ETB, and
- *  returns the settled state. */
-function earthbend(landId: string): GameState {
+ *  returns the settled state. `landOwnerId` (issue #2446) defaults to "p1" —
+ *  pass "p2" to stage the CR 701.66a sharp case: p1 EARTHBENDS a land it
+ *  controls but does NOT own (p2 is the owner). The land still lives on p1's
+ *  battlefield array (battlefield is controller-scoped) but carries
+ *  `ownerId: "p2"`, so a departure sends it to P2's graveyard/exile pile (CR
+ *  400.7/800.4a routes by owner) while the delayed return must still land it
+ *  under P1's control (CR 701.66a "under your control" — "you" = the
+ *  earthbending player, not the owner). */
+function earthbend(landId: string, landOwnerId = "p1"): GameState {
     const cub = makeInstance(badgermoleCub.id, {
         id: `cub-${landId}`,
         controllerId: "p1",
@@ -248,7 +258,7 @@ function earthbend(landId: string): GameState {
     const land = makeInstance(forest.id, {
         id: landId,
         controllerId: "p1",
-        ownerId: "p1",
+        ownerId: landOwnerId,
     });
     const state = makeState({
         players: [
@@ -346,6 +356,81 @@ describe("Badgermole Cub — earthbend return clause (CR 603.7a indefinite leave
         expect(state.players[0].exile.some((c) => c.id === "exiledLand")).toBe(
             false
         );
+    });
+
+    // CR 701.66a's sharp case (issue #2446): the land's OWNER and its
+    // CONTROLLER at earthbend time are different players. p1 earthbends a
+    // land p1 controls but p2 owns — a control-magic-style divergence
+    // (Standard Naming Convention, CR 108.3/800.4a). The owner/controller
+    // split is set up DIRECTLY on the CardInstanceState (`ownerId: "p2"`,
+    // `controllerId: "p1"`), never staged via a control-stealing effect card
+    // — a static board is sufficient here and keeps the test independent of
+    // any specific control-change card. This is deliberately NOT the shape
+    // of the earlier tests in this file (owner === controller === "p1"),
+    // which would pass identically whether `moveZone`'s `controller` field
+    // is wired up or not — proving nothing about the clause under test.
+    it("owner/controller split (CR 701.66a 'under YOUR control'): the land returns under the EARTHBENDING PLAYER's control, not its owner's", () => {
+        const state = earthbend("splitLand", "p2"); // p1 controls, p2 owns
+        const preReturn = state.players[0].battlefield.find(
+            (c) => c.id === "splitLand"
+        )!;
+        expect(preReturn.controllerId).toBe("p1"); // earthbent under p1
+        expect(preReturn.ownerId).toBe("p2"); // still owned by p2
+
+        // CR 400.7/800.4a — a departing permanent goes to its OWNER's
+        // graveyard, not its controller's.
+        removePermanentTo(state, "splitLand", "graveyard");
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "splitLand")
+        ).toBe(true);
+
+        drainDelayedTriggers(state);
+        const back = state.players[0].battlefield.find(
+            (c) => c.id === "splitLand"
+        )!;
+        expect(back).toBeDefined();
+        // CR 701.66a: "return it to the battlefield tapped under YOUR
+        // control" — "you" is the earthbending player (p1), fixed at
+        // scheduling time, regardless of who owns the land.
+        expect(back.controllerId).toBe("p1");
+        expect(back.ownerId).toBe("p2"); // ownership never changes (CR 108.3)
+        expect(back.isTapped).toBe(true);
+    });
+
+    // Same owner/controller split as above, but the land departs via the
+    // EXILE branch of the delayed trigger's body (the second `moveZone` Op,
+    // `from: "exile"`) rather than the graveyard branch. CR 701.66a covers
+    // both departures in one sentence ("When that land dies or is put into
+    // exile, return it to the battlefield tapped under your control") and
+    // the two `moveZone` Ops carry the `controller: "controller"` field
+    // independently — deleting it from only one branch left the other
+    // branch's test green, so this branch needs its own regression guard.
+    it("owner/controller split, EXILE branch: the land returns under the earthbending player's control, not its owner's", () => {
+        const state = earthbend("splitExiled", "p2"); // p1 controls, p2 owns
+        const preReturn = state.players[0].battlefield.find(
+            (c) => c.id === "splitExiled"
+        )!;
+        expect(preReturn.controllerId).toBe("p1"); // earthbent under p1
+        expect(preReturn.ownerId).toBe("p2"); // still owned by p2
+
+        // CR 400.7/800.4a — a departing permanent goes to its OWNER's
+        // exile-adjacent pile, not its controller's.
+        removePermanentTo(state, "splitExiled", "exile");
+        expect(state.players[1].exile.some((c) => c.id === "splitExiled")).toBe(
+            true
+        );
+
+        drainDelayedTriggers(state);
+        const back = state.players[0].battlefield.find(
+            (c) => c.id === "splitExiled"
+        )!;
+        expect(back).toBeDefined();
+        // CR 701.66a: "return it to the battlefield tapped under YOUR
+        // control" — "you" is the earthbending player (p1), fixed at
+        // scheduling time, regardless of who owns the land.
+        expect(back.controllerId).toBe("p1");
+        expect(back.ownerId).toBe("p2"); // ownership never changes (CR 108.3)
+        expect(back.isTapped).toBe(true);
     });
 
     it("no-op (CR 608.2b): the land left the graveyard before the trigger resolved", () => {

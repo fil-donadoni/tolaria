@@ -233,6 +233,10 @@ import {
 } from "./gre/phyrexian";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
 import {
+    attackTargetExcessSink,
+    damageAssignmentLethalViolation,
+} from "./gre/damageAssignment";
+import {
     canPayTapOtherCost,
     totalTapOtherPower,
     type TapOtherCandidate,
@@ -352,6 +356,7 @@ import {
     getEffectiveManaChoices,
     getManaTapOptionsDetailed,
     getFixedManaAmount,
+    getFixedSacrificeManaAbility,
     hasManaAbility,
     isCreature,
     isPlaneswalker,
@@ -1624,6 +1629,59 @@ function refundFixedManaOutput(
     }
 }
 
+/** Activates a FIXED-output mana ability whose cost is "Sacrifice this" with NO
+ *  {T} component (CR 605.1a / 302.6, issue #2021): Tinder Wall, Gaea's Touch,
+ *  Coal Golem, the five Invasion Attendants, the Eldrazi Spawn token.
+ *
+ *  Its own path rather than a widening of the two fixed-output branches below,
+ *  because every step those branches take around the mana is tap-shaped —
+ *  `card.isTapped` toggling, the `chosenMana` snapshot the untap refunds from,
+ *  the depletion counter reversed on untap, `tappedLandIds` — and a sacrifice
+ *  is ONE-WAY: the source is in the graveyard, there is nothing to untap and
+ *  nothing to refund. What it does share with them is the rider set, applied
+ *  here in the same order.
+ *
+ *  Multi-colour by construction: it deposits the ability's whole `manaProduced`
+ *  `ManaCost`, so Crosis's Attendant's {U}{B}{R} arrives as three mana. The
+ *  single-`Color` `getActivatedManaColor` lookup those branches use returns null
+ *  for a multi-colour output, which is the second half of why they can't host
+ *  this shape.
+ *
+ *  CR 605.2 — the "tapped for mana" event is emitted BEFORE the sacrifice moves
+ *  the card off the battlefield, so trigger predicates still see the
+ *  permanent's characteristics. CR 603.6 / 700.4 — the departure routes through
+ *  `removePermanentTo` so the leave-the-battlefield / dies trigger fires. */
+function activateFixedSacrificeManaAbility(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    ability: ActivatedAbility
+): void {
+    // CR 605.1a / 601.2f — pay the MANA portion of the cost (the Attendants'
+    // {1}, Coal Golem's {3}) FIRST, before any source mutation, so an
+    // unaffordable activation throws with nothing changed.
+    applyManaAbilityManaCost(player, ability, card);
+    const produced = ability.manaProduced ?? {};
+    // CR 106.6 — a restricted output floats in the parallel `restrictedMana`
+    // pool, exactly as the tap branches deposit it.
+    depositTappedMana(
+        player,
+        produced,
+        ability.manaRestriction,
+        ability.manaCantBeCounteredRider
+    );
+    emitPermanentTapped(state, card, true, produced);
+    removePermanentTo(state, card.id, "graveyard", "sacrifice");
+    // The riders a sacrifice activation can still carry (CR 605.1a / 120 /
+    // 118.4 / 118.3 / 121.1). No depletion counter, no `lifePaidThisTap`, no
+    // Wild-Growth tap bonus: all three exist only to be reversed by an untap
+    // this source will never have.
+    applyUnconditionalTapSelfDamage(state, ability, card, player.id);
+    applyManaAbilityLifeCost(state, ability, player.id);
+    applyManaAbilityDiscardCost(state, ability, player.id);
+    applyDrawCardOnTap(state, ability, player.id);
+}
+
 export function tapSourceIntoPayment(
     state: GameState,
     player: PlayerState,
@@ -1635,20 +1693,40 @@ export function tapSourceIntoPayment(
     // precondition so an un-imprinted Chrome Mox is treated as having no
     // usable mana ability at all.
     const ability = getActivatedManaAbility(card, state);
-    // CR 302.6 — a mana ability paid PURELY by sacrificing the source has
-    // neither a {T} leg nor anything to untap, so neither the "already tapped"
-    // nor the summoning-sickness gate applies to it (see
-    // `manaAbilityPaidWithoutTapping`, the single authority this shares with
-    // the castability mana census in `gre/rules.ts`). Narrow by construction:
-    // both gates keep their exact pre-existing behaviour for every source whose
-    // payment does tap it, a {T}+sacrifice ability (Basal Thrull) included.
-    if (!manaAbilityPaidWithoutTapping(card, state)) {
-        if (card.isTapped) throw new Error("Card already tapped");
-        // CR 302.6 — creatures with summoning sickness cannot pay a {T} cost.
-        // Lands and other non-creature mana sources are unaffected.
-        if (isTapLockedBySummoningSickness(card)) {
-            throw new Error("Creature has summoning sickness");
-        }
+
+    // CR 302.6 — a mana ability paid PURELY by sacrificing the source has no
+    // {T} leg and nothing to untap, so "already tapped" — a statement about
+    // paying {T} — does not apply to it (see `manaAbilityPaidWithoutTapping`,
+    // the single authority this shares with the castability mana census in
+    // `gre/rules.ts`). Narrow by construction: the gate keeps its exact
+    // pre-existing behaviour for every source whose payment does tap it, a
+    // {T}+sacrifice ability (Basal Thrull) included.
+    if (!manaAbilityPaidWithoutTapping(card, state) && card.isTapped) {
+        throw new Error("Card already tapped");
+    }
+
+    // CR 302.6 — summoning sickness gates an activated ability whose cost
+    // contains the tap (or untap) symbol, and nothing else. A sacrifice-only
+    // mana ability (Tinder Wall, the Eldrazi Spawn token) carries no {T}, so a
+    // freshly-created creature can activate it the turn it arrives — which is
+    // the whole point of a mana creature you sacrifice. Mirrors the identical
+    // `requiresTap &&` gate in `tapUntap` (issue #2021: this site gated
+    // unconditionally, so the payment path rejected what the priority path
+    // allowed).
+    const requiresTap = !!getBasicLandMana(card) || ability?.cost.tap === true;
+    if (requiresTap && isTapLockedBySummoningSickness(card)) {
+        throw new Error("Creature has summoning sickness");
+    }
+
+    // CR 605.1a / 302.6 (issue #2021) — the tap-less sacrifice activation.
+    // Checked before the choice branch below because it is one-way: it neither
+    // taps the source nor records it in `tappedLandIds`, so there is no untap
+    // to model. A `manaChoices` sacrifice ability (Lion's Eye Diamond) is NOT
+    // this shape and stays on the choice branch.
+    const fixedSacrifice = getFixedSacrificeManaAbility(card);
+    if (fixedSacrifice) {
+        activateFixedSacrificeManaAbility(state, player, card, fixedSacrifice);
+        return;
     }
 
     // CR 106.4 / 605.1a — snapshot life before the mana ability's inline self-
@@ -11487,8 +11565,20 @@ export const setDamageAssignment = mutation({
                 : (graph.attackersByBlocker[sourceId] ?? [])
         );
 
+        // CR 702.19b — trample excess goes to "the player, planeswalker, or
+        // battle the creature is attacking", which is ONE object: per
+        // CR 702.19f a creature without trample-over-planeswalkers attacking a
+        // planeswalker may assign NONE of its combat damage to the defending
+        // player. So the sink is the attacked planeswalker when it is still on
+        // the battlefield, else the defending player — the same id the seed
+        // builders put in the pre-filled default (`attackTargetExcessSink`), so
+        // the assigner can always edit its own default.
+        const excessSinkIds = isAttacker
+            ? [attackTargetExcessSink(state, sourceId, defenderId)]
+            : [];
+
         for (const targetId of Object.keys(assignments)) {
-            if (isAttacker && targetId === defenderId) {
+            if (isAttacker && excessSinkIds.includes(targetId)) {
                 if (!hasTrample) {
                     throw new Error(
                         "Only creatures with trample can assign damage to the defending player"
@@ -11501,6 +11591,29 @@ export const setDamageAssignment = mutation({
                     `${targetId} is not a legal damage target for ${sourceId}`
                 );
             }
+        }
+
+        // CR 702.19b — "The attacking creature's controller need not assign
+        // lethal damage to all those blocking creatures but in that case can't
+        // assign any damage to the player or planeswalker it's attacking."
+        // Deliberate under-assignment is therefore LEGAL on its own; it is only
+        // the PAIR (a blocker below its lethal threshold AND damage to the
+        // sink) that is rejected. The thresholds come from the same shared
+        // helper the seed builders use, so the modal's pre-filled default can
+        // never be rejected here. `state.combat.damageAssignments` is this
+        // step's map (the damage step rebuilds it wholesale on entry), which is
+        // the "damage from other creatures that's being assigned during the
+        // same combat damage step" the threshold subtracts.
+        const violation = damageAssignmentLethalViolation(
+            state,
+            sourceId,
+            assignments,
+            excessSinkIds
+        );
+        if (violation) {
+            throw new Error(
+                `${violation.blockerId} must be assigned lethal damage (${violation.threshold}) before damage is assigned to the player or planeswalker`
+            );
         }
 
         if (!state.combat.damageAssignments) {
@@ -13225,7 +13338,20 @@ export const tapUntap = mutation({
         // delayed sacrifice). `tapUntap` only models tap-based sources, so route
         // these through `activateManaAbility`, which pays the mana cost, runs
         // the ability's `resolve`, and records the per-turn activation count.
-        if (ability && !ability.cost.tap && ability.cost.mana) {
+        //
+        // `!cost.sacrifice` (issue #2021): a cost that is mana AND sacrifice
+        // with no {T} (the five Invasion Attendants' "{1}, Sacrifice this
+        // creature: Add {U}{B}{R}.", Coal Golem's "{3}") is NOT one of those —
+        // `activateManaAbility` rejects `cost.sacrifice` outright, so sending
+        // it there made the two mutations bounce it between them and left the
+        // ability unactivatable by any route. It belongs here, on the
+        // sacrifice branch below.
+        if (
+            ability &&
+            !ability.cost.tap &&
+            ability.cost.mana &&
+            !ability.cost.sacrifice
+        ) {
             throw new Error(
                 "Use activateManaAbility for non-tap mana abilities"
             );
@@ -13245,6 +13371,35 @@ export const tapUntap = mutation({
             !!getBasicLandMana(card) || ability?.cost.tap === true;
         if (!wasTapped && requiresTap && isTapLockedBySummoningSickness(card)) {
             throw new Error("Creature has summoning sickness");
+        }
+
+        // CR 605.1a (issue #2021) — the tap-less "Sacrifice this: Add …"
+        // activation. Handled here, ahead of the tap-shaped branches below:
+        // those look the produced mana up through `getActivatedManaColor`,
+        // which only ever matches a `cost.tap` ability, so this shape used to
+        // fall through them and sacrifice the source for ZERO mana. One-way,
+        // so it returns before any of the untap/refund bookkeeping.
+        const fixedSacrifice = getFixedSacrificeManaAbility(card);
+        if (fixedSacrifice) {
+            activateFixedSacrificeManaAbility(
+                state,
+                player,
+                card,
+                fixedSacrifice
+            );
+            // CR 603.2/603.3 — flush what the sacrifice and the mana queued
+            // (the source's own dies trigger, a Mana Flare-style watcher).
+            // Same flush the tap branches run below; no SBA pass, because a
+            // mana ability resolves without one (CR 605.3a).
+            processPendingActionTriggers(state);
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
         }
 
         // Block untap if mana was spent on a cast

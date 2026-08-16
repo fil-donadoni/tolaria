@@ -87,13 +87,20 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor } from "@convex/gre";
+import type { Move, Phase } from "@convex/gre";
 import { consultBrain } from "~/lib/ai/brain-client";
-import { recordAiEscalation, setLatestAiTrace } from "~/lib/ai/trace-store";
+import {
+    recordAiDecision,
+    recordAiEscalation,
+    setLatestAiTrace,
+} from "~/lib/ai/trace-store";
+import type { AiDecisionOutcome } from "~/lib/ai/trace-store";
 import {
     decideBotAction,
     botActionRealisation,
     chooseOwedChoiceAction,
     chooseOwedTargetAction,
+    type BotAction,
     type BotView,
 } from "~/lib/ai/brain";
 import { escalationLadder } from "~/lib/ai/owed-input";
@@ -328,6 +335,15 @@ export function useVsAiDriver(
             : null;
 
     const inFlight = useRef(false);
+    // The latest `botState`, for the breadcrumb writer above — see its header:
+    // the escalation ladder reaches `note` through a closure frozen at the
+    // first render, where this value does not exist yet. Synced in an effect
+    // rather than assigned during render, so the render stays side-effect free;
+    // the only reader is a timer-driven path that always runs after the commit.
+    const botStateRef = useRef<typeof botState>(undefined);
+    useEffect(() => {
+        botStateRef.current = botState;
+    }, [botState]);
     const lastSignature = useRef<string | null>(null);
     const lastGameId = useRef<Id<"games"> | null>(null);
     // issue #2284 — the escalation bookkeeping, all keyed to the state version
@@ -380,29 +396,159 @@ export function useVsAiDriver(
     // stops re-driving, leaving the window to the watchdog. Before #2284 the
     // catch simply cleared the signature and nothing ever re-drove: a rejected
     // mutation changes no state, so no new tick arrives.
-    const dispatch = (signature: string, run: () => Promise<unknown>) => {
-        if (inFlight.current) return;
-        inFlight.current = true;
-        lastSignature.current = signature;
-        void run()
-            .catch(() => {
-                // Stale/illegal submissions are rejected server-side; allow
-                // the next state change to re-drive this state.
-                lastSignature.current = null;
-                if (retrySignature.current !== signature) {
-                    retrySignature.current = signature;
-                    retries.current = 0;
-                }
-                retries.current += 1;
-            })
-            .finally(() => {
-                inFlight.current = false;
-                setThinking(false);
-                // Re-run the effects even though no new tick arrived: this is
-                // the only thing that un-latches a failed submission.
-                setSettleNonce((n) => n + 1);
-            });
-    };
+    // ── The decision breadcrumb (issue #2470) ───────────────────────────────
+    //
+    // One record per decision EXIT, successes included: the diagnosis is the
+    // RUN, not the single record. A ring of `move` says the Brain was healthy
+    // and the bot meant its passes; a ring of `search-error` / `worker-error` /
+    // `timeout` says the Brain never answered and the passes the player saw
+    // came from the escalation ladder (issue #2450, which could not be
+    // root-caused because nothing distinguished the two).
+    //
+    // Pure observation, off the authoritative path (ADR 0074) — it can only
+    // append to a bounded client-side ring, never change what the bot does.
+    // The `try` is what makes that literally true rather than nearly true: a
+    // throwing store subscriber would otherwise propagate out of `dispatch`
+    // AFTER the in-flight guard is set and BEFORE `run()` installs its
+    // `.finally`, wedging the driver on a latch nothing clears. An observation
+    // ring must not be able to do that.
+    //
+    // Reads the state through a REF, not through the render closure: `escalate`
+    // is a `useCallback([], …)` and so permanently captures the FIRST render's
+    // `dispatch` — and on that render `tick` is still loading, so `botState` is
+    // `undefined`. Closing over it directly made every breadcrumb reached
+    // through the escalation ladder a silent no-op, which is precisely the
+    // "recorded nothing" shape this ring exists to remove (review round 2).
+    const note = useCallback(
+        (
+            outcome: AiDecisionOutcome,
+            extra: {
+                expectedKind: ExpectedInputKind;
+                via?: "worker" | "inline";
+                moveKind?: Move["kind"];
+                actionKind?: BotAction["kind"];
+                message?: string;
+            },
+            /** The board version this decision was taken ON. Passed in rather
+             *  than read here, because the two are not the same moment: a
+             *  `submit-error` note fires from a promise rejection that can land
+             *  hundreds of ms after the submission, by which time the ref has
+             *  moved on — and a record whose `seq` does not match the state the
+             *  decision was made against cannot be lined up with the board
+             *  snapshot beside it, which is the whole job of these two fields.
+             *  Omitted → the current committed state. */
+            at?: { phase: Phase; seq: number }
+        ) => {
+            const state = at ?? botStateRef.current;
+            if (!state) return;
+            try {
+                recordAiDecision({
+                    outcome,
+                    phase: state.phase,
+                    seq: state.seq,
+                    ...extra,
+                });
+            } catch {
+                // An unrecordable breadcrumb is a lost diagnostic, never a lost
+                // move: a throwing store subscriber must not propagate out of
+                // `dispatch` between the in-flight guard and `run()`'s
+                // `.finally`, which would wedge the driver on a latch nothing
+                // clears.
+            }
+        },
+        // Genuinely stable — after the ref indirection this closes over NOTHING
+        // render-scoped, which is what lets `escalate`'s frozen closure reach a
+        // LIVE writer. Declared to the linter rather than asserted in a comment:
+        // an `eslint-disable` here would have silenced the one warning that
+        // names this exact hazard.
+        []
+    );
+
+    const dispatch = useCallback(
+        (
+            signature: string,
+            run: () => Promise<unknown>,
+            // issue #2470 — the breadcrumb this submission is worth. `outcome`
+            // is recorded the moment the dispatch actually STARTS (never before
+            // the in-flight guard below, or the ring would show answers the bot
+            // never submitted — a lie in the "looks healthy" direction); the rest
+            // is what to say if the submission is REJECTED.
+            //
+            // The worker branch omits `outcome`: it records the consult's own
+            // verdict from inside the run instead, which is strictly more
+            // informative than "a dispatch started".
+            meta?: {
+                expectedKind: ExpectedInputKind;
+                outcome?: AiDecisionOutcome;
+                moveKind?: Move["kind"];
+                actionKind?: BotAction["kind"];
+            }
+        ) => {
+            if (inFlight.current) return;
+            inFlight.current = true;
+            lastSignature.current = signature;
+            // The version this submission is being made against, captured ONCE:
+            // the rejection below fires from a promise callback, by which time the
+            // committed state may have moved on, and a breadcrumb that cannot be
+            // lined up with the board it describes is not evidence.
+            const at = botStateRef.current
+                ? {
+                      phase: botStateRef.current.phase,
+                      seq: botStateRef.current.seq,
+                  }
+                : undefined;
+            if (meta?.outcome) {
+                note(
+                    meta.outcome,
+                    {
+                        expectedKind: meta.expectedKind,
+                        moveKind: meta.moveKind,
+                        actionKind: meta.actionKind,
+                    },
+                    at
+                );
+            }
+            void run()
+                .catch((e: unknown) => {
+                    // Stale/illegal submissions are rejected server-side; allow
+                    // the next state change to re-drive this state. A rejection is
+                    // one of the two ways a decision dies silently (the other is a
+                    // failed consult) — record it before it is swallowed.
+                    if (meta) {
+                        note(
+                            "submit-error",
+                            {
+                                expectedKind: meta.expectedKind,
+                                moveKind: meta.moveKind,
+                                actionKind: meta.actionKind,
+                                message:
+                                    e instanceof Error ? e.message : String(e),
+                            },
+                            at
+                        );
+                    }
+                    lastSignature.current = null;
+                    if (retrySignature.current !== signature) {
+                        retrySignature.current = signature;
+                        retries.current = 0;
+                    }
+                    retries.current += 1;
+                })
+                .finally(() => {
+                    inFlight.current = false;
+                    setThinking(false);
+                    // Re-run the effects even though no new tick arrived: this is
+                    // the only thing that un-latches a failed submission.
+                    setSettleNonce((n) => n + 1);
+                });
+        },
+        // Stable for the same reason `note` is, and it matters for the same
+        // reason: `escalate` below is frozen at the first render, so a
+        // `dispatch` rebuilt every render would leave that ladder calling a
+        // first-render copy forever. Everything else it touches is a ref or a
+        // setState, both of which React guarantees stable.
+        [note]
+    );
 
     // ── Rung 1..5: the escalation ladder ────────────────────────────────────
     const escalate = useCallback(
@@ -420,13 +566,20 @@ export function useVsAiDriver(
             }
 
             // Rung 1 — re-run the normal decision path once, to absorb a stale
-            // view or a transient Worker failure. Not recorded in the trace:
-            // only escalations PAST the first rung are, per the issue.
+            // view or a transient Worker failure. Not recorded in the ESCALATION
+            // ring: only escalations PAST the first rung are, per the issue. It
+            // still carries dispatch meta, so a rung-1 submission the server
+            // REJECTS leaves a `submit-error` breadcrumb rather than falling
+            // through both rings (issue #2470 review, finding 3).
             if (escalationAttempt.current === 0) {
                 escalationAttempt.current = 1;
-                const runner = realiseBotAction(decideBotAction(view), ctx);
+                const action = decideBotAction(view);
+                const runner = realiseBotAction(action, ctx);
                 if (runner) {
-                    dispatch(signature, runner);
+                    dispatch(signature, runner, {
+                        expectedKind: kind,
+                        actionKind: action.kind,
+                    });
                     return;
                 }
                 // The same view produced the same nothing — waiting another
@@ -449,7 +602,10 @@ export function useVsAiDriver(
                     expectedKind: kind,
                     action: step.action.kind,
                 });
-                dispatch(signature, runner);
+                dispatch(signature, runner, {
+                    expectedKind: kind,
+                    actionKind: step.action.kind,
+                });
                 return;
             }
 
@@ -463,11 +619,15 @@ export function useVsAiDriver(
             });
             setStuckAt({ signature, expectedKind: kind });
         },
-        // Everything this closes over is a ref, a stable setState, or an
-        // argument: `dispatch` is rebuilt each render but only touches refs, and
-        // the ladder is a pure function of what it is handed. Stable on purpose
-        // — the watchdog effect depends on it.
-        []
+        // Everything this closes over is a ref, a stable setState, an argument,
+        // or `dispatch` — which is itself stable, and had to become so: this
+        // callback is frozen at the FIRST render, and a `dispatch` rebuilt each
+        // render would leave the ladder submitting through a first-render copy
+        // whose breadcrumb writer closed over a `botState` that did not exist
+        // yet (the bug this dependency now makes structurally impossible rather
+        // than merely commented). The ladder itself is a pure function of what
+        // it is handed. Stable on purpose — the watchdog effect depends on it.
+        [dispatch]
     );
 
     // ── The normal decision path ────────────────────────────────────────────
@@ -539,8 +699,12 @@ export function useVsAiDriver(
         }
 
         // A window the bot cannot answer is not dispatched — it is escalated by
-        // the watchdog effect below, immediately (issue #2284).
-        if (action.kind === "unanswered") return;
+        // the watchdog effect below, immediately (issue #2284). Recorded first:
+        // it is a decision EXIT, and one the ring must not describe by silence.
+        if (action.kind === "unanswered") {
+            note("unanswered", { expectedKind: view.owedInput!.kind });
+            return;
+        }
 
         // Every non-search realisation is submitted directly — the parked
         // payment families, the combat-damage confirmation, the brain-resolved
@@ -552,7 +716,23 @@ export function useVsAiDriver(
         const realisation = botActionRealisation(action.kind);
         if (realisation !== "worker") {
             const runner = realiseBotAction(action, realisationContext);
-            if (runner) dispatch(signature, runner);
+            if (runner) {
+                dispatch(signature, runner, {
+                    expectedKind: view.owedInput!.kind,
+                    outcome: "direct",
+                    actionKind: action.kind,
+                });
+            } else {
+                // `realiseBotAction` returns null on several branches — the bot
+                // decided on an action and NOTHING was submitted. Before this
+                // record (issue #2470 review, finding 1) the ring showed the
+                // previous decision, a gap, then escalation rungs: exactly the
+                // "died leaving no trace" shape this ring exists to remove.
+                note("unrealisable", {
+                    expectedKind: view.owedInput!.kind,
+                    actionKind: action.kind,
+                });
+            }
             return;
         }
 
@@ -565,8 +745,19 @@ export function useVsAiDriver(
             action.kind === "pass" &&
             !shouldThink(projectedToGameState(botState), botId)
         ) {
-            dispatch(signature, () =>
-                mutations.passPriority({ gameId, playerId: botId })
+            // Recorded too (issue #2470): this pass never consulted the Brain,
+            // so it is NOT evidence about the Brain's health — a ring that did
+            // not say so would read as "the search kept choosing to pass".
+            // Recorded BY `dispatch`, so a dispatch the in-flight guard
+            // suppresses records nothing (review finding 4).
+            dispatch(
+                signature,
+                () => mutations.passPriority({ gameId, playerId: botId }),
+                {
+                    expectedKind: view.owedInput!.kind,
+                    outcome: "skip-pass",
+                    moveKind: "pass",
+                }
             );
             return;
         }
@@ -579,40 +770,63 @@ export function useVsAiDriver(
             // server move path is untouched — this only tunes how hard the
             // client-side brain thinks.
             const budget = budgetFor(getStoredDifficulty());
-            dispatch(signature, () =>
-                consultBrain(botState, botId, budget, ownDeck).then(
-                    ({ move, trace }) => {
-                        // Surface the reasoning to the Debug panel (client-only).
-                        setLatestAiTrace(trace);
-                        // Safety net for a searched pending choice (issue #1506)
-                        // and for a searched engine-raised TARGET selection
-                        // (issue #2283): either window suppresses every other
-                        // move, so if the search surfaced none the bot would sit
-                        // on the frozen priority. Fall back to the minimal-legal
-                        // answer the gate already enumerated through the same
-                        // authority the search reads. (The watchdog is the
-                        // general backstop — this is the cheap local one.)
-                        const chosen =
-                            move ??
-                            (action.kind === "search-choice" && view.owedChoice
-                                ? botActionToMove(
-                                      chooseOwedChoiceAction(view.owedChoice),
-                                      botState,
-                                      botId
-                                  )
-                                : action.kind === "search-target" &&
-                                    view.owedTarget
-                                  ? botActionToMove(
-                                        chooseOwedTargetAction(view.owedTarget),
-                                        botState,
-                                        botId
-                                    )
-                                  : null);
-                        return chosen
-                            ? executeMove(chosen, { gameId, botId, mutations })
-                            : undefined;
-                    }
-                )
+            dispatch(
+                signature,
+                () =>
+                    consultBrain(botState, botId, budget, ownDeck).then(
+                        ({ move, trace, outcome, via, message }) => {
+                            // Surface the reasoning to the Debug panel (client-only).
+                            setLatestAiTrace(trace);
+                            // issue #2470 — the consult's own verdict, recorded
+                            // BEFORE the fallbacks below rewrite what happens
+                            // next: `no-move` after a healthy search and
+                            // `worker-error` after a dead one both arrive here
+                            // as `move === null`, and only this says which.
+                            note(outcome, {
+                                expectedKind: view.owedInput!.kind,
+                                via,
+                                message,
+                                ...(move ? { moveKind: move.kind } : {}),
+                            });
+                            // Safety net for a searched pending choice (issue #1506)
+                            // and for a searched engine-raised TARGET selection
+                            // (issue #2283): either window suppresses every other
+                            // move, so if the search surfaced none the bot would sit
+                            // on the frozen priority. Fall back to the minimal-legal
+                            // answer the gate already enumerated through the same
+                            // authority the search reads. (The watchdog is the
+                            // general backstop — this is the cheap local one.)
+                            const chosen =
+                                move ??
+                                (action.kind === "search-choice" &&
+                                view.owedChoice
+                                    ? botActionToMove(
+                                          chooseOwedChoiceAction(
+                                              view.owedChoice
+                                          ),
+                                          botState,
+                                          botId
+                                      )
+                                    : action.kind === "search-target" &&
+                                        view.owedTarget
+                                      ? botActionToMove(
+                                            chooseOwedTargetAction(
+                                                view.owedTarget
+                                            ),
+                                            botState,
+                                            botId
+                                        )
+                                      : null);
+                            return chosen
+                                ? executeMove(chosen, {
+                                      gameId,
+                                      botId,
+                                      mutations,
+                                  })
+                                : undefined;
+                        }
+                    ),
+                { expectedKind: view.owedInput!.kind }
             );
         }, THINK_DELAY_MS);
 

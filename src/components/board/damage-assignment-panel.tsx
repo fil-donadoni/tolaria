@@ -10,6 +10,10 @@ import {
     damageSourcesForPlayer,
 } from "~/lib/combat-graph";
 import { effectivePower } from "~/lib/effective-stats";
+import {
+    assignmentIsRejected,
+    damageAssignmentPlan,
+} from "~/lib/damage-assignment";
 import { Panel } from "~/components/ui/panel";
 
 function DamageRow({
@@ -24,6 +28,8 @@ function DamageRow({
     playerId,
     setDamageAssignment,
     highlight,
+    decDisabled,
+    incDisabled,
 }: {
     targetId: string;
     label: string;
@@ -36,6 +42,11 @@ function DamageRow({
     playerId: string;
     setDamageAssignment: ReactMutation<typeof api.game.setDamageAssignment>;
     highlight?: boolean;
+    /** CR 702.19b — the step would leave a blocker below its lethal threshold
+     *  while damage goes to the player/planeswalker, so `setDamageAssignment`
+     *  would refuse it. Gated here rather than surfaced as a mutation error. */
+    decDisabled?: boolean;
+    incDisabled?: boolean;
 }) {
     return (
         <div
@@ -47,9 +58,10 @@ function DamageRow({
                 (tuned to the old fixed height) so the glyph stays centred at
                 the new size. */}
             <button
+                disabled={decDisabled}
                 onClick={(e) => {
                     e.stopPropagation();
-                    if (dmg <= 0) return;
+                    if (dmg <= 0 || decDisabled) return;
                     setDamageAssignment({
                         gameId,
                         playerId,
@@ -60,15 +72,16 @@ function DamageRow({
                         },
                     });
                 }}
-                className="flex w-11 h-11 items-center justify-center bg-surface-elevated hover:bg-surface-elevated/80 rounded"
+                className="flex w-11 h-11 items-center justify-center bg-surface-elevated hover:bg-surface-elevated/80 rounded disabled:opacity-40 disabled:hover:bg-surface-elevated"
             >
                 -
             </button>
             <span className="w-6 text-center font-mono">{dmg}</span>
             <button
+                disabled={incDisabled}
                 onClick={(e) => {
                     e.stopPropagation();
-                    if (assigned >= power) return;
+                    if (assigned >= power || incDisabled) return;
                     setDamageAssignment({
                         gameId,
                         playerId,
@@ -79,7 +92,7 @@ function DamageRow({
                         },
                     });
                 }}
-                className="flex w-11 h-11 items-center justify-center bg-surface-elevated hover:bg-surface-elevated/80 rounded"
+                className="flex w-11 h-11 items-center justify-center bg-surface-elevated hover:bg-surface-elevated/80 rounded disabled:opacity-40 disabled:hover:bg-surface-elevated"
             >
                 +
             </button>
@@ -153,6 +166,34 @@ export default function DamageAssignmentPanel({
                         (s, n) => s + n,
                         0
                     );
+                    // CR 702.19b / CR 702.2c — the lethal-damage thresholds and
+                    // the excess sink, from the SAME shared arithmetic
+                    // `setDamageAssignment` validates with. Every +/- below is
+                    // gated on the assignment it would produce, so the modal can
+                    // never offer a click the mutation refuses.
+                    const plan = damageAssignmentPlan(
+                        combat,
+                        allPlayers,
+                        sourceId,
+                        defenderId,
+                        emblems
+                    );
+                    const rowGating = (targetId: string, dmg: number) => ({
+                        decDisabled: assignmentIsRejected(plan, {
+                            ...assignments,
+                            [targetId]: dmg - 1,
+                        }),
+                        incDisabled: assignmentIsRejected(plan, {
+                            ...assignments,
+                            [targetId]: dmg + 1,
+                        }),
+                    });
+                    // CR 702.19f — a trampler attacking a planeswalker assigns
+                    // its excess to that planeswalker, never to the defending
+                    // player, so the row is labelled for whichever it is.
+                    const sinkId = plan.excessSinkId ?? defenderId;
+                    const sinkCard =
+                        sinkId === defenderId ? undefined : findCard(sinkId);
 
                     return (
                         <div key={sourceId} className="mb-2 last:mb-0">
@@ -195,14 +236,20 @@ export default function DamageAssignmentPanel({
                                         setDamageAssignment={
                                             setDamageAssignment
                                         }
+                                        {...rowGating(targetId, dmg)}
                                     />
                                 );
                             })}
                             {isAttacker && hasTrample && (
                                 <DamageRow
-                                    targetId={defenderId}
-                                    label="Defending Player"
-                                    dmg={assignments[defenderId] ?? 0}
+                                    targetId={sinkId}
+                                    label={
+                                        sinkCard
+                                            ? getDefinition(sinkCard.card.id)
+                                                  .name
+                                            : "Defending Player"
+                                    }
+                                    dmg={assignments[sinkId] ?? 0}
                                     assigned={assigned}
                                     power={power}
                                     assignments={assignments}
@@ -211,6 +258,10 @@ export default function DamageAssignmentPanel({
                                     playerId={playerId}
                                     setDamageAssignment={setDamageAssignment}
                                     highlight
+                                    {...rowGating(
+                                        sinkId,
+                                        assignments[sinkId] ?? 0
+                                    )}
                                 />
                             )}
                         </div>

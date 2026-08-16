@@ -1,6 +1,9 @@
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import { limitedEventName } from "~/lib/limitedEventName";
-import { limitedEventStatusHint } from "~/lib/limitedEventStatus";
+import {
+    formatLimitedMatchRecord,
+    limitedEventStatusHint,
+} from "~/lib/limitedEventStatus";
 import ActionButton from "~/components/board/action-button";
 import { Button } from "@/components/ui/button";
 
@@ -34,6 +37,9 @@ export default function LimitedEventListItem({
     // of "playing". `limitedEventStatusHint` is the one authority — the same
     // one `LimitedStatusBadge` renders.
     const statusLabel = limitedEventStatusHint(event);
+    // Blank (`null`) for an event that hasn't reached the play phase yet
+    // (issue #2357) — never rendered as a false "0-0".
+    const record = formatLimitedMatchRecord(event.viewerMatchRecord);
 
     return (
         <div className="flex items-center justify-between rounded-sm border border-border-subtle/40 px-4 py-3">
@@ -43,6 +49,7 @@ export default function LimitedEventListItem({
                 </span>
                 <span className="text-xs text-text-muted">
                     {filledSeats}/{event.seatCount} seats filled · {statusLabel}
+                    {record && ` · ${record}`}
                 </span>
             </div>
             <div className="flex items-center gap-2">

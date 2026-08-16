@@ -862,6 +862,15 @@ describe("game_state serialize round-trip", () => {
         // #698 (CR 702.35c) — the madness-exile marker on a discarded-and-exiled
         // card must survive a save/load so the cast window + cleanup sweep hold.
         lion.madnessExiled = true;
+        // #2471 (CR 303.4 / 704.5m) — the RUNTIME-granted enchant clause on a
+        // permanent that BECAME an Aura ("it becomes an Aura with enchant
+        // creature"). Unlike a printed Aura's restriction there is no
+        // definition to re-derive it from, so a dropped field means the first
+        // SBA sweep after the reload bins the Aura with its host still there.
+        lion.grantedEnchantRestriction = {
+            types: ["Creature"],
+            hostId: "host-1",
+        };
         // issue #1344 (CR 601.3e / 117.6-analog) — Malcolm, Alluring
         // Scoundrel's per-card cast-from-graveyard grant, mirroring the
         // exile grant's three fields above.
@@ -1001,6 +1010,10 @@ describe("game_state serialize round-trip", () => {
         expect(got.castFromExileWithoutPayingManaCost).toBe(true);
         expect(got.castableFromExileIncludesLand).toBe(true);
         expect(got.madnessExiled).toBe(true);
+        expect(got.grantedEnchantRestriction).toEqual({
+            types: ["Creature"],
+            hostId: "host-1",
+        });
         expect(got.castableFromGraveyardBy).toBe("p1");
         expect(got.castableFromGraveyardUntilTurn).toBe(9);
         expect(got.castFromGraveyardWithoutPayingManaCost).toBe(true);
@@ -1922,6 +1935,18 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).pendingCleanupDiscard).toEqual({
             playerId: "p2",
         });
+    });
+
+    it("pendingExtraCleanupStep (CR 514.3a)", () => {
+        const state = freshState();
+        state.pendingExtraCleanupStep = true;
+        expect(roundTrip(state).pendingExtraCleanupStep).toBe(true);
+    });
+
+    it("cleanupBookkeepingTurn (CR 514.3a)", () => {
+        const state = freshState();
+        state.cleanupBookkeepingTurn = 7;
+        expect(roundTrip(state).cleanupBookkeepingTurn).toBe(7);
     });
 
     it("maxHandSizeOverride on PlayerState (CR 402.2)", () => {

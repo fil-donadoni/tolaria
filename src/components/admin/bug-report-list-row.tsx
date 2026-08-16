@@ -1,6 +1,8 @@
 // One row of the `/admin/bug-reports` list: filed-at, reporter, first line of
-// the description, linked issue (when there is one) and whether a game
-// snapshot is attached. Pure presentational — selection state lives in the
+// the description, linked issue (when there is one), and which attachments the
+// report carries — a game snapshot, and the bot's decision rings (issue #2470,
+// the badge that says this report can answer "did the Brain ever answer?"
+// without opening it). Pure presentational — selection state lives in the
 // parent (`BugReportsAdminPanel`), same split as `DebugScenarioRow`.
 import type { BugReportListItem } from "./bug-reports-admin-panel";
 
@@ -33,6 +35,11 @@ export default function BugReportListRow({
                     {row.hasSnapshot && (
                         <span className="rounded-sm bg-accent-soft/30 px-1.5 py-0.5 text-[10px] tracking-wide text-accent-strong uppercase">
                             snapshot
+                        </span>
+                    )}
+                    {row.hasDiagnostics && (
+                        <span className="rounded-sm bg-accent-soft/30 px-1.5 py-0.5 text-[10px] tracking-wide text-accent-strong uppercase">
+                            AI
                         </span>
                     )}
                     {row.issueNumber !== undefined && (

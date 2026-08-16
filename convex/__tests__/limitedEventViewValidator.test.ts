@@ -70,124 +70,14 @@ import { getRuntimeBoosterConfig } from "../limited/registry";
 import { openRound, type ResolveSeatStrength } from "../limited/rounds";
 import type { GetCardEvalMeta } from "../limited/botDrafter";
 import type { Color } from "../cards/types";
+import {
+    validatorJsonOf,
+    validationErrors,
+    type FieldJson,
+} from "./fixtures/validatorWalk";
 
-// ── Convex's own validator description, and a checker for it ────────────────
-
-interface FieldJson {
-    fieldType: ValidatorJson;
-    optional: boolean;
-}
-type ValidatorJson =
-    | { type: "object"; value: Record<string, FieldJson> }
-    | { type: "array"; value: ValidatorJson }
-    | { type: "union"; value: ValidatorJson[] }
-    | { type: "record"; keys: ValidatorJson; values: FieldJson }
-    | { type: "literal"; value: unknown }
-    | { type: string; value?: unknown };
-
-/** `.json` is how Convex itself describes a validator, but it is not on every
- *  variant's PUBLIC type — hence the one narrowing cast, made here and nowhere
- *  else (same shape as `limitedPlayPhaseSchema.test.ts`'s). */
-const viewValidatorJson = (
-    limitedEventViewValidator as unknown as { json: ValidatorJson }
-).json;
-
-/** Validates `value` against Convex's `ValidatorJson`, returning the list of
- *  violations (empty = the boundary would accept it). Mirrors the server's
- *  semantics for the node types this wire shape actually uses: an object is
- *  STRICT (an undeclared field is a violation — the exact failure `standings`
- *  and `viewerPairing` each caused), a non-optional field must be present and
- *  not `undefined`, and a union needs one member to accept. */
-function validationErrors(
-    value: unknown,
-    validator: ValidatorJson,
-    path = "<return>"
-): string[] {
-    switch (validator.type) {
-        case "any":
-            return [];
-        case "null":
-            return value === null ? [] : [`${path}: expected null`];
-        case "number":
-            return typeof value === "number"
-                ? []
-                : [`${path}: expected number`];
-        case "bigint":
-            return typeof value === "bigint"
-                ? []
-                : [`${path}: expected bigint`];
-        case "boolean":
-            return typeof value === "boolean"
-                ? []
-                : [`${path}: expected boolean`];
-        case "string":
-        case "id":
-            return typeof value === "string"
-                ? []
-                : [`${path}: expected string`];
-        case "literal":
-            return value === (validator as { value: unknown }).value
-                ? []
-                : [
-                      `${path}: expected literal ${JSON.stringify(
-                          (validator as { value: unknown }).value
-                      )}`,
-                  ];
-        case "array": {
-            if (!Array.isArray(value)) return [`${path}: expected array`];
-            const element = (validator as { value: ValidatorJson }).value;
-            return value.flatMap((entry, i) =>
-                validationErrors(entry, element, `${path}[${i}]`)
-            );
-        }
-        case "union": {
-            const members = (validator as { value: ValidatorJson[] }).value;
-            const accepted = members.some(
-                (member) => validationErrors(value, member, path).length === 0
-            );
-            return accepted
-                ? []
-                : [
-                      `${path}: matched no union member (${members
-                          .map((m) => m.type)
-                          .join(" | ")})`,
-                  ];
-        }
-        case "object": {
-            if (typeof value !== "object" || value === null)
-                return [`${path}: expected object`];
-            const fields = (validator as { value: Record<string, FieldJson> })
-                .value;
-            const errors: string[] = [];
-            for (const key of Object.keys(value as Record<string, unknown>)) {
-                if (!(key in fields)) {
-                    errors.push(
-                        `${path}.${key}: EXTRA field, absent from the returns validator`
-                    );
-                }
-            }
-            for (const [key, field] of Object.entries(fields)) {
-                const entry = (value as Record<string, unknown>)[key];
-                if (entry === undefined) {
-                    if (!field.optional) {
-                        errors.push(`${path}.${key}: MISSING required field`);
-                    }
-                    continue;
-                }
-                errors.push(
-                    ...validationErrors(
-                        entry,
-                        field.fieldType,
-                        `${path}.${key}`
-                    )
-                );
-            }
-            return errors;
-        }
-        default:
-            return [`${path}: unhandled validator node "${validator.type}"`];
-    }
-}
+// ── Convex's own validator description, walked by the shared helper ────────
+const viewValidatorJson = validatorJsonOf(limitedEventViewValidator);
 
 // ── The exact resolver wiring `convex/limitedEvents.ts` injects ─────────────
 

@@ -132,6 +132,20 @@ export default function BugReportDetail({
                         </div>
                     </div>
                 )}
+
+                {/* issue #2470 — the bot's decision and escalation rings. The
+                    play bot is client-hosted (ADR 0074), so this is the ONLY
+                    record of why one of its decisions failed: the board
+                    snapshot above shows the position, this shows whether the
+                    Brain ever answered for it. */}
+                {report.clientDiagnostics !== undefined && (
+                    <div className="flex flex-col gap-2 border-t border-border-subtle pt-3">
+                        <span className="text-label">AI diagnostics</span>
+                        <div className="max-h-[60vh] overflow-auto rounded-sm border border-border-subtle p-2 font-mono text-xs">
+                            <JsonTreeView data={report.clientDiagnostics} />
+                        </div>
+                    </div>
+                )}
             </PanelBody>
         </Panel>
     );

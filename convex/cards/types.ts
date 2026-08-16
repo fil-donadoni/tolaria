@@ -290,6 +290,41 @@ export type Rarity = "common" | "uncommon" | "rare" | "mythic";
 
 // --- Targeting ---
 
+/** CR 303.4 — "What an Aura can be attached to is defined by its enchant
+ *  keyword ability (see rule 702.5)." This is the NORMALIZED form of that
+ *  restriction, shared by the two ways an object can carry one:
+ *
+ *  - **printed** — derived from the Aura card's cast-time `targetRequirement`
+ *    (Control Magic's "enchant creature" is `{ type: "Creature" }`), and
+ *  - **granted at runtime** — stamped on a single permanent that BECOMES an
+ *    Aura while on the battlefield (the `addSubtype` Op's `enchantRestriction`
+ *    field; Necromancy's "it becomes an Aura with enchant creature").
+ *    `CardInstanceState.grantedEnchantRestriction` is where it lives.
+ *
+ *  Both are resolved instance-first / printed-second by the single predicate
+ *  `resolveEnchantRestriction` (`convex/gre/state.ts`), which every legality
+ *  site reads — the CR 303.4c / 704.5m attachment SBA and the CR 303.4f
+ *  non-cast host scan alike — so the OFFERED host set and the ENFORCED host
+ *  set cannot diverge. */
+export interface EnchantRestriction {
+    /** Card types, ANY of which a PERMANENT host must have (CR 303.4a
+     *  "enchant creature"). Absent or empty accepts no permanent — an Aura
+     *  restricted only to players (`players: true`) legitimately has none. */
+    types?: CardType[];
+    /** CR 303.4 "enchant player" — a player is a legal host in its own right.
+     *  Never a battlefield object, so it is a separate flag rather than a
+     *  member of `types`. */
+    players?: boolean;
+    /** CR 303.4 — a restriction naming ONE specific object rather than a
+     *  characteristic ("enchant creature put onto the battlefield with
+     *  Necromancy"). When set, ONLY the permanent with this instance id is a
+     *  legal host, in ADDITION to the `types` match. Instance-scoped by
+     *  nature: a printed `targetRequirement` can never produce one, because
+     *  the object it names doesn't exist until the effect that grants the
+     *  restriction resolves. */
+    hostId?: string;
+}
+
 export interface TargetRequirement {
     /** Card type(s) to target, "player", "any", "spell" (stack target),
      *  "spell-or-permanent" (any spell on stack OR any permanent on battlefield,
@@ -2024,7 +2059,11 @@ export interface EffectTokenSpec {
      *  (an Effect Script, DSL-only — `resolve`/`effect` are rejected) and
      *  `manaChoices` (a plain `ManaCost[]`, mirroring the card-level
      *  `ActivatedAbility.manaChoices` above — "{T}, Sacrifice this artifact:
-     *  Add one mana of any color.") are accepted, enforced by
+     *  Add one mana of any color.") and `manaProduced` (its FIXED-output
+     *  sibling, a plain `ManaCost` — issue #2021, the Eldrazi Spawn token's
+     *  "Sacrifice this token: Add {C}."; the DESCRIPTOR is what every mana
+     *  authority reads, never the `effects` body, which a fixed-output mana
+     *  ability does not execute) are accepted, enforced by
      *  `isTokenActivatedAbility` in `gre/effects/validate.ts`. Each ability's
      *  `effects[]` is validated and ref-checked as its OWN independently-scoped
      *  script (fresh `$source` = the token itself once created — see
@@ -2598,8 +2637,18 @@ export interface SpellContext {
      *  source id — mirrors `setSupertype`'s indefinite CR 205.4a pattern
      *  exactly, no new storage shape. Idempotent (adding an already-present
      *  subtype via this indefinite grant is a no-op). No-op for a
-     *  non-permanent target or one that has left the battlefield. */
-    addSubtype: (target: TargetSelection, subtype: string) => void;
+     *  non-permanent target or one that has left the battlefield.
+     *
+     *  `enchantRestriction` (CR 303.4) is the enchant clause that comes WITH
+     *  an `"Aura"` subtype grant — "it becomes an Aura with enchant creature".
+     *  It is stamped on the instance (`grantedEnchantRestriction`) and is
+     *  written even when the subtype itself is already present (the
+     *  idempotency above is about the subtype, not the restriction). */
+    addSubtype: (
+        target: TargetSelection,
+        subtype: string,
+        enchantRestriction?: EnchantRestriction
+    ) => void;
     /** Returns a target permanent to its owner's hand (CR 701.10). The card
      *  becomes a new object on the zone change (CR 400.7) — battlefield-only
      *  transient state (tapped, marked damage, regen shields, summoning
@@ -5084,6 +5133,40 @@ export type DelayedTriggerTiming =
     | "next-draw-step"
     | "next-main-phase"
     | "next-upkeep"
+    /** CR 603.7 / 514.3a — "at the beginning of the next cleanup step". A
+     *  phase-boundary timing like its five siblings above, but the ONLY one
+     *  whose step normally grants no priority at all: CR 514.3 says "Normally,
+     *  no player receives priority during the cleanup step", and CR 514.3a is
+     *  the single exception — a triggered ability waiting to be put onto the
+     *  stack there (explicitly "including those that trigger 'at the beginning
+     *  of the next cleanup step'") is put on the stack, the active player gets
+     *  priority, and once the stack empties and all players pass, ANOTHER
+     *  cleanup step begins. `gre/phases.ts` implements the TRIGGERED-ABILITY
+     *  half of that check: the CLEANUP arm fires this timing AFTER the 514.1
+     *  discard and the 514.2 turn-based actions, opens the priority window
+     *  when something landed, and re-enters CLEANUP once the window closes.
+     *
+     *  NOT the state-based-action half. CR 514.3a's condition is "any
+     *  state-based actions would be performed AND/OR any triggered abilities
+     *  are waiting"; `openCleanupPriorityWindow`'s condition is only "the
+     *  stack grew". `checkStateBasedActions` is never called from
+     *  `gre/phases.ts` at all — the engine's SBA seam sits in the `game.ts`
+     *  mutation layer, i.e. after `advancePhase` has already returned — so the
+     *  canonical SBA case (an "until end of turn" pump ending at 514.2 drops a
+     *  creature to 0 toughness) opens no window and starts no additional
+     *  cleanup step; the death lands in the next turn's UPKEEP instead. That
+     *  is an engine-wide phase-machine gap rather than a property of this
+     *  timing: no phase entry anywhere checks SBAs. Documented in
+     *  `docs/findings/2472-cleanup-step-sba-half.md`.
+     *
+     *  NOT a synonym for `next-end-step`: the cleanup step happens after the
+     *  end step (CR 514), so the two are different, ordered boundaries.
+     *  Deliberately absent from the CLEANUP watch purge in `gre/phases.ts` —
+     *  it is a step boundary, not a "this turn" instance watch, and a purge
+     *  that swept it would delete the instance in the very step it fires in.
+     *  Rejects `targetPlayer` and `watch` like every other phase-boundary
+     *  timing (validate.ts). */
+    | "next-cleanup-step"
     /** CR 603.7a / 603.10 — an INSTANCE-scoped, this-turn-bounded leave-watch:
      *  "When that creature leaves the battlefield this turn, …" (Kjeldoran
      *  Elite Guard, Kjeldoran Guard, Phantasmal Mount). Unlike the
@@ -11065,6 +11148,23 @@ export type EffectOp =
           op: "addSubtype";
           target: EffectObjectSelector;
           subtype: string;
+          /** CR 303.4 — the enchant restriction the target gains TOGETHER with
+           *  the subtype ("it becomes an Aura with enchant creature"). Only
+           *  meaningful when `subtype` is `"Aura"`: it is stamped on the
+           *  instance as `CardInstanceState.grantedEnchantRestriction` and
+           *  read instance-first by `resolveEnchantRestriction`, the single
+           *  predicate behind the CR 303.4c / 704.5m attachment SBA and the
+           *  CR 303.4f host scan. Without it a permanent flipped to an Aura
+           *  has NO restriction the SBA can read and is binned the instant it
+           *  attaches. `host` is an object selector resolved AT GRANT TIME to
+           *  the instance id it names (the CR 303.4 "specific object" form —
+           *  the reanimated creature bound earlier in the same script), so the
+           *  stored restriction is plain JSON, not a live ref. */
+          enchantRestriction?: {
+              types?: CardType[];
+              players?: boolean;
+              host?: EffectObjectSelector;
+          };
       }
     /** CR 613.1e (layer 5, issue #1083) — sets a target's color(s), replacing
      *  all other color derivation. A thin declarative skin over the single
@@ -12473,6 +12573,9 @@ export type EffectOp =
      *  inside the body). `targetPlayer` scopes the player-gated timings
      *  (`next-draw-step` / `next-main-phase`, CR 504/505) to one player's
      *  step; the global-boundary timings reject it (validator-enforced).
+     *  `next-cleanup-step` (CR 514.3a) is a global-boundary timing with one
+     *  extra consequence: firing it opens the cleanup step's single priority
+     *  window and an additional cleanup step follows (gre/phases.ts).
      *  Does not nest inside another delayedTrigger body. The two grammar gaps
      *  ADR 0048 tracked have since closed (ADR 0049): event-field captures
      *  (`$event.<field>`, issue #865) and list-valued captures

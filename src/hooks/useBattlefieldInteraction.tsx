@@ -29,6 +29,7 @@ import {
     matchesTargetRequirement,
     matchesPermanentTargetFilters,
     isTapLockedBySummoningSickness,
+    manaActivationRequiresTap,
     hasManaAbility,
     pendingCastHasImprovise,
 } from "~/lib/card-utils";
@@ -906,7 +907,15 @@ export function useBattlefieldInteraction(player: Player) {
                 ...stack,
             ];
         }
-        if (isTapLockedBySummoningSickness(card))
+        // CR 302.6 (issue #2021) — sickness withholds the mana entry only when
+        // the activation actually pays a {T}. Tinder Wall ("Sacrifice this
+        // creature: Add {R}{R}." next to its {R}-sacrifice damage ability) is
+        // exactly the shape this menu exists for, and it is summoning sick the
+        // turn it is cast.
+        if (
+            isTapLockedBySummoningSickness(card) &&
+            manaActivationRequiresTap(card)
+        )
             return [...manaCostEntry, ...stack];
         return [manaToggle, ...manaCostEntry, ...stack];
     }
