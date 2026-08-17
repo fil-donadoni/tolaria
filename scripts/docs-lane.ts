@@ -104,14 +104,42 @@ const NET_ENV: NodeJS.ProcessEnv = (() => {
     return env;
 })();
 
-function git(args: string[], cwd = process.cwd()): string {
+function git(args: string[], cwd = process.cwd(), trim = true): string {
     const r = spawnSync("git", args, { encoding: "utf8", cwd, env: NET_ENV });
     if (r.status !== 0) {
         throw new Error(
             `git ${args.join(" ")} failed: ${(r.stderr || "").trim()}`
         );
     }
-    return r.stdout.trim();
+    return trim ? r.stdout.trim() : r.stdout;
+}
+
+/**
+ * Paths out of `git status --porcelain`, which is COLUMN-ORIENTED: two status
+ * characters, a space, then the path — and for an unstaged modification the
+ * first of those two characters is itself a space.
+ *
+ * So the output must NOT be trimmed before it is split. Trimming removes the
+ * leading space of the FIRST line only, shifting that one line's columns by
+ * one, and `slice(3)` then eats the first character of the path:
+ * `CLAUDE.md` shipped as `LAUDE.md` and `git add` failed with
+ * `pathspec 'LAUDE.md' did not match any files`. Only the first line, only
+ * sometimes — which is exactly the kind of bug that survives a smoke test.
+ */
+export function parsePorcelainPaths(raw: string): string[] {
+    const out: string[] = [];
+    for (const line of raw.split("\n")) {
+        if (line.length < 4) continue;
+        let p = line.slice(3);
+        // Renames and copies read `R  old -> new`; the new path is the one that
+        // has to be staged.
+        const arrow = p.indexOf(" -> ");
+        if (arrow !== -1) p = p.slice(arrow + 4);
+        // git quotes paths carrying unusual characters.
+        if (p.startsWith('"') && p.endsWith('"')) p = p.slice(1, -1);
+        if (p !== "") out.push(p);
+    }
+    return out;
 }
 
 function run(cmd: string, args: string[], cwd = process.cwd()): boolean {
@@ -217,9 +245,7 @@ function cmdShip(argv: string[]): void {
     git(["fetch", "origin", "main", "-q"], cwd);
     const changed = [
         ...git(["diff", "--name-only", "origin/main...HEAD"], cwd).split("\n"),
-        ...git(["status", "--porcelain"], cwd)
-            .split("\n")
-            .map((l) => l.slice(3).trim()),
+        ...parsePorcelainPaths(git(["status", "--porcelain"], cwd, false)),
     ].filter((p) => p !== "");
 
     const { docs, foreign } = classifyChanges([...new Set(changed)]);
