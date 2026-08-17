@@ -73,6 +73,12 @@ function toStoredSeat(seat: LimitedEventSeat): StoredSeat {
     const slim: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(seat)) {
         if ((PAYLOAD_KEYS as readonly string[]).includes(key)) continue;
+        // `selectedPickId` lives in `limitedSelections` now, and a hydrated
+        // seat carries the value READ from there — writing it back would
+        // recreate the inline copy this split removed, and worse, that copy
+        // would then out-live a subsequent CLEAR (which deletes the selection
+        // row) and silently resurrect a selection the player cancelled.
+        if (key === "selectedPickId") continue;
         if (value === undefined) continue;
         slim[key] = value;
     }
@@ -86,6 +92,75 @@ function toStoredSeat(seat: LimitedEventSeat): StoredSeat {
     // Every seat written back originated from a real id, so this is the same
     // type-level reconciliation `limitedEvents.ts`'s `asDbSeats` performs.
     return slim as unknown as StoredSeat;
+}
+
+/** Reads the Selected Card rows for `eventId`, keyed by seat index
+ *  (`limitedSelections`, see `convex/schema.ts`).
+ *
+ *  Narrowing matters more here than it does for the payload: a selection row
+ *  is ~100 bytes, so this is not about bytes at all — it is about the READ
+ *  SET. A narrowed hydration does point lookups, so the viewer's subscription
+ *  depends only on the viewer's own selection row and another seat's click
+ *  cannot re-execute it. Collecting the whole range would put every seat back
+ *  in each other's invalidation path, which is exactly what splitting the
+ *  field off the event row was for. */
+async function loadSelections(
+    ctx: QueryCtx,
+    eventId: Id<"limitedEvents">,
+    seatIndexes?: readonly number[]
+): Promise<Map<number, string>> {
+    const byIndex = new Map<number, string>();
+    if (seatIndexes !== undefined) {
+        for (const seatIndex of seatIndexes) {
+            const row = await ctx.db
+                .query("limitedSelections")
+                .withIndex("by_event", (q) =>
+                    q.eq("eventId", eventId).eq("seatIndex", seatIndex)
+                )
+                .unique();
+            if (row) byIndex.set(seatIndex, row.pickId);
+        }
+        return byIndex;
+    }
+    const rows = await ctx.db
+        .query("limitedSelections")
+        .withIndex("by_event", (q) => q.eq("eventId", eventId))
+        .collect();
+    for (const row of rows) byIndex.set(row.seatIndex, row.pickId);
+    return byIndex;
+}
+
+/** Sets or clears one seat's Selected Card. `pickId: null` deletes the row.
+ *
+ *  The ONLY writer of `limitedSelections`, and deliberately not routed through
+ *  `saveSeats`: the point of the split is that a click writes ~100 bytes and
+ *  touches no shared document, so it must not drag the event row into the
+ *  transaction. (`saveSlimSeats`, the "write back only the event row's slim
+ *  seats" helper that used to serve `selectDraftPick`, existed for exactly
+ *  this call and went with it.) */
+export async function saveSelection(
+    ctx: MutationCtx,
+    eventId: Id<"limitedEvents">,
+    seatIndex: number,
+    pickId: string | null
+): Promise<void> {
+    const row = await ctx.db
+        .query("limitedSelections")
+        .withIndex("by_event", (q) =>
+            q.eq("eventId", eventId).eq("seatIndex", seatIndex)
+        )
+        .unique();
+    if (pickId === null) {
+        if (row) await ctx.db.delete(row._id);
+        return;
+    }
+    if (row) {
+        // Re-selecting the same card is a no-op rather than a write — the UI
+        // sends a click, not a diff.
+        if (row.pickId !== pickId) await ctx.db.patch(row._id, { pickId });
+        return;
+    }
+    await ctx.db.insert("limitedSelections", { eventId, seatIndex, pickId });
 }
 
 /** Reads the child rows for `eventId`, keyed by seat index. */
@@ -136,8 +211,15 @@ export async function hydrateSeats(
     seatIndexes?: readonly number[]
 ): Promise<LimitedEventSeat[]> {
     const payloads = await loadPayloads(ctx, event._id, seatIndexes);
+    const selections = await loadSelections(ctx, event._id, seatIndexes);
     return event.seats.map((seat) => {
         const stored = seat as unknown as LimitedEventSeat;
+        // A selection row wins over the inline legacy copy; absent means no
+        // selection, and for a seat left slim by a narrowed hydration it also
+        // means "not loaded", which reads the same way to every consumer as
+        // the stripped payload does.
+        const selectedPickId =
+            selections.get(seat.seatIndex) ?? stored.selectedPickId;
         if (
             seatIndexes !== undefined &&
             !seatIndexes.includes(seat.seatIndex)
@@ -146,12 +228,22 @@ export async function hydrateSeats(
             // a narrowed hydration behaves identically on migrated and
             // un-migrated rows (otherwise an old row would leak another seat's
             // Pool into a projection that assumes it isn't there).
-            const { pool, currentPack, packQueue, poolArrangement, ...rest } =
-                stored;
+            // `selectedPickId` is stripped on the same grounds: an
+            // un-migrated row must not leak another seat's tentative pick
+            // where a migrated one shows nothing.
+            const {
+                pool,
+                currentPack,
+                packQueue,
+                poolArrangement,
+                selectedPickId: _selected,
+                ...rest
+            } = stored;
             void pool;
             void currentPack;
             void packQueue;
             void poolArrangement;
+            void _selected;
             return rest;
         }
         const payload = payloads.get(seat.seatIndex);
@@ -159,7 +251,11 @@ export async function hydrateSeats(
         // an un-migrated legacy row still carrying it inline. `stored` already
         // holds the inline copy in the latter case, so falling through to it
         // is exactly right for both.
-        return payload ? { ...stored, ...payload } : stored;
+        return {
+            ...stored,
+            ...(payload ?? {}),
+            ...(selectedPickId === undefined ? {} : { selectedPickId }),
+        };
     });
 }
 
@@ -297,44 +393,6 @@ export async function saveSeatPayload(
     }
 }
 
-/** Writes back ONLY the event row's slim seats, touching no child row.
- *
- *  For a caller that changed nothing but small per-seat state — a Selected
- *  Card, a seat assignment — which is the whole point of keeping those fields
- *  on the event row: `selectDraftPick` fires on every click in a Booster, and
- *  routing it through `saveSeats` would make it read all 8 payload rows just
- *  to discover it changed none of them.
- *
- *  Safe with a NARROWLY hydrated seat array (unlike `saveSeats`): the payload
- *  keys are stripped rather than written, so a seat left slim by
- *  `hydrateSeats` cannot overwrite a real Pool. */
-export async function saveSlimSeats(
-    ctx: MutationCtx,
-    event: Doc<"limitedEvents">,
-    seats: LimitedEventSeat[],
-    extraPatch: Partial<Omit<Doc<"limitedEvents">, "_id" | "seats">> = {}
-): Promise<void> {
-    const migrated = await ensureSeatsMigrated(ctx, event);
-    // `poolCount` is store-owned metadata, not something a caller carries: a
-    // seat left slim by a narrowed hydration has no Pool AND no count to
-    // re-derive one from, so writing the caller's array verbatim would erase
-    // the stored count for every seat it didn't load. Take it from the row
-    // instead — the caller only ever owns the small mutable fields.
-    const storedCounts = new Map(
-        migrated.seats.map((seat) => [seat.seatIndex, seat.poolCount])
-    );
-    await ctx.db.patch(migrated._id, {
-        ...extraPatch,
-        seats: seats.map((seat) => {
-            const stored = toStoredSeat(seat);
-            const poolCount = seat.pool
-                ? seat.pool.length
-                : storedCounts.get(seat.seatIndex);
-            return poolCount === undefined ? stored : { ...stored, poolCount };
-        }),
-    });
-}
-
 /** Deletes every `limitedSeats` row of an event — for the event's own
  *  deletion (cancel / GC), which would otherwise orphan the payload. */
 export async function deleteSeats(
@@ -346,4 +404,9 @@ export async function deleteSeats(
         .withIndex("by_event", (q) => q.eq("eventId", eventId))
         .collect();
     for (const row of rows) await ctx.db.delete(row._id);
+    const selections = await ctx.db
+        .query("limitedSelections")
+        .withIndex("by_event", (q) => q.eq("eventId", eventId))
+        .collect();
+    for (const row of selections) await ctx.db.delete(row._id);
 }

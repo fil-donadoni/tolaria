@@ -28,6 +28,16 @@ export interface InMemoryDb {
      *  dirty check actually SKIPPED a write rather than merely producing the
      *  right final state by luck. */
     writes: { table: string; id: string }[];
+    /** Every executed query, in order, as the table plus the index-equality
+     *  values it was narrowed by (`[]` for an unnarrowed scan).
+     *
+     *  For the assertions that are about a READ SET rather than a result: in
+     *  Convex a query's read set is what its subscription re-executes on, so
+     *  "this read touched only the viewer's own row" is a correctness property
+     *  with no observable effect on the returned value — a widened read is
+     *  invisible to every result-shaped assertion and shows up only as
+     *  someone else's board re-rendering, or as a bill. */
+    reads: { table: string; key: unknown[] }[];
 }
 
 export interface InMemoryDbOptions {
@@ -50,6 +60,7 @@ export function makeInMemoryDb(
     }
     let nextId = 1000;
     const writes: { table: string; id: string }[] = [];
+    const reads: { table: string; key: unknown[] }[] = [];
 
     const db = {
         get: async (id: string) => {
@@ -68,23 +79,35 @@ export function makeInMemoryDb(
             // insertion order, same as `.withIndex`'s `matching()`); nothing
             // in this project's test suite asserts ORDER through this
             // fixture, only membership.
-            const terminal = (rows: () => InMemoryRow[]) => ({
-                // `direction` is part of the real Convex signature (callers
-                // pass "desc") but this fixture reads rows back in insertion
-                // order regardless — see the comment above.
-                order: (direction: "asc" | "desc") => {
-                    void direction;
-                    return terminal(rows);
-                },
-                unique: async () => rows()[0] ?? null,
-                collect: async () => rows(),
-                first: async () => rows()[0] ?? null,
-                take: async (n: number) => rows().slice(0, n),
-            });
+            const terminal = (
+                rows: () => InMemoryRow[],
+                key: () => unknown[]
+            ) => {
+                // Recorded at EXECUTION, not at construction: an unexecuted
+                // query builder reads nothing, and the read set is what the
+                // terminal call actually resolved.
+                const run = () => {
+                    reads.push({ table, key: key() });
+                    return rows();
+                };
+                return {
+                    // `direction` is part of the real Convex signature
+                    // (callers pass "desc") but this fixture reads rows back
+                    // in insertion order regardless — see the comment above.
+                    order: (direction: "asc" | "desc") => {
+                        void direction;
+                        return terminal(rows, key);
+                    },
+                    unique: async () => run()[0] ?? null,
+                    collect: async () => run(),
+                    first: async () => run()[0] ?? null,
+                    take: async (n: number) => run().slice(0, n),
+                };
+            };
             const allRows = () =>
                 (tables[table] ?? []).map((r) => structuredClone(r));
             return {
-                ...terminal(allRows),
+                ...terminal(allRows, () => []),
                 withIndex: (
                     _name: string,
                     build?: (q: {
@@ -107,7 +130,9 @@ export function makeInMemoryDb(
                                 ([field, value]) => row[field] === value
                             )
                         );
-                    return terminal(matching);
+                    return terminal(matching, () =>
+                        filters.map(([, value]) => value)
+                    );
                 },
             };
         },
@@ -161,5 +186,10 @@ export function makeInMemoryDb(
                   },
     };
 
-    return { ctx: { db, auth } as unknown as MutationCtx, tables, writes };
+    return {
+        ctx: { db, auth } as unknown as MutationCtx,
+        tables,
+        writes,
+        reads,
+    };
 }

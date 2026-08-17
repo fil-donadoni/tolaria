@@ -17,6 +17,11 @@ import {
 import type { Doc, Id } from "./_generated/dataModel";
 import { getCurrentUser, getCurrentUserId, isAdminUser } from "./auth";
 import {
+    deleteCubePool,
+    loadCubePool,
+    saveCubePool,
+} from "./limitedCubePoolStore";
+import {
     deleteSeats,
     ensureSeatsMigrated,
     eventHasInlinePayload,
@@ -24,7 +29,7 @@ import {
     hydrateSeats,
     saveSeatPayload,
     saveSeats,
-    saveSlimSeats,
+    saveSelection,
 } from "./limitedSeatStore";
 import {
     getCardByName,
@@ -898,6 +903,19 @@ async function projectEventForViewer(
               : [viewerSeatIndex]
     );
     const hydrated = { ...event, seats: asDbSeats(seats) };
+    // The frozen cube pool projects to an ADMIN viewer of a COMPLETED draft
+    // and to nobody else (`projectLimitedEvent`'s `cubePool` gate) — so it is
+    // loaded on exactly that path (`convex/limitedCubePoolStore.ts`) rather
+    // than riding along on every read of the event row. The gate is repeated
+    // here rather than derived: an over-eager load would silently restore the
+    // 11.7 KB per-execution cost this split exists to remove, and a mismatch
+    // in the other direction is harmless (the projection re-checks and nulls
+    // it). `completed` is only known after `computeEventCompletion` below, so
+    // this uses the persisted `draftCompletedAt` — the same fact, available
+    // earlier, and the narrower of the two.
+    if (isAdmin && event.type === "draft" && event.draftCompletedAt) {
+        hydrated.cubePool = await loadCubePool(ctx, event);
+    }
     // Decks exist for as long as Pools do — through the play phase and past
     // the event's end (ADR 0076), not only while `status === "started"`. A
     // literal comparison here would have blanked every seat's deck (and, via
@@ -1698,6 +1716,9 @@ export const cancelLimitedEvent = mutation({
             // since an orphaned `limitedSeats` row would be unreachable
             // forever.
             await deleteSeats(ctx, args.eventId);
+            // Same "delete unconditionally rather than assume" discipline for
+            // the cube pool row — a no-op for an event that never started.
+            await deleteCubePool(ctx, args.eventId);
             await ctx.db.delete(args.eventId);
             return null;
         }
@@ -1791,10 +1812,14 @@ export const startLimitedEvent = mutation({
                 timerConfig,
                 cubePool
             );
+            // The frozen pool goes in its own row, not on the event
+            // (`convex/limitedCubePoolStore.ts`) — every later reader of the
+            // event row would otherwise be billed for 11.7 KB only the round
+            // deal consumes.
+            if (cubePool) await saveCubePool(ctx, args.eventId, cubePool);
             await saveSeats(ctx, args.eventId, afterBots.seats, {
                 status: "started",
                 seed,
-                ...(cubePool ? { cubePool: [...cubePool] } : {}),
                 scorerVersion: SCORER_VERSION,
                 draftRound: afterBots.draftRound,
                 draftPacksRemaining: afterBots.draftPacksRemaining,
@@ -1972,13 +1997,19 @@ export const selectDraftPick = mutation({
             throw new Error("That card is not in your current pack.");
         }
 
-        seats[seatIndex] = {
-            ...seat,
-            selectedPickId: args.pickId ?? undefined,
-        };
-        // `selectedPickId` lives on the event row, so the write touches no
-        // seat payload at all — a selection never rewrites a Pool.
-        await saveSlimSeats(ctx, event, seats, { updatedAt: Date.now() });
+        // A selection writes ONE ~100-byte row of its own and touches the
+        // event document not at all (`limitedSelections`, `convex/schema.ts`).
+        // It used to rewrite the whole event row, which re-executed every open
+        // `getLimitedEvent` subscription on the table — eight seats clicking
+        // around a booster invalidating each other's board for state none of
+        // them can see, and every click contending with every pick for the
+        // same document.
+        //
+        // `updatedAt` is deliberately NOT bumped: it exists to order and
+        // display real event activity, and bumping it would reintroduce the
+        // event-row write this change exists to remove. A tentative click is
+        // not activity.
+        await saveSelection(ctx, event._id, seatIndex, args.pickId);
         return null;
     },
 });
@@ -2017,6 +2048,14 @@ export const submitPick = mutation({
         // needs every seat's payload — a narrowed load would read another
         // seat's missing pack as an empty one.
         const hydratedSeats = await hydrateSeats(ctx, event);
+        // The frozen cube pool, loaded ONLY for a cube draft: this pick may be
+        // the one that empties the round and deals the next, and that deal
+        // must slice the same shuffle round 0 came from (ADR 0062). Which pick
+        // it will be is not knowable before `applyPick` runs — the bot
+        // auto-picks below can empty several packs in one transaction — so a
+        // cube draft loads it on every pick. Every NON-cube draft, and every
+        // other reader of the event row, now pays nothing for it at all.
+        const cubePool = await loadCubePool(ctx, event);
 
         const now = Date.now();
         const timerConfig = buildTimerConfig(event.timerEnabled, now);
@@ -2031,10 +2070,7 @@ export const submitPick = mutation({
             getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig,
-            // The pool frozen at `startEvent` — this pick may be the one that
-            // empties the round and deals the next, and that deal MUST slice
-            // the same shuffle round 0 came from (ADR 0062).
-            event.cubePool
+            cubePool
         );
 
         // The human's pick can pass a pack straight onto a bot seat, or empty
@@ -2056,7 +2092,7 @@ export const submitPick = mutation({
             botChoosePick,
             result.completed,
             timerConfig,
-            event.cubePool
+            cubePool
         );
 
         await saveSeats(ctx, args.eventId, afterBots.seats, {
@@ -2125,6 +2161,116 @@ export const migrateSeatPayload = internalMutation({
     },
 });
 
+/** One-shot backfill for the `limitedSelections` split (`convex/schema.ts`):
+ *  moves every seat's inline `selectedPickId` into its own row and clears the
+ *  inline copy.
+ *
+ *  Unlike the other two backfills in this file this one is time-sensitive, and
+ *  should be run IMMEDIATELY after deploying rather than at leisure: reads
+ *  prefer a selection row and fall back to the inline copy, but writes no
+ *  longer emit an inline copy at all (`toStoredSeat`,
+ *  `convex/limitedSeatStore.ts`) — so a pick landing on an un-migrated event
+ *  in the window between deploy and backfill drops that event's pending
+ *  selections. They are tentative, never-committed clicks that a player can
+ *  simply make again, which is why the window is acceptable at all; it is not
+ *  acceptable to leave open.
+ *
+ *      bunx convex run --prod limitedEvents:migrateSelections '{}'
+ *
+ *  Idempotent: a seat with no inline selection is skipped, and an existing
+ *  selection row is left alone (it is by definition fresher than the inline
+ *  copy it replaced). */
+export const migrateSelections = internalMutation({
+    args: { limit: v.optional(v.number()) },
+    returns: v.object({ migrated: v.number(), remaining: v.number() }),
+    handler: async (ctx, args) => {
+        const limit = args.limit ?? 25;
+        const events = await ctx.db
+            .query("limitedEvents")
+            .take(MY_EVENTS_SCAN_LIMIT);
+        let migrated = 0;
+        let remaining = 0;
+        for (const event of events) {
+            if (!event.seats.some((s) => s.selectedPickId !== undefined)) {
+                continue;
+            }
+            if (migrated >= limit) {
+                remaining++;
+                continue;
+            }
+            for (const seat of event.seats) {
+                if (seat.selectedPickId === undefined) continue;
+                const existing = await ctx.db
+                    .query("limitedSelections")
+                    .withIndex("by_event", (q) =>
+                        q
+                            .eq("eventId", event._id)
+                            .eq("seatIndex", seat.seatIndex)
+                    )
+                    .unique();
+                if (existing) continue;
+                await saveSelection(
+                    ctx,
+                    event._id,
+                    seat.seatIndex,
+                    seat.selectedPickId
+                );
+            }
+            await ctx.db.patch(event._id, {
+                seats: event.seats.map((seat) => {
+                    const slim = { ...seat };
+                    delete slim.selectedPickId;
+                    return slim;
+                }),
+            });
+            migrated++;
+        }
+        return { migrated, remaining };
+    },
+});
+
+/** One-shot backfill for the `limitedCubePools` split (`convex/schema.ts`):
+ *  moves every already-stored cube event's inline `cubePool` into its child
+ *  row and clears the inline copy.
+ *
+ *  Not required for correctness — `loadCubePool` folds an inline copy in when
+ *  no child row exists — but an un-migrated row stays 11.7 KB fatter forever,
+ *  and that fat row is what every pick, click and open subscription re-reads.
+ *  Run once per deployment after deploying:
+ *
+ *      bunx convex run --prod limitedEvents:migrateCubePool '{}'
+ *
+ *  Idempotent: an event with no inline pool is skipped without a write.
+ *  `limit` bounds one invocation's transaction; the returned `remaining` says
+ *  whether to run it again. */
+export const migrateCubePool = internalMutation({
+    args: { limit: v.optional(v.number()) },
+    returns: v.object({ migrated: v.number(), remaining: v.number() }),
+    handler: async (ctx, args) => {
+        const limit = args.limit ?? 25;
+        // Same bounded walk as `migrateSeatPayload`: no index can express "is
+        // legacy", so the scan is capped explicitly.
+        const events = await ctx.db
+            .query("limitedEvents")
+            .take(MY_EVENTS_SCAN_LIMIT);
+        let migrated = 0;
+        let remaining = 0;
+        for (const event of events) {
+            if (event.cubePool === undefined) continue;
+            if (migrated >= limit) {
+                remaining++;
+                continue;
+            }
+            await saveCubePool(ctx, event._id, event.cubePool);
+            // Clearing the inline copy is the whole point — the child row
+            // alone is not a saving while the event row still carries it.
+            await ctx.db.patch(event._id, { cubePool: undefined });
+            migrated++;
+        }
+        return { migrated, remaining };
+    },
+});
+
 /** Auto-Pick timeout (issue #1114, PRD #1107 stories 5, 14, 16, 27): fires
  *  when a human seat's per-pick timer expires. `internalMutation` — reachable
  *  ONLY via `ctx.scheduler.runAfter` (scheduled by `startLimitedEvent` /
@@ -2171,6 +2317,9 @@ export const autoPickSeatTimeout = internalMutation({
         if ((slimSeat.pickSeq ?? 0) !== args.expectedSeq) return null;
 
         const hydratedSeats = await hydrateSeats(ctx, event);
+        // Same reasoning as `submitPick`: an Auto-Pick can be the pick that
+        // empties the round, so a cube draft loads its frozen pool here too.
+        const cubePool = await loadCubePool(ctx, event);
         const getPickRating = await loadEventPickRating(ctx, event.packSlots);
         const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
         const botChoosePick = makeBotChoosePick(getPickRating, getCardProfile);
@@ -2195,7 +2344,7 @@ export const autoPickSeatTimeout = internalMutation({
             getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig,
-            event.cubePool
+            cubePool
         );
         const afterBots = runBotAutoPicks(
             result.seats,
@@ -2208,7 +2357,7 @@ export const autoPickSeatTimeout = internalMutation({
             botChoosePick,
             result.completed,
             timerConfig,
-            event.cubePool
+            cubePool
         );
 
         await saveSeats(ctx, args.eventId, afterBots.seats, {

@@ -18,6 +18,14 @@ export interface MutationStub {
     ctx: MutationCtx;
     /** Read back a seeded/mutated document by id. */
     doc: (id: string) => Row;
+    /** Every `ctx.db.get(id)`, in order.
+     *
+     *  For assertions about the READ SET rather than the result: a handler
+     *  that reads a document it does not need still returns the right answer,
+     *  and in Convex that extra read is billed by the WHOLE document and puts
+     *  the reader in that document's invalidation path. Nothing result-shaped
+     *  can see it. */
+    gets: string[];
     /** Convenience accessor for the single `gameStates` row every scenario
      *  here seeds as `gs-1`. */
     state: () => GameState;
@@ -32,6 +40,7 @@ export function makeMutationCtx(
 ): MutationStub {
     const docs = new Map<string, Row>();
     for (const seed of seeds) docs.set(seed._id as string, { ...seed });
+    const gets: string[] = [];
 
     const ctx = {
         auth: {
@@ -39,7 +48,10 @@ export function makeMutationCtx(
                 userId === null ? null : { subject: `${userId}|session1` },
         },
         db: {
-            get: async (id: string) => docs.get(id) ?? null,
+            get: async (id: string) => {
+                gets.push(id);
+                return docs.get(id) ?? null;
+            },
             insert: async (table: string, doc: Row) => {
                 const id = `${table}-${docs.size + 1}`;
                 docs.set(id, { ...doc, _id: id, __table: table });
@@ -78,6 +90,7 @@ export function makeMutationCtx(
     return {
         ctx: ctx as unknown as MutationCtx,
         doc: (id) => docs.get(id)!,
+        gets,
         // `saveGameState` persists the COMPACT form (`compactState`) — read
         // it back the same way the mutation's own `getLatestGameState` does
         // (`expandState`), or fields the compactor drops when falsy/default

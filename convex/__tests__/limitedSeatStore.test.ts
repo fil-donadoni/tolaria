@@ -22,7 +22,7 @@ import {
     hydrateSeats,
     saveSeatPayload,
     saveSeats,
-    saveSlimSeats,
+    saveSelection,
 } from "../limitedSeatStore";
 
 // --- In-memory db ------------------------------------------------------------
@@ -32,11 +32,12 @@ type Row = InMemoryRow;
 /** The shared in-memory ctx (`fixtures/inMemoryDb.ts`), plus the two accessors
  *  this file's assertions are written against. */
 function makeDb(initial: Record<string, Row[]>) {
-    const { ctx, tables, writes } = makeInMemoryDb(initial);
+    const { ctx, tables, writes, reads } = makeInMemoryDb(initial);
     return {
         ctx,
         tables,
         writes,
+        reads,
         seatRows: () => tables.limitedSeats ?? [],
         event: () => tables.limitedEvents[0] as unknown as Doc<"limitedEvents">,
     };
@@ -107,8 +108,13 @@ function makeFixture({ inline = false }: { inline?: boolean } = {}) {
     const db = makeDb({
         limitedEvents: [eventRow],
         limitedSeats: seatRows,
+        limitedSelections: [],
     });
-    return { ...db, seats };
+    return {
+        ...db,
+        seats,
+        selectionRows: () => db.tables.limitedSelections ?? [],
+    };
 }
 
 const EVENT_ID = "event-1" as Id<"limitedEvents">;
@@ -249,28 +255,87 @@ describe("limitedSeatStore — writes", () => {
         ).toEqual(["limitedSeats-0"]);
     });
 
-    it("saveSlimSeats writes the event row without touching any payload row", async () => {
-        const { ctx, event, writes } = makeFixture();
-        const seats = await hydrateSeats(ctx, event(), [0]);
-        seats[0] = { ...seats[0], selectedPickId: "r0-p0-c0" };
-
-        writes.length = 0;
-        await saveSlimSeats(ctx, event(), seats, { updatedAt: 5 });
-
-        expect(writes.filter((w) => w.table === "limitedSeats")).toHaveLength(
-            0
-        );
-        expect(event().seats[0].selectedPickId).toBe("r0-p0-c0");
-        // …and the narrowly-hydrated seat 1 did NOT lose its Pool.
-        const hydrated = await hydrateSeats(ctx, event());
-        expect(hydrated[1].pool).toHaveLength(2);
-        expect(hydrated[0].pool).toHaveLength(4);
-    });
-
     it("deleteSeats drops every payload row of the event", async () => {
         const { ctx, seatRows } = makeFixture();
         await deleteSeats(ctx, EVENT_ID);
         expect(seatRows()).toHaveLength(0);
+    });
+
+    it("deleteSeats drops the selection rows too", async () => {
+        const { ctx, selectionRows } = makeFixture();
+        await saveSelection(ctx, EVENT_ID, 0, "r0-p0-c0");
+        await deleteSeats(ctx, EVENT_ID);
+        expect(selectionRows()).toHaveLength(0);
+    });
+});
+
+// The `limitedSelections` split (`convex/schema.ts`): a Selected Card is
+// private to its own seat and fires at click cadence, so it must cost one
+// small row of its own and leave the shared event document alone. Every way
+// this can go wrong is silent — a selection that survives its own clear, a
+// click that still writes the event row, a seat reading another seat's pick.
+describe("limitedSeatStore — Selected Card", () => {
+    it("a selection writes its own row and never the event row", async () => {
+        const { ctx, event, writes } = makeFixture();
+        writes.length = 0;
+        await saveSelection(ctx, EVENT_ID, 0, "r0-p0-c0");
+
+        expect(writes.map((w) => w.table)).toEqual(["limitedSelections"]);
+        expect(await hydrateSeats(ctx, event(), [0])).toMatchObject([
+            { selectedPickId: "r0-p0-c0" },
+            {},
+        ]);
+    });
+
+    it("clearing deletes the row, and the clear STICKS across a pick", async () => {
+        // The resurrect bug this guards: a hydrated seat carries the value
+        // read from the selection row, so a save that wrote it back onto the
+        // event row would leave an inline copy that out-lives the delete and
+        // silently re-selects a card the player cancelled.
+        const { ctx, event, selectionRows } = makeFixture();
+        await saveSelection(ctx, EVENT_ID, 0, "r0-p0-c0");
+        const hydrated = await hydrateSeats(ctx, event());
+        await saveSeats(ctx, EVENT_ID, hydrated, { updatedAt: 9 });
+        expect(event().seats[0].selectedPickId).toBeUndefined();
+
+        await saveSelection(ctx, EVENT_ID, 0, null);
+        expect(selectionRows()).toHaveLength(0);
+        expect(
+            (await hydrateSeats(ctx, event()))[0].selectedPickId
+        ).toBeUndefined();
+    });
+
+    it("a narrowed hydration reads only its own seat's selection", async () => {
+        // Not a byte count — a READ SET. If seat 0's hydration touched seat
+        // 1's row, every seat's subscription would re-execute on every other
+        // seat's click, which is the cost the split removes.
+        const { ctx, event, reads } = makeFixture();
+        await saveSelection(ctx, EVENT_ID, 1, "r0-p1-c0");
+        reads.length = 0;
+        const hydrated = await hydrateSeats(ctx, event(), [0]);
+
+        expect(hydrated[0].selectedPickId).toBeUndefined();
+        expect(hydrated[1].selectedPickId).toBeUndefined();
+        expect(reads.filter((r) => r.table === "limitedSelections")).toEqual([
+            { table: "limitedSelections", key: [EVENT_ID, 0] },
+        ]);
+    });
+
+    it("prefers the selection row over a legacy inline copy", async () => {
+        const { ctx, event } = makeFixture({ inline: true });
+        await ctx.db.patch(EVENT_ID, {
+            seats: event().seats.map((seat, i) =>
+                i === 0 ? { ...seat, selectedPickId: "stale" } : seat
+            ),
+        });
+        expect((await hydrateSeats(ctx, event()))[0].selectedPickId).toBe(
+            "stale"
+        );
+
+        await saveSelection(ctx, EVENT_ID, 0, "r0-p0-c0");
+        expect((await hydrateSeats(ctx, event()))[0].selectedPickId).toBe(
+            "r0-p0-c0"
+        );
     });
 });
 
@@ -293,19 +358,25 @@ describe("limitedSeatStore — legacy migration", () => {
         expect(writes).toHaveLength(0);
     });
 
-    it("a slim write on a LEGACY event does not delete the Pools", async () => {
-        // The regression this guards: `saveSlimSeats` strips the payload keys
-        // unconditionally, so without the migration precondition it would
-        // rewrite an un-migrated event's seats with the cards simply gone.
+    it("a single-seat payload write on a LEGACY event does not delete the Pools", async () => {
+        // The regression this guards: the slim write helpers strip the payload
+        // keys unconditionally, so without the `ensureSeatsMigrated`
+        // precondition a single-seat edit would rewrite an un-migrated event's
+        // seats with every OTHER seat's cards simply gone.
         const { ctx, event, seats } = makeFixture({ inline: true });
-        const narrow = await hydrateSeats(ctx, event(), [0]);
-        narrow[0] = { ...narrow[0], selectedPickId: "r0-p0-c0" };
 
-        await saveSlimSeats(ctx, event(), narrow);
+        await saveSeatPayload(ctx, event(), 0, {
+            poolArrangement: [{ poolIndex: 1, sideboard: true }],
+        });
 
         expect(await hydrateSeats(ctx, event())).toEqual(
             withCounts(seats).map((s, i) =>
-                i === 0 ? { ...s, selectedPickId: "r0-p0-c0" } : s
+                i === 0
+                    ? {
+                          ...s,
+                          poolArrangement: [{ poolIndex: 1, sideboard: true }],
+                      }
+                    : s
             )
         );
     });
