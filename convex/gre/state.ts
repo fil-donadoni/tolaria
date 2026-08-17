@@ -1588,7 +1588,7 @@ export type PlayerState = {
      *  Metamorphosis's "spend only to cast creature spells"). Distinct from
      *  the fungible `manaPool`; consumed first when a permitted spell is cast
      *  (see `payManaCostForSpell`) and emptied with `manaPool` at end of
-     *  step/phase (CR 500.4). Absent when the player has no restricted mana. */
+     *  step/phase (CR 500.5). Absent when the player has no restricted mana. */
     restrictedMana?: RestrictedMana[];
     /** Set when a player attempts to draw from an empty library (CR 704.5b). */
     hasDrawnFromEmpty?: boolean;
@@ -2483,7 +2483,7 @@ const DEFAULT_ORDER_TOP_PROMPT: Record<LibraryDestination, string> = {
  *  by effects like Metamorphosis ("Add X mana of any one color … Spend this
  *  mana only to cast creature spells"). Kept separate from the fungible
  *  `manaPool` so the spend restriction can be enforced at payment time; emptied
- *  alongside `manaPool` at end of step/phase (CR 500.4).
+ *  alongside `manaPool` at end of step/phase (CR 500.5).
  *
  *  A unit carries EITHER a type-keyed `restriction` (Metamorphosis / Mishra's
  *  Workshop / cumulative-upkeep) OR an instance-keyed `castableCardId` (Ice

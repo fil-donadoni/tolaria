@@ -1380,7 +1380,7 @@ export const ashnodsAltar: CardDefinition = {
 // CR 106.6 — the produced mana carries an "artifact-spell" spend restriction.
 // It floats in the controller's parallel `restrictedMana` pool (declared via
 // the ability's `manaRestriction` field) instead of the fungible pool, empties
-// at end of step/phase like any mana (CR 500.4), and the spell-cast payment
+// at end of step/phase like any mana (CR 500.5), and the spell-cast payment
 // sites accept it only for spells whose types include "Artifact"
 // (restrictionAllowsSpell). It can never pay for an activated ability or a
 // non-artifact spell. Per ADR 0022 this reuses the restricted-mana storage,

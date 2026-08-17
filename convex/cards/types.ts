@@ -3169,7 +3169,7 @@ export interface SpellContext {
     /** Adds restricted mana to `playerId`'s pool (CR 106.6) — mana that can
      *  only pay for costs the `restriction` permits (e.g. Metamorphosis:
      *  "Spend this mana only to cast creature spells"). Empties at end of
-     *  step/phase like normal mana (CR 500.4). */
+     *  step/phase like normal mana (CR 500.5). */
     addRestrictedMana: (
         playerId: string,
         cost: ManaCost,

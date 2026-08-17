@@ -1896,21 +1896,24 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
 function performPhaseEntry(state: GameState): void {
     switch (state.phase) {
         case "UNTAP":
-            // CR 502.1 — "until its controller's next untap step" effects expire
-            // as that controller's untap step begins (Orcish Farmer's land-type
-            // change). Ticked BEFORE the untap proper so the permanent is back to
-            // its printed characteristics for the rest of the step. The tick is
-            // keyed to the UNTAP boundary + the effect's controller via
-            // `tickDuration`; entries scoped to other boundaries are untouched.
+            // CR 500.4 — "until its controller's next untap step"
+            // effects expire as that controller's untap step BEGINS (Orcish
+            // Farmer's land-type change) — this is CR 500.4's "as a step or
+            // phase begins" expiry. Ticked BEFORE the untap proper so the
+            // permanent is back to its printed characteristics for the rest
+            // of the step. The tick is keyed to the UNTAP boundary + the
+            // effect's controller via `tickDuration`; entries scoped to
+            // other boundaries are untouched.
             tickAllDurations(state);
             untapStep(state);
             break;
         case "UPKEEP":
-            // CR 500.2 — "until your next upkeep" effects expire as the active
-            // player's upkeep begins (Xenic Poltergeist's animation). The tick
-            // is keyed to the UPKEEP boundary + the effect's controller via
-            // `tickDuration`; entries scoped to end-of-turn / end-of-combat are
-            // left untouched here.
+            // CR 500.4 — "until your next upkeep" effects expire as
+            // the active player's upkeep BEGINS (Xenic Poltergeist's
+            // animation) — this is CR 500.4's "as a step or phase begins"
+            // expiry. The tick is keyed to the UPKEEP boundary + the
+            // effect's controller via `tickDuration`; entries scoped to
+            // end-of-turn / end-of-combat are left untouched here.
             tickAllDurations(state);
             // CR 502.2 / 603.7d — "at the beginning of the next turn's upkeep"
             // delayed triggers (Ice Age cantrips: Blessed Wine, Heal, Flare, …)
@@ -3207,13 +3210,13 @@ function advanceTurn(state: GameState): void {
  * Auto-phases (UNTAP, CLEANUP) are traversed without giving priority.
  * Returns the list of phases traversed (for event emission).
  */
-/** Empty mana pools for all players (CR 500.4). Tapped lands become committed (non-untappable until untap step). */
+/** Empty mana pools for all players (CR 500.5 / 703.4q). Tapped lands become committed (non-untappable until untap step). */
 function emptyManaPools(state: GameState): void {
     for (const player of state.players) {
         for (const color of Object.keys(player.manaPool)) {
             player.manaPool[color] = 0;
         }
-        // CR 106.6 / 500.4: restricted mana (e.g. Metamorphosis) empties with
+        // CR 106.6 / 500.5: restricted mana (e.g. Metamorphosis) empties with
         // the rest of the pool at end of step/phase.
         player.restrictedMana = undefined;
         for (const card of player.battlefield) {
@@ -3262,18 +3265,30 @@ function endCombatStep(state: GameState): void {
     state.camouflageCombat = undefined;
     // Melee's attacker-chooses-blocks flag is likewise combat-scoped (#669).
     state.meleeCombat = undefined;
-    // CR 511.3 — "until end of combat" effects end as the step ends.
+    // CR 511.2 / 500.5a — "until end of combat" effects expire at the end
+    // of the combat phase (not merely as the step begins); this call sits at
+    // the END_OF_COMBAT step's exit, which is also the combat phase's exit.
     tickAllDurations(state);
 }
 
 export function advancePhase(state: GameState): Phase[] {
     const traversed: Phase[] = [];
 
-    // CR 500.4: mana pools empty when a step or phase ends
-    emptyManaPools(state);
-
     // CR 511.2/511.3: combat teardown happens as the END_OF_COMBAT step ends.
+    // This also ticks "until end of combat" durations (CR 500.5a — expiry
+    // is pinned to the end of the combat *phase*, not the beginning of the
+    // end-of-combat step). Combat here is six sibling `Phase` values with
+    // END_OF_COMBAT last in PHASE_ORDER and no separate "combat phase"
+    // value, so the step's exit and the phase's exit are the same instant
+    // and this call site already satisfies 500.5a.
     if (state.phase === "END_OF_COMBAT") endCombatStep(state);
+
+    // CR 500.5 / 703.4q: as a step or phase ends, effects that last until
+    // its end expire FIRST; only then does any unspent mana left in a
+    // player's mana pool empty. Must run after the END_OF_COMBAT teardown
+    // above so "until end of combat" durations (which don't touch mana)
+    // expire before this clears the pool.
+    emptyManaPools(state);
 
     // CR 514.3a — "Once the stack is empty and all players pass in succession,
     // another cleanup step begins." A cleanup step that opened the 514.3

@@ -100,7 +100,7 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
 // ---------------------------------------------------------------------------
 
 describe("advancePhase", () => {
-    describe("mana emptying (CR 500.4 / 106.6)", () => {
+    describe("mana emptying (CR 500.5 / 106.6)", () => {
         it("empties restricted mana when a step ends", () => {
             const state = makeGameState({ phase: "PRECOMBAT_MAIN" });
             state.players[0].restrictedMana = [
@@ -108,6 +108,82 @@ describe("advancePhase", () => {
             ];
             advancePhase(state);
             expect(state.players[0].restrictedMana).toBeUndefined();
+        });
+
+        // CR 500.5: "As a step or phase ends, if there are effects that last
+        // until the end of that step or phase, those effects expire. Then
+        // any unspent mana left in a player's mana pool empties." The two
+        // outcomes (pool empty, duration gone) are byte-identical regardless
+        // of which runs first — `emptyManaPools` only ever touches
+        // `manaPool`/`restrictedMana`/`manaCommitted`, and every
+        // `tickAllDurations` expiry path touches unrelated `card.*` fields,
+        // so an end-state-only assertion cannot distinguish the two orders
+        // (this was checked, not assumed — see the PR description). Proving
+        // the ORDER instead of just the end state needs a call-order spy:
+        // accessor properties on the exact fields each statement writes,
+        // recording write order without touching phases.ts.
+        it("expires an 'until end of combat' duration before the mana pool empties", () => {
+            const order: string[] = [];
+            const state = makeGameState({ phase: "END_OF_COMBAT" });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+
+            // `emptyManaPools` clears every colour with a direct write
+            // (`player.manaPool[color] = 0`) — an accessor on the pool
+            // records the moment that write happens.
+            let rBacking = 3;
+            Object.defineProperty(p1.manaPool, "R", {
+                configurable: true,
+                enumerable: true,
+                get: () => rBacking,
+                set: (v: number) => {
+                    order.push("mana-emptied");
+                    rBacking = v;
+                },
+            });
+
+            // A synthetic "until end of combat" pump (the shape
+            // `addTemporaryPTBuff` produces for Battering Ram / Murk
+            // Dwellers). `tickAllDurations` expires it with a direct write
+            // (`card.temporaryPTMods = ...`) — instrument that write too.
+            const pumped = makeCard({
+                id: "pumped",
+                card: {
+                    name: "Bear",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 2,
+                },
+                controllerId: "p1",
+            });
+            pumped.temporaryPTMods = [
+                {
+                    power: 3,
+                    toughness: 0,
+                    duration: { phase: "end-of-combat" },
+                },
+            ];
+            let modsBacking = pumped.temporaryPTMods;
+            Object.defineProperty(pumped, "temporaryPTMods", {
+                configurable: true,
+                enumerable: true,
+                get: () => modsBacking,
+                set: (v) => {
+                    order.push("duration-expired");
+                    modsBacking = v;
+                },
+            });
+            p1.battlefield.push(pumped);
+
+            advancePhase(state);
+
+            // Both effects fired ...
+            expect(p1.manaPool.R).toBe(0);
+            expect(pumped.temporaryPTMods).toBeUndefined();
+            // ... and CR 500.5's order: expiry, THEN the pool empties. Red
+            // under the pre-fix statement order (mana emptied first) —
+            // verified by temporarily restoring that order and watching
+            // this assertion fail (see PR description).
+            expect(order).toEqual(["duration-expired", "mana-emptied"]);
         });
     });
 
@@ -512,6 +588,62 @@ describe("advancePhase", () => {
             const state = makeGameState({ phase: "POSTCOMBAT_MAIN" });
             advancePhase(state);
             expect(state.phase).toBe("END_STEP");
+        });
+    });
+
+    describe("CR 500.5a — 'until end of combat' expires at the end of the combat phase, not the beginning of the end of combat step", () => {
+        // The engine models combat as six sibling `Phase` values
+        // (BEGINNING_OF_COMBAT ... END_OF_COMBAT) with no separate wrapping
+        // "combat phase" value (PHASE_ORDER, phases.ts). END_OF_COMBAT is
+        // last among them, so the step's exit and the combat phase's exit
+        // are the same instant — settling 500.5a's placement is therefore a
+        // question of WHEN in `advancePhase` the expiry runs relative to the
+        // ENTRY vs EXIT of the END_OF_COMBAT step, not a question of finding
+        // a different call site.
+        it("survives entry into END_OF_COMBAT and expires only as the step (= the combat phase) ends", () => {
+            const state = makeGameState({
+                phase: "COMBAT_DAMAGE",
+                combat: {
+                    attackerIds: ["pumped"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: true,
+                },
+            });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            const pumped = makeCard({
+                id: "pumped",
+                card: {
+                    name: "Bear",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 2,
+                },
+                controllerId: "p1",
+                isAttacking: true,
+            });
+            pumped.temporaryPTMods = [
+                {
+                    power: 3,
+                    toughness: 0,
+                    duration: { phase: "end-of-combat" },
+                },
+            ];
+            p1.battlefield.push(pumped);
+
+            // COMBAT_DAMAGE → END_OF_COMBAT: entering the step must NOT
+            // expire the duration (500.5a — "not at the beginning of the end
+            // of combat step").
+            advancePhase(state);
+            expect(state.phase).toBe("END_OF_COMBAT");
+            expect(pumped.temporaryPTMods).toHaveLength(1);
+
+            // END_OF_COMBAT → POSTCOMBAT_MAIN: exiting the step is where
+            // 500.5a pins the expiry, and — because END_OF_COMBAT is the
+            // last combat sub-phase — that is also the combat phase ending.
+            advancePhase(state);
+            expect(state.phase).toBe("POSTCOMBAT_MAIN");
+            expect(pumped.temporaryPTMods).toBeUndefined();
         });
     });
 
@@ -1091,10 +1223,10 @@ describe("advancePhase", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Mana pool emptying — CR 500.4
+// Mana pool emptying — CR 500.5
 // ---------------------------------------------------------------------------
 
-describe("mana pool emptying (CR 500.4)", () => {
+describe("mana pool emptying (CR 500.5)", () => {
     it("empties both players' mana pools on phase change", () => {
         const state = makeGameState({
             phase: "PRECOMBAT_MAIN",
