@@ -127,6 +127,21 @@ export interface LeftTriggerArgs {
         event: PermanentLeftEvent,
         leaving: LeavingPermanent
     ) => void;
+    /** AI-only SHADOW Effect Script for a `resolve()` body (PRD #1423, issue
+     *  #1519) — never executed, only walked by `OP_VALUERS` so the value model
+     *  can see what an imperative leaves-the-battlefield body does. Passed
+     *  straight through onto the built `TriggeredAbility`; see
+     *  `CardDefinition.aiEffects` for the full contract, and
+     *  `enteredTrigger`'s identical field for the precedent. Meaningless
+     *  alongside `effects` (a real script is already valued).
+     *
+     *  This factory is where the shadow is worth the most: its `resolve`
+     *  escape hatch exists precisely for the bodies that read
+     *  `LeavingPermanent.attachedToBeforeLeave` / `attachmentsBeforeLeave`
+     *  (CR 603.10a last-known information), which no Op selector can express —
+     *  so those bodies are permanently imperative, and permanently AI-blind
+     *  without one. */
+    aiEffects?: EffectOp[];
 }
 
 function matchesScope(
@@ -253,6 +268,7 @@ export function leftTrigger(args: LeftTriggerArgs): TriggeredAbility {
         interveningIf,
         effects,
         resolve,
+        aiEffects,
     } = args;
 
     if (effects === undefined && resolve === undefined) {
@@ -310,6 +326,12 @@ export function leftTrigger(args: LeftTriggerArgs): TriggeredAbility {
 
     if (targetRequirement !== undefined) {
         ability.targetRequirement = targetRequirement;
+    }
+
+    // PRD #1423 — only meaningful for the `resolve` branch; an `effects[]`
+    // ability is already valued from its real script.
+    if (aiEffects !== undefined && effects === undefined) {
+        ability.aiEffects = aiEffects;
     }
 
     return withTriggerGate(ability, args);

@@ -219,6 +219,13 @@ export const necromancy: CardDefinition = {
             // the Effect Script interpreter has no object-ref selector for.
             // Identical justification, and identical body, to Animate Dead
             // (`lea/black.ts`).
+            //
+            // PRD #1423 — the AI-only SHADOW script for that imperative body:
+            // never executed, only walked by `OP_VALUERS`, so the Bot's value
+            // model can see that losing this Aura costs it the creature. CR
+            // 701.3 `$host` is the permanent the source is attached to, which
+            // is what `attachedToBeforeLeave` names at fire time.
+            aiEffects: [{ op: "sacrifice", target: { ref: "$host" } }],
             resolve: (ctx, _event, leaving) => {
                 const hostId = leaving.attachedToBeforeLeave;
                 if (!hostId) return;
