@@ -30,14 +30,30 @@
 
 import { execFileSync } from "child_process";
 
+/**
+ * The environment for anything in this repo that shells out to `gh` — or to
+ * `git`/a spawned child that might itself invoke `gh` (land's locked
+ * `gate.ts heavy` command is exactly that case: `gh pr merge` runs deep
+ * inside a `spawnSync`, not via this module's own `gh()`). GITHUB_TOKEN
+ * stripped, GH_TOKEN left alone — see the module comment above for why.
+ *
+ * Takes the base env as a parameter (default `process.env`) purely so a test
+ * can assert on the transform without mutating real process state.
+ */
+export function netEnv(
+    base: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+    const env = { ...base };
+    delete env.GITHUB_TOKEN;
+    return env;
+}
+
 /** Run `gh` under the DEVELOPER's credentials and return stdout. Throws on a
  *  non-zero exit, like `execFileSync`. */
 export function gh(args: string[]): string {
-    const env = { ...process.env };
-    delete env.GITHUB_TOKEN;
     return execFileSync("gh", args, {
         encoding: "utf8",
         maxBuffer: 32 * 1024 * 1024,
-        env,
+        env: netEnv(),
     });
 }

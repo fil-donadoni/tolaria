@@ -285,7 +285,7 @@ For each issue in `order`:
     - Refuses, named, before taking the lock: dirty tree, branch `main`, PR not open, PR head ≠ current branch.
     - A rebase conflict `--abort`s automatically inside the locked run and exits non-zero naming the conflicting paths — hand to a fresh subagent (issue's `model:*` label) to resolve, **re-review the delta**, retry.
     - Exit 0 → merged; `.claude/telemetry/green-sha` already holds the new tip.
-    - Non-zero otherwise (gate failure, not merged) → hand to a fresh subagent for fixup (max 3 attempts, §Error handling); on success retry, else mark `[WIP]`, release, move on.
+    - Non-zero otherwise → re-check `gh pr view <PR#> --json state` first (exit code can't tell gate-red from merged-but-a-post-merge-step-failed): `MERGED` → success, go to step 4; still `OPEN` → hand to a fresh subagent for fixup (max 3 attempts, §Error handling); on success retry, else mark `[WIP]`, release, move on.
 4. **Release the merge lock** and proceed to the next PR — its `bun run land <PR#>` now rebases onto the tip _including_ the PR just merged.
 
 If the HITL flag was set on an issue, its PR is **not** merged here — report "PR #X ready for review (HITL flagged on #N)" and leave it for the human (still release the worktree/claim per Release).

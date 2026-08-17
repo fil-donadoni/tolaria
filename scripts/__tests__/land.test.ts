@@ -1,12 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import {
+    mkdtempSync,
+    mkdirSync,
+    rmSync,
+    writeFileSync,
+    existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
     refusalReason,
     buildLockedCommand,
     rebaseStep,
+    lockedEnv,
     type LandFacts,
     type LockedCommandOptions,
 } from "../land";
@@ -96,7 +103,46 @@ describe("land.ts — the locked command", () => {
         expect(cmd).toContain("bun run check:all");
         expect(cmd).toContain("bun run test");
         expect(cmd).toContain("git push --force-with-lease origin");
-        expect(cmd).toContain("gh pr merge 2517 --squash --delete-branch");
+        expect(cmd).toContain("gh pr merge 2517 --squash");
+    });
+
+    it("never passes --delete-branch to gh pr merge (review round 2, B2)", () => {
+        // `gh --delete-branch` switches the LOCAL repo to the default branch
+        // before deleting, and `main` is checked out in the primary
+        // worktree — `land` runs from a linked worktree — so that step dies
+        // with `fatal: 'main' is already used by worktree at …` AFTER the
+        // API merge has already landed. Ref cleanup is done explicitly
+        // instead (see the two tests below).
+        const cmd = buildLockedCommand(base);
+        expect(cmd).not.toContain("--delete-branch");
+    });
+
+    it("deletes the remote and local branch refs explicitly, past the green-sha write", () => {
+        const cmd = buildLockedCommand(base);
+        expect(cmd).toContain("git push origin --delete 'fix/issue-2517'");
+        expect(cmd).toContain("git -C '/repo' branch -D 'fix/issue-2517'");
+        const greenShaIdx = cmd.indexOf("git rev-parse origin/main >");
+        const remoteDeleteIdx = cmd.indexOf("git push origin --delete");
+        const localDeleteIdx = cmd.indexOf("branch -D");
+        expect(remoteDeleteIdx).toBeGreaterThan(greenShaIdx);
+        expect(localDeleteIdx).toBeGreaterThan(greenShaIdx);
+    });
+
+    it("wraps ref cleanup so it can never gate land's exit status on a merged PR", () => {
+        // `(… || true)` around each ref-deletion step: a stale remote, an
+        // already-deleted branch, or a worktree that will not remove cannot
+        // turn a MERGED PR's landing into a reported failure — ref cleanup
+        // is cosmetic, the merge is not.
+        const cmd = buildLockedCommand(base);
+        expect(cmd).toContain(
+            "(git push origin --delete 'fix/issue-2517' || true)"
+        );
+        expect(cmd).toContain(
+            "(git -C '/repo' worktree remove --force '/repo-issue-2517' || true)"
+        );
+        expect(cmd).toContain(
+            "(git -C '/repo' branch -D 'fix/issue-2517' || true)"
+        );
     });
 
     it("orders fetch/rebase < gates < push < merge", () => {
@@ -158,6 +204,29 @@ describe("land.ts — the locked command", () => {
         expect(revParseIdx).toBeGreaterThan(refetchIdx);
     });
 
+    it("captures the pre-merge tip and verifies the merged tip before writing green-sha (review round 2, F5)", () => {
+        // The gate mutex is machine-wide only — it says nothing about a push
+        // landing from elsewhere while this session held it. `land` must
+        // prove `origin/main` advanced by exactly its own squash before it
+        // trusts the tip enough to record it as verified-green.
+        const cmd = buildLockedCommand(base);
+        const oldTipIdx = cmd.indexOf("OLD_TIP=$(git rev-parse origin/main)");
+        const mergeIdx = cmd.indexOf("gh pr merge");
+        const refetchIdx = cmd.indexOf("git fetch origin main -q");
+        const verifyIdx = cmd.indexOf('$OLD_TIP..origin/main" | wc -l');
+        const revParseIdx = cmd.indexOf("git rev-parse origin/main >");
+
+        expect(oldTipIdx).toBeGreaterThan(-1);
+        expect(mergeIdx).toBeGreaterThan(oldTipIdx);
+        expect(refetchIdx).toBeGreaterThan(mergeIdx);
+        expect(verifyIdx).toBeGreaterThan(refetchIdx);
+        expect(revParseIdx).toBeGreaterThan(verifyIdx);
+
+        // A failed verification must exit before the green-sha write is
+        // reached, and must never write it.
+        expect(cmd).toContain("refusing to record green-sha");
+    });
+
     it("is syntactically valid shell", () => {
         for (const opts of [
             base,
@@ -174,6 +243,35 @@ describe("land.ts — the locked command", () => {
     // `--no-merge` no longer omitted the merge step) — "--no-merge gates and
     // pushes but omits the merge" went red (cmd still contained
     // "gh pr merge"). Reverted.
+});
+
+describe("land.ts — lockedEnv (review round 2, B1)", () => {
+    // bun auto-loads `.env.local`, which in this repo carries a server-side
+    // bug-report `GITHUB_TOKEN` that `gh` prefers over the keyring login.
+    // Inherited by the locked child that runs the embedded `gh pr merge`,
+    // that PAT lacks merge permission and the merge 403s AFTER check:all +
+    // test have already run inside the lock. `lockedEnv` is the fix — a
+    // pure function of a base env so this test never touches real
+    // process.env.
+    const base: NodeJS.ProcessEnv = {
+        PATH: "/usr/bin",
+        GITHUB_TOKEN: "github_pat_bug-report-token",
+        GH_TOKEN: "gho_keyring-token",
+    };
+
+    it("strips GITHUB_TOKEN", () => {
+        expect(lockedEnv(base).GITHUB_TOKEN).toBeUndefined();
+    });
+
+    it("leaves GH_TOKEN alone", () => {
+        expect(lockedEnv(base).GH_TOKEN).toBe("gho_keyring-token");
+    });
+
+    it("preserves the rest of the base env and sets TOLARIA_ALLOW_FULL_SUITE", () => {
+        const env = lockedEnv(base);
+        expect(env.PATH).toBe("/usr/bin");
+        expect(env.TOLARIA_ALLOW_FULL_SUITE).toBe("1");
+    });
 });
 
 describe("land.ts — nested heavy gate inside the locked command", () => {
@@ -209,18 +307,54 @@ describe("land.ts — nested heavy gate inside the locked command", () => {
         expect(r.stdout).toContain("NESTED-OK");
     }, 20_000);
 
-    // Proof-of-failure: ran a variant of this scenario by hand — pre-seeded
-    // a lock dir with an owner.json naming a live pid (this test process's
-    // own pid), then spawned `gate.ts heavy` against that SAME lock root
-    // from a neutral cwd but WITHOUT TOLARIA_GATE_HELD (i.e. the situation
-    // land.ts's design exists to avoid: a heavy call that does not know it
-    // is nested). With a 4s timeout it never returned — killed by SIGTERM,
-    // elapsed ~4005ms — instead of the ~76ms a passthrough call takes. That
-    // is the deadlock: a nested call that does not inherit
-    // TOLARIA_GATE_HELD waits forever for a lock its own ancestor holds. The
-    // test above passes precisely because `gate.ts` DOES stamp
-    // TOLARIA_GATE_HELD=1 on its child's env (gate.ts:271-272), which is
-    // what land.ts's locked command relies on.
+    // This test proves passthrough (TOLARIA_GATE_HELD present → no wait), not
+    // the absence of deadlock — proving a negative needs the failure mode to
+    // actually occur under a bound. The test below is that: it reproduces the
+    // deadlock committed, on a bounded timeout, rather than resting on a
+    // manual probe recorded only in prose (review round 2 caveat).
+    it("a heavy call that does NOT inherit TOLARIA_GATE_HELD deadlocks against a lock its own ancestor holds", () => {
+        // Pre-seed the lock exactly as a live heavy holder would: owner.json
+        // naming a pid that IS alive (this test process's own — `alive()` in
+        // gate.ts checks `process.kill(pid, 0)`, which succeeds for our own
+        // pid) and a fresh timestamp (nowhere near STALE_MS). Then spawn a
+        // heavy call against that SAME lock root from a neutral cwd with
+        // TOLARIA_GATE_HELD stripped — the exact situation land.ts's design
+        // exists to avoid: a heavy call that does not know it is nested.
+        mkdirSync(join(lockRoot, "gate.lock"), { recursive: true });
+        writeFileSync(
+            join(lockRoot, "gate.lock", "owner.json"),
+            JSON.stringify({
+                pid: process.pid,
+                label: "simulated live holder",
+                cwd: lockRoot,
+                ts: Date.now(),
+            })
+        );
+
+        const env = gateEnv();
+        delete env.TOLARIA_GATE_HELD;
+
+        const r = spawnSync("bun", [GATE, "heavy", "echo SHOULD-NOT-RUN"], {
+            encoding: "utf8",
+            cwd: lockRoot,
+            env,
+            timeout: 3000,
+        });
+
+        // spawnSync's `timeout` SIGTERMs the child when it fires and never
+        // sets a normal exit `status` — that is the proof the process was
+        // still blocked in acquire()'s poll loop, not merely slow: a
+        // passthrough call (see the test above) returns in well under 100ms.
+        expect(r.signal).toBe("SIGTERM");
+        expect(r.stdout).not.toContain("SHOULD-NOT-RUN");
+    }, 8000);
+
+    // Proof-of-failure: temporarily deleted the `TOLARIA_GATE_HELD:
+    // tier === "heavy" ? "1" : …` line in gate.ts's `env` object (main()),
+    // so a nested heavy call would never see the flag its own parent had —
+    // the FIRST test above ("passes straight through") went red (timed out
+    // at 20s instead of completing near-instantly, because the "nested" call
+    // now tried to acquire a lock its own ancestor process held). Reverted.
 });
 
 describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {

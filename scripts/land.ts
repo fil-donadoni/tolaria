@@ -41,6 +41,29 @@
  * to "fix" this; a hand-typed merge from an issue worktree is exactly what
  * it exists to stop.
  *
+ * CREDENTIALS. The whole locked command — including the embedded
+ * `gh pr merge` — runs under `lockedEnv()`, which strips `GITHUB_TOKEN`
+ * (bun auto-loads `.env.local`, which carries a server-side bug-report PAT
+ * that `gh` prefers over the keyring login and that PAT lacks merge
+ * permission) the same way `scripts/lib/gh.ts` already does for every
+ * `gh()` call this file makes directly. Without this the embedded merge
+ * 403s AFTER `check:all` + `test` have already run inside the lock.
+ *
+ * MERGE VERIFICATION + REF CLEANUP. `gh pr merge` runs WITHOUT
+ * `--delete-branch`: `gh` switches the local repo to the default branch
+ * before deleting, and `main` is checked out in the primary worktree, so
+ * that step dies with `fatal: 'main' is already used by worktree at …`
+ * AFTER the API merge has already landed — found and documented first in
+ * `scripts/docs-lane.ts:315-321`. `buildLockedCommand` instead (a) records
+ * the pre-merge `origin/main` tip, merges, re-fetches, and refuses to write
+ * `green-sha` unless the tip advanced by EXACTLY one commit (the squash) —
+ * the machine-wide gate lock only covers this machine, a push from
+ * elsewhere can still land in the gap — and (b) deletes the remote and
+ * local branch refs itself, AFTER the green-sha write, each wrapped so a
+ * ref-cleanup failure can never suppress that write or make `land` report
+ * failure on a PR that in fact merged: ref cleanup is cosmetic, the merge
+ * is not.
+ *
  * Usage:
  *   bun run land <PR#>              fetch → rebase → gate → push → merge
  *   bun run land <PR#> --no-merge   …but stop after the push (leave PR open)
@@ -48,7 +71,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
-import { gh } from "./lib/gh";
+import { gh, netEnv } from "./lib/gh";
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -171,6 +194,20 @@ function shQuote(s: string): string {
     return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
+/**
+ * Shell fragment that fails the WHOLE locked command (before `green-sha` is
+ * written) unless `origin/main` advanced by EXACTLY one commit — our squash
+ * — between the `OLD_TIP` capture below and this point. The gate mutex is
+ * machine-wide only; it says nothing about a push landing from a different
+ * machine, or a human pushing straight to `main`, while this session held
+ * the lock. Re-derives the log rather than caching it so the message on
+ * failure shows exactly what landed.
+ */
+const VERIFY_MERGED_TIP =
+    '[ "$(git log --oneline "$OLD_TIP..origin/main" | wc -l | tr -d " ")" = "1" ] || ' +
+    '{ echo "land: origin/main advanced by more than our squash between fetch and merge — refusing to record green-sha" >&2; ' +
+    'git log --oneline "$OLD_TIP..origin/main" >&2; exit 1; }';
+
 export function buildLockedCommand(opts: LockedCommandOptions): string {
     const steps: string[] = [
         rebaseStep(),
@@ -179,20 +216,53 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         `git push --force-with-lease origin ${shQuote(opts.branch)}`,
     ];
     if (opts.merge) {
-        steps.push(`gh pr merge ${opts.pr} --squash --delete-branch`);
+        // No `--delete-branch` — see the CREDENTIALS/MERGE VERIFICATION +
+        // REF CLEANUP header comment for why, and why ref cleanup is pushed
+        // to the end, past the green-sha write, each step wrapped so it
+        // cannot gate `land`'s exit status.
+        steps.push("OLD_TIP=$(git rev-parse origin/main)");
+        steps.push(`gh pr merge ${opts.pr} --squash`);
         // `gh pr merge` lands via the API — it does not update this worktree's
         // local `origin/main`, so re-fetch before reading the new tip.
         steps.push("git fetch origin main -q");
+        steps.push(VERIFY_MERGED_TIP);
         const greenSha = join(opts.primaryCheckout, GREEN_SHA_REL);
         steps.push(`mkdir -p ${shQuote(dirname(greenSha))}`);
         steps.push(`git rev-parse origin/main > ${shQuote(greenSha)}`);
+        // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
+        // (stale remote state, an already-deleted branch, …) can never turn
+        // a MERGED PR's landing into a reported failure.
+        steps.push(
+            `(git push origin --delete ${shQuote(opts.branch)} || true)`
+        );
         if (opts.teardown) {
             steps.push(
-                `git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)}`
+                `(git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)} || true)`
+            );
+            steps.push(
+                `(git -C ${shQuote(opts.primaryCheckout)} branch -D ${shQuote(opts.branch)} || true)`
             );
         }
     }
     return steps.join(" && ");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// The locked child's environment — pure function of a base env so a test can
+// assert on it without touching real `process.env`.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * `GITHUB_TOKEN` stripped (see `netEnv` / the CREDENTIALS header comment —
+ * without this the embedded `gh pr merge` 403s under the server-side
+ * bug-report PAT bun auto-loads from `.env.local`), `GH_TOKEN` left alone,
+ * plus `TOLARIA_ALLOW_FULL_SUITE=1` so the issue-worktree guard
+ * (`gate.ts:97-123`) does not refuse the heavy tier on the `fix/issue-N` /
+ * `feat/issue-N` branch `land` runs from — `land` IS the merge-train, the
+ * case that guard exempts.
+ */
+export function lockedEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    return { ...netEnv(base), TOLARIA_ALLOW_FULL_SUITE: "1" };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -262,7 +332,7 @@ function main(): void {
     const result = spawnSync("bun", [GATE, "heavy", command], {
         stdio: "inherit",
         cwd,
-        env: { ...process.env, TOLARIA_ALLOW_FULL_SUITE: "1" },
+        env: lockedEnv(process.env),
     });
     process.exit(result.status ?? 1);
 }
