@@ -3,10 +3,10 @@
 **A change that can alter what a user SEES is not done until a real browser
 has shown it.** happy-dom has no layout engine — no viewport, no paint, no
 stacking contexts, `getBoundingClientRect()` returns zeroes — so "the card is
-in the document" passes on a screen where the card is 2px tall under a fixed
-footer. Measured 2026-08-17 on the Limited pool builder with the whole `dom`
-project green: **90 of 95 card images occluded** at 390x844, 77 of 95 at
-844x390.
+in the document" passes on a screen where the card sits in a 24px-tall
+container. Measured 2026-08-17 with the whole `dom` project green, at 390x844:
+both deck-builder routes render **card zones 24-66px tall around 101-158px
+card tiles**, plus 25 of 95 images occluded outright on the Limited pool.
 
 **Applies to** any diff reaching a component, CSS, layout, responsive rule,
 overlay/z-index or scroll container. Not to engine/Convex/script/doc changes —
@@ -17,8 +17,8 @@ phone portrait `390x844x3,mobile,touch`, phone landscape
 `844x390x3,mobile,touch,landscape`.
 
 **Measure, never eyeball.** A screenshot of a clipped row reads as "the cards
-are there" — that is how the bug above shipped. Run the occlusion probe from
-the guide and report `total / zero / occluded` per viewport plus
+are there" — that is how the bug above shipped. Run the probe from the guide
+and report `zero / occ / stranded / starved` per viewport plus
 `list_console_messages {types:["error"]}`. A UI PR with no receipt and no
 "cannot reach the DOM" note is not done.
 
