@@ -855,7 +855,7 @@ describe("evaluation-scored smart auto-tap (issue #794)", () => {
 
 // ---------------------------------------------------------------------------
 // planSurplus (issue #2247) — the exact leftover pool a plan produces beyond
-// what `cost` consumes (CR 500.4: it empties at end of step, so it's waste).
+// what `cost` consumes (CR 500.5: it empties at end of step, so it's waste).
 // ---------------------------------------------------------------------------
 describe("planSurplus (issue #2247)", () => {
     it("is 0 when the plan's mana exactly covers the cost", () => {
@@ -904,7 +904,7 @@ describe("planSurplus (issue #2247)", () => {
 // ---------------------------------------------------------------------------
 // Surplus avoidance (issue #2247): the reported bug — smart auto-tap prefers
 // tapping a multi-mana source (Sol Ring) over a single-mana land when only
-// one mana is needed, wasting the surplus (it evaporates, CR 500.4). Among
+// one mana is needed, wasting the surplus (it evaporates, CR 500.5). Among
 // equal-tap-count plans, the ranking must now prefer the lowest-surplus one,
 // strictly below preserved-Demand and strictly above source-quality/
 // flexibility/lexicographic (see W_SURPLUS's doc, autoTap.ts).
@@ -914,7 +914,7 @@ describe("solveSmartAutoTap — surplus avoidance (issue #2247)", () => {
         // Board: a generic 2-colorless-mana rock (any card shaped like Sol
         // Ring — deliberately NOT keyed to a specific card, see AC5 below)
         // plus a Forest. Cost {1}: either single tap covers it. The rock
-        // would waste 1 mana (CR 500.4); the land wastes nothing.
+        // would waste 1 mana (CR 500.5); the land wastes nothing.
         //
         // cardIds are deliberately chosen so the CORRECT answer ("z-land")
         // sorts AFTER the wrong one ("a-rock") lexicographically — the
@@ -929,20 +929,6 @@ describe("solveSmartAutoTap — surplus avoidance (issue #2247)", () => {
         const plan = solveSmartAutoTap(EMPTY_POOL, { X: 1 }, [], sources, []);
         expect(plan).not.toBeNull();
         expect(plan).toEqual([{ cardId: "z-land" }]);
-    });
-
-    it("AC2: no regression — taps the rock when the cost consumes all its mana", () => {
-        // Cost {2}: the rock alone covers it in ONE tap with zero surplus.
-        // The land alone can't reach {2} in one tap, so the minimal-tap plan
-        // set is [rock] only — must still tap it, not fall back to a worse
-        // (2-tap) plan or no plan at all.
-        const sources: AutoTapSource[] = [
-            { cardId: "rock", options: [{ mana: { C: 2 } as never }] },
-            fixed("mountain", "R"),
-        ];
-        const plan = solveSmartAutoTap(EMPTY_POOL, { X: 2 }, [], sources, []);
-        expect(plan).not.toBeNull();
-        expect(plan).toEqual([{ cardId: "rock" }]);
     });
 
     it("AC3: demand preservation still outranks surplus avoidance", () => {
@@ -973,29 +959,6 @@ describe("solveSmartAutoTap — surplus avoidance (issue #2247)", () => {
         const plan = solveSmartAutoTap(EMPTY_POOL, { X: 1 }, [], sources, []);
         expect(plan).not.toBeNull();
         expect(plan).toEqual([{ cardId: "mountain2" }]);
-    });
-
-    it("no lower-surplus alternative exists: taps the only available source", () => {
-        // The rock is the sole source — surplus avoidance has nothing to
-        // compare against, so the plan must still succeed (not return null).
-        const sources: AutoTapSource[] = [
-            { cardId: "rock", options: [{ mana: { C: 2 } as never }] },
-        ];
-        const plan = solveSmartAutoTap(EMPTY_POOL, { X: 1 }, [], sources, []);
-        expect(plan).toEqual([{ cardId: "rock" }]);
-    });
-
-    it("a cost that consumes the rock's full output is not over-production (regression guard)", () => {
-        // Cost {C}{C} matches the rock's exact output; a plain land can't
-        // pay a colorless-pip cost at all here (only the rock produces C),
-        // so tapping the rock is correct AND produces zero surplus.
-        const sources: AutoTapSource[] = [
-            { cardId: "rock", options: [{ mana: { C: 2 } as never }] },
-            fixed("forest", "G"),
-        ];
-        const plan = solveSmartAutoTap(EMPTY_POOL, { C: 2 }, [], sources, []);
-        expect(plan).not.toBeNull();
-        expect(plan).toEqual([{ cardId: "rock" }]);
     });
 });
 

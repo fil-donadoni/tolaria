@@ -409,19 +409,29 @@ export const W_PRESERVED_DEMAND = 1000;
 
 /** Weight of one unit of SURPLUS mana inside the unified auto-tap position
  *  score (issue #2247) — mana a plan produces beyond what `cost` actually
- *  consumes, which CR 500.4 empties at the end of the current step, i.e. real
+ *  consumes, which CR 500.5 empties at the end of the current step, i.e. real
  *  waste, not latent value carried forward. Chosen to sit strictly BELOW a
  *  single preserved Demand (`W_PRESERVED_DEMAND` = 1000, via `SURPLUS_CAP`
  *  below — a concrete future play always outranks avoiding waste) and
  *  strictly ABOVE every per-plan swing `evalScore` (`scorePlan`) can produce
- *  from tapping one source instead of an equal-tap-count alternative: the
- *  Brain's coarse `evaluate.ts` mana proxy (`availableManaFor`) counts an
- *  UNTAPPED source as exactly one unit regardless of its real output, so the
- *  eval delta between two such plans is bounded by a handful of source-
- *  quality/mana/flexibility deltas in the tens (`W_SOURCE_DUAL_PURPOSE` = 20,
- *  `W_SOURCE_BREADTH` = 4 × ≤4 extra colors = 16, `FLEX_CARD_CAP` × `W_FLEX`
- *  = 3×6 = 18) — comfortably under 100 per swapped source on any realistic
- *  board. This term is a LOCAL correction that reads `floatingAfterPlan`'s
+ *  from tapping one source instead of an equal-tap-count alternative.
+ *
+ *  Two separate swings make up that per-plan delta. The source-quality one is
+ *  bounded in the tens (`W_SOURCE_DUAL_PURPOSE` = 20, `W_SOURCE_BREADTH` = 4 ×
+ *  ≤4 extra colors = 16, `FLEX_CARD_CAP` × `W_FLEX` = 3×6 = 18). The other is
+ *  NOT bounded: the Brain's coarse `evaluate.ts` mana proxy (`availableManaFor`)
+ *  counts an UNTAPPED source as exactly one unit but counts FLOATING mana per
+ *  unit, so a plan that taps the over-producing source and floats the surplus
+ *  scores an extra `W_MANA * surplus` (12 × surplus, uncapped) in `evaluate()`'s
+ *  own `mana` term on top of the tens-scale quality swing. This term's cap
+ *  (`SURPLUS_CAP * W_SURPLUS` = 800, see below) is only guaranteed to dominate
+ *  that reward while `12 * surplus <= 800`, i.e. surplus <= 66 — at surplus
+ *  >= 67 the uncapped mana-term reward exceeds the capped penalty and the
+ *  original ranking bug (preferring to tap the over-producing source) can
+ *  reassert itself. No source on a currently modeled board taps for 67+ mana
+ *  in one activation, so this is unreached in practice, not a live bug — but
+ *  it is a real, quantified edge of the fix, not a "tens" swing like the
+ *  quality term. This term is a LOCAL correction that reads `floatingAfterPlan`'s
  *  exact leftover pool directly (never the coarse proxy), so its correctness
  *  does not depend on `evaluate.ts` being fixed — see the divergence note on
  *  `availableManaFor` (evaluate.ts) for why the proxy itself is left as-is. */
@@ -574,7 +584,7 @@ export function floatingAfterPlan(
 
 /**
  * Surplus mana a plan produces beyond what `cost` actually consumes (issue
- * #2247, CR 500.4 — floating mana empties at the end of the current step, so
+ * #2247, CR 500.5 — floating mana empties at the end of the current step, so
  * this is true waste rather than latent value the player still has). Sums
  * `floatingAfterPlan`'s exact leftover pool, which already nets the payment
  * out of every tapped source's contribution — a plan whose cost consumes all
