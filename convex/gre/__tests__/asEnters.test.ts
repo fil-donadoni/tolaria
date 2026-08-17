@@ -760,6 +760,37 @@ describe("as-enters `name` kind (CR 614.1c, ADR 0100 D3)", () => {
         ).toThrow(/Not a recognized card name/);
         expect(state.stagedEntries).toHaveLength(1);
     });
+
+    it("the as-enters branch of applyPendingChoiceSubmit is NOT a second door past the `filter`", () => {
+        // The as-enters early-return sits ABOVE the generic `name-card`
+        // rejection, so without its own rejection it would validate an as-enters
+        // `name` head against `candidateIds`/`options` — which this head does
+        // not have — and write ANY string to `chosenName`. Same board as the
+        // fail-closed filter test above, answered through the OTHER entry point.
+        const state = boardWithGraveyard([filteredNameCreature]);
+        reanimateAll(state);
+        expect(head(state).asEntersKind).toBe("name");
+
+        expect(() => answer(state, ["Plains"])).toThrow(/Use submitNameCard/);
+        expect(state.stagedEntries).toHaveLength(1);
+        expect(battlefieldIds(state)).not.toContain("staged-0");
+    });
+
+    it("the as-enters branch of applyPendingChoiceSubmit is NOT a second door past the CR 201.2 registry lookup", () => {
+        // The same door also bypasses `applyNameCardSubmit`'s canonicalization:
+        // a name no card in the registry has would land verbatim in
+        // `chosenName`, and every downstream comparison is against a canonical
+        // registry name (CR 201.2), so the permanent would enter naming nothing.
+        const state = boardWithGraveyard([nameCreature]);
+        reanimateAll(state);
+        expect(head(state).asEntersKind).toBe("name");
+
+        expect(() => answer(state, ["Not A Real Card At All"])).toThrow(
+            /Use submitNameCard/
+        );
+        expect(state.stagedEntries).toHaveLength(1);
+        expect(battlefieldIds(state)).not.toContain("staged-0");
+    });
 });
 
 // --- CR 400.7: no memory of a previous existence ---------------------------

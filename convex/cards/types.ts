@@ -2211,19 +2211,31 @@ export type AsEntersChoice =
     /** CR 614.1c — "as this enters, name a card" (Meddling Mage); the answer is
      *  written to `CardInstanceState.chosenName`. `filter` narrows the legal
      *  name space (Meddling Mage's "choose a nonland card name") and is
-     *  ENFORCED fail-closed at submit — `applyNameCardSubmit`
+     *  ENFORCED at submit — `applyNameCardSubmit`
      *  (`convex/gre/pendingChoiceSubmit.ts`) reads it off the staged entry and
      *  rejects a name it does not match, so the definition stays the single
-     *  source and no copy rides the prompt.
+     *  source and no copy rides the prompt. What is enforced is exactly the
+     *  subset of `EffectCardFilter` the shared `handCardMatchesFilter` reads
+     *  (name / type / excludeType / subtype / supertype / color /
+     *  manaValueAtMost / manaCostEquals / any); the printed-characteristic
+     *  fields it does not read — `excludeSupertype`, `excludeColor`,
+     *  `manaValueEquals`, `hasAbility` — fall through to "matches", so a
+     *  `filter` declaring only one of those is inert rather than restrictive.
      *
      *  Not yet read on the BOT side: `nameCardDefaultFor` (`src/lib/ai/
      *  bot-view.ts`) defaults to the chooser's top library card or "Plains",
      *  neither of which is filter-aware, so a bot answering a filtered `name`
-     *  choice would be rejected by the check above. Unreachable today (no
-     *  shipped card populates this union — `asEntersUnion.test.ts`), and
-     *  making the default filter-aware needs the filter projected into the bot
-     *  view plus a registry scan for a satisfying name — bot work that belongs
-     *  with the card that first ships it. tracked-by: #2467 */
+     *  choice would be rejected by the check above — and that rejection is a
+     *  STALL, not a retry: a `name-card` head is `ExpectedInputKind: "choice"`,
+     *  and `ESCALATION_POLICY.choice = { decline: null, canPass: false }`
+     *  (`src/lib/ai/owed-input.ts`), so the ladder yields exactly one rung —
+     *  the same rejected name — and the human's `resolveStuck` re-walks it from
+     *  the top and re-submits it. That is the ADR 0047 / #2283 freeze shape.
+     *  Unreachable today (no shipped card populates this union —
+     *  `asEntersUnion.test.ts` fails CI on the first one), and making the
+     *  default filter-aware needs the filter projected into the bot view plus a
+     *  registry scan for a satisfying name — bot work that belongs with the
+     *  card that first ships it. tracked-by: #2467 */
     | { kind: "name"; filter?: EffectCardFilter }
     /** CR 614.1c — "as this enters, choose N <subtype>s" (Illusionary Terrain);
      *  the answer is written to `CardInstanceState.chosenSubtypes`. */

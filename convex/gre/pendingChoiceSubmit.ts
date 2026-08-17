@@ -412,14 +412,19 @@ export function applyNameCardSubmit(
         // the legal name space (Meddling Mage's "choose a nonland card name").
         // Read off the staged entry's own owed head, so the card definition
         // stays the single source and no copy of the filter has to ride the
-        // prompt. Fail-CLOSED, the standing rule for `EffectCardFilter`: a name
-        // the filter rejects throws here — beside the `nameRestriction` check
-        // above and before anything is committed — and the chooser is asked
-        // again, rather than the filter silently admitting everything.
+        // prompt. A name the filter rejects throws here — beside the
+        // `nameRestriction` check above and before anything is committed — so
+        // the chooser is asked again rather than the filter being ignored.
         // `handCardMatchesFilter` is the shared registry-definition matcher
         // (it is typed on the definition id it reads, not on a hand card), so
         // this is the same matcher the alt-cost hand leg and `discardFilter`
-        // use rather than a third copy.
+        // use rather than a third copy — which also bounds what this check
+        // enforces: the matcher reads 9 of `EffectCardFilter`'s fields and
+        // returns `true` for the rest, so a filter declaring only
+        // `excludeSupertype` / `excludeColor` / `manaValueEquals` /
+        // `hasAbility` is inert here. Widening the shared matcher is out of
+        // scope for this seam (it has other callers); #2467, which ships the
+        // first filtered card, is where those fields earn their handling.
         const owedName = findStagedEntry(state, head.asEntersCardId)?.owed[0];
         if (
             owedName?.kind === "name" &&
@@ -551,6 +556,18 @@ export function applyPendingChoiceSubmit(
     // branch therefore does its own validation, then hands off to the shared
     // finalize, which reproduces (never reaches) the generic tail. ---
     if (head.asEntersCardId !== undefined && head.stackItemId === "") {
+        // `name-card` has its own mutation (`submitNameCard`) — reject here
+        // too. This branch sits ABOVE the generic `name-card` rejection below,
+        // so without this line it is a SECOND door into the same write: an
+        // as-enters `name` head has `count: 1`, no `candidateIds` and no
+        // `options`, so the validation that follows admits ANY string and
+        // `finalizeAsEnters` writes it straight to `chosenName` — bypassing
+        // `applyNameCardSubmit`'s CR 201.2 registry lookup, its
+        // `nameRestriction` check and the `filter` check. Same shape and
+        // message as the rejection below so the two doors read as one rule.
+        if (head.kind === "name-card") {
+            throw new Error("Use submitNameCard for name-card choices");
+        }
         const min = getPendingChoiceMin(head.count);
         const max = getPendingChoiceMax(head.count);
         if (
