@@ -433,8 +433,13 @@ function applyTapPlan(
 /** Put the cast spell on the probe's stack exactly as the real cast does
  *  (CR 601.2i): card leaves hand, stack item carries targets / X / mode, the
  *  SPELL_CAST event fires and its triggers are flushed onto the stack above the
- *  spell. Returns false when the move can't be realised. */
-function applyProbeCast(
+ *  spell. Returns false when the move can't be realised.
+ *
+ *  Exported for the producer-census guard (issue #2473): `isDominatedNoOpMove`
+ *  returns only a boolean and no shipped card reads `castOffSorceryTiming` yet,
+ *  so this builder's timing stamp has no reachable observation through the
+ *  public seam. */
+export function applyProbeCast(
     probe: GameState,
     pid: string,
     move: Extract<Move, { kind: "cast-spell" }>

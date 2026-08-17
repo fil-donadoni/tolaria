@@ -36,10 +36,24 @@ all have exactly this forward-to-commit obligation — `chosenX`,
 the filter keys plus `zone`/`divideTotal`/`divideAmounts`, so the preserve/clear
 decision for every other field is implicit rather than declared.
 
-**Why it may not deserve its own issue.** No live bug: I checked all eight
-fields against both `finalizeTargetSelection` park branches while working
-#2473, and they are all forwarded correctly today. The census would be a
-pure-prophylaxis guard, and `owedPayment.ts`'s `ParkClass` vocabulary does not
+The two park branches already disagree, which is the concrete form the missing
+census takes. The field #2473 adds (`castOffSorceryTiming`) forwards on both,
+but two OLDER payload products diverge between them: the pick-park literal
+(`convex/game.ts:6456`) carries `evoked` (from `alternativeCostId`) and omits
+`targetAmounts`; the mana-park literal (`convex/game.ts:6616`) carries
+`targetAmounts` (from `divideTotal`) and omits `evoked`. `dashed` is the only
+one of the three in both. Neither omission looks reachable in today's
+catalogue — `targetAmounts` needs divide-as-you-choose plus a
+sacrifice/exile/convoke pick on the same spell, `evoked` needs an Evoke
+creature with a cast-time target requirement — but "unreachable today" is
+exactly the invariant a compile-forced census would state out loud instead of
+leaving to a reader diffing two 25-line object literals.
+
+**Why it may not deserve its own issue.** No live bug **on the field #2473
+adds**, and the two divergences above are latent rather than reachable (see the
+combinations named there) — so nothing here is this PR's to fix. The census
+would be a pure-prophylaxis guard, and `owedPayment.ts`'s `ParkClass`
+vocabulary does not
 transfer (a `PendingTarget` field is not "park"/"non-park" — it is
 "forward-to-commit" / "clear-between-groups" / "identity"), so it needs its own
 small type rather than a reuse. That makes it a real design task, not a

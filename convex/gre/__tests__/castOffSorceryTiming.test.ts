@@ -117,6 +117,27 @@ const timingGreenProbe: CardDefinition = {
 };
 registerTokenDefinition(timingGreenProbe);
 
+// A free creature carrying an "exile a creature you control" ADDITIONAL cost
+// (CR 601.2f / 118.8). The vehicle for `finalizeTargetSelection`'s PICK-park
+// branch: `exilePicker` alone makes `parkForSacrifice` true, and that branch is
+// taken BEFORE the mana-coverage check, so a zero mana cost keeps the scenario
+// to the one hop under test.
+const TIMING_EXILE_COST_PROBE_ID = "test:timing-exile-cost-probe";
+const timingExileCostProbe: CardDefinition = {
+    id: TIMING_EXILE_COST_PROBE_ID,
+    rarity: "common",
+    name: "Timing Exile Cost Probe",
+    manaCost: {},
+    types: ["Creature"],
+    subtypes: ["Elemental"],
+    power: 1,
+    toughness: 1,
+    additionalCosts: {
+        exileFilter: { types: "Creature", controllerRelation: "you" },
+    },
+};
+registerTokenDefinition(timingExileCostProbe);
+
 // An INSTANT — `cloneSpellOntoStack` (CR 707.10) refuses anything that is not
 // an Instant or a Sorcery, so the copy-clear test needs one.
 const TIMING_INSTANT_PROBE_ID = "test:timing-instant-probe";
@@ -214,6 +235,152 @@ describe("cast off sorcery timing — producer census, ≥3 distinct entry paths
             expect((stackItem as StackItem).castOffSorceryTiming).toBe(
                 undefined
             );
+        });
+    });
+
+    // `finalizeTargetSelection` has THREE exits, and only the first one above
+    // pushes a stack item directly. The other two hand the snapshot to
+    // `pendingCast` — one more hop before `tryAutoCommitPendingCast` (producers
+    // 2/3) can carry it to the stack — and each is a separate literal, so a
+    // dropped `...(castOffSorceryTiming ? … )` in either is invisible to the
+    // immediate-commit tests above. Both tests below assert the FIRST hop only
+    // (`state.pendingCast.castOffSorceryTiming`), so each reddens for exactly
+    // its own branch: the mana-park test is the shape a real targeted spell
+    // that has to tap for mana takes, i.e. the Fertile Ground counterexample's
+    // own path (that test hand-builds `pendingCast` and never comes through
+    // here).
+    describe("producer 1, park branch A: finalizeTargetSelection parks on a cost PICK before mana (CR 601.2f / 118.8)", () => {
+        /** A targeted zero-cost spell with an "exile a creature you control"
+         *  additional cost, plus a creature on the board to pay it with — so
+         *  the commit parks on the picker instead of pushing to the stack. */
+        function exileCostParkBoard(announcedOffTiming: boolean): GameState {
+            const probeInst = handCard(TIMING_EXILE_COST_PROBE_ID, "probe");
+            const fodder = makeInstance(TIMING_PROBE_ID, {
+                id: "fodder",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: [probeInst],
+                        battlefield: [fodder],
+                    }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                // Sorcery timing (makeState's defaults) unless a test moves it.
+            });
+            finalizeTargetSelection(
+                state,
+                {
+                    playerId: "p1",
+                    cardInstanceId: "probe",
+                    targetType: "any",
+                    count: 0,
+                    selected: [],
+                    ...(announcedOffTiming
+                        ? { castOffSorceryTiming: true as const }
+                        : {}),
+                },
+                "p1"
+            );
+            return state;
+        }
+
+        it("forwards the ANNOUNCEMENT snapshot onto pendingCast even though the board is NOW at sorcery timing", () => {
+            const state = exileCostParkBoard(true);
+            // Parked, not committed — the picker is still owed.
+            expect(state.stack).toHaveLength(0);
+            expect(state.pendingCast).toBeDefined();
+            expect(state.pendingCast?.additionalCost).toBeDefined();
+            expect(state.pendingCast?.castOffSorceryTiming).toBe(true);
+        });
+
+        it("omits it when the announcement snapshot is absent, even though the board is NOW off sorcery timing", () => {
+            const probeInst = handCard(TIMING_EXILE_COST_PROBE_ID, "probe");
+            const fodder = makeInstance(TIMING_PROBE_ID, {
+                id: "fodder",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: [probeInst],
+                        battlefield: [fodder],
+                    }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                phase: "DECLARE_ATTACKERS",
+            });
+            finalizeTargetSelection(
+                state,
+                {
+                    playerId: "p1",
+                    cardInstanceId: "probe",
+                    targetType: "any",
+                    count: 0,
+                    selected: [],
+                },
+                "p1"
+            );
+            expect(state.pendingCast).toBeDefined();
+            expect(state.pendingCast?.castOffSorceryTiming).toBe(undefined);
+        });
+    });
+
+    describe("producer 1, park branch B: finalizeTargetSelection parks for MANA payment (CR 601.2g)", () => {
+        /** A targeted {G} spell with an EMPTY mana pool: the commit cannot cover
+         *  the cost, so it parks for `tapForPayment`. This is the only path a
+         *  real targeted spell that has to tap for mana takes. */
+        function manaParkBoard(
+            announcedOffTiming: boolean,
+            phase: "PRECOMBAT_MAIN" | "DECLARE_ATTACKERS"
+        ): GameState {
+            const probeInst = handCard(TIMING_GREEN_PROBE_ID, "greenprobe");
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { hand: [probeInst] }),
+                    makePlayer("p2"),
+                ],
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                phase,
+            });
+            finalizeTargetSelection(
+                state,
+                {
+                    playerId: "p1",
+                    cardInstanceId: "greenprobe",
+                    targetType: "any",
+                    count: 0,
+                    selected: [],
+                    ...(announcedOffTiming
+                        ? { castOffSorceryTiming: true as const }
+                        : {}),
+                },
+                "p1"
+            );
+            return state;
+        }
+
+        it("forwards the ANNOUNCEMENT snapshot onto pendingCast even though the board is NOW at sorcery timing", () => {
+            const state = manaParkBoard(true, "PRECOMBAT_MAIN");
+            // Parked for payment, not committed.
+            expect(state.stack).toHaveLength(0);
+            expect(state.pendingCast).toBeDefined();
+            expect(state.pendingCast?.manaCost).toEqual({ G: 1 });
+            expect(state.pendingCast?.castOffSorceryTiming).toBe(true);
+        });
+
+        it("omits it when the announcement snapshot is absent, even though the board is NOW off sorcery timing", () => {
+            const state = manaParkBoard(false, "DECLARE_ATTACKERS");
+            expect(state.pendingCast).toBeDefined();
+            expect(state.pendingCast?.castOffSorceryTiming).toBe(undefined);
         });
     });
 

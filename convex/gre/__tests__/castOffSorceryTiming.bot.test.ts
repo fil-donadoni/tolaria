@@ -12,8 +12,13 @@
 //     every blade scenario and all self-play route through. Covered HERE.
 // Missing the second one means the bot simulates a game in which the flag is
 // universally absent, while the server it feeds moves to stamps it.
+//
+// A THIRD bot-side builder exists — `applyProbeCast` in `gre/ai/dominance.ts`,
+// the dominance-pruning probe — whose contract is explicitly "exactly as the
+// real cast does". It is covered here too (round-3 review finding 2).
 import { describe, it, expect } from "vitest";
 import { applyMoveInSearch } from "../search";
+import { applyProbeCast } from "../ai/dominance";
 import type { Move } from "../moves";
 import { type GameState, type StackItem } from "../state";
 import {
@@ -103,5 +108,54 @@ describe("cast off sorcery timing — ISMCTS in-tree cast-spell executor (convex
         const probe = probeAfterCast(state);
         expect(probe).toBeDefined();
         expect(probe?.castOffSorceryTiming).toBe(undefined);
+    });
+});
+
+describe("cast off sorcery timing — dominance-pruning probe cast (convex/gre/ai/dominance.ts, issue #2473)", () => {
+    /** The probe board `applyProbeCast` is handed, plus the cast move. The
+     *  pruning seam itself returns only a boolean, so the stamp is asserted on
+     *  the probe's own stack item — the state `isNoOpDelta` then compares. */
+    function probeCastBoard(
+        phase: "PRECOMBAT_MAIN" | "DECLARE_ATTACKERS"
+    ): GameState {
+        const probeInst = makeInstance(SEARCH_TIMING_PROBE_ID, {
+            id: "searchprobe",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { hand: [probeInst] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase,
+        });
+    }
+
+    const probeCastMove: Extract<Move, { kind: "cast-spell" }> = {
+        kind: "cast-spell",
+        cardInstanceId: "searchprobe",
+        targets: [],
+        confirmTargets: false,
+        tapPlan: [],
+    };
+
+    it("stamps the flag when the probe cast happens at INSTANT timing", () => {
+        const state = probeCastBoard("DECLARE_ATTACKERS");
+        expect(applyProbeCast(state, "p1", probeCastMove)).toBe(true);
+        const item = state.stack.find((s) => s.id === "searchprobe");
+        expect(item).toBeDefined();
+        expect(item?.castOffSorceryTiming).toBe(true);
+    });
+
+    it("omits the flag when the probe cast happens at SORCERY timing", () => {
+        const state = probeCastBoard("PRECOMBAT_MAIN");
+        expect(applyProbeCast(state, "p1", probeCastMove)).toBe(true);
+        const item = state.stack.find((s) => s.id === "searchprobe");
+        expect(item).toBeDefined();
+        expect(item?.castOffSorceryTiming).toBe(undefined);
     });
 });
