@@ -23,7 +23,7 @@ When the workflow stabilises it can be extracted into a shareable package; until
 - **Fan-out (parallel):** the orchestrator selects a _batch_ of mutually-disjoint ready issues, claims all, and spawns N subagents concurrently (each its own worktree, capped at a small concurrency limit). Subagents implement, gate, push, and open a PR — but **do not merge.**
 - **Integrate (serial, orchestrator-owned):** the orchestrator merges the resulting PRs **one at a time** behind a merge lock — rebase onto the current `main` tip → re-run the full gate on the rebased state → merge only if green; otherwise hand the branch back to a subagent for fixup. This is the only place a merge to `main` happens.
 
-**One full gate per landing tree — at the train, and CI runs it when the repo has one.** The full suite + `check:all` run exactly once per PR, in the merge-train (§4 step 4), on the rebased tree that actually lands. Subagents run only **targeted tests + fast static checks** pre-PR (subagent brief § pre-PR gate) — they never pay the full suite (a per-branch full gate would be re-paid at the train anyway: 2N−1 → N full gates per batch). **If the repo has required CI status checks covering the suites, THEY are that gate** (§4 step 4, Lane A): with `strict: true` they run on the exact tree that lands, which a local gate cannot promise because `main` moves while the suite runs. Only run the suite locally when no such checks exist. Gate dedup applies everywhere: a full gate that passed on a given tree (`git rev-parse HEAD^{tree}`) is valid for that tree everywhere — never re-run the suite on a tree already verified green (baseline SHA cache §0, subagent abort-on-red skip (subagent brief), identical-tree skip §4 step 4). Dedup, not relaxation.
+**One full gate per landing tree — at the train, and CI runs it when the repo has one.** The full suite + `check:all` run exactly once per PR, in the merge-train (§4 step 3), on the rebased tree that actually lands. Subagents run only **targeted tests + fast static checks** pre-PR (subagent brief § pre-PR gate) — they never pay the full suite (a per-branch full gate would be re-paid at the train anyway: 2N−1 → N full gates per batch). **If the repo has required CI status checks covering the suites, THEY are that gate** (§4 step 3, Lane A): with `strict: true` they run on the exact tree that lands, which a local gate cannot promise because `main` moves while the suite runs. Only run the suite locally when no such checks exist. Gate dedup applies everywhere: a full gate that passed on a given tree (`git rev-parse HEAD^{tree}`) is valid for that tree everywhere — never re-run the suite on a tree already verified green (baseline SHA cache §0, subagent abort-on-red skip (subagent brief), identical-tree skip §4 step 3). Dedup, not relaxation.
 
 **Review pre-merge (mandatory, parallel).** Every PR is reviewed by a fresh reviewer subagent before merge. The review is spawned **as soon as that PR's receipt arrives** (§3b) — it runs in parallel with still-working implementers, so its wall-clock cost hides inside the fan-out. The merge-train (§4) consumes the verdict; it never merges an unreviewed PR.
 
@@ -80,7 +80,7 @@ git -C <main-repo-root> checkout main && git pull --ff-only
 bun run test   # or the project's full suite from CLAUDE.md § Quality gates
 ```
 
-**Cheaper equivalent when the repo has required CI checks (§4 step 4, Lane A):** don't run the suite — read the verdict CI already recorded for the tip.
+**Cheaper equivalent when the repo has required CI checks (§4 step 3, Lane A):** don't run the suite — read the verdict CI already recorded for the tip.
 
 ```bash
 gh api repos/<owner>/<repo>/commits/<tip-sha>/check-runs \
@@ -241,7 +241,7 @@ Its prompt is: read the PR diff for `#N`, and follow `references/reviewer-brief.
 
 The train (§4) consumes these verdicts. `blocking` → hand the branch to a fixup subagent (issue's `model:*` label, max 3 attempts) before that PR may enter the merge steps.
 
-**Migration light lane (`migration` label) — skip the review.** A `migration`-labelled issue is a machine-proven pure refactor: a `resolve()`→`effects[]` transcription whose behavioural equivalence is proven by its own pre-existing per-card test kept byte-for-byte untouched, green before and after (PRD #826, playbook `docs/agents/effect-script-migration.md`). It carries no CR-correctness or design risk a reviewer would catch, so **do NOT spawn a reviewer subagent** for it in this section. The train (§4 step 2) treats an absent verdict on a `migration` issue as an implicit `approve` — never as "review still running". This lightens only the **per-issue** overhead; the green-main invariant is upheld unchanged by the merge-train's full-suite gate (§4 step 4), which still runs once per train on the combined state that actually lands.
+**Migration light lane (`migration` label) — skip the review.** A `migration`-labelled issue is a machine-proven pure refactor: a `resolve()`→`effects[]` transcription whose behavioural equivalence is proven by its own pre-existing per-card test kept byte-for-byte untouched, green before and after (PRD #826, playbook `docs/agents/effect-script-migration.md`). It carries no CR-correctness or design risk a reviewer would catch, so **do NOT spawn a reviewer subagent** for it in this section. The train (§4 step 2) treats an absent verdict on a `migration` issue as an implicit `approve` — never as "review still running". This lightens only the **per-issue** overhead; the green-main invariant is upheld unchanged by the merge-train's full-suite gate (§4 step 3), which still runs once per train on the combined state that actually lands.
 
 **The subagent task itself lives in `references/subagent-brief.md`** — worktree, abort-on-red, producer census, implementation, pre-PR gate, PR, receipt. The subagent reads that file as its first action; do **not** paste its contents into the prompt. The prompt carries only what is specific to this issue (the list above) plus the path.
 
@@ -281,19 +281,12 @@ For each issue in `order`:
 
 1. **Take the merge lock.** Only one PR integrates at a time.
 2. **Read the review verdict from its entry** (`entries[].verdict`, persisted by §3b — already the round-aware verdict, so you never have to pick between rounds yourself). `approve` → proceed. `blocking` → hand the branch to a fixup subagent (issue's `model:*` label, max 3 attempts) with `entries[].findings`, and re-review the fix before proceeding; if still blocking after 3, mark `[WIP]`, release, move on. `null` with a review still running → integrate another approved PR first and come back. **A `migration`-labelled issue has no verdict by design (§3b light lane): a `null` verdict there is an implicit `approve` — never a review still pending.** Tell both the fixup subagent and the re-reviewer which `round` to write (one past the highest already on disk for that issue+role — `ls .claude/receipts/<BATCH_ID>/ | grep '^<issue>-'`), since `writeReceipt` refuses to overwrite the prior round's file.
-3. **Rebase onto the current `main` tip.** In that PR's worktree:
-    ```bash
-    git -C <worktree> fetch origin main
-    git -C <worktree> rebase origin/main
-    ```
-    If the rebase conflicts (a prior PR in this same train touched an overlapping file — should be rare given §1's disjoint batching, but possible across passes), hand the branch back to a fresh subagent (issue's `model:*` label) to resolve the conflict + re-gate, then **re-review the conflict-resolution delta** (the reviewed diff is no longer what will land) and retry from step 3.
-4. **Gate the rebased state — exactly once per landing tree.** WHERE it runs depends on whether the repo has required CI status checks; determine that once per run and follow the matching lane in **`references/merge-train.md`** (Lane A = CI is the gate and is stricter, Lane B = local full gate from a dedicated gate worktree). That file also carries the `gh pr merge` failure modes and the gate-dedup rule.
-
-    Either lane:
-    - **Green** → merge, then verify the merged tip really is the tree you gated (`git log --oneline <old-tip>..origin/main` should show only your squash) before recording it as the verified-green SHA.
-    - **Red** → do **not** merge. Hand the branch back to a fresh subagent for fixup (issue's `model:*` label, max 3 attempts, §Error handling); on success retry from step 3, otherwise mark the PR `[WIP]`, release its claim, and move on.
-
-5. **Release the merge lock**, update the verified-green SHA to the new `main` tip, and proceed to the next PR — which now rebases onto the tip _including_ the PR just merged.
+3. **Land it: `bun run land <PR#>`, run from that PR's own worktree.** ONE `gate.ts heavy` invocation holds the lock across fetch → rebase → gate → push → merge → green-sha → teardown, closing the gap where `main` could move between "gate green" and "merge lands" (issue #2517). Lane details, why nesting `check:all`/`test` inside it is safe, and `gh pr merge` failure modes: **`references/merge-train.md`**.
+    - Refuses, named, before taking the lock: dirty tree, branch `main`, PR not open, PR head ≠ current branch.
+    - A rebase conflict `--abort`s automatically inside the locked run and exits non-zero naming the conflicting paths — hand to a fresh subagent (issue's `model:*` label) to resolve, **re-review the delta**, retry.
+    - Exit 0 → merged; `.claude/telemetry/green-sha` already holds the new tip.
+    - Non-zero otherwise → re-check `gh pr view <PR#> --json state` first (exit code can't tell gate-red from merged-but-a-post-merge-step-failed): `MERGED` → success, go to step 4 (but if it exited via the tip-verification refusal, green-sha is stale and ref cleanup did NOT run — re-fetch `origin/main`, hand-write `.claude/telemetry/green-sha`, delete the branch refs yourself); still `OPEN` → hand to a fresh subagent for fixup (max 3 attempts, §Error handling); on success retry, else mark `[WIP]`, release, move on.
+4. **Release the merge lock** and proceed to the next PR — its `bun run land <PR#>` now rebases onto the tip _including_ the PR just merged.
 
 If the HITL flag was set on an issue, its PR is **not** merged here — report "PR #X ready for review (HITL flagged on #N)" and leave it for the human (still release the worktree/claim per Release).
 
@@ -389,10 +382,10 @@ These rules govern the per-issue **subagent** (implement + gate + PR, §3) and t
 
 - **During implementation** (subagent), only targeted tests run (CLAUDE.md § Quality gates cadence) — if they fail, fix and retry (max 3 attempts).
 - The **light pre-PR gate** (subagent brief § pre-PR gate: targeted tests + static checks) must pass before the PR is opened. If it fails: fix and retry (max 3 attempts).
-- The **integrate re-gate** (orchestrator, §4) must pass on the rebased state before merge (or be skipped only via the tree-identical dedup, §4 step 4). If it fails: hand the branch to a fresh subagent for fixup (max 3 attempts), re-rebase, re-gate.
+- The **integrate re-gate** (orchestrator, §4) must pass on the rebased state before merge (or be skipped only via the tree-identical dedup, §4 step 3). If it fails: hand the branch to a fresh subagent for fixup (max 3 attempts), re-rebase, re-gate.
 - **Fixup / conflict-resolution subagents inherit the issue's `model:*` label** — same routing as the implement-subagent.
 - If stuck after 3 attempts (at any of the above): leave branch as-is, open/keep a draft PR with `[WIP]` prefix, **release the claim** (remove `in-progress` so the issue can be retried later) and remove the worktree (see Release), report failure, continue with the rest of the batch
 - Never force-push or skip the pre-PR gate
 - Never merge a PR whose review verdict (§3b) isn't `approve`
-- Never merge a tree that no full gate has passed on. Rebase onto the current `main` tip is always mandatory; the train's full gate may be skipped **only** when the post-rebase tree is byte-identical to a tree a full gate already passed (§4 step 4) — gate dedup, never gate relaxation
+- Never merge a tree that no full gate has passed on. Rebase onto the current `main` tip is always mandatory; the train's full gate may be skipped **only** when the post-rebase tree is byte-identical to a tree a full gate already passed (§4 step 3) — gate dedup, never gate relaxation
 - A worktree must never be left behind: even on an aborted attempt, run `git worktree remove` (Release) so they don't pile up across runs

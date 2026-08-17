@@ -42,7 +42,7 @@ high; suspicion that subagents were not running on cheaper models.
 - **Light pre-PR gate (§3 step 5):** subagents run only targeted tests +
   fast static checks (`check:ts` + lint). No full suite / `check:all` on the
   branch.
-- **One full gate per landing tree, at the train (§4 step 4):** the merge-train
+- **One full gate per landing tree, at the train (§4 step 3):** the merge-train
   runs the single full gate (`check:all` + full `bun run test`) per PR on the
   rebased tree that lands. The old no-op-rebase skip was removed (invalid now
   that pre-PR gates are light). Net: **2N−1 → N full gates per batch**.

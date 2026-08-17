@@ -107,7 +107,7 @@ if (
             "",
             "    The full suite and `check:all` are orchestrator-owned — they run once",
             "    per landing tree in the merge-train, on the rebased state that actually",
-            "    lands (process-gh-issues §4 step 4). Running them here pays for a gate",
+            "    lands (process-gh-issues §4 step 3). Running them here pays for a gate",
             "    that is re-paid at the train, and saturates the CPU of every other",
             "    subagent working in parallel.",
             "",
