@@ -1960,7 +1960,15 @@ export interface TokenSpec {
      *  each created copy's `CardInstanceState.counters` before the CR 614
      *  ETB chokepoint runs, mirroring `finalizeSpellResolution`'s own
      *  `entersWith.counters` application for a non-token permanent. */
-    entersWith?: { counters?: { type: string; count: number }[] };
+    entersWith?: {
+        counters?: { type: string; count: number }[];
+        /** CR 614.1c / 614.12a (ADR 0100 D3) — as-enters choices this token's
+         *  controller answers before it enters. Registered onto the token's
+         *  synthesized `CardDefinition` too (CR 707.2 — a copy of this token
+         *  copies the clause), so the CR 614 chokepoint reads it the same way
+         *  it reads a printed card's. */
+        asEnters?: AsEntersChoice[];
+    };
     /** This token's BACK face (CR 712, issue #1210/#924 — the Incubator's
      *  "{2}: Transform this artifact" flips it to a Construct creature
      *  token). See {@link CardBackFace} for the full contract. Undefined for
@@ -2112,7 +2120,13 @@ export interface EffectTokenSpec {
      *  `SpellContext.createToken`. A counter whose count doesn't resolve
      *  (uncaptured binding) or resolves to ≤0 is dropped (CR 122's "put N
      *  counters" with N ≤ 0 is a no-op). */
-    entersWith?: { counters?: { type: string; count: EffectValue }[] };
+    entersWith?: {
+        counters?: { type: string; count: EffectValue }[];
+        /** CR 614.1c / 614.12a (ADR 0100 D3) — as-enters choices the created
+         *  token owes before it enters. Pure data (no `EffectValue`), forwarded
+         *  verbatim onto the `TokenSpec` the executor builds. */
+        asEnters?: AsEntersChoice[];
+    };
     /** This token's BACK face (CR 712, issue #1210/#924). JSON-pure subset —
      *  see {@link EffectCardBackFace}. Undefined for the overwhelming
      *  majority of (single-faced) tokens. */
@@ -2168,6 +2182,78 @@ export interface TokenTriggeredAbility {
      *  ability with nothing to run is not expressible. */
     effects: EffectOp[];
 }
+
+// --- As-enters choices (CR 614.1c / 614.12, ADR 0100) ---
+
+/** ADR 0100 D3 — one "as [this] enters the battlefield …" choice, declared as
+ *  DATA beside `entersWith.counters` rather than as an Effect Script.
+ *
+ *  CR 614.1c makes every "As [this] enters …" / "[This] enters as …" clause a
+ *  replacement effect, and CR 614.12a requires the choice to be made BEFORE the
+ *  permanent enters. A replacement is a DECLARATION, not an effect that
+ *  resolves — the same reason `entersWith.counters` is data — and the Effect
+ *  Script interpreter has no coherent `$self` for a permanent that is in no
+ *  zone while it answers. No `EffectOp` is added for this family.
+ *
+ *  Every answer is a write to a typed field that already exists; the applier
+ *  (`applyAsEntersAnswer`, `convex/gre/state.ts`) is exhaustive over this union
+ *  via `assertNever`, so a `kind` cannot be added without a writer.
+ *
+ *  SLICE 1 (#2492) declares the whole union and wires NO card to it — the
+ *  catalogue-wide guard `convex/cards/__tests__/asEntersUnion.test.ts` asserts
+ *  that. The card wiring arrives in #2019 (`mode`), #2467 (`name` / `subtypes`
+ *  / `body` / `payLife`), #2451 (`copy`) and #1980 (`pay`). */
+export type AsEntersChoice =
+    /** CR 614.12 — "as this enters, choose a colour/creature type/…" expressed
+     *  as one of the card's own `modes`; the answer is written to
+     *  `CardInstanceState.chosenModeId` (Voice of All, Prismatic Ward). */
+    | { kind: "mode" }
+    /** CR 614.1c — "as this enters, name a card" (Meddling Mage); the answer is
+     *  written to `CardInstanceState.chosenName`. */
+    | { kind: "name"; filter?: EffectCardFilter }
+    /** CR 614.1c — "as this enters, choose N <subtype>s" (Illusionary Terrain);
+     *  the answer is written to `CardInstanceState.chosenSubtypes`. */
+    | { kind: "subtypes"; from: string[]; count: number }
+    /** CR 614.1c — "as this enters, choose a body" (Primal Clay, Shapeshifter):
+     *  the chosen option supplies the entering permanent's power / toughness and
+     *  any body-bound subtypes or keywords. */
+    | {
+          kind: "body";
+          options: {
+              id: string;
+              label: string;
+              power: number;
+              toughness: number;
+              subtypes?: string[];
+              staticAbilities?: string[];
+          }[];
+      }
+    /** CR 614.1c + CR 119.4 — "as this enters, pay any amount of life" (Nameless
+     *  Race). `cap: "life"` means "any amount you can pay"; a number caps it
+     *  lower. COST-BEARING, so it participates in the CR 614.12b constraint when
+     *  two permanents are staged simultaneously. */
+    | { kind: "payLife"; cap: number | "life" }
+    /** CR 707.6 — "as this enters, it becomes a copy of …" (Clone). Answering it
+     *  can GROW the owed list: the COPIED definition's own `asEnters` entries are
+     *  discovered only once the copy has been applied (ADR 0100 D4). */
+    | { kind: "copy"; filter?: PermanentFilter; opts?: CopyEffectOptions }
+    /** CR 303.4f — an Aura entering by a non-cast path chooses what it enchants.
+     *  Not declared by any card: the entry sites raise it themselves for an Aura
+     *  with two or more legal hosts (ADR 0100 D2 folds the shipped
+     *  `stagedAuraEntries` mechanism into this one). */
+    | { kind: "aura-host" }
+    /** CR 614.12 — "as this enters, you may pay <cost>" (shock lands, ADR 0051).
+     *  Declared here so the family is whole; the shipped `land-entry-tapped`
+     *  provisional park keeps its own shape until #1980 reconciles the two. */
+    | { kind: "pay"; cost: ManaCost }
+    /** CR 614.12c — "some replacement effects cause a permanent to enter the
+     *  battlefield with its controller's choice of one of two abilities, each
+     *  marked with an anchor word". No shipped card uses anchor words; the kind
+     *  ships so the mechanic is whole with no card exposing it. */
+    | {
+          kind: "anchor";
+          options: { id: string; label: string; staticAbilities?: string[] }[];
+      };
 
 // --- Copy effects (CR 706, 707) ---
 
@@ -13581,6 +13667,15 @@ export interface CardDefinition {
      *  per-site census lives on that module's header comment. */
     entersWith?: {
         counters?: { type: string; count: number | "X" | "kicker" }[];
+        /** CR 614.1c / 614.12a (ADR 0100 D3) — the ordered "as this enters …"
+         *  choices this permanent's controller answers BEFORE it enters, while
+         *  it is held off every zone (`GameState.stagedEntries`). Sibling to
+         *  `counters` because both are the same CR 614.1c self-replacement
+         *  family, declared as data. Answered head-first; the list may GROW
+         *  mid-flight when a `copy` answer reveals the copied definition's own
+         *  `asEnters` (CR 707.6). No `CardDefinition` populates this in slice 1
+         *  (#2492) — see {@link AsEntersChoice}. */
+        asEnters?: AsEntersChoice[];
     };
     /** CR 714.2 — a Saga's chapter abilities, declared as data (ADR 0078).
      *  The `getDefinition` seam (`expandChapterAbilities`,

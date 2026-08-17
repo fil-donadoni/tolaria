@@ -3848,6 +3848,30 @@ export const OP_EXECUTORS: {
     createToken(ctx, op) {
         const controllerId = resolvePlayerRef(ctx, op.controller);
         if (controllerId === undefined) return;
+        // CR 614.12a / ADR 0100 D5 — REPLAY SAFETY. A token whose entry parks on
+        // an as-enters choice suspends the resolution; resume is a RE-ENTRY, not
+        // a continuation, and `runOpList` re-executes the Op at exactly the
+        // resume position. Without a done-marker this Op would create a SECOND
+        // batch of tokens. The marker is written for the WHOLE batch right after
+        // `ctx.createToken` returns — `createTokenPermanents` resolves `count`
+        // once and creates every token of the batch in that one call, parking
+        // whichever of them owe choices — so a marker written here can never
+        // under-deliver part of a `count: N` batch, which is the mirror bug of
+        // the duplicate (a marker written at the Op's checkpoint BEFORE the call
+        // would short-circuit the whole Op on re-entry and create nothing).
+        // Same idempotent-commit idiom `castDuringResolution` / `coinFlipSync`
+        // use, keyed on this Op's own checkpointed position.
+        const doneKey = `#createToken:${ctx.getScriptCheckpoint() ?? 0}`;
+        const alreadyCreated = ctx.recallChoice(doneKey);
+        if (alreadyCreated !== undefined) {
+            if (op.bind && alreadyCreated.length > 0) {
+                bindSnapshot(ctx, op.bind, {
+                    type: "permanent",
+                    id: alreadyCreated[alreadyCreated.length - 1],
+                });
+            }
+            return;
+        }
         const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
         // CR 111.9 / 122.1 (issue #1210) — resolve any dynamic
@@ -3888,8 +3912,19 @@ export const OP_EXECUTORS: {
             );
         const token: TokenSpec = {
             ...restToken,
-            ...(resolvedCounters && resolvedCounters.length > 0
-                ? { entersWith: { counters: resolvedCounters } }
+            ...(resolvedCounters?.length || rawEntersWith?.asEnters?.length
+                ? {
+                      entersWith: {
+                          ...(resolvedCounters && resolvedCounters.length > 0
+                              ? { counters: resolvedCounters }
+                              : {}),
+                          // CR 614.1c (ADR 0100 D3) — pure data, forwarded
+                          // verbatim; nothing to resolve.
+                          ...(rawEntersWith?.asEnters
+                              ? { asEnters: rawEntersWith.asEnters }
+                              : {}),
+                      },
+                  }
                 : {}),
             ...(rawTriggeredAbilities && rawTriggeredAbilities.length > 0
                 ? {
@@ -3900,6 +3935,10 @@ export const OP_EXECUTORS: {
                 : {}),
         };
         const ids = ctx.createToken(token, controllerId, count);
+        // ADR 0100 D5 — commit the whole batch exactly once (see `doneKey`
+        // above). Recorded even when `ids` is empty so a zero-token call is not
+        // re-run either.
+        ctx.noteChoice(doneKey, ids);
         // issue #1202 — snapshot the LAST created token so a follow-up Op
         // (Cori-Steel Cutter's optional `attach`) can act on the specific
         // just-created permanent. Mirrors `destroy`/`exile`/`moveZone`'s own

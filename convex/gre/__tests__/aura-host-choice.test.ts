@@ -5,10 +5,10 @@
 import { describe, expect, it } from "vitest";
 import {
     putReanimatedSetOnBattlefield,
-    finalizeAuraHost,
     resolveTopOfStack,
     type GameState,
 } from "../state";
+import { finalizeAuraHost } from "../asEnters";
 import { checkAuraAttachmentSBA } from "../sba";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
@@ -138,7 +138,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
 
         expect(entered).toEqual([]);
         expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(state.stagedAuraEntries ?? []).toHaveLength(0);
+        expect(state.stagedEntries ?? []).toHaveLength(0);
         // Back in p1's graveyard, unattached.
         const gyAura = state.players[0].graveyard.find((c) => c.id === auraId);
         expect(gyAura).toBeDefined();
@@ -197,7 +197,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
             new Set(["bear-1", "bear-2"])
         );
         // The Aura is held off every zone until answered.
-        expect(state.stagedAuraEntries).toHaveLength(1);
+        expect(state.stagedEntries).toHaveLength(1);
         expect(
             state.players.every((p) =>
                 [...p.battlefield, ...p.graveyard].every((c) => c.id !== auraId)
@@ -218,7 +218,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
         finalizeAuraHost(state, ["bear-2"]);
 
         expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(state.stagedAuraEntries ?? []).toHaveLength(0);
+        expect(state.stagedEntries ?? []).toHaveLength(0);
         const aura = state.players[0].battlefield.find((c) => c.id === auraId);
         expect(aura?.attachedTo).toBe("bear-2");
         const chosen = state.players[0].battlefield.find(

@@ -18,7 +18,7 @@ import {
     plains,
     savannahLions,
 } from "../../cards/sets/lea";
-import { tokenDefinitionId } from "../../cards";
+import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import type { TokenSpec } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 
@@ -160,21 +160,51 @@ describe("game_state serialize round-trip", () => {
         });
     });
 
-    // CR 303.4f — an Aura held off every zone while its controller owes a
-    // `choose-aura-host` pick must survive the DB round-trip, so a save/load
-    // mid-choice reloads the staged Aura (a stable save point can fall here).
-    it("preserves stagedAuraEntries mid aura-host choice", () => {
+    // CR 614.1c / 614.12a (ADR 0100 D2) — a permanent held off every zone while
+    // its controller owes an "as it enters" choice must survive the DB
+    // round-trip, so a save/load mid-choice reloads the staged permanent (a
+    // stable save point falls exactly here).
+    //
+    // The load-bearing assertion is that the staged card's DEFINITION rehydrates
+    // — not merely that the key survives. `compactState` interns every card id
+    // through the shared pool (`compactCard` → a NUMERIC index), so a
+    // `stagedEntries` with a compact half and no rehydrate half round-trips a
+    // card whose `card.id` is an integer that resolves to no definition at all:
+    // silent, and at the one save point this key exists for.
+    it("preserves stagedEntries mid as-enters choice, definition and all", () => {
         const state = freshState();
         const aura = makeInstance(animateArtifact.id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        state.stagedAuraEntries = [{ aura, controllerId: "p1" }];
+        state.stagedEntries = [
+            {
+                card: aura,
+                controllerId: "p1",
+                origin: "effect",
+                parkedStackItemId: "stack-1",
+                owed: [{ kind: "aura-host" }],
+            },
+        ];
+
         const expanded = expandState(compactState(state));
-        expect(expanded.stagedAuraEntries).toEqual([
-            { aura, controllerId: "p1" },
-        ]);
+
+        expect(expanded.stagedEntries).toHaveLength(1);
+        const entry = expanded.stagedEntries![0];
+        expect(entry.controllerId).toBe("p1");
+        expect(entry.origin).toBe("effect");
+        expect(entry.parkedStackItemId).toBe("stack-1");
+        expect(entry.owed).toEqual([{ kind: "aura-host" }]);
+        // The definition itself resolves — this is what the rehydrate half buys.
+        const rehydratedDefId = (entry.card.card as { id?: unknown }).id;
+        expect(rehydratedDefId).toBe(animateArtifact.id);
+        expect(tryGetDefinition(String(rehydratedDefId))?.name).toBe(
+            animateArtifact.name
+        );
+        expect(entry.card.id).toBe(aura.id);
+        expect(entry.card.ownerId).toBe("p1");
+        expect(entry.card.types).toEqual(aura.types);
     });
 
     it("re-expands a fresh state to a deeply-equal GameState", () => {

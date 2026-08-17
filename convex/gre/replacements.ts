@@ -18,6 +18,7 @@
 // battlefield-declaration order. Adequate for the present LEA card set.
 
 import type {
+    AsEntersChoice,
     CardType,
     Color,
     DamageReplacementEvent,
@@ -684,18 +685,57 @@ export function applyEnterBattlefieldReplacements(
     return (result as EntersBattlefieldReplacementEvent | null) ?? event;
 }
 
+/** ADR 0100 D1 — what the CR 614 entry chokepoint answers. It used to answer
+ *  "which zone"; it now answers "what happens next":
+ *  - `"enter"` — nothing replaces the entry, the caller runs its entry tail;
+ *  - `"exile"` — a CR 614 replacement redirected the permanent (Containment
+ *    Priest); it never enters and the caller bins it;
+ *  - `{ asEnters }` — the permanent owes one or more CR 614.1c / 614.12a
+ *    "as it enters" choices, which must be answered BEFORE it enters. The
+ *    caller parks it off every zone (`stageAsEntersEntry`) and returns; the
+ *    entry resumes from the as-enters finalize (ADR 0100 D5). */
+export type EntryVerdict =
+    | "enter"
+    | "exile"
+    | { asEnters: readonly AsEntersChoice[] };
+
 /** Convenience wrapper around `applyEnterBattlefieldReplacements` for the
  *  zone-change chokepoints (cast-resolution `finalizeSpellResolution`,
  *  reanimation/tutor/hand-cheat via `stageReanimatedOnBattlefield`, token
- *  creation via `createToken`) that only need the resolved destination, not
- *  the full event shape. */
+ *  creation via `createToken`) that only need the resolved verdict, not the
+ *  full event shape.
+ *
+ *  ADR 0100 D1 — this function has EXACTLY THREE callers, one per census row
+ *  A/B/C, and gains none: an entry path that skipped it would already miss the
+ *  Containment Priest replacement (#1148), so the same invariant that keeps
+ *  CR 614 honest keeps the as-enters choice point honest. The caller count is
+ *  asserted structurally by
+ *  `convex/gre/__tests__/entersBattlefieldReplacement.test.ts`.
+ *
+ *  `declaredEntersWith` lets a caller that holds the entering object's
+ *  declaration directly (token creation, whose `TokenSpec` is not a printed
+ *  `CardDefinition`) supply it; every other caller leaves it undefined and the
+ *  clause is read off the definition the instance currently presents — which is
+ *  the copied definition after a mid-resolution `becomeCopyOf` (CR 707.2).
+ *  `asEntersResolved` is set by the RESUME path (`completeStagedEntry`) so a
+ *  re-entered entry tail does not park a second time on choices it has already
+ *  answered. */
 export function enterBattlefieldDestinationFor(
     state: GameState,
-    card: { id: string; ownerId: string; types: ReadonlyArray<CardType> },
+    card: {
+        id: string;
+        ownerId: string;
+        types: ReadonlyArray<CardType>;
+        card?: unknown;
+    },
     controllerId: string,
     isToken: boolean,
-    wasCast: boolean
-): "battlefield" | "exile" {
+    wasCast: boolean,
+    opts?: {
+        declaredEntersWith?: { asEnters?: AsEntersChoice[] };
+        asEntersResolved?: boolean;
+    }
+): EntryVerdict {
     const result = applyEnterBattlefieldReplacements(state, {
         kind: "enters-battlefield",
         cardInstanceId: card.id,
@@ -706,7 +746,20 @@ export function enterBattlefieldDestinationFor(
         types: card.types,
         destination: "battlefield",
     });
-    return result.destination;
+    if (result.destination === "exile") return "exile";
+    if (opts?.asEntersResolved) return "enter";
+    // CR 614.1c — the "as it enters" clause is a copiable value read off the
+    // definition the object PRESENTS (`card.card.id`), not off its printed
+    // identity, so a Clone that copied during its own resolution owes the
+    // copied card's choices (CR 707.2).
+    const declared = opts?.declaredEntersWith?.asEnters;
+    const presentedId = (card.card as { id?: string } | undefined)?.id;
+    const fromDefinition = presentedId
+        ? tryGetDefinition(presentedId)?.entersWith?.asEnters
+        : undefined;
+    const asEnters = declared ?? fromDefinition;
+    if (asEnters && asEnters.length > 0) return { asEnters: [...asEnters] };
+    return "enter";
 }
 
 /** Public helper for resolving a damage source's identity at the moment a

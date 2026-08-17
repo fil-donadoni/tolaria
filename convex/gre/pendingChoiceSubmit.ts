@@ -20,12 +20,12 @@ import {
     mayPayHandSelectionLegal,
     normalizeMayPayCost,
     grantKnowledge,
-    finalizeAuraHost,
     emitLibrarySearchedEvent,
     type CardInstanceState,
     type GameState,
     type PendingChoice,
 } from "./state";
+import { finalizeAsEnters } from "./asEnters";
 import {
     isCategorizedCoverLegal,
     isCategorizedPickLegal,
@@ -499,6 +499,52 @@ export function applyPendingChoiceSubmit(
         head.playerId !== args.playerId
     ) {
         throw new Error("Stale pending choice — try again");
+    }
+
+    // --- As-enters choice (CR 614.1c / 614.12a, ADR 0100 D5) — the FIFTH
+    // early-return finalize. Discriminated on the explicit `asEntersCardId`
+    // rather than on `kind`: every as-enters prompt REUSES an existing
+    // `PendingChoiceKind` shape (`option-pick`, `choose-permanents`,
+    // `choose-aura-host`, `name-card`), so `kind` alone cannot tell one from an
+    // ordinary mid-resolution choice, and an implicit "it's stackless, so it
+    // must be as-enters" invariant would fail open the moment another stackless
+    // family reuses the same shape. Placed ABOVE the generic validation because
+    // the staged permanent is in NO zone: a zone-membership check has nothing to
+    // check against, and `name-card` would be bounced to its own mutation. This
+    // branch therefore does its own validation, then hands off to the shared
+    // finalize, which reproduces (never reaches) the generic tail. ---
+    if (head.asEntersCardId !== undefined && head.stackItemId === "") {
+        const min = getPendingChoiceMin(head.count);
+        const max = getPendingChoiceMax(head.count);
+        if (
+            new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length
+        ) {
+            throw new Error("Duplicate ids in submission");
+        }
+        if (args.cardInstanceIds.length < min) {
+            throw new Error(
+                min === 1 ? "Select at least 1 card" : `Select at least ${min}`
+            );
+        }
+        if (args.cardInstanceIds.length > max) {
+            throw new Error(
+                max === 1 ? "Select at most 1 card" : `Select at most ${max}`
+            );
+        }
+        // `candidateIds` / `options` are the authoritative allow-lists — the
+        // staged permanent's choice is offered against a set computed at prompt
+        // time (legal Aura hosts, copiable permanents, payable life amounts),
+        // and `name-card` is free text with no allow-list at all.
+        for (const id of args.cardInstanceIds) {
+            if (head.candidateIds && !head.candidateIds.includes(id)) {
+                throw new Error("Card is not an eligible choice");
+            }
+            if (head.options && !head.options.some((o) => o.id === id)) {
+                throw new Error("Not a legal choice");
+            }
+        }
+        finalizeAsEnters(state, args.cardInstanceIds);
+        return;
     }
 
     // `may-pay` has its own mutation (`submitMayPay`) — reject here.
@@ -986,18 +1032,6 @@ export function applyPendingChoiceSubmit(
             throw new Error("Card is not an eligible choice");
         }
         finalizeLegendKeep(state, args.cardInstanceIds);
-        return;
-    }
-
-    if (head.kind === "choose-aura-host" && head.stackItemId === "") {
-        // CR 303.4f — non-cast Aura host pick. The battlefield + candidateIds
-        // validation above already verified the selection is a legal host; the
-        // attach, staged-entry removal, SBA re-sweep, and priority resumption
-        // live in `finalizeAuraHost`.
-        if (!head.candidateIds?.includes(args.cardInstanceIds[0])) {
-            throw new Error("Card is not an eligible choice");
-        }
-        finalizeAuraHost(state, args.cardInstanceIds);
         return;
     }
 
