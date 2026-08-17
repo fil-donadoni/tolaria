@@ -2,7 +2,12 @@ import { ConvexError, v, type GenericId } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, auth, getCurrentUser } from "./auth";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import {
+    internalMutation,
+    mutation,
+    query,
+    type MutationCtx,
+} from "./_generated/server";
 import {
     getAllCardNames,
     getDefinition,
@@ -681,10 +686,18 @@ async function saveGameState(
             updatedAt: Date.now(),
         });
     } else {
+        // Mirror the owning Game's mode flags onto the row (see `gameStates`
+        // in `convex/schema.ts`). This is the ONE place the fat `games` row is
+        // read for them — once per game, at insert — so that `getPublicState`
+        // never has to. Both are written explicitly, `false` included, so the
+        // reader can tell "not solo" from "row predates the field".
+        const game = await ctx.db.get(gameId);
         await ctx.db.insert("gameStates", {
             gameId,
             seq,
             state: stored,
+            solo: game?.solo === true,
+            vsAi: game?.vsAi === true,
             updatedAt: Date.now(),
         });
     }
@@ -3578,7 +3591,19 @@ export const getPublicState = query({
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) return null;
-        const game = await ctx.db.get(args.gameId);
+        // Mode flags come off the `gameStates` row this query already read —
+        // reading the `games` row for them cost 8.3 KB per execution, 7.33 KB
+        // of it decklists nothing here projects (see `gameStates` in
+        // `convex/schema.ts`). A row written before the mirror existed carries
+        // NEITHER flag, which is what distinguishes it from a plain 2-player
+        // game; only then is the fat row read.
+        const { solo, vsAi } =
+            gameState.solo === undefined && gameState.vsAi === undefined
+                ? ((await ctx.db.get(args.gameId)) ?? {
+                      solo: undefined,
+                      vsAi: undefined,
+                  })
+                : gameState;
         const state = gameState.state as GameState;
         // In solo mode, the single user controls both players: the viewer follows
         // whoever currently owes input so the UI shows that player's hand, legal
@@ -3591,7 +3616,7 @@ export const getPublicState = query({
         // viewpoints — the human stays pinned to their seat and the bot driver
         // queries as its own seat (ADR 0001) — so it uses the requested playerId.
         const viewerId =
-            game?.solo === true && game?.vsAi !== true
+            solo === true && vsAi !== true
                 ? computeSoloViewerId({
                       activePlayerId: state.activePlayerId,
                       priorityPlayerId:
@@ -3612,6 +3637,43 @@ export const getPublicState = query({
             viewerId,
             args.debugAllActions ?? false
         );
+    },
+});
+
+/** One-shot backfill for the `gameStates.solo`/`vsAi` mirror
+ *  (`convex/schema.ts`): stamps the flags onto every row written before the
+ *  field existed.
+ *
+ *  Not required for correctness — `getPublicState` falls back to the `games`
+ *  row when both flags are absent — but a row nobody backfills keeps paying
+ *  the 8.3 KB fallback read on every subscription re-execution for the rest of
+ *  that game's life, which is the entire cost this mirror exists to remove.
+ *  Run once per deployment after deploying:
+ *
+ *      bunx convex run --prod game:backfillGameStateMode '{}'
+ *
+ *  Idempotent: an already-stamped row is skipped without a write, so
+ *  re-running is free. `limit` bounds one invocation's transaction; the
+ *  returned `remaining` says whether to run it again. */
+export const backfillGameStateMode = internalMutation({
+    args: { limit: v.optional(v.number()) },
+    returns: v.object({ stamped: v.number(), remaining: v.number() }),
+    handler: async (ctx, args) => {
+        const limit = args.limit ?? 200;
+        const rows = await ctx.db.query("gameStates").collect();
+        const pending = rows.filter(
+            (row) => row.solo === undefined && row.vsAi === undefined
+        );
+        let stamped = 0;
+        for (const row of pending.slice(0, limit)) {
+            const game = await ctx.db.get(row.gameId);
+            await ctx.db.patch(row._id, {
+                solo: game?.solo === true,
+                vsAi: game?.vsAi === true,
+            });
+            stamped += 1;
+        }
+        return { stamped, remaining: pending.length - stamped };
     },
 });
 

@@ -55,6 +55,26 @@ export default defineSchema({
         gameId: v.id("games"),
         seq: v.number(),
         state: v.any(),
+        // Game-mode flags MIRRORED from the owning `games` row, stamped once
+        // when this row is inserted (`saveGameState`, `convex/game.ts`) and
+        // immutable thereafter — a Game never changes mode after creation.
+        //
+        // They live here purely as a read-bandwidth fix (PRD #1776 follow-up).
+        // `getPublicState` needs exactly these two booleans off the `games`
+        // row to pick the solo viewer seat, and nothing else — but a document
+        // read is billed by the WHOLE document, and the prod `games` row
+        // measures 8.3 KB of which 7.33 KB is the two decklists the query does
+        // not project. That read re-executed on every subscription re-run
+        // (~22K/month) and was 54% of `getPublicState`'s database I/O, the
+        // single largest line on the deployment's bill.
+        //
+        // ABSENCE means "written before this field existed", NOT "false":
+        // both are written together, explicitly, including the `false` case,
+        // so `solo === undefined` is an unambiguous legacy marker and the
+        // reader falls back to the `games` row. `backfillGameStateMode`
+        // (`convex/game.ts`) stamps the rows that predate this.
+        solo: v.optional(v.boolean()),
+        vsAi: v.optional(v.boolean()),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId", "seq"]),
     // Tick row (PRD #1776 T3, issue #1778): a ~150-byte cheap wake-up signal
@@ -552,6 +572,10 @@ export default defineSchema({
         // rounds' slices overlap the earlier ones (a card already picked
         // reappearing in a later pack). Absent for every non-cube event, and
         // for cube events dealt before this field existed.
+        // LEGACY (see the `limitedCubePools` table below, which now holds
+        // this): still DECLARED so events started before the split keep
+        // validating, and `convex/limitedCubePoolStore.ts` folds an inline
+        // copy in when no child row exists. Nothing writes it any more.
         cubePool: v.optional(v.array(v.string())),
         // Bot Drafter scorer version (issue #1613, ADR 0074 replay mode) —
         // `convex/limited/scorerVersion.ts`'s `SCORER_VERSION`, stamped once
@@ -680,6 +704,11 @@ export default defineSchema({
                 // and so a future Auto-Pick resolver (issue #1249) can honour
                 // it on timer expiry — see `selectDraftPick`
                 // (`convex/limitedEvents.ts`).
+                // LEGACY (see the `limitedSelections` table below, which now
+                // holds this): still DECLARED so seats written before the
+                // split keep validating, and `convex/limitedSeatStore.ts`
+                // folds an inline copy in when no selection row exists.
+                // Nothing writes it any more.
                 selectedPickId: v.optional(v.string()),
             })
         ),
@@ -752,6 +781,64 @@ export default defineSchema({
         // Doubles as the point lookup for a single seat (`eq` on both
         // components), which is what the draft/deckbuild write path uses.
         .index("by_event", ["eventId", "seatIndex"]),
+    // One seat's Selected Card (ADR 0060, issue #1248) — the tentative,
+    // never-committed single click inside its own booster — split out of
+    // `limitedEvents.seats[].selectedPickId`.
+    //
+    // It was the smallest field on the event row and the most expensive one to
+    // keep there: a click fired `selectDraftPick`, which rewrote the WHOLE
+    // event document, which in turn re-executed EVERY open `getLimitedEvent`
+    // subscription on the table — and a selection is the one piece of draft
+    // state that is strictly private to its own seat (`projectLimitedEvent`
+    // nulls it for every non-viewer). Eight seats clicking around a booster
+    // were invalidating each other's board for state none of them could see.
+    // It also put every click in write contention with every pick on one
+    // document, which is what the deployment's OCC-retry warnings were.
+    //
+    // Absent row = no selection; clearing one deletes it. Written ONLY by
+    // `selectDraftPick`; never cleared on a pick, because the engine
+    // re-validates a selection against the LIVE `currentPack` and treats a
+    // stale one as no selection at all (`resolveAutoPickTimeout`,
+    // `convex/limited/draftEngine.ts`). `convex/limitedSeatStore.ts` is the
+    // only module that reads it, folding it back into the reassembled
+    // `LimitedEventSeat[]` every consumer already expects.
+    limitedSelections: defineTable({
+        eventId: v.id("limitedEvents"),
+        seatIndex: v.number(),
+        // `pickId`-keyed, mirroring `DraftPackCard.pickId`, so it always names
+        // an exact physical booster card and never a duplicate print.
+        pickId: v.string(),
+    })
+        // Point lookup on both components — the narrowed read path (the
+        // viewer's own seat) MUST stay a single-key read, or every seat's
+        // subscription would depend on every other seat's selection row and
+        // the split would buy nothing.
+        .index("by_event", ["eventId", "seatIndex"]),
+    // A cube Draft's FROZEN card pool (ADR 0062), split out of
+    // `limitedEvents.cubePool` for the same reason `limitedSeats` was split
+    // out of `limitedEvents.seats[]`: Convex bills a read by the bytes of the
+    // WHOLE document, and this array measured 11.71 KB of a 16.0 KB prod event
+    // row — 73% of it.
+    //
+    // The asymmetry that makes the split pay: the pool is consumed ONLY when a
+    // booster round is dealt (`generateCubeRoundPacks`, `draftEngine.ts`),
+    // which happens `packSlots.length` times in a whole draft — while the
+    // event row is re-read by every pick, every card click, every arrangement
+    // drag, and by every open `getLimitedEvent` subscription each time any of
+    // those writes it. Seven prod functions were paying for the pool; three
+    // deals per draft actually needed it.
+    //
+    // One row per cube event, written once at `startLimitedEvent` and never
+    // mutated — the freeze is the whole point (a pool re-derived per round
+    // from the live registry re-deals cards an earlier round already dealt the
+    // moment a cube card is implemented mid-draft). `convex/
+    // limitedCubePoolStore.ts` is the ONLY module that reads or writes it.
+    limitedCubePools: defineTable({
+        eventId: v.id("limitedEvents"),
+        // Canonical Card IDs, in `buildCubePool()` order — the exact array
+        // that used to live on the event row.
+        pool: v.array(v.string()),
+    }).index("by_event", ["eventId"]),
     // Bot Drafter Pick Ratings (PRD #1296, ADR 0065, issue #1297). Evolves
     // the checked-in `data/pick-ratings/*.json` seed layer
     // (`convex/limited/pickRatings.ts`, issue #1117) into an Admin-editable
