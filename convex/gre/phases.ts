@@ -1896,7 +1896,7 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
 function performPhaseEntry(state: GameState): void {
     switch (state.phase) {
         case "UNTAP":
-            // CR 500.4 / 502.1 — "until its controller's next untap step"
+            // CR 500.4 — "until its controller's next untap step"
             // effects expire as that controller's untap step BEGINS (Orcish
             // Farmer's land-type change) — this is CR 500.4's "as a step or
             // phase begins" expiry. Ticked BEFORE the untap proper so the
@@ -1908,7 +1908,7 @@ function performPhaseEntry(state: GameState): void {
             untapStep(state);
             break;
         case "UPKEEP":
-            // CR 500.4 / 500.2 — "until your next upkeep" effects expire as
+            // CR 500.4 — "until your next upkeep" effects expire as
             // the active player's upkeep BEGINS (Xenic Poltergeist's
             // animation) — this is CR 500.4's "as a step or phase begins"
             // expiry. The tick is keyed to the UPKEEP boundary + the
@@ -3265,7 +3265,9 @@ function endCombatStep(state: GameState): void {
     state.camouflageCombat = undefined;
     // Melee's attacker-chooses-blocks flag is likewise combat-scoped (#669).
     state.meleeCombat = undefined;
-    // CR 511.3 — "until end of combat" effects end as the step ends.
+    // CR 511.2 / 500.5a — "until end of combat" effects expire at the end
+    // of the combat phase (not merely as the step begins); this call sits at
+    // the END_OF_COMBAT step's exit, which is also the combat phase's exit.
     tickAllDurations(state);
 }
 
