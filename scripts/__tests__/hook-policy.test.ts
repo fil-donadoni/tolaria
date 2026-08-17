@@ -1060,6 +1060,54 @@ describe("claim-ledger — records what THIS session claimed", () => {
         expect(fs.readFileSync(ledger(), "utf8")).toBe(before);
     });
 
+    it("records EVERY issue of a batch claim, not just the first", () => {
+        // A batch is claimed in one Bash call. The single-`sed` version
+        // captured only the first number, so the rest never reached the ledger
+        // and claim-sweep could not release them. Observed 2026-08-17: a
+        // headless pass claimed #2445/#1969/#1851/#1852, died, and left all
+        // four labelled in-progress with no branch, no PR and no ledger row —
+        // invisible to the sweep and skipped by every later pass thereafter.
+        const dir = fs.mkdtempSync(
+            path.join(os.tmpdir(), "hook-ledger-batch-")
+        );
+        const rows = (cmd: string) => {
+            runHook(CLAIM_LEDGER, bash(cmd, "/x", "sess-B"), {
+                CLAUDE_PROJECT_DIR: dir,
+            });
+            const file = path.join(dir, ".claude", "telemetry", "claims.jsonl");
+            const out = fs
+                .readFileSync(file, "utf8")
+                .trim()
+                .split("\n")
+                .map((l) => (JSON.parse(l) as { issue: number }).issue);
+            fs.rmSync(file);
+            return out.sort((a, b) => a - b);
+        };
+
+        // one edit, several issues
+        expect(
+            rows("gh issue edit 2445 1969 1851 1852 --add-label in-progress")
+        ).toEqual([1851, 1852, 1969, 2445]);
+
+        // chained edits, one per issue
+        expect(
+            rows(
+                "gh issue edit 2445 --add-label in-progress && " +
+                    "gh issue edit 1969 --add-label in-progress"
+            )
+        ).toEqual([1969, 2445]);
+
+        // `#`-prefixed, and a non-claim edit in the same command must not ride along
+        expect(
+            rows(
+                "gh issue edit #2445 --add-label in-progress; " +
+                    "gh issue edit 777 --add-label needs-design"
+            )
+        ).toEqual([2445]);
+
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
     it("never blocks — it is an observer", () => {
         const r = runHook(CLAIM_LEDGER, bash("rm -rf /", "/x"), {
             CLAUDE_PROJECT_DIR: projectDir,

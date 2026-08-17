@@ -161,18 +161,17 @@ is never woken: the pass exits, having claimed issues and released nothing.
 The residue to clean up afterwards:
 
 ```bash
-# 1. worktrees the dead pass never tore down
-bun run wt:gc                 # report; --yes to remove the finished ones
-
-# 2. claims it never released — issues labelled in-progress with no live branch/PR
-gh issue list --search 'is:open label:in-progress' --json number,title,updatedAt
+bun run loop:doctor        # claims nothing will release; --release drops them
+bun run wt:gc              # worktrees the dead pass never tore down; --yes removes them
 ```
 
-An `in-progress` issue whose branch and worktree are gone and which has no open
-PR was orphaned by a crashed process; removing the label is safe and puts it
-back in the pool. An issue whose branch **does** exist belongs to a session that
-may still be alive — leave it (the account is shared, so unclaiming someone
-else's live work is indistinguishable from unclaiming your own).
+`loop:doctor` classifies every `in-progress` issue by whether a branch or an
+open PR exists for it. No branch and no PR, and untouched for more than two
+hours, is an orphan — safe to release. A **fresh** claim with no branch and no
+PR is reported as `suspect` and never released: that is exactly what a healthy
+pass looks like in the minutes between claiming its batch and pushing the first
+branch, and the sessions share one GitHub account, so unclaiming someone else's
+live work is indistinguishable from unclaiming your own.
 
 ## What stays yours
 

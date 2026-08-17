@@ -30,6 +30,7 @@
         "land": "bun scripts/land.ts",
         "review:receipt": "bun scripts/write-review-receipt.ts",
         "loop:scorecard": "bun scripts/loop-scorecard.ts",
+        "loop:doctor": "bun scripts/loop-doctor.ts",
         "telemetry:ingest": "bun scripts/telemetry-ingest.ts",
         "telemetry:dash": "bun scripts/telemetry-serve.ts",
         "findings": "bun scripts/findings.ts",
