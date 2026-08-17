@@ -275,7 +275,7 @@ export type RealizedOutcome = {
 
 /** Spend restriction on a unit of mana (CR 106.6). Mana carrying a
  *  restriction can only pay for costs the restriction permits; it still
- *  empties at end of step/phase like any other mana (CR 500.4).
+ *  empties at end of step/phase like any other mana (CR 500.5).
  *  - `creature-spell`: spendable only to cast creature spells
  *    (Metamorphosis — "Spend this mana only to cast creature spells").
  *  - `artifact-spell`: spendable only to cast artifact spells
