@@ -35,6 +35,10 @@ export type WorktreeFacts = {
     /** Commits on this branch that are not in origin/main. */
     unmerged: number;
     locked: boolean;
+    /** This branch is the head of a MERGED pull request. */
+    mergedPr?: boolean;
+    /** This branch is the head of an OPEN pull request. */
+    openPr?: boolean;
 };
 
 export type Verdict =
@@ -51,6 +55,23 @@ export type Verdict =
 export function classify(w: WorktreeFacts): Verdict {
     if (w.locked) return { action: "keep", reason: "locked" };
     if (w.dirty) return { action: "keep", reason: "uncommitted changes" };
+    if (w.openPr) return { action: "keep", reason: "PR still open" };
+
+    // A SQUASH merge — which is how every PR lands here — puts the branch's
+    // CONTENT into main under a brand-new commit. The branch's own commit is
+    // therefore never an ancestor of main, and the ancestry count below reads
+    // `1 commit not in origin/main` forever. That made the first version of
+    // this tool report almost nothing as finished: of 36 worktrees it found
+    // 10, and every one of the 26 it kept had just been merged.
+    //
+    // The PR's own verdict is the authority on merged-ness, not ancestry.
+    //
+    // Kept deliberately ahead of the unmerged count, so a branch that gained
+    // commits AFTER its PR merged is still removable: `git worktree remove`
+    // deletes the working directory, never the branch, so those commits stay
+    // reachable and nothing is lost.
+    if (w.mergedPr) return { action: "remove", reason: "PR merged" };
+
     if (w.unmerged > 0) {
         return {
             action: "keep",
@@ -117,6 +138,42 @@ if (import.meta.main) {
         git(["worktree", "list", "--porcelain"], primary)
     ).filter((w) => resolve(w.path) !== resolve(primary));
 
+    // Two list calls, not one per branch: the head-branch names of every open
+    // and every recently-merged PR. `--limit 300` comfortably covers the
+    // window a live worktree can be in; `gh` returns the NEWEST N, which is
+    // the right end of the list for this question.
+    const heads = (state: "open" | "merged"): Set<string> => {
+        const raw = spawnSync(
+            "gh",
+            [
+                "pr",
+                "list",
+                "--state",
+                state,
+                "--limit",
+                "300",
+                "--json",
+                "headRefName",
+            ],
+            { encoding: "utf8", cwd: primary, env: NET_ENV }
+        );
+        if (raw.status !== 0) return new Set();
+        try {
+            return new Set(
+                (JSON.parse(raw.stdout) as { headRefName: string }[]).map(
+                    (p) => p.headRefName
+                )
+            );
+        } catch {
+            return new Set();
+        }
+    };
+    // A gh failure yields EMPTY sets, which makes every branch look
+    // never-merged — i.e. it fails towards KEEPING worktrees, never towards
+    // removing them.
+    const openHeads = heads("open");
+    const mergedHeads = heads("merged");
+
     const removable: string[] = [];
     for (const e of entries) {
         const dirty = git(["status", "--porcelain"], e.path) !== "";
@@ -128,6 +185,8 @@ if (import.meta.main) {
             ...e,
             dirty,
             unmerged: Number(unmergedOut || "0"),
+            openPr: e.branch !== null && openHeads.has(e.branch),
+            mergedPr: e.branch !== null && mergedHeads.has(e.branch),
         };
         const v = classify(facts);
         const mark = v.action === "remove" ? "×" : "·";
