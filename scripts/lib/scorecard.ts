@@ -52,6 +52,9 @@ export interface ScorecardReceipt {
      * carries an explicit `round`, and picking the latest one is what keeps
      * `shippedIssues` from reporting a superseded round's outcome. */
     round?: number;
+    /** Unix seconds. Optional only because ~0.5% of the receipts on disk
+     * predate the field; an undated receipt falls outside every window. */
+    ts?: number;
 }
 
 export interface Window {
@@ -232,13 +235,63 @@ export interface ScorecardInput {
 
 export function summarizeLoop({
     events,
-    receipts,
+    receipts: allReceipts,
     window,
 }: ScorecardInput): Scorecard {
     const inWindow = events.filter(
         (e) => e.ts >= window.from && e.ts <= window.to
     );
     const notes: string[] = [];
+
+    // The window has to filter BOTH inputs or every per-issue figure is a
+    // windowed numerator over an all-time denominator. It was not: `passes`,
+    // `issuesShipped`, the review rate and the fixup histogram came from every
+    // receipt on disk, while tokens, gates and wall-clock came from the window.
+    // Measured 2026-08-17, same repo, four windows:
+    //
+    //     days        7      14      30      60
+    //     passes     80      80      80      80     ← never moved
+    //     shipped    63      63      63      63     ← never moved
+    //     gate runs  98     235    1485    3653     ← windowed
+    //
+    // So "1.56 gate runs per shipped issue" at 7 days and "23.57" at 30 was one
+    // series divided by a constant. Every ratio this module reports was
+    // affected, and nothing said so.
+    //
+    // An UNDATED receipt is excluded rather than admitted everywhere: the
+    // alternative is a row that silently counts in every window, which is the
+    // failure this fixes. The count is reported instead of swallowed.
+    const undatedReceipts = allReceipts.filter(
+        (r) => typeof r.ts !== "number"
+    ).length;
+    const receipts = allReceipts.filter(
+        (r) =>
+            typeof r.ts === "number" && r.ts >= window.from && r.ts <= window.to
+    );
+    // The receipt directory is younger than the telemetry log — receipts only
+    // exist since #2182, and batches are pruned. Asking for 60 days therefore
+    // widens the event side while the receipt side stops at its own beginning,
+    // and every per-issue ratio inflates with the window for no reason a reader
+    // could see. Same class of defect as the one above, so it is stated rather
+    // than left to be rediscovered.
+    const earliest = Math.min(
+        ...allReceipts
+            .map((r) => r.ts)
+            .filter((t): t is number => typeof t === "number")
+    );
+    if (Number.isFinite(earliest) && earliest > window.from) {
+        const covered = Math.round((window.to - earliest) / 86_400);
+        const asked = Math.round((window.to - window.from) / 86_400);
+        notes.push(
+            `Receipts only go back ${covered} day(s) of the ${asked} asked for: per-issue figures over the longer window divide a full-window numerator by a ${covered}-day denominator.`
+        );
+    }
+
+    if (undatedReceipts > 0) {
+        notes.push(
+            `${undatedReceipts} receipt(s) carry no \`ts\` and are outside every window — they predate the field and are excluded from all counts.`
+        );
+    }
 
     if (inWindow.length === 0 && receipts.length === 0) {
         notes.push(

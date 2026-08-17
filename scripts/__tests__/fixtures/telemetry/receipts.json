@@ -3,32 +3,62 @@
         "batch": "batch-a",
         "role": "implement",
         "issue": 101,
-        "outcome": "pr-open"
+        "outcome": "pr-open",
+        "ts": 1100
     },
     {
         "batch": "batch-a",
         "role": "review",
         "issue": 101,
-        "outcome": "approve"
+        "outcome": "approve",
+        "ts": 1200
     },
     {
         "batch": "batch-a",
         "role": "implement",
         "issue": 102,
-        "outcome": "pr-open"
+        "outcome": "pr-open",
+        "ts": 1300
     },
     {
         "batch": "batch-a",
         "role": "review",
         "issue": 102,
-        "outcome": "blocking"
+        "outcome": "blocking",
+        "ts": 1400
     },
-    { "batch": "batch-a", "role": "fixup", "issue": 102, "outcome": "pr-open" },
+    {
+        "batch": "batch-a",
+        "role": "fixup",
+        "issue": 102,
+        "outcome": "pr-open",
+        "ts": 1500
+    },
     {
         "batch": "batch-a",
         "role": "implement",
         "issue": 103,
-        "outcome": "collision"
+        "outcome": "collision",
+        "ts": 1600
     },
-    { "batch": "batch-a", "role": "missing", "outcome": "missing" }
+    {
+        "batch": "batch-a",
+        "role": "missing",
+        "outcome": "missing",
+        "ts": 1700
+    },
+    {
+        "batch": "batch-later",
+        "role": "implement",
+        "issue": 901,
+        "outcome": "pr-open",
+        "ts": 9000
+    },
+    {
+        "batch": "batch-later",
+        "role": "review",
+        "issue": 901,
+        "outcome": "approve",
+        "ts": 9100
+    }
 ]

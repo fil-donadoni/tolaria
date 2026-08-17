@@ -18,6 +18,7 @@
 // "the loop blocked no reviews" and "no review was recorded" are the same
 // number and opposite facts.
 
+import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import {
@@ -31,7 +32,28 @@ function flag(name: string): string | undefined {
     return i === -1 ? undefined : process.argv[i + 1];
 }
 
-const root = process.cwd();
+/**
+ * Telemetry and receipts live in the PRIMARY checkout: both directories are
+ * gitignored, so a linked worktree has empty ones. Resolving them from
+ * `process.cwd()` made the scorecard report a flat zero whenever it was run
+ * from a worktree — which, now that every authored file belongs in one, is
+ * most of the time. The report said "nothing to measure" honestly enough, but
+ * "the loop did nothing this week" and "you are standing in the wrong
+ * directory" are the same output.
+ */
+function primaryCheckout(): string {
+    const r = spawnSync("git", ["rev-parse", "--git-common-dir"], {
+        encoding: "utf8",
+    });
+    const common = (r.stdout ?? "").trim();
+    // In the primary checkout `--git-common-dir` is the relative `.git`; in a
+    // linked worktree it is an absolute path to the primary's `.git`.
+    return r.status === 0 && common.startsWith("/")
+        ? path.dirname(path.resolve(common))
+        : process.cwd();
+}
+
+const root = primaryCheckout();
 const eventsPath =
     flag("events") ??
     path.join(root, ".claude", "telemetry", "tool-events.jsonl");
