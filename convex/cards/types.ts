@@ -2234,8 +2234,9 @@ export type AsEntersChoice =
      *  Unreachable today (no shipped card populates this union —
      *  `asEntersUnion.test.ts` fails CI on the first one), and making the
      *  default filter-aware needs the filter projected into the bot view plus a
-     *  registry scan for a satisfying name — bot work that belongs with the
-     *  card that first ships it. tracked-by: #2467 */
+     *  registry scan for a satisfying name; picking a name that merely SATISFIES
+     *  the filter closes the stall, while picking a name worth locking belongs
+     *  with the card that first ships it (#2467). tracked-by: #2497 */
     | { kind: "name"; filter?: EffectCardFilter }
     /** CR 614.1c — "as this enters, choose N <subtype>s" (Illusionary Terrain);
      *  the answer is written to `CardInstanceState.chosenSubtypes`. */
