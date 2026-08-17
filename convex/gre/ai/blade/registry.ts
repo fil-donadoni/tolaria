@@ -1718,7 +1718,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "activate-ability", card: "Grizzly Bears" }],
         },
-        note: "Issue #2469 — the granted-ability activation the bot should take, on a host with no combo priors to lean on (Deceiver Exarch's own '{T}: untap target creature' primes the enumerator differently; a plain Grizzly Bears carries only the ability Splinter Twin grants, CR 613.1 layer 6). Measured (review finding on #2495, round 2): post-fix the bot chooses the activation on 5/5 seeds, reproduced on two consecutive runs; with the pre-fix `enumerateAbilityMoves` (the printed-list early return) it chooses `pass` on 5/5 seeds. This is the entry that discharges #2469's `must`-tier acceptance criterion — the cast-side sibling above does not, since it exercises `cast-spell`, not the granted-ability enumerator this issue fixed.",
+        note: "Issue #2469 — the granted-ability activation the bot should take, on a host whose only activated ability is the granted one (CR 613.1 layer 6): Grizzly Bears is a vanilla 2/2, so the move can reach the enumerator through `getEffectiveActivatedAbilities` and nowhere else. The Deceiver Exarch variant below is the same enumeration shape and stays at `stretch` for a valuation reason, not an enumeration one. Measured (review finding on #2495, round 2): post-fix the bot chooses the activation on 5/5 seeds, reproduced on two consecutive runs; with the pre-fix `enumerateAbilityMoves` (the printed-list early return) it chooses `pass` on 5/5 seeds. This is the entry that discharges #2469's `must`-tier acceptance criterion — the cast-side sibling above does not, since it exercises `cast-spell`, not the granted-ability enumerator this issue fixed.",
     },
     {
         label: "combo: activates Splinter Twin on enchanted Deceiver Exarch",
@@ -1754,7 +1754,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         tier: "stretch",
         beyondBudget: {
             cause: "valuation",
-            note: "The combo payoff (an infinite hasty-copy loop via the granted '{T}: untap target creature you control' + Twin's copy-and-tap trigger) isn't scored as a distinct pattern without `comboAnnotations.ts` support (explicitly out of scope for #2469), so more search does not converge toward the activation — it converges AWAY from it: measured at 400/1200/4000 iterations on the same 5 seeds, the activation is chosen 2/5, then 1/5, then 0/5 (review finding on #2495, round 2). Per ADR 0070 §2, `cause: valuation` has no budget at which it passes, so `passesAt` is intentionally omitted.",
+            note: "The combo payoff (an infinite hasty-copy loop: Splinter Twin grants the host '{T}: create a token that's a copy of this creature, except it has haste', and the copied Deceiver Exarch's own ETB trigger untaps the original, so the activation can be repeated) isn't scored as a distinct pattern without `comboAnnotations.ts` support (explicitly out of scope for #2469), so more search does not converge toward the activation — it converges AWAY from it: measured at 400/1200/4000 iterations on the same 5 seeds, the activation is chosen 2/5, then 1/5, then 0/5 (review finding on #2495, round 2). Per ADR 0070 §2, `cause: valuation` has no budget at which it passes, so `passesAt` is intentionally omitted.",
         },
         expect: {
             moves: [{ kind: "activate-ability", card: "Deceiver Exarch" }],
