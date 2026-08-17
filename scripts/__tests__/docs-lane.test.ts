@@ -4,6 +4,7 @@ import * as path from "path";
 import {
     isDocPath,
     classifyChanges,
+    parsePorcelainPaths,
     slugify,
     DOC_GATE_TESTS,
     DOC_GATE_TESTS_EXCLUDED,
@@ -62,6 +63,29 @@ describe("docs-lane — what the lane will carry", () => {
         ]);
         expect(docs).toEqual(["docs/adr/0101-x.md", "CONTEXT.md"]);
         expect(foreign).toEqual(["convex/gre/layers.ts"]);
+    });
+
+    it("reads porcelain paths without eating the first character", () => {
+        // The shipped bug: the output was trimmed before splitting, which
+        // removed the leading status space of the FIRST line only and shifted
+        // its columns by one. `git add -- LAUDE.md` then failed with
+        // `pathspec 'LAUDE.md' did not match any files`.
+        const raw = [
+            " M CLAUDE.md", // unstaged modification: leading space is DATA
+            "?? docs/guides/",
+            "A  docs/guides/afk-loop.md",
+            "R  docs/old.md -> docs/new.md",
+            '?? "docs/with space.md"',
+            "",
+        ].join("\n");
+
+        expect(parsePorcelainPaths(raw)).toEqual([
+            "CLAUDE.md",
+            "docs/guides/",
+            "docs/guides/afk-loop.md",
+            "docs/new.md",
+            "docs/with space.md",
+        ]);
     });
 
     it("reduces a slug to something a branch name can hold", () => {
