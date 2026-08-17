@@ -217,6 +217,8 @@ import {
     siblingControllerIdFor,
     isAlreadySelectedTarget,
     genericManaShortfall,
+    flashSurchargeRequired,
+    foldFlashSurchargeCost,
 } from "./gre/rules";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
@@ -5667,6 +5669,40 @@ function foldBuybackCost(
     }
 }
 
+/** CR 601.3c (issue #2146) — validate a client's DECLARED intent to pay the
+ *  conditional-flash surcharge against the card, mirroring the
+ *  `alternativeCostId` declared-but-absent guard in `announceCast`: a client
+ *  claiming the surcharge on a card that declares none is rejected outright,
+ *  and a client explicitly DECLINING it (`false`) on a cast that owes it is
+ *  rejected too, since CR 601.3c prices the permission rather than making it
+ *  optional — declining is "don't cast this now", not "cast it for free".
+ *
+ *  What it deliberately does NOT do is decide whether the surcharge is owed.
+ *  That is `flashSurchargeRequired` (`gre/rules.ts`), evaluated server-side on
+ *  the real board: an OMITTED flag (every non-UI caller — the bot driver,
+ *  a scripted cast) still pays, so the client's word can never dodge a
+ *  mandatory cost, and a client that says "pay" when the board says nothing is
+ *  owed is charged nothing rather than rejected (the two can disagree
+ *  benignly — the client reads a projection taken before it clicked).
+ *
+ *  Exported for the same reason `resolveBuybackChoice` is: the tests drive the
+ *  real cost/commit path over the GRE state (no convex-test harness for
+ *  game.ts mutations, ADR 0001). */
+export function assertFlashSurchargeDeclaration(
+    cardDef: CardDefinition,
+    requested: boolean | undefined,
+    required: boolean
+): void {
+    if (requested !== undefined && !cardDef.flashSurcharge) {
+        throw new Error("This spell has no flash surcharge");
+    }
+    if (requested === false && required) {
+        throw new Error(
+            "This spell can only be cast now by paying its flash surcharge"
+        );
+    }
+}
+
 /** CR 702.33 — the target requirement in force for a cast: the card's
  *  `kickedTargetRequirement` when the spell was kicked and one is declared
  *  (Bloodchief's Thirst, Tear Asunder), else the base `targetRequirement`. A
@@ -5775,6 +5811,12 @@ export function finalizeTargetSelection(
     // CR 702.27a — Buyback choice made at announcement, folded into the mana
     // cost paid at this commit and propagated to the resolving stack item.
     const buybackPaid = pt.buybackPaid ?? false;
+    // CR 601.3c / 601.6a — the conditional-flash surcharge verdict taken at
+    // ANNOUNCEMENT and locked in on `pendingTarget`, never re-derived here:
+    // target selection is a separate mutation, so the board this commit runs
+    // on is not the board the cast was announced on, and the caster having
+    // BEGUN the cast under the permission finishes it at the announced price.
+    const flashSurchargePaid = pt.flashSurchargePaid ?? false;
     const chosenModeId = pt.chosenModeId;
     // The absent-kind default is the SHARED one (`gre/constants.ts`), never a
     // local `?? "cast"` — issue #2296 review.
@@ -6237,6 +6279,17 @@ export function finalizeTargetSelection(
     // CR 702.27a / 601.2f — mirrors the Kicker fold above for Buyback's
     // additional cost.
     foldBuybackCost(manaCost, cardDef, buybackPaid);
+    // CR 601.3c / 601.2f — mirrors the two folds above for the
+    // conditional-flash surcharge. Composes with an ALTERNATIVE cost the same
+    // way Kicker does: the alt cost zeroes the printed mana and the surcharge
+    // still joins the total, because it buys the TIMING, not the spell.
+    // The fold itself lives in `gre/rules.ts`, shared with the Bot's enumerator
+    // (`gre/moves.ts`), so the tap plan and the charged total cannot disagree.
+    foldFlashSurchargeCost(
+        manaCost,
+        cardDef.flashSurcharge,
+        flashSurchargePaid
+    );
     applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
     // CR 107.4f — resolve the Phyrexian pips ({B/P}, {U/P}) for this cast: the
     // pips paid with mana fold into the coloured mana cost (paid via the pool /
@@ -6927,6 +6980,17 @@ export const announceCast = mutation({
          *  returns to its owner's hand instead of the graveyard as it
          *  resolves. */
         buyback: v.optional(v.boolean()),
+        /** CR 601.3c — the caster's ACKNOWLEDGEMENT of this spell's
+         *  conditional-flash surcharge ("You may cast this spell as though it
+         *  had flash if you pay {2} more to cast it"). Unlike `buyback` this is
+         *  not a choice the server obeys: whether the surcharge is owed is
+         *  derived from the board (`flashSurchargeRequired`), because CR 601.3c
+         *  makes it MANDATORY once the off-window cast is committed. The arg
+         *  exists so the client can (a) be rejected for claiming a surcharge on
+         *  a card that declares none, and (b) send an explicit `false` to
+         *  DECLINE a cast whose only route is the surcharge. Omitted = "charge
+         *  me whatever the rules say", which is what every non-UI caller sends. */
+        payFlashSurcharge: v.optional(v.boolean()),
         /** Mode chosen for modal spells (CR 700.2 / 700.2c). Required when
          *  the card defines `modes`. */
         chosenModeId: v.optional(v.string()),
@@ -7182,6 +7246,25 @@ export const announceCast = mutation({
         // cost.
         const buybackPaid = resolveBuybackChoice(cardDef, args.buyback);
 
+        // CR 601.3c (issue #2146) — the conditional-flash surcharge verdict for
+        // THIS cast, taken here at announcement (CR 601.2a) for exactly the
+        // reason `castOffSorceryTiming` is, and for the rest of the cast read
+        // only off `pendingTarget`/the folded `manaCost`. Derived from the
+        // board, never from `args`: the surcharge is mandatory (CR 601.3c
+        // prices the permission, it does not make it optional), so a client
+        // that omits the flag still pays and a bot can never dodge it. The
+        // client's declaration is validated — not obeyed — right after.
+        const flashSurchargePaid = flashSurchargeRequired(
+            state,
+            args.playerId,
+            cardInHand
+        );
+        assertFlashSurchargeDeclaration(
+            cardDef,
+            args.payFlashSurcharge,
+            flashSurchargePaid
+        );
+
         // For modal spells, the chosen mode's targetRequirement drives target
         // selection (CR 700.2d). Falls back to the kicker-adjusted card-level
         // requirement for non-modal spells — a kicked spell with a
@@ -7318,6 +7401,11 @@ export const announceCast = mutation({
                 chosenX,
                 ...(kickerPayments ? { kickerPayments } : {}),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
+                // CR 601.3c / 601.6a — the announcement-time surcharge verdict
+                // rides target selection so the cost folded at commit is the
+                // one the caster was quoted, whatever the board does in
+                // between.
+                ...(flashSurchargePaid ? { flashSurchargePaid: true } : {}),
                 // CR 107.4f — carry the caster's Phyrexian mana-vs-life choice
                 // through target selection so it is applied at cast commit
                 // (finalizeTargetSelection → resolvePhyrexianCastPayment).
@@ -7389,6 +7477,22 @@ export const announceCast = mutation({
             // its permanent / hand / life legs join the alt cost's in the same
             // pickers (ADR 0079).
             foldKickerCosts(altManaCost, cardDef, kickerPayments);
+            // CR 601.3c / 601.2f (issue #2146 review, finding 3) — the
+            // conditional-flash surcharge composes with an alternative cost the
+            // same way the Kicker above does: the alt cost replaces the PRINTED
+            // mana, the surcharge buys the TIMING and still joins the total.
+            // The targeted commit path (`finalizeTargetSelection`) already
+            // folded it onto an alt cost; without this the two no-target/
+            // targeted commit paths priced the same cast differently. No shipped
+            // card carries both `alternativeCosts` and `flashSurcharge` today,
+            // so this is symmetry, not a live repair. (The `foldBuybackCost`
+            // asymmetry beside it is pre-existing and left alone here — Buyback
+            // and alternative costs likewise never co-occur on a shipped card.)
+            foldFlashSurchargeCost(
+                altManaCost,
+                cardDef.flashSurcharge,
+                flashSurchargePaid
+            );
             const altChoice = buildCastPermanentCostChoice(
                 state,
                 args.playerId,
@@ -7549,6 +7653,16 @@ export const announceCast = mutation({
         // CR 702.27a — fold the optional Buyback cost into the total the same
         // way. No-op when the caster didn't pay it.
         foldBuybackCost(manaCost, cardDef, buybackPaid);
+        // CR 601.3c / 601.2f — fold the MANDATORY conditional-flash surcharge
+        // into the total when this cast is only legal because of it (Rout,
+        // Twilight's Call, Saproling Symbiosis — the no-target half of the
+        // Invasion cycle). No-op inside the caster's own sorcery window: the
+        // {2} is never payable for nothing.
+        foldFlashSurchargeCost(
+            manaCost,
+            cardDef.flashSurcharge,
+            flashSurchargePaid
+        );
         applyCostModifiers(
             manaCost,
             getCostModifiers(state, cardInHand, "spell")

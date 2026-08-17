@@ -45,6 +45,7 @@ import {
     castProhibitionReason,
     isCastTimingSorcerySpeedLocked,
     hasCastTimingFlashGrant,
+    hasCardSelfFlashPermission,
 } from "../cards/castRestrictions";
 import { tapManaBonusUnits } from "./tapManaBonus";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
@@ -396,11 +397,126 @@ export function castTimingBaseLegal(
     }
     if (
         hasInstantSpeed(card) ||
-        hasCastTimingFlashGrant(casterId, card, state)
+        hasCastTimingFlashGrant(casterId, card, state) ||
+        // CR 601.3c (issue #2146) — a card-level self-permission ("You may
+        // cast this spell as though it had flash if you pay {2} more to cast
+        // it"). The rule is explicit that the player may BEGIN the cast as
+        // though it had flash, so this leg is unconditional: announcement is
+        // legal before the payment is known, and the surcharge becomes owed
+        // (mandatorily) only once the cast is committed outside the caster's
+        // sorcery-speed window — see `flashSurchargeRequired` below.
+        hasCardSelfFlashPermission(card)
     ) {
         return true;
     }
     return isSorceryTimingFor(state, casterId);
+}
+
+/** CR 601.3c — the conditional-flash SURCHARGE `card` declares, or `undefined`.
+ *  The single reader of `CardDefinition.flashSurcharge` on the timing side, so
+ *  the "is it owed" predicate and the affordability probe can never disagree
+ *  about which cost is at stake. */
+export function flashSurchargeOf(
+    card: CardInstanceState
+): ManaCost | undefined {
+    const cardId = (card.card as { id?: string }).id;
+    return cardId ? tryGetDefinition(cardId)?.flashSurcharge : undefined;
+}
+
+/** CR 601.3c / 601.2f — fold the conditional-flash SURCHARGE into a normalized
+ *  mana-cost record, mutating it in place, when the cast owes it (`owed`).
+ *  No-op when it doesn't, or when the card declares no surcharge
+ *  (`surcharge === undefined`). Applied to the total mana cost BEFORE cost
+ *  modifiers (CR 601.2f — an additional cost joins the total, then
+ *  increases/reductions apply), exactly like `foldKickerCosts` /
+ *  `foldBuybackCost` in `convex/game.ts`; a fixed cost with no `*times`
+ *  multiplier, since the permission is bought once per cast.
+ *
+ *  Lives HERE, beside the two predicates, because it has two callers that must
+ *  never disagree about the price of a cast (issue #2146 review, finding 1):
+ *  `announceCast`/`finalizeTargetSelection` (`convex/game.ts`), which CHARGES
+ *  it, and `enumerateSpellMoves` (`moves.ts`), which builds the Bot's tap plan
+ *  for the same cast. When only the mutation folded it, the Bot enumerated a
+ *  `cast-spell` whose `tapPlan` covered the PRINTED cost, announced it (the
+ *  executor announces first and taps afterwards), and then could never cover
+ *  the surcharged total — the cast parked in `pendingCast`, `enumerateMoves`
+ *  returns `[]` while one is open, and the only exit was the
+ *  `abort-announcement` rung: tap N lands for nothing, cancel, re-enumerate
+ *  the identical move. */
+export function foldFlashSurchargeCost(
+    cost: Record<string, number>,
+    surcharge: ManaCost | undefined,
+    owed: boolean
+): void {
+    if (!owed || !surcharge) return;
+    const per = normalizeManaCost(surcharge);
+    for (const [sym, amt] of Object.entries(per)) {
+        cost[sym] = (cost[sym] ?? 0) + amt;
+    }
+}
+
+/** CR 601.3c / 601.2f — does THIS cast owe the card's conditional-flash
+ *  surcharge? True exactly when the caster is relying on the CR 601.3c
+ *  permission to cast at all, i.e. the cast would be illegal at this moment
+ *  without it. Four ways to owe nothing, in the order they are checked:
+ *
+ *   1. the card declares no surcharge (`CardDefinition.flashSurcharge`);
+ *   2. a sorcery-speed LOCK is on the caster (CR 101.2 — a restriction beats
+ *      the permission, so the surcharge buys nothing and must not be charged;
+ *      `castTimingBaseLegal` has already refused the off-window cast);
+ *   3. the spell is castable at instant speed anyway — intrinsically
+ *      (CR 304.1 — a player who has priority may cast an instant card from
+ *      their hand; CR 702.8 Flash) or under a live player-scoped flash grant
+ *      (Teferi's +1) — so the permission is redundant;
+ *   4. the caster IS in their own sorcery-speed window (CR 307.1), where the
+ *      spell was already castable for its printed cost. This is the
+ *      "don't offer a pointless {2}" clause: the surcharge is never payable
+ *      for nothing.
+ *
+ *  Otherwise the surcharge is MANDATORY — CR 601.3c prices the permission, it
+ *  does not make it optional once the off-window cast is committed.
+ *
+ *  WHEN to call it: at ANNOUNCEMENT (CR 601.2a), exactly once, alongside
+ *  `wasCastOffSorceryTiming` — never at commit. The value is threaded on
+ *  `PendingTarget.flashSurchargePaid` and locked in there (CR 601.2f), which
+ *  is also what makes CR 601.6a hold: "once a player has begun casting a
+ *  spell that ... could be cast as though it had flash because certain
+ *  conditions were met, they may continue to cast that spell as though it had
+ *  flash even if those conditions stop being met". A commit-time
+ *  re-derivation would both re-price the cast and, per issue #2473, read a
+ *  suspended triggered mana ability (CR 605.4a) as "off sorcery timing" and
+ *  invent a surcharge on a textbook main-phase cast.
+ *
+ *  KNOWN BOUNDARY — this predicate is zone-agnostic, but the surcharge is only
+ *  PRICED on the caster's own hand: the `extraMana` affordability probe rides
+ *  the plain cast branch of `getLegalActions` alone, and the projection
+ *  attaches `flashSurchargeRequired` to hand cards alone. A flashback / escape
+ *  / madness / graveyard-permission cast of a rider card would therefore be
+ *  offered at the unsurcharged price and then charged. Clause 3 is also
+ *  incomplete for those zones: a MADNESS cast (CR 702.35a) already happens at
+ *  instant speed on its own, so the CR 601.3c permission buys nothing there and
+ *  clause 4's "never payable for nothing" reasoning should extend to it. No
+ *  shipped card combines the rider with any of those mechanisms, and none can
+ *  be tested without a synthetic definition — deliberately left, not missed.
+ *  tracked-by: #2505 */
+export function flashSurchargeRequired(
+    state: GameState,
+    casterId: string,
+    card: CardInstanceState
+): boolean {
+    // Keyed on the DECLARED surcharge, not on the broader
+    // `hasCardSelfFlashPermission` seam: that predicate answers "may this be
+    // announced" and will grow other self-permission shapes (an UNCONDITIONAL
+    // self-grant, issue #2392) that owe nothing.
+    if (!flashSurchargeOf(card)) return false;
+    if (isCastTimingSorcerySpeedLocked(casterId, state)) return false;
+    if (
+        hasInstantSpeed(card) ||
+        hasCastTimingFlashGrant(casterId, card, state)
+    ) {
+        return false;
+    }
+    return !isSorceryTimingFor(state, casterId);
 }
 
 export function getLegalActions(
@@ -844,6 +960,14 @@ export function getLegalActions(
             // folded in before this fix.
             (canPotentiallyPayCost(caster, card, undefined, state, {
                 foldCostModifiers: true,
+                // CR 601.3c (issue #2146) — when this cast can only happen
+                // under the conditional-flash permission, its surcharge is
+                // MANDATORY, so affordability must be judged against the
+                // surcharged total. Undefined (a no-op) for every other card
+                // and for the same card inside its caster's sorcery window.
+                ...(flashSurchargeRequired(state, caster.id, card)
+                    ? { extraMana: flashSurchargeOf(card) }
+                    : {}),
             }) ||
                 affordableAlternativeCosts(state, caster, card).some((alt) =>
                     canPotentiallyPayCost(caster, card, alt.mana ?? {}, state)
@@ -1699,6 +1823,17 @@ function canPotentiallyPayCost(
          *  the pre-existing unreduced one, byte-identical to before this
          *  fix. */
         foldCostModifiers?: boolean;
+        /** CR 601.3c / 601.2f (issue #2146) — a MANDATORY additional mana cost
+         *  this particular cast owes on top of the printed/override cost. Set
+         *  only for the conditional-flash surcharge at the plain hand-cast
+         *  branch below, and only when `flashSurchargeRequired` says the cast
+         *  is actually relying on the CR 601.3c permission. Kicker and Buyback
+         *  are deliberately NOT folded here — those are OPTIONAL additional
+         *  costs (CR 702.33/702.27), so a caster who cannot afford them can
+         *  still cast the spell without them; the surcharge has no such
+         *  unkicked variant off-window, and without it the affordance offers a
+         *  cast that would park unpayable at the mana step. */
+        extraMana?: ManaCost;
     } = {}
 ): boolean {
     const rawCost = costOverride ?? getInstanceManaCost(card);
@@ -1724,6 +1859,15 @@ function canPotentiallyPayCost(
     // Cost normalized without chosenX: string-X spells pay only their fixed
     // portion at the minimum (X = 0). User picks X at announcement.
     const cost = normalizeManaCost(rawCost);
+    // CR 601.2f — an additional cost joins the total BEFORE increases and
+    // reductions apply, exactly as `game.ts` folds it at the real payment step.
+    if (opts.extraMana) {
+        for (const [sym, amt] of Object.entries(
+            normalizeManaCost(opts.extraMana)
+        )) {
+            cost[sym] = (cost[sym] ?? 0) + amt;
+        }
+    }
     if (state && opts.foldCostModifiers) {
         applyCostModifiers(cost, getCostModifiers(state, card, "spell"));
     }

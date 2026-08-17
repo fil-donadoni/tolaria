@@ -16,6 +16,7 @@ import {
     isPlayableLibraryTopLand,
     getLegalActions,
     phyrexianLifePipOptions,
+    flashSurchargeRequired,
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
 import { computeLibraryTopRevealedPlayers } from "./gre/libraryReveal";
@@ -47,6 +48,18 @@ export type SlimHandCard = SlimCardInstance & {
      *  chosen value as `announceCast`'s `phyrexianLifePips`; a degenerate
      *  zero-branch cost carries no field and the engine auto-resolves it. */
     phyrexianOptions?: number[];
+    /** CR 601.3c — true when casting THIS card from the viewer's OWN hand right
+     *  now would owe its conditional-flash surcharge ("You may cast this spell
+     *  as though it had flash if you pay {2} more to cast it" — the Invasion
+     *  cycle, issue #2146). Server-authoritative, from the same
+     *  `flashSurchargeRequired` predicate `announceCast` charges on: the client
+     *  never re-derives cast timing (it has no `castTimingFlashGrants`, no
+     *  stack/priority reasoning), so without this field a card whose ONLY cost
+     *  decision is this rider — no X, no kicker, no buyback — would skip the
+     *  cast-cost dialog entirely and be surcharged with no warning. Absent
+     *  (never `false`) when nothing is owed, so the dialog is not opened to
+     *  offer a pointless {2} at sorcery speed. */
+    flashSurchargeRequired?: true;
 };
 
 /** Exile card in projected state: slim, plus `legalActions` when the viewer may
@@ -1070,6 +1083,23 @@ export function projectPublicState(
                             : {}),
                         ...(phyrexianOptions.length >= 2
                             ? { phyrexianOptions }
+                            : {}),
+                        // CR 601.3c — surface the MANDATORY conditional-flash
+                        // surcharge to the caster's own client, and only when
+                        // the cast is actually castable and actually owes it.
+                        // Gated on `legalActions.includes("cast")` for the
+                        // same reason `phyrexianOptions` is: a cost hint on an
+                        // uncastable card is noise.
+                        //
+                        // HAND ONLY — the graveyard/exile `legalActions`
+                        // callbacks below carry no equivalent, so a
+                        // flashback/escape/madness cast of a rider card would
+                        // be surcharged with no client warning. No shipped card
+                        // combines the two; deliberately left.
+                        // tracked-by: #2505
+                        ...(legalActions.includes("cast") &&
+                        flashSurchargeRequired(state, player.id, card)
+                            ? { flashSurchargeRequired: true as const }
                             : {}),
                     };
                 }),

@@ -1273,26 +1273,42 @@ export const tsabosAssassin: CardDefinition = {
 //     targetRequirement: { type: "player", count: 1 },
 // };
 
-// STOP-AND-ISSUE (tracked-by: #2146; the cast rider split out of #1405 by the
-// 2026-08-04 tracker audit, which found the same gap filed five times, once
-// per colour — CR 601.3c, an ADDITIONAL cost that also grants a cast-timing
-// permission, not an `AlternativeCost`) — Twilight's Call: "You may cast this
-// spell as though it had flash if you pay {2} more to cast it. Each player
-// returns all creature cards from their graveyard to the battlefield." The
-// mass-reanimation clause is free (a `forEach` over players + `moveZone`),
-// but the "pay {N} more to cast with flash" cast-timing rider has no home:
-// `AlternativeCost` REPLACES the mana cost (Force of Will-style), it doesn't
-// ADD to it, and there's no existing "conditional flash for extra mana"
-// capability — real cast-legality engine surgery (timing check + cost
-// computation + cast-commit UI), not a single-file Op addition. Not
-// invented; left a stub.
-// export const twilightsCall: CardDefinition = {
-//     id: "3c97c8a5-33b3-4f7f-a224-bb4df7b4bcc0", // INV 130
-//     name: "Twilight's Call",
-//     rarity: "rare",
-//     manaCost: { X: 4, B: 2 },
-//     types: ["Sorcery"],
-// };
+// Twilight's Call — the CR 601.3c conditional-flash rider (issue #2146),
+// shipped as `flashSurcharge`: legal to ANNOUNCE at any priority ("that player
+// may begin to cast that spell as though it had flash"), with the {2} charged
+// mandatorily only when the cast lands outside the caster's own sorcery-speed
+// window and not at all inside it.
+//
+// The mass-reanimation half is the documented `forEach` shape with `select`'s
+// `controller` OMITTED — "every player's graveyard, in APNAP order"
+// (`cards/types.ts`) — and `simultaneous: true`, so every creature card
+// returns as one event rather than one-by-one (CR 603.3b: the ETB triggers
+// batch and are ordered by their controllers, instead of each arrival
+// resolving before the next card moves).
+export const twilightsCall: CardDefinition = {
+    id: "3c97c8a5-33b3-4f7f-a224-bb4df7b4bcc0", // INV 130
+    name: "Twilight's Call",
+    rarity: "rare",
+    oracleText:
+        "You may cast this spell as though it had flash if you pay {2} more to cast it. Each player returns all creature cards from their graveyard to the battlefield.",
+    manaCost: { X: 4, B: 2 },
+    types: ["Sorcery"],
+    flashSurcharge: { X: 2 },
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "graveyard", filter: { type: "Creature" } },
+            simultaneous: true,
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { ref: "$each" },
+                    to: "battlefield",
+                },
+            ],
+        },
+    ],
+};
 
 // Urborg Shambler — {2}{B}{B} 4/3. "Other black creatures get -1/-1." (CR
 // 613.4c board-wide pt-buff — the Contamination/Anathema-cycle shape:

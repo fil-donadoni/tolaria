@@ -11,6 +11,7 @@ import {
 import {
     affordableAltCostsForCard,
     affordableKickersForCard,
+    manaCostToString,
     phyrexianSplitChoices,
     type PhyrexianSplitChoice,
 } from "~/lib/card-utils";
@@ -25,6 +26,7 @@ type ModePickerState = {
     chosenX: number | undefined;
     kickerPayments: Record<string, number> | undefined;
     buyback: boolean | undefined;
+    payFlashSurcharge: boolean | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
 };
@@ -33,6 +35,7 @@ type AltCostPickerState = {
     chosenX: number | undefined;
     kickerPayments: Record<string, number> | undefined;
     buyback: boolean | undefined;
+    payFlashSurcharge: boolean | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
     /** The alternative costs the caster can currently afford (CR 118.9) — the
@@ -48,6 +51,7 @@ type PhyrexianPickerState = {
     chosenX: number | undefined;
     kickerPayments: Record<string, number> | undefined;
     buyback: boolean | undefined;
+    payFlashSurcharge: boolean | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
     choices: PhyrexianSplitChoice[];
@@ -63,6 +67,9 @@ type CostDialogState = {
     askX: boolean;
     kickers: { id: string; description: string; multi: boolean }[] | undefined;
     buyback: boolean;
+    /** CR 601.3c — the rendered surcharge ("{2}") when the server says casting
+     *  this card right now owes it; `undefined` at sorcery speed. */
+    flashSurcharge: string | undefined;
     position: { x: number; y: number };
 };
 
@@ -145,6 +152,11 @@ export function useHandCardCommit(
         alternativeCostId?: string | undefined;
         kickerPayments?: Record<string, number> | undefined;
         buyback?: boolean | undefined;
+        /** CR 601.3c — the caster's acknowledgement of a MANDATORY
+         *  conditional-flash surcharge. The server derives and charges it
+         *  either way; sending it lets `announceCast` reject a claim on a card
+         *  that declares none. */
+        payFlashSurcharge?: boolean | undefined;
         /** CR 107.4f — how many `{C/P}` pips the caster chose to pay with life. */
         phyrexianLifePips?: number | undefined;
     }) {
@@ -175,6 +187,7 @@ export function useHandCardCommit(
                     alternativeCostId: args.alternativeCostId,
                     kickerPayments: args.kickerPayments,
                     buyback: args.buyback,
+                    payFlashSurcharge: args.payFlashSurcharge,
                     phyrexianLifePips: args.phyrexianLifePips,
                 })
             )
@@ -196,11 +209,18 @@ export function useHandCardCommit(
         chosenX: number | undefined;
         kickerPayments: Record<string, number> | undefined;
         buyback: boolean | undefined;
+        payFlashSurcharge: boolean | undefined;
         keepPriority: boolean | undefined;
         position: { x: number; y: number };
     }) {
-        const { chosenX, kickerPayments, buyback, keepPriority, position } =
-            params;
+        const {
+            chosenX,
+            kickerPayments,
+            buyback,
+            payFlashSurcharge,
+            keepPriority,
+            position,
+        } = params;
         const def = getDefinition(cardInstance.card.id);
         // CR 700.2 — modal spell: pick a mode before announcement.
         if (def.modes && def.modes.length > 0) {
@@ -208,6 +228,7 @@ export function useHandCardCommit(
                 chosenX,
                 kickerPayments,
                 buyback,
+                payFlashSurcharge,
                 keepPriority,
                 position,
             });
@@ -252,6 +273,7 @@ export function useHandCardCommit(
                     chosenX,
                     kickerPayments,
                     buyback,
+                    payFlashSurcharge,
                     keepPriority,
                     position,
                     altCosts: affordableAlts,
@@ -271,6 +293,7 @@ export function useHandCardCommit(
                 chosenX,
                 kickerPayments,
                 buyback,
+                payFlashSurcharge,
                 keepPriority,
                 position,
                 choices: phyrexianChoices,
@@ -283,6 +306,7 @@ export function useHandCardCommit(
             chosenModeId: undefined,
             kickerPayments,
             buyback,
+            payFlashSurcharge,
         });
     }
 
@@ -324,7 +348,26 @@ export function useHandCardCommit(
             allPlayers,
             activePlayerId
         );
-        if (hasX || offeredKickers.length > 0 || def.buyback) {
+        // CR 601.3c — the conditional-flash SURCHARGE this cast owes right now,
+        // read off the server-authoritative projection (`flashSurchargeRequired`
+        // on the hand card) rather than re-derived: the client has no view of
+        // cast timing at all. Rendered from the card's own declared cost so the
+        // dialog quotes the real amount.
+        const flashSurcharge = cardInstance.flashSurchargeRequired
+            ? manaCostToString(def.flashSurcharge)
+            : undefined;
+        // The gate is an OR over "does this cast need a decision from the
+        // caster at all". `flashSurcharge` belongs here and is easy to miss:
+        // four of the five cards carrying the rider (Rout, Breaking Wave,
+        // Twilight's Call, Saproling Symbiosis) have NO X, NO kicker and NO
+        // buyback, so without this term they skip the dialog entirely and get
+        // surcharged {2} with no warning at all.
+        if (
+            hasX ||
+            offeredKickers.length > 0 ||
+            def.buyback ||
+            flashSurcharge !== undefined
+        ) {
             setCostDialogState({
                 keepPriority,
                 askX: hasX,
@@ -337,6 +380,7 @@ export function useHandCardCommit(
                     multi: k.multi === true,
                 })),
                 buyback: def.buyback !== undefined,
+                flashSurcharge,
                 position,
             });
             return;
@@ -345,6 +389,7 @@ export function useHandCardCommit(
             chosenX: undefined,
             kickerPayments: undefined,
             buyback: undefined,
+            payFlashSurcharge: undefined,
             keepPriority,
             position,
         });
@@ -359,8 +404,13 @@ export function useHandCardCommit(
                 variant="portal"
                 position={modePickerState.position}
                 onSelect={(modeId) => {
-                    const { chosenX, kickerPayments, buyback, keepPriority } =
-                        modePickerState;
+                    const {
+                        chosenX,
+                        kickerPayments,
+                        buyback,
+                        payFlashSurcharge,
+                        keepPriority,
+                    } = modePickerState;
                     setModePickerState(null);
                     commitAnnounceCast({
                         chosenX,
@@ -368,6 +418,7 @@ export function useHandCardCommit(
                         chosenModeId: modeId,
                         kickerPayments,
                         buyback,
+                        payFlashSurcharge,
                     });
                 }}
                 onCancel={() => setModePickerState(null)}
@@ -381,8 +432,13 @@ export function useHandCardCommit(
                 cardName={def.name}
                 position={altCostPickerState.position}
                 onSelect={(altCostId) => {
-                    const { chosenX, kickerPayments, buyback, keepPriority } =
-                        altCostPickerState;
+                    const {
+                        chosenX,
+                        kickerPayments,
+                        buyback,
+                        payFlashSurcharge,
+                        keepPriority,
+                    } = altCostPickerState;
                     setAltCostPickerState(null);
                     commitAnnounceCast({
                         chosenX,
@@ -391,6 +447,7 @@ export function useHandCardCommit(
                         alternativeCostId: altCostId,
                         kickerPayments,
                         buyback,
+                        payFlashSurcharge,
                     });
                 }}
                 onCancel={() => setAltCostPickerState(null)}
@@ -404,8 +461,13 @@ export function useHandCardCommit(
                 cardName={def.name}
                 position={phyrexianPickerState.position}
                 onSelect={(lifePips) => {
-                    const { chosenX, kickerPayments, buyback, keepPriority } =
-                        phyrexianPickerState;
+                    const {
+                        chosenX,
+                        kickerPayments,
+                        buyback,
+                        payFlashSurcharge,
+                        keepPriority,
+                    } = phyrexianPickerState;
                     setPhyrexianPickerState(null);
                     commitAnnounceCast({
                         chosenX,
@@ -413,6 +475,7 @@ export function useHandCardCommit(
                         chosenModeId: undefined,
                         kickerPayments,
                         buyback,
+                        payFlashSurcharge,
                         phyrexianLifePips: lifePips,
                     });
                 }}
@@ -431,13 +494,20 @@ export function useHandCardCommit(
             maxX={cardInstance.flashbackExileMaxX}
             kickers={costDialogState.kickers}
             buyback={costDialogState.buyback}
-            onConfirm={({ chosenX, kickerPayments, buyback }) => {
+            flashSurcharge={costDialogState.flashSurcharge}
+            onConfirm={({
+                chosenX,
+                kickerPayments,
+                buyback,
+                payFlashSurcharge,
+            }) => {
                 const { keepPriority, position } = costDialogState;
                 setCostDialogState(null);
                 proceedAfterCost({
                     chosenX,
                     kickerPayments,
                     buyback,
+                    payFlashSurcharge,
                     keepPriority,
                     position,
                 });

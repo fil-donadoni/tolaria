@@ -30,6 +30,14 @@ type CastCostDialogProps = {
      *  single yes/no "pay the buyback cost" toggle, mirroring the single
      *  (non-multi) Kicker checkbox — Buyback has no repeatable variant. */
     buyback?: boolean;
+    /** CR 601.3c — the conditional-flash SURCHARGE this cast owes, already
+     *  rendered ("{2}"). Present only when the server says the surcharge is
+     *  required for casting right now, so this is a NOTICE, not a toggle: the
+     *  rule prices the flash permission, it does not make the payment
+     *  optional, and inside the caster's own sorcery window the field is absent
+     *  entirely rather than offering a pointless {2}. Confirming the dialog IS
+     *  the acknowledgement; Cancel declines the cast. */
+    flashSurcharge?: string;
     onConfirm: (v: {
         chosenX?: number;
         /** CR 702.33 — times to pay EACH Kicker, keyed by `KickerCost.id`. Only
@@ -37,6 +45,11 @@ type CastCostDialogProps = {
          *  which is also what an all-declined dialog returns (ADR 0079). */
         kickerPayments?: Record<string, number>;
         buyback?: boolean;
+        /** CR 601.3c — the caster acknowledged the mandatory surcharge by
+         *  confirming the dialog. Only ever `true`, and only when
+         *  `flashSurcharge` was shown; `announceCast` derives the charge itself
+         *  and merely validates this declaration. */
+        payFlashSurcharge?: boolean;
     }) => void;
     onCancel: () => void;
 };
@@ -62,6 +75,7 @@ export default function CastCostDialog({
     maxX,
     kickers,
     buyback,
+    flashSurcharge,
     onConfirm,
     onCancel,
 }: CastCostDialogProps) {
@@ -113,6 +127,7 @@ export default function CastCostDialog({
             kickerPayments:
                 Object.keys(payments).length > 0 ? payments : undefined,
             buyback: buyback ? buybackPay : undefined,
+            payFlashSurcharge: flashSurcharge !== undefined ? true : undefined,
         });
     };
 
@@ -184,6 +199,17 @@ export default function CastCostDialog({
                             Pay buyback cost
                         </span>
                     </label>
+                )}
+
+                {flashSurcharge !== undefined && (
+                    <p
+                        data-testid="cast-cost-flash-surcharge"
+                        className="text-sm font-medium text-text"
+                    >
+                        Casting this now costs an additional {flashSurcharge} —
+                        you may cast it as though it had flash only if you pay
+                        that much more.
+                    </p>
                 )}
 
                 <div className="mt-1 flex flex-wrap items-center justify-end gap-2">

@@ -40,6 +40,9 @@ import {
     genericManaShortfall,
     targetingSourceFromCard,
     pendingTargetingSource,
+    flashSurchargeOf,
+    flashSurchargeRequired,
+    foldFlashSurchargeCost,
 } from "./rules";
 // issue #2283 — the origin classification that decides whether a live
 // `pendingTarget` is the bot's own half-built announcement (hands off) or a
@@ -877,6 +880,21 @@ function enumerateCastMoves(
     const costModifiers =
         phyPips === 0 ? getCostModifiers(state, card, "spell") : undefined;
 
+    // CR 601.3c / 601.2f (issue #2146) — the conditional-flash SURCHARGE the
+    // Invasion cycle prices its off-window cast at ("You may cast this spell as
+    // though it had flash if you pay {2} more to cast it"). Mandatory once the
+    // cast happens outside the caster's own sorcery window, and `announceCast`
+    // charges it there unconditionally — so the tap plan built below MUST cover
+    // it or the Bot announces a cast it can never pay for: the executor
+    // announces FIRST and taps afterwards, so the cast parks in `pendingCast`,
+    // `enumerateMoves` returns [] while one is open, and the only exit left is
+    // the `abort-announcement` rung — tap for nothing, cancel, re-enumerate the
+    // identical move (the bot-freeze shape). Verdict and amount are
+    // mode/X-invariant (board + card only), so both are hoisted here beside
+    // `costModifiers` rather than recomputed per (mode, X).
+    const flashSurchargeOwed = flashSurchargeRequired(state, player.id, card);
+    const flashSurcharge = flashSurchargeOf(card);
+
     const moves: Move[] = [];
     for (const { modeId, groups } of modeVariants) {
         // CR 601.2c — the executor sends every announced target in ONE batched
@@ -896,6 +914,16 @@ function enumerateCastMoves(
         const lastReq = groups[groups.length - 1];
         for (const x of xValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
+            // CR 601.3c / 601.2f — the surcharge is an ADDITIONAL cost, so it
+            // joins the total BEFORE cost modifiers apply, exactly where
+            // `announceCast` / `finalizeTargetSelection` fold it (they call the
+            // same helper). No-op for every card without the rider and for the
+            // same card inside its caster's sorcery window.
+            foldFlashSurchargeCost(
+                normCost,
+                flashSurcharge,
+                flashSurchargeOwed
+            );
             // CR 601.2f (ADR 0063, issue #1337) — fold in battlefield
             // cost-modifier static effects (Stone Calendar, Mana Matrix,
             // Planar Gate, Power Artifact, Urza's Filter) AND a spell's own

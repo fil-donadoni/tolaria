@@ -1137,22 +1137,25 @@ export const ancientKavu: CardDefinition = {
     ],
 };
 
-// Ghitu Fire — {X}{R} Sorcery. "You may cast this spell as though it had
-// flash if you pay {2} more to cast it. Ghitu Fire deals X damage to any
-// target." Blocked on conditional flash for an ADDITIONAL cost (CR 601.3c —
-// "as though it had flash only if an alternative OR ADDITIONAL cost is
-// paid"). Note the shape: this is NOT an `AlternativeCost` (that REPLACES the
-// mana cost) but a surcharge ON TOP of {X}{R}, and the {2} is conditional on
-// the timing actually used. Five INV cards share this exact gap — Rout
-// (white), Breaking Wave (blue), Twilight's Call (black), this, Saproling
-// Symbiosis (green). tracked-by: #2146
-// export const ghituFire: CardDefinition = {
-//     id: "78827acd-a526-411b-bd22-ab9b538c75dd",
-//     name: "Ghitu Fire",
-//     rarity: "rare",
-//     manaCost: { X: "X", R: 1 },
-//     types: ["Sorcery"],
-// };
+// Ghitu Fire — the CR 601.3c conditional-flash rider (issue #2146), shipped
+// as `flashSurcharge`. The only member of the Invasion cycle with an {X} in
+// its cost, and the one that shows why the rider is a SURCHARGE and not an
+// `AlternativeCost`: the {2} joins {X}{R} (CR 601.2f), it does not replace it,
+// so casting for X=3 on the opponent's turn costs {5}{R} and the same cast in
+// your own main phase costs {3}{R}. The damage half is Lava Burst's body
+// (`ice/red.ts`).
+export const ghituFire: CardDefinition = {
+    id: "78827acd-a526-411b-bd22-ab9b538c75dd",
+    name: "Ghitu Fire",
+    rarity: "rare",
+    oracleText:
+        "You may cast this spell as though it had flash if you pay {2} more to cast it. Ghitu Fire deals X damage to any target.",
+    manaCost: { X: "X", R: 1 },
+    types: ["Sorcery"],
+    flashSurcharge: { X: 2 },
+    targetRequirement: { type: "any", count: 1 },
+    effects: [{ op: "dealDamage", amount: { X: true }, to: { target: 0 } }],
+};
 
 // Goblin Spy — CR 401.5 continuous library-top reveal (issue #1095 gap 7).
 // "Play with the top card of your library revealed" is a static ability whose
