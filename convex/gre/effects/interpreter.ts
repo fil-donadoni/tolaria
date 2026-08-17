@@ -114,7 +114,9 @@ type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 /** An executor's outcome: `undefined` = the Op ran (or was skipped per
  *  CR 608.2b) and the script continues; `"suspend"` = the Op enqueued a
  *  Pending Choice and the script must stop HERE — the engine leaves the item
- *  on the stack and the checkpointed Op re-runs on resume. */
+ *  on the stack and the checkpointed Op re-runs on resume. An Op that parked a
+ *  permanent on an as-enters choice (ADR 0100 D5) suspends too, but reports
+ *  nothing: `runOpList` detects that one from the parked count. */
 type OpOutcome = void | "suspend";
 
 /** The resume cursor threaded through `runOpList` (issue #806). `pos` is a
@@ -4928,6 +4930,17 @@ function runOpList(
         // Checkpoint BEFORE executing (mirrors the engine's stepped-resolve
         // protocol): a suspension inside the Op resumes at THIS position.
         ctx.setScriptCheckpoint(myPos);
+        // CR 614.12a / ADR 0100 D5 — an Op that puts a permanent onto the
+        // battlefield may PARK it on an "as it enters" choice. The park happens
+        // several frames below the executor (inside `createTokenPermanents` /
+        // `stageReanimatedOnBattlefield`) and no primitive return value reports
+        // it, so it is observed from the outside as a rise in the parked count.
+        // It is a suspension in every sense the interpreter cares about — the
+        // permanent has NOT entered yet, so no later Op may run (CR 614.12a
+        // "that choice is made before the permanent enters"), and the
+        // checkpoint must survive so the resumed resolution re-enters at THIS
+        // Op instead of replaying the script from position 0 (CR 608.3).
+        const parkedBefore = ctx.stagedAsEntersCount();
         const outcome = (
             OP_EXECUTORS[op.op] as (
                 c: SpellContext,
@@ -4936,6 +4949,7 @@ function runOpList(
             ) => OpOutcome
         )(ctx, op, cursor);
         if (outcome === "suspend") return "suspend";
+        if (ctx.stagedAsEntersCount() > parkedBefore) return "suspend";
     }
 }
 

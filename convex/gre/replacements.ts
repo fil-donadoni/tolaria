@@ -717,7 +717,7 @@ export type EntryVerdict =
  *  `CardDefinition`) supply it; every other caller leaves it undefined and the
  *  clause is read off the definition the instance currently presents — which is
  *  the copied definition after a mid-resolution `becomeCopyOf` (CR 707.2).
- *  `asEntersResolved` is set by the RESUME path (`completeStagedEntry`) so a
+ *  `asEntersResolved` is set by the RESUME path (`runStagedEntryTail`) so a
  *  re-entered entry tail does not park a second time on choices it has already
  *  answered. */
 export function enterBattlefieldDestinationFor(

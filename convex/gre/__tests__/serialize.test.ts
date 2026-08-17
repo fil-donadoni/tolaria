@@ -5,7 +5,7 @@ import {
     PERSISTED_OPTIONAL_KEYS,
     TRANSIENT_KEYS,
 } from "../serialize";
-import type { GameState } from "../state";
+import type { GameState, StackItem } from "../state";
 import {
     makeInstance,
     makePlayer,
@@ -205,6 +205,55 @@ describe("game_state serialize round-trip", () => {
         expect(entry.card.id).toBe(aura.id);
         expect(entry.card.ownerId).toBe("p1");
         expect(entry.card.types).toEqual(aura.types);
+    });
+
+    // CR 614.12a (ADR 0100 D2) — the SPELL row of the same key. An
+    // `origin: "spell"` staged entry is the popped `StackItem` itself, so it
+    // must round-trip through `compactStackItem`/`expandStackItem`, not through
+    // the `compactCard` whitelist: the latter carries none of the cast-time
+    // bookkeeping below, and the entry tail (`finalizeSpellResolution`) throws
+    // `Player not found: undefined` on a missing `castById` the moment the
+    // choice is answered.
+    it("preserves an origin:'spell' stagedEntry's stack-item bookkeeping", () => {
+        const state = freshState();
+        const spell: StackItem = {
+            ...makeInstance(animateArtifact.id, {
+                id: "parked-spell",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            targets: [{ type: "permanent", id: "some-artifact" }],
+            chosenX: 3,
+            kickerPayments: { main: 1 },
+            notedManaSpent: { U: 2 },
+            isCopy: true,
+        };
+        state.stagedEntries = [
+            {
+                card: spell,
+                controllerId: "p1",
+                origin: "spell",
+                parkedStackItemId: "parked-spell",
+                owed: [{ kind: "aura-host" }],
+            },
+        ];
+
+        const expanded = expandState(compactState(state));
+
+        const entry = expanded.stagedEntries![0];
+        const card = entry.card as StackItem;
+        expect(card.castById).toBe("p1");
+        expect(card.targets).toEqual([
+            { type: "permanent", id: "some-artifact" },
+        ]);
+        expect(card.chosenX).toBe(3);
+        expect(card.kickerPayments).toEqual({ main: 1 });
+        expect(card.notedManaSpent).toEqual({ U: 2 });
+        expect(card.isCopy).toBe(true);
+        // The definition still rehydrates, exactly as on the effect row.
+        expect((card.card as { id?: unknown }).id).toBe(animateArtifact.id);
     });
 
     it("re-expands a fresh state to a deeply-equal GameState", () => {

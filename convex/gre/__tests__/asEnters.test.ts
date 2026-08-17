@@ -16,10 +16,15 @@ import {
     type GameState,
 } from "../state";
 import { finalizeAsEnters } from "../asEnters";
-import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
+import { compactState, expandState } from "../serialize";
+import {
+    applyNameCardSubmit,
+    applyPendingChoiceSubmit,
+} from "../pendingChoiceSubmit";
+import { legalActions } from "../legalActions";
 import { computeExpectedInput } from "../expectedInput";
 import { registerTokenDefinition } from "../../cards";
-import type { CardDefinition } from "../../cards/types";
+import type { CardDefinition, EffectTokenSpec } from "../../cards/types";
 import {
     makeInstance,
     makePlayer,
@@ -65,6 +70,43 @@ const copyCreature: CardDefinition = {
 };
 registerTokenDefinition(copyCreature);
 
+/** "As this creature enters, choose a card name." The one as-enters kind that
+ *  reuses the `name-card` PendingChoice shape — and therefore the one whose
+ *  submission does NOT come through `applyPendingChoiceSubmit`. */
+const NAME_ID = "test-only-as-enters-name";
+const nameCreature: CardDefinition = {
+    id: NAME_ID,
+    rarity: "common",
+    name: "Test Name Creature",
+    oracleText: "As this creature enters, choose a card name.",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Wizard"],
+    power: 1,
+    toughness: 1,
+    entersWith: { asEnters: [{ kind: "name" }] },
+};
+registerTokenDefinition(nameCreature);
+
+/** "As this creature enters, choose a creature type." The second kind whose
+ *  answer lands on a field the CR 400.7 entry reset clears. */
+const SUBTYPES_ID = "test-only-as-enters-subtypes";
+const subtypesCreature: CardDefinition = {
+    id: SUBTYPES_ID,
+    rarity: "common",
+    name: "Test Subtypes Creature",
+    oracleText: "As this creature enters, choose a creature type.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 2,
+    toughness: 2,
+    entersWith: {
+        asEnters: [{ kind: "subtypes", from: ["Goblin", "Elf"], count: 1 }],
+    },
+};
+registerTokenDefinition(subtypesCreature);
+
 /** A sorcery whose Effect Script creates `count` tokens that each owe an
  *  as-enters choice — the row-C replay fixture. */
 const TOKEN_MAKER_ID = "test-only-as-enters-token-maker";
@@ -95,6 +137,84 @@ function tokenMakerDef(count: number): CardDefinition {
 }
 registerTokenDefinition(tokenMakerDef(1));
 registerTokenDefinition(tokenMakerDef(3));
+
+/** The as-enters token spec both multi-Op fixtures below park on. */
+const PARKING_TOKEN: EffectTokenSpec = {
+    name: "As-Enters Horror Multi",
+    types: ["Creature"],
+    subtypes: ["Horror"],
+    power: 1,
+    toughness: 1,
+    entersWith: { asEnters: [{ kind: "payLife", cap: 1 }] },
+};
+
+/** A sorcery whose Effect Script runs an Op BEFORE the one that parks — the
+ *  fixture for "Ops before the resume position never replay" (CR 608.3). */
+const PRE_PARK_ID = "test-only-as-enters-pre-park";
+registerTokenDefinition({
+    id: PRE_PARK_ID,
+    rarity: "common",
+    name: "Test Pre-Park Sorcery",
+    oracleText: "You gain 5 life. Create a token.",
+    manaCost: { R: 1 },
+    types: ["Sorcery"],
+    effects: [
+        { op: "gainLife", player: "controller", amount: 5 },
+        {
+            op: "createToken",
+            controller: "controller",
+            count: 1,
+            token: PARKING_TOKEN,
+        },
+    ],
+});
+
+/** A sorcery whose Effect Script runs an Op AFTER the one that parks — the
+ *  fixture for CR 614.12a ("that choice is made before the permanent enters"). */
+const POST_PARK_ID = "test-only-as-enters-post-park";
+registerTokenDefinition({
+    id: POST_PARK_ID,
+    rarity: "common",
+    name: "Test Post-Park Sorcery",
+    oracleText: "Create a token. You gain 7 life.",
+    manaCost: { R: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "createToken",
+            controller: "controller",
+            count: 1,
+            token: PARKING_TOKEN,
+        },
+        { op: "gainLife", player: "controller", amount: 7 },
+    ],
+});
+
+/** A TARGETED reanimation sorcery (the Resurrection shape) whose target leaves
+ *  the graveyard as part of its own resolution — the fixture for "the resumed
+ *  item is not re-gated on target legality" (CR 608.2b fixes it once). The
+ *  trailing `gainLife` is the discriminator: a spell countered by game rules on
+ *  resume never runs it. */
+const REANIMATE_ID = "test-only-as-enters-reanimate";
+registerTokenDefinition({
+    id: REANIMATE_ID,
+    rarity: "common",
+    name: "Test Reanimate Sorcery",
+    oracleText:
+        "Return target creature card from your graveyard to the battlefield. You gain 7 life.",
+    manaCost: { W: 2 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        zone: "graveyard",
+        controller: "you",
+    },
+    effects: [
+        { op: "moveZone", target: { target: 0 }, to: "battlefield" },
+        { op: "gainLife", player: "controller", amount: 7 },
+    ],
+});
 
 // --- Helpers ---------------------------------------------------------------
 
@@ -248,6 +368,24 @@ describe("as-enters resume (CR 117.3b, ADR 0100 D5)", () => {
 
         expect(battlefieldIds(state)).toContain("staged-0");
         expect(state.priorityPlayerId).toBe(state.activePlayerId);
+    });
+
+    it("a parked CAST permanent survives the DB round-trip and is still answerable", () => {
+        // A pending choice is a stable save point, so this is the NORMAL path
+        // for a parked spell, not an edge case: the entry tail re-enters
+        // `finalizeSpellResolution`, which reads `item.castById` — a field only
+        // `compactStackItem` carries across the round-trip.
+        const state = boardWithGraveyard([]);
+        const item = pushSpell(state, PAY_LIFE_ID, "p1");
+        resolveTopOfStack(state);
+        expect(state.stagedEntries![0].origin).toBe("spell");
+
+        const reloaded = expandState(compactState(state));
+
+        expect(() => answer(reloaded, ["2"])).not.toThrow();
+        expect(reloaded.stagedEntries).toBeUndefined();
+        expect(battlefieldIds(reloaded)).toContain(item.id);
+        expect(reloaded.players[0].life).toBe(18);
     });
 
     it("the gameOver guard survives the move onto the shared tail", () => {
@@ -436,6 +574,147 @@ describe("as-enters token replay (ADR 0100 D5)", () => {
         expect(ids).toHaveLength(2);
         expect(state.stagedEntries).toBeUndefined();
         expect(state.players[0].battlefield).toHaveLength(2);
+    });
+});
+
+// --- D5 replay safety inside a MULTI-Op script -----------------------------
+
+describe("as-enters park mid-Effect-Script (ADR 0100 D5)", () => {
+    it("CR 608.3 — Ops BEFORE the parking Op do not re-run on resume", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 20 }), makePlayer("p2")],
+        });
+        pushSpell(state, PRE_PARK_ID, "p1");
+
+        resolveTopOfStack(state);
+
+        // The `gainLife 5` ran once and the token parked. The script is
+        // SUSPENDED, so its resume checkpoint must still be on the item — that
+        // is what makes the completed Op skippable on re-entry.
+        expect(state.players[0].life).toBe(25);
+        expect(state.stagedEntries).toHaveLength(1);
+        expect(state.stack[state.stack.length - 1].resolutionStep).toBe(1);
+
+        answer(state, ["1"]);
+
+        // 25 − 1 paid = 24. A script replayed from position 0 would gain 5
+        // again and land on 29.
+        expect(state.players[0].life).toBe(24);
+        expect(state.players[0].battlefield).toHaveLength(1);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("CR 614.12a — Ops AFTER the parking Op do not run before the permanent enters", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 20 }), makePlayer("p2")],
+        });
+        pushSpell(state, POST_PARK_ID, "p1");
+
+        resolveTopOfStack(state);
+
+        // "That choice is made before the permanent enters the battlefield":
+        // nothing after the park may run while the token is still in
+        // `stagedEntries` and in no zone.
+        expect(state.stagedEntries).toHaveLength(1);
+        expect(state.players[0].life).toBe(20);
+        expect(state.players[0].battlefield).toHaveLength(0);
+
+        answer(state, ["1"]);
+
+        // Now the trailing Op has run — exactly once, and after the entry.
+        expect(state.players[0].life).toBe(26);
+        expect(state.players[0].battlefield).toHaveLength(1);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("CR 608.2b — a targeted spell is not re-gated (and countered) on resume", () => {
+        const state = boardWithGraveyard([payLifeCreature], 20);
+        const item = pushSpell(state, REANIMATE_ID, "p1", [
+            { type: "graveyard-card", id: "staged-0", playerId: "p1" },
+        ]);
+
+        resolveTopOfStack(state);
+
+        // The target left the graveyard as part of this very resolution and is
+        // now parked off every zone — target legality is fixed at the START of
+        // resolution (CR 608.2b) and must not be re-asked on resume.
+        expect(state.stagedEntries).toHaveLength(1);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.stack.map((s) => s.id)).toContain(item.id);
+
+        answer(state, ["1"]);
+
+        // The trailing Op is the discriminator: a spell countered by game rules
+        // on resume never reaches it (life would stay 19).
+        expect(state.players[0].life).toBe(26);
+        expect(battlefieldIds(state)).toContain("staged-0");
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+// --- The stackless `name-card` route ---------------------------------------
+
+describe("as-enters `name` kind (CR 614.1c, ADR 0100 D3)", () => {
+    it("is answerable through the SAME path every client and bot uses", () => {
+        const state = boardWithGraveyard([nameCreature]);
+        reanimateAll(state);
+
+        // The prompt reuses the `name-card` shape, and `name-card` has its own
+        // mutation: `applyPendingChoiceSubmit` explicitly bounces it
+        // ("Use submitNameCard"), so this route is the ONLY one a client or the
+        // bot can take.
+        expect(head(state).kind).toBe("name-card");
+        expect(head(state).stackItemId).toBe("");
+        // …and the bot is offered exactly that action for this head (ADR 0047 —
+        // an owed choice with no legal action is a freeze).
+        expect(legalActions(state).map((a) => a.action.kind)).toContain(
+            "submit-name-card"
+        );
+
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "grizzly bears",
+        });
+
+        expect(state.stagedEntries).toBeUndefined();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "staged-0"
+        )!;
+        // Normalized to the registry's canonical casing, like every other
+        // name-card submission.
+        expect(entered.chosenName).toBe(grizzlyBears.name);
+        expect(state.priorityPlayerId).toBe(state.activePlayerId);
+    });
+
+    it("CR 614.1c vs CR 400.7 — a `subtypes` answer likewise survives the entry reset", () => {
+        // `resetBattlefieldTransientState` clears `chosenSubtypes` (CR 603.6b)
+        // because it belongs to the object that LEFT; the as-enters answer is
+        // part of how the permanent is entering right now, so the entry tail
+        // must re-apply it on the far side of that reset.
+        const state = boardWithGraveyard([subtypesCreature]);
+        reanimateAll(state);
+        expect(head(state).asEntersKind).toBe("subtypes");
+
+        answer(state, ["Goblin"]);
+
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "staged-0"
+        )!;
+        expect(entered.chosenSubtypes).toEqual(["Goblin"]);
+    });
+
+    it("still rejects an unregistered name", () => {
+        const state = boardWithGraveyard([nameCreature]);
+        reanimateAll(state);
+
+        expect(() =>
+            applyNameCardSubmit(state, {
+                playerId: "p1",
+                cardName: "Not A Real Card",
+            })
+        ).toThrow(/Not a recognized card name/);
+        expect(state.stagedEntries).toHaveLength(1);
     });
 });
 

@@ -4518,6 +4518,14 @@ export interface SpellContext {
      *  card instance carries no stale `resolutionStep` into its next zone
      *  (a recast would otherwise skip the target-legality gate, CR 608.2b). */
     clearScriptCheckpoint: () => void;
+    /** How many permanents are currently PARKED on an "as it enters" choice
+     *  (`GameState.stagedEntries`, ADR 0100 D2). Interpreter plumbing like the
+     *  three above: `runOpList` reads it either side of every Op, and a rise
+     *  means THIS Op's battlefield entry parked — the script must then suspend
+     *  exactly as if the Op had enqueued the choice itself, so the permanent
+     *  finishes entering before any later Op runs (CR 614.12a) and the resume
+     *  checkpoint survives (CR 608.3 — earlier Ops never replay). */
+    stagedAsEntersCount: () => number;
 
     /** Flips a coin and PAUSES resolution to reveal the outcome before the
      *  consequence is applied (CR 705.2, ADR 0023). Unlike `flipCoin` (which

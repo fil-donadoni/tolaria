@@ -1633,13 +1633,30 @@ export function compactState(state: GameState): Record<string, unknown> {
     // through `compactCard` and the definition would not be re-registered on
     // expand. `ownerId` rides explicitly — a staged entry has no surrounding
     // player to default it from.
+    //
+    // An `origin: "spell"` entry IS a `StackItem` (the parked permanent spell
+    // itself — `finalizeSpellResolution` stages the popped item), so it goes
+    // through `compactStackItem`, not `compactCard`: the latter is a WHITELIST
+    // and would silently drop `castById`, `targets`, `chosenX`,
+    // `kickerPayments`, `targetAmounts`, `additionalSacrificeSnapshot`,
+    // `notedManaSpent` and `isCopy`. A pending choice is a stable save point,
+    // so this round-trip is the normal case, not an edge one — and a lost
+    // `castById` throws `Player not found: undefined` out of the entry tail
+    // (`finalizeSpellResolution`) the moment the choice is answered.
     if (state.stagedEntries?.length) {
         out.stagedEntries = state.stagedEntries.map((e) => ({
             ...e,
-            card: {
-                ...compactCard(e.card, { ownerId: e.card.ownerId }, ctx),
-                ownerId: e.card.ownerId,
-            },
+            card:
+                e.origin === "spell"
+                    ? compactStackItem(e.card as StackItem, ctx)
+                    : {
+                          ...compactCard(
+                              e.card,
+                              { ownerId: e.card.ownerId },
+                              ctx
+                          ),
+                          ownerId: e.card.ownerId,
+                      },
         }));
     }
     // Layers 4/5 (issue #1780) — every card compacted above ran through
@@ -1720,16 +1737,29 @@ export function expandState(data: Record<string, unknown>): GameState {
     // `finalizeSpellResolution`, `finishTokenEntry`), so the hydrated value is
     // never read as a location.
     const compactStaged = data.stagedEntries as
-        | { card: CompactCard & { ownerId?: string }; [key: string]: unknown }[]
+        | {
+              card: CompactCard & { ownerId?: string };
+              origin?: string;
+              [key: string]: unknown;
+          }[]
         | undefined;
     if (compactStaged) {
         result.stagedEntries = compactStaged.map((e) => ({
             ...e,
-            card: expandCard(
-                e.card,
-                { ownerId: e.card.ownerId ?? "", zone: "stack" },
-                ctx
-            ),
+            // Mirror of `compactState`: the spell row rehydrates through
+            // `expandStackItem` so the parked permanent SPELL comes back with
+            // its cast-time bookkeeping (`castById` above all — the entry tail
+            // reads it) intact. `expandStackItem` already hydrates with
+            // `zone: "stack"`, the same honest "in transit, in no player's zone
+            // array" value the effect/token rows use below.
+            card:
+                e.origin === "spell"
+                    ? expandStackItem(e.card, ctx)
+                    : expandCard(
+                          e.card,
+                          { ownerId: e.card.ownerId ?? "", zone: "stack" },
+                          ctx
+                      ),
         })) as GameState["stagedEntries"];
     }
     return result;

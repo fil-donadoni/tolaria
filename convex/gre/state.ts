@@ -2603,7 +2603,7 @@ export type PendingChoice = {
     /** For `kind: "choose-aura-host"` only (CR 303.4f) — the instance id of the
      *  Aura currently entering, held off every zone in
      *  `GameState.stagedEntries` while this choice is pending.
-     *  `finalizeAuraHost` reads it to match the choice to its staged Aura and
+     *  `finalizeAsEnters` reads it to match the choice to its staged Aura and
      *  complete the attachment + entry on submit. */
     auraInstanceId?: string;
     /** ADR 0100 D5 — the instance id of the permanent held in
@@ -4070,7 +4070,7 @@ export type GameState = {
      *  here — off EVERY zone — so no SBA (704.5f zero-toughness sweep, 704.5m
      *  unattached-Aura sweep), no layer read, no trigger scan and no wire
      *  projection ever observes a half-entered permanent. `finalizeAsEnters` /
-     *  `finalizeAuraHost` pull the entry and run the deferred entry tail. Only
+     *  `finalizeAsEnters` pull the entry and run the deferred entry tail. Only
      *  ever populated transiently while a matching choice is pending; empty
      *  (undefined) at a fully-resolved stable point.
      *
@@ -7653,12 +7653,12 @@ function findAllLegalAuraHosts(
 }
 
 /** CR 303.4f — resolves a single candidate `hostId` (as chosen from a
- *  `findAllLegalAuraHosts` candidate set, or re-validated at `finalizeAuraHost`
+ *  `findAllLegalAuraHosts` candidate set, or re-validated at `finalizeAsEnters`
  *  time) against `aura`'s enchant restriction, returning the matching
  *  candidate or `undefined` if `hostId` no longer names a legal host (the
  *  permanent left the battlefield / lost eligibility, or — defensively — the
  *  id matches neither a battlefield permanent nor a player). Shared by the
- *  auto-attach (single-candidate) and prompted (`finalizeAuraHost`) paths so
+ *  auto-attach (single-candidate) and prompted (`finalizeAsEnters`) paths so
  *  both apply the identical gate `findAllLegalAuraHosts` used to build the
  *  candidate set in the first place. */
 function resolveAuraHostCandidate(
@@ -10608,7 +10608,7 @@ function putReanimatedOnBattlefield(
  *  part of this simultaneous batch (Arena-UX auto-resolve, ADR 0003). Two or
  *  more → the Aura is held off every zone (`stagedEntries`) and a
  *  `choose-aura-host` PendingChoice is enqueued; it enters LATER, via
- *  `finalizeAuraHost`, when the controller answers. DOCUMENTED SIMPLIFICATION:
+ *  `finalizeAsEnters`, when the controller answers. DOCUMENTED SIMPLIFICATION:
  *  a ≥2-host Aura that requires a prompt enters as its OWN later event rather
  *  than truly simultaneously with the rest of the batch — modeling N genuinely
  *  simultaneous host prompts is out of scope; the candidate set is still
@@ -10667,7 +10667,7 @@ export function putReanimatedSetOnBattlefield(
             continue;
         }
         // CR 303.4f — 2+ legal hosts: the controller chooses. Hold the Aura
-        // off every zone and enqueue the pick; it enters via `finalizeAuraHost`.
+        // off every zone and enqueue the pick; it enters via `finalizeAsEnters`.
         enqueueAuraHostChoice(state, card, controllerId);
     }
 
@@ -11054,12 +11054,26 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
         case "effect": {
             // CR 614.1c vs CR 400.7 — the entry itself is a zone change, so
             // `stageReanimatedOnBattlefield` clears the previous object's
-            // battlefield state, `attachedTo` included. An as-enters ANSWER is
-            // part of HOW the permanent enters, not state carried over from a
-            // previous existence, so the attach is re-applied on the far side of
-            // that reset — the same ordering the shipped `finalizeAuraHost`
-            // used (attach AFTER staging, never before).
-            const attachedTo = entry.card.attachedTo;
+            // battlefield state. An as-enters ANSWER is part of HOW the
+            // permanent enters, not state carried over from a previous
+            // existence, so every answered field is re-applied on the far side
+            // of that reset — the same ordering the pre-ADR-0100 Aura-host finalize
+            // used (attach AFTER staging, never before), and before the ETB
+            // announcement, so a trigger reads the answer the rules say the
+            // permanent entered with.
+            //
+            // These are exactly the fields `applyAsEntersAnswer` writes that
+            // `resetBattlefieldTransientState` clears: `attachedTo`
+            // (`aura-host`), `chosenName` (`name`, deleted there per CR 614.12
+            // / issue #1953) and `chosenSubtypes` (`subtypes`, CR 603.6b). The
+            // other kinds write fields that reset does not touch (`mode` →
+            // `chosenModeId`, `body`/`anchor` → the printed characteristics,
+            // `copy` → the whole copiable set, `payLife` → the player's life).
+            const answered = {
+                attachedTo: entry.card.attachedTo,
+                chosenName: entry.card.chosenName,
+                chosenSubtypes: entry.card.chosenSubtypes,
+            };
             if (
                 stageReanimatedOnBattlefield(
                     state,
@@ -11068,8 +11082,14 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                     { asEntersResolved: true }
                 )
             ) {
-                if (attachedTo !== undefined) {
-                    entry.card.attachedTo = attachedTo;
+                if (answered.attachedTo !== undefined) {
+                    entry.card.attachedTo = answered.attachedTo;
+                }
+                if (answered.chosenName !== undefined) {
+                    entry.card.chosenName = answered.chosenName;
+                }
+                if (answered.chosenSubtypes !== undefined) {
+                    entry.card.chosenSubtypes = [...answered.chosenSubtypes];
                 }
                 // CR 613.1b — an Aura additionally applies its control-changing
                 // static effect once its host is set (Control Magic).
@@ -11158,7 +11178,7 @@ export function findStagedEntry(
 
 /** CR 303.4f — hold `aura` off every zone (the caller has already removed it
  *  from its origin) and enqueue the controller's "choose what to enchant" pick.
- *  Freezes priority on the chooser; the Aura enters via `finalizeAuraHost` when
+ *  Freezes priority on the chooser; the Aura enters via `finalizeAsEnters` when
  *  the choice is answered. `candidateIds` are the legal hosts computed by the
  *  caller (`findAllLegalAuraHosts`) — a mix of permanent ids and, for an
  *  "Enchant player" Aura (issue #1119), player ids. Only called with ≥2
@@ -15989,6 +16009,14 @@ export function buildSpellContext(
             // recast with a leftover `resolutionStep` would skip the
             // target-legality gate (CR 608.2b) and mis-key its choices.
             delete item.resolutionStep;
+        },
+        // CR 614.12a / ADR 0100 D5 — the as-enters park is enqueued DEEP inside
+        // an entry primitive (`createTokenPermanents`,
+        // `stageReanimatedOnBattlefield`), several frames below the Op that
+        // called it, and no primitive's return value reports it. This is what
+        // lets `runOpList` see the park from the outside and suspend the script.
+        stagedAsEntersCount(): number {
+            return state.stagedEntries?.length ?? 0;
         },
         // CR 701.16: to sacrifice a permanent is for its controller to put
         // it into its owner's graveyard. Indestructible does not prevent

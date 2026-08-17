@@ -395,6 +395,21 @@ export function applyNameCardSubmit(
         throw new Error("Choose a card name other than a basic land card name");
     }
 
+    // CR 614.1c (ADR 0100 D3/D5) — the as-enters `name` kind REUSES this same
+    // `name-card` shape, but its prompt is STACKLESS (`stackItemId: ""`): there
+    // is no stack item to commit the answer into, and the finalize writes the
+    // name onto the staged permanent itself (`applyAsEntersAnswer`). Routed
+    // here, not only in `applyPendingChoiceSubmit`, because EVERY client and
+    // bot path for a `name-card` head lands in this function — the
+    // `submitNameCard` mutation, and `legalActions`' `submit-name-card` →
+    // `brain.decideBotAction` → the same mutation. A branch that existed only
+    // over there would leave both throwing `Stack item not found` on a choice
+    // nobody can answer: the ADR 0047 / #2283 freeze shape.
+    if (head.stackItemId === "" && head.asEntersCardId !== undefined) {
+        finalizeAsEnters(state, [canonical]);
+        return;
+    }
+
     head.chosenName = canonical;
     const stackItem = state.stack.find((s) => s.id === head.stackItemId);
     if (!stackItem) throw new Error("Stack item not found");

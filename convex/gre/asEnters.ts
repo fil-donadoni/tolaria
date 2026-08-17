@@ -74,7 +74,7 @@ export function finalizeAsEnters(state: GameState, selected: string[]): void {
  *  taken only when the PARKING stack item is still live, and the whole thing is
  *  gated on `!state.gameOver`.
  *
- *  The `gameOver` gate is carried over from the shipped `finalizeAuraHost`,
+ *  The `gameOver` gate is carried over from the pre-ADR-0100 Aura-host finalize,
  *  which had it and the generic tail does not: without it an attach that kills
  *  a player through `checkStateBasedActions` goes on to resolve the next stack
  *  item — and to hand out priority — in a finished game. */
@@ -99,26 +99,9 @@ function resumeAfterStagedEntry(
         }
     }
     // Full resolution completed (or there was never anything to resume) —
-    // priority returns to the active player (CR 117.3d).
+    // priority returns to the active player (CR 117.3b — "the active player
+    // receives priority after a spell or ability … resolves").
     state.priorityPlayerId = state.activePlayerId;
     state.passCount = 0;
     drainAutoPasses(state);
-}
-
-/** CR 303.4f — commit a `choose-aura-host` PendingChoice. Kept as a named entry
- *  point (it is the one as-enters kind with shipped behaviour and shipped
- *  tests), but it is now a thin guard over the shared finalize: ADR 0100 D2
- *  folds the Aura host pick into `stagedEntries` as one KIND of as-enters
- *  choice rather than a parallel mechanism, and D5 moves it off "set
- *  `priorityPlayerId` and wait for a full priority round-trip" onto the
- *  parking-stack-item resume tail. */
-export function finalizeAuraHost(
-    state: GameState,
-    selectedIds: string[]
-): void {
-    const head = (state.pendingChoices ?? [])[0];
-    if (!head || head.kind !== "choose-aura-host" || head.stackItemId !== "") {
-        return;
-    }
-    finalizeAsEnters(state, selectedIds);
 }

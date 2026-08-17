@@ -15,7 +15,11 @@ cannot duplicate its batch when the resolution re-enters. Its sibling
    marker `createToken` uses does not transfer verbatim: a park landing between
    loop iterations needs a per-iteration index, not a single before/after flag.
    Today this is latent because no `TokenSpec` produced by that Op declares
-   `asEnters`, so no copy token ever parks.
+   `asEnters`, so no copy token ever parks. #2496 review round 2 sharpened what
+   the gap would cost: a parking Op now SUSPENDS the script, and the resume
+   re-executes the Op at exactly its checkpointed position — so a markerless
+   `createTokenCopy` would duplicate its own copies, where before it replayed
+   the whole script.
 2. **A copied definition's `asEnters` is never discovered.** CR 707.6 — "if an
    object enters the battlefield as a copy of another permanent, the object's
    controller will get to make any 'as [this] enters the battlefield' choices for
