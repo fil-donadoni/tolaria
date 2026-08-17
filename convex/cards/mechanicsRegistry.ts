@@ -61,6 +61,15 @@ import type { GameEvent } from "./types";
 export type MechanicKind =
     | "keyword-ability"
     | "keyword-action"
+    /** A named CAST-TIME RIDER that is neither a CR 701 keyword action nor a
+     *  CR 702 keyword ability: printed rules text on a spell that changes how
+     *  or when it may be cast, censused here because the registry is the single
+     *  NAME authority for the `CardDefinition` cost fields the engine branches
+     *  on. Like an ability word it never appears in `staticAbilities[]`, so the
+     *  name-authority guard never checks a card against one; unlike an ability
+     *  word it carries real rules meaning of its own (a CR 601 clause). See
+     *  `CAST_RIDERS`. */
+    | "cast-rider"
     /** CR 207.2c — an ITALIC ability word: purely organizational text with NO
      *  independent rules meaning of its own (unlike a CR 702 keyword ability,
      *  an ability word never appears in a card's `staticAbilities[]` and the
@@ -2487,11 +2496,37 @@ const SET_KEYWORDS: MechanicRow[] = [
     },
 ];
 
+/** Named CAST-TIME RIDERS (CR 601): printed rules text on a spell that changes
+ *  how or when it may be cast, with no CR 701/702 keyword name of its own. Kept
+ *  in its own array for the same reason `SET_KEYWORDS` is — `KEYWORD_ACTIONS` /
+ *  `KEYWORD_ABILITIES` document a closed, hand-maintained CR-701/702-numbered
+ *  census — while still feeding `MECHANICS_REGISTRY`.
+ *
+ *  The bar for a row here is a rider the ENGINE branches on through a dedicated
+ *  `CardDefinition` field, i.e. one the registry can be the name authority for.
+ *  The cost-system capabilities that already have a keyword name (Buyback,
+ *  Kicker, Cycling, Flashback, Escape) keep their CR 702 rows above; the
+ *  card-specific one-offs that are modelled as a `staticAbilities` string
+ *  belong in `ENGINE_INTERNAL_MARKERS` below. */
+const CAST_RIDERS: MechanicRow[] = [
+    {
+        id: "conditional-flash-surcharge",
+        name: "Conditional Flash Surcharge",
+        kind: "cast-rider",
+        cr: "601.3c",
+        status: "implemented",
+        binding:
+            "CardDefinition.flashSurcharge + gre/rules.ts (castTimingBaseLegal / flashSurchargeRequired) + convex/game.ts (announceCast: assertFlashSurchargeDeclaration, foldFlashSurchargeCost)",
+        note: 'CR 601.3c: "If an effect allows a player to cast a spell as though it had flash only if an alternative or additional cost is paid, that player may begin to cast that spell as though it had flash." The Invasion cycle\'s rider — "You may cast this spell as though it had flash if you pay {2} more to cast it." — on Rout, Breaking Wave, Twilight\'s Call, Ghitu Fire and Saproling Symbiosis (issue #2146). Declared as `CardDefinition.flashSurcharge` (a plain ManaCost), a SIBLING field rather than an `additionalCosts` leg or an `AlternativeCost`: every `additionalCosts` leg is unconditional and an `AlternativeCost` REPLACES the printed mana cost, whereas this one is an ADDITIONAL cost (CR 601.2f) priced by WHEN the cast happens. Two halves, deliberately split across two predicates in `gre/rules.ts`. (1) LEGAL TO ANNOUNCE: `castTimingBaseLegal` gains a third tier alongside the intrinsic-flash keyword and the player-scoped `castTimingFlashGrants` — `hasCardSelfFlashPermission` (`cards/castRestrictions.ts`), an unconditional leg, because 601.3c says the player may BEGIN the cast before the payment is known. Beaten by a `cast-timing-lock` static (CR 101.2 — a restriction overrides a permission), which is why the lock is checked first. (2) OWED: `flashSurchargeRequired` returns true only when the cast relies on that permission — no surcharge when a sorcery-speed lock has closed the window anyway, when the spell is castable at instant speed regardless (intrinsic flash, or a live Teferi grant), or when the caster IS in their own sorcery-speed window (the "never payable for nothing" clause). Evaluated ONCE at announcement (CR 601.2a) beside `wasCastOffSorceryTiming` and locked onto `PendingTarget.flashSurchargePaid`, never re-derived at commit — CR 601.2f locks the total in and CR 601.6a lets a cast begun under the permission finish even if the condition lapses. `announceCast` takes a `payFlashSurcharge` acknowledgement it VALIDATES but does not obey (a claim on a card declaring no surcharge is rejected; an explicit `false` on a cast that owes it is rejected; an omitted flag still pays, so no non-UI caller can dodge a mandatory cost). Surfaced to the client as the projected `SlimHandCard.flashSurchargeRequired`, because the client re-derives no cast timing at all and four of the five cards have no X, kicker or buyback to open the cast-cost dialog for them. Deliberately NOT snapshotted onto the StackItem: the payment buys timing only and nothing downstream reads it. NOT the inverse `grantCastTiming` Op (a PLAYER-scoped grant handed out by a resolving effect, Teferi\'s +1) — do not conflate the two.',
+    },
+];
+
 export const MECHANICS_REGISTRY: MechanicRow[] = [
     ...KEYWORD_ACTIONS,
     ...KEYWORD_ABILITIES,
     ...ABILITY_WORDS,
     ...SET_KEYWORDS,
+    ...CAST_RIDERS,
 ];
 
 /** Engine-internal `staticAbilities` markers that are NOT CR 701/702

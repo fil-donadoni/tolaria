@@ -13959,6 +13959,38 @@ export interface CardDefinition {
      *  infra), NOT an Effect Script Op — the resolving effect itself stays
      *  DSL-first (`effects`). Used by Corpse Dance. */
     buyback?: ManaCost;
+    /** CR 601.3c — the CONDITIONAL-FLASH SURCHARGE rider: "You may cast this
+     *  spell as though it had flash if you pay {2} more to cast it." (the
+     *  Invasion cycle — Rout, Breaking Wave, Twilight's Call, Ghitu Fire,
+     *  Saproling Symbiosis; issue #2146). The declared cost is an ADDITIONAL
+     *  mana cost (CR 601.2f) that ALSO carries a cast-timing permission.
+     *
+     *  It is a SIBLING field rather than an `additionalCosts` leg or an
+     *  {@link AlternativeCost} because neither family models it: every
+     *  `additionalCosts` leg is unconditional, and an `AlternativeCost`
+     *  REPLACES the printed mana cost instead of adding to it. What makes this
+     *  rider its own shape is that the payment is priced by WHEN the cast
+     *  happens — inside the caster's own sorcery-speed window the spell costs
+     *  exactly its printed cost and the surcharge is neither offered nor
+     *  payable; outside that window it is MANDATORY.
+     *
+     *  Per CR 601.3c the caster may nonetheless BEGIN the cast: a card
+     *  carrying this field is legal to ANNOUNCE at any time the caster has
+     *  priority (`castTimingBaseLegal`, `convex/gre/rules.ts`, via
+     *  `hasCardSelfFlashPermission`). Whether the surcharge is owed is decided
+     *  ONCE, at announcement, by `flashSurchargeRequired` (same file) and
+     *  locked in on `PendingTarget.flashSurchargePaid` — never re-derived at
+     *  commit (CR 601.2f "locked in" + CR 601.6a "may continue to cast that
+     *  spell as though it had flash even if those conditions stop being met").
+     *
+     *  Beaten by a sorcery-speed LOCK (Teferi, Time Raveler's static): CR
+     *  101.2 — a restriction overrides a permission, so the surcharge cannot
+     *  buy back a window the lock has closed.
+     *
+     *  Nothing downstream reads "was this spell surcharged": the payment buys
+     *  timing only, so — unlike `buyback`/`kickerPayments` — it is deliberately
+     *  NOT snapshotted onto the resulting `StackItem`. */
+    flashSurcharge?: ManaCost;
     /** CR 702.33 — Kicker(s). OPTIONAL additional costs the caster may pay as
      *  they cast this spell, recorded PER KICKER ID on the resulting stack item
      *  (`StackItem.kickerPayments`) and read at resolution ({@link KickerCost},

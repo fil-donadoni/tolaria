@@ -1154,16 +1154,42 @@ export const glimmeringAngel: CardDefinition = {
 // blocked" / Lure-style forced-block mechanism exists anywhere in the
 // engine).
 
-// Rout — {3}{W}{W} Sorcery. "You may cast this spell as though it had
-// flash if you pay {2} more to cast it. Destroy all creatures. They can't
-// be regenerated." tracked-by: #2146 (the regen-suppression half has
-// precedent — Wrath of God's `resolve()` + `ctx.destroyAll("Creature",
-// {cantBeRegenerated:true})`, lea/white.ts — but "grant flash for an
-// additional payment on top of the normal mana cost" has no capability:
-// `AlternativeCost` REPLACES the mana cost rather than adding to it, and the
-// right shape is an ADDITIONAL cost under CR 601.3c. Was tracked-by #1086,
-// which is CLOSED — a dangling marker until the 2026-08-04 audit; #2146 now
-// consolidates all five INV cards carrying this identical rider).
+// Rout — the CR 601.3c conditional-flash rider (issue #2146), shipped as the
+// declarative `flashSurcharge` field: the card is legal to ANNOUNCE whenever
+// its controller has priority ("that player may begin to cast that spell as
+// though it had flash"), and the {2} is charged — mandatorily — only when the
+// cast actually lands outside their own sorcery-speed window. Inside it the
+// spell costs exactly {3}{W}{W}; the surcharge is never payable for nothing.
+// The mass-destruction half is the Wrath of God shape (`lea/white.ts`): a
+// `forEach` over battlefield creatures feeding `destroy` with
+// `cantBeRegenerated` (CR 701.19 — Regenerate is what the clause suppresses).
+export const rout: CardDefinition = {
+    id: "94bc55ed-b89b-4e22-b3f1-4ce0f8d180d7",
+    name: "Rout",
+    rarity: "rare",
+    oracleText:
+        "You may cast this spell as though it had flash if you pay {2} more to cast it. Destroy all creatures. They can't be regenerated.",
+    manaCost: { X: 3, W: 2 },
+    types: ["Sorcery"],
+    flashSurcharge: { X: 2 },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$each" },
+                    cantBeRegenerated: true,
+                },
+            ],
+        },
+    ],
+};
 
 // Samite Ministration — {1}{W} Instant. "Prevent all damage that would be
 // dealt to you this turn by a source of your choice. Whenever damage from a

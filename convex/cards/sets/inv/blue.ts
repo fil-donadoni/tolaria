@@ -782,16 +782,26 @@ export const blindSeer: CardDefinition = {
 };
 
 // Breaking Wave — "You may cast this spell as though it had flash if you pay
-// {2} more. Simultaneously untap all tapped creatures and tap all untapped
-// creatures." Two gaps. (1) The cast rider is conditional flash for an
-// ADDITIONAL cost (CR 601.3c) — `AlternativeCost` REPLACES the mana cost, so
-// it is the wrong shape; a cast-time rule, not a resolve()-body fix. Five INV
-// cards share it. (2) No `if`-predicate form reads a permanent's own tapped
-// state to branch a per-member toggle — `EffectCardFilter` (cards/types.ts)
-// has no tapped/untapped field, so `objectMatchesFilter` cannot express it.
-// Was tracked-by #1841, a stale-marker CHORE rather than a design issue;
-// re-pointed by the 2026-08-04 audit, which gave each half its own owner.
-// tracked-by: #2146 (gap 1) and #1332 (gap 2)
+// {2} more to cast it. Simultaneously untap all tapped creatures and tap all
+// untapped creatures." The card carried TWO independent gaps and only ONE of
+// them is now closed.
+//
+// CLOSED (issue #2146): the CR 601.3c cast rider. `CardDefinition.
+// flashSurcharge` ships with the other four cards of the cycle (Rout,
+// Twilight's Call, Ghitu Fire, Saproling Symbiosis) and would apply verbatim
+// here — `flashSurcharge: { X: 2 }`, nothing card-specific about it.
+//
+// STILL OPEN, and why this card stays a stub: no `EffectCardFilter`
+// (`cards/types.ts`) field reads a permanent's own TAPPED state, so
+// `objectMatchesFilter` cannot express "all tapped creatures" / "all untapped
+// creatures", and the two clauses are SIMULTANEOUS (CR 608.2 — one event, on
+// one snapshot of the board), which rules out the sequential workaround of
+// untapping everything and then tapping what was untapped. Shipping the rider
+// alone would leave the card castable and inert, which is exactly the
+// partial-mechanic failure the divergence rules forbid; deliberately NOT
+// widened here either, since a new filter field is a catalogue-wide input to
+// every `isCardFilter` consumer and belongs to its own slice.
+// tracked-by: #1332
 // export const breakingWave: CardDefinition = {
 //     id: "1b39cd77-97aa-4099-8405-366f82079758",
 //     name: "Breaking Wave",

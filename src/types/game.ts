@@ -259,6 +259,15 @@ export interface CardInstance {
      *  sends the pick as `announceCast`'s `phyrexianLifePips`. Mirrors
      *  `SlimHandCard.phyrexianOptions` in `convex/gameProjections.ts`. */
     phyrexianOptions?: number[];
+    /** CR 601.3c — true when casting this own-hand card RIGHT NOW owes its
+     *  conditional-flash surcharge ("You may cast this spell as though it had
+     *  flash if you pay {2} more to cast it" — Rout, Ghitu Fire, …). Derived
+     *  server-side by `flashSurchargeRequired`, the same predicate that charges
+     *  it; absent (never `false`) when nothing is owed. The cast-cost dialog
+     *  opens on this alone — four of the five cards carrying the rider have no
+     *  X, no kicker and no buyback. Mirrors
+     *  `SlimHandCard.flashSurchargeRequired` in `convex/gameProjections.ts`. */
+    flashSurchargeRequired?: true;
     /** Two basic land types chosen as a permanent entered and stored for the
      *  rest of the game (CR 603.6b / 614.12 — Illusionary Terrain). Forwarded by
      *  `slimCard` (the projection only strips `card`/`knownTo`); read by the

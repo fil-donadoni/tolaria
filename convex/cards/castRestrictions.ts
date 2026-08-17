@@ -166,6 +166,32 @@ export function hasCastTimingFlashGrant(
     return false;
 }
 
+/** CR 601.3c — `true` when the SPELL'S OWN definition carries a cast-timing
+ *  permission for whoever is casting it, as opposed to the player-scoped
+ *  {@link hasCastTimingFlashGrant} above (Teferi's +1, an effect handed to a
+ *  PLAYER). Today that is exactly `CardDefinition.flashSurcharge` — "You may
+ *  cast this spell as though it had flash if you pay {2} more to cast it."
+ *  (the Invasion cycle, issue #2146) — whose rule says the player may BEGIN
+ *  the cast as though it had flash, i.e. announcement is legal before the
+ *  payment is known.
+ *
+ *  This is the SEAM for every card-level self-grant, not a one-off for the
+ *  surcharge: a card granting ITSELF an UNCONDITIONAL flash permission
+ *  (Necromancy's "if you cast it any time a sorcery couldn't have been cast",
+ *  issue #2392) adds a second clause HERE rather than a third leg in
+ *  `castTimingBaseLegal`, so the timing authority keeps exactly three tiers
+ *  (intrinsic keyword → player grant → card self-permission).
+ *
+ *  Deliberately says nothing about the COST: it answers "may this cast be
+ *  announced", never "is anything owed". Whether a surcharge is actually
+ *  payable is `flashSurchargeRequired` (`convex/gre/rules.ts`), decided once
+ *  at announcement. */
+export function hasCardSelfFlashPermission(spell: PermanentView): boolean {
+    const cardId = (spell.card as { id?: string }).id;
+    if (!cardId) return false;
+    return tryGetDefinition(cardId)?.flashSurcharge !== undefined;
+}
+
 /** Adapts a `PermanentView` — the board shape `GameState`, the client's
  *  `Player[]` and the wire-projected state all satisfy — to the
  *  `MatchablePermanent` `matchesPermanentFilter` reads.

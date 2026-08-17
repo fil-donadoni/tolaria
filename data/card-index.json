@@ -5272,6 +5272,14 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Ghitu Fire",
+        "scryfallId": "78827acd-a526-411b-bd22-ab9b538c75dd",
+        "oracleId": "c15ae9d8-b423-4628-ad88-3f44515e0c77",
+        "firstSet": "inv",
+        "firstPrintId": "78827acd-a526-411b-bd22-ab9b538c75dd",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Ghost Ship",
         "scryfallId": "db591b28-37e5-4e7c-ae4d-d761262b12d0",
         "oracleId": "09de1136-8a8f-4539-92a2-611dcdd0790b",
@@ -11400,6 +11408,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Rout",
+        "scryfallId": "94bc55ed-b89b-4e22-b3f1-4ce0f8d180d7",
+        "oracleId": "d69aa624-23d1-406a-b7e0-9140a6f57929",
+        "firstSet": "inv",
+        "firstPrintId": "94bc55ed-b89b-4e22-b3f1-4ce0f8d180d7",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Royal Assassin",
         "scryfallId": "59590768-fa96-4869-8763-9d5ab6ac22ad",
         "oracleId": "9ed6f28f-a3db-48c5-9ab0-b90a7fba5f57",
@@ -11589,6 +11605,14 @@
         "oracleId": "dd257eb3-4112-41e5-9c7d-00d1f683dbdb",
         "firstSet": "inv",
         "firstPrintId": "8642e530-914c-4149-944a-c4966ee27299",
+        "firstPrintSet": "inv"
+    },
+    {
+        "name": "Saproling Symbiosis",
+        "scryfallId": "2bb63748-5c84-43a0-8f17-a2a17f658337",
+        "oracleId": "69d22037-fbf7-44d2-81a7-7ce8e32f06ec",
+        "firstSet": "inv",
+        "firstPrintId": "2bb63748-5c84-43a0-8f17-a2a17f658337",
         "firstPrintSet": "inv"
     },
     {
@@ -14558,6 +14582,14 @@
         "firstSet": "lea",
         "firstPrintId": "576e811f-26a3-4a7c-bd13-3b1cc3e184eb",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Twilight's Call",
+        "scryfallId": "3c97c8a5-33b3-4f7f-a224-bb4df7b4bcc0",
+        "oracleId": "ae0a1d9c-19cb-42ee-97c3-464e38e84615",
+        "firstSet": "inv",
+        "firstPrintId": "3c97c8a5-33b3-4f7f-a224-bb4df7b4bcc0",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Two-Headed Giant of Foriys",

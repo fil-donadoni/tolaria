@@ -1075,25 +1075,48 @@ export const fertileGroundInv: CardPrint = {
 //     types: ["Creature"],
 // };
 
-// Saproling Symbiosis — "You may cast this spell as though it had flash if
-// you pay {2} more to cast it. Create a 1/1 green Saproling creature token
-// for each creature you control." The token-creation clause is free
-// (`createToken` + a battlefield `count`), but the "pay {N} more to cast
-// with flash" cast-timing rider has no home — `AlternativeCost` REPLACES the
-// mana cost rather than adding to it, whereas CR 601.3c calls for an
-// ADDITIONAL cost that also grants a cast-timing permission. Same gap as
-// Twilight's Call (`inv/black.ts`), Rout (`inv/white.ts`), Breaking Wave
-// (`inv/blue.ts`) and Ghitu Fire (`inv/red.ts`) — all five consolidated onto
-// one issue by the 2026-08-04 tracker audit (it had been filed once per
-// colour across four different trackers).
-// tracked-by: #2146
-// export const saprolingSymbiosis: CardDefinition = {
-//     id: "2bb63748-5c84-43a0-8f17-a2a17f658337",
-//     name: "Saproling Symbiosis",
-//     rarity: "rare",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Sorcery"],
-// };
+// Saproling Symbiosis — the CR 601.3c conditional-flash rider (issue #2146),
+// shipped as `flashSurcharge`: legal to ANNOUNCE at any priority, with the {2}
+// charged mandatorily only when the cast lands outside the caster's own
+// sorcery-speed window. The token half is `createToken` with a DYNAMIC
+// `count` — the same `EffectCount` shape Pygmy Kavu's `draw` uses
+// (`pls/green.ts`) — counting the caster's own battlefield creatures at
+// RESOLUTION (CR 608.2), so a creature that died in response reduces the
+// count. Token art resolves from the committed Scryfall reverse-link
+// (`generated/token-prints.json`) keyed by this card's id + "Saproling", the
+// same 1/1 green Saproling the other INV producers use; no `imagePrintId` is
+// hand-pinned.
+export const saprolingSymbiosis: CardDefinition = {
+    id: "2bb63748-5c84-43a0-8f17-a2a17f658337",
+    name: "Saproling Symbiosis",
+    rarity: "rare",
+    oracleText:
+        "You may cast this spell as though it had flash if you pay {2} more to cast it. Create a 1/1 green Saproling creature token for each creature you control.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Sorcery"],
+    flashSurcharge: { X: 2 },
+    effects: [
+        {
+            op: "createToken",
+            controller: "controller",
+            count: {
+                count: {
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+            },
+            token: {
+                name: "Saproling",
+                types: ["Creature"],
+                subtypes: ["Saproling"],
+                power: 1,
+                toughness: 1,
+                colors: ["G"],
+            },
+        },
+    ],
+};
 
 // Thicket Elemental — "Kicker {1}{G}. When this creature enters, if it was
 // kicked, you may reveal cards from the top of your library until you

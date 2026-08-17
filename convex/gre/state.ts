@@ -3131,6 +3131,19 @@ export type PendingTarget = {
      *  through `finalizeTargetSelection` → pendingCast → stack item so
      *  resolution routes the card to hand instead of the graveyard. */
     buybackPaid?: boolean;
+    /** CR 601.3c / 601.2f (issue #2146) — whether this cast owes the card's
+     *  conditional-flash SURCHARGE ("You may cast this spell as though it had
+     *  flash if you pay {2} more to cast it"). Unlike `buybackPaid` this is
+     *  NOT a caster choice: it is DERIVED once at announcement by
+     *  `flashSurchargeRequired` (`gre/rules.ts`) — mandatory when the cast
+     *  relies on the CR 601.3c permission, impossible when it doesn't — and
+     *  locked in here so `finalizeTargetSelection` folds the surcharge into
+     *  the total without re-deriving the timing on a board that has moved on
+     *  (CR 601.6a: having begun the cast under the permission, the caster
+     *  finishes it even if the condition stops being met). Absent = no
+     *  surcharge owed. Deliberately NOT propagated to the stack item —
+     *  nothing downstream reads "was this surcharged". */
+    flashSurchargePaid?: boolean;
     /** CR 107.4f — how many of this cast's Phyrexian pips ({C/P}) the caster
      *  chose to pay with LIFE (2 each), propagated from announceCast so the
      *  mana-vs-life split is applied at cast commit
