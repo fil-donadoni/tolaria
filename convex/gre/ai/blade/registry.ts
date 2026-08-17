@@ -1671,7 +1671,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
+        tier: "stretch",
         expect: {
             moves: [
                 {
@@ -1681,7 +1681,44 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 },
             ],
         },
-        note: "Twin combo recognition. The bot has Exarch on board and Twin in hand with 2RR available. It should enchant Exarch to start the combo. Promoted from `stretch` while re-verifying this entry alongside #2469: this is a `cast-spell` move, unrelated to `enumerateAbilityMoves`, and already passes on the engine's own merits at its declared budget on all 5 seeds.",
+        note: "Twin combo recognition. The bot has Exarch on board and Twin in hand with 2RR available. It should enchant Exarch to start the combo. This is a `cast-spell` move, unrelated to `enumerateAbilityMoves` — it does not discharge #2469's acceptance criterion (a granted-ability activation), so it stays at `stretch` (review finding on #2495, round 2).",
+    },
+    {
+        label: "combo: activates Splinter Twin on granted Grizzly Bears (#2469)",
+        spec: {
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Splinter Twin",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Grizzly Bears",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Grizzly Bears" }],
+        },
+        note: "Issue #2469 — the granted-ability activation the bot should take, on a host with no combo priors to lean on (Deceiver Exarch's own '{T}: untap target creature' primes the enumerator differently; a plain Grizzly Bears carries only the ability Splinter Twin grants, CR 613.1 layer 6). Measured (review finding on #2495, round 2): post-fix the bot chooses the activation on 5/5 seeds, reproduced on two consecutive runs; with the pre-fix `enumerateAbilityMoves` (the printed-list early return) it chooses `pass` on 5/5 seeds. This is the entry that discharges #2469's `must`-tier acceptance criterion — the cast-side sibling above does not, since it exercises `cast-spell`, not the granted-ability enumerator this issue fixed.",
     },
     {
         label: "combo: activates Splinter Twin on enchanted Deceiver Exarch",
@@ -1715,6 +1752,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            note: "The combo payoff (an infinite hasty-copy loop via the granted '{T}: untap target creature you control' + Twin's copy-and-tap trigger) isn't scored as a distinct pattern without `comboAnnotations.ts` support (explicitly out of scope for #2469), so more search does not converge toward the activation — it converges AWAY from it: measured at 400/1200/4000 iterations on the same 5 seeds, the activation is chosen 2/5, then 1/5, then 0/5 (review finding on #2495, round 2). Per ADR 0070 §2, `cause: valuation` has no budget at which it passes, so `passesAt` is intentionally omitted.",
+        },
         expect: {
             moves: [{ kind: "activate-ability", card: "Deceiver Exarch" }],
         },
