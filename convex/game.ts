@@ -218,6 +218,7 @@ import {
     isAlreadySelectedTarget,
     genericManaShortfall,
     flashSurchargeRequired,
+    foldFlashSurchargeCost,
 } from "./gre/rules";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
@@ -5702,25 +5703,6 @@ export function assertFlashSurchargeDeclaration(
     }
 }
 
-/** CR 601.3c / 601.2f — fold the conditional-flash SURCHARGE into a normalized
- *  mana-cost record, mutating it in place, when the cast owes it. No-op when
- *  it doesn't or the card declares none. Applied to the total mana cost BEFORE
- *  cost modifiers (CR 601.2f — an additional cost joins the total, then
- *  increases/reductions apply), exactly like `foldKickerCosts` /
- *  `foldBuybackCost`; a fixed cost with no `*times` multiplier, since the
- *  permission is bought once per cast. */
-function foldFlashSurchargeCost(
-    cost: Record<string, number>,
-    cardDef: CardDefinition,
-    flashSurchargePaid: boolean
-): void {
-    if (!flashSurchargePaid || !cardDef.flashSurcharge) return;
-    const per = normalizeManaCost(cardDef.flashSurcharge);
-    for (const [sym, amt] of Object.entries(per)) {
-        cost[sym] = (cost[sym] ?? 0) + amt;
-    }
-}
-
 /** CR 702.33 — the target requirement in force for a cast: the card's
  *  `kickedTargetRequirement` when the spell was kicked and one is declared
  *  (Bloodchief's Thirst, Tear Asunder), else the base `targetRequirement`. A
@@ -6301,7 +6283,13 @@ export function finalizeTargetSelection(
     // conditional-flash surcharge. Composes with an ALTERNATIVE cost the same
     // way Kicker does: the alt cost zeroes the printed mana and the surcharge
     // still joins the total, because it buys the TIMING, not the spell.
-    foldFlashSurchargeCost(manaCost, cardDef, flashSurchargePaid);
+    // The fold itself lives in `gre/rules.ts`, shared with the Bot's enumerator
+    // (`gre/moves.ts`), so the tap plan and the charged total cannot disagree.
+    foldFlashSurchargeCost(
+        manaCost,
+        cardDef.flashSurcharge,
+        flashSurchargePaid
+    );
     applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
     // CR 107.4f — resolve the Phyrexian pips ({B/P}, {U/P}) for this cast: the
     // pips paid with mana fold into the coloured mana cost (paid via the pool /
@@ -7489,6 +7477,22 @@ export const announceCast = mutation({
             // its permanent / hand / life legs join the alt cost's in the same
             // pickers (ADR 0079).
             foldKickerCosts(altManaCost, cardDef, kickerPayments);
+            // CR 601.3c / 601.2f (issue #2146 review, finding 3) — the
+            // conditional-flash surcharge composes with an alternative cost the
+            // same way the Kicker above does: the alt cost replaces the PRINTED
+            // mana, the surcharge buys the TIMING and still joins the total.
+            // The targeted commit path (`finalizeTargetSelection`) already
+            // folded it onto an alt cost; without this the two no-target/
+            // targeted commit paths priced the same cast differently. No shipped
+            // card carries both `alternativeCosts` and `flashSurcharge` today,
+            // so this is symmetry, not a live repair. (The `foldBuybackCost`
+            // asymmetry beside it is pre-existing and left alone here — Buyback
+            // and alternative costs likewise never co-occur on a shipped card.)
+            foldFlashSurchargeCost(
+                altManaCost,
+                cardDef.flashSurcharge,
+                flashSurchargePaid
+            );
             const altChoice = buildCastPermanentCostChoice(
                 state,
                 args.playerId,
@@ -7654,7 +7658,11 @@ export const announceCast = mutation({
         // Twilight's Call, Saproling Symbiosis — the no-target half of the
         // Invasion cycle). No-op inside the caster's own sorcery window: the
         // {2} is never payable for nothing.
-        foldFlashSurchargeCost(manaCost, cardDef, flashSurchargePaid);
+        foldFlashSurchargeCost(
+            manaCost,
+            cardDef.flashSurcharge,
+            flashSurchargePaid
+        );
         applyCostModifiers(
             manaCost,
             getCostModifiers(state, cardInHand, "spell")

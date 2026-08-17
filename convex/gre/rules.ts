@@ -423,6 +423,38 @@ export function flashSurchargeOf(
     return cardId ? tryGetDefinition(cardId)?.flashSurcharge : undefined;
 }
 
+/** CR 601.3c / 601.2f — fold the conditional-flash SURCHARGE into a normalized
+ *  mana-cost record, mutating it in place, when the cast owes it (`owed`).
+ *  No-op when it doesn't, or when the card declares no surcharge
+ *  (`surcharge === undefined`). Applied to the total mana cost BEFORE cost
+ *  modifiers (CR 601.2f — an additional cost joins the total, then
+ *  increases/reductions apply), exactly like `foldKickerCosts` /
+ *  `foldBuybackCost` in `convex/game.ts`; a fixed cost with no `*times`
+ *  multiplier, since the permission is bought once per cast.
+ *
+ *  Lives HERE, beside the two predicates, because it has two callers that must
+ *  never disagree about the price of a cast (issue #2146 review, finding 1):
+ *  `announceCast`/`finalizeTargetSelection` (`convex/game.ts`), which CHARGES
+ *  it, and `enumerateSpellMoves` (`moves.ts`), which builds the Bot's tap plan
+ *  for the same cast. When only the mutation folded it, the Bot enumerated a
+ *  `cast-spell` whose `tapPlan` covered the PRINTED cost, announced it (the
+ *  executor announces first and taps afterwards), and then could never cover
+ *  the surcharged total — the cast parked in `pendingCast`, `enumerateMoves`
+ *  returns `[]` while one is open, and the only exit was the
+ *  `abort-announcement` rung: tap N lands for nothing, cancel, re-enumerate
+ *  the identical move. */
+export function foldFlashSurchargeCost(
+    cost: Record<string, number>,
+    surcharge: ManaCost | undefined,
+    owed: boolean
+): void {
+    if (!owed || !surcharge) return;
+    const per = normalizeManaCost(surcharge);
+    for (const [sym, amt] of Object.entries(per)) {
+        cost[sym] = (cost[sym] ?? 0) + amt;
+    }
+}
+
 /** CR 601.3c / 601.2f — does THIS cast owe the card's conditional-flash
  *  surcharge? True exactly when the caster is relying on the CR 601.3c
  *  permission to cast at all, i.e. the cast would be illegal at this moment
@@ -433,8 +465,9 @@ export function flashSurchargeOf(
  *      the permission, so the surcharge buys nothing and must not be charged;
  *      `castTimingBaseLegal` has already refused the off-window cast);
  *   3. the spell is castable at instant speed anyway — intrinsically
- *      (CR 302.6/702.8) or under a live player-scoped flash grant (Teferi's
- *      +1) — so the permission is redundant;
+ *      (CR 304.1 — a player who has priority may cast an instant card from
+ *      their hand; CR 702.8 Flash) or under a live player-scoped flash grant
+ *      (Teferi's +1) — so the permission is redundant;
  *   4. the caster IS in their own sorcery-speed window (CR 307.1), where the
  *      spell was already castable for its printed cost. This is the
  *      "don't offer a pointless {2}" clause: the surcharge is never payable
@@ -452,7 +485,20 @@ export function flashSurchargeOf(
  *  flash even if those conditions stop being met". A commit-time
  *  re-derivation would both re-price the cast and, per issue #2473, read a
  *  suspended triggered mana ability (CR 605.4a) as "off sorcery timing" and
- *  invent a surcharge on a textbook main-phase cast. */
+ *  invent a surcharge on a textbook main-phase cast.
+ *
+ *  KNOWN BOUNDARY — this predicate is zone-agnostic, but the surcharge is only
+ *  PRICED on the caster's own hand: the `extraMana` affordability probe rides
+ *  the plain cast branch of `getLegalActions` alone, and the projection
+ *  attaches `flashSurchargeRequired` to hand cards alone. A flashback / escape
+ *  / madness / graveyard-permission cast of a rider card would therefore be
+ *  offered at the unsurcharged price and then charged. Clause 3 is also
+ *  incomplete for those zones: a MADNESS cast (CR 702.35a) already happens at
+ *  instant speed on its own, so the CR 601.3c permission buys nothing there and
+ *  clause 4's "never payable for nothing" reasoning should extend to it. No
+ *  shipped card combines the rider with any of those mechanisms, and none can
+ *  be tested without a synthetic definition — deliberately left, not missed.
+ *  tracked-by: #2505 */
 export function flashSurchargeRequired(
     state: GameState,
     casterId: string,

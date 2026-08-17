@@ -1090,6 +1090,13 @@ export function projectPublicState(
                         // Gated on `legalActions.includes("cast")` for the
                         // same reason `phyrexianOptions` is: a cost hint on an
                         // uncastable card is noise.
+                        //
+                        // HAND ONLY — the graveyard/exile `legalActions`
+                        // callbacks below carry no equivalent, so a
+                        // flashback/escape/madness cast of a rider card would
+                        // be surcharged with no client warning. No shipped card
+                        // combines the two; deliberately left.
+                        // tracked-by: #2505
                         ...(legalActions.includes("cast") &&
                         flashSurchargeRequired(state, player.id, card)
                             ? { flashSurchargeRequired: true as const }
