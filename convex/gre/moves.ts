@@ -58,6 +58,7 @@ import {
 } from "./payWith";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { getEffectivePower } from "./layers";
+import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
 import type { ActivationCostPicks } from "./activationCostPicks";
 import { enumerateActivationCostPicks } from "./activationCostPicks";
@@ -1000,16 +1001,23 @@ function enumerateAbilityMoves(
     perm: CardInstanceState,
     opts?: { anyPlayerOnly?: boolean; zone?: "battlefield" | "graveyard" }
 ): Move[] {
-    const cardId = (perm.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    if (!def?.activatedAbilities) return [];
-    // CR 613.1f — a permanent that has lost all abilities (Titania's Song)
-    // exposes none of its native activated abilities to the bot enumerator.
-    if ((perm.abilitiesSuppressedBy?.length ?? 0) > 0) return [];
+    // CR 611.2a / 613.1f (layer 6) — read the POST-LAYER ability set, the
+    // same authority every other consumer reads (`getEffectiveActivatedAbilities`),
+    // not the definition's printed list. A permanent whose definition declares
+    // NO activated abilities can still hold granted ones (an Aura's
+    // `activated-grant` static effect, a resolving `grantActivatedAbility`),
+    // and the printed-list-only early return this replaces made every such
+    // grant invisible to the bot (issue #2469). The authority also applies
+    // the "loses all abilities" rule PER ability by timestamp (CR 613.7,
+    // `grantOutrankedByAbilityLoss`) rather than the coarse all-or-nothing
+    // this enumerator used to apply on `abilitiesSuppressedBy`: a grant
+    // NEWER than the suppression survives, one older does not.
+    const effectiveAbilities = getEffectiveActivatedAbilities(perm);
+    if (effectiveAbilities.length === 0) return [];
 
     const fromGraveyard = opts?.zone === "graveyard";
     const moves: Move[] = [];
-    for (const ability of def.activatedAbilities) {
+    for (const { ability } of effectiveAbilities) {
         // When scanning an opponent's permanent (CR 113.3c / 602.1), only "any
         // player may activate" and "only your opponents may activate" abilities
         // are legal for this player.
