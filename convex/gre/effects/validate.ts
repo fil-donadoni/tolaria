@@ -4486,7 +4486,22 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                             // routes it through the identical object-selector path
                             // one line below (`collectRefUses(p.
                             // targetMatchesGraveyardFilter, "targetMatchesGraveyardFilter", out)`).
-                            keyHint === "targetMatchesGraveyardFilter"
+                            keyHint === "targetMatchesGraveyardFilter" ||
+                            // `addSubtype`'s `enchantRestriction.host` (CR
+                            // 303.4, issue #2471) — the ONE specific object the
+                            // granted enchant clause names ("enchant creature
+                            // put onto the battlefield with Necromancy"), an
+                            // `EffectObjectSelector` exactly like `target` and
+                            // resolved to an instance id at grant time. Same
+                            // omission class as `targetMatchesGraveyardFilter`
+                            // above: the slice that added the field shipped
+                            // with only a `{ target: n }` exerciser, and a
+                            // `{ ref: "$reanimated" }` host — the bound-ref
+                            // form the field's own doc comment describes — was
+                            // mis-tagged "number" and rejected as a malformed
+                            // ref (issue #2392). No other field in the
+                            // vocabulary is named `host`.
+                            keyHint === "host"
                           ? "object"
                           : "number",
         });

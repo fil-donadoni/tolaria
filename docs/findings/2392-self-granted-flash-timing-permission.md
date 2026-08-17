@@ -1,7 +1,8 @@
 ---
 title: No SELF-granted "cast this spell as though it had flash" — only the player-scoped Teferi grant exists, and #1975 does not scope it
 discoveredBy: 2392
-status: draft
+status: triaged
+issue: 2392
 confidence: high
 ---
 
@@ -58,3 +59,14 @@ tracking refs #2146/#1332), and the conditional form those two need — permissi
 gated on paying an additional cost — is a strictly larger design than the flat
 self-permission Necromancy wants. Sizing it as "one more bullet on #1975" risks
 shipping the flat form and leaving the conditional form to be rediscovered.
+
+**RESOLVED by #2392 itself** (2026-08-17). The gap closed in two steps: PR #2501
+(issue #2146) built the card-level self-permission TIER —
+`hasCardSelfFlashPermission` in `convex/cards/castRestrictions.ts`, reached from
+`castTimingBaseLegal` (`convex/gre/rules.ts`) — for the CONDITIONAL surcharge
+form, and #2392 added the UNCONDITIONAL declaration
+`CardDefinition.castAsThoughFlash` as a second clause of that same predicate
+rather than a fourth leg in the timing authority. The note above that the clause
+is "keyed on the spell being cast, not a grant handed to a player" is exactly the
+shape that shipped; its citation of CR 601.3e for it is wrong, though — see
+`2392-teferi-flash-grant-cites-601-3e.md`.

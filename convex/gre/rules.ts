@@ -398,13 +398,17 @@ export function castTimingBaseLegal(
     if (
         hasInstantSpeed(card) ||
         hasCastTimingFlashGrant(casterId, card, state) ||
-        // CR 601.3c (issue #2146) — a card-level self-permission ("You may
-        // cast this spell as though it had flash if you pay {2} more to cast
-        // it"). The rule is explicit that the player may BEGIN the cast as
-        // though it had flash, so this leg is unconditional: announcement is
-        // legal before the payment is known, and the surcharge becomes owed
-        // (mandatorily) only once the cast is committed outside the caster's
-        // sorcery-speed window — see `flashSurchargeRequired` below.
+        // CR 601.3 / 601.3c — a card-level self-permission, in either of its
+        // two declared shapes: the CONDITIONAL surcharge rider ("You may cast
+        // this spell as though it had flash if you pay {2} more to cast it",
+        // issue #2146) and the UNCONDITIONAL grant ("You may cast this spell as
+        // though it had flash", Necromancy, issue #2392). ONE leg for both: CR
+        // 601.3c is explicit that the player may BEGIN the surcharged cast
+        // before the payment is known, so announcement is legal either way, and
+        // the surcharge becomes owed (mandatorily) only once the cast is
+        // committed outside the caster's sorcery-speed window — see
+        // `flashSurchargeRequired` below, which keys on the DECLARED surcharge
+        // and so charges the unconditional grant nothing.
         hasCardSelfFlashPermission(card)
     ) {
         return true;
@@ -506,8 +510,9 @@ export function flashSurchargeRequired(
 ): boolean {
     // Keyed on the DECLARED surcharge, not on the broader
     // `hasCardSelfFlashPermission` seam: that predicate answers "may this be
-    // announced" and will grow other self-permission shapes (an UNCONDITIONAL
-    // self-grant, issue #2392) that owe nothing.
+    // announced" and now covers TWO self-permission shapes — the surcharge
+    // rider (#2146) and `CardDefinition.castAsThoughFlash`, the UNCONDITIONAL
+    // grant (Necromancy, #2392), which owes nothing.
     if (!flashSurchargeOf(card)) return false;
     if (isCastTimingSorcerySpeedLocked(casterId, state)) return false;
     if (

@@ -1560,6 +1560,18 @@ export function buildTriggerStateView(
                 // scoped to "tokens created with <this>" (Tetravus-style).
                 // Direct wire field, same as `isToken`, no registry lookup.
                 createdBy: c.createdBy,
+                // CR 307.1 / 117.1a — the cast-time snapshot a CR 603.4
+                // check-time condition reads off the permanent itself
+                // (Necromancy's "if you cast it any time a sorcery couldn't
+                // have been cast", issue #2392). Same fail-silent class as
+                // `isToken`/`isAttacking` above: an unpopulated flag reads
+                // `undefined`, which every `=== true` condition treats as
+                // "cast at sorcery speed" — the wrong answer for EVERY
+                // off-window cast, with nothing to distinguish it from a
+                // genuine one. `CardInstanceState.castOffSorceryTiming` is a
+                // real persisted/wire field (`slimCard` only strips
+                // `card`/`knownTo`), so it is read straight off the instance.
+                castOffSorceryTiming: c.castOffSorceryTiming === true,
                 // CR 400.7 / Keldon Twilight-style continuity filters. Only
                 // meaningful with `turnState` (mirrors `toMatchablePermanent`
                 // exactly); omitted, both stay undefined — fail-closed, same

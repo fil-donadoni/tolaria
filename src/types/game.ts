@@ -169,6 +169,14 @@ export interface CardInstance {
     /** Id of the permanent this card is attached to (CR 303.4b). Only set
      *  on auras that ETB attached to a host. */
     attachedTo?: string;
+    /** CR 307.1 / 117.1a — true iff the spell that became this permanent was
+     *  cast at a moment a sorcery couldn't have been cast (issue #2473).
+     *  Stamped server-side at cast commit and inherited by the permanent; it
+     *  crosses the wire untouched (`slimCard` only strips `card`/`knownTo`).
+     *  Read by `buildTriggerStateView` so a CR 603.4 check-time condition on a
+     *  permanent's own ETB trigger (Necromancy, issue #2392) answers the same
+     *  client-side as it does on the engine. */
+    castOffSorceryTiming?: boolean;
     /** Activated abilities granted to this permanent by another card
      *  (CR 113.1, e.g. Zombie Master granting "{B}: Regenerate ~", or Touch of
      *  Vitae's until-EOT "{0}: Untap this creature"). Exactly one keyed field is
