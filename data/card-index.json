@@ -9312,6 +9312,14 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Necromancy",
+        "scryfallId": "311a6257-dd77-4bb6-81cb-c8e7862350f3",
+        "oracleId": "699b192c-f3f2-4ac5-9ca9-e35bcf08ad8a",
+        "firstSet": "vis",
+        "firstPrintId": "311a6257-dd77-4bb6-81cb-c8e7862350f3",
+        "firstPrintSet": "vis"
+    },
+    {
         "name": "Necropolis",
         "scryfallId": "893e8e9c-983e-4db1-8d93-10637025a559",
         "oracleId": "c84adca4-19dd-432d-a363-e98d3b699af8",

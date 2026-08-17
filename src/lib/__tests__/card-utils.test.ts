@@ -3812,6 +3812,40 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         expect(entry.createdBy).toBe("source-1");
     });
 
+    it("carries the CR 307.1 / 117.1a cast-time snapshot a CR 603.4 condition reads (issue #2392)", () => {
+        // `castOffSorceryTiming` is not a `PermanentFilter` dimension, so the
+        // census above cannot police it — but it IS a field a card condition
+        // reads off `self` (Necromancy's "if you cast it any time a sorcery
+        // couldn't have been cast"), and this reducer enumerates its
+        // battlefield fields explicitly. Dropped, every client-side read of
+        // the flag answers `undefined`, i.e. "cast at sorcery speed", for
+        // every permanent — no failing test anywhere, no visible symptom.
+        const entry = (offSorceryTiming: boolean | undefined) => {
+            const card = {
+                id: "necro",
+                card: { id: crawWurm.id },
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield" as const,
+                types: ["Enchantment"] as const,
+                subtypes: [],
+                staticAbilities: [],
+                isTapped: false,
+                ...(offSorceryTiming === undefined
+                    ? {}
+                    : { castOffSorceryTiming: offSorceryTiming }),
+            } as unknown as CardInstance;
+            return buildTriggerStateView([
+                { id: "p1", life: 20, hand: [], battlefield: [card] },
+            ]).players[0].battlefield[0];
+        };
+
+        expect(entry(true).castOffSorceryTiming).toBe(true);
+        expect(entry(false).castOffSorceryTiming).toBe(false);
+        // An absent flag is a normal sorcery-speed cast, not "unknown".
+        expect(entry(undefined).castOffSorceryTiming).toBe(false);
+    });
+
     it("populates the turnState-conditional fields ONLY when turnState is supplied (fails CLOSED otherwise, matching every other unsupplied filter dimension)", () => {
         const withoutTurnState = representativeEntry();
         expect(withoutTurnState.enteredThisTurn).toBeUndefined();

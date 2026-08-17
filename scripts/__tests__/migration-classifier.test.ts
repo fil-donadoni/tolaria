@@ -1639,9 +1639,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // AFK-ready too. Net: total 479->480, FREE 314->315, AFK-ready
         // 305->306; X-only unchanged at 15, Op-blocked unchanged at 150.
         // Partition: 315+15+150=480.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(480);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(315);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(306);
+        //
+        // Necromancy (vis/black.ts, issue #2392) ADDS one `resolve()` closure:
+        // the leaves-the-battlefield trigger that sacrifices the creature it
+        // reanimated (`necromancy-ltb`). Every primitive it calls is covered
+        // (`ctx.sacrifice`), so the classifier files it FREE — the same
+        // false-FREE shape as Vaultborn Tyrant and Doomsday above. What
+        // actually keeps it `resolve()` is DATA, not a missing Op: the body
+        // reads `LeavingPermanent.attachedToBeforeLeave` (CR 603.10a — a
+        // leaves-the-battlefield ability looks back in time), a `leftTrigger`
+        // -only payload no object-ref selector reaches, which is why Animate
+        // Dead's byte-identical body is `resolve()` too. It carries a per-card
+        // test (`vis/__tests__/black.test.ts`), so AFK-ready too. Net: total
+        // 480->481, FREE 315->316, AFK-ready 306->307; X-only unchanged at 15,
+        // Op-blocked unchanged at 150. Partition: 316+15+150=481.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(481);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(316);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(307);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
     });

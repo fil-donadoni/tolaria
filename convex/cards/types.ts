@@ -8377,6 +8377,21 @@ export interface TriggerStateView {
              *  beginning of the turn". Same `turnState`-gated population as
              *  `enteredThisTurn` above. */
             controlledSinceTurnStart?: boolean;
+            /** CR 307.1 / 117.1a — the cast-time snapshot
+             *  {@link PermanentView.castOffSorceryTiming}: this permanent's
+             *  spell was cast at a moment a sorcery couldn't have been cast.
+             *  Read by a CR 603.4 check-time condition on the permanent's own
+             *  ETB trigger (Necromancy's "if you cast it any time a sorcery
+             *  couldn't have been cast", issue #2392). Surfaced here because
+             *  the CLIENT reducer `buildTriggerStateView`
+             *  (`src/lib/card-utils.ts`) enumerates its battlefield fields
+             *  explicitly: without it a client-side read of the flag is
+             *  permanently `undefined` and the condition silently answers "cast
+             *  at sorcery speed" for every permanent — the drop class
+             *  `.claude/rules/gre-development.md` § Frontend wiring analysis
+             *  describes. Populated from the raw `CardInstanceState` field,
+             *  which crosses the wire unchanged. */
+            castOffSorceryTiming?: boolean;
         }>;
         hand: { readonly length: number };
         landsPlayedThisTurn?: number;
@@ -13991,6 +14006,35 @@ export interface CardDefinition {
      *  timing only, so — unlike `buyback`/`kickerPayments` — it is deliberately
      *  NOT snapshotted onto the resulting `StackItem`. */
     flashSurcharge?: ManaCost;
+    /** CR 601.3 / 702.8a — the UNCONDITIONAL card-level flash permission: "You
+     *  may cast this spell as though it had flash." (Necromancy, issue #2392).
+     *  CR 601.3: "A player can begin to cast a spell only if a rule or effect
+     *  allows that player to cast it"; CR 702.8a: flash "means 'You may play
+     *  this card any time you could cast an instant.'"
+     *
+     *  The SECOND clause of `hasCardSelfFlashPermission`
+     *  (`cards/castRestrictions.ts`) and therefore the same third tier of
+     *  `castTimingBaseLegal` (`gre/rules.ts`) the {@link flashSurcharge} rider
+     *  uses — intrinsic keyword → player-scoped grant → card self-permission.
+     *  It is deliberately NOT the plain `flash` keyword on
+     *  `staticAbilities[]`: that would give the card a static ability it does
+     *  not have (CR 604.1 — a static ability "does something all the time"),
+     *  visible to every "has flash" read in the engine, and a card whose own
+     *  text keys off "if you cast it any time a sorcery couldn't have been
+     *  cast" asks about the TIMING USED, not about possessing the ability.
+     *
+     *  It costs nothing. `flashSurchargeRequired` (`gre/rules.ts`) keys on the
+     *  DECLARED surcharge, not on the permission tier, so a card carrying this
+     *  field and no `flashSurcharge` owes no extra mana — which is also why the
+     *  Bot's `enumerateCastMoves` tap plan (`gre/moves.ts`) and the cast
+     *  mutation cannot disagree about the price of the cast.
+     *
+     *  What the off-window cast DOES leave behind is the CR 307.1 / 117.1a
+     *  snapshot `CardInstanceState.castOffSorceryTiming`, stamped at cast
+     *  commit and inherited by the resulting permanent — the flag a card's own
+     *  "if you cast it any time a sorcery couldn't have been cast" clause reads
+     *  back as a CR 603.4 check-time condition. */
+    castAsThoughFlash?: true;
     /** CR 702.33 — Kicker(s). OPTIONAL additional costs the caster may pay as
      *  they cast this spell, recorded PER KICKER ID on the resulting stack item
      *  (`StackItem.kickerPayments`) and read at resolution ({@link KickerCost},

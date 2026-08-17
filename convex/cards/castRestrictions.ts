@@ -166,30 +166,39 @@ export function hasCastTimingFlashGrant(
     return false;
 }
 
-/** CR 601.3c — `true` when the SPELL'S OWN definition carries a cast-timing
- *  permission for whoever is casting it, as opposed to the player-scoped
- *  {@link hasCastTimingFlashGrant} above (Teferi's +1, an effect handed to a
- *  PLAYER). Today that is exactly `CardDefinition.flashSurcharge` — "You may
- *  cast this spell as though it had flash if you pay {2} more to cast it."
- *  (the Invasion cycle, issue #2146) — whose rule says the player may BEGIN
- *  the cast as though it had flash, i.e. announcement is legal before the
- *  payment is known.
+/** CR 601.3 / 601.3c — `true` when the SPELL'S OWN definition carries a
+ *  cast-timing permission for whoever is casting it, as opposed to the
+ *  player-scoped {@link hasCastTimingFlashGrant} above (Teferi's +1, an effect
+ *  handed to a PLAYER). Two declarations reach this one seam:
  *
- *  This is the SEAM for every card-level self-grant, not a one-off for the
- *  surcharge: a card granting ITSELF an UNCONDITIONAL flash permission
- *  (Necromancy's "if you cast it any time a sorcery couldn't have been cast",
- *  issue #2392) adds a second clause HERE rather than a third leg in
- *  `castTimingBaseLegal`, so the timing authority keeps exactly three tiers
- *  (intrinsic keyword → player grant → card self-permission).
+ *   1. `CardDefinition.flashSurcharge` — the CONDITIONAL rider, "You may cast
+ *      this spell as though it had flash if you pay {2} more to cast it." (the
+ *      Invasion cycle, issue #2146). CR 601.3c says the player may BEGIN the
+ *      cast as though it had flash, i.e. announcement is legal before the
+ *      payment is known.
+ *   2. `CardDefinition.castAsThoughFlash` — the UNCONDITIONAL one, "You may
+ *      cast this spell as though it had flash." (Necromancy, issue #2392).
+ *      CR 601.3: "A player can begin to cast a spell only if a rule or effect
+ *      allows that player to cast it"; the permission is that effect, and
+ *      CR 702.8a fixes what "as though it had flash" buys — "You may play this
+ *      card any time you could cast an instant."
+ *
+ *  Both are card-level self-grants, so both belong to the SAME tier: the
+ *  timing authority (`castTimingBaseLegal`, `convex/gre/rules.ts`) keeps
+ *  exactly three (intrinsic keyword → player grant → card self-permission),
+ *  never a fourth parallel leg per declaration shape.
  *
  *  Deliberately says nothing about the COST: it answers "may this cast be
  *  announced", never "is anything owed". Whether a surcharge is actually
  *  payable is `flashSurchargeRequired` (`convex/gre/rules.ts`), decided once
- *  at announcement. */
+ *  at announcement — and it keys on the DECLARED surcharge, so clause 2 owes
+ *  nothing. */
 export function hasCardSelfFlashPermission(spell: PermanentView): boolean {
     const cardId = (spell.card as { id?: string }).id;
     if (!cardId) return false;
-    return tryGetDefinition(cardId)?.flashSurcharge !== undefined;
+    const def = tryGetDefinition(cardId);
+    if (!def) return false;
+    return def.flashSurcharge !== undefined || def.castAsThoughFlash === true;
 }
 
 /** Adapts a `PermanentView` — the board shape `GameState`, the client's
