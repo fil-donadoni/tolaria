@@ -5,7 +5,7 @@ import {
     PERSISTED_OPTIONAL_KEYS,
     TRANSIENT_KEYS,
 } from "../serialize";
-import type { GameState } from "../state";
+import type { GameState, StackItem } from "../state";
 import {
     makeInstance,
     makePlayer,
@@ -18,7 +18,7 @@ import {
     plains,
     savannahLions,
 } from "../../cards/sets/lea";
-import { tokenDefinitionId } from "../../cards";
+import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import type { TokenSpec } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 
@@ -160,21 +160,100 @@ describe("game_state serialize round-trip", () => {
         });
     });
 
-    // CR 303.4f — an Aura held off every zone while its controller owes a
-    // `choose-aura-host` pick must survive the DB round-trip, so a save/load
-    // mid-choice reloads the staged Aura (a stable save point can fall here).
-    it("preserves stagedAuraEntries mid aura-host choice", () => {
+    // CR 614.1c / 614.12a (ADR 0100 D2) — a permanent held off every zone while
+    // its controller owes an "as it enters" choice must survive the DB
+    // round-trip, so a save/load mid-choice reloads the staged permanent (a
+    // stable save point falls exactly here).
+    //
+    // The load-bearing assertion is that the staged card's DEFINITION rehydrates
+    // — not merely that the key survives. `compactState` interns every card id
+    // through the shared pool (`compactCard` → a NUMERIC index), so a
+    // `stagedEntries` with a compact half and no rehydrate half round-trips a
+    // card whose `card.id` is an integer that resolves to no definition at all:
+    // silent, and at the one save point this key exists for.
+    it("preserves stagedEntries mid as-enters choice, definition and all", () => {
         const state = freshState();
         const aura = makeInstance(animateArtifact.id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        state.stagedAuraEntries = [{ aura, controllerId: "p1" }];
+        state.stagedEntries = [
+            {
+                card: aura,
+                controllerId: "p1",
+                origin: "effect",
+                parkedStackItemId: "stack-1",
+                owed: [{ kind: "aura-host" }],
+            },
+        ];
+
         const expanded = expandState(compactState(state));
-        expect(expanded.stagedAuraEntries).toEqual([
-            { aura, controllerId: "p1" },
+
+        expect(expanded.stagedEntries).toHaveLength(1);
+        const entry = expanded.stagedEntries![0];
+        expect(entry.controllerId).toBe("p1");
+        expect(entry.origin).toBe("effect");
+        expect(entry.parkedStackItemId).toBe("stack-1");
+        expect(entry.owed).toEqual([{ kind: "aura-host" }]);
+        // The definition itself resolves — this is what the rehydrate half buys.
+        const rehydratedDefId = (entry.card.card as { id?: unknown }).id;
+        expect(rehydratedDefId).toBe(animateArtifact.id);
+        expect(tryGetDefinition(String(rehydratedDefId))?.name).toBe(
+            animateArtifact.name
+        );
+        expect(entry.card.id).toBe(aura.id);
+        expect(entry.card.ownerId).toBe("p1");
+        expect(entry.card.types).toEqual(aura.types);
+    });
+
+    // CR 614.12a (ADR 0100 D2) — the SPELL row of the same key. An
+    // `origin: "spell"` staged entry is the popped `StackItem` itself, so it
+    // must round-trip through `compactStackItem`/`expandStackItem`, not through
+    // the `compactCard` whitelist: the latter carries none of the cast-time
+    // bookkeeping below, and the entry tail (`finalizeSpellResolution`) throws
+    // `Player not found: undefined` on a missing `castById` the moment the
+    // choice is answered.
+    it("preserves an origin:'spell' stagedEntry's stack-item bookkeeping", () => {
+        const state = freshState();
+        const spell: StackItem = {
+            ...makeInstance(animateArtifact.id, {
+                id: "parked-spell",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            targets: [{ type: "permanent", id: "some-artifact" }],
+            chosenX: 3,
+            kickerPayments: { main: 1 },
+            notedManaSpent: { U: 2 },
+            isCopy: true,
+        };
+        state.stagedEntries = [
+            {
+                card: spell,
+                controllerId: "p1",
+                origin: "spell",
+                parkedStackItemId: "parked-spell",
+                owed: [{ kind: "aura-host" }],
+            },
+        ];
+
+        const expanded = expandState(compactState(state));
+
+        const entry = expanded.stagedEntries![0];
+        const card = entry.card as StackItem;
+        expect(card.castById).toBe("p1");
+        expect(card.targets).toEqual([
+            { type: "permanent", id: "some-artifact" },
         ]);
+        expect(card.chosenX).toBe(3);
+        expect(card.kickerPayments).toEqual({ main: 1 });
+        expect(card.notedManaSpent).toEqual({ U: 2 });
+        expect(card.isCopy).toBe(true);
+        // The definition still rehydrates, exactly as on the effect row.
+        expect((card.card as { id?: unknown }).id).toBe(animateArtifact.id);
     });
 
     it("re-expands a fresh state to a deeply-equal GameState", () => {

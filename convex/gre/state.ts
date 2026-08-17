@@ -1,5 +1,6 @@
 import {
     type AnimateSpec,
+    type AsEntersChoice,
     type CardDefinition,
     type CardSupertype,
     type CardType,
@@ -76,7 +77,7 @@ import {
     grantCityBlessingIfThreshold,
     hasCityBlessing,
 } from "./cityBlessing";
-import { checkStateBasedActions } from "./sba";
+import { effectivePermanentView } from "./permanentView";
 import {
     getExtraLandDrops,
     getLegalTargets,
@@ -2601,13 +2602,28 @@ export type PendingChoice = {
     cardInstanceId?: string;
     /** For `kind: "choose-aura-host"` only (CR 303.4f) — the instance id of the
      *  Aura currently entering, held off every zone in
-     *  `GameState.stagedAuraEntries` while this choice is pending.
-     *  `finalizeAuraHost` reads it to match the choice to its staged Aura and
+     *  `GameState.stagedEntries` while this choice is pending.
+     *  `finalizeAsEnters` reads it to match the choice to its staged Aura and
      *  complete the attachment + entry on submit. */
     auraInstanceId?: string;
+    /** ADR 0100 D5 — the instance id of the permanent held in
+     *  `GameState.stagedEntries` that this choice belongs to. It is the
+     *  EXPLICIT, fail-closed discriminator that routes a submission to the
+     *  as-enters finalize instead of the generic mid-resolution tail: an
+     *  as-enters park enqueues with `stackItemId: ""`, so the generic tail would
+     *  throw `Stack item not found` on it, and `kind` alone cannot tell an
+     *  as-enters `option-pick` from an ordinary resolution-time one. Set on
+     *  EVERY as-enters choice (the CR 303.4f `choose-aura-host` included) and on
+     *  nothing else. */
+    asEntersCardId?: string;
+    /** ADR 0100 D3 — which member of the `AsEntersChoice` union this choice is
+     *  answering. Carried on the choice so the finalize dispatches on the
+     *  declared kind rather than re-deriving it from the (reused)
+     *  `PendingChoiceKind` shape. Set together with `asEntersCardId`. */
+    asEntersKind?: AsEntersChoice["kind"];
     /** The card definition id of the subject this choice is ABOUT, when that
      *  subject is not reachable in any projected zone (e.g. a `choose-aura-host`
-     *  Aura held in `stagedAuraEntries`, off every zone). The client renders it
+     *  Aura held in `stagedEntries`, off every zone). The client renders it
      *  as a card image inside the choice dialog so the chooser sees WHICH card
      *  the prompt refers to. Carried verbatim through the wire projection. */
     subjectCardId?: string;
@@ -4047,16 +4063,20 @@ export type GameState = {
      *  read through `hasCityBlessing` (`gre/cityBlessing.ts`). Undefined /
      *  empty means no one has the blessing yet (every game starts that way). */
     cityBlessingIds?: string[];
-    /** CR 303.4f — Auras that have left their origin zone but have NOT yet
-     *  entered the battlefield because their controller still owes a "choose
-     *  what to enchant" pick (a `choose-aura-host` PendingChoice is queued for
-     *  each). Held here — off every zone — so no SBA (704.5m unattached-Aura
-     *  sweep) or wire projection ever observes an unattached Aura on the
-     *  battlefield mid-choice. `finalizeAuraHost` pulls the entry, attaches the
-     *  Aura to the chosen host, and runs the deferred entry. Only ever populated
-     *  transiently while a matching choice is pending; empty (undefined) at a
-     *  fully-resolved stable point. */
-    stagedAuraEntries?: StagedAuraEntry[];
+    /** CR 614.1c / 614.12a (ADR 0100 D2) — permanents that have left their
+     *  origin zone but have NOT yet entered the battlefield because their
+     *  controller still owes one or more "as it enters" choices (a matching
+     *  PendingChoice is queued for the head of each entry's `owed` list). Held
+     *  here — off EVERY zone — so no SBA (704.5f zero-toughness sweep, 704.5m
+     *  unattached-Aura sweep), no layer read, no trigger scan and no wire
+     *  projection ever observes a half-entered permanent. `finalizeAsEnters` /
+     *  `finalizeAsEnters` pull the entry and run the deferred entry tail. Only
+     *  ever populated transiently while a matching choice is pending; empty
+     *  (undefined) at a fully-resolved stable point.
+     *
+     *  Generalised from the shipped `stagedAuraEntries` (CR 303.4f), which is
+     *  now one `kind` of as-enters choice rather than a parallel mechanism. */
+    stagedEntries?: StagedEntry[];
     /** Authoritative Expected Input (ADR 0047) — the single answer to "what is
      *  the game waiting for, from whom?". Maintained by the engine at every
      *  stable point via {@link refreshExpectedInput} (persistence seam +
@@ -4332,18 +4352,47 @@ export interface MonarchReturnWatch {
     controllerId: string;
 }
 
-/** CR 303.4f — an Aura removed from its origin zone and awaiting its
- *  controller's "choose what to enchant" pick before it enters the
- *  battlefield. Carries the fat Aura object itself (it lives in no zone while
- *  staged) plus the controller under whom it will enter. Matched to its
- *  `choose-aura-host` PendingChoice by the Aura's instance id. See
- *  {@link GameState.stagedAuraEntries}. */
-export interface StagedAuraEntry {
-    /** The Aura card, off every zone until the host is chosen. */
-    aura: CardInstanceState;
-    /** Player under whose control the Aura enters (the reanimator's controller,
-     *  or the returning effect's controller). */
+/** CR 614.1c / 614.12a (ADR 0100 D2) — a permanent removed from its origin zone
+ *  and awaiting its controller's "as it enters" choices before it enters the
+ *  battlefield. Carries the fat card object itself (it lives in no zone while
+ *  staged) plus everything the deferred entry tail needs to finish. Matched to
+ *  its PendingChoice by the card's instance id. See
+ *  {@link GameState.stagedEntries}. */
+export interface StagedEntry {
+    /** The entering permanent, off every zone until every owed choice is
+     *  answered. */
+    card: CardInstanceState;
+    /** Player under whose control the permanent enters. */
     controllerId: string;
+    /** Which census row is resuming it — selects WHICH entry tail the finalize
+     *  runs (ADR 0100 D2). It deliberately does NOT decide whether a suspended
+     *  resolution resumes; that is `parkedStackItemId`'s job (D5). */
+    origin: "spell" | "effect" | "token";
+    /** The stack item whose resolution parked this entry, if there was one.
+     *  This — never `origin` — is what the as-enters finalize branches on: still
+     *  on the stack ⇒ `resolveTopOfStack` resumes it in the same mutation;
+     *  absent or already popped ⇒ the finalize itself finishes the entry and
+     *  hands priority to the active player (CR 117.3b, ADR 0100 D5). */
+    parkedStackItemId?: string;
+    /** Answered head-first; may GROW mid-flight when a `copy` answer reveals the
+     *  copied definition's own `asEnters` (CR 707.6, ADR 0100 D4). The entry
+     *  resumes only when this is empty. */
+    owed: AsEntersChoice[];
+    /** Definition ids whose `entersWith.asEnters` have already been folded into
+     *  `owed` (CR 707.6 / ADR 0100 D4). A copy answer rewrites the staged card's
+     *  presented definition; the refresh pass appends the new definition's
+     *  clauses exactly once. */
+    consultedDefIds?: string[];
+    /** `origin: "token"` only — the remainder of the token entry tail
+     *  (`createTokenPermanents`'s per-token loop body after the chokepoint),
+     *  which cannot be re-derived from the instance alone. JSON-pure so the
+     *  staged entry survives the DB round-trip. */
+    tokenEntry?: {
+        entryCounters?: Record<string, number>;
+        entersTapped?: boolean;
+        entersAttacking?: boolean;
+        deferEntryEvent?: boolean;
+    };
 }
 
 /** Returns true if a prevention effect matches (source, player) and consumes
@@ -5768,7 +5817,14 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
  *  self-replacement) / `loyalty` clauses. Reading the PRE-copy definition here
  *  meant a Clone of Clockwork Beast entered with no counters and a Clone of a
  *  tap-land entered untapped. */
-function finalizeSpellResolution(state: GameState, item: StackItem): void {
+function finalizeSpellResolution(
+    state: GameState,
+    item: StackItem,
+    /** ADR 0100 D5 — set by the as-enters finalize when RE-ENTERING this tail
+     *  after the permanent's choices were answered, so the CR 614 chokepoint
+     *  below does not park it a second time. */
+    entryOpts?: { asEntersResolved?: boolean }
+): void {
     // Unknown ids (synthetic test fixtures) collapse to the vanilla path —
     // same tolerance `resolveTopOfStackInner` applies to its own lookup.
     const finalCardId = (item.card as { id?: string } | undefined)?.id;
@@ -5805,15 +5861,39 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // (`createToken`).
         const enterDestination = enterBattlefieldDestinationFor(
             state,
-            { id: item.id, ownerId: item.ownerId, types: item.types },
+            {
+                id: item.id,
+                ownerId: item.ownerId,
+                types: item.types,
+                card: item.card,
+            },
             item.castById,
             false,
-            true
+            true,
+            { asEntersResolved: entryOpts?.asEntersResolved }
         );
         if (enterDestination === "exile") {
             item.zone = "exile";
             resetStackTransientState(item);
             getPlayer(state, item.ownerId).exile.push(item);
+            return;
+        }
+        if (typeof enterDestination === "object") {
+            // CR 614.12a (ADR 0100 D2/D5) — a CAST permanent that owes "as it
+            // enters" choices is parked off every zone and the rest of this
+            // tail is deferred. `resolveTopOfStackInner` has ALREADY popped
+            // this item before calling here, so its own id is deliberately what
+            // the entry records: the D5 liveness predicate then answers "not
+            // live" and the finalize completes the entry itself instead of
+            // resolving whatever unrelated item is now on top (CR 117.3b).
+            stageAsEntersEntry(
+                state,
+                item,
+                item.castById,
+                "spell",
+                enterDestination.asEnters,
+                item.id
+            );
             return;
         }
         // CR 303.4: an Aura enters the battlefield attached to its target.
@@ -7573,12 +7653,12 @@ function findAllLegalAuraHosts(
 }
 
 /** CR 303.4f — resolves a single candidate `hostId` (as chosen from a
- *  `findAllLegalAuraHosts` candidate set, or re-validated at `finalizeAuraHost`
+ *  `findAllLegalAuraHosts` candidate set, or re-validated at `finalizeAsEnters`
  *  time) against `aura`'s enchant restriction, returning the matching
  *  candidate or `undefined` if `hostId` no longer names a legal host (the
  *  permanent left the battlefield / lost eligibility, or — defensively — the
  *  id matches neither a battlefield permanent nor a player). Shared by the
- *  auto-attach (single-candidate) and prompted (`finalizeAuraHost`) paths so
+ *  auto-attach (single-candidate) and prompted (`finalizeAsEnters`) paths so
  *  both apply the identical gate `findAllLegalAuraHosts` used to build the
  *  candidate set in the first place. */
 function resolveAuraHostCandidate(
@@ -10309,7 +10389,11 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
 function stageReanimatedOnBattlefield(
     state: GameState,
     card: CardInstanceState,
-    controllerId: string
+    controllerId: string,
+    /** ADR 0100 D5 — set by the as-enters finalize when RE-ENTERING this tail
+     *  after the permanent's choices were answered, so the CR 614 chokepoint
+     *  below does not park it a second time. */
+    entryOpts?: { asEntersResolved?: boolean }
 ): boolean {
     // Worms of the Earth (CR 614) — "Lands can't enter the battlefield." A land
     // moved here from graveyard/exile/library (reanimation, library tutor) is
@@ -10331,16 +10415,39 @@ function stageReanimatedOnBattlefield(
     // never touches the battlefield — none of the ETB machinery below runs.
     const enterDestination = enterBattlefieldDestinationFor(
         state,
-        { id: card.id, ownerId: card.ownerId, types: card.types },
+        {
+            id: card.id,
+            ownerId: card.ownerId,
+            types: card.types,
+            card: card.card,
+        },
         controllerId,
         card.isToken === true,
-        false
+        false,
+        { asEntersResolved: entryOpts?.asEntersResolved }
     );
     if (enterDestination === "exile") {
         resetBattlefieldTransientState(card);
         card.zone = "exile";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).exile.push(card);
+        return false;
+    }
+    if (typeof enterDestination === "object") {
+        // CR 614.12a (ADR 0100 D2) — the permanent owes "as it enters" choices.
+        // Hold it off EVERY zone and return "did not enter"; the caller's own
+        // tail (`finishReanimatedEntry` / `finishAuraEntry`) is deferred to the
+        // as-enters finalize, which re-enters this function once the list is
+        // empty. The park is mid-resolution whenever an effect put it here, so
+        // the resolving item on top of the stack is what resumes (D5).
+        stageAsEntersEntry(
+            state,
+            card,
+            controllerId,
+            "effect",
+            enterDestination.asEnters,
+            state.stack[state.stack.length - 1]?.id
+        );
         return false;
     }
     // CR 400.7 — zone change creates a new object: clear battlefield-only
@@ -10499,9 +10606,9 @@ function putReanimatedOnBattlefield(
  *  controller chooses its host among the legal candidates. Zero legal hosts →
  *  the Aura stays in the graveyard (303.4g). Exactly one → auto-attached as
  *  part of this simultaneous batch (Arena-UX auto-resolve, ADR 0003). Two or
- *  more → the Aura is held off every zone (`stagedAuraEntries`) and a
+ *  more → the Aura is held off every zone (`stagedEntries`) and a
  *  `choose-aura-host` PendingChoice is enqueued; it enters LATER, via
- *  `finalizeAuraHost`, when the controller answers. DOCUMENTED SIMPLIFICATION:
+ *  `finalizeAsEnters`, when the controller answers. DOCUMENTED SIMPLIFICATION:
  *  a ≥2-host Aura that requires a prompt enters as its OWN later event rather
  *  than truly simultaneously with the rest of the batch — modeling N genuinely
  *  simultaneous host prompts is out of scope; the candidate set is still
@@ -10560,13 +10667,8 @@ export function putReanimatedSetOnBattlefield(
             continue;
         }
         // CR 303.4f — 2+ legal hosts: the controller chooses. Hold the Aura
-        // off every zone and enqueue the pick; it enters via `finalizeAuraHost`.
-        enqueueAuraHostChoice(
-            state,
-            card,
-            controllerId,
-            hosts.map((h) => h.id)
-        );
+        // off every zone and enqueue the pick; it enters via `finalizeAsEnters`.
+        enqueueAuraHostChoice(state, card, controllerId);
     }
 
     // CR 611.2 grant application, batch-correct ordering (issue #1094). Every
@@ -10589,9 +10691,528 @@ export function putReanimatedSetOnBattlefield(
     return staged.map((c) => c.id);
 }
 
+// ---------------------------------------------------------------------------
+// As-enters choice point (CR 614.1c / 614.12, ADR 0100)
+// ---------------------------------------------------------------------------
+
+/** ADR 0100 D2 — park `card` off EVERY zone and enqueue the head of the choices
+ *  it owes. The caller has already removed it from its origin zone (or, for a
+ *  token, never put it anywhere) and returns immediately afterwards; the entry
+ *  tail runs later, from the as-enters finalize.
+ *
+ *  `parkedStackItemId` is passed EXPLICITLY rather than sniffed off the top of
+ *  the stack because the spell census row is exactly the case where the two
+ *  differ: `resolveTopOfStackInner` pops the resolving item BEFORE calling
+ *  `finalizeSpellResolution`, so the top of the stack there is an unrelated
+ *  item, and resuming it would resolve someone else's spell with no priority
+ *  round (CR 117.3b). Passing the popped item's own id makes the D5 liveness
+ *  predicate answer "not live" by construction. */
+export function stageAsEntersEntry(
+    state: GameState,
+    card: CardInstanceState,
+    controllerId: string,
+    origin: StagedEntry["origin"],
+    owed: readonly AsEntersChoice[],
+    parkedStackItemId: string | undefined,
+    extra?: { tokenEntry?: StagedEntry["tokenEntry"] }
+): void {
+    if (origin === "effect") {
+        // CR 400.7 — "an object that moves from one zone to another becomes a
+        // new object with no memory of, or relation to, its previous
+        // existence." The UNPARKED leg of this same path clears these three
+        // slots as the permanent enters: `resetBattlefieldTransientState`
+        // deletes `chosenName` (CR 614.12, issue #1953) and `chosenSubtypes`
+        // (CR 603.6b), and `stageReanimatedOnBattlefield` clears `attachedTo`
+        // beside it. A PARKED entry re-runs that leg later and then re-applies
+        // whatever its as-enters ANSWERS wrote (`runStagedEntryTail`), so the
+        // CR 400.7 clean has to happen HERE, at park time: it is what makes
+        // that re-apply safe, turning "restore whatever is on the instance"
+        // into "carry only what an answer wrote". Without it, a permanent that
+        // died naming a card keeps `chosenName` in the graveyard (the reset is
+        // on the ENTRY side, not the exit side) and a reanimation that parks on
+        // an UNRELATED kind — `payLife`, `mode`, `aura-host` — would carry the
+        // stale answer back onto the battlefield.
+        //
+        // `effect` origin ONLY, and deliberately so. A `spell` origin's object
+        // is a stack item whose own `resolveSteps` may legitimately have
+        // written `chosenName` before this park (`setSelfChosenName` writes
+        // onto the resolving item), and a `token` origin's object was minted
+        // moments ago and has no previous existence to forget.
+        card.attachedTo = undefined;
+        delete card.chosenName;
+        delete card.chosenSubtypes;
+    }
+    const presented = presentedDefId(card);
+    const entry: StagedEntry = {
+        card,
+        controllerId,
+        origin,
+        ...(parkedStackItemId !== undefined ? { parkedStackItemId } : {}),
+        owed: [...owed],
+        ...(presented ? { consultedDefIds: [presented] } : {}),
+        ...(extra?.tokenEntry ? { tokenEntry: extra.tokenEntry } : {}),
+    };
+    state.stagedEntries = [...(state.stagedEntries ?? []), entry];
+    enqueueAsEntersChoice(state, entry);
+}
+
+/** Reads the PendingChoice shape for `entry.owed[0]` and queues it. Every
+ *  as-enters choice reuses an EXISTING `PendingChoiceKind` shape (ADR 0045
+ *  "generalize an existing shape before adding a new one"), so the bot's
+ *  exhaustive `chooseResolution` dispatch already realises all of them; what
+ *  routes the submission to the as-enters finalize instead of the generic
+ *  mid-resolution tail is the explicit `asEntersCardId` discriminator, never
+ *  the kind. Freezes priority on the chooser. */
+function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
+    const choice = entry.owed[0];
+    const card = entry.card;
+    const defId = presentedDefId(card);
+    const name = defId ? tryGetDefinition(defId)?.name : undefined;
+    const subject = name ?? "this permanent";
+    const base = {
+        // Stackless: the permanent is entering during a zone move / a
+        // resolution that may already have been popped, so there is no stack
+        // item to commit the answer into (ADR 0100 D5).
+        stackItemId: "",
+        step: 0,
+        choiceId: `as-enters-${card.id}-${choice.kind}`,
+        playerId: entry.controllerId,
+        zoneOwnerId: entry.controllerId,
+        actingPlayerId: entry.controllerId,
+        asEntersCardId: card.id,
+        asEntersKind: choice.kind,
+        // The staged permanent is in no projected zone, so the dialog renders
+        // it from its definition id (the `choose-aura-host` pattern).
+        ...(defId ? { subjectCardId: defId } : {}),
+    } as const;
+    let pending: PendingChoice;
+    switch (choice.kind) {
+        case "aura-host": {
+            // CR 303.4f — recomputed HERE rather than carried on the
+            // declaration: the legal-host set is read as the choice is offered,
+            // against the fully-staged simultaneous batch (CR 400.7).
+            const candidateIds = findAllLegalAuraHosts(
+                state,
+                card,
+                card.id
+            ).map((h) => h.id);
+            pending = {
+                ...base,
+                kind: "choose-aura-host",
+                zone: "battlefield",
+                // A legal host may be any player's permanent (Control Magic can
+                // be reanimated onto an opponent's creature).
+                allControllers: true,
+                auraInstanceId: card.id,
+                candidateIds,
+                count: 1,
+                prompt: `Choose what ${subject} enchants.`,
+            };
+            break;
+        }
+        case "payLife": {
+            const max = asEntersPayLifeMax(state, entry, choice.cap);
+            pending = {
+                ...base,
+                kind: "option-pick",
+                options: Array.from({ length: max + 1 }, (_, n) => ({
+                    id: String(n),
+                    label: n === 1 ? "Pay 1 life" : `Pay ${n} life`,
+                })),
+                count: 1,
+                prompt: `Choose how much life to pay as ${subject} enters.`,
+            };
+            break;
+        }
+        case "copy": {
+            const candidateIds: string[] = [];
+            for (const p of state.players) {
+                for (const c of p.battlefield) {
+                    if (c.id === card.id) continue;
+                    if (
+                        choice.filter &&
+                        !matchesPermanentFilter(
+                            effectivePermanentView(state, c),
+                            choice.filter
+                        )
+                    ) {
+                        continue;
+                    }
+                    candidateIds.push(c.id);
+                }
+            }
+            pending = {
+                ...base,
+                kind: "choose-permanents",
+                zone: "battlefield",
+                allControllers: true,
+                candidateIds,
+                count: 1,
+                prompt: `Choose what ${subject} enters as a copy of.`,
+            };
+            break;
+        }
+        case "mode": {
+            const modes = defId ? tryGetDefinition(defId)?.modes : undefined;
+            pending = {
+                ...base,
+                kind: "option-pick",
+                options: (modes ?? []).map((m) => ({
+                    id: m.id,
+                    label: m.label ?? m.id,
+                })),
+                count: 1,
+                prompt: `Choose a mode as ${subject} enters.`,
+            };
+            break;
+        }
+        case "body": {
+            pending = {
+                ...base,
+                kind: "option-pick",
+                options: choice.options.map((o) => ({
+                    id: o.id,
+                    label: o.label,
+                })),
+                count: 1,
+                prompt: `Choose what ${subject} enters as.`,
+            };
+            break;
+        }
+        case "anchor": {
+            // CR 614.12c — "one of two abilities, each marked with an anchor
+            // word". Declared inert: no shipped card uses anchor words.
+            pending = {
+                ...base,
+                kind: "option-pick",
+                options: choice.options.map((o) => ({
+                    id: o.id,
+                    label: o.label,
+                })),
+                count: 1,
+                prompt: `Choose an ability as ${subject} enters.`,
+            };
+            break;
+        }
+        case "subtypes": {
+            pending = {
+                ...base,
+                kind: "option-pick",
+                options: choice.from.map((s) => ({ id: s, label: s })),
+                count: choice.count,
+                prompt: `Choose ${choice.count} as ${subject} enters.`,
+            };
+            break;
+        }
+        case "name": {
+            pending = {
+                ...base,
+                kind: "name-card",
+                count: 1,
+                prompt: `Name a card as ${subject} enters.`,
+            };
+            break;
+        }
+        case "pay": {
+            // ADR 0100 D6 / #1980 — the shipped `entersTappedUnlessPay` park
+            // (ADR 0051) still owns this leg; unifying the two parks is that
+            // issue's price and is deliberately out of scope for slice 1.
+            throw new Error(
+                "as-enters 'pay' is not wired yet (tracked-by: #1980)"
+            );
+        }
+        default:
+            return assertNeverAsEnters(choice);
+    }
+    state.pendingChoices = [...(state.pendingChoices ?? []), pending];
+    state.priorityPlayerId = entry.controllerId;
+}
+
+/** CR 119.4 — "a player can pay an amount of life greater than 0 only if their
+ *  life total is at least as great as the amount of the payment", so the offer
+ *  is capped at the LIVE life total. That live read is also what implements
+ *  CR 614.12b for this kind: an as-enters life payment is made the moment the
+ *  choice is answered, so a sibling staged entry's commitment has already come
+ *  off the total by the time the sibling's own offer is re-narrowed
+ *  (`renarrowSiblingCostChoices`). */
+function asEntersPayLifeMax(
+    state: GameState,
+    entry: StagedEntry,
+    cap: number | "life"
+): number {
+    const affordable = Math.max(0, getPlayer(state, entry.controllerId).life);
+    return cap === "life" ? affordable : Math.max(0, Math.min(cap, affordable));
+}
+
+/** Compile-time exhaustiveness over {@link AsEntersChoice} — a new `kind`
+ *  cannot be declared without a queue shape and a writer (ADR 0100 D3). */
+function assertNeverAsEnters(choice: never): never {
+    throw new Error(
+        `Unhandled as-enters choice: ${JSON.stringify(choice as unknown)}`
+    );
+}
+
+/** Writes one answered as-enters choice onto the staged permanent. Every arm is
+ *  a write to a typed field that already exists (ADR 0100 D3). Returns
+ *  `aborted: true` when the answer means the permanent never enters at all
+ *  (CR 303.4g), in which case the applier has already put the card where the
+ *  rules say it goes and the entry tail must NOT run. */
+function applyAsEntersAnswer(
+    state: GameState,
+    entry: StagedEntry,
+    choice: AsEntersChoice,
+    selected: string[]
+): { aborted?: boolean } {
+    const card = entry.card;
+    switch (choice.kind) {
+        case "aura-host": {
+            const hostId = selected[0];
+            const resolvedHost = hostId
+                ? resolveAuraHostCandidate(state, card, hostId)
+                : undefined;
+            if (!resolvedHost) {
+                // CR 303.4g — the chosen host is no longer a legal object: the
+                // Aura never enters. Every non-cast entry this park serves today
+                // originates in the graveyard, so "remains in its current zone"
+                // and "its owner's graveyard" name the same destination.
+                card.attachedTo = undefined;
+                card.zone = "graveyard";
+                getPlayer(state, card.ownerId).graveyard.push(card);
+                return { aborted: true };
+            }
+            card.attachedTo = resolvedHost.id;
+            return {};
+        }
+        case "payLife": {
+            // CR 119.4 — paying life is a COST, not life loss: no
+            // "whenever you lose life" trigger sees it.
+            const paid = Math.max(0, Number(selected[0] ?? "0"));
+            getPlayer(state, entry.controllerId).life -= paid;
+            return {};
+        }
+        case "copy": {
+            const sourceId = selected[0];
+            const source = sourceId
+                ? findOnBattlefield(state, sourceId)?.card
+                : undefined;
+            // CR 707.6 — the copy is applied to the object BEFORE it enters, so
+            // nothing ever observes the printed 0/0 (CR 707.5 forbids the
+            // "enters, then becomes a copy" shape outright).
+            if (source) applyCopy(card, source, choice.opts ?? {});
+            return {};
+        }
+        case "mode":
+            card.chosenModeId = selected[0];
+            return {};
+        case "name":
+            card.chosenName = selected[0];
+            return {};
+        case "subtypes":
+            card.chosenSubtypes = [...selected];
+            return {};
+        case "body": {
+            const option = choice.options.find((o) => o.id === selected[0]);
+            if (option) {
+                card.power = option.power;
+                card.toughness = option.toughness;
+                if (option.subtypes) card.subtypes = [...option.subtypes];
+                if (option.staticAbilities) {
+                    card.staticAbilities = [
+                        ...card.staticAbilities,
+                        ...option.staticAbilities.filter(
+                            (a) => !card.staticAbilities.includes(a)
+                        ),
+                    ];
+                }
+            }
+            return {};
+        }
+        case "anchor": {
+            // CR 614.12c — the permanent enters with the chosen ability.
+            const option = choice.options.find((o) => o.id === selected[0]);
+            for (const ability of option?.staticAbilities ?? []) {
+                if (!card.staticAbilities.includes(ability)) {
+                    card.staticAbilities.push(ability);
+                }
+            }
+            return {};
+        }
+        case "pay":
+            throw new Error(
+                "as-enters 'pay' is not wired yet (tracked-by: #1980)"
+            );
+        default:
+            return assertNeverAsEnters(choice);
+    }
+}
+
+/** CR 707.6 / ADR 0100 D4 — the owed list is DISCOVERED, not fixed. An answer
+ *  that changes what the staged object IS (the `copy` kind) makes a whole new
+ *  definition's "as it enters" clauses applicable: "if an object enters the
+ *  battlefield as a copy of another permanent, the object's controller will get
+ *  to make any 'as [this] enters the battlefield' choices for it". Each
+ *  definition is consulted exactly once, so a re-copy back onto an already-seen
+ *  identity does not re-owe answered choices. The copied definition's
+ *  `entersWith.counters` needs no handling here — every entry tail re-derives
+ *  the definition from the instance and applies them. */
+function refreshOwedAsEnters(entry: StagedEntry): void {
+    const defId = presentedDefId(entry.card);
+    if (!defId) return;
+    const consulted = entry.consultedDefIds ?? [];
+    if (consulted.includes(defId)) return;
+    entry.consultedDefIds = [...consulted, defId];
+    const discovered = tryGetDefinition(defId)?.entersWith?.asEnters;
+    if (discovered && discovered.length > 0) entry.owed.push(...discovered);
+}
+
+/** Runs the deferred entry tail for a staged permanent whose owed list is
+ *  finally empty. `origin` selects WHICH tail (ADR 0100 D2): each entry site is
+ *  RE-ENTERED with `asEntersResolved`, so the few lines that ran before the
+ *  chokepoint replay harmlessly and the chokepoint itself does not park a second
+ *  time on choices already answered. */
+function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
+    switch (entry.origin) {
+        case "spell":
+            finalizeSpellResolution(state, entry.card as StackItem, {
+                asEntersResolved: true,
+            });
+            return;
+        case "effect": {
+            // CR 614.1c vs CR 400.7 — the entry itself is a zone change, so
+            // `stageReanimatedOnBattlefield` clears the previous object's
+            // battlefield state. An as-enters ANSWER is part of HOW the
+            // permanent enters, not state carried over from a previous
+            // existence, so every answered field is re-applied on the far side
+            // of that reset — the same ordering the pre-ADR-0100 Aura-host finalize
+            // used (attach AFTER staging, never before), and before the ETB
+            // announcement, so a trigger reads the answer the rules say the
+            // permanent entered with.
+            //
+            // These are exactly the fields `applyAsEntersAnswer` writes that
+            // the entry-side reset clears: `attachedTo` (`aura-host`),
+            // `chosenName` (`name`, deleted by
+            // `resetBattlefieldTransientState` per CR 614.12 / issue #1953) and
+            // `chosenSubtypes` (`subtypes`, CR 603.6b). The other kinds write
+            // fields that reset does not touch (`mode` → `chosenModeId`,
+            // `body`/`anchor` → the printed characteristics, `copy` → the whole
+            // copiable set, `payLife` → the player's life).
+            //
+            // Reading the value straight off the instance is sound ONLY because
+            // `stageAsEntersEntry` cleared these same three slots when it parked
+            // this entry (the CR 400.7 clean applied early — see there): a value
+            // present now was necessarily written by an answer THIS entry
+            // received, never carried over from a previous existence. Carry only
+            // what we wrote — never trust what happens to be there.
+            const answered = {
+                attachedTo: entry.card.attachedTo,
+                chosenName: entry.card.chosenName,
+                chosenSubtypes: entry.card.chosenSubtypes,
+            };
+            if (
+                stageReanimatedOnBattlefield(
+                    state,
+                    entry.card,
+                    entry.controllerId,
+                    { asEntersResolved: true }
+                )
+            ) {
+                if (answered.attachedTo !== undefined) {
+                    entry.card.attachedTo = answered.attachedTo;
+                }
+                if (answered.chosenName !== undefined) {
+                    entry.card.chosenName = answered.chosenName;
+                }
+                if (answered.chosenSubtypes !== undefined) {
+                    entry.card.chosenSubtypes = [...answered.chosenSubtypes];
+                }
+                // CR 613.1b — an Aura additionally applies its control-changing
+                // static effect once its host is set (Control Magic).
+                if (isAura(entry.card)) finishAuraEntry(state, entry.card);
+                else finishReanimatedEntry(state, entry.card);
+            }
+            return;
+        }
+        case "token":
+            finishTokenEntry(
+                state,
+                entry.card,
+                entry.controllerId,
+                entry.tokenEntry ?? {}
+            );
+            return;
+    }
+}
+
+/** Applies one answer to the head of `entry.owed` and advances the entry: either
+ *  the next owed choice is queued (the list may have GROWN — CR 707.6), or the
+ *  entry is unstaged and its deferred entry tail runs. Deliberately does NOT
+ *  decide priority / resumption — that is the finalize's job
+ *  (`convex/gre/asEnters.ts`), which is the only layer that may call
+ *  `resolveTopOfStack`. */
+export function advanceStagedEntry(
+    state: GameState,
+    entry: StagedEntry,
+    selected: string[]
+): void {
+    const choice = entry.owed[0];
+    if (!choice) return;
+    const outcome = applyAsEntersAnswer(state, entry, choice, selected);
+    entry.owed.shift();
+    renarrowSiblingCostChoices(state, entry);
+    if (!outcome.aborted) refreshOwedAsEnters(entry);
+    if (!outcome.aborted && entry.owed.length > 0) {
+        enqueueAsEntersChoice(state, entry);
+        return;
+    }
+    const remaining = (state.stagedEntries ?? []).filter((e) => e !== entry);
+    state.stagedEntries = remaining.length > 0 ? remaining : undefined;
+    if (!outcome.aborted) runStagedEntryTail(state, entry);
+}
+
+/** CR 614.12b — "that player may not make choices for those effects that would
+ *  cause the combined costs of those effects to not be payable". Binds only the
+ *  batch staging path (`putReanimatedSetOnBattlefield`, CR 400.7 / #1094), the
+ *  one site that parks several entries at once: their prompts are all queued
+ *  BEFORE any of them is answered, so the second entry's candidate set has to be
+ *  re-narrowed the moment the first commits, not merely computed once at park
+ *  time. Only cost-bearing kinds have a set to narrow (today `payLife`; the
+ *  #1980 pay-2-life joins it). Ships as an engine capability — no shipped card
+ *  pairs a cost-bearing as-enters choice with a simultaneous entry. */
+function renarrowSiblingCostChoices(
+    state: GameState,
+    answered: StagedEntry
+): void {
+    const queued = state.pendingChoices;
+    if (!queued || queued.length === 0) return;
+    for (const pending of queued) {
+        if (pending.asEntersKind !== "payLife") continue;
+        if (pending.playerId !== answered.controllerId) continue;
+        const sibling = findStagedEntry(state, pending.asEntersCardId);
+        if (!sibling || sibling === answered) continue;
+        const declared = sibling.owed.find((c) => c.kind === "payLife");
+        if (!declared || declared.kind !== "payLife") continue;
+        const max = asEntersPayLifeMax(state, sibling, declared.cap);
+        pending.options = Array.from({ length: max + 1 }, (_, n) => ({
+            id: String(n),
+            label: n === 1 ? "Pay 1 life" : `Pay ${n} life`,
+        }));
+    }
+}
+
+/** Finds the staged entry a pending as-enters choice belongs to. */
+export function findStagedEntry(
+    state: GameState,
+    cardInstanceId: string | undefined
+): StagedEntry | undefined {
+    if (!cardInstanceId) return undefined;
+    return (state.stagedEntries ?? []).find(
+        (e) => e.card.id === cardInstanceId
+    );
+}
+
 /** CR 303.4f — hold `aura` off every zone (the caller has already removed it
  *  from its origin) and enqueue the controller's "choose what to enchant" pick.
- *  Freezes priority on the chooser; the Aura enters via `finalizeAuraHost` when
+ *  Freezes priority on the chooser; the Aura enters via `finalizeAsEnters` when
  *  the choice is answered. `candidateIds` are the legal hosts computed by the
  *  caller (`findAllLegalAuraHosts`) — a mix of permanent ids and, for an
  *  "Enchant player" Aura (issue #1119), player ids. Only called with ≥2
@@ -10604,47 +11225,26 @@ export function putReanimatedSetOnBattlefield(
 function enqueueAuraHostChoice(
     state: GameState,
     aura: CardInstanceState,
-    controllerId: string,
-    candidateIds: string[]
+    controllerId: string
 ): void {
-    // The Aura leaves no footprint in any zone array while staged — its stale
-    // `.zone` string is never read (it is not in any zone's array), and
+    // ADR 0100 D2 — the CR 303.4f host pick is now ONE KIND of as-enters
+    // choice, not a parallel mechanism: the Aura is parked in the shared
+    // `stagedEntries` and answered through the shared finalize. The Aura leaves
+    // no footprint in any zone array while staged — its stale `.zone` string is
+    // never read (it is not in any zone's array), and
     // `stageReanimatedOnBattlefield` resets it on entry.
-    state.stagedAuraEntries = [
-        ...(state.stagedAuraEntries ?? []),
-        { aura, controllerId },
-    ];
-    // The Aura instance only carries a slim `{ id }` in `card`; resolve the
-    // printed name (and card id for the dialog image) from the definition.
-    const cardId = (aura.card as { id?: string }).id;
-    const name = (cardId ? tryGetDefinition(cardId) : undefined)?.name;
-    state.pendingChoices = [
-        ...(state.pendingChoices ?? []),
-        {
-            stackItemId: "", // stackless — the Aura enters during a zone move
-            step: 0,
-            choiceId: `aura-host-${aura.id}`,
-            playerId: controllerId,
-            zoneOwnerId: controllerId,
-            actingPlayerId: controllerId,
-            kind: "choose-aura-host",
-            zone: "battlefield",
-            // A legal host may be any player's permanent (Control Magic can be
-            // reanimated onto an opponent's creature), so the pick spans every
-            // battlefield; `candidateIds` is the authoritative allow-list.
-            allControllers: true,
-            auraInstanceId: aura.id,
-            // Rendered as a card image in the dialog (the Aura is off every
-            // projected zone while staged).
-            subjectCardId: cardId,
-            candidateIds,
-            count: 1,
-            prompt: name
-                ? `Choose what ${name} enchants.`
-                : "Choose what this Aura enchants.",
-        },
-    ];
-    state.priorityPlayerId = controllerId;
+    //
+    // Every park on this path is MID-RESOLUTION (`putReanimatedSetOnBattlefield`
+    // is only ever reached from a `SpellContext` method), so the resolving item
+    // on top of the stack is the one the finalize resumes.
+    stageAsEntersEntry(
+        state,
+        aura,
+        controllerId,
+        "effect",
+        [{ kind: "aura-host" }],
+        state.stack[state.stack.length - 1]?.id
+    );
 }
 
 /** CR 611.2 / 613.1b / 603.6 — finish an Aura's entry once its host is set:
@@ -10658,58 +11258,6 @@ function finishAuraEntry(state: GameState, aura: CardInstanceState): void {
     applySourceStaticEffects(state, aura);
     applyAuraControlChange(state, aura);
     emitPermanentEntered(state, aura);
-}
-
-/** CR 303.4f — commit a `choose-aura-host` PendingChoice: attach the staged
- *  Aura to the chosen host and finish its entry. Drops the head choice, removes
- *  the staged entry, re-runs SBAs (the new attachment / control change may
- *  trigger one), and restores priority to the active player once the queue
- *  drains — mirroring `finalizeLegendKeep`. No-op if the head is not a stackless
- *  `choose-aura-host`. If the chosen host is gone / no longer legal (defensive —
- *  the game is frozen while the choice is pending, so this should not happen),
- *  the Aura is put into its owner's graveyard (CR 303.4g). */
-export function finalizeAuraHost(
-    state: GameState,
-    selectedIds: string[]
-): void {
-    const queue = state.pendingChoices ?? [];
-    const head = queue[0];
-    if (!head || head.kind !== "choose-aura-host" || head.stackItemId !== "") {
-        return;
-    }
-    queue.shift();
-    state.pendingChoices = queue.length > 0 ? queue : undefined;
-
-    const entries = state.stagedAuraEntries ?? [];
-    const idx = entries.findIndex((e) => e.aura.id === head.auraInstanceId);
-    if (idx !== -1) {
-        const [entry] = entries.splice(idx, 1);
-        state.stagedAuraEntries = entries.length > 0 ? entries : undefined;
-        const aura = entry.aura;
-        const hostId = selectedIds[0];
-        const resolvedHost = hostId
-            ? resolveAuraHostCandidate(state, aura, hostId)
-            : undefined;
-        if (resolvedHost) {
-            if (stageReanimatedOnBattlefield(state, aura, entry.controllerId)) {
-                aura.attachedTo = resolvedHost.id;
-                finishAuraEntry(state, aura);
-            }
-        } else {
-            // CR 303.4g — the chosen host is no longer a legal object: the Aura
-            // never enters, it goes to its owner's graveyard.
-            aura.attachedTo = undefined;
-            aura.zone = "graveyard";
-            getPlayer(state, aura.ownerId).graveyard.push(aura);
-        }
-    }
-
-    // A new attachment / control change may create an SBA (CR 704.3 — repeat
-    // until none applies); more aura-host choices may still be queued.
-    checkStateBasedActions(state);
-    if ((state.pendingChoices?.length ?? 0) === 0 && !state.gameOver) {
-        state.priorityPlayerId = state.activePlayerId;
-    }
 }
 
 /** Single source of truth lives in `convex/cards/filters.ts` (ADR 0002).
@@ -15496,6 +16044,14 @@ export function buildSpellContext(
             // target-legality gate (CR 608.2b) and mis-key its choices.
             delete item.resolutionStep;
         },
+        // CR 614.12a / ADR 0100 D5 — the as-enters park is enqueued DEEP inside
+        // an entry primitive (`createTokenPermanents`,
+        // `stageReanimatedOnBattlefield`), several frames below the Op that
+        // called it, and no primitive's return value reports it. This is what
+        // lets `runOpList` see the park from the outside and suspend the script.
+        stagedAsEntersCount(): number {
+            return state.stagedEntries?.length ?? 0;
+        },
         // CR 701.16: to sacrifice a permanent is for its controller to put
         // it into its owner's graveyard. Indestructible does not prevent
         // sacrifice (CR 701.16a). No-op if the id is not on the battlefield.
@@ -17063,6 +17619,15 @@ export function createTokenPermanents(
         // this straight off the token's own synthesized definition, exactly
         // like a printed card's `CardDefinition.backFace`.
         ...(spec.backFace ? { backFace: spec.backFace } : {}),
+        // CR 614.1c / 707.2 (ADR 0100 D3) — the token's "as it enters" choices
+        // are a copiable value, so they ride the synthesized definition rather
+        // than only the spec: a permanent entering as a COPY of this token
+        // discovers them off the definition it now presents (CR 707.6).
+        // `entersWith.counters` deliberately does NOT ride the definition —
+        // those are stamped per created INSTANCE from the spec.
+        ...(spec.entersWith?.asEnters && spec.entersWith.asEnters.length > 0
+            ? { entersWith: { asEnters: spec.entersWith.asEnters } }
+            : {}),
     });
     for (let i = 0; i < count; i++) {
         state.nextTokenSeq = (state.nextTokenSeq ?? 0) + 1;
@@ -17137,7 +17702,10 @@ export function createTokenPermanents(
             },
             controllerId,
             true,
-            false
+            false,
+            // A `TokenSpec` is not a printed `CardDefinition`, so the clause is
+            // handed to the chokepoint directly rather than looked up.
+            { declaredEntersWith: spec.entersWith }
         );
         if (enterDestination === "exile") {
             token.zone = "exile";
@@ -17145,17 +17713,110 @@ export function createTokenPermanents(
             ids.push(id);
             continue;
         }
+        if (typeof enterDestination === "object") {
+            // CR 614.12a (ADR 0100 D2/D5) — this token owes "as it enters"
+            // choices. Park it off every zone with everything the rest of this
+            // loop body would have needed, and move on to the next token of the
+            // batch: EVERY token of a `count: N` batch is created here, in this
+            // one call, before the Op that called us can be re-entered. That is
+            // what makes the Op's replay marker (interpreter `createToken`)
+            // safe to write for the whole batch at creation time — see
+            // ADR 0100 D5 "what replays".
+            stageAsEntersEntry(
+                state,
+                token,
+                controllerId,
+                "token",
+                enterDestination.asEnters,
+                state.stack[state.stack.length - 1]?.id,
+                {
+                    tokenEntry: {
+                        ...(Object.keys(entryCounters).length > 0
+                            ? { entryCounters }
+                            : {}),
+                        ...(spec.entersTapped ? { entersTapped: true } : {}),
+                        ...(spec.entersAttacking
+                            ? { entersAttacking: true }
+                            : {}),
+                        ...(opts?.deferEntryEvent
+                            ? { deferEntryEvent: true }
+                            : {}),
+                    },
+                }
+            );
+            ids.push(id);
+            continue;
+        }
+        finishTokenEntry(state, token, controllerId, {
+            entryCounters,
+            entersTapped: spec.entersTapped,
+            entersAttacking: spec.entersAttacking,
+            deferEntryEvent: opts?.deferEntryEvent,
+        });
+        ids.push(id);
+    }
+    // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`). A token
+    // IS a permanent (CR 111.1), and token creation is the canonical
+    // mid-resolution count bump: Ocelot Pride's "create a Cat token. THEN if
+    // you have the city's blessing…" reads the designation in the very next Op
+    // of the same Effect Script, long before any SBA sweep runs.
+    checkAscendCityBlessing(state);
+    // Issue #1345 (CR 111 / 707.2) — emit ONE TOKENS_CREATED event for this
+    // WHOLE call, not one per token. This is the naturally-batched choke
+    // point "whenever you create one or more creature tokens" triggers
+    // (Staff of the Storyteller) key off — see `tokenCreatedTrigger`. A
+    // purpose-built event that is INDEPENDENT of, not a substitute for, the
+    // per-token PERMANENT_ENTERED emitted inside the loop above (issue #2300
+    // did the blast-radius audit #1345's design note deferred): both fire, at
+    // different cardinalities — this one once per CALL, that one once per
+    // token that actually ENTERED. Emitted regardless of the CR 614 destination
+    // any individual copy ended up in (exile included) — the tokens were
+    // still CREATED (CR 111.1); `count` mirrors the requested batch size.
+    if (count > 0) {
+        state.pendingEvents = [
+            ...(state.pendingEvents ?? []),
+            {
+                type: "TOKENS_CREATED",
+                controllerId,
+                count,
+                types: [...spec.types],
+                subtypes: spec.subtypes ? [...spec.subtypes] : [],
+            },
+        ];
+    }
+    return ids;
+}
+
+/** The per-token remainder of `createTokenPermanents`'s loop body, from just
+ *  after the CR 614 chokepoint to the entry announcement. Extracted (ADR 0100
+ *  D2) so an as-enters park can defer exactly this much and the as-enters
+ *  finalize can run it later, unchanged, once every owed choice is answered —
+ *  the token census row has no other entry tail to re-enter, unlike the spell
+ *  and effect rows which simply re-invoke their own entry function. */
+function finishTokenEntry(
+    state: GameState,
+    token: CardInstanceState,
+    controllerId: string,
+    opts: {
+        entryCounters?: Record<string, number>;
+        entersTapped?: boolean;
+        entersAttacking?: boolean;
+        deferEntryEvent?: boolean;
+    }
+): void {
+    const owner = getPlayer(state, controllerId);
+    {
         // CR 614.1c + 110.5b — Kismet-style replacement taps an
         // opponent-controlled artifact/creature/land token as it enters. OR'd
         // with the CR 508.4 authored "enters tapped" flag (issue #1195,
         // Satya, Aetherflux Genius) — either reason taps the token.
-        if (spec.entersTapped || shouldEnterTapped(state, token)) {
+        if (opts.entersTapped || shouldEnterTapped(state, token)) {
             token.isTapped = true;
         }
         owner.battlefield.push(token);
         // The token really entered — NOW announce its entry counters (see the
         // deferral note on `applyEntersWithCounters` above, ADR 0078 §7).
-        emitEntersWithCounterEvents(state, token, entryCounters);
+        emitEntersWithCounterEvents(state, token, opts.entryCounters ?? {});
         // CR 508.4 (issue #1195) — the token enters the battlefield ALREADY
         // ATTACKING: join the CURRENT combat directly through the shared
         // `markAttacking` helper (`gre/combat.ts`) instead of running the
@@ -17173,7 +17834,7 @@ export function createTokenPermanents(
         // this entry. No-op if there's no active combat to join (defensive —
         // see `TokenSpec.entersAttacking`'s doc; `markAttacking` itself is
         // also a no-op with no `state.combat`).
-        if (spec.entersAttacking && state.combat) {
+        if (opts.entersAttacking && state.combat) {
             markAttacking(state, token);
         }
         applyExistingGrantsTo(state, token);
@@ -17219,39 +17880,15 @@ export function createTokenPermanents(
         // No `wasCast` / `wasPlayed`: a token is neither cast nor played
         // (CR 111.1 / 601.2i / 305.2), matching every other non-chokepoint
         // caller of `emitPermanentEntered`.
-        if (!opts?.deferEntryEvent) emitPermanentEntered(state, token);
-        ids.push(id);
+        if (!opts.deferEntryEvent) emitPermanentEntered(state, token);
     }
     // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`). A token
     // IS a permanent (CR 111.1), and token creation is the canonical
     // mid-resolution count bump: Ocelot Pride's "create a Cat token. THEN if
     // you have the city's blessing…" reads the designation in the very next Op
-    // of the same Effect Script, long before any SBA sweep runs.
+    // of the same Effect Script, long before any SBA sweep runs. Re-run here so
+    // an as-enters park's deferred entry bumps the count too (ADR 0100 D2).
     checkAscendCityBlessing(state);
-    // Issue #1345 (CR 111 / 707.2) — emit ONE TOKENS_CREATED event for this
-    // WHOLE call, not one per token. This is the naturally-batched choke
-    // point "whenever you create one or more creature tokens" triggers
-    // (Staff of the Storyteller) key off — see `tokenCreatedTrigger`. A
-    // purpose-built event that is INDEPENDENT of, not a substitute for, the
-    // per-token PERMANENT_ENTERED emitted inside the loop above (issue #2300
-    // did the blast-radius audit #1345's design note deferred): both fire, at
-    // different cardinalities — this one once per CALL, that one once per
-    // token that actually ENTERED. Emitted regardless of the CR 614 destination
-    // any individual copy ended up in (exile included) — the tokens were
-    // still CREATED (CR 111.1); `count` mirrors the requested batch size.
-    if (count > 0) {
-        state.pendingEvents = [
-            ...(state.pendingEvents ?? []),
-            {
-                type: "TOKENS_CREATED",
-                controllerId,
-                count,
-                types: [...spec.types],
-                subtypes: spec.subtypes ? [...spec.subtypes] : [],
-            },
-        ];
-    }
-    return ids;
 }
 
 /** Build the CR 614 draw event (ADR 0061) for `playerId`'s NEXT single draw.

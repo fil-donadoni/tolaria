@@ -151,7 +151,7 @@ export type ZonePickKind =
     // legal host "as it enters". A stackless choice (stackItemId === "") raised
     // during the reanimation staging path; `candidateIds` are the legal hosts
     // (`findAllLegalAuraHosts`), the awaiting Aura is held off-battlefield in
-    // `GameState.stagedAuraEntries` until the pick, and `finalizeAuraHost`
+    // `GameState.stagedEntries` until the pick, and `finalizeAsEnters`
     // attaches it and finishes the entry. Auto-resolved (no prompt) when exactly
     // one legal host exists; a zero-host Aura never enters (CR 303.4g). NOT a
     // target — bypasses hexproof/shroud (CR 303.4f). `count` is always 1.

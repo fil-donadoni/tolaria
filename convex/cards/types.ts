@@ -1960,7 +1960,15 @@ export interface TokenSpec {
      *  each created copy's `CardInstanceState.counters` before the CR 614
      *  ETB chokepoint runs, mirroring `finalizeSpellResolution`'s own
      *  `entersWith.counters` application for a non-token permanent. */
-    entersWith?: { counters?: { type: string; count: number }[] };
+    entersWith?: {
+        counters?: { type: string; count: number }[];
+        /** CR 614.1c / 614.12a (ADR 0100 D3) — as-enters choices this token's
+         *  controller answers before it enters. Registered onto the token's
+         *  synthesized `CardDefinition` too (CR 707.2 — a copy of this token
+         *  copies the clause), so the CR 614 chokepoint reads it the same way
+         *  it reads a printed card's. */
+        asEnters?: AsEntersChoice[];
+    };
     /** This token's BACK face (CR 712, issue #1210/#924 — the Incubator's
      *  "{2}: Transform this artifact" flips it to a Construct creature
      *  token). See {@link CardBackFace} for the full contract. Undefined for
@@ -2112,7 +2120,13 @@ export interface EffectTokenSpec {
      *  `SpellContext.createToken`. A counter whose count doesn't resolve
      *  (uncaptured binding) or resolves to ≤0 is dropped (CR 122's "put N
      *  counters" with N ≤ 0 is a no-op). */
-    entersWith?: { counters?: { type: string; count: EffectValue }[] };
+    entersWith?: {
+        counters?: { type: string; count: EffectValue }[];
+        /** CR 614.1c / 614.12a (ADR 0100 D3) — as-enters choices the created
+         *  token owes before it enters. Pure data (no `EffectValue`), forwarded
+         *  verbatim onto the `TokenSpec` the executor builds. */
+        asEnters?: AsEntersChoice[];
+    };
     /** This token's BACK face (CR 712, issue #1210/#924). JSON-pure subset —
      *  see {@link EffectCardBackFace}. Undefined for the overwhelming
      *  majority of (single-faced) tokens. */
@@ -2168,6 +2182,105 @@ export interface TokenTriggeredAbility {
      *  ability with nothing to run is not expressible. */
     effects: EffectOp[];
 }
+
+// --- As-enters choices (CR 614.1c / 614.12, ADR 0100) ---
+
+/** ADR 0100 D3 — one "as [this] enters the battlefield …" choice, declared as
+ *  DATA beside `entersWith.counters` rather than as an Effect Script.
+ *
+ *  CR 614.1c makes every "As [this] enters …" / "[This] enters as …" clause a
+ *  replacement effect, and CR 614.12a requires the choice to be made BEFORE the
+ *  permanent enters. A replacement is a DECLARATION, not an effect that
+ *  resolves — the same reason `entersWith.counters` is data — and the Effect
+ *  Script interpreter has no coherent `$self` for a permanent that is in no
+ *  zone while it answers. No `EffectOp` is added for this family.
+ *
+ *  Every answer is a write to a typed field that already exists; the applier
+ *  (`applyAsEntersAnswer`, `convex/gre/state.ts`) is exhaustive over this union
+ *  via `assertNever`, so a `kind` cannot be added without a writer.
+ *
+ *  SLICE 1 (#2492) declares the whole union and wires NO card to it — the
+ *  catalogue-wide guard `convex/cards/__tests__/asEntersUnion.test.ts` asserts
+ *  that. The card wiring arrives in #2019 (`mode`), #2467 (`name` / `subtypes`
+ *  / `body` / `payLife`), #2451 (`copy`) and #1980 (`pay`). */
+export type AsEntersChoice =
+    /** CR 614.12 — "as this enters, choose a colour/creature type/…" expressed
+     *  as one of the card's own `modes`; the answer is written to
+     *  `CardInstanceState.chosenModeId` (Voice of All, Prismatic Ward). */
+    | { kind: "mode" }
+    /** CR 614.1c — "as this enters, name a card" (Meddling Mage); the answer is
+     *  written to `CardInstanceState.chosenName`. `filter` narrows the legal
+     *  name space (Meddling Mage's "choose a nonland card name") and is
+     *  ENFORCED at submit — `applyNameCardSubmit`
+     *  (`convex/gre/pendingChoiceSubmit.ts`) reads it off the staged entry and
+     *  rejects a name it does not match, so the definition stays the single
+     *  source and no copy rides the prompt. What is enforced is exactly the
+     *  subset of `EffectCardFilter` the shared `handCardMatchesFilter` reads
+     *  (name / type / excludeType / subtype / supertype / color /
+     *  manaValueAtMost / manaCostEquals / any); the printed-characteristic
+     *  fields it does not read — `excludeSupertype`, `excludeColor`,
+     *  `manaValueEquals`, `hasAbility` — fall through to "matches", so a
+     *  `filter` declaring only one of those is inert rather than restrictive.
+     *
+     *  Not yet read on the BOT side: `nameCardDefaultFor` (`src/lib/ai/
+     *  bot-view.ts`) defaults to the chooser's top library card or "Plains",
+     *  neither of which is filter-aware, so a bot answering a filtered `name`
+     *  choice would be rejected by the check above — and that rejection is a
+     *  STALL, not a retry: a `name-card` head is `ExpectedInputKind: "choice"`,
+     *  and `ESCALATION_POLICY.choice = { decline: null, canPass: false }`
+     *  (`src/lib/ai/owed-input.ts`), so the ladder yields exactly one rung —
+     *  the same rejected name — and the human's `resolveStuck` re-walks it from
+     *  the top and re-submits it. That is the ADR 0047 / #2283 freeze shape.
+     *  Unreachable today (no shipped card populates this union —
+     *  `asEntersUnion.test.ts` fails CI on the first one), and making the
+     *  default filter-aware needs the filter projected into the bot view plus a
+     *  registry scan for a satisfying name; picking a name that merely SATISFIES
+     *  the filter closes the stall, while picking a name worth locking belongs
+     *  with the card that first ships it (#2467). tracked-by: #2497 */
+    | { kind: "name"; filter?: EffectCardFilter }
+    /** CR 614.1c — "as this enters, choose N <subtype>s" (Illusionary Terrain);
+     *  the answer is written to `CardInstanceState.chosenSubtypes`. */
+    | { kind: "subtypes"; from: string[]; count: number }
+    /** CR 614.1c — "as this enters, choose a body" (Primal Clay, Shapeshifter):
+     *  the chosen option supplies the entering permanent's power / toughness and
+     *  any body-bound subtypes or keywords. */
+    | {
+          kind: "body";
+          options: {
+              id: string;
+              label: string;
+              power: number;
+              toughness: number;
+              subtypes?: string[];
+              staticAbilities?: string[];
+          }[];
+      }
+    /** CR 614.1c + CR 119.4 — "as this enters, pay any amount of life" (Nameless
+     *  Race). `cap: "life"` means "any amount you can pay"; a number caps it
+     *  lower. COST-BEARING, so it participates in the CR 614.12b constraint when
+     *  two permanents are staged simultaneously. */
+    | { kind: "payLife"; cap: number | "life" }
+    /** CR 707.6 — "as this enters, it becomes a copy of …" (Clone). Answering it
+     *  can GROW the owed list: the COPIED definition's own `asEnters` entries are
+     *  discovered only once the copy has been applied (ADR 0100 D4). */
+    | { kind: "copy"; filter?: PermanentFilter; opts?: CopyEffectOptions }
+    /** CR 303.4f — an Aura entering by a non-cast path chooses what it enchants.
+     *  Not declared by any card: the entry sites raise it themselves for an Aura
+     *  with two or more legal hosts (ADR 0100 D2 folds the shipped
+     *  `stagedAuraEntries` mechanism into this one). */
+    | { kind: "aura-host" }
+    /** CR 614.12 — "as this enters, you may pay <cost>" (shock lands, ADR 0051).
+     *  Declared here so the family is whole; the shipped `land-entry-tapped`
+     *  provisional park keeps its own shape until #1980 reconciles the two. */
+    | { kind: "pay"; cost: ManaCost }
+    /** CR 614.12c — "some replacement effects cause a permanent to enter the
+     *  battlefield with its controller's choice of one of two abilities, each
+     *  marked with an anchor word". No shipped card uses anchor words; the kind
+     *  ships so the mechanic is whole with no card exposing it. */
+    | {
+          kind: "anchor";
+          options: { id: string; label: string; staticAbilities?: string[] }[];
+      };
 
 // --- Copy effects (CR 706, 707) ---
 
@@ -4432,6 +4545,14 @@ export interface SpellContext {
      *  card instance carries no stale `resolutionStep` into its next zone
      *  (a recast would otherwise skip the target-legality gate, CR 608.2b). */
     clearScriptCheckpoint: () => void;
+    /** How many permanents are currently PARKED on an "as it enters" choice
+     *  (`GameState.stagedEntries`, ADR 0100 D2). Interpreter plumbing like the
+     *  three above: `runOpList` reads it either side of every Op, and a rise
+     *  means THIS Op's battlefield entry parked — the script must then suspend
+     *  exactly as if the Op had enqueued the choice itself, so the permanent
+     *  finishes entering before any later Op runs (CR 614.12a) and the resume
+     *  checkpoint survives (CR 608.3 — earlier Ops never replay). */
+    stagedAsEntersCount: () => number;
 
     /** Flips a coin and PAUSES resolution to reveal the outcome before the
      *  consequence is applied (CR 705.2, ADR 0023). Unlike `flipCoin` (which
@@ -13581,6 +13702,15 @@ export interface CardDefinition {
      *  per-site census lives on that module's header comment. */
     entersWith?: {
         counters?: { type: string; count: number | "X" | "kicker" }[];
+        /** CR 614.1c / 614.12a (ADR 0100 D3) — the ordered "as this enters …"
+         *  choices this permanent's controller answers BEFORE it enters, while
+         *  it is held off every zone (`GameState.stagedEntries`). Sibling to
+         *  `counters` because both are the same CR 614.1c self-replacement
+         *  family, declared as data. Answered head-first; the list may GROW
+         *  mid-flight when a `copy` answer reveals the copied definition's own
+         *  `asEnters` (CR 707.6). No `CardDefinition` populates this in slice 1
+         *  (#2492) — see {@link AsEntersChoice}. */
+        asEnters?: AsEntersChoice[];
     };
     /** CR 714.2 — a Saga's chapter abilities, declared as data (ADR 0078).
      *  The `getDefinition` seam (`expandChapterAbilities`,

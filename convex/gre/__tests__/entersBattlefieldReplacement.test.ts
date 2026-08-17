@@ -14,6 +14,9 @@
 // proven independently of the shipped card (Containment Priest's own
 // behavior is covered in `cards/sets/c14/__tests__/white.test.ts`).
 import { describe, it, expect, beforeAll } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { CardInstanceState } from "../state";
 import {
     buildSpellContext,
@@ -220,5 +223,71 @@ describe("enters-battlefield replacement (CR 614, issue #1148)", () => {
             );
             expect(p1Slim.exile.some((c) => c.id === "victim")).toBe(true);
         }
+    });
+});
+
+// ADR 0100 D1 — the CR 614 entry chokepoint is what makes "one place to
+// forget" true for the spell / effect / token census rows: an entry path that
+// skipped `enterBattlefieldDestinationFor` would miss the Containment Priest
+// redirect above AND the as-enters choice point (#2492). Every test in this
+// file exercises the redirect BEHAVIOUR at one of the three sites; none of
+// them notices a FOURTH site being added, because a fourth site simply is not
+// covered by any of them. This is the structural assertion that does.
+describe("the CR 614 entry chokepoint has exactly three callers (ADR 0100 D1)", () => {
+    const CALLERS = [
+        "convex/gre/state.ts:finalizeSpellResolution (census row A — permanent spell)",
+        "convex/gre/state.ts:stageReanimatedOnBattlefield (census row B — non-cast entry)",
+        "convex/gre/state.ts:createTokenPermanents (census row C — token creation)",
+    ];
+
+    function sourceFiles(dir: string): string[] {
+        const out: string[] = [];
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const full = join(dir, entry.name);
+            if (entry.isDirectory()) {
+                if (
+                    entry.name === "node_modules" ||
+                    entry.name === "_generated"
+                ) {
+                    continue;
+                }
+                out.push(...sourceFiles(full));
+            } else if (
+                entry.name.endsWith(".ts") &&
+                !entry.name.endsWith(".test.ts")
+            ) {
+                out.push(full);
+            }
+        }
+        return out;
+    }
+
+    it("no fourth entry path can be added silently", () => {
+        const root = fileURLToPath(new URL("../../..", import.meta.url));
+        const callSites: string[] = [];
+        for (const dir of ["convex", "src"]) {
+            for (const file of sourceFiles(join(root, dir))) {
+                const text = readFileSync(file, "utf8");
+                text.split("\n").forEach((line, i) => {
+                    if (!line.includes("enterBattlefieldDestinationFor("))
+                        return;
+                    // The definition itself and the `export { … } from` /
+                    // `import { … }` re-export lines are not call sites.
+                    if (line.includes("export function")) return;
+                    callSites.push(
+                        `${file.slice(root.length)}:${i + 1} ${line.trim()}`
+                    );
+                });
+            }
+        }
+        expect(
+            callSites,
+            `Expected exactly the three ADR 0100 census rows:\n${CALLERS.join("\n")}\n` +
+                "A new call site means a FOURTH entry path — either fold it into an " +
+                "existing row or amend ADR 0100's census before changing this number."
+        ).toHaveLength(3);
+        expect(callSites.every((s) => s.includes("convex/gre/state.ts:"))).toBe(
+            true
+        );
     });
 });

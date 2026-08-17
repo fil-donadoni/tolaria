@@ -270,6 +270,19 @@ export function tokenDefinitionId(spec: TokenSpec): string {
                   )
               )
             : "",
+        // 16th segment (index 15, issue #2492, CR 614.1c / 707.2) — the token's
+        // "as it enters" choices (ADR 0100 D3). Unlike `entersWith.counters`
+        // above, this IS a characteristic of the shared definition: it is a
+        // copiable value (CR 707.2), so a permanent entering as a copy of this
+        // token owes the SAME choices (CR 707.6) and must be able to discover
+        // them off the definition alone. JSON-pure, encoded like
+        // `activatedAbilities`. Empty for every token in the catalogue today —
+        // slice 1 wires no card — so no existing token id changes (back-compat:
+        // a 15-segment id without this trailing segment decodes as "no
+        // as-enters choices").
+        spec.entersWith?.asEnters && spec.entersWith.asEnters.length > 0
+            ? encodeURIComponent(JSON.stringify(spec.entersWith.asEnters))
+            : "",
     ];
     return `token:${parts.join("|")}`;
 }

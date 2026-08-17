@@ -5,7 +5,6 @@
 import { describe, expect, it } from "vitest";
 import {
     putReanimatedSetOnBattlefield,
-    finalizeAuraHost,
     resolveTopOfStack,
     type GameState,
 } from "../state";
@@ -126,6 +125,20 @@ function reanimateAura(state: GameState, auraId: string): string[] {
     ]);
 }
 
+/** Answers the queued `choose-aura-host` prompt through the REAL submission
+ *  path — the same one the mutation and the bot driver take, validation
+ *  included (ADR 0100 D5 routes it to the shared as-enters finalize). */
+function submitAuraHost(state: GameState, ids: string[]): void {
+    const choice = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: choice.playerId,
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: ids,
+    });
+}
+
 describe("non-cast Aura host choice (CR 303.4f)", () => {
     it("CR 303.4g — no legal host: the Aura stays in the graveyard", () => {
         // Unholy Strength enchants a creature; p1 has none on the battlefield.
@@ -138,7 +151,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
 
         expect(entered).toEqual([]);
         expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(state.stagedAuraEntries ?? []).toHaveLength(0);
+        expect(state.stagedEntries ?? []).toHaveLength(0);
         // Back in p1's graveyard, unattached.
         const gyAura = state.players[0].graveyard.find((c) => c.id === auraId);
         expect(gyAura).toBeDefined();
@@ -197,7 +210,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
             new Set(["bear-1", "bear-2"])
         );
         // The Aura is held off every zone until answered.
-        expect(state.stagedAuraEntries).toHaveLength(1);
+        expect(state.stagedEntries).toHaveLength(1);
         expect(
             state.players.every((p) =>
                 [...p.battlefield, ...p.graveyard].every((c) => c.id !== auraId)
@@ -205,7 +218,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
         ).toBe(true);
     });
 
-    it("finalizeAuraHost attaches the reanimated Aura to the chosen host", () => {
+    it("the submitted host choice attaches the reanimated Aura to the chosen host", () => {
         const { state, auraId } = boardWithGraveyardAura({
             auraId: unholyStrength.id,
             creatures: [
@@ -215,10 +228,10 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
         });
         reanimateAura(state, auraId);
 
-        finalizeAuraHost(state, ["bear-2"]);
+        submitAuraHost(state, ["bear-2"]);
 
         expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(state.stagedAuraEntries ?? []).toHaveLength(0);
+        expect(state.stagedEntries ?? []).toHaveLength(0);
         const aura = state.players[0].battlefield.find((c) => c.id === auraId);
         expect(aura?.attachedTo).toBe("bear-2");
         const chosen = state.players[0].battlefield.find(
@@ -298,7 +311,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
             new Set(["mine", "theirs"])
         );
 
-        finalizeAuraHost(state, ["theirs"]);
+        submitAuraHost(state, ["theirs"]);
         // Control-change (CR 613.1b): the opponent's creature is now p1's.
         const stolen = state.players
             .flatMap((p) => p.battlefield)
@@ -518,7 +531,7 @@ describe("enchant-player Aura hosts (CR 303.4, issue #1119)", () => {
         expect(new Set(choice?.candidateIds)).toEqual(new Set(["p1", "p2"]));
     });
 
-    it("finalizeAuraHost attaches the reanimated Aura to the chosen PLAYER and it survives the SBA sweep", () => {
+    it("the submitted host choice attaches the reanimated Aura to the chosen PLAYER and it survives the SBA sweep", () => {
         const aura = makeInstance(TEST_ENCHANT_PLAYER_AURA_ID, {
             id: "aura-1",
             controllerId: "p1",
@@ -532,7 +545,7 @@ describe("enchant-player Aura hosts (CR 303.4, issue #1119)", () => {
             { card: aura, controllerId: "p1" },
         ]);
 
-        finalizeAuraHost(state, ["p2"]);
+        submitAuraHost(state, ["p2"]);
 
         expect(state.pendingChoices ?? []).toHaveLength(0);
         const attached = state.players[0].battlefield.find(

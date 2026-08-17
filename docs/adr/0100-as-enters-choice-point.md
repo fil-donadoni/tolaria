@@ -90,6 +90,20 @@ Two sites are **deliberate carve-outs**, outside the chokepoint by design:
   _reanimation/blink/token_ that then re-enters through row B or C. The proof
   the chokepoint fires stays a vitest test through the real entry path.
 
+Two further `battlefield.push(` sites are **not entries at all**, and are
+excluded on the rules rather than on scope — sweeping `battlefield.push(` across
+`convex/` accounts for every hit, so the census is closed by construction and not
+by inspection:
+
+- `phaseInBundle` (`gre/state.ts:8805`, push at `:8812`) — CR 702.26d: "The
+  phasing event doesn't actually cause a permanent to change zones … Zone-change
+  triggers don't trigger when a permanent phases in or out." A permanent phasing
+  in does not enter the battlefield, so it owes no as-enters choice.
+- the two control-change pushes (`gre/state.ts:7665`, `:7739`) — the object never
+  leaves the battlefield; only its controller changes, so there is no entry to
+  replace. (Contrast CR 110.2a, where an effect **putting** an object onto the
+  battlefield does set an entry-time controller — that path is census row B.)
+
 ### 2. What already exists
 
 The hard part #2466 posed — suspend and resume an entry with no stack item to
@@ -209,9 +223,35 @@ entersWith: {
         { kind: "body", options },          // → power / toughness     (#2467)
         { kind: "payLife", cap },           // → feeds `body`          (#2467)
         { kind: "copy", filter, opts },     // → becomeCopyOf          (#2451)
+        { kind: "aura-host" },              // CR 303.4f, absorbed by D2
+        { kind: "pay", cost },              // shock lands / #1980, was ADR 0051
+        { kind: "anchor", options },        // CR 614.12c, declared inert
     ]
 }
 ```
+
+Every answer is a write to a typed field that already exists — `chosenModeId`,
+`chosenName`, `chosenSubtypes`, the `body` quadruple (`power`, `toughness`,
+`subtypes`, `staticAbilities`), the attach in `finalizeAuraHost`, or
+`becomeCopyOf`. The applier is **exhaustive over the union** (`assertNever`), so
+a `kind` cannot be added without a writer — the same compile-time forcing
+`brain.ts:1081` already applies to choice kinds on the bot side.
+
+Three kinds are there because D2 and D6 put them there, not because a slice
+wires a card to them:
+
+- **`aura-host`** — D2 folds `stagedAuraEntries` into `stagedEntries`, so the
+  CR 303.4f host pick stops being a parallel mechanism and becomes a kind.
+- **`pay`** — the `entersTappedUnlessPay` choice ADR 0051 shipped, which D6
+  scopes in with #1980; it is the same CR 614.12 family and must not owe its
+  answer through a second park.
+- **`anchor`** — CR 614.12c: _"Some replacement effects cause a permanent to
+  enter the battlefield with its controller's choice of one of two abilities,
+  each marked with an anchor word … The abilities preceded by anchor words are
+  each linked to the ability that causes a player to choose between them."_ No
+  shipped card uses anchor words. The kind and its registry row ship anyway, so
+  the mechanic is whole with no card exposing it
+  (`.claude/rules/gre-development.md` — a mechanic is implemented whole).
 
 This is **not** an Effect Script and no `EffectOp` is added. A CR 614.1c
 replacement is a declaration, not an effect that resolves — the same reason
@@ -221,8 +261,8 @@ the card is in no zone. `/new-op`'s seven registration sites are therefore not
 walked by this work.
 
 Nameless Race (`drk/black.ts:399`) is not a special case under this shape: it is
-`payLife` with a board-derived cap, feeding `body`. Two kinds composing beats a
-sixth bespoke one.
+`payLife` with a board-derived cap, feeding `body`. Two kinds composing beats
+one more bespoke kind.
 
 ### D4 — The owed list is discovered, not fixed (CR 707.6)
 
@@ -430,6 +470,46 @@ first committed. None of #2043's ten cards reaches this — no shipped card pair
 a cost-bearing as-enters choice with a simultaneous entry — so it ships with
 engine tests only and no card wired to it.
 
+## Considered Options
+
+- **A new unified `enterBattlefield(state, card, controllerId, { origin,
+wasCast })` that all four census rows are refactored onto**, owning the whole
+  entry contract (redirect check → as-enters choices → `entersWith` counters →
+  `shouldEnterTapped` → push + CR 611.2 grants → `emitPermanentEntered`).
+  Rejected for this slice by D1: rows A–C already share a chokepoint with a
+  three-caller invariant the suite exercises, so the refactor rewrites two hot
+  paths (spell resolution, token creation) for a guarantee that is already
+  there. What it would genuinely add — row D — is bought directly by D6's #1980
+  work, without touching A or C. Revisit only if row D proves it cannot be
+  routed onto `enterBattlefieldDestinationFor`.
+- **A shared `raiseAsEntersChoices()` helper called from each entry site**, no
+  chokepoint. Rejected in D1: it is the `applyEntersWithCounters` shape (four
+  independent call sites), and the fifth entry path is born incomplete with no
+  guard seeing it.
+- **Provisional entry plus a global SBA gate on `pendingChoices`.** Tempting,
+  and CR 704.3 does check state-based actions when a player _would receive
+  priority_, which a mid-resolution suspension is not — making today's sweep a
+  divergence in its own right. Rejected as the **mechanism**: it closes one of
+  the windows through which a half-entered permanent is visible and leaves the
+  others (layers, target legality, the trigger scan, the wire projection) open,
+  where D2's off-every-zone park closes all of them by construction. It also
+  changes `legend-keep`, which depends on the post-submit re-sweep (CR 704.5j).
+  Recorded as a finding below, not adopted here.
+- **Raising the choice before the object leaves its origin zone** — the
+  `applyPlayLand` / ADR 0051 shape, which enqueues before `moveCard`. Rejected
+  as the general mechanism: a token has no origin zone, and the CR 400.7 batch
+  has already spliced its cards out of the graveyard to keep the move atomic.
+  That is two mechanisms where the park is one, and D6 makes reconciling the
+  shipped instance part of #1980's price.
+- **An as-enters Effect Script (`asEnters: EffectOp[]`).** The DSL-first default
+  (ADR 0045) points here, but D3 rejects it: the writers are typed field writes,
+  not effect vocabulary; `becomeCopyOf` is deliberately absent from the Mechanics
+  Registry (`m12/blue.ts:28`), so this is the new-Op tax several times over; and
+  the interpreter checkpoints on `StackItem.resolutionStep`, while two of the
+  four rows have no stack item at all — which is the reason the park exists.
+  `entersWith.counters` is the governing precedent: a CR 614.1c replacement is
+  declared as data.
+
 ## Consequences
 
 - **One place to forget — for three of the four rows.** A new spell/effect/token
@@ -467,11 +547,50 @@ engine tests only and no card wired to it.
   must render it from `subjectCardId` — the pattern `choose-aura-host` already
   uses (`state.ts:2515`). No new projection field.
 
+## Findings surfaced
+
+1. **#2478 — not fixed here.** `checkStateBasedActions` (`gre/sba.ts`) has no
+   gate on `pendingChoices` and runs right after `resolveTopOfStack` in
+   `convex/game.ts` **including when the resolution suspended on a choice**,
+   against CR 704.3. Latent today only because no half-entered permanent has
+   ever been illegal — and it stays latent under this ADR precisely because D2
+   parks the entry off every zone rather than provisionally on the battlefield.
+   It is the reason the provisional-entry option above cannot be the mechanism.
+2. **#2479 — the Aura leg is fixed here, by D5.** None of the shipped stackless
+   finalizers reaches the resume block `gre/pendingChoiceSubmit.ts` runs for a
+   stack-coupled choice; each returns early and hands priority to the active
+   player instead. For two of them that is harmless — `legend-keep` is raised
+   from the SBA sweep, never mid-resolution, and `land-entry-tapped` is the one
+   kind exempted from `resolutionSuspendedOnChoice`, so neither ever suspends a
+   resolution. `choose-aura-host` is neither, and it strands its stack item: an
+   Aura with two or more legal hosts inside a CR 400.7 batch
+   (`putReanimatedSetOnBattlefield`) opens a priority window in the middle of a
+   resolution, which CR 608.2 gives to nobody. D2 folds that finalize into the
+   shared one and D5 puts it on the parking-stack-item resume tail, with the
+   two named guarding tests — so slice 1 closes this leg. The other two
+   finalizers keep their early return.
+
+## Slicing
+
+This ADR re-slices PRD #2043. Every intermediate state is an engine capability
+with no card exposing it, per `.claude/rules/gre-development.md`.
+
+| Slice | Issue        | Content                                                                                                                                                                           |
+| ----- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | #2466 (this) | `StagedEntry` generalisation, chokepoint verdict (D1), D5's resume tail incl. moving the Aura host pick onto it, CR 614.12b batch constraint, `asEnters` declared — no card wired |
+| 2     | #2019        | `mode` leg: cast path moves to entry-time, the `modes` / `chosenModeId` piggyback retired (Voice of All, Prismatic Ward, Quirion Elves, Jihad)                                    |
+| 3     | #2467        | `name`, `subtypes`, `body`, `payLife` legs — Meddling Mage, Illusionary Terrain, Primal Clay, Shapeshifter, Nameless Race                                                         |
+| 4     | #2451        | `copy` leg — Clone, Copy Artifact, Vesuvan Doppelganger, Phyrexian Metamorph, Phantasmal Image; carries D5's per-token replay marker for row C                                    |
+| —     | #1980        | Census row D onto the chokepoint + the ADR 0051 pre-move park reconciled into `stagedEntries` (D6); orderable against slices 2–4, but it owns the `pay` kind                      |
+
 ## References
 
-- CR 614.1c, 614.12, 614.12a, 614.12b, 614.12c, 704.5f, 704.5m, 707.5, 707.6
-- CR 117.3b, 303.4f, 303.4g, 305.1, 608.2b (all printed from
-  `data/cr/comprehensive-rules.txt`, ADR 0098)
+- CR 614.1c, 614.12, 614.12a, 614.12b, 614.12c, 704.3, 704.5f, 704.5j, 704.5m,
+  707.5, 707.6
+- CR 110.2a, 117.3b, 303.4f, 303.4g, 305.1, 400.7, 608.2, 608.2b, 702.26d (all
+  printed from `data/cr/comprehensive-rules.txt`, ADR 0098)
 - PRD #2043; slices #2466 (this), #2019, #2467, #2451; scoped-in #1980
+- Findings #2478 (SBA sweep with a Pending Choice outstanding), #2479
+  (`choose-aura-host` strands its suspended stack item — Aura leg closed by D5)
 - ADR 0047 (Expected Input), ADR 0051 (land entry pay-choice — the stackless
   `PendingChoice` prototype), ADR 0078 §7 (deferred entry-counter events)

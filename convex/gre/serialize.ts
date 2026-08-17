@@ -1548,11 +1548,14 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // Cosmetic crown provenance (issue #1305) — a plain string scalar keying
     // the end-step draw tile's themed marker art; round-trips generically.
     "monarchSourceCardId",
-    // CR 303.4f — Auras held off every zone while their controller owes a
-    // `choose-aura-host` pick. Transiently non-empty only while a matching
-    // choice is pending (which is itself a stable save point), so it must
-    // survive the DB round-trip. Empty (undefined) at a fully-resolved point.
-    "stagedAuraEntries",
+    // CR 614.1c / 614.12a (ADR 0100 D2) — permanents held off every zone while
+    // their controller owes an "as it enters" choice (the CR 303.4f Aura host
+    // pick among them). Transiently non-empty only while a matching choice is
+    // pending (which is itself a stable save point), so it must survive the DB
+    // round-trip. Empty (undefined) at a fully-resolved point. Carries a FAT
+    // card, so it has per-field compact/rehydrate halves below — the generic
+    // loop alone would store the definition raw and never re-register it.
+    "stagedEntries",
     "drawLookReplacements",
     // ADR 0047 — authoritative Expected Input. Plain-data discriminated union,
     // so it round-trips through the DB as-is.
@@ -1624,6 +1627,38 @@ export function compactState(state: GameState): Record<string, unknown> {
             })),
         }));
     }
+    // CR 614.1c / 614.12a (ADR 0100 D2) — a staged entry holds a FULL card
+    // object off every zone. Same treatment as `phasedOut` above and for the
+    // same reason: the generic loop stored it raw, so its fat `card` never went
+    // through `compactCard` and the definition would not be re-registered on
+    // expand. `ownerId` rides explicitly — a staged entry has no surrounding
+    // player to default it from.
+    //
+    // An `origin: "spell"` entry IS a `StackItem` (the parked permanent spell
+    // itself — `finalizeSpellResolution` stages the popped item), so it goes
+    // through `compactStackItem`, not `compactCard`: the latter is a WHITELIST
+    // and would silently drop `castById`, `targets`, `chosenX`,
+    // `kickerPayments`, `targetAmounts`, `additionalSacrificeSnapshot`,
+    // `notedManaSpent` and `isCopy`. A pending choice is a stable save point,
+    // so this round-trip is the normal case, not an edge one — and a lost
+    // `castById` throws `Player not found: undefined` out of the entry tail
+    // (`finalizeSpellResolution`) the moment the choice is answered.
+    if (state.stagedEntries?.length) {
+        out.stagedEntries = state.stagedEntries.map((e) => ({
+            ...e,
+            card:
+                e.origin === "spell"
+                    ? compactStackItem(e.card as StackItem, ctx)
+                    : {
+                          ...compactCard(
+                              e.card,
+                              { ownerId: e.card.ownerId },
+                              ctx
+                          ),
+                          ownerId: e.card.ownerId,
+                      },
+        }));
+    }
     // Layers 4/5 (issue #1780) — every card compacted above ran through
     // `ctx`, so `ctx.pool`/`ctx.tokens` are now fully populated. `v: 2` is
     // the version marker `expandState` branches on; `tokenSpecs` is omitted
@@ -1690,6 +1725,42 @@ export function expandState(data: Record<string, unknown>): GameState {
                 )
             ),
         })) as GameState["phasedOut"];
+    }
+    // CR 614.1c / 614.12a (ADR 0100 D2) — rehydrate staged entries (mirror of
+    // `compactState`). The zone is `"stack"`, NOT `phasedOut`'s
+    // `"battlefield"`: a staged permanent has NOT entered the battlefield —
+    // that is the whole point of the park, and hydrating it as a battlefield
+    // permanent would be the one lie the SBA/layer readers could act on if the
+    // value ever leaked. `"stack"` is the nearest honest "in transit, in no
+    // player's zone array" value; every entry tail overwrites `.zone` as the
+    // permanent actually enters (`stageReanimatedOnBattlefield`,
+    // `finalizeSpellResolution`, `finishTokenEntry`), so the hydrated value is
+    // never read as a location.
+    const compactStaged = data.stagedEntries as
+        | {
+              card: CompactCard & { ownerId?: string };
+              origin?: string;
+              [key: string]: unknown;
+          }[]
+        | undefined;
+    if (compactStaged) {
+        result.stagedEntries = compactStaged.map((e) => ({
+            ...e,
+            // Mirror of `compactState`: the spell row rehydrates through
+            // `expandStackItem` so the parked permanent SPELL comes back with
+            // its cast-time bookkeeping (`castById` above all — the entry tail
+            // reads it) intact. `expandStackItem` already hydrates with
+            // `zone: "stack"`, the same honest "in transit, in no player's zone
+            // array" value the effect/token rows use below.
+            card:
+                e.origin === "spell"
+                    ? expandStackItem(e.card, ctx)
+                    : expandCard(
+                          e.card,
+                          { ownerId: e.card.ownerId ?? "", zone: "stack" },
+                          ctx
+                      ),
+        })) as GameState["stagedEntries"];
     }
     return result;
 }
