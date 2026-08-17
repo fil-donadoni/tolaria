@@ -227,6 +227,56 @@ describe("land.ts — the locked command", () => {
         expect(cmd).toContain("refusing to record green-sha");
     });
 
+    it("unsets GITHUB_TOKEN as the very first thing the locked shell does (review round 3, B1)", () => {
+        const cmd = buildLockedCommand(base);
+        expect(cmd.split(" && ")[0]).toBe("unset GITHUB_TOKEN");
+        expect(cmd.indexOf("unset GITHUB_TOKEN")).toBeLessThan(
+            cmd.indexOf("gh pr merge")
+        );
+    });
+
+    it("the unset actually clears GITHUB_TOKEN for anything the locked shell runs — closing the bun .env.local re-injection gap, not just a string position (review round 3, B1)", () => {
+        // `lockedEnv()` strips GITHUB_TOKEN from what land.ts hands to
+        // spawnSync("bun", [GATE, …]) — but that child is `bun scripts/gate.ts`,
+        // and bun auto-loads `.env.local` from ITS OWN cwd back into its own
+        // process.env (the worktree carries the server-side bug-report PAT),
+        // which gate.ts then spreads onto the `sh -c` child that runs the
+        // embedded `gh pr merge`. `sh` never reads `.env.local`, so `unset`
+        // baked into the emitted command string is the one point left that
+        // can remove a re-injected token. Extract the EXACT first step
+        // `buildLockedCommand` produces (not a hand-written stand-in) and run
+        // it through a real shell with GITHUB_TOKEN seeded exactly as the
+        // re-injection would leave it.
+        const firstStep = buildLockedCommand(base).split(" && ")[0];
+        const r = spawnSync(
+            "sh",
+            ["-c", `${firstStep} && echo "TOKEN=[$GITHUB_TOKEN]"`],
+            {
+                encoding: "utf8",
+                env: { ...process.env, GITHUB_TOKEN: "github_pat_leaked" },
+            }
+        );
+        expect(r.stdout).toContain("TOKEN=[]");
+    });
+
+    it("an earlier step's failure (e.g. `check:all` going red) exits on its own status, never laundered into the concurrency-refusal message (review round 3)", () => {
+        // `&&`/`||` are equal-precedence and left-associative: splicing
+        // VERIFY_MERGED_TIP bare into the `&&` chain let a failure anywhere
+        // EARLIER cascade past every `&&`-joined step and trip its `||`
+        // anyway, misreporting a red gate as "refusing to record green-sha".
+        // Reproduces the reviewer's exact repro (an earlier step failing)
+        // without touching real git/gh: stand `rebaseStep()` in for a no-op
+        // (it would otherwise hit the real network) and force the next step
+        // to fail — everything after must then be skipped by `&&`
+        // short-circuit, `gh pr merge` and the rest included.
+        const cmd = buildLockedCommand(base)
+            .replace(rebaseStep(), "true")
+            .replace("bun run check:all", "false");
+        const r = spawnSync("sh", ["-c", cmd], { encoding: "utf8" });
+        expect(r.status).toBe(1);
+        expect(r.stderr).not.toContain("refusing to record green-sha");
+    });
+
     it("is syntactically valid shell", () => {
         for (const opts of [
             base,
@@ -250,9 +300,15 @@ describe("land.ts — lockedEnv (review round 2, B1)", () => {
     // bug-report `GITHUB_TOKEN` that `gh` prefers over the keyring login.
     // Inherited by the locked child that runs the embedded `gh pr merge`,
     // that PAT lacks merge permission and the merge 403s AFTER check:all +
-    // test have already run inside the lock. `lockedEnv` is the fix — a
-    // pure function of a base env so this test never touches real
-    // process.env.
+    // test have already run inside the lock. `lockedEnv` is a NECESSARY but
+    // NOT SUFFICIENT part of the fix — a pure function of a base env so this
+    // test never touches real process.env. It is insufficient by itself
+    // because the child it strips the token FOR is `bun scripts/gate.ts`,
+    // which auto-loads `.env.local` from its OWN cwd and re-injects the
+    // token into its OWN process.env regardless of what `lockedEnv` passed
+    // in — these tests catch a regression in the env transform, but the
+    // actual leak this env transform cannot reach is covered by the
+    // command-string / real-shell tests above (review round 3, B1).
     const base: NodeJS.ProcessEnv = {
         PATH: "/usr/bin",
         GITHUB_TOKEN: "github_pat_bug-report-token",
@@ -298,11 +354,20 @@ describe("land.ts — nested heavy gate inside the locked command", () => {
         // the OUTER `gate.ts heavy` (land's own invocation) wraps a shell
         // command whose steps (`bun run check:all`, `bun run test`) are
         // themselves `gate.ts heavy` calls. Reproduce that nesting directly.
+        //
+        // `timeout` is mandatory here (review round 2, medium): spawnSync
+        // BLOCKS THE WORKER SYNCHRONOUSLY, so vitest's own test timeout
+        // cannot preempt a hang — without a `timeout` a regression here
+        // hangs `bun run test` instead of reddening it, which on a repo
+        // whose green-main invariant is absolute is worse than a red. `r.signal`
+        // is the tell: a real passthrough finishes in well under 100ms and
+        // never sets it; a hang gets SIGTERMed by `timeout` and DOES.
         const r = spawnSync(
             "bun",
             [GATE, "heavy", `bun ${GATE} heavy "echo NESTED-OK"`],
-            { encoding: "utf8", cwd: lockRoot, env: gateEnv() }
+            { encoding: "utf8", cwd: lockRoot, env: gateEnv(), timeout: 15_000 }
         );
+        expect(r.signal).toBeNull();
         expect(r.status, r.stdout + r.stderr).toBe(0);
         expect(r.stdout).toContain("NESTED-OK");
     }, 20_000);
@@ -352,9 +417,14 @@ describe("land.ts — nested heavy gate inside the locked command", () => {
     // Proof-of-failure: temporarily deleted the `TOLARIA_GATE_HELD:
     // tier === "heavy" ? "1" : …` line in gate.ts's `env` object (main()),
     // so a nested heavy call would never see the flag its own parent had —
-    // the FIRST test above ("passes straight through") went red (timed out
-    // at 20s instead of completing near-instantly, because the "nested" call
-    // now tried to acquire a lock its own ancestor process held). Reverted.
+    // the FIRST test above ("passes straight through") did NOT go red: it
+    // HUNG. spawnSync's own `timeout: 15_000` fired, SIGTERMing the child at
+    // 6013ms (`r.signal` = "SIGTERM", not null), and the outer `bun run test`
+    // process itself had to be force-stopped rather than completing with a
+    // failing assertion — this is exactly the failure mode `timeout` +
+    // `expect(r.signal).toBeNull()` were added to catch (review round 3,
+    // medium: without them this same mutation would have hung the suite
+    // instead of reddening it). Reverted.
 });
 
 describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {

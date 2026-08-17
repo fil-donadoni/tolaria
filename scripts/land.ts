@@ -41,13 +41,20 @@
  * to "fix" this; a hand-typed merge from an issue worktree is exactly what
  * it exists to stop.
  *
- * CREDENTIALS. The whole locked command — including the embedded
- * `gh pr merge` — runs under `lockedEnv()`, which strips `GITHUB_TOKEN`
- * (bun auto-loads `.env.local`, which carries a server-side bug-report PAT
- * that `gh` prefers over the keyring login and that PAT lacks merge
- * permission) the same way `scripts/lib/gh.ts` already does for every
- * `gh()` call this file makes directly. Without this the embedded merge
- * 403s AFTER `check:all` + `test` have already run inside the lock.
+ * CREDENTIALS. `lockedEnv()` strips `GITHUB_TOKEN` from the env `land.ts`
+ * hands to `spawnSync("bun", [GATE, …])` the same way `scripts/lib/gh.ts`
+ * already does for every `gh()` call this file makes directly — but that is
+ * NOT sufficient by itself: the spawned child is `bun scripts/gate.ts`, and
+ * **bun auto-loads `.env.local` from ITS OWN cwd** (the worktree, which
+ * carries the server-side bug-report PAT), silently re-injecting
+ * `GITHUB_TOKEN` into gate.ts's OWN `process.env` regardless of what env
+ * `land.ts` passed in. `gate.ts` then spreads `{...process.env}` onto the
+ * `sh -c` child that runs the embedded `gh pr merge` (review round 3, B1).
+ * `sh` does not read `.env.local`, so `buildLockedCommand` also `unset`s
+ * `GITHUB_TOKEN` as the FIRST thing the locked shell string does — the one
+ * point in the pipeline `.env.local` cannot re-populate. Without EITHER
+ * layer the embedded merge 403s AFTER `check:all` + `test` have already run
+ * inside the lock.
  *
  * MERGE VERIFICATION + REF CLEANUP. `gh pr merge` runs WITHOUT
  * `--delete-branch`: `gh` switches the local repo to the default branch
@@ -202,14 +209,34 @@ function shQuote(s: string): string {
  * machine, or a human pushing straight to `main`, while this session held
  * the lock. Re-derives the log rather than caching it so the message on
  * failure shows exactly what landed.
+ *
+ * Brace-grouped as ONE command (`{ TEST || BLOCK; }`), not spliced bare into
+ * the surrounding `&&` chain (review round 3): `&&`/`||` are equal-precedence
+ * and left-associative, so an UNGROUPED `… && TEST || BLOCK && …` lets a
+ * failure anywhere EARLIER in the chain (e.g. `check:all` going red) skip
+ * every `&&`-joined step up to here and then run `BLOCK` anyway — the whole
+ * gate-red case misreports itself as "refusing to record green-sha" instead
+ * of surfacing the real failure. `rebaseStep()` above hits the identical
+ * hazard with its own `||` and groups with `(…)` for the same reason.
  */
 const VERIFY_MERGED_TIP =
+    "{ " +
     '[ "$(git log --oneline "$OLD_TIP..origin/main" | wc -l | tr -d " ")" = "1" ] || ' +
     '{ echo "land: origin/main advanced by more than our squash between fetch and merge — refusing to record green-sha" >&2; ' +
-    'git log --oneline "$OLD_TIP..origin/main" >&2; exit 1; }';
+    'git log --oneline "$OLD_TIP..origin/main" >&2; exit 1; }; ' +
+    "}";
+
+/**
+ * Unsets `GITHUB_TOKEN` inside the locked shell ITSELF — see the CREDENTIALS
+ * header comment for why `lockedEnv()` alone cannot reach this: `sh` never
+ * reads `.env.local`, so this is the one point in the pipeline the bug-report
+ * PAT cannot re-populate (review round 3, B1).
+ */
+const UNSET_GITHUB_TOKEN = "unset GITHUB_TOKEN";
 
 export function buildLockedCommand(opts: LockedCommandOptions): string {
     const steps: string[] = [
+        UNSET_GITHUB_TOKEN,
         rebaseStep(),
         "bun run check:all",
         "bun run test",
