@@ -1671,7 +1671,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
+        tier: "must",
         expect: {
             moves: [
                 {
@@ -1681,7 +1681,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 },
             ],
         },
-        note: "Twin combo recognition. The bot has Exarch on board and Twin in hand with 2RR available. It should enchant Exarch to start the combo.",
+        note: "Twin combo recognition. The bot has Exarch on board and Twin in hand with 2RR available. It should enchant Exarch to start the combo. Promoted from `stretch` while re-verifying this entry alongside #2469: this is a `cast-spell` move, unrelated to `enumerateAbilityMoves`, and already passes on the engine's own merits at its declared budget on all 5 seeds.",
     },
     {
         label: "combo: activates Splinter Twin on enchanted Deceiver Exarch",
@@ -1718,7 +1718,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "activate-ability", card: "Deceiver Exarch" }],
         },
-        note: "Twin combo execution. Twin attached to Exarch via attachedTo. Bot should activate '{T}:' due to executing combo annotation.",
+        note: "Twin combo execution. Twin attached to Exarch via attachedTo. Bot should activate '{T}:'. Issue #2469 fixed `enumerateAbilityMoves` to read the granted ability off `getEffectiveActivatedAbilities` — the move IS now enumerated (confirmed: `grantedAbilityEnumeration.bot.test.ts`), but this entry is NOT promoted to `must`: at `iterations: 400`, 3 of 5 seeds (727774 aka 0xb1ade, 2, 3) still choose `pass` over the activation. The gap is now valuation/search depth, not enumeration — the combo payoff (an infinite hasty-copy loop) isn't scored highly enough at this horizon without `comboAnnotations.ts` support, which is explicitly out of scope for #2469. See finding docs/findings/2469-twin-blade-still-stretch.md.",
     },
 ];
 

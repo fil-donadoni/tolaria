@@ -26,9 +26,13 @@
 // `resolveTopOfStack`'s "printed ability" branch, looked the id up on the
 // SOURCE card's own (empty, for a granted ability) `activatedAbilities`,
 // found nothing, and popped the item having done nothing at all — a silent
-// no-op. `enumerateMoves` never offers a granted ability as a move at all
-// (the separate move-ENUMERATION gap, issue #2469, out of scope here), so
-// every move below is hand-built, exactly like the mana-ability fixture in
+// no-op. At the time this file was written, `enumerateMoves` never offered a
+// granted ability as a move at all (the separate move-ENUMERATION gap, issue
+// #2469); it has since been fixed to read the post-layer authority
+// (`getEffectiveActivatedAbilities`), so the move below is now ALSO
+// enumerated by the search's own scan — it stays hand-built here anyway to
+// keep this file's scope pinned to the PUSH/resolve mechanism (#2468), not
+// enumeration, exactly like the mana-ability fixture in
 // `activationPayoffInSearch.bot.test.ts`.
 //
 // Splinter Twin (`convex/cards/sets/roe/red.ts`) is the fixture: a real
@@ -113,12 +117,12 @@ function grantedMove(): Extract<Move, { kind: "activate-ability" }> {
 }
 
 describe("applyMoveInSearch pushes a GRANTED ability with its provenance (CR 113.1, issue #2468)", () => {
-    it("enumerateMoves does not offer the granted ability (issue #2469 — the reason this move is hand-built)", () => {
+    it("enumerateMoves now offers the granted ability too (issue #2469 fixed — kept as a regression guard for this fixture)", () => {
         const state = grantedBearState();
         const offered = enumerateMoves(state, "p1").some(
             (m) => m.kind === "activate-ability" && m.abilityId === TWIN_ABILITY
         );
-        expect(offered).toBe(false);
+        expect(offered).toBe(true);
     });
 
     it("the pushed stack item carries the granting card's definition id", () => {
