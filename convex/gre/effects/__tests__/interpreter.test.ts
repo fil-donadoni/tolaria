@@ -2725,7 +2725,7 @@ describe("Effect Script Op: setProtectionFromEverything (CR 702.16b/e/i, issue #
 // synthetic-event fan-out `gre/triggers.ts` builds for it (`ATTACKERS_
 // DECLARED` carries the WHOLE batch as one event, unlike `BLOCKERS_
 // CONFIRMED`'s one-per-pair shape).
-describe("delayedTrigger timing: until-next-turn-creature-attacks-you (CR 606 / 603.7a / 508.1b, issue #2385)", () => {
+describe("delayedTrigger timing: until-next-turn-creature-attacks-you (CR 606 / 603.7a / 506.2, issue #2385)", () => {
     const TIMING = "until-next-turn-creature-attacks-you" as const;
 
     /** Opens the window for `controllerId` via the real `delayedTrigger` Op
@@ -2822,7 +2822,7 @@ describe("delayedTrigger timing: until-next-turn-creature-attacks-you (CR 606 / 
         }
     });
 
-    it("does NOT pump when the WINDOW'S OWN controller declares attackers (CR 508.1b — a creature can't attack itself)", () => {
+    it("does NOT pump when the WINDOW'S OWN controller declares attackers (CR 506.2 — only the defending player, not the attacking player themselves, may be attacked)", () => {
         const bear = getCardByName("Grizzly Bears");
         const state = makeState({
             players: [
@@ -2911,6 +2911,87 @@ describe("delayedTrigger timing: until-next-turn-creature-attacks-you (CR 606 / 
         // covered generically by `delayedTriggers`, checked again here as
         // this timing's own regression pin).
         expect(restored.delayedTriggers).toEqual(state.delayedTriggers);
+    });
+
+    it("TWO scheduled windows stack to -2/-0, not deduped to -1/-0 (review round 2, #2487)", () => {
+        // Guards the review-round-2 fix: the old `grantAttackerDebuffWindow`
+        // SpellContext primitive deduped concurrent windows onto one flag,
+        // capping the total at -1/-0 regardless of how many times +2 was
+        // activated. As independent `delayedTrigger` instances, two windows
+        // must schedule two separate triggers that BOTH fire and BOTH
+        // resolve on the same attacker.
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "double-pumped-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        openWindow(state, "p1");
+        expect(state.delayedTriggers).toHaveLength(2);
+        declareAttackers(state, "p2", ["double-pumped-attacker"]);
+        const attacker = state.players[1].battlefield.find(
+            (c) => c.id === "double-pumped-attacker"
+        )!;
+        // 2/2 Grizzly Bears, TWO -1/-0 pumps applied: power 0, toughness 2.
+        expect(getEffectivePower(state, attacker)).toBe(0);
+        expect(getEffectiveToughness(state, attacker)).toBe(2);
+    });
+
+    it("is genuinely stack-mediated — the pump lands only on drain, not at declare-attackers time (CR 603.7a)", () => {
+        // Guards the review-round-2 fix: as a real triggered ability, firing
+        // must only QUEUE the stack item. Reading the attacker's power
+        // immediately after `emitAttackersDeclaredEvents` (before draining)
+        // must show the pump has NOT yet applied — proving the -1/-0 is
+        // delivered by the stack resolving, not applied eagerly as a side
+        // effect of declaring attackers.
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "stack-mediated-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        state.activePlayerId = "p2";
+        state.phase = "DECLARE_ATTACKERS";
+        state.combat = {
+            attackerIds: ["stack-mediated-attacker"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        emitAttackersDeclaredEvents(state);
+        const attacker = state.players[1].battlefield.find(
+            (c) => c.id === "stack-mediated-attacker"
+        )!;
+        // Stack holds the queued delayed-trigger item(s); pump not yet applied.
+        expect(state.stack.some((s) => s.delayedTriggerId !== undefined)).toBe(
+            true
+        );
+        expect(getEffectivePower(state, attacker)).toBe(2);
+        // Draining the stack is what actually resolves the `pump`.
+        while (state.stack.some((s) => s.delayedTriggerId !== undefined)) {
+            resolveTopOfStack(state);
+        }
+        expect(getEffectivePower(state, attacker)).toBe(1);
     });
 });
 

@@ -5244,7 +5244,7 @@ export type DelayedTriggerTiming =
      *  its EFFECTIVE power (CR 613) at resolution. `$event` stays illegal
      *  here, exactly as for the leave-watch timings. */
     | "attacks-unblocked"
-    /** CR 606 / 603.7a / 508.1b (issue #2385) — a REPEATING window, bounded
+    /** CR 606 / 603.7a / 506.2 (issue #2385) — a REPEATING window, bounded
      *  "until your next turn" rather than "this turn": "Until your next
      *  turn, whenever a creature attacks you or a planeswalker you control,
      *  …" (Tamiyo, Seasoned Scholar's +2). Shares `this-turn-creature-
@@ -5259,11 +5259,13 @@ export type DelayedTriggerTiming =
      *  `castTimingFlashGrants` use.
      *
      *  Fires once PER ATTACKER named in an `ATTACKERS_DECLARED` event whose
-     *  `attackingPlayerId` is NOT this instance's controller — CR 508.1b: a
-     *  creature only attacks the defending player or a permanent that player
-     *  controls, so in this engine's 2-player scope "the attacking player
-     *  isn't the instance's controller" already identifies every attacker in
-     *  the batch as attacking the controller (or their planeswalker). Unlike
+     *  `attackingPlayerId` is NOT this instance's controller — CR 506.2:
+     *  during the combat phase of a two-player game, the nonactive player
+     *  is the defending player, and only that player (or planeswalkers
+     *  they control) may be attacked, so in this engine's 2-player scope
+     *  "the attacking player isn't the instance's controller" already
+     *  identifies every attacker in the batch as attacking the controller
+     *  (or their planeswalker). Unlike
      *  `BLOCKERS_CONFIRMED` (already one event per attacker/blocker pair),
      *  `ATTACKERS_DECLARED` carries the WHOLE batch as one event
      *  (`attackerIds: string[]`) — `collectTriggers` (`gre/triggers.ts`)

@@ -223,7 +223,7 @@ describe("Tamiyo, Seasoned Scholar — the three loyalty abilities (CR 606)", ()
         resolveTopOfStack(state);
     }
 
-    describe("+2 — attacker-debuff window (CR 606 / 603.7a / 508.1b)", () => {
+    describe("+2 — attacker-debuff window (CR 606 / 603.7a / 506.2)", () => {
         it("schedules a REAL delayed triggered ability; the next attacking creature gets -1/-0 until end of turn", () => {
             const { state } = flippedBoard();
             activate(state, "tamiyo-seasoned-scholar-plus2");

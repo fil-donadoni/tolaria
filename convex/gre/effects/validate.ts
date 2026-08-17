@@ -2590,7 +2590,7 @@ const DELAYED_TIMINGS = new Set([
     // shape as "this-turn-creature-blocks".
     "this-turn-creature-deals-combat-damage-to-player",
     // Repeating combat-event watch, "UNTIL YOUR NEXT TURN" bound rather than
-    // "this turn" (CR 606 / 603.7a / 508.1b, issue #2385) — fires once per
+    // "this turn" (CR 606 / 603.7a / 506.2, issue #2385) — fires once per
     // attacker in an ATTACKERS_DECLARED batch that attacks the instance's
     // controller, for the rest of THIS turn AND the whole intervening
     // opponent turn (Tamiyo, Seasoned Scholar's +2). Same repeating SHAPE as

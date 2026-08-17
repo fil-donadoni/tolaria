@@ -4171,7 +4171,7 @@ describe("validateEffectScript — divide (issue #2385)", () => {
 });
 
 // --- delayedTrigger "until-next-turn-creature-attacks-you" timing
-// (CR 606 / 603.7a / 508.1b, issue #2385, review round 2) ------------------
+// (CR 606 / 603.7a / 506.2, issue #2385, review round 2) -------------------
 
 describe("validateEffectScript — delayedTrigger until-next-turn-creature-attacks-you (issue #2385)", () => {
     it("accepts the timing with an $event.soleAttacker-reading body, no targetPlayer/watch", () => {

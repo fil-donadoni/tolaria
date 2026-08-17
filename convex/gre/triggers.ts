@@ -566,7 +566,7 @@ export function collectTriggers(
         }
     }
 
-    // CR 606 / 603.7a / 508.1b (issue #2385, Tamiyo, Seasoned Scholar's +2)
+    // CR 606 / 603.7a / 506.2 (issue #2385, Tamiyo, Seasoned Scholar's +2)
     // — a `timing: "until-next-turn-creature-attacks-you"` instance is the
     // "until your next turn" (NOT "this turn") twin of the repeating
     // combat-event family above: it stays queued after firing too (purged
@@ -580,8 +580,9 @@ export function collectTriggers(
     // already-censused `soleAttacker` `EVENT_FIELD_REGISTRY` row (ADR 0049,
     // `cards/mechanicsRegistry.ts`) rather than adding a new one, since a
     // length-1 `attackerIds` array is exactly what that row already
-    // flattens. CR 508.1b — a creature only ever attacks the defending
-    // player or a permanent that player controls, so in this engine's
+    // flattens. CR 506.2 — during the combat phase of a two-player game,
+    // the nonactive player is the defending player, and only that player
+    // (or planeswalkers they control) may be attacked, so in this engine's
     // 2-player scope `event.attackingPlayerId !== t.controller` already
     // identifies every attacker in the batch as attacking the instance's
     // controller (or a planeswalker they control): no per-attacker
