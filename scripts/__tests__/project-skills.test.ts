@@ -405,3 +405,74 @@ describe("every queue-facing skill instructs `Target files`", () => {
         ).toEqual([]);
     });
 });
+
+describe("reviewer-brief mandates the receipt CLI, not a hand-authored shape (issue #2285)", () => {
+    // subagent-brief.md naming `writeReceipt` in prose was enough for
+    // implement/fixup subagents (4/4 valid receipts) because they are already
+    // writing TypeScript. reviewer-brief.md ALSO named the shape in prose
+    // (never `writeReceipt` itself) and 4/4 review receipts in the same batch
+    // were malformed. The fix is not "say writeReceipt here too" — a sentence
+    // is not a validator regardless of which module it names — it is a
+    // callable entry point the reviewer runs instead of transcribing a field
+    // list. These tests keep the brief pointed at that entry point rather
+    // than drifting back to a description of the shape.
+    const rel = path.join(
+        ".claude",
+        "skills",
+        "process-gh-issues",
+        "references",
+        "reviewer-brief.md"
+    );
+    const body = (): string =>
+        fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+
+    it("points at the CLI script, and the script + package.json entry exist", () => {
+        expect(body()).toMatch(/bun run review:receipt/);
+        expect(body()).toMatch(/write-review-receipt\.ts/);
+
+        const scriptPath = path.join(
+            REPO_ROOT,
+            "scripts",
+            "write-review-receipt.ts"
+        );
+        expect(
+            fs.existsSync(scriptPath),
+            "reviewer-brief.md names scripts/write-review-receipt.ts but it does not exist"
+        ).toBe(true);
+
+        const pkg = JSON.parse(
+            fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        expect(
+            pkg.scripts["review:receipt"],
+            "reviewer-brief.md names `bun run review:receipt` but package.json has no such script"
+        ).toBeTruthy();
+    });
+
+    it("tells the reviewer to STOP hand-authoring the receipt JSON", () => {
+        // The brief must say, in terms an agent following it verbatim would
+        // act on, that hand-writing the file is the wrong path — not just
+        // that a writer function exists somewhere.
+        expect(body()).toMatch(/never by hand-authoring|stop hand-authoring/i);
+        expect(body()).toMatch(/writeReceipt/);
+    });
+
+    it("does not re-describe the receipt shape as a field list without the CLI", () => {
+        // The exact failure shape this issue reported: a paragraph that names
+        // `role`, `outcome`, `pr`, `findings[]` as prose fields to reproduce,
+        // rather than an invocation to run. If this text comes back without
+        // the CLI pointer alongside it, the brief has regressed to the
+        // version that produced 4/4 malformed receipts.
+        const forbidden =
+            /written to the same batch directory\*\* as `<issue>-review\.json` \(`role: "review"`/;
+        expect(
+            forbidden.test(body()),
+            "reviewer-brief.md has regressed to describing the receipt shape in prose instead of pointing at the CLI"
+        ).toBe(false);
+    });
+
+    it("still keeps the round mechanism for re-review documented", () => {
+        expect(body()).toMatch(/--round/);
+        expect(body()).toMatch(/refuses to overwrite/);
+    });
+});
