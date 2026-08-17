@@ -7,7 +7,10 @@ import {
     scorePreservedDemands,
     remainingFlexibility,
     floatingAfterPlan,
+    planSurplus,
     AUTO_TAP_PLAN_CAP,
+    W_PRESERVED_DEMAND,
+    SURPLUS_CAP,
     type AutoTapPlan,
     type AutoTapSource,
     type Demand,
@@ -29,6 +32,8 @@ const MOX_EMERALD = "b0e1427c-05cd-465b-be59-97ed6e39f7ba"; // {T}: G
 const SOL_RING = "c4300d24-1cae-4dd5-be7e-38cc677cf5bd"; // {T}: C C
 const BLACK_LOTUS = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // sacrifice
 const LLANOWAR = "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb"; // creature, G
+const GAEAS_CRADLE = "25b0b816-0583-44aa-9dc5-f3ff48993a51"; // {T}: G per creature you control
+const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // vanilla creature, no mana ability
 
 const EMPTY_POOL = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 
@@ -845,5 +850,275 @@ describe("evaluation-scored smart auto-tap (issue #794)", () => {
         );
         expect(plan).not.toBeNull();
         expect(plan![0].cardId).toBe("island");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// planSurplus (issue #2247) — the exact leftover pool a plan produces beyond
+// what `cost` consumes (CR 500.4: it empties at end of step, so it's waste).
+// ---------------------------------------------------------------------------
+describe("planSurplus (issue #2247)", () => {
+    it("is 0 when the plan's mana exactly covers the cost", () => {
+        // Forest ({G}) pays a {G} cost exactly — nothing left over.
+        const sources = [fixed("forest", "G")];
+        const surplus = planSurplus(EMPTY_POOL, { G: 1 }, [], sources, [
+            { cardId: "forest" },
+        ]);
+        expect(surplus).toBe(0);
+    });
+
+    it("counts the leftover when a multi-mana source over-pays a cost", () => {
+        // Sol Ring ({C}{C}) pays a {1} cost: 1 mana consumed, 1 left over.
+        const sources: AutoTapSource[] = [
+            { cardId: "sol", options: [{ mana: { C: 2 } as never }] },
+        ];
+        const surplus = planSurplus(EMPTY_POOL, { X: 1 }, [], sources, [
+            { cardId: "sol" },
+        ]);
+        expect(surplus).toBe(1);
+    });
+
+    it("is 0 when the cost consumes all of the source's mana (not over-production)", () => {
+        // Sol Ring ({C}{C}) pays a {2} cost exactly.
+        const sources: AutoTapSource[] = [
+            { cardId: "sol", options: [{ mana: { C: 2 } as never }] },
+        ];
+        const surplus = planSurplus(EMPTY_POOL, { X: 2 }, [], sources, [
+            { cardId: "sol" },
+        ]);
+        expect(surplus).toBe(0);
+    });
+
+    it("caps counted units at SURPLUS_CAP for a wildly over-producing source", () => {
+        const sources: AutoTapSource[] = [
+            { cardId: "huge", options: [{ mana: { C: 20 } as never }] },
+        ];
+        const surplus = planSurplus(EMPTY_POOL, { X: 1 }, [], sources, [
+            { cardId: "huge" },
+        ]);
+        expect(surplus).toBe(SURPLUS_CAP);
+        expect(SURPLUS_CAP).toBeLessThan(W_PRESERVED_DEMAND);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Surplus avoidance (issue #2247): the reported bug — smart auto-tap prefers
+// tapping a multi-mana source (Sol Ring) over a single-mana land when only
+// one mana is needed, wasting the surplus (it evaporates, CR 500.4). Among
+// equal-tap-count plans, the ranking must now prefer the lowest-surplus one,
+// strictly below preserved-Demand and strictly above source-quality/
+// flexibility/lexicographic (see W_SURPLUS's doc, autoTap.ts).
+// ---------------------------------------------------------------------------
+describe("solveSmartAutoTap — surplus avoidance (issue #2247)", () => {
+    it("AC1: taps the exact-fit land, leaves the over-producing rock untapped", () => {
+        // Board: a generic 2-colorless-mana rock (any card shaped like Sol
+        // Ring — deliberately NOT keyed to a specific card, see AC5 below)
+        // plus a Forest. Cost {1}: either single tap covers it. The rock
+        // would waste 1 mana (CR 500.4); the land wastes nothing.
+        //
+        // cardIds are deliberately chosen so the CORRECT answer ("z-land")
+        // sorts AFTER the wrong one ("a-rock") lexicographically — the
+        // lexicographic tie-break (tie-break #3) would otherwise pick
+        // "a-rock" by alphabetical accident whenever the surplus term is
+        // absent/broken, which would let this assertion pass for the wrong
+        // reason (proof-of-failure check, see PR receipt).
+        const sources: AutoTapSource[] = [
+            { cardId: "a-rock", options: [{ mana: { C: 2 } as never }] },
+            fixed("z-land", "G"),
+        ];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { X: 1 }, [], sources, []);
+        expect(plan).not.toBeNull();
+        expect(plan).toEqual([{ cardId: "z-land" }]);
+    });
+
+    it("AC2: no regression — taps the rock when the cost consumes all its mana", () => {
+        // Cost {2}: the rock alone covers it in ONE tap with zero surplus.
+        // The land alone can't reach {2} in one tap, so the minimal-tap plan
+        // set is [rock] only — must still tap it, not fall back to a worse
+        // (2-tap) plan or no plan at all.
+        const sources: AutoTapSource[] = [
+            { cardId: "rock", options: [{ mana: { C: 2 } as never }] },
+            fixed("mountain", "R"),
+        ];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { X: 2 }, [], sources, []);
+        expect(plan).not.toBeNull();
+        expect(plan).toEqual([{ cardId: "rock" }]);
+    });
+
+    it("AC3: demand preservation still outranks surplus avoidance", () => {
+        // Board: the rock (C C) + Forest (G). Cost {1}. A still-castable
+        // held spell needs {G} — ONLY the Forest can pay it. Surplus
+        // avoidance alone would tap the Forest (AC1's preference); the {G}
+        // Demand must override that and force the rock to be tapped instead,
+        // even though it wastes 1 mana.
+        const sources: AutoTapSource[] = [
+            { cardId: "rock", options: [{ mana: { C: 2 } as never }] },
+            fixed("forest", "G"),
+        ];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { X: 1 }, [], sources, [
+            demand("gspell", { G: 1 }),
+        ]);
+        expect(plan).not.toBeNull();
+        expect(plan).toEqual([{ cardId: "rock" }]);
+    });
+
+    it("AC5: generic across any multi-mana producer — a differently-shaped rock behaves the same", () => {
+        // Same shape as AC1 but a DIFFERENT card-agnostic multi-mana source
+        // (3 red instead of 2 colorless), proving the preference is not
+        // keyed to Sol Ring's specific output.
+        const sources: AutoTapSource[] = [
+            { cardId: "battery", options: [{ mana: { R: 3 } as never }] },
+            fixed("mountain2", "R"),
+        ];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { X: 1 }, [], sources, []);
+        expect(plan).not.toBeNull();
+        expect(plan).toEqual([{ cardId: "mountain2" }]);
+    });
+
+    it("no lower-surplus alternative exists: taps the only available source", () => {
+        // The rock is the sole source — surplus avoidance has nothing to
+        // compare against, so the plan must still succeed (not return null).
+        const sources: AutoTapSource[] = [
+            { cardId: "rock", options: [{ mana: { C: 2 } as never }] },
+        ];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { X: 1 }, [], sources, []);
+        expect(plan).toEqual([{ cardId: "rock" }]);
+    });
+
+    it("a cost that consumes the rock's full output is not over-production (regression guard)", () => {
+        // Cost {C}{C} matches the rock's exact output; a plain land can't
+        // pay a colorless-pip cost at all here (only the rock produces C),
+        // so tapping the rock is correct AND produces zero surplus.
+        const sources: AutoTapSource[] = [
+            { cardId: "rock", options: [{ mana: { C: 2 } as never }] },
+            fixed("forest", "G"),
+        ];
+        const plan = solveSmartAutoTap(EMPTY_POOL, { C: 2 }, [], sources, []);
+        expect(plan).not.toBeNull();
+        expect(plan).toEqual([{ cardId: "rock" }]);
+    });
+});
+
+describe("solveSmartAutoTap — surplus avoidance outranks source quality (issue #2247, AC7)", () => {
+    /** Mirrors the `scoreAutoTapPlanPosition` closure game.ts builds (same
+     *  helper as the issue-#794 suite above). */
+    function makeScorer(
+        state: GameState,
+        playerId: string,
+        pool: Record<string, number>,
+        cost: Record<string, number>,
+        substitutions: ManaSubstitution[],
+        sources: AutoTapSource[]
+    ) {
+        return (plan: AutoTapPlan): number => {
+            const sim = structuredClone(state) as GameState;
+            const p = sim.players.find((x) => x.id === playerId)!;
+            const tapped = new Set(plan.map((s) => s.cardId));
+            for (const perm of p.battlefield) {
+                if (tapped.has(perm.id)) perm.isTapped = true;
+            }
+            p.manaPool = floatingAfterPlan(
+                pool,
+                cost,
+                substitutions,
+                sources,
+                plan
+            );
+            return evaluateAutoTapPosition(sim, playerId);
+        };
+    }
+
+    it("taps the multi-mana single-color rock even though sparing the dual scores higher on breadth", () => {
+        // Board: Sol Ring (C C, single "color", no dual-purpose ability) +
+        // Tundra (choice W/U, breadth 2 — the position scorer's
+        // untappedSourceQuality rewards SPARING it). Cost {1}: either single
+        // tap covers it.
+        //   - Tap Tundra: 0 surplus, spares Sol Ring (breadth 1, quality +0).
+        //   - Tap Sol Ring: 1 surplus, spares Tundra (breadth 2, quality +4).
+        // The eval alone would reward sparing the higher-breadth Tundra;
+        // surplus avoidance must dominate that and still tap Tundra.
+        const solRing = makeInstance(SOL_RING, {
+            id: "sol",
+            controllerId: "p1",
+        });
+        const tundra = makeInstance(TUNDRA, {
+            id: "tundra",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [solRing, tundra] }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+        const sources = buildAutoTapSources(p1.battlefield);
+        const cost = { X: 1 };
+        const scorer = makeScorer(state, "p1", p1.manaPool, cost, [], sources);
+        const plan = solveSmartAutoTap(
+            p1.manaPool,
+            cost,
+            [],
+            sources,
+            [],
+            undefined,
+            scorer
+        );
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardId).toBe("tundra");
+    });
+});
+
+describe("solveSmartAutoTap — board-derived surplus (issue #2247, AC6)", () => {
+    it("prices Gaea's Cradle by its CURRENT board-derived output, not a static amount", () => {
+        // Gaea's Cradle: "{T}: Add {G} for each creature you control." With 3
+        // vanilla creatures on board it currently makes G:3 — a live amount
+        // `buildAutoTapSources` resolves through `getManaTapOptionsDetailed`
+        // BEFORE the solver ever sees the source, so `planSurplus` reads the
+        // same board-aware number the real payment path would add. A Forest
+        // covers the {1} cost exactly; Cradle would waste 2.
+        const cradle = makeInstance(GAEAS_CRADLE, {
+            id: "cradle",
+            controllerId: "p1",
+        });
+        const forest = makeInstance(FOREST, {
+            id: "forest",
+            controllerId: "p1",
+        });
+        const bear1 = makeInstance(GRIZZLY_BEARS, {
+            id: "bear1",
+            controllerId: "p1",
+        });
+        const bear2 = makeInstance(GRIZZLY_BEARS, {
+            id: "bear2",
+            controllerId: "p1",
+        });
+        const bear3 = makeInstance(GRIZZLY_BEARS, {
+            id: "bear3",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [cradle, forest, bear1, bear2, bear3],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+        const sources = buildAutoTapSources(p1.battlefield, [
+            { playerId: "p1", battlefield: p1.battlefield },
+            { playerId: "p2", battlefield: state.players[1].battlefield },
+        ]);
+        // Confirm the board-aware amount actually resolved to 3, not the
+        // representative 1-creature fallback (`manaProduced`) — otherwise
+        // this test would pass for the wrong reason.
+        const cradleSource = sources.find((s) => s.cardId === "cradle");
+        expect(cradleSource?.options[0]?.mana).toEqual({ G: 3 });
+
+        const plan = solveSmartAutoTap(p1.manaPool, { X: 1 }, [], sources, []);
+        expect(plan).not.toBeNull();
+        expect(plan).toEqual([{ cardId: "forest" }]);
     });
 });

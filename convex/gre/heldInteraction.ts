@@ -44,7 +44,14 @@ export type HeldInteraction = {
 /** Available mana for `player` — untapped mana sources on the battlefield plus
  *  floating mana. The coarse, color-blind proxy the `evaluate` `mana` /
  *  flexibility terms use (CR 601 colored costs are not modelled here): one
- *  untapped land or mana permanent counts as one mana. */
+ *  untapped land or mana permanent counts as one mana.
+ *
+ *  Mirrors `evaluate.ts`'s `availableManaFor` exactly, including its known
+ *  untapped-source-vs-floating-mana asymmetry (issue #2247's divergence note
+ *  there) — an untapped multi-mana source still counts as 1 here. Left
+ *  unfixed for the same reason: this predictor is combat-side castability
+ *  only, not the auto-tap ranking #2247 fixes, so the asymmetry does not
+ *  reproduce the reported bug through this call site. */
 export function availableManaFor(player: PlayerState): number {
     let mana = 0;
     for (const perm of player.battlefield) {
