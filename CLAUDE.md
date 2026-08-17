@@ -369,6 +369,8 @@ When a card needs a capability that genuinely isn't built, flag it explicitly
 
 ## Agent skills
 
+- **Guides**: `docs/guides/` answers "how do I RUN this?" (AFK loop, …) —
+  index at `docs/guides/README.md`. Read on demand, never resident.
 - **Issue tracker**: GitHub Issues, `gh` CLI. See `docs/agents/issue-tracker.md`.
 - **Findings drawer**: `docs/findings/` = what a subagent noticed but was not
   asked to fix — draft, never an issue (the loop drains the queue, never
