@@ -5510,6 +5510,30 @@ export interface PermanentView {
      *  ETB event firing and this trigger resolving, so no resolve-time
      *  re-check plumbing is needed. */
     dashed?: boolean;
+    /** CR 307.1 / 117.1a / 601.3a — true iff this permanent was cast at a
+     *  moment a sorcery couldn't have been cast (set on the stack item at
+     *  cast commit from the shared `wasCastOffSorceryTiming` predicate,
+     *  `convex/gre/phases.ts`; rides onto the entering permanent for free,
+     *  the `escaped`/`evoked`/`dashed` precedent). A pure snapshot of board
+     *  state at cast time, not a legality verdict. No shipped trigger reads
+     *  this yet — the shape matches `evoked`/`dashed` exactly (a
+     *  check-time, CR 603.4 `condition` on a permanent's own ETB trigger,
+     *  Necromancy's "the controller of the permanent it becomes sacrifices
+     *  it at the beginning of the next cleanup step" — issue #2392) and the
+     *  field cannot change after ETB, so no resolve-time re-check plumbing
+     *  will be needed there either.
+     *
+     *  FRONTEND WIRING — populated only on the ENGINE path, where a trigger
+     *  receives the raw `CardInstanceState`. The CLIENT's view reducer
+     *  `buildTriggerStateView` (`src/lib/card-utils.ts`) enumerates its
+     *  battlefield fields explicitly and carries neither `evoked`/`dashed`
+     *  nor this one, so a condition reading `self.castOffSorceryTiming`
+     *  client-side reads `undefined` today. No shipped card is affected (no
+     *  consumer exists yet), but #2392 MUST extend that reducer as part of
+     *  its own change — it is exactly the drop class
+     *  `.claude/rules/gre-development.md` § Frontend wiring analysis
+     *  describes. */
+    castOffSorceryTiming?: boolean;
     /** CR 106.4 / 202.3 — per-colour mana spent to CAST this permanent,
      *  snapshotted from the originating stack item's `notedManaSpent`
      *  (`StackItem`, populated when `CardDefinition.noteManaSpent` is set) the

@@ -112,6 +112,12 @@ import { cloneGameState } from "../clone";
 import { PERMANENT_TYPES } from "../constants";
 import { tryGetDefinition } from "../../cards";
 import { spellHasDelve } from "../payWith";
+// CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared cast-timing snapshot
+// predicate. `phases.ts` is a leaf engine module here (it is neither
+// `search.ts` nor `applyMove.ts`, so this module still stays off `moves.ts`'
+// runtime import graph) and the call sits inside a function body, so the
+// state.ts↔phases.ts cycle is never touched at module-evaluation time.
+import { wasCastOffSorceryTiming } from "../phases";
 import { choiceCandidates } from "./choiceCandidates";
 import {
     applyMayPaySubmit,
@@ -427,8 +433,13 @@ function applyTapPlan(
 /** Put the cast spell on the probe's stack exactly as the real cast does
  *  (CR 601.2i): card leaves hand, stack item carries targets / X / mode, the
  *  SPELL_CAST event fires and its triggers are flushed onto the stack above the
- *  spell. Returns false when the move can't be realised. */
-function applyProbeCast(
+ *  spell. Returns false when the move can't be realised.
+ *
+ *  Exported for the producer-census guard (issue #2473): `isDominatedNoOpMove`
+ *  returns only a boolean and no shipped card reads `castOffSorceryTiming` yet,
+ *  so this builder's timing stamp has no reachable observation through the
+ *  public seam. */
+export function applyProbeCast(
     probe: GameState,
     pid: string,
     move: Extract<Move, { kind: "cast-spell" }>
@@ -445,6 +456,15 @@ function applyProbeCast(
         ...(move.targets.length > 0 ? { targets: move.targets } : {}),
         ...(move.chosenX !== undefined ? { chosenX: move.chosenX } : {}),
         ...(move.chosenModeId ? { chosenModeId: move.chosenModeId } : {}),
+        // CR 307.1 / 117.1a / 601.3a (issue #2473) — the third
+        // build-a-spell-StackItem-and-push site. This probe produces no
+        // persisted state, but its whole contract (see the doc comment above)
+        // is "exactly as the real cast does": a probe board that diverges from
+        // the tree's on a flag a card can read is precisely the shape
+        // `isNoOpDelta` would then misjudge. Evaluated pre-push on `probe`.
+        ...(wasCastOffSorceryTiming(probe, pid)
+            ? { castOffSorceryTiming: true }
+            : {}),
     };
     probe.stack.push(stackItem);
     emitSpellCastEvent(probe, stackItem);

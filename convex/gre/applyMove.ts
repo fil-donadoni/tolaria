@@ -65,7 +65,11 @@ import {
 } from "./activationCostPicks";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
-import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
+import {
+    applyAllCombatDamage,
+    buildAutoDamageAssignments,
+    wasCastOffSorceryTiming,
+} from "./phases";
 import {
     markAttacking,
     markDeclaredBlockers,
@@ -630,6 +634,18 @@ export function applyMoveForSearch(
                     : {}),
                 ...(move.chosenModeId
                     ? { chosenModeId: move.chosenModeId }
+                    : {}),
+                // CR 307.1 / 117.1a / 601.3a (issue #2473) — the bot
+                // search-tree `cast-spell` executor is a wholesale
+                // reimplementation of "build a StackItem from a cast", not a
+                // caller of `game.ts`'s commit paths, so it needs its own
+                // stamp (already silently omitted `evoked`/`dashed`/`escaped`
+                // before this change — same gap, this Op closes only this
+                // flag). `next` is the full post-cost-payment clone, still
+                // pre-push, so `wasCastOffSorceryTiming` reads the same
+                // pre-cast board state the real commit paths do.
+                ...(wasCastOffSorceryTiming(next, playerId)
+                    ? { castOffSorceryTiming: true }
                     : {}),
             };
             next.stack.push(stackItem);

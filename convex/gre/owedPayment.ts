@@ -94,6 +94,9 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     buybackPaid: "non-park",
     evoked: "non-park",
     dashed: "non-park",
+    /** CR 601.2 (issue #2473) — a board-state SNAPSHOT taken at announcement
+     *  and carried to the commit; the payer decides nothing about it. */
+    castOffSorceryTiming: "non-park",
     /** ADR 0037 — who ANSWERS choices, not a choice itself. */
     actingPlayerId: "non-park",
     /** CR 118.4 — a scalar deducted at commit; the payer names nothing. */

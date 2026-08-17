@@ -3662,3 +3662,34 @@ export function isSorceryTimingFor(
         state.priorityPlayerId === playerId
     );
 }
+
+/** CR 307.1 / 117.1a / 601.3a — true iff `playerId` casting a spell RIGHT NOW
+ *  could not have been done at sorcery speed: exactly the condition "if you
+ *  cast it any time a sorcery couldn't have been cast" clauses (Necromancy,
+ *  PRD #1975 / #2392, issue #2473) key on. A pure negation of
+ *  {@link isSorceryTimingFor} kept as its own named export so every producer
+ *  reads the SAME sense of the flag instead of each re-deriving
+ *  `!isSorceryTimingFor(...)` and risking an accidental double negative at one
+ *  of them. This is a board-state SNAPSHOT, not a legality verdict — it is
+ *  computed and stamped regardless of whether the cast itself was legal at
+ *  instant speed.
+ *
+ *  WHEN to call it (issue #2473 round-1 review): at the moment the cast is
+ *  PROPOSED (CR 601.2a), never at the moment the stack item is built. On the
+ *  mutation path that means once, in `announceCast` (`convex/game.ts`), with
+ *  the value threaded to the commit on `PendingTarget`/`PendingCast`; a cast
+ *  spans several mutations (target selection, mana payment), and activating a
+ *  mana ability is itself part of casting (CR 601.2g), so a commit-time
+ *  re-derivation can see a suspended triggered mana ability (CR 605.4a —
+ *  Fertile Ground's colour pick) on the stack and call an ordinary
+ *  sorcery-speed cast off-timing. The five sites that build a spell stack item
+ *  in ONE step — the two bot search executors (`applyMove.ts` /
+ *  `search.ts`), the AI dominance probe (`ai/dominance.ts`) and the two
+ *  cast-during-resolution primitives (`castChosenSpell` / `castFaceDown`,
+ *  `state.ts`) — call it immediately pre-push, where the two moments coincide. */
+export function wasCastOffSorceryTiming(
+    state: GameState,
+    playerId: string
+): boolean {
+    return !isSorceryTimingFor(state, playerId);
+}

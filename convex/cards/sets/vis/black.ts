@@ -89,10 +89,18 @@ export const vampiricTutor: CardDefinition = {
 // (`convex/gre/phases.ts:2066-2075`) never calls `fireDelayedTriggers` at all,
 // unlike the five phase boundaries that do (`phases.ts:1919,1930,2019,2030,
 // 2041,2045`). `next-end-step` is a real behavioural divergence, not a
-// synonym (CR 514 cleanup is after the end step). (c) no cast-timing MEMORY —
-// nothing anywhere records whether a spell was cast when a sorcery couldn't
-// have been (repo-wide grep for the concept returns zero hits), which is the
-// condition that arms the sacrifice at all. (d) NOT IN #1975's SCOPE, and the
+// synonym (CR 514 cleanup is after the end step). (c) CLOSED by #2473 —
+// `CardInstanceState.castOffSorceryTiming` (`convex/gre/state.ts`, CR 307.1 /
+// 117.1a / 601.3a) now records exactly this, stamped from the shared
+// `wasCastOffSorceryTiming` predicate (`convex/gre/phases.ts`) at every
+// spell-cast site (normal cast, alt/additional cost, non-hand-zone cast, the
+// bot search-tree executor, and the CR 608.2g cast-during-resolution
+// primitives), inherited onto the resulting permanent for free (the
+// `escaped`/`evoked`/`dashed` precedent), and cleared on both transient-exit
+// paths so a countered or bounced cast never leaks it into a later recast.
+// Still engine-capability-only — no card reads it yet; Necromancy's own
+// cleanup-step delayed trigger (gap (b)) will be the first consumer once
+// this card unblocks. (d) NOT IN #1975's SCOPE, and the
 // reason this card stays blocked even if #1975 lands in full: there is no
 // SELF-granted "you may cast this spell as though it had flash". The only
 // cast-timing permission in the engine is the PLAYER-scoped Teferi grant
