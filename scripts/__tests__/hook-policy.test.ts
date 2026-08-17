@@ -79,6 +79,14 @@ beforeAll(() => {
     git(["config", "user.email", "t@example.invalid"]);
     git(["config", "user.name", "test"]);
     fs.writeFileSync(path.join(mainCheckout, "README.md"), "x\n");
+    // Rule 0 lets gitignored paths through — the loop writes its telemetry and
+    // its receipts into the main checkout by design — so the fixture needs a
+    // real .gitignore, not a path convention.
+    fs.writeFileSync(
+        path.join(mainCheckout, ".gitignore"),
+        ".claude/telemetry/\n.claude/receipts/\n*.local\n"
+    );
+    fs.mkdirSync(path.join(mainCheckout, "docs", "adr"), { recursive: true });
     git(["add", "-A"]);
     git(["commit", "-qm", "init"]);
 
@@ -268,6 +276,11 @@ describe("deny-guard — no discarding git operations in the shared main checkou
         "git clean -fd",
         "git commit -am 'wip'",
         "git commit -a -m 'wip'",
+        // `git add -A && git commit -m` is `commit -a` in two steps: it sweeps
+        // whatever another session left in the tree into an unrelated commit.
+        "git add -A",
+        "git add --all",
+        "git add .",
     ];
 
     it("denies them in the main checkout", () => {
@@ -298,10 +311,124 @@ describe("deny-guard — no discarding git operations in the shared main checkou
             "git commit -m 'msg'",
             "git pull --ff-only",
             "git worktree add ../repo-issue-9 -b feat/issue-9",
+            // Naming the path cannot pick up a file you did not mean.
+            "git add src/foo.ts",
+            "git add docs/adr/0101-x.md CONTEXT.md",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
+    });
+});
+
+describe("deny-guard — nothing authors a versioned file in the main checkout", () => {
+    /** An Edit/Write PreToolUse payload. */
+    function write(filePath: string, cwd: string, tool = "Write") {
+        return {
+            session_id: "sess-1",
+            hook_event_name: "PreToolUse",
+            tool_name: tool,
+            tool_input: { file_path: filePath, content: "x" },
+            cwd,
+        };
+    }
+
+    it("denies authoring a versioned file there, whatever the authoring tool", () => {
+        // The shape that produced ~40 documentation-only commits straight on
+        // main: a discussion writes its ADR wherever the session happens to be.
+        const targets = [
+            "docs/adr/0101-something.md",
+            "CONTEXT.md",
+            "README.md",
+            "src/components/board/Hand.tsx",
+        ];
+        for (const tool of ["Write", "Edit", "MultiEdit", "NotebookEdit"]) {
+            for (const t of targets) {
+                const r = runHook(
+                    DENY_GUARD,
+                    write(path.join(mainCheckout, t), mainCheckout, tool)
+                );
+                expect(denied(r), `expected DENY for ${tool} ${t}`).toBe(true);
+                expect(r.stderr).toMatch(/worktree/);
+            }
+        }
+    });
+
+    it("denies it no matter where the SESSION is — the path decides, not the cwd", () => {
+        // A session sitting in its own worktree can still reach across into the
+        // shared tree, and that does exactly the same damage.
+        const r = runHook(
+            DENY_GUARD,
+            write(path.join(mainCheckout, "CONTEXT.md"), linkedWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("denies a file whose directory does not exist yet", () => {
+        // A new ADR is the common case and its parent may be new too; the probe
+        // has to walk up to an existing ancestor rather than give up.
+        const r = runHook(
+            DENY_GUARD,
+            write(
+                path.join(mainCheckout, "docs", "brand", "new", "note.md"),
+                mainCheckout
+            )
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("ALLOWS the same write inside a linked worktree — that is the whole point", () => {
+        for (const t of ["docs/adr/0101-something.md", "CONTEXT.md"]) {
+            const r = runHook(
+                DENY_GUARD,
+                write(path.join(linkedWorktree, t), linkedWorktree)
+            );
+            expect(r.code, `expected ALLOW in worktree for: ${t}`).toBe(0);
+        }
+    });
+
+    it("ALLOWS gitignored paths in the main checkout — the loop writes them by design", () => {
+        // green-sha, the claim ledger and every subagent receipt live here and
+        // cannot dirty anyone's tree. Denying them would break the loop itself.
+        for (const t of [
+            ".claude/telemetry/green-sha",
+            ".claude/receipts/batch-1/issue-2.json",
+            "settings.local",
+        ]) {
+            const r = runHook(
+                DENY_GUARD,
+                write(path.join(mainCheckout, t), mainCheckout)
+            );
+            expect(r.code, `expected ALLOW for gitignored: ${t}`).toBe(0);
+        }
+    });
+
+    it("ALLOWS writes outside any repository", () => {
+        const r = runHook(
+            DENY_GUARD,
+            write(path.join(tmp, "scratch.md"), mainCheckout)
+        );
+        expect(r.code).toBe(0);
+    });
+
+    it("ALLOWS everything under the visible escape hatch", () => {
+        const r = runHook(
+            DENY_GUARD,
+            write(path.join(mainCheckout, "CONTEXT.md"), mainCheckout),
+            { TOLARIA_ALLOW_MAIN_EDIT: "1" }
+        );
+        expect(r.code).toBe(0);
+    });
+
+    it("does not touch READS", () => {
+        const r = runHook(DENY_GUARD, {
+            session_id: "s",
+            hook_event_name: "PreToolUse",
+            tool_name: "Read",
+            tool_input: { file_path: path.join(mainCheckout, "CONTEXT.md") },
+            cwd: mainCheckout,
+        });
+        expect(r.code).toBe(0);
     });
 });
 
