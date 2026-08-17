@@ -26,6 +26,7 @@
         "ladder": "bun scripts/ladder.ts",
         "queue:plan": "bun scripts/queue-plan.ts",
         "queue:train": "bun scripts/train-order.ts",
+        "review:receipt": "bun scripts/write-review-receipt.ts",
         "loop:scorecard": "bun scripts/loop-scorecard.ts",
         "telemetry:ingest": "bun scripts/telemetry-ingest.ts",
         "telemetry:dash": "bun scripts/telemetry-serve.ts",
