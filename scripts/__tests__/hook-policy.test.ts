@@ -432,6 +432,55 @@ describe("deny-guard — nothing authors a versioned file in the main checkout",
     });
 });
 
+describe("deny-guard — a leading `cd` names the directory the rules judge", () => {
+    it("allows a discarding op in a worktree reached by `cd`, from a session sitting in main", () => {
+        // The normal shape now that every authored file belongs in a worktree.
+        // Judging it by the session's cwd denied a legal stash.
+        for (const cmd of [
+            `cd ${linkedWorktree} && git stash`,
+            `cd ${linkedWorktree} && git reset --hard origin/main`,
+            `cd '${linkedWorktree}' && git checkout -- file.ts`,
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+            expect(r.code, `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(0);
+        }
+    });
+
+    it("DENIES a discarding op that `cd`s INTO the main checkout from a worktree", () => {
+        // The half that matters more: this used to be allowed, because the
+        // payload said "worktree" while the command operated on the shared tree.
+        const r = runHook(
+            DENY_GUARD,
+            bash(`cd ${mainCheckout} && git reset --hard`, linkedWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("resolves a RELATIVE cd against the session's cwd", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("cd ../repo && git stash", linkedWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("ignores a cd to somewhere that does not exist, rather than guessing", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("cd /nope/nowhere && git stash", mainCheckout)
+        );
+        expect(denied(r), "still judged by the session cwd").toBe(true);
+    });
+
+    it("only reads a LEADING cd — a buried one is out of scope", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(`echo hi && cd ${linkedWorktree} && git stash`, mainCheckout)
+        );
+        expect(denied(r)).toBe(true);
+    });
+});
+
 describe("deny-guard — scope", () => {
     it("ignores non-Bash tools", () => {
         const r = runHook(DENY_GUARD, {

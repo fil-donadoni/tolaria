@@ -112,6 +112,43 @@ esac
 [ -n "$cmd" ] || exit 0
 
 # ─────────────────────────────────────────────────────────────────────────────
+# The command's ADDRESS, not the session's.
+#
+# `cd ../repo-wt-x && git stash` is how a session operating out of one tree does
+# work in another — and it is now the NORMAL shape, since every file a session
+# authors belongs in a worktree (§ 0). The payload's `.cwd` still names the
+# SESSION's directory, so judging that command by `.cwd` denied a perfectly
+# legal stash in a worktree because the session happened to sit in the main
+# checkout. Observed within the hour § 0 landed.
+#
+# It cuts the other way too, which is the more important half: `cd ../repo &&
+# git reset --hard` FROM a worktree used to be allowed, because `.cwd` said
+# "worktree". Reading the leading `cd` makes both verdicts follow the directory
+# the command actually operates in.
+#
+# Only a LEADING `cd` counts, and only the first one. A `cd` buried mid-script,
+# or a `git -C <dir>`, still escapes this — same class of hole as the `cat >`
+# heredoc in § 0, and narrowing it further means parsing shell, which is how
+# guards start denying legitimate work at random.
+# ─────────────────────────────────────────────────────────────────────────────
+_first=$(printf '%s' "$cmd" | head -1 | sed -e 's/&&.*//' -e 's/;.*//' \
+    -e 's/[[:space:]]*$//')
+case "$_first" in
+cd\ *)
+    _target=$(printf '%s' "$_first" | sed -e 's/^cd[[:space:]]*//' \
+        -e "s/^['\"]//" -e "s/['\"]$//")
+    case "$_target" in
+    /*) _candidate="$_target" ;;
+    *) _candidate="$cwd/$_target" ;;
+    esac
+    if [ -d "$_candidate" ]; then
+        _resolved=$(cd "$_candidate" 2>/dev/null && pwd)
+        [ -n "$_resolved" ] && cwd="$_resolved"
+    fi
+    ;;
+esac
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Everything below matches against SEGMENTS, never the whole command string.
 #
 # A `tool_input.command` is not one command. It is a script: several commands
