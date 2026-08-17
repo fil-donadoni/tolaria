@@ -107,6 +107,25 @@ const subtypesCreature: CardDefinition = {
 };
 registerTokenDefinition(subtypesCreature);
 
+/** "As this creature enters, choose a NONLAND card name" — the Meddling Mage
+ *  shape, the one that exercises the `name` kind's `filter`. */
+const FILTERED_NAME_ID = "test-only-as-enters-name-filtered";
+const filteredNameCreature: CardDefinition = {
+    id: FILTERED_NAME_ID,
+    rarity: "common",
+    name: "Test Filtered Name Creature",
+    oracleText: "As this creature enters, choose a nonland card name.",
+    manaCost: { U: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Wizard"],
+    power: 2,
+    toughness: 2,
+    entersWith: {
+        asEnters: [{ kind: "name", filter: { excludeType: "Land" } }],
+    },
+};
+registerTokenDefinition(filteredNameCreature);
+
 /** A sorcery whose Effect Script creates `count` tokens that each owe an
  *  as-enters choice — the row-C replay fixture. */
 const TOKEN_MAKER_ID = "test-only-as-enters-token-maker";
@@ -704,6 +723,31 @@ describe("as-enters `name` kind (CR 614.1c, ADR 0100 D3)", () => {
         expect(entered.chosenSubtypes).toEqual(["Goblin"]);
     });
 
+    it("CR 614.1c — a declared `filter` is ENFORCED at submit, fail-closed", () => {
+        const state = boardWithGraveyard([filteredNameCreature]);
+        reanimateAll(state);
+        expect(head(state).asEntersKind).toBe("name");
+
+        // "choose a nonland card name" — a basic land name is rejected, and
+        // nothing is committed: the entry is still staged and still owes.
+        expect(() =>
+            applyNameCardSubmit(state, { playerId: "p1", cardName: "Plains" })
+        ).toThrow(/Not a legal card name/);
+        expect(state.stagedEntries).toHaveLength(1);
+        expect(battlefieldIds(state)).not.toContain("staged-0");
+
+        // …and a name the filter admits goes through the same route.
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "grizzly bears",
+        });
+        expect(state.stagedEntries).toBeUndefined();
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "staged-0"
+        )!;
+        expect(entered.chosenName).toBe(grizzlyBears.name);
+    });
+
     it("still rejects an unregistered name", () => {
         const state = boardWithGraveyard([nameCreature]);
         reanimateAll(state);
@@ -715,6 +759,47 @@ describe("as-enters `name` kind (CR 614.1c, ADR 0100 D3)", () => {
             })
         ).toThrow(/Not a recognized card name/);
         expect(state.stagedEntries).toHaveLength(1);
+    });
+});
+
+// --- CR 400.7: no memory of a previous existence ---------------------------
+
+describe("as-enters park vs CR 400.7 (no memory of a previous existence)", () => {
+    it("a stale answered field from a PREVIOUS existence does not ride the park onto the battlefield", () => {
+        // The exit side does NOT reset: a permanent that died holding an
+        // as-enters answer still carries it in the graveyard. Reanimate it onto
+        // a park for an UNRELATED kind (`payLife` — it owes no `name` and no
+        // `subtypes` choice), and CR 400.7 says the new object enters with
+        // neither. The entry tail re-applies only what an ANSWER wrote.
+        const state = boardWithGraveyard([payLifeCreature]);
+        const dead = state.players[0].graveyard[0];
+        dead.chosenName = lightningBolt.name;
+        dead.chosenSubtypes = ["Forest", "Island"];
+
+        reanimateAll(state);
+        expect(head(state).asEntersKind).toBe("payLife");
+        answer(state, ["0"]);
+
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "staged-0"
+        )!;
+        expect(entered.chosenName).toBeUndefined();
+        expect(entered.chosenSubtypes).toBeUndefined();
+    });
+
+    it("the entry's OWN answer still survives when a stale value was there first", () => {
+        // The other half of the same invariant: clearing at park time must not
+        // eat the answer this entry actually receives.
+        const state = boardWithGraveyard([subtypesCreature]);
+        state.players[0].graveyard[0].chosenSubtypes = ["Forest"];
+
+        reanimateAll(state);
+        answer(state, ["Goblin"]);
+
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "staged-0"
+        )!;
+        expect(entered.chosenSubtypes).toEqual(["Goblin"]);
     });
 });
 

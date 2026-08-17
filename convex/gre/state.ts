@@ -10716,6 +10716,32 @@ export function stageAsEntersEntry(
     parkedStackItemId: string | undefined,
     extra?: { tokenEntry?: StagedEntry["tokenEntry"] }
 ): void {
+    if (origin === "effect") {
+        // CR 400.7 — "an object that moves from one zone to another becomes a
+        // new object with no memory of, or relation to, its previous
+        // existence." The UNPARKED leg of this same path clears these three
+        // slots as the permanent enters: `resetBattlefieldTransientState`
+        // deletes `chosenName` (CR 614.12, issue #1953) and `chosenSubtypes`
+        // (CR 603.6b), and `stageReanimatedOnBattlefield` clears `attachedTo`
+        // beside it. A PARKED entry re-runs that leg later and then re-applies
+        // whatever its as-enters ANSWERS wrote (`runStagedEntryTail`), so the
+        // CR 400.7 clean has to happen HERE, at park time: it is what makes
+        // that re-apply safe, turning "restore whatever is on the instance"
+        // into "carry only what an answer wrote". Without it, a permanent that
+        // died naming a card keeps `chosenName` in the graveyard (the reset is
+        // on the ENTRY side, not the exit side) and a reanimation that parks on
+        // an UNRELATED kind — `payLife`, `mode`, `aura-host` — would carry the
+        // stale answer back onto the battlefield.
+        //
+        // `effect` origin ONLY, and deliberately so. A `spell` origin's object
+        // is a stack item whose own `resolveSteps` may legitimately have
+        // written `chosenName` before this park (`setSelfChosenName` writes
+        // onto the resolving item), and a `token` origin's object was minted
+        // moments ago and has no previous existence to forget.
+        card.attachedTo = undefined;
+        delete card.chosenName;
+        delete card.chosenSubtypes;
+    }
     const presented = presentedDefId(card);
     const entry: StagedEntry = {
         card,
@@ -11063,12 +11089,20 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
             // permanent entered with.
             //
             // These are exactly the fields `applyAsEntersAnswer` writes that
-            // `resetBattlefieldTransientState` clears: `attachedTo`
-            // (`aura-host`), `chosenName` (`name`, deleted there per CR 614.12
-            // / issue #1953) and `chosenSubtypes` (`subtypes`, CR 603.6b). The
-            // other kinds write fields that reset does not touch (`mode` →
-            // `chosenModeId`, `body`/`anchor` → the printed characteristics,
-            // `copy` → the whole copiable set, `payLife` → the player's life).
+            // the entry-side reset clears: `attachedTo` (`aura-host`),
+            // `chosenName` (`name`, deleted by
+            // `resetBattlefieldTransientState` per CR 614.12 / issue #1953) and
+            // `chosenSubtypes` (`subtypes`, CR 603.6b). The other kinds write
+            // fields that reset does not touch (`mode` → `chosenModeId`,
+            // `body`/`anchor` → the printed characteristics, `copy` → the whole
+            // copiable set, `payLife` → the player's life).
+            //
+            // Reading the value straight off the instance is sound ONLY because
+            // `stageAsEntersEntry` cleared these same three slots when it parked
+            // this entry (the CR 400.7 clean applied early — see there): a value
+            // present now was necessarily written by an answer THIS entry
+            // received, never carried over from a previous existence. Carry only
+            // what we wrote — never trust what happens to be there.
             const answered = {
                 attachedTo: entry.card.attachedTo,
                 chosenName: entry.card.chosenName,

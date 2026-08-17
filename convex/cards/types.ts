@@ -2209,7 +2209,21 @@ export type AsEntersChoice =
      *  `CardInstanceState.chosenModeId` (Voice of All, Prismatic Ward). */
     | { kind: "mode" }
     /** CR 614.1c — "as this enters, name a card" (Meddling Mage); the answer is
-     *  written to `CardInstanceState.chosenName`. */
+     *  written to `CardInstanceState.chosenName`. `filter` narrows the legal
+     *  name space (Meddling Mage's "choose a nonland card name") and is
+     *  ENFORCED fail-closed at submit — `applyNameCardSubmit`
+     *  (`convex/gre/pendingChoiceSubmit.ts`) reads it off the staged entry and
+     *  rejects a name it does not match, so the definition stays the single
+     *  source and no copy rides the prompt.
+     *
+     *  Not yet read on the BOT side: `nameCardDefaultFor` (`src/lib/ai/
+     *  bot-view.ts`) defaults to the chooser's top library card or "Plains",
+     *  neither of which is filter-aware, so a bot answering a filtered `name`
+     *  choice would be rejected by the check above. Unreachable today (no
+     *  shipped card populates this union — `asEntersUnion.test.ts`), and
+     *  making the default filter-aware needs the filter projected into the bot
+     *  view plus a registry scan for a satisfying name — bot work that belongs
+     *  with the card that first ships it. tracked-by: #2467 */
     | { kind: "name"; filter?: EffectCardFilter }
     /** CR 614.1c — "as this enters, choose N <subtype>s" (Illusionary Terrain);
      *  the answer is written to `CardInstanceState.chosenSubtypes`. */

@@ -21,10 +21,12 @@ import {
     normalizeMayPayCost,
     grantKnowledge,
     emitLibrarySearchedEvent,
+    findStagedEntry,
     type CardInstanceState,
     type GameState,
     type PendingChoice,
 } from "./state";
+import { handCardMatchesFilter } from "./alternativeCost";
 import { finalizeAsEnters } from "./asEnters";
 import {
     isCategorizedCoverLegal,
@@ -406,6 +408,26 @@ export function applyNameCardSubmit(
     // over there would leave both throwing `Stack item not found` on a choice
     // nobody can answer: the ADR 0047 / #2283 freeze shape.
     if (head.stackItemId === "" && head.asEntersCardId !== undefined) {
+        // CR 614.1c — the as-enters `name` kind may DECLARE a filter narrowing
+        // the legal name space (Meddling Mage's "choose a nonland card name").
+        // Read off the staged entry's own owed head, so the card definition
+        // stays the single source and no copy of the filter has to ride the
+        // prompt. Fail-CLOSED, the standing rule for `EffectCardFilter`: a name
+        // the filter rejects throws here — beside the `nameRestriction` check
+        // above and before anything is committed — and the chooser is asked
+        // again, rather than the filter silently admitting everything.
+        // `handCardMatchesFilter` is the shared registry-definition matcher
+        // (it is typed on the definition id it reads, not on a hand card), so
+        // this is the same matcher the alt-cost hand leg and `discardFilter`
+        // use rather than a third copy.
+        const owedName = findStagedEntry(state, head.asEntersCardId)?.owed[0];
+        if (
+            owedName?.kind === "name" &&
+            owedName.filter !== undefined &&
+            !handCardMatchesFilter({ card: { id: def.id } }, owedName.filter)
+        ) {
+            throw new Error("Not a legal card name for this choice");
+        }
         finalizeAsEnters(state, [canonical]);
         return;
     }
