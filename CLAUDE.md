@@ -281,6 +281,15 @@ A queued heavy gate is not a hang. **The full gate is blocked inside an issue
 worktree** (`feat/issue-N`/`fix/issue-N` → exit 1); `TOLARIA_ALLOW_FULL_SUITE=1`
 is the orchestrator-only escape hatch.
 
+**Worktree isolation — the shared checkout is read-only.** Every file you
+author goes in a worktree, **including one line of markdown** (markdown is
+gated too, so an unfinished ADR there reds `check:all` for every other session
+on this machine). Enforced by `deny-guard.sh` § 0; gitignored paths stay
+writable; per-session hatch `TOLARIA_ALLOW_MAIN_EDIT=1 claude`. Docs-only
+lane — `bun run wt:docs <slug>` → write → `bun run docs:ship` (`check:docs`:
+seconds, no lock). Anything else: own worktree + full gate. Rationale and
+measurements: `docs/agents/quality-gates.md` § Worktree isolation.
+
 **Fresh worktrees need `bun run worktree:init`.** The tell for a missing
 bootstrap: **`216 files failed, 0 tests failed`** (import errors, not a red
 baseline).

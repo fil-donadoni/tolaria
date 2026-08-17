@@ -23,13 +23,93 @@ tool=$(printf '%s' "$payload" | jq -r '.tool_name // ""')
 cmd=$(printf '%s' "$payload" | jq -r '.tool_input.command // ""')
 cwd=$(printf '%s' "$payload" | jq -r '.cwd // ""')
 
-[ "$tool" = "Bash" ] || exit 0
-[ -n "$cmd" ] || exit 0
-
 deny() {
     printf '%s\n' "$1" >&2
     exit 2
 }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 0. Nothing AUTHORS a versioned file in the shared main checkout.
+#
+# Rule 4 below stops a session from DESTROYING another session's work there.
+# This one stops it from creating the mess in the first place, which telemetry
+# says is the commoner event by far: ~40 documentation-only commits landed
+# straight on `main` over 30 days — ADRs, PRDs, CONTEXT.md updates, findings —
+# every one of them the residue of a discussion, not of a task anybody would
+# have thought to isolate. Two of those 30 days also carry a
+# `Merge branch 'main' of …` commit: local `main` had diverged from origin.
+#
+# The damage is not cosmetic, because DOCS ARE GATED. `format:check` covers
+# `**/*.md`; `cr:lint` reads citations out of prose; `adr-index.test.ts`,
+# `resident-context-budget.test.ts`, `findings.test.ts`, `project-skills.test.ts`
+# and `action-space.test.ts` all read files a discussion writes. A half-written
+# ADR sitting in the shared checkout therefore reds `check:all` for every OTHER
+# session on this machine, on a file that has nothing to do with their work —
+# and the green-main invariant means they must stop and deal with it.
+#
+# Scope, deliberately narrow in three directions:
+#   * Only the MAIN checkout. Linked worktrees are the whole point — they stay
+#     fully writable. The distinction is git's own (git-dir == common-dir), not
+#     a path convention.
+#   * Only VERSIONED paths. Anything `git check-ignore` claims — the telemetry
+#     dir, the receipts dir, `*.local` — cannot dirty anyone's tree, so it is
+#     allowed: the loop writes `green-sha` and its receipts from here by design.
+#   * Only the authoring TOOLS. A `cat > file` heredoc in Bash still gets
+#     through; matching redirections in a command string is the false-denial
+#     shape the header below is about, and the tools are what a model actually
+#     uses to write a document.
+#
+# Escape hatch, visible and per-session, for the case where a human really does
+# want to edit the main checkout (a merge conflict, a hotfix):
+#   TOLARIA_ALLOW_MAIN_EDIT=1 claude
+# ─────────────────────────────────────────────────────────────────────────────
+case "$tool" in
+Edit | Write | MultiEdit | NotebookEdit)
+    target=$(printf '%s' "$payload" |
+        jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')
+    [ -n "$target" ] || exit 0
+    [ "${TOLARIA_ALLOW_MAIN_EDIT:-}" = "1" ] && exit 0
+
+    # A new file's directory may not exist yet — walk up to the first that does,
+    # so `git` has something to answer about.
+    probe=$(dirname "$target")
+    while [ ! -d "$probe" ]; do
+        parent=$(dirname "$probe")
+        [ "$parent" != "$probe" ] || break
+        probe="$parent"
+    done
+    [ -d "$probe" ] || exit 0
+
+    git_dir=$(git -C "$probe" rev-parse --absolute-git-dir 2>/dev/null || true)
+    common_dir=$(git -C "$probe" rev-parse --path-format=absolute \
+        --git-common-dir 2>/dev/null || true)
+    # Not a repo, or a LINKED worktree (git-dir differs from common-dir) → fine.
+    [ -n "$git_dir" ] && [ "$git_dir" = "$common_dir" ] || exit 0
+    # Gitignored → invisible to `git status`, cannot break anyone's gate.
+    git -C "$probe" check-ignore -q -- "$target" 2>/dev/null && exit 0
+
+    deny "BLOCKED: writing a versioned file in the shared main checkout.
+  $target
+
+Other sessions gate this tree. Markdown is gated too (format:check, cr:lint,
+adr-index, resident-context-budget, findings, project-skills), so an unfinished
+ADR or a reformatted doc here reds check:all for everybody else — 'it is only a
+document' is exactly how ~40 such commits reached main. Work in a worktree:
+
+  git worktree add ../tolaria-wt-<task> -b <branch> origin/main
+  cd ../tolaria-wt-<task>
+
+For a documentation-only change there is a one-command lane:
+  bun run wt:docs <task>      # worktree + branch, from origin/main
+  bun run docs:ship           # doc gate, PR, merge
+
+(Gitignored paths — .claude/telemetry, .claude/receipts — stay writable here.
+Genuinely need this file, in this tree? Relaunch with TOLARIA_ALLOW_MAIN_EDIT=1.)"
+    ;;
+esac
+
+[ "$tool" = "Bash" ] || exit 0
+[ -n "$cmd" ] || exit 0
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Everything below matches against SEGMENTS, never the whole command string.
@@ -149,8 +229,11 @@ fi
 # normal state, not a mess to clean up. A `git checkout --`, `stash`,
 # `reset --hard` or `clean -f` throws away work that belongs to somebody else
 # and is unrecoverable; `git commit -a` sweeps their in-flight edits into an
-# unrelated commit (observed). Branch switching and ordinary commits stay
-# allowed — the loop's own §0 does `git checkout main && git pull`.
+# unrelated commit (observed). `git add -A` / `git add .` is the same sweep in
+# two steps and is denied for the same reason — naming the paths (`git add
+# <path>`) is not, since that cannot pick up a file you did not mean. Branch
+# switching and ordinary commits stay allowed — the loop's own §0 does
+# `git checkout main && git pull`.
 #
 # "Main checkout" is git's own distinction, not a path convention: a linked
 # worktree's git-dir differs from its common-dir, the main one's does not.
@@ -164,14 +247,15 @@ if [ -n "$cwd" ] && [ -d "$cwd" ]; then
             seg_has '(^|[;&|[:space:]])git[[:space:]]+stash([[:space:]]+(push|save))?([[:space:]]*$|[[:space:]]+-)' ||
             seg_has '(^|[;&|[:space:]])git[[:space:]]+reset[[:space:]]+--hard' ||
             seg_has '(^|[;&|[:space:]])git[[:space:]]+clean[[:space:]]+-[a-z]*f' ||
-            seg_has '(^|[;&|[:space:]])git[[:space:]]+commit[[:space:]]+(-[a-zA-Z]*a|--all)'; then
+            seg_has '(^|[;&|[:space:]])git[[:space:]]+commit[[:space:]]+(-[a-zA-Z]*a|--all)' ||
+            seg_has '(^|[;&|[:space:]])git[[:space:]]+add[[:space:]]+(-A|--all|\.)([[:space:]]|$)'; then
             deny "BLOCKED: discarding git operation in the shared main checkout ($cwd).
 Other sessions are editing this tree right now — modified files here are normal,
 not a mess to clean up, and discarding them is unrecoverable. Do the work in
 your own worktree instead:
   git worktree add ../<repo>-<task> -b <branch> && cd ../<repo>-<task>
-(\`git status\`, \`git stash list\`, \`git checkout <branch>\` and \`git commit -m\`
-without \`-a\` remain allowed.)"
+(\`git status\`, \`git stash list\`, \`git checkout <branch>\`, \`git add <path>\` and
+\`git commit -m\` without \`-a\` remain allowed.)"
         fi
     fi
 fi

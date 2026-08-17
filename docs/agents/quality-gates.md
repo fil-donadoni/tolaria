@@ -118,3 +118,61 @@ gate is not a hang; stale locks are auto-pruned.
 The full gate is blocked inside an issue worktree (`feat/issue-N` /
 `fix/issue-N` → exit 1): the merge-train runs it once per landing tree.
 `TOLARIA_ALLOW_FULL_SUITE=1` is the orchestrator-only escape hatch.
+
+## Worktree isolation, and the documentation lane
+
+Measured over the 30 days to 2026-08-17: **~40 documentation-only commits
+landed straight on `main`** — ADRs, PRDs, CONTEXT.md entries, findings notes,
+several with messages like `update context` or `findings allineati`. Two of
+those days also carry a `Merge branch 'main' of …`: local `main` had diverged
+from origin and was reconciled with a merge commit. Meanwhile 31 worktrees had
+accumulated, several dirty, several on already-merged branches.
+
+The cost is not tidiness. **Markdown is gated**: `format:check` covers
+`**/*.md`, `cr:lint` reads CR citations out of prose, and `adr-index`,
+`resident-context-budget`, `findings`, `project-skills` and `action-space` all
+read documentation files. So an unfinished ADR sitting in the shared checkout
+reds `check:all` for every OTHER session on this machine, on a file unrelated
+to their work — which under the green-main invariant they must stop and deal
+with. The user-visible symptom is "I launch three sessions and they fight".
+
+The rule "never work in the shared main checkout" already existed, but it lived
+inside `.claude/skills/process-gh-issues/SKILL.md` — so `/process-gh-issues`
+isolated every time and an ordinary discussion never did. It is now in
+`CLAUDE.md`, and enforced:
+
+- `deny-guard.sh` § 0 denies `Edit`/`Write`/`MultiEdit`/`NotebookEdit` on a
+  **versioned** path in the main checkout. Gitignored paths (`.claude/telemetry`,
+  `.claude/receipts`, `*.local`) stay writable — the loop writes `green-sha` and
+  its receipts there by design. Linked worktrees are untouched. Per-session
+  hatch: `TOLARIA_ALLOW_MAIN_EDIT=1 claude`.
+- `deny-guard.sh` § 4 additionally denies `git add -A` / `git add .` there —
+  `git commit -a` in two steps, and the same sweep of another session's work.
+- Known hole, accepted: a `cat > file` heredoc in Bash still gets through.
+  Matching redirections inside a command string is the false-denial shape § 4's
+  header is about, and the authoring tools are what a model actually uses.
+
+**The documentation lane** is the door beside that wall. A prose change cannot
+break the engine, so it does not owe the heavy suite:
+
+```
+bun run wt:docs <slug>     # worktree + docs/<slug> branch off origin/main
+… write the document …
+bun run docs:ship          # check:docs → commit → rebase → push → PR → merge → teardown
+bun run docs:ship --no-merge   # …but leave the PR open
+```
+
+`check:docs` = `format:check` + `cr:lint` + the five guards that read prose
+(`DOC_GATE_TESTS` in `scripts/docs-lane.ts`). Seconds, `light` tier, no
+machine-wide lock — which is what makes a PR per discussion affordable instead
+of a tax people route around.
+
+`docs:ship` refuses a changeset containing anything that is not `*.md` or under
+`docs/`: a mixed change goes through the ordinary branch and the full gate.
+
+**The list is the lane's weak point, so it is guarded.** `docs-lane.test.ts`
+runs a census: any test under `scripts/__tests__` whose source reads a
+documentation path must be either in `DOC_GATE_TESTS` or in
+`DOC_GATE_TESTS_EXCLUDED` with a recorded reason, and `check:docs:inner` in
+`package.json` must run exactly the covered set. A new doc guard that nobody
+adds to the lane fails the census rather than silently narrowing the gate.
