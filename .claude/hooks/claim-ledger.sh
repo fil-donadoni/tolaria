@@ -65,8 +65,17 @@ segments=$(printf '%s' "$cmd" | sed -e 's/&&/\
 /g')
 
 issues=$(printf '%s\n' "$segments" | awk '
-    # A claim segment names both the edit and the label.
-    !/gh[ \t]+issue[ \t]+edit/ { next }
+    # A claim segment IS a `gh issue edit` invocation — it does not merely
+    # CONTAIN those words. Prose travels inside commands (commit bodies, PR
+    # bodies, echoed explanations), and matching anywhere in the string wrote a
+    # phantom claim on #2445 into the ledger from a commit MESSAGE that quoted
+    # the command shape while explaining this very hook. A phantom claim is not
+    # cosmetic: `claim-sweep.sh` releases what the ledger says this session
+    # took, so it can unclaim another session live work. (That time it survived
+    # only because the in-flight probe found the other session pushed branch.)
+    # Anchoring at the start of the segment — allowing an env-var prefix — is
+    # what separates running the command from talking about it.
+    !/^[ \t]*([A-Za-z_][A-Za-z0-9_]*=[^ \t]*[ \t]+)*gh[ \t]+issue[ \t]+edit/ { next }
     !/--add-label[ \t]+in-progress/ { next }
     {
         # Everything between `edit` and the first option is the issue list.

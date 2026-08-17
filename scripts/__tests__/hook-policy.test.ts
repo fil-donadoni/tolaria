@@ -1108,6 +1108,48 @@ describe("claim-ledger — records what THIS session claimed", () => {
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
+    it("does not record a claim from PROSE that quotes the command", () => {
+        // This happened. A commit message explaining the batch-claim bug quoted
+        // the command shape; the hook matched the two patterns anywhere in the
+        // string and wrote a phantom claim on #2445 — an issue another session
+        // was actively working. `claim-sweep.sh` releases what the ledger says
+        // this session took, so a phantom claim can unclaim live work; that one
+        // survived only because the other session had already pushed a branch.
+        const dir = fs.mkdtempSync(
+            path.join(os.tmpdir(), "hook-ledger-prose-")
+        );
+        const file = path.join(dir, ".claude", "telemetry", "claims.jsonl");
+        // Both patterns on ONE line, so the same-segment rule cannot be what
+        // saves it: a real invocation STARTS its segment, prose does not.
+        const prose = [
+            "git commit -m 'the old hook matched gh issue edit 2445 --add-label in-progress written inside this very message'",
+            "echo 'see also: gh issue edit 1969 --add-label in-progress'",
+            "# gh issue edit 1851 --add-label in-progress   (a commented example)",
+        ].join("\n");
+
+        runHook(CLAIM_LEDGER, bash(prose, "/x", "sess-C"), {
+            CLAUDE_PROJECT_DIR: dir,
+        });
+        expect(
+            fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "",
+            "prose wrote a claim row"
+        ).toBe("");
+
+        // …and the real invocation, chained behind another command, still counts.
+        runHook(
+            CLAIM_LEDGER,
+            bash(
+                "git fetch origin main && gh issue edit 2445 --add-label in-progress",
+                "/x",
+                "sess-C"
+            ),
+            { CLAUDE_PROJECT_DIR: dir }
+        );
+        expect(fs.readFileSync(file, "utf8")).toContain('"issue":2445');
+
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
     it("never blocks — it is an observer", () => {
         const r = runHook(CLAIM_LEDGER, bash("rm -rf /", "/x"), {
             CLAUDE_PROJECT_DIR: projectDir,
