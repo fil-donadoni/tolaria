@@ -22,7 +22,7 @@ registerTokenDefinition({
     subtypes: ["Equipment"],
 });
 
-describe("Stoneforge Mystic (CR 603.6a ETB / 701.19 / 400.7 / 701.20, issue #677)", () => {
+describe("Stoneforge Mystic (CR 603.6a ETB / 701.23 / 400.7 / 701.24, issue #677)", () => {
     it("ETB: may search for an Equipment card and put it into hand (optional, count 0..1)", () => {
         const mystic = makeInstance(stoneforgeMystic.id, {
             id: "mystic1",

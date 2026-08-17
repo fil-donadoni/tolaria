@@ -267,7 +267,7 @@ describe("Elvish Archers (first strike, CR 702.7)", () => {
     });
 });
 
-describe("Shanodin Dryads (forestwalk evasion, CR 702.13b)", () => {
+describe("Shanodin Dryads (forestwalk evasion, CR 702.14b)", () => {
     it("cannot be blocked when defender controls a Forest", () => {
         const dryads = makeInstance(shanodinDryads.id, { id: "dryads" });
         const bears = makeInstance(savannahLions.id, {
@@ -760,7 +760,7 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
 // Balance — CR 608.2 (stepped resolve) + 101.4 (APNAP)
 // ---------------------------------------------------------------------------
 
-describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 701.15a / 614.5)", () => {
+describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 701.19a / 614.5)", () => {
     function setupAttached(args?: {
         bearOverrides?: Partial<CardInstanceState>;
     }) {
@@ -833,7 +833,7 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
         activateRegen(state, aura);
         // Drive destroy directly via regenerateOrDestroy to model a
         // regen-honoring mass effect (Wrath of God carries the
-        // can't-be-regenerated rider, CR 701.15c, so it would NOT trigger
+        // can't-be-regenerated rider, CR 701.19c, so it would NOT trigger
         // the regen path here — exercised by the dedicated Wrath test).
         regenerateOrDestroy(state, "bear");
         const bearAfter = state.players[1].battlefield.find(
@@ -847,7 +847,7 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
         ).toBeUndefined();
     });
 
-    it("Wrath of God's `cantBeRegenerated` rider bypasses the shield (CR 701.15c)", () => {
+    it("Wrath of God's `cantBeRegenerated` rider bypasses the shield (CR 701.19c)", () => {
         const { state, aura } = setupAttached();
         activateRegen(state, aura);
         // Shield is on the bear — Wrath prevents the replacement, so the
@@ -863,7 +863,7 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
         ).toBeDefined();
     });
 
-    it("lethal damage triggers regen too — heals damageMarked, taps, no graveyard (CR 704.5g + 701.15a)", () => {
+    it("lethal damage triggers regen too — heals damageMarked, taps, no graveyard (CR 704.5g + 701.19a)", () => {
         const { state, aura, bear } = setupAttached();
         activateRegen(state, aura);
         // Lightning Bolt for 3 — Grizzly Bears is 2/2, lethal.
@@ -1952,7 +1952,7 @@ describe("Fog (prevent all combat damage this turn, CR 615)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Disrupting Scepter (CR 701.8, 602.5b — {3},{T}: target player discards)
+// Disrupting Scepter (CR 701.9, 602.5b — {3},{T}: target player discards)
 // ---------------------------------------------------------------------------
 
 describe("lure — all creatures able to block enchanted creature do so (CR 509.1c)", () => {
@@ -2819,7 +2819,7 @@ describe("Living Lands ({3}{G} — all Forests are 1/1 creatures, still lands)",
     });
 });
 
-describe("Kudzu (destroy tapped host, retarget aura, CR 701.20a/704.5n)", () => {
+describe("Kudzu (destroy tapped host, retarget aura, CR 701.26a/704.5n)", () => {
     function setup(extraLand: boolean): {
         state: GameState;
         kudzuId: string;
@@ -3031,7 +3031,7 @@ describe("Gaea's Liege (Forest-count P/T + {T} land→Forest)", () => {
 // Migration harnesses (ADR 0045, issue #831): Lifeforce / Tranquility / Tsunami
 // had no per-card tests, so these behaviour tests are authored to guard the
 // resolve()→effects[] migrations (counter / destroyAll sweeps).
-describe("Lifeforce ({G}, Sacrifice — counter target black spell, CR 701.5a)", () => {
+describe("Lifeforce ({G}, Sacrifice — counter target black spell, CR 701.6a)", () => {
     it("counters the targeted spell (removes it from the stack)", () => {
         const lf = makeInstance(lifeforce.id, {
             id: "lf",
@@ -3055,14 +3055,14 @@ describe("Lifeforce ({G}, Sacrifice — counter target black spell, CR 701.5a)",
         });
         resolveTopOfStack(state);
         expect(state.stack.find((s) => s.id === blackSpell.id)).toBeUndefined();
-        // The countered spell goes to its owner's graveyard (CR 701.5a).
+        // The countered spell goes to its owner's graveyard (CR 701.6a).
         expect(state.players[1].graveyard.map((c) => c.id)).toContain(
             blackSpell.id
         );
     });
 });
 
-describe("Tranquility ({2}{G} — destroy all enchantments, CR 701.7)", () => {
+describe("Tranquility ({2}{G} — destroy all enchantments, CR 701.8)", () => {
     it("destroys every enchantment across both players, spares non-enchantments", () => {
         const p1Ench = makeInstance(livingLands.id, {
             id: "p1-ench",
@@ -3099,7 +3099,7 @@ describe("Tranquility ({2}{G} — destroy all enchantments, CR 701.7)", () => {
     });
 });
 
-describe("Tsunami ({3}{G} — destroy all Islands, CR 701.7)", () => {
+describe("Tsunami ({3}{G} — destroy all Islands, CR 701.8)", () => {
     it("destroys every Island across both players and spares other lands", () => {
         const p1Island = makeInstance(island.id, {
             id: "p1-island",

@@ -7,7 +7,7 @@ import type { CardDefinition } from "../../types";
 
 // Traumatic Critique — {X}{U}{R} Instant. "Traumatic Critique deals X damage to
 // any target. Draw two cards, then discard a card." CR 107.3 X cost (read via
-// getX()), CR 115.4 "any target", CR 121.1 draw, CR 701.8 discard. Stepped
+// getX()), CR 115.4 "any target", CR 121.1 draw, CR 701.9 discard. Stepped
 // resolution: the irreversible damage + draw run first, then the discard pick
 // can suspend without re-running them (CR 608.2).
 export const traumaticCritique: CardDefinition = {
@@ -21,7 +21,7 @@ export const traumaticCritique: CardDefinition = {
     targetRequirement: { type: "any", count: 1 },
     // Migrated resolveSteps()→effects[] (ADR 0045, #852): X damage to any target
     // (CR 120.1, chosen-cost `{ X: true }`) + draw two, then a `choice`-driven
-    // discard of one (CR 701.8 — Jalum Tome loot shape). The choice Op suspends
+    // discard of one (CR 701.9 — Jalum Tome loot shape). The choice Op suspends
     // resolution and resumes AT the choice (the interpreter's pre-order cursor
     // guarantees the irreversible damage + draw never re-run — CR 608.3), so the
     // two resolveSteps collapse into one script.

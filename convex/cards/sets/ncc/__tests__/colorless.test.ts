@@ -3,7 +3,7 @@
 //
 // Currency Converter (issue #791) is the concrete vehicle for the per-source
 // exile linkage capability (`linkExileToSource` / `getCardsExiledWith`, CR 111)
-// plus the (already-shipped) discard trigger (CR 701.8) and draw/discard
+// plus the (already-shipped) discard trigger (CR 701.9) and draw/discard
 // primitives. These tests exercise all three abilities through the real
 // resolution path and assert the new provenance field survives projection +
 // serialization.
@@ -45,7 +45,7 @@ function withConverter(p1Overrides: Parameters<typeof makePlayer>[1] = {}): {
     return { state, cc };
 }
 
-describe("Currency Converter — discard trigger + per-source exile link (CR 701.8 / 111)", () => {
+describe("Currency Converter — discard trigger + per-source exile link (CR 701.9 / 111)", () => {
     function discardedState() {
         const disc = makeInstance(grizzlyBears.id, {
             id: "disc1",

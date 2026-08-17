@@ -163,7 +163,7 @@ export const aggressiveUrge: CardDefinition = {
 };
 
 // Bind — {1}{G} Instant. "Counter target activated ability. (Mana abilities
-// can't be targeted.) Draw a card." (CR 701.5a counter; CR 605.3a mana
+// can't be targeted.) Draw a card." (CR 701.6a counter; CR 605.3a mana
 // abilities never use the stack, so the reminder text holds for free; CR
 // 121.1 draw.) `spellStackKind: "activated-ability"` with no source-type
 // restriction (unlike Brown Ouphe's artifact-only variant, `ice/green.ts`)
@@ -189,7 +189,7 @@ export const bind: CardDefinition = {
 
 // Elvish Champion — {1}{G}{G} Creature — Elf, 2/2. "Other Elf creatures get
 // +1/+1 and have forestwalk." (CR 611.2c continuous anthem, layer 7c power/
-// toughness; CR 702.13c forestwalk evasion.) Group `keyword-grant` mirrors
+// toughness; CR 702.14c forestwalk evasion.) Group `keyword-grant` mirrors
 // Hidden Path's global forestwalk grant (`drk/green.ts`); the `pt-buff`
 // mirrors Zombie Master's own-type lord anthem. Both scoped to "other Elf
 // creatures" (excludes self via `target.id !== source.id`).
@@ -679,7 +679,7 @@ export const quirionSentinel: CardDefinition = {
 // Quirion Trailblazer — {3}{G} Creature — Elf Scout, 1/2. "When this creature
 // enters, you may search your library for a basic land card, put that card
 // onto the battlefield tapped, then shuffle." (CR 603.6a ETB; CR 401.4
-// search, `min: 0` = "you may"; CR 701.20 shuffle.)
+// search, `min: 0` = "you may"; CR 701.24 shuffle.)
 export const quirionTrailblazer: CardDefinition = {
     id: "c2b258c1-5fb4-4072-bb32-ad364df1874a",
     rarity: "common",
@@ -1121,7 +1121,7 @@ export const fertileGroundInv: CardPrint = {
 // Verduran Emissary — {2}{G} Creature — Human Wizard, 2/3. "Kicker {1}{R}.
 // When this creature enters, if it was kicked, destroy target artifact. It
 // can't be regenerated." (CR 702.33 Kicker, CR 603.6a ETB trigger with a CR
-// 603.3d target announcement, CR 701.15c regeneration shield suppression.)
+// 603.3d target announcement, CR 701.19c regeneration shield suppression.)
 //
 // VERIFIED against Scryfall (`cards/named?exact=Verduran+Emissary&set=inv`,
 // id `55f3361b-e2e7-4297-85c2-94323f90cc90`): kicker cost is `{1}{R}`, NOT

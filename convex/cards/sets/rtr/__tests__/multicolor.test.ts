@@ -72,7 +72,7 @@ function setupDeathrite(): {
 }
 
 describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana abilities, per WotC 2016-06-08 ruling)", () => {
-    describe("{T}: exile target land card from a graveyard, add one mana of any color (CR 605.1a / 701.18)", () => {
+    describe("{T}: exile target land card from a graveyard, add one mana of any color (CR 605.1a / 701.13)", () => {
         it("exiles the land and adds the chosen color to the caster's mana pool", () => {
             const { state, deathrite } = setupDeathrite();
             const land = makeInstance(getCardByName("Forest").id, {
@@ -101,7 +101,7 @@ describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana
         });
     });
 
-    describe("{B},{T}: exile target instant or sorcery card from a graveyard, each opponent loses 2 life (CR 605.1a / 701.18)", () => {
+    describe("{B},{T}: exile target instant or sorcery card from a graveyard, each opponent loses 2 life (CR 605.1a / 701.13)", () => {
         it("exiles the card and drains each opponent for 2", () => {
             const { state, deathrite } = setupDeathrite();
             const bolt = makeInstance(getCardByName("Lightning Bolt").id, {
@@ -125,7 +125,7 @@ describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana
         });
     });
 
-    describe("{G},{T}: exile target creature card from a graveyard, you gain 2 life (CR 605.1a / 701.18)", () => {
+    describe("{G},{T}: exile target creature card from a graveyard, you gain 2 life (CR 605.1a / 701.13)", () => {
         it("exiles the card and gains the controller 2 life", () => {
             const { state, deathrite } = setupDeathrite();
             const bear = makeInstance(getCardByName("Grizzly Bears").id, {

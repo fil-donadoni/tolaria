@@ -1,5 +1,5 @@
 // Shared fixture: a probe card whose ETB offers a may-pay PERMANENT leg with
-// `action: "return"` (CR 701.24 / 118.9, ADR 0079, issue #1933).
+// `action: "return"` (CR 400.7 / 118.9, ADR 0079, issue #1933).
 //
 // The leg ships ahead of its first real consumer — the Planeshift Lair cycle
 // ("When this land enters, sacrifice it unless you return a non-Lair land you
@@ -21,7 +21,7 @@ export const RETURN_LEG_PROBE_ID = "test:may-pay-return-leg-probe";
 export const RETURN_LEG_TRIGGER_ID = "return-leg-probe-etb";
 
 /** The return leg under test: "return a Forest you control to its owner's
- *  hand" (CR 701.24), a FIXED cardinal of 1 — the Planeshift Lair shape. The
+ *  hand" (CR 400.7), a FIXED cardinal of 1 — the Planeshift Lair shape. The
  *  subtype filter stands in for the Lair cycle's "non-Lair land": it excludes
  *  the probe itself, so the payer must give up a DIFFERENT permanent. */
 export const RETURN_A_LAND: MayPayCost = {

@@ -43,7 +43,7 @@ export default function PlayerLibrary({
     const { isMinimized, minimize } = useMinimizedChoice();
     const isMe = player.id === playerId;
 
-    // CR 401.4 / 701.19: while a `search-library` choice is active and the
+    // CR 401.4 / 701.23: while a `search-library` choice is active and the
     // VIEWER is its chooser, the projection exposes the SEARCHED library as
     // `librarySearch` on that library's owner — render those cards face-up and
     // route clicks to the choice mutation. The searched zone's owner is
@@ -94,7 +94,7 @@ export default function PlayerLibrary({
         player.id === orderPickOwnerForGrid &&
         !!player.libraryPeek;
 
-    // Scry / surveil / ponder ordered-top pick (`order-top`, CR 701.22/701.44),
+    // Scry / surveil / ponder ordered-top pick (`order-top`, CR 701.22/701.25),
     // the unified take-to-hand + order-bottom pick (`look-distribute`, CR 401.4
     // — Impulse, Stock Up), AND the "put them back in any order" reorder
     // (`reorder-library`, CR 401.4 — Portent, Natural Selection, Elemental
@@ -195,7 +195,7 @@ export default function PlayerLibrary({
         hasContextMenu,
     } = usePileBrowseMenu(pileActions, open, onOpenChange);
 
-    // Selection bounds for the active search (CR 701.19 puts a single card in
+    // Selection bounds for the active search (CR 701.23 puts a single card in
     // hand, but the primitive supports a range). Cap the buffer at `max` so the
     // chooser can't over-select: clicking a fresh card at the cap replaces the
     // oldest pick (clear+toggle for the count=1 case), and a click on an

@@ -29,7 +29,7 @@
 // Ships the YES/NO family as the first generator: `may-pay` (CR 117.3a / 118.4),
 // `land-entry-tapped` (CR 614.12 / ADR 0051) and `draw-replacement`
 // (CR 614 / ADR 0061), then the modal `option-pick` (issue #1428) and
-// `search-library` (CR 701.19 fetchlands / tutors, issue #1429). Later tranches
+// `search-library` (CR 701.23 fetchlands / tutors, issue #1429). Later tranches
 // register here against this same contract.
 
 import type { CardInstanceState, GameState, PendingChoice } from "../state";
@@ -183,7 +183,7 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const lifePaid = norm.life ?? 0;
     const player = getPlayer(state, playerId);
 
-    // CR 701.21a / 701.24 — the PERMANENT leg, when it admits a real choice
+    // CR 701.21a / 400.7 — the PERMANENT leg, when it admits a real choice
     // (a `"return"` leg always does — ADR 0079).
     const sacrificeSets: CardInstanceState[][] = [];
     if (mayPaySacrificeChoiceRequired(state, playerId, cost)) {
@@ -400,7 +400,7 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
 // `priorFor` provider (`choicePriors.ts`, issue #1433), so the two never
 // drift apart.
 
-/** `search-library` (CR 701.19 — fetchlands, tutors): the hardest tranche-1
+/** `search-library` (CR 701.23 — fetchlands, tutors): the hardest tranche-1
  *  kind, and the reason the contract's three properties exist at all.
  *
  *  SELF-PRUNING (property 1). The raw answer space is every subset of the
@@ -424,7 +424,7 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
  *  needed: the reshuffle plus `edge.avail` already carry the hidden-information
  *  discipline (PRD #1423).
  *
- *  CR 701.19c — a player may FAIL TO FIND. Modelled whenever the choice's count
+ *  CR 701.23b — a player may FAIL TO FIND. Modelled whenever the choice's count
  *  admits an empty pick (`{ min: 0, … }`, the "you may search" shape): an empty
  *  submission is a real, sometimes-correct answer (keeping the library
  *  unshuffled, declining the life payment's downside), so it is always offered
@@ -452,7 +452,7 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
 
     const out: Omit<ChoiceCandidate, "prior">[] = [];
 
-    // CR 701.19c — "fail to find" (only when the count admits an empty pick).
+    // CR 701.23b — "fail to find" (only when the count admits an empty pick).
     if (getPendingChoiceMin(choice.count) <= 0) {
         out.push({
             key: "search-library:none",
@@ -469,7 +469,7 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
     // than `min` eligible cards in THIS world. A short pick is an illegal
     // submission — `applyPendingChoiceSubmit` throws ("Select at least N cards")
     // — and the throw would escape the search. Emit no pick at all instead (the
-    // "fail to find" branch above already stands when CR 701.19c admits it).
+    // "fail to find" branch above already stands when CR 701.23b admits it).
     if (take < getPendingChoiceMin(choice.count)) return out;
 
     // Rank by worth, breaking ties on stable identity so the ordering — and

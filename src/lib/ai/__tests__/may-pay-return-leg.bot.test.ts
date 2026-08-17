@@ -1,5 +1,5 @@
 // Bot integration: a may-pay PERMANENT leg with `action: "return"` across the
-// GRE → game.ts → driver boundary (CR 701.24 / 118.9, ADR 0079, issue #1933).
+// GRE → game.ts → driver boundary (CR 400.7 / 118.9, ADR 0079, issue #1933).
 //
 // The recurring failure mode this guards is a bot STALL on a new choice
 // mechanic: the engine opens a picker the brain doesn't surface, the executor

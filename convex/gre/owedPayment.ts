@@ -174,7 +174,7 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         discardAtRandomCount: "non-park",
 
         // ── PARKS (CR 602.1 / 118) ─────────────────────────────────────────────
-        /** CR 701.16 / 118.5 / 601.2f — filtered sacrifice (own leg + static tax).
+        /** CR 701.21 / 118.5 / 601.2f — filtered sacrifice (own leg + static tax).
          *  Submitted via `selectSacrifice`. */
         sacrificeSelection: "park",
         /** CR 118.5 — "exile N cards from a single graveyard" (Night Soil, Grim

@@ -88,7 +88,7 @@ function sacrificeWhenNoIslands(
 }
 
 // Amnesia — "Target player reveals their hand and discards all nonland cards."
-// (CR 701.8 discard + CR 701.x reveal.) Reveals the whole hand to all players,
+// (CR 701.9 discard + CR 701.x reveal.) Reveals the whole hand to all players,
 // then discards every card whose printed types contain no Land type. Lands are
 // kept; everything else (instants, sorceries, creatures, artifacts,
 // enchantments) is discarded.
@@ -107,7 +107,7 @@ export const amnesia: CardDefinition = {
         const playerId = target.id;
         // CR 701.x — the whole hand is revealed to all players first.
         ctx.revealHand(playerId);
-        // CR 701.8 — discard every nonland card (a card is "land" iff its
+        // CR 701.9 — discard every nonland card (a card is "land" iff its
         // printed types include a Land type; CR 305).
         const handCards = ctx.getHandCards(playerId);
         for (const c of handCards) {
@@ -219,7 +219,7 @@ export const erosion: CardDefinition = {
 };
 
 // Flood — "{U}{U}: Tap target creature without flying." (CR 605 activated
-// ability; CR 701.20a tap; CR 702.9 the "without flying" filter excludes
+// ability; CR 701.26a tap; CR 702.9 the "without flying" filter excludes
 // flyers from legal targets via `excludeAbility`.)
 export const flood: CardDefinition = {
     id: "fabc3267-b59b-4f36-8873-5b4b072711ca",
@@ -240,14 +240,14 @@ export const flood: CardDefinition = {
                 excludeAbility: "flying",
             },
             // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
-            // creature-without-flying target (CR 701.26a).
+            // creature-without-flying target (CR 701.26a tap).
             effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
     ],
 };
 
 // Ghost Ship — "Flying\n{U}{U}{U}: Regenerate this creature." (CR 702.9 flying;
-// CR 605 activated ability; CR 701.15a regenerate via a shield consumed by the
+// CR 605 activated ability; CR 701.19a regenerate via a shield consumed by the
 // next destroy.)
 export const ghostShip: CardDefinition = {
     id: "db591b28-37e5-4e7c-ae4d-d761262b12d0",
@@ -267,7 +267,7 @@ export const ghostShip: CardDefinition = {
             cost: { mana: { U: 3 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -482,14 +482,14 @@ export const manaVortex: CardDefinition = {
                     p.battlefield.some((c) => c.types.includes("Land"))
                 ),
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice
-            // the implicit $source (CR 701.16).
+            // the implicit $source (CR 701.21).
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 };
 
 // Merfolk Assassin — "{T}: Destroy target creature with islandwalk." (CR 605
-// activated ability; CR 701.7 destroy; `requireAbility: "islandwalk"` scopes
+// activated ability; CR 701.8 destroy; `requireAbility: "islandwalk"` scopes
 // legal targets to islandwalkers, CR 702.)
 export const merfolkAssassin: CardDefinition = {
     id: "36313dc7-6bf2-4d73-b696-969d984a7466",
@@ -521,7 +521,7 @@ export const merfolkAssassin: CardDefinition = {
 
 // Mind Bomb — "Each player may discard up to three cards. Mind Bomb deals
 // damage to each player equal to 3 minus the number of cards they discarded
-// this way." (CR 701.8 optional discard per player + CR 119 damage.) Each
+// this way." (CR 701.9 optional discard per player + CR 119 damage.) Each
 // player independently chooses 0–3 cards to discard; the damage is 3 minus the
 // count they discarded. APNAP order via `allPlayerIds`.
 export const mindBomb: CardDefinition = {
@@ -706,7 +706,7 @@ export const psychicAllergy: CardDefinition = {
     ],
 };
 
-// Riptide — "Tap all blue creatures." (CR 701.20a — tap every blue creature on
+// Riptide — "Tap all blue creatures." (CR 701.26a — tap every blue creature on
 // the battlefield, either controller; CR 202.2 colour.)
 export const riptide: CardDefinition = {
     id: "b0f11ae4-e30e-441d-bb64-439930d9997c",
@@ -846,7 +846,7 @@ export const waterWurm: CardDefinition = {
 //     `linkedTokenId` condition) — the leaving permanent's id is matched
 //     against the enchantment's stored `linkedTokenId` (the `PermanentLeftEvent`
 //     does not carry `createdBy`, and the token has already left), then the
-//     enchantment is sacrificed (CR 701.16).
+//     enchantment is sacrificed (CR 701.21).
 //
 //   • Upkeep {U}{U}-or-sacrifice — REUSES the shipped LEG C7
 //     `payOrSacrificeUpkeepTrigger` (the Elder Dragon maintenance-cost family);
@@ -941,7 +941,7 @@ export const danceOfMany: CardDefinition = {
                 self.linkedTokenId !== undefined &&
                 event.instanceId === self.linkedTokenId,
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice
-            // the implicit $source (CR 701.16); `condition` (unchanged)
+            // the implicit $source (CR 701.21); `condition` (unchanged)
             // still gates the firing to this enchantment's own token.
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
@@ -996,7 +996,7 @@ export const deepWater: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Drowned — {1}{U} 1/1 Zombie, "{B}: Regenerate this creature." (CR 605
-// activated ability; CR 701.15a regenerate via a shield consumed by the next
+// activated ability; CR 701.19a regenerate via a shield consumed by the next
 // destroy/lethal-damage event.)
 export const drowned: CardDefinition = {
     id: "951b6c10-cbba-44b6-aae2-2c386b7ebacb",
@@ -1015,7 +1015,7 @@ export const drowned: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],

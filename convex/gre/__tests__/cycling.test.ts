@@ -118,7 +118,7 @@ describe("cycling (CR 702.29)", () => {
         expect(p1.graveyard.some((c) => c.id === "triome-1")).toBe(true);
         // The {3} cost was paid from the pool.
         expect(p1.manaPool.C).toBe(0);
-        // CR 701.8 — the discard routes through the shared choke point and
+        // CR 701.9 — the discard routes through the shared choke point and
         // emits CARD_DISCARDED (consumed by the trigger scan at commit — see the
         // Marauding Mako test, which asserts the resulting counter). The cycling
         // uses the stack; it can be responded to).
@@ -269,7 +269,7 @@ describe("typecycling (CR 702.29e/f)", () => {
         expect(state.pendingChoices).toBeUndefined();
     });
 
-    it("CR 701.19c — the searcher may fail to find: the library is still looked at and shuffled", () => {
+    it("CR 701.23b — the searcher may fail to find: the library is still looked at and shuffled", () => {
         const state = boardWithTroll([
             { id: "bear-a", cardId: grizzlyBears.id },
             { id: "bear-b", cardId: grizzlyBears.id },

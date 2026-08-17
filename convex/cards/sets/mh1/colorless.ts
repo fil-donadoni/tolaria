@@ -96,8 +96,8 @@ export const talismanOfCuriosity: CardDefinition = makeTalisman({
 });
 
 // Prismatic Vista — {T}, Pay 1 life, Sacrifice this land: Search your library
-// for a basic land card, put it onto the battlefield, then shuffle. (CR 701.19
-// search / 400.7 put onto battlefield / 701.20 shuffle, issue #677.)
+// for a basic land card, put it onto the battlefield, then shuffle. (CR 701.23
+// search / 400.7 put onto battlefield / 701.24 shuffle, issue #677.)
 // `filter.supertype: "Basic"` restricts the fetch to basic lands; the
 // `moveZone` cards-shape moves the picked id to the battlefield untapped.
 export const prismaticVista: CardDefinition = {

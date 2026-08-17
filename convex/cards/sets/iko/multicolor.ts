@@ -53,9 +53,9 @@ export const lutri: CardDefinition = {
     subtypes: ["Elemental", "Otter"],
     power: 3,
     toughness: 2,
-    // CR 702.139a / 702.8 — Companion is a Mechanics Registry keyword row
-    // (status "implemented", binding gre/companion.ts, Guard A); Flash is
-    // the standard instant-speed-casting keyword (already implemented).
+    // CR 702.139a companion / 702.8 flash — Companion is a Mechanics Registry
+    // keyword row (status "implemented", binding gre/companion.ts, Guard A);
+    // Flash is the standard instant-speed-casting keyword (already implemented).
     staticAbilities: ["companion", "flash"],
     triggeredAbilities: [
         enteredTrigger({

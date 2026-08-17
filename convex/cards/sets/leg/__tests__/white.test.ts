@@ -192,7 +192,7 @@ describe("Amrou Kithkin (can't be blocked by power ≥3, CR 509.1b)", () => {
     });
 });
 
-describe("Great Wall / Undertow (landwalk-negation static, CR 509.1b / 702.13)", () => {
+describe("Great Wall / Undertow (landwalk-negation static, CR 509.1b / 702.14)", () => {
     const plainsId = getCardByName("Plains").id;
     const islandId = getCardByName("Island").id;
 
@@ -235,7 +235,7 @@ describe("Great Wall / Undertow (landwalk-negation static, CR 509.1b / 702.13)",
         return { state, attacker, blocker, defenderBattlefield };
     }
 
-    it("plainswalk creature is unblockable behind a Plains with no Great Wall (CR 702.13b)", () => {
+    it("plainswalk creature is unblockable behind a Plains with no Great Wall (CR 702.14b)", () => {
         const { attacker, blocker, defenderBattlefield, state } = setup({
             attackerId: righteousAvengers.id,
             landId: plainsId,
@@ -279,7 +279,7 @@ describe("Great Wall / Undertow (landwalk-negation static, CR 509.1b / 702.13)",
         expect(res.eligible).toBe(true);
     });
 
-    it("Great Wall negates only plainswalk — a swampwalk creature stays unblockable (CR 702.13)", () => {
+    it("Great Wall negates only plainswalk — a swampwalk creature stays unblockable (CR 702.14)", () => {
         // Swampwalk attacker, defender controls a Swamp + Great Wall (plains).
         const attacker = makeInstance(righteousAvengers.id, {
             id: "atk",
@@ -704,7 +704,7 @@ describe("Infinite Authority (becomes-blocked-by → end-of-combat destroy + nex
     });
 });
 
-describe("Cleanse (destroy all black creatures, CR 701.7)", () => {
+describe("Cleanse (destroy all black creatures, CR 701.8)", () => {
     it("destroys black creatures and spares others", () => {
         // Scathe Zombies (black) dies; Hill Giant (red) survives.
         const zombie = makeInstance("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e", {
@@ -732,7 +732,7 @@ describe("Cleanse (destroy all black creatures, CR 701.7)", () => {
     });
 });
 
-describe("Divine Offering (destroy artifact + gain life = MV, CR 701.7)", () => {
+describe("Divine Offering (destroy artifact + gain life = MV, CR 701.8)", () => {
     it("destroys the artifact and gains life equal to its mana value", () => {
         const artifact = makeInstance("4b71ff49-ee0a-4065-9131-380468d62a30", {
             id: "art",
@@ -1022,7 +1022,7 @@ describe("Spiritual Sanctuary (upkeep: if Plains, gain 1, CR 603.6a)", () => {
     });
 });
 
-describe("Lifeblood (opponent's Mountain tapped → gain 1, CR 701.20a)", () => {
+describe("Lifeblood (opponent's Mountain tapped → gain 1, CR 701.26a)", () => {
     it("gains 1 life when an opponent's Mountain becomes tapped", () => {
         const lb = makeInstance(lifeblood.id, {
             id: "lb",
@@ -1046,7 +1046,7 @@ describe("Lifeblood (opponent's Mountain tapped → gain 1, CR 701.20a)", () => 
     });
 });
 
-describe("Presence of the Master (counter enchantment spells, CR 701.5a)", () => {
+describe("Presence of the Master (counter enchantment spells, CR 701.6a)", () => {
     it("counters an enchantment spell cast by any player", () => {
         const presence = makeInstance(presenceOfTheMaster.id, {
             id: "presence",
@@ -1097,7 +1097,7 @@ describe("Visions (look at top 5, may shuffle, CR 401.4)", () => {
     });
 });
 
-describe("Part Water (X creatures gain islandwalk EOT, CR 702.19)", () => {
+describe("Part Water (X creatures gain islandwalk EOT, CR 702.14)", () => {
     it("grants islandwalk to each target", () => {
         const a = makeInstance(keepersOfTheFaith.id, {
             id: "a",
@@ -2401,7 +2401,7 @@ describe("Petra Sphinx ({T}: name a card, reveal top; match→hand else→gravey
 // Clergy of the Holy Nimbus — continuous auto-regeneration replacement
 // (CR 614.5) + opponent-only activation (CR 602.1) — issue #491
 // ---------------------------------------------------------------------------
-describe("Clergy of the Holy Nimbus (CR 614.5, 701.15c, 602.1)", () => {
+describe("Clergy of the Holy Nimbus (CR 614.5, 701.19c, 602.1)", () => {
     const CANT_REGEN_ID = "clergy-cant-regen";
 
     function setup() {
@@ -2449,7 +2449,7 @@ describe("Clergy of the Holy Nimbus (CR 614.5, 701.15c, 602.1)", () => {
             (c) => c.id === "clergy"
         );
         expect(survivor).toBeDefined();
-        // CR 701.15a regen rider: tapped + all marked damage removed.
+        // CR 701.19a regen rider: tapped + all marked damage removed.
         expect(survivor!.isTapped).toBe(true);
         expect(survivor!.damageMarked).toBeUndefined();
         // Perpetual replacement: it regenerates AGAIN on the next destroy.
@@ -2461,7 +2461,7 @@ describe("Clergy of the Holy Nimbus (CR 614.5, 701.15c, 602.1)", () => {
         ).toBe(true);
     });
 
-    it("an OPPONENT pays {1} → cantBeRegeneratedThisTurn set → next destroy is lethal (CR 701.15c)", () => {
+    it("an OPPONENT pays {1} → cantBeRegeneratedThisTurn set → next destroy is lethal (CR 701.19c)", () => {
         const { state, clergy } = setup();
         activateCantRegen(state, clergy, "p2");
         const onBoard = state.players[0].battlefield.find(
@@ -3016,7 +3016,7 @@ describe("Equinox (enchant land grants conditional counter, CR 303.4/611.2/701.5
         expect(legal.map((t) => t.id)).not.toContain(spell.id);
     });
 
-    it("activating the granted ability counters a qualifying Stone Rain (CR 701.5a)", () => {
+    it("activating the granted ability counters a qualifying Stone Rain (CR 701.6a)", () => {
         const { state } = setup();
         const stoneRainSpell = pushSpell(state, STONE_RAIN_ID, "p2", [
             { type: "permanent", id: "myLand" },

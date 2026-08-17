@@ -20,7 +20,7 @@ import { abilityActivatedTrigger } from "../../abilities/triggers/abilityActivat
 // Yawgmoth Demon — {4}{B}{B} Creature — Phyrexian Demon, 6/6 with flying +
 // first strike. "At the beginning of your upkeep, you may sacrifice an
 // artifact. If you don't, tap this creature and it deals 2 damage to you."
-// (CR 603.6a upkeep trigger; CR 117.3a optional may; CR 701.16 sacrifice.)
+// (CR 603.6a upkeep trigger; CR 117.3a optional may; CR 701.21 sacrifice.)
 // The may is gated on having an artifact to sacrifice; declining (or having no
 // artifact) runs the else-branch: tap self + 2 damage to the controller.
 export const yawgmothDemon: CardDefinition = {
@@ -182,7 +182,7 @@ export const gateToPhyrexia: CardDefinition = {
 // Cluster B — "ability activated" trigger event (PRD #269 / issue #285)
 //
 // These three punishers react to BOTH halves of "an artifact is used":
-//   • the artifact becomes tapped → PERMANENT_TAPPED (CR 701.20a), and
+//   • the artifact becomes tapped → PERMANENT_TAPPED (CR 701.26a), and
 //   • a non-{T} activated ability of the artifact is used → ABILITY_ACTIVATED
 //     (CR 602.1), the complement event emitted by the engine only when the
 //     ability has no {T} component (so {T}-cost abilities aren't double-counted).

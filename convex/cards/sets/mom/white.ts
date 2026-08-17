@@ -5,8 +5,8 @@ import { incubateOp } from "../../abilities/tokens/incubatorToken";
 import type { CardDefinition } from "../../types";
 
 // Sunfall — {3}{W}{W} Sorcery. "Exile all creatures. Incubate X, where X is
-// the number of creatures exiled this way." (CR 701.13 exile; CR 701.53
-// Incubate.) UNBLOCKED by #924/#1210 — `incubate` is now `status:
+// the number of creatures exiled this way." (CR 701.13 exile; CR 701.53 incubate
+// .) UNBLOCKED by #924/#1210 — `incubate` is now `status:
 // "implemented"` in `mechanicsRegistry.ts`; `incubateOp` (issue #924,
 // `cards/abilities/tokens/incubatorToken.ts`) is a thin `createToken` sugar
 // over the shared Incubator token spec.

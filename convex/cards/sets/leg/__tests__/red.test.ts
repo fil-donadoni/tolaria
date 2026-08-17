@@ -222,7 +222,7 @@ describe("Beasts of Bogardan (+1/+1 vs nontoken white permanent, CR 611.2c)", ()
     });
 });
 
-describe("Spinal Villain ({T}: destroy target blue creature, CR 701.7)", () => {
+describe("Spinal Villain ({T}: destroy target blue creature, CR 701.8)", () => {
     it("destroys a blue creature", () => {
         const villain = makeInstance(spinalVillain.id, {
             id: "villain",
@@ -253,7 +253,7 @@ describe("Spinal Villain ({T}: destroy target blue creature, CR 701.7)", () => {
     });
 });
 
-describe("Hyperion Blacksmith ({T}: tap or untap opponent artifact, CR 701.20)", () => {
+describe("Hyperion Blacksmith ({T}: tap or untap opponent artifact, CR 701.26)", () => {
     it("untaps a tapped opponent artifact when the controller chooses untap", () => {
         const smith = makeInstance(hyperionBlacksmith.id, {
             id: "smith",
@@ -366,7 +366,7 @@ describe("Giant Strength / Immolation / Eternal Warrior auras (CR 303.4)", () =>
     });
 });
 
-describe("The Brute (aura +1/+0 + {R}{R}{R} regenerate host, CR 303.4/701.15a)", () => {
+describe("The Brute (aura +1/+0 + {R}{R}{R} regenerate host, CR 303.4/701.19a)", () => {
     it("buffs the host and the activated ability shields it", () => {
         const host = makeInstance("0ddb98e8-13fe-4786-83f7-b72c56db135a", {
             id: "host",
@@ -677,7 +677,7 @@ describe("Active Volcano (modal: destroy blue / return Island, CR 700.2)", () =>
     });
 });
 
-describe("Winds of Change (each player shuffles hand into library, redraws, CR 701.20/121.1)", () => {
+describe("Winds of Change (each player shuffles hand into library, redraws, CR 701.24/121.1)", () => {
     it("each player ends with the same hand size after the swap", () => {
         const h1 = [
             makeInstance(lightningBolt.id, { id: "h1a", zone: "hand" }),

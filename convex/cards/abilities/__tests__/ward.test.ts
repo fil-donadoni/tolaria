@@ -316,7 +316,7 @@ describe("Ward e2e — counter-unless-pay resolution (CR 702.21a)", () => {
         // controller.
         expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
         applyMayPaySubmit(state, { playerId: "p1", accept: false });
-        // The removal spell is gone from the stack — countered (CR 701.5a) —
+        // The removal spell is gone from the stack — countered (CR 701.6a counter) —
         // and the ward trigger itself has also resolved off the stack.
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].graveyard.some((c) => c.id === spell.id)).toBe(

@@ -28,7 +28,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 
-describe("Annul ({U}: counter target artifact or enchantment spell, CR 701.5a / 114.1)", () => {
+describe("Annul ({U}: counter target artifact or enchantment spell, CR 701.6a / 114.1)", () => {
     it("legal targets are exactly the artifact and enchantment spells on the stack", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -76,7 +76,7 @@ describe("Annul ({U}: counter target artifact or enchantment spell, CR 701.5a / 
         ).toHaveLength(0);
     });
 
-    it("resolving Annul counters the targeted artifact spell (CR 701.5a)", () => {
+    it("resolving Annul counters the targeted artifact spell (CR 701.6a)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -89,7 +89,7 @@ describe("Annul ({U}: counter target artifact or enchantment spell, CR 701.5a / 
         resolveTopOfStack(state);
 
         // The countered artifact spell left the stack for its owner's graveyard
-        // (CR 701.5a) and never resolved onto the battlefield.
+        // (CR 701.6a) and never resolved onto the battlefield.
         expect(
             state.stack.find((i) => i.id === artifactSpell.id)
         ).toBeUndefined();

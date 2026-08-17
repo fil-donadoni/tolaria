@@ -530,7 +530,7 @@ export const hurricane: CardDefinition = {
     },
 };
 
-// Ice Storm — "Destroy target land." (CR 701.7). Identical shape to Sinkhole
+// Ice Storm — "Destroy target land." (CR 701.8). Identical shape to Sinkhole
 // / Stone Rain, distinct only in cost / color.
 export const iceStorm: CardDefinition = {
     id: "9914836e-2fa6-4390-94b2-431427848a54",
@@ -712,7 +712,7 @@ export const lifeforce: CardDefinition = {
                 colorFilter: "B",
             },
             // Migrated resolve() → effects[] (ADR 0045, issue #831): a single
-            // `counter` Op on the announced target spell (CR 701.5a). A
+            // `counter` Op on the announced target spell (CR 701.6a). A
             // behaviour test was authored first (green-before) since the card
             // had none.
             effects: [{ op: "counter", target: { target: 0 } }],
@@ -869,7 +869,7 @@ export const lure: CardDefinition = {
 
 // Natural Selection — {G} Instant. "Look at the top three cards of target
 // player's library, then put them back in any order. You may have that
-// player shuffle." (CR 401.4 — peek; CR 701.20 — shuffle)
+// player shuffle." (CR 401.4 — peek; CR 701.24 — shuffle)
 export const naturalSelection: CardDefinition = {
     id: "a8917dc8-01c0-4e72-9310-c4d501775411",
     rarity: "rare",
@@ -932,7 +932,7 @@ export const naturalSelection: CardDefinition = {
 };
 
 // Regeneration — "Enchant creature. {G}: Regenerate enchanted creature."
-// (CR 303.4 aura attachment, 701.15a regenerate, 614.5 destroy replacement,
+// (CR 303.4 aura attachment, 701.19a regenerate, 614.5 destroy replacement,
 // 506.4 remove from combat). The activated ability does not target — the
 // affected creature is determined by the aura's `attachedTo` host. The
 // regen rider is implemented engine-side via regenerateOrDestroy: each
@@ -1057,7 +1057,7 @@ export const thicketBasilisk: CardDefinition = {
     delayedTriggers: [thicketBasiliskCombatKill.delayed],
 };
 
-// Timber Wolves — vanilla 1/1 Wolf with banding (CR 702.21).
+// Timber Wolves — vanilla 1/1 Wolf with banding (CR 702.22).
 export const timberWolves: CardDefinition = {
     id: "bc2570a4-eef9-430d-b6c2-cd51d29b9d01",
     rarity: "rare",

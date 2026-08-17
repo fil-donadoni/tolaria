@@ -1,5 +1,5 @@
 // Ordered top-of-library primitive (`SpellContext.orderTop`) — the reusable
-// engine behind the scry/surveil/ponder drag picker (CR 701.22 Scry, CR 701.44
+// engine behind the scry/surveil/ponder drag picker (CR 701.22 Scry, CR 701.25
 // Surveil, CR 401.4 look / 401 reorder). Exercises the apply branch of each
 // `destination` directly through `buildSpellContext`, plus the submit-path
 // partition validation and the ADR 0026 known-top persistence that keeps the
@@ -43,7 +43,7 @@ function pushItem(state: ReturnType<typeof makeState>): StackItem {
 
 const CHOICE = "0:order-top-s1";
 
-describe("orderTop primitive (CR 701.22 / 701.44 / 401.4)", () => {
+describe("orderTop primitive (CR 701.22 / 701.25 / 401.4)", () => {
     it("suspends on first call, raising an order-top choice over the top N", () => {
         const state = makeState({
             players: [

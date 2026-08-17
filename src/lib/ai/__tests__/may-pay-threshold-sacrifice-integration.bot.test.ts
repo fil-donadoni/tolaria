@@ -1,4 +1,4 @@
-// Integration: a THRESHOLD-mode may-pay sacrifice cost (CR 118 / 701.16,
+// Integration: a THRESHOLD-mode may-pay sacrifice cost (CR 118 / 701.21,
 // Phyrexian Dreadnought) across the GRE → game.ts → driver boundary (issue
 // #977). The self-ETB punisher offers "sacrifice it unless you sacrifice any
 // number of creatures with total power 12 or greater" — a variable-size victim
@@ -148,7 +148,7 @@ function seedThresholdChoice(fodder: CardInstanceState[]): {
     return { state, dreadnought };
 }
 
-describe("may-pay threshold sacrifice — bot driver (issue #977, CR 118 / 701.16)", () => {
+describe("may-pay threshold sacrifice — bot driver (issue #977, CR 118 / 701.21)", () => {
     it("surfaces the threshold pick to the bot without offering the source as a victim", () => {
         const { state } = seedThresholdChoice([
             creature(LADY_ORCA, "orca"),

@@ -1,4 +1,4 @@
-// untapTrigger — CR 701.20b (becomes untapped).
+// untapTrigger — CR 701.26b (becomes untapped).
 //
 // Produces a TriggeredAbility listening to PERMANENT_UNTAPPED, the complement
 // of `tappedTrigger`. The event is emitted by every untap site that flips a

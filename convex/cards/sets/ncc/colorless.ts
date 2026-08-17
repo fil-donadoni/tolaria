@@ -59,7 +59,7 @@ const ROGUE_TOKEN: TokenSpec = {
 // primitives). Each leg is a shipped primitive plus the one capability this
 // issue adds — the per-source exile linkage (`linkExileToSource` /
 // `getCardsExiledWith`, CR 111):
-//   1. CR 701.8 / 603 discard trigger via the `discardTrigger` factory
+//   1. CR 701.9 / 603 discard trigger via the `discardTrigger` factory
 //      (CARD_DISCARDED). "you may" → an empty-cost `requestMayPay` yes/no; on
 //      accept, the discarded card (already in the graveyard when the event
 //      fires) moves graveyard → exile and is STAMPED with this artifact as its
@@ -72,7 +72,7 @@ const ROGUE_TOKEN: TokenSpec = {
 //      per-source exile-linkage primitive (shipped as a raw SpellContext
 //      primitive by issue #791, never given an Op wrapper). Planned-migratable
 //      if that Op is ever added.
-//   2. CR 121.6 draw + CR 701.8 discard — migrated to `effects[]`
+//   2. CR 121.6 draw + CR 701.9 discard — migrated to `effects[]`
 //      (`draw` → `choice` kind `choose-hand-card` → `discard`), the same
 //      shape as Jalum Tome (`atq/colorless.ts`). The interpreter suspends at
 //      the `choice` Op exactly like the old `resolveSteps` split did, so the
@@ -99,7 +99,7 @@ export const currencyConverter: CardDefinition = {
     manaCost: { X: 1 },
     types: ["Artifact"],
     triggeredAbilities: [
-        // 1. CR 701.8 / 603 — "Whenever you discard a card, you may exile that
+        // 1. CR 701.9 / 603 — "Whenever you discard a card, you may exile that
         //    card from your graveyard." (Stamped to this artifact for retrieval.)
         discardTrigger({
             id: "currency-converter-discard-exile",
@@ -138,7 +138,7 @@ export const currencyConverter: CardDefinition = {
             oracleText: "{2}, {T}: Draw a card, then discard a card.",
             cost: { mana: { X: 2 }, tap: true },
             useStack: true,
-            // CR 121.6 draw, then CR 701.8 discard — draw → choice → discard,
+            // CR 121.6 draw, then CR 701.9 discard — draw → choice → discard,
             // same shape as Jalum Tome (atq/colorless.ts). The interpreter
             // suspends at the `choice` Op, so the draw never re-runs on resume
             // (Bazaar of Baghdad precedent preserved).

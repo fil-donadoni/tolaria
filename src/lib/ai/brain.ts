@@ -916,7 +916,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "reorder-library":
             return bestFirst(candidates).map((c) => c.id);
 
-        // Scry / surveil / ponder ordered-top (CR 701.22/701.44, drag picker):
+        // Scry / surveil / ponder ordered-top (CR 701.22/701.25, drag picker):
         // minimal-legal default (ADR 0016) — keep EVERY looked-at card on top,
         // best projected value first, so the bot draws its best card next and
         // sends nothing to the bottom/graveyard (empty `secondZoneIds`). Smart

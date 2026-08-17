@@ -241,7 +241,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         });
     });
 
-    describe("counter (CR 701.5a)", () => {
+    describe("counter (CR 701.6a)", () => {
         it("scores disruption, targeted", () => {
             const v = valueOp({ op: "counter", target: { target: 0 } }, cf);
             expect(v.points).toBe(130);
@@ -266,7 +266,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         });
     });
 
-    describe("sacrifice (CR 701.16)", () => {
+    describe("sacrifice (CR 701.21)", () => {
         it("a forced picks-set sacrifice (edict) is positive removal", () => {
             const op: EffectOp = {
                 op: "sacrifice",
@@ -591,7 +591,7 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
         });
     });
 
-    describe("regenerate (CR 701.15) — defensive", () => {
+    describe("regenerate (CR 701.19) — defensive", () => {
         it("scores a destroy-proof shield, targeted", () => {
             const op: EffectOp = {
                 op: "regenerate",

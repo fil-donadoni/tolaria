@@ -147,8 +147,8 @@ describe("Ancient Tomb ({T}: Add {C}{C}, self-damage, CR 605.1a / 120)", () => {
 });
 
 // Lotus Petal — "{T}, Sacrifice this artifact: Add one mana of any color."
-describe("Lotus Petal ({T}, Sacrifice: any color, CR 605.1a / 701.16)", () => {
-    it("activating for {U} (index 1) sacrifices the petal and adds {U} (CR 701.16)", () => {
+describe("Lotus Petal ({T}, Sacrifice: any color, CR 605.1a / 701.21)", () => {
+    it("activating for {U} (index 1) sacrifices the petal and adds {U} (CR 701.21)", () => {
         const petal = makeInstance(lotusPetal.id, {
             id: "petal",
             controllerId: "p1",
@@ -170,7 +170,7 @@ describe("Lotus Petal ({T}, Sacrifice: any color, CR 605.1a / 701.16)", () => {
     });
 });
 
-describe("Wasteland (CR 701.26 mana ability / CR 701.7 destroy nonbasic land)", () => {
+describe("Wasteland (CR 701.26a tap for a 605.1a mana ability / CR 701.8 destroy nonbasic land)", () => {
     it("{T}: Add {C} (CR 106.1)", () => {
         const w = makeInstance(wasteland.id, {
             id: "w",
@@ -226,7 +226,7 @@ describe("Wasteland (CR 701.26 mana ability / CR 701.7 destroy nonbasic land)", 
         expect(legalIds).not.toContain("basic");
     });
 
-    it("destroy ability destroys a targeted nonbasic land (CR 701.7)", () => {
+    it("destroy ability destroys a targeted nonbasic land (CR 701.8)", () => {
         const w = makeInstance(wasteland.id, {
             id: "w",
             controllerId: "p1",

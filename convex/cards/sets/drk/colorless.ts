@@ -158,8 +158,8 @@ export const darkSphere: CardDefinition = {
     ],
 };
 
-// Diabolic Machine — "{3}: Regenerate this creature." (CR 702.9 n/a; CR 605
-// activated ability; CR 701.15a regenerate via a shield consumed by the next
+// Diabolic Machine — "{3}: Regenerate this creature." (CR 702.9 flying: n/a; CR 605
+// activated ability; CR 701.19a regenerate via a shield consumed by the next
 // destroy. Same shape as Clay Statue.)
 export const diabolicMachine: CardDefinition = {
     id: "c3b0f228-6b06-4426-a557-1225d547b908",
@@ -178,7 +178,7 @@ export const diabolicMachine: CardDefinition = {
             cost: { mana: { X: 3 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -242,8 +242,8 @@ export const livingArmor: CardDefinition = {
 };
 
 // Necropolis — "Defender\nExile a creature card from your graveyard: Put X +0/+1
-// counters on this creature, where X is the exiled card's mana value." (CR 702.3
-// defender; CR 605 activated ability. `getManaValue` returns 0 for graveyard
+// counters on this creature, where X is the exiled card's mana value." (CR 702.3 defender;
+// CR 605 activated ability. `getManaValue` returns 0 for graveyard
 // cards, so X is read from `getGraveyardCards`. CR 122.1 counters; +0/+1 is a
 // layer-7d counter.)
 //
@@ -562,7 +562,7 @@ export const cityOfShadows: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            // CR 701.18 exile the target creature, then CR 122 put one storage
+            // CR 701.13 exile the target creature, then CR 122 put one storage
             // counter on the source (issue #841).
             effects: [
                 { op: "exile", target: { target: 0 } },
@@ -593,7 +593,7 @@ export const cityOfShadows: CardDefinition = {
 
 // Maze of Ith — "{T}: Untap target attacking creature. Prevent all combat damage
 // that would be dealt to and dealt by that creature this turn." (CR 605 activated
-// ability; CR 701.20b untap; CR 615.1 / Ebony Horse-style
+// ability; CR 701.26b untap; CR 615.1 / Ebony Horse-style
 // `preventAllCombatDamageToAndBy`. Untapping an attacker does NOT remove it from
 // combat, CR 506.4c — the prevention is what neutralizes it.)
 export const mazeOfIth: CardDefinition = {
@@ -906,7 +906,7 @@ export const sorrowsPath: CardDefinition = {
             id: "sorrows-path-tap-drawback",
             oracleText:
                 "Whenever this land becomes tapped, it deals 2 damage to you and each creature you control.",
-            // CR 701.20a — fires when THIS permanent becomes tapped (including
+            // CR 701.26a — fires when THIS permanent becomes tapped (including
             // when its own {T} cost taps it).
             scope: "self",
             // NOT DSL-migratable (ADR 0045): built via the `tappedTrigger`

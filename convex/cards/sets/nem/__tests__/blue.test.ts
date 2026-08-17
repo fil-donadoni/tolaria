@@ -86,8 +86,8 @@ describe("Accumulated Knowledge ({1}{U}: draw 1 + 1 per copy in all graveyards)"
 // Daze — {1}{U} Instant. "Counter target spell unless its controller pays
 // {1}." The `mayPay` Op suspends the spell on a Pay/Skip decision — the smoke
 // sweep can't scenario-generate the mid-resolution PendingChoice, so it's
-// hand-written here for both branches (CR 701.5a / 117.3a).
-describe("Daze (counter unless controller pays {1}, CR 701.5a / 117.3a)", () => {
+// hand-written here for both branches (CR 701.6a / 117.3a).
+describe("Daze (counter unless controller pays {1}, CR 701.6a / 117.3a)", () => {
     it("declining the payment counters the target spell", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

@@ -198,7 +198,7 @@ describe("Exorcist — destroy target black creature (CR 605 / 701.7)", () => {
 // Miracle Worker — {T}: destroy target Aura attached to a creature you control
 // ---------------------------------------------------------------------------
 
-describe("Miracle Worker — destroy your Aura (CR 605 / 701.7)", () => {
+describe("Miracle Worker — destroy your Aura (CR 605 / 701.8)", () => {
     it("destroys an Aura attached to a creature the controller controls", () => {
         const mw = makeInstance(miracleWorker.id, {
             id: "mw",
@@ -264,7 +264,7 @@ describe("Miracle Worker — destroy your Aura (CR 605 / 701.7)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Witch Hunter — ping + bounce (CR 605 / 119 / 701.10)
+// Witch Hunter — ping + bounce (CR 605 / 119 / 400.7)
 // ---------------------------------------------------------------------------
 
 describe("Witch Hunter — ping a player and bounce a creature", () => {
@@ -385,7 +385,7 @@ describe("Preacher — steal a creature while tapped (CR 611.2b)", () => {
 // Spells
 // ---------------------------------------------------------------------------
 
-describe("Dust to Dust — exile two target artifacts (CR 701.18)", () => {
+describe("Dust to Dust — exile two target artifacts (CR 701.13)", () => {
     it("exiles both targeted artifacts", () => {
         const art1 = makeInstance(getCardByName("Ornithopter").id, {
             id: "a1",
@@ -416,7 +416,7 @@ describe("Dust to Dust — exile two target artifacts (CR 701.18)", () => {
     });
 });
 
-describe("Tivadar's Crusade — destroy all Goblins (CR 701.7 / 205.3)", () => {
+describe("Tivadar's Crusade — destroy all Goblins (CR 701.8 / 205.3)", () => {
     it("destroys Goblins and leaves non-Goblins alone", () => {
         const goblin = makeInstance(scarwoodGoblins.id, {
             id: "gob",
@@ -476,7 +476,7 @@ describe("Holy Light — nonwhite creatures get -1/-1 (CR 611.2 / 202.2)", () =>
     });
 });
 
-describe("Martyr's Cry — exile white creatures, draw per exiled (CR 701.18 / 121.1)", () => {
+describe("Martyr's Cry — exile white creatures, draw per exiled (CR 701.13 / 121.1)", () => {
     it("exiles all white creatures and each controller draws one per exiled", () => {
         const w1 = makeInstance(getCardByName("White Knight").id, {
             id: "w1",

@@ -17,7 +17,7 @@ import {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 
-describe("Wishclaw Talisman (CR 122 counters / 701.19 / 400.7 / 701.20 / 613.1b)", () => {
+describe("Wishclaw Talisman (CR 122 counters / 701.23 / 400.7 / 701.24 / 613.1b)", () => {
     it("enters with three wish counters as it enters, with nothing on the stack (CR 121.6 / 614.1c)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

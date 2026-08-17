@@ -192,7 +192,7 @@ describe("Andradite Leech (controller's black spells cost {B} more, CR 601.2f)",
     });
 });
 
-describe("Annihilate (destroy nonblack, can't regen, draw; CR 701.8 / 701.15c / 121.1)", () => {
+describe("Annihilate (destroy nonblack, can't regen, draw; CR 701.8 / 701.19c / 121.1)", () => {
     it("destroys the target and draws a card", () => {
         const target = makeInstance(getCardByName("Elvish Archers").id, {
             id: "target",
@@ -219,7 +219,7 @@ describe("Annihilate (destroy nonblack, can't regen, draw; CR 701.8 / 701.15c / 
     });
 });
 
-describe("Phyrexian Reaper / Phyrexian Slayer (becomes-blocked-by-color → destroy, can't regen; CR 509.1h / 701.8 / 701.15c)", () => {
+describe("Phyrexian Reaper / Phyrexian Slayer (becomes-blocked-by-color → destroy, can't regen; CR 509.1h / 701.8 / 701.19c)", () => {
     it("Reaper's trigger fires only when blocked by a GREEN creature", () => {
         const reaper = makeInstance(phyrexianReaper.id, {
             id: "reaper",
@@ -360,7 +360,7 @@ describe("Phyrexian Reaper / Phyrexian Slayer (becomes-blocked-by-color → dest
     });
 });
 
-describe("Spreading Plague (ETB → destroy other same-color creatures, can't regen; CR 603.6a / 701.8 / 701.15c)", () => {
+describe("Spreading Plague (ETB → destroy other same-color creatures, can't regen; CR 603.6a / 701.8 / 701.19c)", () => {
     it("destroys other creatures sharing a color with the entrant, spares different colors", () => {
         const plague = makeInstance(spreadingPlague.id, {
             id: "plague",
@@ -577,7 +577,7 @@ describe("Plague Spitter (dies → 1 damage to each creature and each player; CR
     });
 });
 
-describe("Tsabo's Assassin ({T}: destroy target creature sharing the board's most common color; CR 701.8 / 701.15c)", () => {
+describe("Tsabo's Assassin ({T}: destroy target creature sharing the board's most common color; CR 701.8 destroy / 701.19c regeneration)", () => {
     function setup() {
         const assassin = makeInstance(tsabosAssassin.id, {
             id: "assassin",
@@ -844,7 +844,7 @@ describe("Urborg Skeleton (Kicker → a single +1/+1 counter; CR 702.33 / 122.1)
     });
 });
 
-describe("Mourning (Aura -2/-0 pt-buff + {B}: return to owner's hand; CR 613.4c / 701.10)", () => {
+describe("Mourning (Aura -2/-0 pt-buff + {B}: return to owner's hand; CR 613.4c / 400.7)", () => {
     it("gives the enchanted creature -2/-0 while attached, and nothing when detached", () => {
         const bears = makeInstance(grizzlyBears.id, {
             id: "bears",
@@ -1224,7 +1224,7 @@ describe("Exotic Curse (CR 303.4 aura / 604.3 CDA — -1/-1 per Domain, issue #1
     });
 });
 
-describe("Do or Die (CR 701.8 destroy / 701.15c regeneration, ADR 0053 pile division, issue #1067)", () => {
+describe("Do or Die (CR 701.8 destroy / 701.19c regeneration, ADR 0053 pile division, issue #1067)", () => {
     it("the caster divides the target player's creatures; the target player chooses the destroyed pile, unregenerable", () => {
         const creatures = ["dod-1", "dod-2", "dod-3"].map((id) =>
             makeInstance(savannahLions.id, {
@@ -1277,7 +1277,7 @@ describe("Do or Die (CR 701.8 destroy / 701.15c regeneration, ADR 0053 pile divi
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["dod-1"]);
     });
 
-    it("destroyed creatures can't be regenerated (CR 701.15c)", () => {
+    it("destroyed creatures can't be regenerated (CR 701.19c)", () => {
         const doomed = makeInstance(savannahLions.id, {
             id: "dod-regen",
             controllerId: "p2",
@@ -1813,7 +1813,7 @@ describe("Crypt Angel (ETB → return target blue or red creature card from grav
     });
 });
 
-describe("Dredge (Instant — sacrifice a creature or land, draw a card; CR 701.16 / 121.1)", () => {
+describe("Dredge (Instant — sacrifice a creature or land, draw a card; CR 701.21 / 121.1)", () => {
     it("sacrifices the chosen permanent, then draws a card", () => {
         const creature = makeInstance(savannahLions.id, {
             id: "dredge-creature",

@@ -1,7 +1,7 @@
 // MKM — colorless card behavior tests (ADR 0043 colour split).
 //
 // The "surveil land" cycle is the first CARD-level consumer of the surveil
-// (CR 701.44) shape — `scryReorder` with `destination: "graveyard"`. The Op
+// (CR 701.25 surveil) shape — `scryReorder` with `destination: "graveyard"`. The Op
 // itself is exercised in the interpreter suite; these tests lock the
 // `makeDualLand({ surveilLand })` factory branch: the produced definition
 // shape (enters tapped, dual mana, self-ETB trigger) and one end-to-end
@@ -38,7 +38,7 @@ const CYCLE: { card: CardDefinition; subtypes: [string, string] }[] = [
     { card: undergroundMortuary, subtypes: ["Swamp", "Forest"] },
 ];
 
-describe("MKM surveil lands (CR 701.44)", () => {
+describe("MKM surveil lands (CR 701.25)", () => {
     it("every card resolves in the registry by name", () => {
         for (const { card } of CYCLE) {
             expect(getCardByName(card.name)).toBe(card);

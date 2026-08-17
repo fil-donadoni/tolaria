@@ -155,7 +155,7 @@ describe("Thorn Thallid — spore payoff ping (CR 115.4)", () => {
     });
 });
 
-describe("Feral Thallid — spore payoff regenerate (CR 701.15a)", () => {
+describe("Feral Thallid — spore payoff regenerate (CR 701.19a)", () => {
     it("applies a regeneration shield to itself", () => {
         const feral = makeWithSpores(feralThallid.id, 0);
         const state = makeState({
@@ -306,7 +306,7 @@ describe("Elvish Scout — untap attacker + combat-damage prevention (CR 615)", 
     });
 });
 
-describe("Spore Cloud — mass tap + Fog + untap lock (CR 701.20a, 615, 302.6)", () => {
+describe("Spore Cloud — mass tap + Fog + untap lock (CR 701.26a, 615, 302.6)", () => {
     it("taps all blockers, fogs combat, and locks untaps", () => {
         const blocker = makeInstance(vodalianSoldiers.id, {
             controllerId: "p2",

@@ -2,7 +2,7 @@
 import type { CardDefinition, SpellContext } from "../../types";
 
 // Damnation — {2}{B}{B} Sorcery. "Destroy all creatures. They can't be
-// regenerated." (CR 701.8 destroy; CR 701.15c "can't be regenerated" is a
+// regenerated." (CR 701.8 destroy; CR 701.19c "can't be regenerated" is a
 // rider on the destroy event, not a static replacement — the regeneration
 // shield check itself is skipped entirely rather than being intercepted and
 // undone.)

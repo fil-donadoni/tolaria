@@ -97,7 +97,7 @@ describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
     });
 });
 
-describe("Walking Dead ({B}: Regenerate this, CR 701.15a)", () => {
+describe("Walking Dead ({B}: Regenerate this, CR 701.19a)", () => {
     it("arms a regeneration shield on itself", () => {
         const wd = makeInstance(walkingDead.id, {
             id: "wd",
@@ -291,7 +291,7 @@ describe("Hell Swarm (all creatures -1/-0 EOT, CR 611.1)", () => {
     });
 });
 
-describe("Hellfire (destroy all nonblack creatures + X+3 to you, CR 701.7)", () => {
+describe("Hellfire (destroy all nonblack creatures + X+3 to you, CR 701.8)", () => {
     it("destroys nonblack creatures, spares black, and deals X+3 to caster", () => {
         // Scathe Zombies (black) survives; Hill Giant (red) dies.
         const zombie = makeInstance("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e", {
@@ -451,7 +451,7 @@ describe("Darkness (prevent all combat damage this turn, CR 615)", () => {
     });
 });
 
-describe("Cosmic Horror (upkeep: destroy unless pay {3}{B}{B}{B}, then 7 to you, CR 603.6a / 701.7)", () => {
+describe("Cosmic Horror (upkeep: destroy unless pay {3}{B}{B}{B}, then 7 to you, CR 603.6a / 701.8)", () => {
     function setup() {
         const horror = makeInstance(cosmicHorror.id, {
             id: "horror",
@@ -556,7 +556,7 @@ describe("Mold Demon (ETB: sacrifice unless you sacrifice two Swamps, CR 603.6a 
     });
 });
 
-describe("Spirit Shackle (becomes-tapped → -0/-2 counter, CR 701.20a / 122.1 / 613.4d)", () => {
+describe("Spirit Shackle (becomes-tapped → -0/-2 counter, CR 701.26a / 122.1 / 613.4d)", () => {
     function setup() {
         const creature = makeInstance(grizzlyBears.id, {
             id: "creature",
@@ -634,7 +634,7 @@ describe("Nether Void (counter any spell unless its controller pays {3}, CR 117.
         expect(head.kind).toBe("may-pay");
         expect(head.playerId).toBe("p2");
         expect(head.cost).toEqual({ X: 3 });
-        // Decline → the spell is countered (CR 701.5a).
+        // Decline → the spell is countered (CR 701.6a).
         answerChoice(state, ["no"]);
         expect(state.stack.find((s) => s.id === spell.id)).toBeUndefined();
         expect(state.players[1].graveyard.some((c) => c.id === spell.id)).toBe(
@@ -698,7 +698,7 @@ describe("The Abyss (each-player upkeep destroy, CR 603.6a / 704.5m)", () => {
         const victim = makeInstance(HEADLESS, {
             id: "victim",
             controllerId: "p2",
-            // A regeneration shield must NOT save it (CR 701.7c).
+            // A regeneration shield must NOT save it (CR 701.19c).
             regenerationShields: 1,
         });
         const state = makeState({

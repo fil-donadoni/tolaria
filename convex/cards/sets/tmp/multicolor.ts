@@ -54,7 +54,7 @@ export const lobotomy: CardDefinition = {
             prompt: "Choose a card other than a basic land card",
             bind: "$chosen",
         },
-        // CR 701.19a — "SEARCH that player's … library". Searching a library
+        // CR 701.23a — "SEARCH that player's … library". Searching a library
         // means LOOKING at it, and that look is half of what the card buys:
         // exiling the copies is the small half, learning the opponent's whole
         // deck is the big one. Sweeping the library automatically (as the

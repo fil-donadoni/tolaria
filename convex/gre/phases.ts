@@ -296,7 +296,7 @@ export function finalizeUntapPick(
     const chooser = getPlayer(state, head.zoneOwnerId ?? head.playerId);
     for (const id of selectedIds) {
         const card = chooser.battlefield.find((c) => c.id === id);
-        // CR 701.20b — emit "becomes untapped" on the transition (ADR 0028).
+        // CR 701.26b — emit "becomes untapped" on the transition (ADR 0028).
         if (card) untapPermanent(state, card);
     }
     queue.shift();
@@ -567,7 +567,7 @@ export function untapStep(state: GameState): void {
                 card.tapTriggerCommitted = undefined;
                 continue;
             }
-            // CR 701.20b — emit "becomes untapped" on the transition so
+            // CR 701.26b — emit "becomes untapped" on the transition so
             // untap-watching triggers fire (Tawnos's Coffin, ADR 0028). The
             // events are collected into triggers at step completion below.
             untapPermanent(state, card);
@@ -1688,7 +1688,7 @@ export function applyAllCombatDamage(
     }
 
     // Move dead creatures to their owner's graveyard. Each victim is routed
-    // through regenerateOrDestroy (CR 614.5, 701.15a) so a regen shield can
+    // through regenerateOrDestroy (CR 614.5, 701.19a) so a regen shield can
     // replace the destroy with the heal/tap/leave-combat rider — those
     // creatures stay on the battlefield. Actual deaths emit CREATURE_DIED
     // (CR 700.4) into `state.pendingEvents` from `removePermanentTo`; we
@@ -2282,7 +2282,7 @@ export function finalizeCleanupDiscard(
         const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
         if (idx === -1) continue;
         // CR 614 discard replacement (Library of Leng) runs inside
-        // discardToGraveyard; a real discard emits CARD_DISCARDED (CR 701.8).
+        // discardToGraveyard; a real discard emits CARD_DISCARDED (CR 701.9).
         discardToGraveyard(state, player.id, cardInstanceId);
     }
     // ADR 0026 (revised): the cleanup discard (CR 514.1) does NOT clear a
@@ -2434,7 +2434,7 @@ export function finalizeCleanup(state: GameState): void {
             if (card.dealtDamageToOpponentThisTurn !== undefined) {
                 card.dealtDamageToOpponentThisTurn = undefined;
             }
-            // CR 701.15a — regeneration shields apply only "this turn".
+            // CR 701.19a — regeneration shields apply only "this turn".
             // Unused shields wear off here.
             if (card.regenerationShields !== undefined) {
                 card.regenerationShields = undefined;
@@ -2443,7 +2443,7 @@ export function finalizeCleanup(state: GameState): void {
             if (card.exileOnDeath !== undefined) {
                 card.exileOnDeath = undefined;
             }
-            // CR 701.15c — "can't be regenerated this turn" wears off here
+            // CR 701.19c — "can't be regenerated this turn" wears off here
             // (Clergy of the Holy Nimbus's {1} ability).
             if (card.cantBeRegeneratedThisTurn !== undefined) {
                 card.cantBeRegeneratedThisTurn = undefined;
@@ -2601,7 +2601,7 @@ function tickAllDurations(state: GameState): void {
     // is deferred to a snapshot list because `revertControlChange` moves the
     // host between battlefield arrays — mutating them mid-iteration would
     // perturb the scan. If the entry carries a `tapOnLoss` rider, the permanent
-    // is tapped the instant control is lost (CR 701.20a).
+    // is tapped the instant control is lost (CR 701.26a).
     const controlReverts: Array<{
         hostId: string;
         auraId: string;
@@ -2628,7 +2628,7 @@ function tickAllDurations(state: GameState): void {
     for (const r of controlReverts) {
         revertControlChange(state, r.hostId, r.auraId);
         if (!r.tapOnLoss) continue;
-        // CR 701.20a — tap the permanent now that control has reverted. It has
+        // CR 701.26a — tap the permanent now that control has reverted. It has
         // moved back into its owner's battlefield array; find it by id.
         for (const p of state.players) {
             const host = p.battlefield.find((c) => c.id === r.hostId);
@@ -3347,7 +3347,7 @@ export function advancePhase(state: GameState): Phase[] {
 
     // Auto-skip DECLARE_BLOCKERS when every declared attacker is unblockable
     // (e.g. flying with no reach defender, or landwalk on a matching land —
-    // CR 702.9, 702.13). Matches the UX where the defender has no legal
+    // CR 702.9, 702.14). Matches the UX where the defender has no legal
     // target to assign, avoiding a dead-end priority window.
     const skipUnblockableCombat =
         state.phase === "DECLARE_BLOCKERS" &&

@@ -107,7 +107,7 @@ function mayPayCostHasPayableManaLeg(cost: MayPayCost | undefined): boolean {
 }
 
 /** The terminal action a `may-pay` battlefield pick performs, as the verb the
- *  pick-progress hint uses (CR 701.16 "sacrifice" / 701.24 "return", ADR 0079).
+ *  pick-progress hint uses (CR 701.21 "sacrifice" / 400.7 "return", ADR 0079).
  *  Reads `PendingChoice.permanentAction` — denormalized server-side onto the
  *  choice by `requestMayPay`, so the prompt never re-derives it from the cost
  *  union and cannot drift from what the submit boundary will accept. This is

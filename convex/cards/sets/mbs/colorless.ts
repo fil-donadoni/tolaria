@@ -15,8 +15,8 @@ const BLIGHTSTEEL_COLOSSUS_ID = "7928bb14-7631-4830-a756-26d1ea832ba2";
 // (issue #1201, split from #699 — Vintage Cube PRD #620). "Trample, infect,
 // indestructible\nIf Blightsteel Colossus would be put into a graveyard from
 // anywhere, reveal Blightsteel Colossus and shuffle it into its owner's
-// library instead." (CR 702.19 trample, CR 702.90 infect, CR 702.12b
-// indestructible, CR 701.24 shuffle a card into a library.)
+// library instead." (CR 702.19 trample, CR 702.90 infect, CR 702.12b indestructible,
+// CR 701.24 shuffle a card into a library.)
 //
 // The graveyard-avoidance clause is implemented as a "from anywhere"
 // self-trigger, the SAME established pattern as Worldspine Wurm
@@ -51,7 +51,7 @@ function blightsteelColossusShuffleFromGraveyard(): TriggeredAbility {
         oracleText:
             "If Blightsteel Colossus would be put into a graveyard from anywhere, reveal Blightsteel Colossus and shuffle it into its owner's library instead.",
         // The FOUR events that partition graveyard entry (CR 603.2): death,
-        // discard (CR 701.8), mill (CR 701.17), and CARD_PUT_INTO_GRAVEYARD —
+        // discard (CR 701.9), mill (CR 701.17), and CARD_PUT_INTO_GRAVEYARD —
         // the residual catch-all for any other general zone move into a
         // graveyard, without which "from anywhere" misses a
         // "put the rest into your graveyard" dig (not a mill, CR 701.17a).

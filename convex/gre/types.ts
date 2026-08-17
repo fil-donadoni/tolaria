@@ -92,7 +92,7 @@ export type ZonePickKind =
     // path in `applyPendingChoiceSubmit` (library-zone allow-list on
     // `candidateIds`).
     | "look-top"
-    // Ordered top-of-library placement (CR 701.22 Scry / 701.44 Surveil /
+    // Ordered top-of-library placement (CR 701.22 Scry / 701.25 Surveil /
     // "look at the top N, put them back in any order" — Ponder). The drag
     // picker's kind: `candidateIds` are the looked-at top N (from
     // `peekLibraryTop`), exposed face-up as `libraryPeek` exactly like
@@ -159,7 +159,7 @@ export type ZonePickKind =
 
 /** Where the un-kept cards of an `order-top` choice go (the SECOND zone of the
  *  drag picker). `library-bottom` = scry (CR 701.22), `graveyard` = surveil
- *  (CR 701.44), `none` = order-only (Ponder / Index — every card stays on top,
+ *  (CR 701.25), `none` = order-only (Ponder / Index — every card stays on top,
  *  only the order changes). The kept cards always return to the TOP of the
  *  library in the chosen order. */
 export type LibraryDestination = "library-bottom" | "graveyard" | "none";

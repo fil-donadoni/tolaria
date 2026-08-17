@@ -350,7 +350,7 @@ describe("Arc Lightning ({2}{R} — 3 damage divided as you choose, CR 601.2d / 
 // Sneak Attack — {3}{R} Enchantment, {R}: You may put a creature card from
 // your hand onto the battlefield. That creature gains haste. Sacrifice the
 // creature at the beginning of the next end step. (CR 400.7 / 702.10 haste /
-// 603.7 delayed trigger / 701.16 sacrifice.) SHIPPED by issue #1151, which
+// 603.7 delayed trigger / 701.21 sacrifice.) SHIPPED by issue #1151, which
 // closed two composability gaps: the `sacrifice` Op's existing single-object
 // `target` form now also serves a `delayedTrigger`-captured object (no
 // separate `sacrificeObject` Op needed), and `moveZone`'s choice-driven
@@ -360,7 +360,7 @@ describe("Arc Lightning ({2}{R} — 3 damage divided as you choose, CR 601.2d / 
 // delayedTrigger(capture) + sacrifice(target)) has its own permanent test in
 // `convex/gre/effects/__tests__/interpreter.test.ts` — these tests exercise
 // the REAL activated ability (cost, `useStack`) end to end.
-describe("Sneak Attack — {R}: put a creature from hand, gain haste, sacrifice at next end step (CR 400.7 / 702.10 / 603.7 / 701.16, issue #1151)", () => {
+describe("Sneak Attack — {R}: put a creature from hand, gain haste, sacrifice at next end step (CR 400.7 / 702.10 / 603.7 / 701.21, issue #1151)", () => {
     const SNEAK_ABILITY = "sneak-attack-put";
 
     /** Pushes Sneak Attack's activated ability onto the stack from

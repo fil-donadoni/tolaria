@@ -165,7 +165,7 @@ function submitCategorized(state: GameState, picks: string[]): void {
     });
 }
 
-describe("Planar Overlay (CR 601.2b / 701.10, issue #1945)", () => {
+describe("Planar Overlay (CR 601.2b / 400.7, issue #1945)", () => {
     it("lets a DUAL land answer two basic types at once — the 1-land answer is legal (Gatherer ruling)", () => {
         const state = makeState({
             players: [
@@ -437,7 +437,7 @@ describe("Allied Strategies (Domain draw, CR 702 preamble)", () => {
     });
 });
 
-describe("Escape Routes (activated bounce, CR 701.10)", () => {
+describe("Escape Routes (activated bounce, CR 400.7)", () => {
     it("returns a white creature you control to its owner's hand", () => {
         const routes = makeInstance(escapeRoutes.id, {
             id: "routes",
@@ -467,7 +467,7 @@ describe("Escape Routes (activated bounce, CR 701.10)", () => {
     });
 });
 
-describe("Gainsay (counter target blue spell, CR 701.5a)", () => {
+describe("Gainsay (counter target blue spell, CR 701.6a)", () => {
     it("counters a blue spell on the stack", () => {
         const state = makeState();
         const optItem = pushSpell(state, opt.id, "p2");

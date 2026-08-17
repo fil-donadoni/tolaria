@@ -1,9 +1,17 @@
 ---
 title: 104 sites cite "CR 701.19" for Search; the vendored CR numbers Search 701.23 and Regenerate 701.19
 discoveredBy: 2381
-status: draft
+status: declined
+reason: fixed at the source instead of ticketed — `cr:lint` now checks CR
+    701/702 citations against the vendored section titles
+    (`scripts/cr-keyword-citations.ts`), and the sweep it forced re-pointed
+    every site in this entry.
 confidence: high
 ---
+
+**RESOLVED.** Not by the comment sweep this entry proposed, but by option (2) of
+the sibling finding: the gate learned to see the class. All 104 sites here (and
+the `701.20` shuffle cluster) were re-pointed as part of landing that guard.
 
 **What is wrong.** The whole search/tutor subsystem is annotated against an
 older CR numbering. `bun run cr 701.19` prints **Regenerate**; Search is

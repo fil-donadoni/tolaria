@@ -240,7 +240,7 @@ export function isGuardedAgainst(
  *
  *  Unlike `isGuardedAgainst`'s `cantBeTargeted` clause, shroud has no
  *  source-narrowing (no hexproof-style controller exception, no
- *  Artifact-Ward-style type/subtype filter, no spell-only filter): CR 702.18
+ *  Artifact-Ward-style type/subtype filter, no spell-only filter): CR 702.18 shroud
  *  bars EVERY spell/ability source, including ones the guarded player
  *  controls, so the reader takes no `actionSource` parameter — callers don't
  *  need to thread one.

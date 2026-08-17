@@ -3,7 +3,7 @@
 // CR 702.90a — "Infect is a static ability. 'Infect' means 'This creature
 // deals damage to creatures in the form of -1/-1 counters and to players in
 // the form of poison counters.'"
-// CR 702.90b — "Wither means 'This permanent's damage isn't marked on a
+// CR 702.80a — "Wither means 'This permanent's damage isn't marked on a
 // creature but is dealt in the form of -1/-1 counters instead.'" (creature
 // half only — wither does NOT change player damage).
 //
@@ -108,7 +108,7 @@ describe("markInfectWitherDamage helper edge cases", () => {
         expect(bear.damageMarked ?? 0).toBe(0);
     });
 
-    it("wither diverts damage to -1/-1 counters (creature half, CR 702.90b)", () => {
+    it("wither diverts damage to -1/-1 counters (creature half, CR 702.80a)", () => {
         const bear = creature("bear", 5, 5, {
             controllerId: "p1",
             ownerId: "p1",
@@ -136,7 +136,7 @@ describe("markInfectPoisonDamage helper edge cases", () => {
         expect(markInfectPoisonDamage(state, "p2", ["flying"], 5)).toBe(false);
     });
 
-    it("wither alone does NOT divert player damage (CR 702.90b is creature-only)", () => {
+    it("wither alone does NOT divert player damage (CR 702.80a is creature-only)", () => {
         const state = makeState();
         expect(markInfectPoisonDamage(state, "p2", ["wither"], 5)).toBe(false);
     });
@@ -165,7 +165,7 @@ describe("infect combat damage to a player (CR 702.90a)", () => {
     });
 });
 
-describe("wither combat damage to a player is normal life loss (CR 702.90b)", () => {
+describe("wither combat damage to a player is normal life loss (CR 702.80a)", () => {
     it("an unblocked wither attacker deals normal life loss, no poison", () => {
         const withering = creature("withering", 3, 3, {
             staticAbilities: ["wither"],

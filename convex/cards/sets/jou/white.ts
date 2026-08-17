@@ -9,7 +9,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // The ETB trigger (CR 603.6a) exiles a chosen nonland permanent an opponent
 // controls keyed to this enchantment (ADR 0028 exile-and-return bundle), and
 // the leaves-the-battlefield trigger (CR 603.7a) returns it. Crucially this
-// exiles ONLY the host (`includeAttachments: false`, CR 701.18): unlike
+// exiles ONLY the host (`includeAttachments: false`, CR 701.13): unlike
 // Tawnos's Coffin the host's Auras are NOT bundled, so they fall to the
 // graveyard via the orphan-aura SBA (CR 704.5n) and its Equipment detaches and
 // stays on the battlefield — neither is exiled nor returned. The exiled card is
@@ -51,7 +51,7 @@ export const banishingLight: CardDefinition = {
                 excludeTypes: "Land",
                 controller: "opponent",
             },
-            // CR 701.18 — host-only exile (auras die to the orphan-aura SBA,
+            // CR 701.13 — host-only exile (auras die to the orphan-aura SBA,
             // equipment detaches); ADR 0028 arms the return keyed to `$source`.
             // The `exileWithAttachments` Op reads the announced target
             // (`{ target: 0 }`) and defaults `includeAttachments`/`returnTapped`

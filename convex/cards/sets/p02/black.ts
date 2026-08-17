@@ -7,7 +7,7 @@
 // discards a card." (CR 603.6a ETB, CR 701.9 discard.) "Target opponent" in
 // a 2-player game is a relative `EffectPlayerRef`, so no `choice-as-target`
 // substitute is needed at all — `player: "opponent"` addresses it directly
-// (the discarding player also chooses which card, CR 701.8a default).
+// (the discarding player also chooses which card, CR 701.9a default).
 //
 // Home set = earliest paper printing (ADR 0041) = Portal Second Age; it was first
 // implemented against the INV reprint, which filed it under the

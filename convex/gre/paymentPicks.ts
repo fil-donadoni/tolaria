@@ -277,7 +277,7 @@ export function chooseConvokeCreatures(choice: ConvokeChoiceView): string[] {
  *  (ADR 0091 decision 5) — the `*Each` shapes below fire one mutation per id, in
  *  order, because that is what the server's picker accepts. */
 export type OwedPaymentSubmission =
-    /** CR 701.16 / 601.2f — one call per victim; the server routes it to
+    /** CR 701.21 / 601.2f — one call per victim; the server routes it to
      *  whichever in-flight cast/activation awaits a sacrifice choice. */
     | { mutation: "selectSacrifice"; cardInstanceIdEach: string[] }
     /** CR 118.8 — the cast-side exile additional cost (Soul Exchange). */

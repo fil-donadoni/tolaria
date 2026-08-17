@@ -683,7 +683,7 @@ export const howlingMine: CardDefinition = {
 };
 
 // Icy Manipulator — "{1}, {T}: Tap target artifact, creature, or land."
-// CR 701.20a (tap), CR 605 (activated abilities), CR 602.2 (target selection
+// CR 701.26a (tap), CR 605 (activated abilities), CR 602.2 (target selection
 // at activation). Uses the stack (not a mana ability) so it can be responded to.
 export const icyManipulator: CardDefinition = {
     id: "29dc1596-a2e7-4d60-9f99-89babaef8a06",
@@ -1055,7 +1055,7 @@ export const livingWall: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -1257,7 +1257,7 @@ export const nevinyrralsDisk: CardDefinition = {
                 "{1}, {T}: Destroy all artifacts, creatures, and enchantments.",
             cost: { tap: true, mana: { X: 1 } },
             useStack: true,
-            // destroyAll → forEach-per-type (CR 701.7). A permanent matching
+            // destroyAll → forEach-per-type (CR 701.8). A permanent matching
             // more than one type (e.g. an artifact creature) is destroyed on
             // its first pass and skipped on later passes (CR 608.2b).
             effects: [

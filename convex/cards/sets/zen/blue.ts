@@ -5,7 +5,7 @@
 import type { CardDefinition } from "../../types";
 
 // Spell Pierce — "Counter target noncreature spell unless its controller
-// pays {2}." (CR 701.5a counter-unless-pay, CR 117.3a may-pay, CR 114.1
+// pays {2}." (CR 701.6a counter-unless-pay, CR 117.3a may-pay, CR 114.1
 // `spellExcludeTypeFilter` — issue #683's new "noncreature spell" targeting
 // restriction). Same mayPay + if(not $paid) + counter shape as Force Spike
 // (leg/blue.ts), restricted to noncreature spells at the target-requirement
@@ -33,7 +33,7 @@ export const spellPierce: CardDefinition = {
             bind: "$paid",
         },
         {
-            // CR 701.5a — counter unless the payment was made.
+            // CR 701.6a — counter unless the payment was made.
             op: "if",
             predicate: { not: { binding: "$paid" } },
             then: [{ op: "counter", target: { target: 0 } }],

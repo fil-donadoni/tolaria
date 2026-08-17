@@ -256,7 +256,7 @@ describe("Minsc & Boo, Timeless Heroes — −2 (reflexive trigger, CR 603.3c)",
         const minsc = state.players[0].battlefield[0];
         activate(state, minsc, "minsc-and-boo-minus2");
 
-        // CR 701.16 — the sacrifice is an effect, so the player picks.
+        // CR 701.21 — the sacrifice is an effect, so the player picks.
         const pick = state.pendingChoices![0];
         applyPendingChoiceSubmit(state, {
             playerId: "p1",

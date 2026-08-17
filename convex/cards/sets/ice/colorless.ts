@@ -474,7 +474,7 @@ export const celestialSword: CardDefinition = {
     ],
 };
 // Despotic Scepter — {T}: Destroy target permanent you own. It can't be
-// regenerated (CR 605 activated ability; CR 701.7 destroy; the
+// regenerated (CR 605 activated ability; CR 701.8 destroy; the
 // can't-be-regenerated rider suppresses the regen shield).
 export const despoticScepter: CardDefinition = {
     id: "53e381a4-810e-4b75-aed3-c16cf0eb06fa",
@@ -497,7 +497,7 @@ export const despoticScepter: CardDefinition = {
                 controller: "you",
             },
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): destroy the
-            // announced target, can't-be-regenerated (CR 701.7 / 701.15c).
+            // announced target, can't-be-regenerated (CR 701.8 / 701.19c).
             effects: [
                 {
                     op: "destroy",
@@ -728,7 +728,7 @@ export const goblinLyre: CardDefinition = {
 // Talisman cycle (Hematite/Lapis Lazuli/Malachite/Nacre/Onyx) — "Whenever a
 // player casts a [color] spell, you may pay {3}. If you do, untap target
 // permanent." (CR 603.2 cast trigger via `spellCastTrigger` + SpellFilter color
-// gate; CR 117.3a optional `requestMayPay`; CR 701.20b untap.)
+// gate; CR 117.3a optional `requestMayPay`; CR 701.26b untap.)
 //
 // CR 603.3d (issue #1193) — "untap target permanent" is a REAL target chosen
 // when the trigger is PUT ON THE STACK, declared as a `targetRequirement` on
@@ -793,7 +793,7 @@ function makeTalisman(args: {
                         });
                         if (accept === undefined) return; // suspended
                         if (!accept) return; // declined the {3}
-                        ctx.untap(target); // CR 701.20b
+                        ctx.untap(target); // CR 701.26b
                     },
                 }),
                 // CR 603.3d — "untap target permanent": any controller's
@@ -989,9 +989,9 @@ export const infiniteHourglass: CardDefinition = {
 };
 // Jester's Cap — {2}, {T}, Sacrifice this artifact: Search target player's
 // library for three cards and exile them. Then that player shuffles (CR 605
-// activated ability with sacrifice cost; CR 701.19 library search of another
+// activated ability with sacrifice cost; CR 701.23 library search of another
 // player's zone via `requestChoice` with `zoneOwnerId`; CR 406 exile;
-// CR 701.20 shuffle). The activating player makes the search.
+// CR 701.24 shuffle). The activating player makes the search.
 export const jestersCap: CardDefinition = {
     id: "47ac44d0-8090-4e7b-ac47-c567294f185e",
     name: "Jester's Cap",
@@ -1049,8 +1049,8 @@ export const jestersCap: CardDefinition = {
 // on top of their library; you search that player's library for that many cards;
 // those go to their hand; then they shuffle (CR 110.5b enters tapped; CR 605
 // activated ability with mana+tap+sacrifice cost; CR 400.7 zone changes;
-// CR 701.19 library search of another player's zone via `requestChoice` with
-// `zoneOwnerId`; CR 701.20 shuffle). Composition of shipped primitives: capture
+// CR 701.23 library search of another player's zone via `requestChoice` with
+// `zoneOwnerId`; CR 701.24 shuffle). Composition of shipped primitives: capture
 // the hand size, move the whole hand to library (`moveZone`), search for that
 // many cards into hand, shuffle. The "on top of library" detail is washed out by
 // the mandatory final shuffle, so the library-position primitive isn't needed.
@@ -1097,7 +1097,7 @@ export const jestersMask: CardDefinition = {
                     ctx.moveZone(player, "hand", "library");
                 }
                 if (handCount > 0) {
-                    // CR 701.19 — the activating player searches that player's
+                    // CR 701.23 — the activating player searches that player's
                     // library for `handCount` cards to put into their hand.
                     const picked = ctx.requestChoice({
                         playerId: ctx.controller,
@@ -1107,7 +1107,7 @@ export const jestersMask: CardDefinition = {
                         zoneOwnerId: player,
                         count: { min: 0, max: handCount },
                         prompt: `Search the target player's library for up to ${handCount} cards to put into their hand.`,
-                        // Genuine CR 701.19a search of the whole target
+                        // Genuine CR 701.23a search of the whole target
                         // library (no candidateIds restriction) — issue #788
                         // finding 1.
                         isSearch: true,
@@ -1283,7 +1283,7 @@ export const pentagramOfTheAges: CardDefinition = {
 // Pit Trap — {2}, {T}, Sacrifice this artifact: Destroy target attacking
 // creature without flying. It can't be regenerated (CR 605 activated ability
 // with sacrifice cost; CR 508.1 attacking filter; CR 702.9 "without flying"
-// via excludeAbility; CR 701.7 destroy).
+// via excludeAbility; CR 701.8 destroy).
 export const pitTrap: CardDefinition = {
     id: "c588fe7f-945d-4459-904c-67442f88b4e1",
     name: "Pit Trap",
@@ -1306,7 +1306,7 @@ export const pitTrap: CardDefinition = {
                 excludeAbility: "flying",
             },
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): destroy the
-            // announced target, can't-be-regenerated (CR 701.7 / 701.15c).
+            // announced target, can't-be-regenerated (CR 701.8 / 701.19c).
             effects: [
                 {
                     op: "destroy",
@@ -1504,7 +1504,7 @@ export const snowFortress: CardDefinition = {
 // Soldevi Golem — a 5/3 Golem that doesn't untap normally; instead, at your
 // upkeep you may untap a tapped opponent creature to untap it too (CR 702 —
 // "doesn't untap" via the `does-not-untap` keyword; CR 603.6a phase trigger;
-// CR 117.3a optional `requestMayPay`; CR 701.20b untap).
+// CR 117.3a optional `requestMayPay`; CR 701.26b untap).
 //
 // CR 603.3d (issue #1193) — "target tapped creature an opponent controls" is a
 // REAL target chosen when the trigger is PUT ON THE STACK, declared as a
@@ -1621,7 +1621,7 @@ export const soldeviSimulacrum: CardDefinition = {
     ],
 };
 // Staff of the Ages — Creatures with landwalk abilities can be blocked as
-// though they didn't have those abilities (CR 509.1b / 702.13 landwalk-negation
+// though they didn't have those abilities (CR 509.1b / 702.14 landwalk-negation
 // static, battlefield-scanned). Expressed with the parametric landwalk-negation
 // kind (shared with Great Wall / Undertow) listing every basic land subtype, so
 // all basic landwalk variants are suppressed at once.
@@ -2059,7 +2059,7 @@ export const brushland: CardDefinition = {
 //     (`cost: { life: 2 }`), the `{ life }` MayPayCost union leg.
 //   • "When this land enters, sacrifice a land" — a self-ETB DSL trigger
 //     (`enteredTrigger` + `effects`): a `sacrifice-permanents` choice over the
-//     controller's lands, then the `sacrifice` Op on the pick (CR 701.16). Any
+//     controller's lands, then the `sacrifice` Op on the pick (CR 701.21). Any
 //     land qualifies, including Glacial Chasm itself.
 //   • "Creatures you control can't attack" — a battlefield-scanned
 //     `global-attack-restriction` (CR 508.1c) scoped to the SOURCE's controller
@@ -2448,7 +2448,7 @@ export const snowCoveredForest: CardDefinition = {
 // Urza's Bauble — {0} Artifact (Vintage Cube card-advantage tranche, issue
 // #674). "{T}, Sacrifice this artifact: Look at a card at random in target
 // player's hand. You draw a card at the beginning of the next turn's upkeep."
-// The private "look at a random card" clause (CR 701.18a) is modelled by the
+// The private "look at a random card" clause (CR 400.2) is modelled by the
 // `lookRandomHand` Op: a seeded-PRNG pick from the targeted player's hand is
 // stamped known to the activator alone and shown in a transient look dialog
 // (the activator sees the real card on the wire; every other player still
@@ -2474,7 +2474,7 @@ export const urzasBauble: CardDefinition = {
             targetRequirement: { type: "player", count: 1 },
             // Effect Script (ADR 0045/0048): first the private look at a
             // random card in the targeted player's hand (`lookRandomHand`,
-            // CR 701.18a — the looker defaults to the resolving controller),
+            // CR 400.2 — the looker defaults to the resolving controller),
             // then the next-upkeep cantrip as a `delayedTrigger` Op with an
             // inline body (CR 603.7d, migrated in #838). "controller" resolves
             // to the delayed trigger's controller (the activator, CR 113.7).

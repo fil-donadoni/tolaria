@@ -233,12 +233,12 @@ export function makeDualLand(args: {
      *  `entersTappedUnlessPay: { life: 2 }`. Mutually exclusive with
      *  `fastLand`. */
     shockLand?: boolean;
-    /** The MKM "surveil land" cycle (CR 701.44 Surveil): "This land enters
+    /** The MKM "surveil land" cycle (CR 701.25 Surveil): "This land enters
      *  tapped. When this land enters, surveil 1." A plain unconditional
      *  `entersTapped: true` (no board predicate, no pay-choice) plus a
      *  self-ETB triggered ability whose effect is the shared `scryReorder`
      *  Op with `count: 1, destination: "graveyard"` (surveil = scry-into-
-     *  graveyard, CR 701.44 modelled over CR 701.22, ADR 0045). Keeps the
+     *  graveyard, CR 701.25 modelled over CR 701.22, ADR 0045). Keeps the
      *  basic land subtypes (the printed cards are `Land — <basic> <basic>`).
      *  Mutually exclusive with `fastLand` / `shockLand`. */
     surveilLand?: boolean;
@@ -273,7 +273,7 @@ export function makeDualLand(args: {
             ? undefined
             : [COLOR_TO_LAND_SUBTYPE[c1], COLOR_TO_LAND_SUBTYPE[c2]],
         entersTapped: args.surveilLand ? true : undefined,
-        // CR 701.44 — the ETB surveil 1 trigger, shared shape across the cycle.
+        // CR 701.25 — the ETB surveil 1 trigger, shared shape across the cycle.
         triggeredAbilities: args.surveilLand
             ? [
                   {

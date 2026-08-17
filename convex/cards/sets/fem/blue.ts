@@ -349,7 +349,7 @@ export const deepSpawn: CardDefinition = {
             resolve: (ctx, _event, scopedPlayerId) => {
                 // CR 117.3a — "unless you mill two cards": the upkeep player may
                 // mill two (a real cost they choose to pay) to keep Deep Spawn.
-                // Declining sacrifices it (CR 701.5a).
+                // Declining sacrifices it (CR 701.21a).
                 const top = ctx.peekLibraryTop(scopedPlayerId, 2);
                 const paid = ctx.requestMayPay({
                     playerId: scopedPlayerId,
@@ -361,7 +361,7 @@ export const deepSpawn: CardDefinition = {
                 });
                 if (paid === undefined) return; // suspended
                 if (paid) {
-                    // CR 701.13a — mill two: move the live top card to the
+                    // CR 701.17a — mill two: move the live top card to the
                     // graveyard twice. Stops naturally once the library empties.
                     for (let i = 0; i < 2; i++) {
                         const t = ctx.peekLibraryTop(scopedPlayerId, 1);
@@ -588,7 +588,7 @@ export const vodalianKnights: CardDefinition = {
                 );
             },
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice the
-            // source (CR 701.16a).
+            // source (CR 701.21a).
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
@@ -709,7 +709,7 @@ export const seasinger: CardDefinition = {
                 );
             },
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice the
-            // source (CR 701.16a).
+            // source (CR 701.21a).
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],

@@ -4,7 +4,7 @@
 import type { CardDefinition } from "../../types";
 
 // Innocent Blood — "Each player sacrifices a creature of their choice."
-// (CR 701.16 sacrifice.) The first DSL card composing a `choice` Op INSIDE a
+// (CR 701.21 sacrifice.) The first DSL card composing a `choice` Op INSIDE a
 // forEach construct (ADR 0045, issue #807): the players set iterates in
 // APNAP order (CR 101.4 — active player decides first, then each other
 // player in turn order); each iteration suspends on a `sacrifice-permanents`
@@ -43,7 +43,7 @@ export const innocentBlood: CardDefinition = {
 };
 
 // Entomb — {B} Instant. "Search your library for a card, put that card into
-// your graveyard, then shuffle." (CR 701.19 / 400.7 / 701.20.) An unrestricted
+// your graveyard, then shuffle." (CR 701.23 search / 400.7 / 701.24 shuffle.) An unrestricted
 // tutor straight to the graveyard — `moveZone`'s `to: "graveyard"` branch,
 // issue #677.
 export const entomb: CardDefinition = {

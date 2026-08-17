@@ -55,7 +55,7 @@ export type ChoiceCandidateHint = {
     /** Life this candidate pays (CR 118.4). 0 / undefined when it pays none. */
     lifePaid?: number;
     /** Summed latent worth of the material this candidate GAINS — the cards a
-     *  library search finds (CR 701.19). 0 for a "fail to find" (CR 701.19c).
+     *  library search finds (CR 701.23). 0 for a "fail to find" (CR 701.23b).
      *  The mirror of `materialGivenUp`: same rough point currency, opposite
      *  sign of intent. */
     materialGained?: number;
@@ -83,7 +83,7 @@ const MATERIAL_PRIOR_SCALE = 400;
 const LIFE_PRIOR_SCALE = 20;
 
 /** Prior of a `search-library` candidate that finds nothing of worth — and so
- *  of "fail to find" (CR 701.19c) itself. Every real find scores above it by
+ *  of "fail to find" (CR 701.23b) itself. Every real find scores above it by
  *  its `materialGained`, which is exactly the ordering first-play urgency
  *  wants; the floor stays inside the band so failing to find is still reachable
  *  (a search that shuffles away a stacked library CAN be the right answer). */
@@ -118,15 +118,15 @@ function acceptOf(move: Move): boolean | undefined {
  *    life to enter untapped is the standard play — brain.ts pays iff affordable.
  *  - `draw-replacement` (CR 614 / ADR 0061, Zur's Weirding): brain.ts DECLINES —
  *    paying life to bin an unknown card is speculative.
- *  - `search-library` (CR 701.19, fetchlands / tutors): the better the card
- *    found, the earlier that branch opens; failing to find (CR 701.19c) sits at
+ *  - `search-library` (CR 701.23, fetchlands / tutors): the better the card
+ *    found, the earlier that branch opens; failing to find (CR 701.23b) sits at
  *    the bottom of the band but is never pruned. */
 export function heuristicChoicePrior(
     _state: GameState,
     choice: PendingChoice,
     candidate: PriorCandidate
 ): number {
-    // CR 701.19 — a library search is not a yes/no answer: it is ranked purely
+    // CR 701.23 — a library search is not a yes/no answer: it is ranked purely
     // by what it FINDS, so it is scored before the accept/decline dispatch.
     if (choice.kind === "search-library") {
         return clampPrior(
@@ -221,7 +221,7 @@ function contextAwareRemovalBonus(
     );
 }
 
-/** `search-library` (CR 701.19): re-reads the REAL library (the choice is
+/** `search-library` (CR 701.23): re-reads the REAL library (the choice is
  *  still live — the found cards haven't left it yet) for the candidate's
  *  named ids, and scores their summed `libraryTargetWorth` PLUS the
  *  context-aware removal bonus. Mirrors `heuristicChoicePrior`'s banding
@@ -240,7 +240,7 @@ function dslSearchLibraryPrior(
     if (candidate.move.kind !== "resolution-choice") return NEUTRAL_PRIOR;
     const ids = candidate.move.cardInstanceIds ?? [];
     if (ids.length === 0) {
-        // CR 701.19c — "fail to find" carries no material of its own.
+        // CR 701.23b — "fail to find" carries no material of its own.
         return clampPrior(SEARCH_FIND_PRIOR_FLOOR);
     }
     const zoneOwner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
@@ -293,7 +293,7 @@ function isDegenerateChoiceCandidate(
     const move = candidate.move;
     if (move.kind !== "resolution-choice") return false;
     if ((move.cardInstanceIds?.length ?? 0) > 0) return false;
-    // CR 701.19c — "fail to find" always SHUFFLES, so a search-library empty
+    // CR 701.23b — "fail to find" always SHUFFLES, so a search-library empty
     // pick is never a no-op. Skipping the probe for that kind keeps the one
     // high-traffic choice node free of a clone it can only ever answer "no".
     if (choice.kind === "search-library") return false;

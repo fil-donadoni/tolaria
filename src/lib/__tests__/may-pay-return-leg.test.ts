@@ -1,5 +1,5 @@
 // Frontend wiring for the may-pay PERMANENT leg's `action: "return"` shape
-// (CR 701.24 / 118.9, ADR 0079, issue #1933).
+// (CR 400.7 / 118.9, ADR 0079, issue #1933).
 //
 // A cost leg correct in the GRE is routinely dead in the UI: the client never
 // sees `GameState`, only the output of the view reducers. So every SURFACE
@@ -73,7 +73,7 @@ function projectedChoice(extra: string[]): {
     };
 }
 
-describe("may-pay return leg — client cost reading (CR 701.24, ADR 0079)", () => {
+describe("may-pay return leg — client cost reading (CR 400.7, ADR 0079)", () => {
     it("normalizes the projected cost onto the shared permanent leg", () => {
         const { choice } = projectedChoice(["l1"]);
         const norm = normalizeMayPayCost(choice.cost!);

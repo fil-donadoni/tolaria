@@ -558,7 +558,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             return;
         case "exileWithAttachments":
-            // CR 603.7a / 701.18 / ADR 0028 — the exile half moves the target
+            // CR 603.7a / 701.13 / ADR 0028 — the exile half moves the target
             // into an `exileHeld` exile-and-return BUNDLE, not the plain exile
             // zone the generator's board-delta assertion models; and the
             // OBSERVABLE outcome (the host coming back re-attached with its
@@ -695,7 +695,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "revealTopAndRoute" routes the revealed top card by its characteristics — the canned generator cannot provision a known top card; covered by the Op's interpreter tests`;
             return;
         case "discardAtRandom":
-            // `discardAtRandom` (CR 701.8a) removes `count` RANDOM cards from a
+            // `discardAtRandom` (CR 701.9a) removes `count` RANDOM cards from a
             // TARGET player's hand. The canned generator seeds only a minimal
             // filler hand and does not provision a target player's hand with a
             // known count, so rather than mis-assert a hand-size delta it
@@ -962,7 +962,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "reflexiveTrigger" resolves on a separate stack object after a priority round — covered by the Op's interpreter tests`;
             return;
         case "libraryLook":
-            // CR 701.20 (issue #844) — a shuffle is a seeded-PRNG
+            // CR 701.24 (issue #844) — a shuffle is a seeded-PRNG
             // RANDOMIZATION with no deterministic same-resolution outcome the
             // canned generator can assert (the multiset is preserved but the
             // order is unwitnessed, and knowledge-clearing is not projected).
@@ -990,7 +990,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "preventDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`;
             return;
         case "regenerate":
-            // CR 701.15 (issue #846) — a regeneration shield sits DORMANT until
+            // CR 701.19 (issue #846) — a regeneration shield sits DORMANT until
             // a later destroy event on the permanent consumes it; the canned
             // scenario only resolves the spell (it never subsequently destroys
             // the target), so the shield has no same-resolution outcome the
@@ -1000,7 +1000,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "regenerate" registers a dormant regeneration shield (no same-resolution destroy event) — covered by the Op's interpreter tests`;
             return;
         case "preventRegeneration":
-            // `preventRegeneration` (CR 701.15c, issue #1283) sets an IMMEDIATE
+            // `preventRegeneration` (CR 701.19c, issue #1283) sets an IMMEDIATE
             // `cantBeRegeneratedThisTurn` flag on the target creature (unlike
             // the dormant `regenerate` shield, the outcome is observable in the
             // same resolution). The generator can assert it on an announced
@@ -1711,7 +1711,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
         };
     },
     // Zone change: destroy moves the target to its owner's graveyard
-    // (CR 701.8 — the filler is not indestructible).
+    // (CR 701.8 destroy — the filler is not indestructible).
     destroy(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "destroy" }>;
         if (!("target" in op.target)) return null; // $each — skipped upstream
@@ -2100,7 +2100,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     revealTopAndRoute() {
         return null;
     },
-    // `discardAtRandom` (CR 701.8a, PRD #795) — never reached: `analyseOp`
+    // `discardAtRandom` (CR 701.9a, PRD #795) — never reached: `analyseOp`
     // skips every script with a discardAtRandom Op (the canned generator does
     // not provision a target player's hand with a known count, so there is no
     // hand-size delta it can assert without mis-modelling the target's hand).
@@ -2165,7 +2165,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     preventDamage() {
         return null;
     },
-    // `regenerate` (CR 701.15, issue #846) — never reached: `analyseOp` skips
+    // `regenerate` (CR 701.19, issue #846) — never reached: `analyseOp` skips
     // every script with a regenerate Op (a shield sits dormant until a later
     // destroy event, with no same-resolution outcome the canned scenario can
     // assert). Kept for the 1:1 coverage guard; shield registration and
@@ -2173,7 +2173,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     regenerate() {
         return null;
     },
-    // `preventRegeneration` (CR 701.15c, issue #1283) — a lock on an announced
+    // `preventRegeneration` (CR 701.19c, issue #1283) — a lock on an announced
     // permanent slot is observable as the `cantBeRegeneratedThisTurn` flag
     // flipping undefined→true on the seeded filler creature. `$source`/`$each`
     // targets are skipped upstream in `analyseOp` (returns null defensively
@@ -2400,7 +2400,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
             },
         };
     },
-    // `exileWithAttachments` (CR 603.7a / 701.18 / ADR 0028) — never reached:
+    // `exileWithAttachments` (CR 603.7a / 701.13 / ADR 0028) — never reached:
     // `analyseOp` skips every script with it (the exile lands in an `exileHeld`
     // bundle, not the plain exile zone this generator's board-delta assertion
     // models, and the observable return needs a later source-leaves/untaps

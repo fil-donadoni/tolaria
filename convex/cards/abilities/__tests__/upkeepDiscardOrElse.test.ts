@@ -120,7 +120,7 @@ describe("upkeepDiscardOrElseTrigger (CR 603.6a + 117.3a + 701.8, #1129)", () =>
         expect(state.pendingChoices![0].cost).toBeUndefined();
     });
 
-    it("discarding pays the cost: the source survives and CARD_DISCARDED fires (CR 701.8)", () => {
+    it("discarding pays the cost: the source survives and CARD_DISCARDED fires (CR 701.9)", () => {
         const source = makeInstance(FIXTURE_ID, {
             id: "src",
             controllerId: "p1",
@@ -132,7 +132,7 @@ describe("upkeepDiscardOrElseTrigger (CR 603.6a + 117.3a + 701.8, #1129)", () =>
             ownerId: "p1",
             zone: "hand",
         });
-        // CR 701.8 witness: Necropotence's own "whenever you discard a card,
+        // CR 701.9 witness: Necropotence's own "whenever you discard a card,
         // exile it from your graveyard" trigger (ice/black.ts,
         // `necropotence-discard-exile`, event: "CARD_DISCARDED"). `resolveTop
         // OfStack` flushes `state.pendingEvents` synchronously as part of the

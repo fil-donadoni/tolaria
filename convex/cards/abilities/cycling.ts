@@ -31,7 +31,7 @@
 //     this flag + ownership.
 //   - `ActivatedAbility.cost.discardThis` — the source is discarded from hand
 //     as the ability goes on the stack, routed through `discardToGraveyard`
-//     (CR 701.8) so "whenever you discard" triggers fire (Marauding Mako).
+//     (CR 701.9) so "whenever you discard" triggers fire (Marauding Mako).
 //
 // The Mechanics Registry (`convex/cards/mechanicsRegistry.ts`) is the name
 // authority: Cycling is row `id: "cycling"`, Typecycling row `id:
@@ -186,7 +186,7 @@ function indefiniteArticle(word: string): string {
  *  The body is exactly that sequence as an Effect Script — the canonical
  *  tutor-to-hand composition (`choice`/search-library → `reveal` → `moveZone`
  *  → `libraryLook` shuffle), with `count: { min: 0, max: 1 }` because a
- *  player may always fail to find (CR 701.19c) and the library is still
+ *  player may always fail to find (CR 701.23b) and the library is still
  *  looked at and shuffled when nothing matches (CR 401.4 / 701.19a).
  *
  *  SCOPE (CR 702.29e): this factory covers the "usually a subtype" case — a
@@ -209,7 +209,7 @@ export function typecyclingAbility(
         cost,
         oracleText: `${keyword} ${label} (${reminder})`,
         effects: [
-            // CR 701.19a / 401.4 — a genuine library search: the whole library
+            // CR 701.23a / 401.4 — a genuine library search: the whole library
             // is looked at, so the choice is raised even with no legal hit.
             {
                 op: "choice",
@@ -217,7 +217,7 @@ export function typecyclingAbility(
                 player: "controller",
                 zone: "library",
                 filter: { subtype },
-                // CR 701.19c — "search" never compels a find.
+                // CR 701.23b — "search" never compels a find.
                 count: { min: 0, max: 1 },
                 prompt: `Search your library for ${article} ${subtype} card (or none).`,
                 bind: "$typecycled",
@@ -235,7 +235,7 @@ export function typecyclingAbility(
                 from: "library",
                 to: "hand",
             },
-            // CR 702.29e — "Then shuffle your library." (CR 701.20)
+            // CR 702.29e — "Then shuffle your library." (CR 701.24)
             { op: "libraryLook", action: "shuffle", player: "controller" },
         ],
     });

@@ -26,10 +26,10 @@ export const rayOfRevelation: CardDefinition = {
 // SpellContext primitive, no new StaticEffect kind, no new Op:
 //   1. "At the beginning of your upkeep, sacrifice this enchantment unless
 //      you discard a card." — CR 603.6a beginning-of-upkeep trigger + CR
-//      117.3a "unless you pay [cost]" + CR 701.8 discard, via the shared
+//      117.3a "unless you pay [cost]" + CR 701.9 discard, via the shared
 //      `upkeepDiscardOrElseTrigger` factory (issue #1129, ice/black.ts's
 //      Oath of Lim-Dûl discard branch generalized). `onDecline` sacrifices
-//      the source (CR 701.16), mirroring the factory's own fixture test.
+//      the source (CR 701.21), mirroring the factory's own fixture test.
 //   2. "Skip your draw step." — CR 504 / 614 draw-step skip via
 //      `drawStepReplacement: true` (Necropotence / Island Sanctuary
 //      precedent, ice/black.ts). The skip is unconditional (no "may"), so

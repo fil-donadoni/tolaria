@@ -179,7 +179,7 @@ describe("AI own-library rehydration from decklist (issue #1509)", () => {
             botLib.every((c) => tryGetDefinition(defIdOf(c)) !== undefined)
         ).toBe(true);
 
-        // Resolve the Tutor → suspends into a search-library choice (CR 701.19).
+        // Resolve the Tutor → suspends into a search-library choice (CR 701.23).
         resolveTopOfStack(world);
         const head = world.pendingChoices?.[0];
         expect(head?.kind).toBe("search-library");
@@ -232,7 +232,7 @@ describe("live root search-library composes with ownDeck (#1506 × #1509)", () =
     const BOT = "u1-p2";
     const HUMAN = "u1-p1";
 
-    /** A board owned by the bot with a live `search-library` choice (CR 701.19)
+    /** A board owned by the bot with a live `search-library` choice (CR 701.23)
      *  over a REAL revealed library pile — the shape a fetchland / tutor opens
      *  once resolution suspends. A vanilla creature host sits on the stack so
      *  `applyPendingChoiceSubmit` finds its `stackItemId` and resolves cleanly. */

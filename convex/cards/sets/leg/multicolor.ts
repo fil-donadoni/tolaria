@@ -253,7 +253,7 @@ export const ramirezDePietro: CardDefinition = {
     staticAbilities: ["first strike"],
 };
 
-// Livonya Silone — first strike (CR 702.7) + legendary landwalk (CR 702.13).
+// Livonya Silone — first strike (CR 702.7) + legendary landwalk (CR 702.14).
 // "Legendary landwalk" is landwalk keyed on the land *supertype* Legendary
 // (CR 205.4) rather than a basic-land subtype: Livonya can't be blocked while
 // the defending player controls a land with the Legendary supertype. The
@@ -344,7 +344,7 @@ export const jacquesLeVert: CardDefinition = {
 
 // --- Spell-cast trigger (CR 603.2) -----------------------------------------
 
-// Sol'kanar the Swamp King — Swampwalk (CR 702.13) + "Whenever a player casts a
+// Sol'kanar the Swamp King — Swampwalk (CR 702.14) + "Whenever a player casts a
 // black spell, you gain 1 life." (CR 603.2 spell-cast trigger, any caster,
 // colour-filtered → CR 119.3 lifegain.)
 export const solkanarTheSwampKing: CardDefinition = {
@@ -601,7 +601,7 @@ export const pavelMaliki: CardDefinition = {
 };
 
 // Ragnar — "{G}{W}{U}, {T}: Regenerate target creature." (CR 602 tap ability +
-// CR 701.15a regeneration shield on a chosen target.)
+// CR 701.19a regeneration shield on a chosen target.)
 export const ragnar: CardDefinition = {
     id: "2cf6a3a3-4a06-4eb7-981a-b70cf05b2473",
     rarity: "rare",
@@ -621,7 +621,7 @@ export const ragnar: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.15a).
+            // announced creature target (CR 701.19a).
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
@@ -884,7 +884,7 @@ export const bartelRuneaxe: CardDefinition = {
 // CR 117.3a "do X unless you pay [cost]" intervening-cost pattern). At the
 // beginning of the controller's upkeep a triggered ability goes on the stack;
 // on resolution the controller MAY pay a cost, and if they don't (or can't),
-// the permanent is sacrificed/destroyed (CR 701.16 / 701.7). Each pay-or-not
+// the permanent is sacrificed/destroyed (CR 701.21 / 701.8). Each pay-or-not
 // decision is an independent trigger on the stack (CR 603.3b), so multiple
 // taxed permanents resolve their choices one at a time.
 //
@@ -922,7 +922,7 @@ export const bartelRuneaxe: CardDefinition = {
  *  [cost]" upkeep trigger (CR 603.6a + CR 117.3a). Returns a `phaseTrigger`
  *  bound to the UPKEEP step in the source controller's own scope. On
  *  resolution the controller may pay `cost`; declining (or being unable to
- *  pay) sacrifices the source permanent (CR 701.16). Reused by all five Elder
+ *  pay) sacrifices the source permanent (CR 701.21). Reused by all five Elder
  *  Dragons and — with `consequence: "destroy"` — by The Tabernacle's granted
  *  trigger. */
 export function payOrSacrificeUpkeepTrigger(args: {
@@ -930,8 +930,8 @@ export function payOrSacrificeUpkeepTrigger(args: {
     cardName: string;
     cost: ManaCost;
     costText: string;
-    /** "sacrifice" (Elder Dragons, CR 701.16) or "destroy" (Tabernacle's
-     *  granted tax, CR 701.7). Defaults to "sacrifice". */
+    /** "sacrifice" (Elder Dragons, CR 701.21) or "destroy" (Tabernacle's
+     *  granted tax, CR 701.8 destroy). Defaults to "sacrifice". */
     consequence?: "sacrifice" | "destroy";
 }) {
     const verb = args.consequence ?? "sacrifice";

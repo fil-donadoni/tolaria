@@ -111,7 +111,7 @@ describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () =>
         expect(getCardByName("Banishing Light")).toBe(banishingLight);
     });
 
-    it("ETB exiles ONLY the chosen permanent: its Aura dies (SBA), nothing else is held (CR 701.18/704.5n)", () => {
+    it("ETB exiles ONLY the chosen permanent: its Aura dies (SBA), nothing else is held (CR 701.13/704.5n)", () => {
         const { state, bl } = setup();
         // CR 603.3d — the target (bear vs. its Aura, two legal opponent
         // permanents) is chosen when the trigger goes on the stack.

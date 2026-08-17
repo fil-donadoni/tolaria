@@ -146,7 +146,7 @@ export const dwarvenDemolitionTeam: CardDefinition = {
                 subtypeFilter: "Wall",
             },
             // Migrated resolve() → effects[] (ADR 0045, issue #831): a single
-            // `destroy` Op on the announced target (CR 701.7). Per-card test
+            // `destroy` Op on the announced target (CR 701.8). Per-card test
             // ("destroys a target Wall on resolution") is the harness.
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
@@ -1089,13 +1089,13 @@ export const sedgeTroll: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
 
-// Shatter — "Destroy target artifact." (CR 701.7). Declarative shorthand via
+// Shatter — "Destroy target artifact." (CR 701.8). Declarative shorthand via
 // the shared destroy-target effect, same shape as Sinkhole / Disenchant.
 export const shatter: CardDefinition = {
     id: "50dc7fc1-cb6a-4c68-b993-1a25cf16226e",
@@ -1249,7 +1249,7 @@ export const stoneGiant: CardDefinition = {
     ],
 };
 
-// Stone Rain — "Destroy target land." (CR 701.7). Identical shape to Sinkhole
+// Stone Rain — "Destroy target land." (CR 701.8). Identical shape to Sinkhole
 // modulo cost / type.
 export const stoneRain: CardDefinition = {
     id: "57ff74cb-a2ed-4123-ac42-f72f9820049e",
@@ -1263,7 +1263,7 @@ export const stoneRain: CardDefinition = {
 };
 
 // Tunnel — "Destroy target Wall. It can't be regenerated." (CR 205.3 subtype
-// filter, 701.7 destroy, 701.15c can't-be-regenerated). Same shape as Fissure
+// filter, 701.8 destroy, 701.19c can't-be-regenerated). Same shape as Fissure
 // (drk/red.ts) / Detonate (atq/red.ts) modulo target filter.
 export const tunnel: CardDefinition = {
     id: "b21ebc9f-a93e-4d18-b3e8-8459e3abbf31",
@@ -1280,7 +1280,7 @@ export const tunnel: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045): the `destroy` Op's
     // `cantBeRegenerated` option (a direct passthrough of
     // `SpellContext.destroy`'s `{ cantBeRegenerated }` argument) now covers
-    // the "It can't be regenerated" rider (CR 701.15c suppression).
+    // the "It can't be regenerated" rider (CR 701.19c suppression).
     effects: [
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],
@@ -1323,7 +1323,7 @@ export const uthdenTroll: CardDefinition = {
             cost: { mana: { R: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],

@@ -13,7 +13,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Hurkyl's Recall — {1}{U} Instant. "Return all artifacts target player owns
 // to their hand." Targets a player, then bounces every artifact that player
-// owns (CR 701.10). `returnToHand` already routes each card to its OWNER's
+// owns (CR 400.7). `returnToHand` already routes each card to its OWNER's
 // hand. Implementation note / divergence: `getBattlefieldIds(playerId, …)`
 // enumerates artifacts on the TARGET PLAYER'S battlefield (i.e. those they
 // control). For artifacts the target player owns but does NOT control (e.g.
@@ -51,8 +51,8 @@ export const hurkylsRecall: CardDefinition = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Graveyard / library recursion & card-flow (free tranche, #275) — CR 400.7
-// zone changes, CR 401 library order, CR 701.20 shuffle, CR 121.1 draw, CR
-// 701.8 discard, CR 701.20b untap. Modern Scryfall oracle text is authoritative
+// zone changes, CR 401 library order, CR 701.24 shuffle, CR 121.1 draw, CR
+// 701.9 discard, CR 701.26b untap. Modern Scryfall oracle text is authoritative
 // (ADR 0004); mana costs / type lines come from MTGJSON ATQ.json. Every effect
 // composes existing SpellContext primitives (moveCardById, moveZone,
 // shuffleLibrary, reorderLibraryTop, peekLibraryTop, drawCards, discardCard,
@@ -298,7 +298,7 @@ export const energyFlux: CardDefinition = {
             scope: "your",
             // Migrated resolve()→effects[] (ADR 0045): CR 118 — the artifact's
             // controller may pay {2}; if they don't, the artifact is
-            // sacrificed (CR 701.16). `scope: "your"` means the plain
+            // sacrificed (CR 701.21). `scope: "your"` means the plain
             // "controller" player selector already IS the scoped player (see
             // phaseTrigger's `effects` doc), so no `$event` read is needed.
             // The unique-per-stack-item `choiceId` the old closure built by
@@ -334,8 +334,8 @@ export const energyFlux: CardDefinition = {
 // than or equal to the sacrificed artifact's mana value, put it onto the
 // battlefield. If it's greater, you may pay {X}, where X is the difference. If
 // you do, put it onto the battlefield. If you don't, put it into its owner's
-// graveyard. Then shuffle." (CR 701.16 sacrifice, CR 701.19 search, CR 202.3
-// mana value, CR 701.20 shuffle.)
+// graveyard. Then shuffle." (CR 701.21 sacrifice, CR 701.23 search, CR 202.3
+// mana value, CR 701.24 shuffle.)
 //
 // All board mutations run only after the LAST suspending choice (the search,
 // or the optional pay-the-difference when it applies): a `resolveSteps` step
@@ -389,7 +389,7 @@ export const transmuteArtifact: CardDefinition = {
             // "search your library for an artifact card" — the submit
             // validator does not apply a filter to hidden library cards, so the
             // artifact-card restriction is carried as a `candidateIds`
-            // allow-list (CR 701.19; a fail-to-find is allowed, min 0).
+            // allow-list (CR 701.23b; a fail-to-find is allowed, min 0).
             const libArtifacts = ctx
                 .getLibraryCards(ctx.caster)
                 .filter((c) => c.types.includes("Artifact"));
@@ -401,7 +401,7 @@ export const transmuteArtifact: CardDefinition = {
                 candidateIds: libArtifacts.map((c) => c.id),
                 count: { min: 0, max: 1 },
                 prompt: "Search your library for an artifact card.",
-                // Genuine CR 701.19a search (candidateIds is a whole-library
+                // Genuine CR 701.23a search (candidateIds is a whole-library
                 // filter match, not a peeked window) — issue #788 finding 1.
                 isSearch: true,
             });

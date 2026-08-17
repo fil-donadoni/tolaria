@@ -350,7 +350,7 @@ export const beastsOfBogardan: CardDefinition = {
 
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
-// Spinal Villain — "{T}: Destroy target blue creature." (CR 701.7 destroy on a
+// Spinal Villain — "{T}: Destroy target blue creature." (CR 701.8 destroy on a
 // colour-restricted target, CR 202.2.)
 export const spinalVillain: CardDefinition = {
     id: "d6d5e36f-0049-4be8-bf85-8dc0186339a4",
@@ -375,7 +375,7 @@ export const spinalVillain: CardDefinition = {
 };
 
 // Hyperion Blacksmith — "{T}: You may tap or untap target artifact an opponent
-// controls." (CR 701.20 tap/untap; the optional + the tap-or-untap pick are a
+// controls." (CR 701.26 tap/untap; the optional + the tap-or-untap pick are a
 // single option choice — choose tap, untap, or decline.)
 export const hyperionBlacksmith: CardDefinition = {
     id: "44d499a9-fe7c-4a1a-9eb3-a7fd9f85ae08",
@@ -402,7 +402,7 @@ export const hyperionBlacksmith: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, issue #849): the "tap or
             // untap" pick is the `optionChoice` Op — two modes over the
-            // announced target artifact (CR 701.20), preserving the "tap" /
+            // announced target artifact (CR 701.26), preserving the "tap" /
             // "untap" option ids. The printed "you may" (decline) auto-resolves
             // to the no-op direction (tap an already-tapped / untap an untapped
             // artifact is a no-op), so two modes suffice — same treatment as
@@ -540,7 +540,7 @@ export const eternalWarrior: CardDefinition = {
 
 // The Brute — "Enchanted creature gets +1/+0." + "{R}{R}{R}: Regenerate
 // enchanted creature." (CR 303.4 pt-buff + a host-aware regeneration ability,
-// CR 701.15a.)
+// CR 701.19a.)
 export const theBrute: CardDefinition = {
     id: "f9ffb265-872f-47b3-974c-92bcbebd557e",
     rarity: "common",
@@ -741,7 +741,7 @@ export const activeVolcano: CardDefinition = {
 
 // Winds of Change — "Each player shuffles the cards from their hand into their
 // library, then draws that many cards." (Composed: count each hand, move
-// hand → library, shuffle, redraw that many. CR 701.20 / 121.1.)
+// hand → library, shuffle, redraw that many. CR 701.24 / 121.1.)
 export const windsOfChange: CardDefinition = {
     id: "186fd917-8d65-4de5-8546-a32a5f6d3bab",
     rarity: "uncommon",

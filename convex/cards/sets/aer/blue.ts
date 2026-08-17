@@ -6,7 +6,7 @@
 import type { CardDefinition } from "../../types";
 
 // Metallic Rebuke — {2}{U} Instant. "Improvise. Counter target spell unless
-// its controller pays {3}." (CR 702.126 Improvise + CR 701.5a counter/punisher
+// its controller pays {3}." (CR 702.126 Improvise + CR 701.6a counter/punisher
 // pattern.) Issue #1313 — the first card to ship the Improvise keyword now
 // that it's `status: "implemented"` in mechanicsRegistry.ts (tapping untapped
 // artifacts toward the generic portion of THIS card's own {2}{U} cost, at the

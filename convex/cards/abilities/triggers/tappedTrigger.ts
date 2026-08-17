@@ -1,4 +1,4 @@
-// tappedTrigger — CR 701.20a (becomes tapped) + CR 605 (mana ability tap).
+// tappedTrigger — CR 701.26a (becomes tapped) + CR 605 (mana ability tap).
 //
 // Produces a TriggeredAbility listening to PERMANENT_TAPPED. Card authors
 // declare scope (relation between the tapped permanent and the source),

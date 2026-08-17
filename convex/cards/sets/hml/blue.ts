@@ -6,7 +6,7 @@ import type { CardDefinition } from "../../types";
 
 // Memory Lapse — {1}{U} Instant. "Counter target spell. If that spell is
 // countered this way, put it on top of its owner's library instead of into
-// that player's graveyard." (CR 701.5a counter, the new `destination`
+// that player's graveyard." (CR 701.6a counter, the new `destination`
 // parameter on `SpellContext.counter` — issue #683's "put it on top of its
 // owner's library" redirect clause.) An unconditional counter — no
 // mayPay/if — so the effect is a single Op.

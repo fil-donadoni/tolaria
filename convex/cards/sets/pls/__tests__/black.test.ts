@@ -302,7 +302,7 @@ describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () 
         // `applySacrificeSelection` with `action: "return"` is the exact
         // real-path function backing every return-to-hand alternative /
         // additional cost (Gush/Thwart, Kicker return-costs — CR 118.9 /
-        // 701.24). It bounces via `removePermanentTo`, the SAME funnel a
+        // 400.7). It bounces via `removePermanentTo`, the SAME funnel a
         // spell effect uses, so it fires PERMANENT_LEFT (toZone: "hand")
         // identically — no separate wiring needed for a cost-driven bounce.
         const paidIsland = makeInstance(island.id, {

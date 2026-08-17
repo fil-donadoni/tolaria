@@ -224,7 +224,7 @@ export const elephantGraveyard: CardDefinition = {
                 subtypeFilter: "Elephant",
             },
             // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.15a).
+            // announced creature target (CR 701.19a).
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
@@ -264,9 +264,9 @@ export const libraryOfAlexandria: CardDefinition = {
 };
 
 // Bazaar of Baghdad — "{T}: Draw two cards, then discard three cards." (CR 305
-// land, CR 121.6 draw, CR 701.8 discard.) A nonbasic land with no mana ability.
+// land, CR 121.6 draw, CR 701.9 discard.) A nonbasic land with no mana ability.
 // Migrated resolve()→effects[] (ADR 0045, issue #1282): draw two (CR 121.6),
-// then a `choice(choose-hand-card)` + `discard` pair (CR 701.8) — the
+// then a `choice(choose-hand-card)` + `discard` pair (CR 701.9) — the
 // standard "draw, then discard N" template every other looter card in the
 // catalogue already uses (Jalum Tome). The Effect Script interpreter runs
 // each Op EXACTLY ONCE per resolution (CR 608.3 checkpointing), so the draw

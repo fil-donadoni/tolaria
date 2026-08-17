@@ -1597,7 +1597,7 @@ describe("Malicious Advice — the life loss is NOT independent of the targets (
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Crosis's Charm ({U}{B}{R} modal instant, CR 601.2b, issue #1954)", () => {
-    it("mode 2 destroys a NONBLACK creature and can't be regenerated (CR 701.15c)", () => {
+    it("mode 2 destroys a NONBLACK creature and can't be regenerated (CR 701.19c)", () => {
         const target = makeInstance(monssGoblinRaiders.id, {
             id: "raiders",
             controllerId: "p2",
@@ -1863,7 +1863,7 @@ describe("Treva's Charm ({G}{W}{U} modal instant, CR 601.2b, issue #1954)", () =
     });
 });
 
-describe("Ertai, the Corrupted ({2}{W}{U}{B}, CR 701.5a, issue #1954)", () => {
+describe("Ertai, the Corrupted ({2}{W}{U}{B}, CR 701.6a, issue #1954)", () => {
     it("counters target spell on resolution", () => {
         const ertai = makeInstance(ertaiTheCorrupted.id, {
             id: "ertai-1",

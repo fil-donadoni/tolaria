@@ -23,7 +23,7 @@ export const manaTithe: CardDefinition = {
             bind: "$paid",
         },
         {
-            // CR 701.5a — counter unless the payment was made.
+            // CR 701.6a — counter unless the payment was made.
             op: "if",
             predicate: { not: { binding: "$paid" } },
             then: [{ op: "counter", target: { target: 0 } }],

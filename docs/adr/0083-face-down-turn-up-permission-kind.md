@@ -22,8 +22,8 @@ controller **chooses** and **pays for**.
 Manifest (CR 701.40) and manifest dread (CR 701.62, Abhorrent Oculus, issue
 #703) are exactly that: "Turn it face up any time for its mana cost if it's a
 creature card." Per CR 116.2b this is a **special action** — no stack, no
-priority passed, taken any time its controller has priority. Morph (CR 702.36),
-megamorph, disguise (CR 702.166) and cloak (CR 701.58) are all the same shape
+priority passed, taken any time its controller has priority. Morph (CR 702.37),
+megamorph, disguise (CR 702.168) and cloak (CR 701.58) are all the same shape
 with different costs and riders, and all sit `planned` in the Mechanics
 Registry.
 

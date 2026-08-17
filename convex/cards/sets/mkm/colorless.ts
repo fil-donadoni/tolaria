@@ -6,7 +6,7 @@
 import type { CardDefinition } from "../../types";
 import { makeDualLand } from "../../abilities";
 
-// The MKM "surveil land" cycle (CR 701.44) — a two-colour tapland that taps
+// The MKM "surveil land" cycle (CR 701.25) — a two-colour tapland that taps
 // for one of two colours, enters tapped unconditionally, and surveils 1 on
 // entry. All ten share one shape, driven by `makeDualLand({ surveilLand })`:
 // basic land subtypes derived from the colours, `entersTapped: true`, the dual

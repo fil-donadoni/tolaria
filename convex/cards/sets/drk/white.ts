@@ -115,7 +115,7 @@ export const angryMob: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Exorcist — "{1}{W}, {T}: Destroy target black creature." (CR 605 activated
-// ability; CR 202.2 colour filter; CR 701.7 destroy.)
+// ability; CR 202.2 colour filter; CR 701.8 destroy.)
 export const exorcist: CardDefinition = {
     id: "184b7d52-e991-4668-9f6a-bcded97f51ac",
     rarity: "rare",
@@ -145,7 +145,7 @@ export const exorcist: CardDefinition = {
 };
 
 // Miracle Worker — "{T}: Destroy target Aura attached to a creature you
-// control." (CR 605 activated ability; CR 701.7 destroy.) `subtypeFilter` scopes
+// control." (CR 605 activated ability; CR 701.8 destroy.) `subtypeFilter` scopes
 // targets to Auras; the "attached to a creature you control" constraint is
 // enforced in the resolve body (mirrors Pyramids' "Aura attached to a land",
 // which likewise checks the host post-target — there is no host-relation field
@@ -179,7 +179,7 @@ export const miracleWorker: CardDefinition = {
             resolve: (ctx: SpellContext) => {
                 const [target] = ctx.targets;
                 if (!target || target.type !== "permanent") return;
-                // CR 701.7 — only destroy if the Aura's host is a permanent this
+                // CR 701.8 — only destroy if the Aura's host is a permanent this
                 // player controls. `getAttachedTo` reads the Aura's host id; a
                 // creature host is the only legal attachment for the Auras in
                 // pool, so the operative constraint is the host's controller.
@@ -195,7 +195,7 @@ export const miracleWorker: CardDefinition = {
 };
 
 // Witch Hunter — two activated abilities (CR 605): a {T} ping to a player and a
-// {1}{W}{W}, {T} bounce of an opponent's creature (CR 701.10). Planeswalkers are
+// {1}{W}{W}, {T} bounce of an opponent's creature (CR 400.7). Planeswalkers are
 // out of scope, so the first ability targets `player` only.
 export const witchHunter: CardDefinition = {
     id: "4eef9bb7-cd3c-422e-a93b-90d98684675a",
@@ -233,7 +233,7 @@ export const witchHunter: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, #839): return the
             // targeted opponent-controlled creature to its owner's hand
-            // (CR 701.10 / 400.7).
+            // (CR 400.7).
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
@@ -317,7 +317,7 @@ export const preacher: CardDefinition = {
 // Spells (CR 601 / 608)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Dust to Dust — "Exile two target artifacts." (CR 701.18 exile; two distinct
+// Dust to Dust — "Exile two target artifacts." (CR 701.13 exile; two distinct
 // permanent targets, CR 601.2c.)
 export const dustToDust: CardDefinition = {
     id: "ade075fd-73ee-4d12-a2da-48e5938043af",
@@ -335,7 +335,7 @@ export const dustToDust: CardDefinition = {
     ],
 };
 
-// Tivadar's Crusade — "Destroy all Goblins." (CR 701.7 mass destroy filtered on
+// Tivadar's Crusade — "Destroy all Goblins." (CR 701.8 mass destroy filtered on
 // the Goblin creature subtype, CR 205.3.)
 export const tivadarsCrusade: CardDefinition = {
     id: "8b6da540-6803-47e5-9af0-7ae8e2f84b6c",
@@ -405,7 +405,7 @@ export const morale: CardDefinition = {
 };
 
 // Martyr's Cry — "Exile all white creatures. For each creature exiled this way,
-// its controller draws a card." (CR 701.18 exile + CR 121.1 draw; snapshot the
+// its controller draws a card." (CR 701.13 exile + CR 121.1 draw; snapshot the
 // per-controller count before exiling so the draws reflect what was removed.)
 export const martyrsCry: CardDefinition = {
     id: "e2c9f463-d1cc-4f11-aad2-d4a4520aa978",

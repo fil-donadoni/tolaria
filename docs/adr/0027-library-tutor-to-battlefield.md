@@ -12,14 +12,14 @@ capability already exists and is exercised by Demonic Tutor
 general:
 
 - **`requestChoice({ kind: "search-library", zone: "library", … })`** — the
-  search itself (CR 701.19). It already accepts a `filter` and a
+  search itself (CR 701.23). It already accepts a `filter` and a
   `candidateIds` allow-list, suspends the resolution (CR 608.2), reveals the
   searched library to the chooser via `computeChoiceExposure`
   (`convex/gameProjections.ts`), and validates the pick server-side
   (`convex/gre/pendingChoiceSubmit.ts`).
 - **`moveCardById(playerId, id, "library", "hand" | "graveyard")`** — routes
   the pick to a `MovableZone`.
-- **`shuffleLibrary(playerId)`** — CR 701.20.
+- **`shuffleLibrary(playerId)`** — CR 701.24.
 
 Transmute Artifact is the first card that must put a searched library card
 **onto the battlefield** rather than into hand/graveyard. Two facts shaped the

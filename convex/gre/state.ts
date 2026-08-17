@@ -610,7 +610,7 @@ export type CardInstanceState = {
      *  `markDeathtouchDamage` at every damage sink (combat and non-combat) off
      *  the source's EFFECTIVE static-ability set. Removed at CLEANUP (CR 514.2). */
     dealtDeathtouchDamage?: boolean;
-    /** Regeneration shields stacked on this permanent (CR 701.15a). Each shield
+    /** Regeneration shields stacked on this permanent (CR 701.19a). Each shield
      *  is consumed once: the next time the permanent would be destroyed, the
      *  shield replaces the destroy with "remove all damage, tap, remove from
      *  combat" (CR 614.5, 506.4). Unused shields wear off at CLEANUP — the
@@ -688,7 +688,7 @@ export type CardInstanceState = {
          *  practice (a gain-control effect is either "for as long as" or
          *  "until end of turn", never both). */
         duration?: Duration;
-        /** "When you lose control of the permanent, tap it" rider (CR 701.20a —
+        /** "When you lose control of the permanent, tap it" rider (CR 701.26a —
          *  Ray of Command / Magus of the Unseen). When true, the permanent is
          *  tapped the instant this duration-scoped control change reverts. */
         tapOnLoss?: boolean;
@@ -894,7 +894,7 @@ export type CardInstanceState = {
      *  is gone). Set by `setExileOnLeave`. */
     exileOnLeave?: boolean;
     /** When set, this permanent can't be regenerated for the rest of the turn
-     *  (CR 701.15c). Suppresses BOTH regeneration shields and the continuous
+     *  (CR 701.19c). Suppresses BOTH regeneration shields and the continuous
      *  auto-regeneration replacement granted by the `"auto-regenerate"` static
      *  ability (Clergy of the Holy Nimbus — "{1}: This creature can't be
      *  regenerated this turn"). Read by `regenerateOrDestroy` as an additional
@@ -1447,7 +1447,7 @@ export type CardInstanceState = {
  *    so only their knowledge survives; everyone else is cleared. (Not used by
  *    slice 1, reserved for owner-chosen discard.)
  *  - `selectorId === null` → the change was random/unwitnessed (shuffle), so
- *    ALL viewers are cleared (CR 701.20 — nobody knows the new order, not even
+ *    ALL viewers are cleared (CR 701.24 — nobody knows the new order, not even
  *    the player who shuffled).
  *
  *  Mutates each card in place, deleting an emptied `knownTo` so the slim
@@ -1490,9 +1490,9 @@ export function grantKnowledge(
 /** ADR 0026 / PRD #338 (slice 2) — the _reveal_ class of knowledge: grants
  *  knowledge of `cardInstanceIds` (owned by `zoneOwnerId`) to EVERY player in
  *  the game. A reveal differs from a look only in which players are added
- *  (CR 701.16 — "reveal" makes a card known to all players), so this is just
+ *  (CR 701.20 — "reveal" makes a card known to all players), so this is just
  *  `grantKnowledge` looped over `state.players`. The card stays face-up to all
- *  until an uncertainty event clears it (e.g. shuffle, CR 701.20). Idempotent.
+ *  until an uncertainty event clears it (e.g. shuffle, CR 701.24). Idempotent.
  *  Backs `SpellContext.markKnownToAll`. */
 export function grantKnowledgeToAll(
     state: GameState,
@@ -2580,7 +2580,7 @@ export type PendingChoice = {
     cost?: MayPayCost;
     /** For a `kind: "may-pay"` whose PERMANENT leg opened the battlefield
      *  picker (`zone: "battlefield"`), the leg's terminal action — `"sacrifice"`
-     *  (CR 701.16) or `"return"` to the owner's hand (CR 701.24 / 118.9, ADR
+     *  (CR 701.21) or `"return"` to the owner's hand (CR 400.7 / 118.9, ADR
      *  0079). Drives the prompt WORDING client-side and nothing else — its one
      *  consumer is `mayPayPermanentPickVerb` (`src/lib/pending-choice-labels
      *  .ts`); the bot re-derives the action from `cost.permanent` itself
@@ -2640,7 +2640,7 @@ export type PendingChoice = {
      *  spent" — a mana-value bound, not a type/keyword filter). Undefined =
      *  no extra restriction. The frontend reads it to gate clickability. */
     candidateIds?: string[];
-    /** `kind: "search-library"` only (CR 701.19a, issue #788 re-review
+    /** `kind: "search-library"` only (CR 701.23a, issue #788 re-review
      *  finding 1) — set when this choice is a GENUINE library search (CR
      *  701.19a: look at the whole library, filtered by card characteristics),
      *  as opposed to a "look at the top N, pick one" prompt that reuses
@@ -2986,7 +2986,7 @@ export type PendingTarget = {
     /** If set, EXCLUDES permanents of any of these colors (CR 202.2, Terror's
      *  "nonblack"). Propagated from TargetRequirement.excludeColors. */
     excludeColors?: Color[];
-    /** If set, restricts to tapped / untapped permanents (CR 701.20).
+    /** If set, restricts to tapped / untapped permanents (CR 701.26).
      *  Propagated from TargetRequirement.tappedFilter. */
     tappedFilter?: "tapped" | "untapped";
     /** If set, restricts to permanents in the named combat role(s) (CR 508.1 /
@@ -3360,7 +3360,7 @@ export type GameState = {
      *  reflexive rebound trigger resolves (`openReboundCastWindow`,
      *  gre/rebound.ts): the caster may cast the named exiled card again for
      *  free while they hold priority; declining leaves it exiled
-     *  (`declineRebound`, CR 702.88c — unlike Madness, NOT a graveyard bin).
+     *  (`declineRebound`, CR 702.88a rebound — unlike Madness, NOT a graveyard bin).
      *  Cleared on cast or decline. Persisted so a caster who saves
      *  mid-decision resumes with the window open. At most one is open at a
      *  time (reflexive triggers resolve one by one). Mirrors
@@ -3481,7 +3481,7 @@ export type GameState = {
         /** sourceId → { targetId/defenderId: damage } for damage distribution.
          *  A source is any combat-damage dealer: an attacker (targets are its
          *  blockers / the defender on trample) or a blocker (targets are the
-         *  band members it is blocking). Banding (CR 702.21) is the only thing
+         *  band members it is blocking). Banding (CR 702.22) is the only thing
          *  that produces blocker sources with 2+ targets. */
         damageAssignments?: Record<string, Record<string, number>>;
         /** false = waiting for manual assignment, undefined = auto-applied or not yet at damage step. */
@@ -5652,7 +5652,7 @@ export function emitEntersWithCounterEvents(
  *  `madnessTrigger`, `reboundTrigger`, `emblemSourceId`, `stormSnapshot`,
  *  `stormCopiesRemaining`, `delayedTriggerId`, `delayedPayload`,
  *  `delayedEffects`, `grantedSourceCardId`, `actingPlayerId`) — an ability
- *  vanishes instead of moving to a zone (CR 701.5a/113.7a), and every call
+ *  vanishes instead of moving to a zone (CR 701.6a/113.7a), and every call
  *  site below is reached ONLY for a genuine spell: `counter()` and
  *  `putSpellOnLibrary()` return early for `abilityId`/`triggeredAbilityId`/
  *  `delayedTriggerId` BEFORE ever reaching a call site here, and
@@ -5699,7 +5699,7 @@ function resetStackTransientState(item: StackItem): void {
     delete item.additionalSacrificeSnapshot;
     delete item.notedManaSpent;
     delete item.dynamicCantBeCountered;
-    // CR 702.74a / 702.109a / 702.138b (issue #2412 fixup) — `evoked`,
+    // CR 702.74a evoke / 702.109a dash / 702.138b escape (issue #2412) — `evoked`,
     // `dashed`, `escaped` are declared on `CardInstanceState` so they survive
     // resolution onto the permanent (the ETB triggers that read them run
     // there), but every cast-commit site in `convex/game.ts` stamps them onto
@@ -8156,7 +8156,7 @@ export function removeLoyaltyForDamage(
  *  the damage it deals. Damage is *marked only* here (CR 120.3); lethal /
  *  destroy (CR 704.5g) is deliberately deferred to the caller so two halves
  *  of a fight can both be marked before either creature is destroyed
- *  (CR 701.12 — the damage is dealt simultaneously). Returns the target id if
+ *  (CR 701.14 — the damage is dealt simultaneously). Returns the target id if
  *  it now has lethal marked damage, else null. No-op (returns null) if the
  *  source or target has left the battlefield or the target isn't damageable. */
 function markDamageFromPermanentSource(
@@ -8297,7 +8297,7 @@ function markDamageFromPermanentSource(
         : null;
 }
 
-/** Generic Fight primitive (CR 701.12-style mutual damage). Two creatures
+/** Generic Fight primitive (CR 701.14-style mutual damage). Two creatures
  *  each deal damage equal to their power to the other *simultaneously*. Used
  *  by Tracker (pre-"fight" template) and reusable by any future fight card.
  *
@@ -8308,7 +8308,7 @@ function markDamageFromPermanentSource(
  *  (the new arbitrary-source damage helper) twice. Both powers are snapshotted
  *  BEFORE any damage is marked, and lethal/destroy is run only AFTER both
  *  halves are marked — so a creature that dies to the fight still deals its
- *  full damage (CR 701.12, 510.4-style simultaneity; CR 704.5g lethal).
+ *  full damage (CR 701.14, 510.4-style simultaneity; CR 704.5g lethal).
  *
  *  No-op for any half whose creature has left the battlefield (CR 608.2b
  *  last-known... is intentionally not modeled here — Tracker's ruling: if the
@@ -8322,7 +8322,7 @@ export function resolveFight(
     const a = findOnBattlefield(state, creatureAId);
     const b = findOnBattlefield(state, creatureBId);
     if (!a || !b) return;
-    // CR 701.12 — snapshot both powers up front; the damage is simultaneous,
+    // CR 701.14 — snapshot both powers up front; the damage is simultaneous,
     // so neither power is affected by the other's damage.
     const powerA = getEffectivePower(state, a.card);
     const powerB = getEffectivePower(state, b.card);
@@ -8347,7 +8347,7 @@ export function resolveFight(
     if (lethalA !== null) destroyWithReplacements(state, lethalA);
 }
 
-/** Replacement-aware tap (CR 701.20a, 614). Runs the tap replacement loop
+/** Replacement-aware tap (CR 701.26a, 614). Runs the tap replacement loop
  *  before setting `isTapped` so a face-down permanent that would become tapped
  *  is turned face up first (CR 708.9, ADR 0013), then taps as its real self.
  *  No-op if the permanent is already tapped or a replacement cancels the tap.
@@ -8363,14 +8363,14 @@ export function tapPermanent(state: GameState, card: CardInstanceState): void {
     card.isTapped = true;
 }
 
-/** Replacement-aware destroy (CR 614.5, 701.15a). If the permanent has at
+/** Replacement-aware destroy (CR 614.5, 701.19a). If the permanent has at
  *  least one regeneration shield, consume one and apply the regen rider:
  *  remove all marked damage, tap it, and remove it from combat (CR 506.4).
  *  The permanent stays on the battlefield. Otherwise, route through
  *  `removePermanentTo` to the graveyard.
  *
  *  When `opts.cantBeRegenerated` is true (Wrath of God, Terror, etc.), the
- *  regeneration replacement is suppressed (CR 701.15c) — shields stay
+ *  regeneration replacement is suppressed (CR 701.19c) — shields stay
  *  unspent and the permanent goes to the graveyard. Indestructible still
  *  protects (CR 702.12).
  *
@@ -8405,7 +8405,7 @@ export function regenerateOrDestroy(
     // CR 614.1a (Disintegrate) — exileOnDeath suppresses regeneration and
     // routes death to exile instead of graveyard.
     const exileOnDeath = found.card.exileOnDeath === true;
-    // CR 701.15c — "can't be regenerated this turn" (Clergy's own {1} ability,
+    // CR 701.19c — "can't be regenerated this turn" (Clergy's own {1} ability,
     // Wrath of God, etc.) suppresses every regeneration source for this
     // permanent: shields AND the continuous auto-regen replacement.
     const cantRegen =
@@ -8426,7 +8426,7 @@ export function regenerateOrDestroy(
             if (next === 0) delete found.card.regenerationShields;
             else found.card.regenerationShields = next;
         }
-        // CR 701.15a — the regen rider: heal all marked damage, tap, and
+        // CR 701.19a — the regen rider: heal all marked damage, tap, and
         // remove from combat if attacking or blocking.
         if (found.card.damageMarked !== undefined) {
             delete found.card.damageMarked;
@@ -8477,7 +8477,7 @@ export function regenerateOrDestroy(
  *  `eventKind: "destroy"` plus transient `destroyReplacementShields` — Pyramids
  *  mode 2). If a replacement intercepts the destruction, the permanent stays
  *  on the battlefield and this returns false. Otherwise it falls through to
- *  `regenerateOrDestroy` (CR 701.15 regeneration shield + the actual move),
+ *  `regenerateOrDestroy` (CR 701.19 regeneration shield + the actual move),
  *  whose tested body is left untouched. Regeneration is deliberately NOT
  *  modelled as a "destroy" replacement — it stays a specialised shield inside
  *  `regenerateOrDestroy`.
@@ -8592,7 +8592,7 @@ export function removePermanentTo(
     cardId: string,
     toZone: "graveyard" | "exile" | "hand" | "library",
     /** Why the permanent is leaving (CR 603.10). Pass `"sacrifice"` from
-     *  sacrifice paths (CR 701.16) or `"destroy"` from the replacement-aware
+     *  sacrifice paths (CR 701.21) or `"destroy"` from the replacement-aware
      *  destroy path (CR 701.8, issue #1054) so leave-the-battlefield triggers
      *  can distinguish sacrifice/destruction from bounce (Urza's Miter). Any
      *  other departure leaves it undefined. */
@@ -9004,7 +9004,7 @@ export function exileWithAttachments(
     opts: {
         sourceId: string;
         returnTapped: boolean;
-        /** CR 701.18 — whether the host's attachments travel into exile WITH it
+        /** CR 701.13 — whether the host's attachments travel into exile WITH it
          *  and return re-attached (default `true`, Tawnos's Coffin / Icy Prison
          *  / Safe Haven). When `false` (Banishing Light, O-Ring style) ONLY the
          *  host is exiled: its Auras are left behind to be swept to the
@@ -9033,7 +9033,7 @@ export function exileWithAttachments(
             }
         }
     }
-    // Exile attachments first, then the host (CR 701.18). Both fire
+    // Exile attachments first, then the host (CR 701.13). Both fire
     // PERMANENT_LEFT — exile is a real zone change, unlike phasing.
     // issue #1558 — the whole bundle (attachments + host) is ONE exile
     // occurrence (CR 603.3b / 608.2i), so accumulate across the loop and emit
@@ -9178,7 +9178,7 @@ export function becomeMonarch(
     state.monarchReturnWatch = remaining.length > 0 ? remaining : undefined;
 }
 
-/** CR 720 (Palace Jailer) — exiles `targetId` (host-only, CR 701.18 — its
+/** CR 720 (Palace Jailer) — exiles `targetId` (host-only, CR 701.13 — its
  *  Auras fall to the orphan-aura SBA and Equipment detaches, matching the
  *  O-Ring precedent) keyed to `sourceId`, and arms a watch that returns it
  *  the next time an opponent of `controllerId` becomes the monarch
@@ -9503,7 +9503,7 @@ export function emitCardDrawn(
 }
 
 /** Emits a CARD_DISCARDED event for a card that just moved hand → graveyard as
- *  a discard (CR 701.8). The single choke point for "whenever you discard a
+ *  a discard (CR 701.9). The single choke point for "whenever you discard a
  *  card" triggers (Necropotence). Emitted by `discardToGraveyard` AFTER the
  *  card has landed in the graveyard, so the trigger can locate the card in its
  *  destination zone. */
@@ -9625,7 +9625,7 @@ export function emitCardsExiled(
  *  Op or an imperative `resolve()` tutor closure — both commit through the
  *  SAME PendingChoice queue, so every shipped tutor and fetchland is covered
  *  with no per-card wiring. Fires even on a zero-pick "whiff" search (a
- *  fetchland with no basic land left still SEARCHED, CR 701.19a — the ACT of
+ *  fetchland with no basic land left still SEARCHED, CR 701.23a — the ACT of
  *  searching is what matters, not the result).
  *
  *  `playerId` and `libraryOwnerId` are two DISTINCT parameters (bugfix,
@@ -9905,7 +9905,7 @@ export function hasInfectOrWither(
 
 /** CR 702.90a — Infect (player half): a source with infect deals damage to a
  *  PLAYER in the form of poison counters (CR 122.1, `PlayerState.poisonCounters`)
- *  instead of life loss. Wither does NOT change player damage (CR 702.90b is
+ *  instead of life loss. Wither does NOT change player damage (CR 702.80a is
  *  creature-only) — only "infect" gates this half. CR 704.5c (lose the game
  *  at ten or more poison counters) is the existing SBA in `sba.ts`, not here.
  *  Returns true when the damage was diverted to poison — the caller MUST
@@ -9927,7 +9927,7 @@ export function markInfectPoisonDamage(
 }
 
 /** Emits a PERMANENT_TAPPED event for a permanent that just transitioned from
- *  untapped to tapped (CR 701.20a). `forMana: true` marks the canonical
+ *  untapped to tapped (CR 701.26a). `forMana: true` marks the canonical
  *  "tapped for mana" condition (CR 605) read by Manabarbs / Mana Flare /
  *  Wild Growth; non-mana taps still emit so triggers like Lifetap fire. */
 export function emitPermanentTapped(
@@ -9951,7 +9951,7 @@ export function emitPermanentTapped(
 }
 
 /** Untaps `card` and, on a real tapped → untapped transition, emits a
- *  PERMANENT_UNTAPPED event (CR 701.20b "becomes untapped"). No-op (and no
+ *  PERMANENT_UNTAPPED event (CR 701.26b "becomes untapped"). No-op (and no
  *  event) if the permanent was already untapped — a non-transition is not a
  *  "becomes untapped". Returns true if it transitioned. The single choke point
  *  for the untap step (CR 502.2) and untap effects (Twiddle) so "when ~ becomes
@@ -12044,7 +12044,7 @@ export function buildSpellContext(
                 ) {
                     // CR 704.5g lethal → destroy replacement (CR 614, ADR
                     // 0020) then regen shield gets a chance to replace the
-                    // destroy (CR 614.5, 701.15a). issue #1054 — this lethal
+                    // destroy (CR 614.5, 701.19a). issue #1054 — this lethal
                     // damage was dealt by the resolving item, so its
                     // controller is the causer.
                     destroyWithReplacements(state, target.id, {
@@ -12076,7 +12076,7 @@ export function buildSpellContext(
             );
         },
         fight(target: TargetSelection) {
-            // CR 701.12 mutual damage: the resolving ability's source permanent
+            // CR 701.14 mutual damage: the resolving ability's source permanent
             // and the target creature each deal damage equal to their power to
             // the other, simultaneously, through the normal damage path.
             // `sourceInstanceId` is the activated/triggered ability's permanent.
@@ -12708,9 +12708,9 @@ export function buildSpellContext(
         ): boolean {
             if (target.type === "player")
                 throw new Error("Cannot destroy a player");
-            // CR 614.5 / 701.15a — destroy is the canonical replacement
+            // CR 614.5 / 701.19a — destroy is the canonical replacement
             // hook for regeneration shields. `cantBeRegenerated` suppresses
-            // that replacement (CR 701.15c, e.g. Terror, Wrath of God).
+            // that replacement (CR 701.19c, e.g. Terror, Wrath of God).
             // Return value reports whether the permanent actually moved to
             // the graveyard (false if a shield saved it, indestructible
             // protected it, or the target had already left play).
@@ -12729,7 +12729,7 @@ export function buildSpellContext(
             const moved = removePermanentTo(state, target.id, "exile");
             emitCardsExiledFromBattlefield(state, moved);
         },
-        // CR 701.10: to return a permanent to its owner's hand. Routed through
+        // CR 400.7: to return a permanent to its owner's hand. Routed through
         // removePermanentTo so aura cleanup (611.2) and transient-state reset
         // (400.7) happen in the right order. No-op if already off-battlefield
         // (CR 608.2b).
@@ -12955,7 +12955,7 @@ export function buildSpellContext(
                 }
             }
         },
-        // CR 701.20a: to tap a permanent is to turn it sideways from an
+        // CR 701.26a: to tap a permanent is to turn it sideways from an
         // untapped position. Already-tapped permanents are unaffected.
         // Silently no-ops if the target has left the battlefield (CR 608.2b).
         tap(target: TargetSelection): void {
@@ -12966,7 +12966,7 @@ export function buildSpellContext(
             // CR 708.9 / ADR 0013 — turn a face-down target up before tapping.
             tapPermanent(state, found.card);
         },
-        // CR 701.20b: to untap a permanent is to rotate it back to upright.
+        // CR 701.26b: to untap a permanent is to rotate it back to upright.
         // Already-untapped permanents are unaffected. Silently no-ops if the
         // target has left the battlefield (CR 608.2b).
         untap(target: TargetSelection): void {
@@ -12974,7 +12974,7 @@ export function buildSpellContext(
                 throw new Error("Cannot untap a player");
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            // CR 701.20b — emit "becomes untapped" on the transition so
+            // CR 701.26b — emit "becomes untapped" on the transition so
             // untap-watching triggers (Tawnos's Coffin) fire (ADR 0028).
             untapPermanent(state, found.card);
         },
@@ -13085,7 +13085,7 @@ export function buildSpellContext(
         // `condition`-based `gainControl` (reverted by the conditional-control
         // SBA), this installs a phase-boundary `duration` that `tickAllDurations`
         // reverts at CLEANUP (CR 514.2). `tapOnLoss` carries the "when you lose
-        // control of it, tap it" rider (CR 701.20a) — the permanent taps the
+        // control of it, tap it" rider (CR 701.26a) — the permanent taps the
         // instant control reverts.
         gainControlUntilEndOfTurn(
             target: TargetSelection,
@@ -13122,8 +13122,8 @@ export function buildSpellContext(
             for (const id of ids) {
                 // Each victim independently gets a chance to consume a destroy
                 // replacement (CR 614, ADR 0020) or a regeneration shield
-                // (CR 614.5, 701.15a) — unless the caller opts out via
-                // `cantBeRegenerated` (CR 701.15c). issue #1054 — the
+                // (CR 614.5, 701.19a) — unless the caller opts out via
+                // `cantBeRegenerated` (CR 701.19c). issue #1054 — the
                 // resolving spell/ability's controller is the causer for
                 // every victim (Wrath of God-style mass destroy).
                 destroyWithReplacements(state, id, {
@@ -13380,7 +13380,7 @@ export function buildSpellContext(
                 opts
             );
         },
-        // CR 701.20: randomize a player's library. Uses the seeded PRNG so
+        // CR 701.24: randomize a player's library. Uses the seeded PRNG so
         // replays reproduce the same ordering. ADR 0026: a shuffle is an
         // unwitnessed reordering — clear ALL persistent knowledge of every
         // card in the library (nobody, not even the shuffler, knows the new
@@ -13406,7 +13406,7 @@ export function buildSpellContext(
             clearKnowledge(moved, null);
             player.library.push(...moved);
         },
-        // CR 701.5a: to counter a spell is to remove it from the stack and put
+        // CR 701.6a: to counter a spell is to remove it from the stack and put
         // it into its owner's graveyard. If the target is no longer on the
         // stack (already resolved/countered), this is a silent no-op — the
         // countering spell simply fails to find a legal target (CR 608.2b).
@@ -13446,7 +13446,7 @@ export function buildSpellContext(
             const owner = getPlayer(state, item.ownerId);
             // Abilities on the stack are not cards: activated (CR 113.7a),
             // triggered (CR 113.7a) and delayed-triggered abilities all just
-            // vanish when countered (CR 701.5a — Stifle). Only a countered
+            // vanish when countered (CR 701.6a — Stifle). Only a countered
             // SPELL moves to a destination zone.
             if (
                 item.abilityId ||
@@ -13469,7 +13469,7 @@ export function buildSpellContext(
                     // card this is; putting it at a known position in a hidden
                     // zone does not retroactively un-reveal it. Stamp ADR 0026
                     // reveal-class knowledge so the card stays face-up to all
-                    // players until an uncertainty event (a shuffle, CR 701.20,
+                    // players until an uncertainty event (a shuffle, CR 701.24,
                     // via `clearKnowledge`) erases it. Identical to the
                     // `putSpellOnLibrary` (Subtlety) path — one mechanism, not
                     // a counterspell-specific marker.
@@ -13500,7 +13500,7 @@ export function buildSpellContext(
             target: TargetSelection,
             position: "top" | "bottom"
         ): void {
-            // CR 701.5-adjacent (issue #1205, Subtlety) — "put target spell on
+            // CR 701.6-adjacent (issue #1205, Subtlety) — "put target spell on
             // the top or bottom of its owner's library." NOT a counter: it
             // ignores `cantBeCountered` (CR 113.6g shields only against counter
             // effects). Mirrors `counter`'s stack-splice + ability-vanish.
@@ -13527,7 +13527,7 @@ export function buildSpellContext(
             // The spell was a public object on the stack (CR 405.1), so its
             // identity is known to everyone. Moving it into the hidden library
             // does not erase that knowledge — the card stays face-up to all
-            // players until an uncertainty event (shuffle, CR 701.20) clears it.
+            // players until an uncertainty event (shuffle, CR 701.24) clears it.
             // ADR 0026 `knownTo` reveal-class knowledge, cleared automatically
             // on shuffle by the same path as any revealed library card.
             grantKnowledgeToAll(state, item.ownerId, [item.id]);
@@ -14967,7 +14967,7 @@ export function buildSpellContext(
         },
 
         setSourceCantBeRegeneratedThisTurn(): void {
-            // CR 701.15c — flag the resolving ability's source so the rest of
+            // CR 701.19c — flag the resolving ability's source so the rest of
             // the turn's regeneration (shields + auto-regen replacement) is
             // suppressed. Cleared at CLEANUP (CR 514.2).
             const found = findOnBattlefield(state, item.id);
@@ -14976,7 +14976,7 @@ export function buildSpellContext(
         },
 
         setTargetCantBeRegeneratedThisTurn(target: TargetSelection): void {
-            // CR 701.15c — target-scoped twin of the source version above
+            // CR 701.19c — target-scoped twin of the source version above
             // (Incinerate, Orcish Healer, Word of Blasting). Sets the same
             // per-instance flag; cleared at CLEANUP (CR 514.2).
             if (target.type !== "permanent") return;
@@ -15628,7 +15628,7 @@ export function buildSpellContext(
                 entry.manaRestriction = req.manaRestriction;
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;
-            // CR 701.21a / 701.24 — when the may-pay's PERMANENT leg admits a
+            // CR 701.21a / 400.7 — when the may-pay's PERMANENT leg admits a
             // real permanent choice, light up the payer's battlefield so the
             // client can prompt WHICH permanent(s) to give up before
             // confirming. Reuses the standard battlefield pick machinery
@@ -15825,7 +15825,7 @@ export function buildSpellContext(
             return picked.id;
         },
         lookRandomHandCard(ownerId, knowerId): string | undefined {
-            // CR 701.18a — "Look at a card at random in target player's hand"
+            // CR 400.2 — "Look at a card at random in target player's hand"
             // (Urza's Bauble). A PRIVATE look: unlike `revealRandomHandCard`
             // (CR 701.20, public `grantKnowledgeToAll`), the pick is stamped
             // known to the looker ALONE via `grantKnowledge`. Same seeded-PRNG
@@ -16052,9 +16052,9 @@ export function buildSpellContext(
         stagedAsEntersCount(): number {
             return state.stagedEntries?.length ?? 0;
         },
-        // CR 701.16: to sacrifice a permanent is for its controller to put
+        // CR 701.21: to sacrifice a permanent is for its controller to put
         // it into its owner's graveyard. Indestructible does not prevent
-        // sacrifice (CR 701.16a). No-op if the id is not on the battlefield.
+        // sacrifice (CR 701.21a). No-op if the id is not on the battlefield.
         // issue #1054 — the resolving spell/ability's controller is the
         // causer (an Edict effect forcing an opponent's sacrifice, or a
         // card's own "sacrifice a permanent: ..." ability sacrificing its
@@ -16082,7 +16082,7 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, sourceId);
             if (found) delete found.card.echoPending;
         },
-        // CR 701.8: to discard a card is to move it from its owner's hand
+        // CR 701.9: to discard a card is to move it from its owner's hand
         // into that player's graveyard. No-op if the card is no longer in
         // hand (e.g. already moved by a concurrent step).
         discardCard(playerId: string, cardInstanceId: string): void {
@@ -16091,7 +16091,7 @@ export function buildSpellContext(
             if (idx === -1) return;
             // CR 614 — Library of Leng's discard replacement intercepts inside
             // discardToGraveyard; on a real discard it emits CARD_DISCARDED
-            // (CR 701.8) so "whenever you discard" triggers fire (Necropotence).
+            // (CR 701.9) so "whenever you discard" triggers fire (Necropotence).
             if (!discardToGraveyard(state, playerId, cardInstanceId)) return;
             // ADR 0026 (revised): a discard does NOT clear a non-owner knower's
             // knowledge of the REMAINING hand. Knowledge is tracked per card
@@ -16103,7 +16103,7 @@ export function buildSpellContext(
             // reverted the whole hand to hidden, which hid the cards a full
             // reveal (Thoughtseize) had legitimately exposed.
         },
-        // CR 701.15a: stacks one regeneration shield on the target permanent.
+        // CR 701.19a: stacks one regeneration shield on the target permanent.
         // The shield is consumed by the next destroy event on that permanent
         // (CR 614.5). Silent no-op if the target has left the battlefield
         // (CR 608.2b).
@@ -16267,7 +16267,7 @@ export function buildSpellContext(
             }
             return undefined;
         },
-        // CR 701.20a: tap all lands controlled by playerId. Used by Mana Short
+        // CR 701.26a: tap all lands controlled by playerId. Used by Mana Short
         // and Drain Power.
         tapAllLands(playerId: string): void {
             const player = getPlayer(state, playerId);
@@ -16354,7 +16354,7 @@ export function buildSpellContext(
                 playerId
             );
         },
-        // CR 701.22 Scry / 701.44 Surveil / "put them back in any order" (Ponder,
+        // CR 701.22 Scry / 701.25 Surveil / "put them back in any order" (Ponder,
         // Index) — the single reusable ordered-top primitive behind the drag
         // picker. Looks at the top `n` cards, raises an `order-top` PendingChoice
         // (candidateIds = those n, projected face-up as `libraryPeek`), and on
@@ -16402,7 +16402,7 @@ export function buildSpellContext(
                     step,
                     choiceId,
                     playerId: chooserId,
-                    // CR 701.20 fateseal — the chooser looks into another
+                    // CR 701.29 fateseal — the chooser looks into another
                     // player's library; `zoneOwnerId` names whose library the
                     // submit/projection/legal-action paths operate on.
                     ...(foreignChooser ? { zoneOwnerId: playerId } : {}),
@@ -18467,7 +18467,7 @@ export function payRemoveCounterCost(
 
 /** True iff `player` can pay a "discard the last card you drew this turn"
  *  cost (Jandor's Ring) — they drew a card this turn and it is still in
- *  their hand (CR 118.3 — additional cost; CR 701.8 — discard). */
+ *  their hand (CR 118.3 — additional cost; CR 701.9 — discard). */
 export function canPayDiscardLastDrawn(player: PlayerState): boolean {
     const id = player.lastDrawnCardId;
     if (!id) return false;
@@ -18523,7 +18523,7 @@ export function canPayDiscardAtRandom(player: PlayerState): boolean {
  *  `canPayDiscardLastDrawn` first). Clears the tracker so the same draw can't
  *  pay a second activation this turn. Routes through `discardToGraveyard` so it
  *  honors CR 614 discard replacements (Library of Leng) and emits CARD_DISCARDED
- *  (CR 701.8) like every other discard path (Necropotence). */
+ *  (CR 701.9) like every other discard path (Necropotence). */
 export function payDiscardLastDrawn(
     state: GameState,
     player: PlayerState
@@ -18536,7 +18536,7 @@ export function payDiscardLastDrawn(
     player.lastDrawnCardId = undefined;
 }
 
-/** Single choke point for discarding one card hand → graveyard (CR 701.8).
+/** Single choke point for discarding one card hand → graveyard (CR 701.9).
  *  Runs the CR 614 discard replacement layer (Library of Leng) first; if a
  *  replacement consumed the event, the card was routed elsewhere and this
  *  returns false WITHOUT emitting CARD_DISCARDED (the card was not discarded to
@@ -18614,7 +18614,7 @@ export function discardToGraveyard(
     return true;
 }
 
-/** Discards `amount` cards at random from `playerId`'s hand (CR 701.8), using
+/** Discards `amount` cards at random from `playerId`'s hand (CR 701.9), using
  *  the game's seeded PRNG so replays reproduce the same picks. Clamped to the
  *  hand size. Routes each discard through the discard-replacement layer
  *  (CR 614 — Library of Leng). Shared by `SpellContext.discardAtRandom` (an
@@ -19879,7 +19879,7 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
 }
 
 /** Battlefield permanents controlled by `playerId` matching the sacrifice
- *  filter (CR 701.16). Used to gate affordability and pick the victims (the
+ *  filter (CR 701.21). Used to gate affordability and pick the victims (the
  *  MAY-PAY permanent leg — sacrifice OR return-to-hand). CR 205.4a (issue
  *  #2235 fixup) — `supertypesOf: liveSupertypesOf` resolves a permanent's LIVE
  *  snow status the same way the sibling `sacrificeCandidates` in
@@ -19906,7 +19906,7 @@ function sacrificeCandidates(
 }
 
 /** Instance ids of `playerId`'s permanents that could pay a `may-pay` cost's
- *  PERMANENT leg — sacrificed (CR 701.21a) or returned to hand (CR 701.24 /
+ *  PERMANENT leg — sacrificed (CR 701.21a) or returned to hand (CR 400.7 /
  *  118.9); the controller chooses which either way. Returns `[]` when the cost
  *  has no permanent leg. Exported so the submit boundary (`applyMayPaySubmit`)
  *  and the bot driver can validate / pick a legal permanent against the SAME
@@ -19926,7 +19926,7 @@ export function getMayPaySacrificeCandidateIds(
 }
 
 /** The terminal action of a `may-pay` cost's permanent leg — `"sacrifice"`
- *  (CR 701.16) or `"return"` to the owner's hand (CR 701.24 / 118.9, ADR 0079)
+ *  (CR 701.21) or `"return"` to the owner's hand (CR 400.7 / 118.9, ADR 0079)
  *  — or `undefined` when the cost has no permanent leg. */
 export function mayPayPermanentAction(
     cost: MayPayCost
@@ -19981,7 +19981,7 @@ export function mayPaySacrificeSetPower(
  *     Threshold mode (`{ minTotalPower }`, Phyrexian Dreadnought) ALWAYS admits
  *     a choice when any candidate exists — the payer picks a variable-size set,
  *     so there is never a trivial auto-pick.
- *   - `action: "return"` (CR 701.24 / 118.9, ADR 0079) — a choice is ALWAYS
+ *   - `action: "return"` (CR 400.7 / 118.9, ADR 0079) — a choice is ALWAYS
  *     owed while any candidate exists, even when exactly one permanent is
  *     legal. A returned permanent stays a resource the payer keeps playing
  *     with, so which one goes back is information the player must see and
@@ -20002,7 +20002,7 @@ export function mayPaySacrificeChoiceRequired(
         cost
     ).length;
     if (norm.permanent.action === "return") {
-        // CR 701.24 / 118.9 — always the payer's explicit choice (ADR 0079).
+        // CR 400.7 / 118.9 — always the payer's explicit choice (ADR 0079).
         return candidateCount > 0;
     }
     if (typeof norm.permanent.count === "object") {
@@ -20331,7 +20331,7 @@ export function canPayMayPayCost(
             norm.permanent.filter
         );
         if (typeof norm.permanent.count === "object") {
-            // CR 118 / 701.16 threshold mode — affordable iff the best-case set
+            // CR 118 / 701.21 threshold mode — affordable iff the best-case set
             // (every matching candidate with EFFECTIVE power > 0; a 0-or-less
             // creature can never help reach the threshold) sums to ≥ the
             // required total power.
@@ -20364,12 +20364,12 @@ export function canPayMayPayCost(
 }
 
 /** Pays the whole `may-pay` cost's legs from `playerId`'s resources (CR 117.3a /
- *  118.4 / 701.16 / 701.24 / 701.9). Caller MUST have already confirmed
+ *  118.4 / 701.21 / 400.7 / 701.9). Caller MUST have already confirmed
  *  affordability with `canPayMayPayCost` (the mana leg asserts coverage; the
  *  life, permanent and hand legs are applied unconditionally). Mana is taken
  *  from the pool (lands must already be tapped, as for any `may-pay`); life is
  *  lost through the replacement chain; the PERMANENT leg sacrifices (CR
- *  701.21a) or returns to hand (CR 701.24 / 118.9, ADR 0079) the permanents the
+ *  701.21a) or returns to hand (CR 400.7 / 118.9, ADR 0079) the permanents the
  *  payer CHOSE; the HAND leg discards / exiles the cards the payer CHOSE (CR
  *  701.9, issue #899 — mirrors the permanent leg's picker).
  *  `sacrificeIds` / `discardIds`, validated at the submit boundary, name the
@@ -20405,7 +20405,7 @@ export function payMayPayCost(
         loseLifeEmitting(state, playerId, norm.life);
     }
     if (norm.permanent) {
-        // CR 701.21a / 701.24 — the payer chooses which of their matching
+        // CR 701.21a / 400.7 — the payer chooses which of their matching
         // permanents pay. Honour the caller-supplied `sacrificeIds` (validated
         // at the submit boundary) when present; otherwise fall back to author
         // order.
@@ -20416,7 +20416,7 @@ export function payMayPayCost(
         );
         let victims: CardInstanceState[];
         if (typeof norm.permanent.count === "object") {
-            // CR 118 / 701.16 threshold mode ("sacrifice any number … total
+            // CR 118 / 701.21 threshold mode ("sacrifice any number … total
             // power ≥ N"). When the payer named a set, sacrifice ALL of it (the
             // whole caller-supplied `sacrificeIds`, already validated at the
             // submit boundary to meet the threshold — over-payment is legal).
@@ -20450,7 +20450,7 @@ export function payMayPayCost(
             victims = chosen.slice(0, norm.permanent.count);
         }
         if (norm.permanent.action === "return") {
-            // CR 701.24 / 118.9 (ADR 0079) — the return leg's terminal step is
+            // CR 400.7 / 118.9 (ADR 0079) — the return leg's terminal step is
             // the unified permanent-cost layer's own: build the completed
             // `SacrificeSelection` the picker would have produced and let
             // `applySacrificeSelection` bounce each victim to its owner's hand.

@@ -60,7 +60,7 @@ function manaSpentOnCastAtLeast(color: string, pips: number) {
 // spent to cast it, search your library for a land card, reveal it, put it
 // into your hand, then shuffle. You gain 2 life. Evoke {R/G}{R/G}."
 //
-// The green clause's search is `count: { min: 0, max: 1 }` because CR 701.19c
+// The green clause's search is `count: { min: 0, max: 1 }` because CR 701.23b
 // lets a player fail to find even on a mandatory search.
 export const vibrance: CardDefinition = {
     id: "b9f71c3b-0840-475f-9c17-fdacbc7f3213",

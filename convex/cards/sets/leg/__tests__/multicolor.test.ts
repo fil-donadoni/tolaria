@@ -144,7 +144,7 @@ describe("Lady Orca (vanilla legendary creature, CR 205.4a)", () => {
     });
 });
 
-describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.13)", () => {
+describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.14)", () => {
     // Build a defender board: one land (legendary or not) + a vanilla blocker.
     // Returns the attacking Livonya, the blocker, the defender battlefield, and
     // the live state for `validateBlockerEligibility`.
@@ -172,7 +172,7 @@ describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.13)"
         return { state, attacker, blocker, defenderBattlefield };
     }
 
-    it("can't be blocked while the defender controls a legendary land (CR 702.13)", () => {
+    it("can't be blocked while the defender controls a legendary land (CR 702.14)", () => {
         // Pendelhaven is a Legendary Land (CR 205.4) → evasion is live.
         const { attacker, blocker, defenderBattlefield, state } = setup({
             defenderLandId: pendelhaven.id,
@@ -186,7 +186,7 @@ describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.13)"
         expect(res.eligible).toBe(false);
     });
 
-    it("is blockable when the defender controls only a nonlegendary land (CR 702.13)", () => {
+    it("is blockable when the defender controls only a nonlegendary land (CR 702.14)", () => {
         // A basic Forest carries no Legendary supertype → no evasion.
         const { attacker, blocker, defenderBattlefield, state } = setup({
             defenderLandId: getCardByName("Forest").id,
@@ -442,7 +442,7 @@ describe("Boris Devilboon ({2}{B}{R},{T}: make a Minor Demon, CR 111)", () => {
     });
 });
 
-describe("Gwendlyn Di Corci ({T}: random discard, your turn, CR 701.8a)", () => {
+describe("Gwendlyn Di Corci ({T}: random discard, your turn, CR 701.9a)", () => {
     it("makes the target player discard a card at random", () => {
         const gwen = makeInstance(gwendlynDiCorci.id, {
             id: "gwen",
@@ -510,7 +510,7 @@ describe("Pavel Maliki ({B}{R}: +1/+0 EOT, CR 611.1)", () => {
     });
 });
 
-describe("Ragnar ({G}{W}{U},{T}: regenerate target creature, CR 701.15a)", () => {
+describe("Ragnar ({G}{W}{U},{T}: regenerate target creature, CR 701.19a)", () => {
     it("arms a regeneration shield on the target", () => {
         const ragnarInst = makeInstance(ragnar.id, {
             id: "ragnar",
@@ -942,7 +942,7 @@ describe("Bartel Runeaxe (can't be targeted by Aura spells, CR 109.5)", () => {
     });
 });
 
-describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6a / 117.3a / 701.16)", () => {
+describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6a / 117.3a / 701.21)", () => {
     const dragons = [
         { def: arcadesSabboth, ability: "arcades-sabboth-upkeep" },
         { def: chromium, ability: "chromium-upkeep" },
@@ -967,7 +967,7 @@ describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6
 
     for (const { def, ability } of dragons) {
         describe(def.name, () => {
-            it("declining the payment sacrifices it (CR 701.16)", () => {
+            it("declining the payment sacrifices it (CR 701.21)", () => {
                 const { state, dragon } = setup(def);
                 resolveTrigger(state, dragon, ability, UPKEEP_C7("p1"));
                 answerChoice(state, ["decline"]);

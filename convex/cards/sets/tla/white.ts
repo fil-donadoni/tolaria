@@ -68,7 +68,7 @@ export const aangsIceberg: CardDefinition = {
                 excludeTypes: "Land",
                 excludeSource: true,
             },
-            // CR 701.18 / ADR 0028 — host-only exile ("up to one": if no target
+            // CR 701.13 / ADR 0028 — host-only exile ("up to one": if no target
             // is chosen, `{ target: 0 }` resolves to nothing and the Op no-ops,
             // CR 608.2b), keyed to `$source`; the paired leftTrigger returns it.
             // Op defaults includeAttachments/returnTapped false (host-only).

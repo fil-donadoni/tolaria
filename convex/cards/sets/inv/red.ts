@@ -109,7 +109,7 @@ export const overload: CardDefinition = {
 
 // Obliterate — "This spell can't be countered. Destroy all artifacts,
 // creatures, and lands. They can't be regenerated." (CR 113.6g can't-be-
-// countered flag, issue #1065; CR 701.7 destroy + CR 701.15c regen
+// countered flag, issue #1065; CR 701.8 destroy + CR 701.19c regen
 // suppression.)
 //
 // NOT DSL-migratable (ADR 0045, issue #831 precedent — Wrath of God is the
@@ -732,7 +732,7 @@ export const scarredPuma: CardDefinition = {
 
 // Searing Rays — {2}{R} Sorcery. "Choose a color. Searing Rays deals damage
 // to each player equal to the number of creatures of that color that player
-// controls." (CR 701.20 "choose a color" via a 5-mode `optionChoice` — the
+// controls." (CR 700.2 "choose a color" via a 5-mode `optionChoice` — the
 // Addle template, inv/black.ts; per player, `count` reads that player's
 // battlefield filtered by the chosen color, fed straight into `dealDamage`.)
 function searingRaysMode(color: "W" | "U" | "B" | "R" | "G", label: string) {
@@ -1322,8 +1322,8 @@ export const loafingGiant: CardDefinition = {
 // Scorching Lava — {1}{R} Instant. "Kicker {R}. Scorching Lava deals 2
 // damage to any target. If this spell was kicked, that creature can't be
 // regenerated this turn and if it would die this turn, exile it instead."
-// (CR 702.33 Kicker, CR 115.4 any target, CR 120.1 damage, CR 701.15c
-// regeneration lock, CR 614.1a death replacement.) Was the two-part gap 6 of
+// (CR 702.33 Kicker, CR 115.4 any target, CR 120.1 damage, CR 701.19c regeneration
+// lock, CR 614.1a death replacement.) Was the two-part gap 6 of
 // issue #1095, closed on both sides:
 //
 //  - the regeneration lock shipped as the `preventRegeneration` Op with

@@ -7,7 +7,7 @@ import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger"
 import type { SpellContext } from "../../types";
 
 // Goblin Bombardment — "Sacrifice a creature: This enchantment deals 1
-// damage to any target." (CR 701.16 sacrifice cost, CR 120.1 damage.) The
+// damage to any target." (CR 701.21 sacrifice cost, CR 120.1 damage.) The
 // sacrificed creature is any creature the activating player controls (not
 // necessarily this permanent, since Goblin Bombardment is an Enchantment,
 // not a creature) — `cost.sacrificeFilter` needs neither `excludeInstanceIds`

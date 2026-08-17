@@ -201,7 +201,7 @@ export function buildCombatArrows(
     const assignments = combat.blockerAssignments ?? {};
 
     // Union-find over attacker/blocker ids; band members are unioned so a band
-    // sharing blockers collapses into one cluster (CR 702.21).
+    // sharing blockers collapses into one cluster (CR 702.22).
     const parent: Record<string, string> = {};
     const find = (a: string): string => {
         parent[a] ??= a;

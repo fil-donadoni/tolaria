@@ -54,7 +54,7 @@ import {
     withEnergyFlux,
 } from "./helpers";
 
-describe("Hurkyl's Recall (return all artifacts target player owns to hand, CR 701.10)", () => {
+describe("Hurkyl's Recall (return all artifacts target player owns to hand, CR 400.7)", () => {
     it("bounces every artifact the target player owns, leaving non-artifacts", () => {
         const a1 = makeInstance(clayStatue.id, {
             id: "a1",
@@ -669,7 +669,7 @@ describe("Energy Flux ({2}{U} Enchantment — CR 113.1 triggered-grant + CR 611 
         expect(state.players[0].manaPool.C).toBe(0);
     });
 
-    it("declining (or being unable to pay) sacrifices the artifact (CR 701.16)", () => {
+    it("declining (or being unable to pay) sacrifices the artifact (CR 701.21)", () => {
         const { state } = withEnergyFlux("p1");
         state.stack.push(...collectTriggers(state, [UPKEEP_P1]));
         expect(resolveTopOfStack(state)).toBeNull();
@@ -738,7 +738,7 @@ describe("Energy Flux ({2}{U} Enchantment — CR 113.1 triggered-grant + CR 611 
     });
 });
 
-describe("Transmute Artifact (ATQ cluster H — library tutor → battlefield, CR 701.16 / 701.19 / 202.3)", () => {
+describe("Transmute Artifact (ATQ cluster H — library tutor → battlefield, CR 701.21 sacrifice / 701.23 search / 202.3)", () => {
     /** p1 holds Sol Ring (artifact, mv 1) on the battlefield and a library of
      *  the given cards. Casts Transmute Artifact, sacrifices Sol Ring, then
      *  searches for `foundId`. Returns the resolved state mid-flow (after the
@@ -842,7 +842,7 @@ describe("Transmute Artifact (ATQ cluster H — library tutor → battlefield, C
         expect(p1.library).toHaveLength(0);
     });
 
-    it("restricts the search to artifact cards via candidateIds (CR 701.19)", () => {
+    it("restricts the search to artifact cards via candidateIds (CR 701.23)", () => {
         const orn = makeInstance(ornithopter.id, {
             id: "lib-artifact",
             controllerId: "p1",
@@ -879,7 +879,7 @@ describe("Transmute Artifact (ATQ cluster H — library tutor → battlefield, C
         expect(search.candidateIds).toEqual(["lib-artifact"]);
     });
 
-    it("sacrifices and shuffles but finds nothing when the library holds no artifact card (fail-to-find, CR 701.19c)", () => {
+    it("sacrifices and shuffles but finds nothing when the library holds no artifact card (fail-to-find, CR 701.23b)", () => {
         const bears = makeInstance(grizzlyBears.id, {
             id: "lib-creature",
             controllerId: "p1",

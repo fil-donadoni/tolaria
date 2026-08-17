@@ -31,7 +31,7 @@ describe("Lion's Eye Diamond ({T}, Sacrifice, discard hand: 3 of one color, CR 1
     // random cost (`payDiscardAtRandomCost`, wired for tap mana abilities via
     // the new `applyManaAbilityDiscardCost` rider) together with the
     // sacrifice and the mana production, from ONE activation.
-    it("discards the whole hand, sacrifices the diamond, and adds 3 mana of one color (CR 118.3 / 605.1a / 701.16)", () => {
+    it("discards the whole hand, sacrifices the diamond, and adds 3 mana of one color (CR 118.3 / 605.1a / 701.21)", () => {
         const led = makeInstance(lionsEyeDiamond.id, {
             id: "led",
             controllerId: "p1",
@@ -105,7 +105,7 @@ describe("Lion's Eye Diamond ({T}, Sacrifice, discard hand: 3 of one color, CR 1
 
 // Phyrexian Dreadnought — summed-power THRESHOLD sacrifice cost (issue #977).
 // The self-ETB (CR 603.6a) offers a `mayPay` whose sacrifice leg is
-// `count: { minTotalPower: 12 }` (CR 118 / 701.16 — "sacrifice any number of
+// `count: { minTotalPower: 12 }` (CR 118 / 701.21 — "sacrifice any number of
 // creatures with total power 12 or greater"); an `if !$paid` sacrifices the
 // source (CR 608.2b).
 
@@ -153,7 +153,7 @@ function dreadnoughtCost(): MayPayCost {
     return op.cost;
 }
 
-describe("Phyrexian Dreadnought (threshold sacrifice cost, CR 118 / 701.16 / 603.6a)", () => {
+describe("Phyrexian Dreadnought (threshold sacrifice cost, CR 118 / 701.21 / 603.6a)", () => {
     it("decline: the ETB sacrifices the Dreadnought itself (CR 608.2b)", () => {
         const dread = makeInstance(phyrexianDreadnought.id, {
             id: "dread",

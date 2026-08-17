@@ -5,7 +5,7 @@ import type { CardDefinition } from "../../types";
 // green card from your hand rather than pay this spell's mana cost. Destroy up
 // to two target artifacts and/or enchantments." (CR 118.9 alternative pitch
 // cost — exile a green card from hand, gated on the not-your-turn condition;
-// CR 701.7 destroy; CR 601.2c "up to two" targeting.)
+// CR 701.8 destroy; CR 601.2c "up to two" targeting.)
 //
 // The alternative cost is a censusless CR 118.9 rules concept (no keyword name):
 // a `handCost.action: "exile"` leg with `condition: not-your-turn`. The effect

@@ -57,7 +57,7 @@ function assertNever(x: never): never {
 }
 
 /** Submit `submission` through the human mutations it names. Sequential and
- *  awaited throughout: the `*Each` shapes (CR 701.16 filtered sacrifice, CR
+ *  awaited throughout: the `*Each` shapes (CR 701.21 filtered sacrifice, CR
  *  118.8 crew) fire one call per id and the server COMMITS the announcement the
  *  moment the last one lands, so firing them concurrently would race the commit
  *  against the picks that still have to reach it. */

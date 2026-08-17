@@ -99,9 +99,9 @@ describe("Frantic Search (draw 2, discard 2, untap 3 lands; CR 121.1 / 701.8)", 
 // controller pays {2}." Same `mayPay`-suspends-the-spell shape as Daze — the
 // smoke sweep runs the card's OTHER activation site (Cycling {2}) instead, so
 // the counter-unless-pay effect itself has zero coverage. Hand-written here
-// for both branches (CR 701.5a / 117.3a); the Cycling activated ability is
+// for both branches (CR 701.6a counter / 117.3a); the Cycling activated ability is
 // covered class-wide by the shared `cyclingAbility` factory's own tests.
-describe("Miscalculation (counter unless controller pays {2}, CR 701.5a / 117.3a)", () => {
+describe("Miscalculation (counter unless controller pays {2}, CR 701.6a / 117.3a)", () => {
     it("declining the payment counters the target spell", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -161,7 +161,7 @@ describe("Miscalculation (counter unless controller pays {2}, CR 701.5a / 117.3a
     });
 });
 
-describe("Tinker (CR 118.8 additional cost / 701.19 / 400.7 / 701.20, issue #677)", () => {
+describe("Tinker (CR 118.8 additional cost / 701.23 / 400.7 / 701.24, issue #677)", () => {
     it("searches for an artifact card and puts it onto the battlefield", () => {
         const libOrn = makeInstance(ornithopter.id, {
             id: "orn1",

@@ -8,7 +8,7 @@ import { isBasicLandCard } from "../../types";
 
 // Erode — "Destroy target creature or planeswalker. Its controller may
 // search their library for a basic land card, put it onto the battlefield
-// tapped, then shuffle." (CR 701.7 destroy; CR 601.2c search/battlefield-
+// tapped, then shuffle." (CR 701.8 destroy; CR 601.2c search/battlefield-
 // entry). The land-search tail moves a card from library straight to the
 // battlefield, a path the `moveZone` Op only supports FROM a graveyard card
 // (reanimation) — not from a library search choice. Stays `resolve()`,
@@ -47,7 +47,7 @@ export const erode: CardDefinition = {
             candidateIds: basics.map((c) => c.id),
             count: { min: 0, max: 1 },
             prompt: "Erode: you may search your library for a basic land card.",
-            // Genuine CR 701.19a search (candidateIds is a whole-library
+            // Genuine CR 701.23a search (candidateIds is a whole-library
             // filter match, not a peeked window) — issue #788 finding 1.
             isSearch: true,
         });

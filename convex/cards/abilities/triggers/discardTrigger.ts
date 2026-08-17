@@ -1,4 +1,4 @@
-// `discardTrigger` — declarative factory for CR 701.8 "whenever you discard a
+// `discardTrigger` — declarative factory for CR 701.9 "whenever you discard a
 // card" triggered abilities. Listens to CARD_DISCARDED, emitted by the engine's
 // single discard choke point (`discardToGraveyard`), which every discard path
 // flows through: the cleanup-step max-hand-size discard (CR 514.1), effect-

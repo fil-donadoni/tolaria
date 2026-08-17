@@ -315,7 +315,7 @@ export function checkTokenExistenceSBA(state: GameState): boolean {
  *     cannot defer the sacrifice for a turn. See `hasChapterAbilityOnStack`
  *     for the trigger-before-SBA ordering invariant this depends on.
  *
- *  The departure is a genuine sacrifice (CR 701.17), passed as the `cause` so
+ *  The departure is a genuine sacrifice (CR 701.21), passed as the `cause` so
  *  leave-the-battlefield triggers can tell it from a bounce or a destroy. */
 export function checkSagaSacrificeSBA(state: GameState): boolean {
     let sacrificedAny = false;
@@ -454,7 +454,7 @@ export function checkDeathtouchDestroySBA(state: GameState): boolean {
             );
             if (victim) {
                 attempted.add(victim.id);
-                // Indestructible / regeneration survives (CR 702.12, 701.15a);
+                // Indestructible / regeneration survives (CR 702.12, 701.19a);
                 // the mark stays until CLEANUP.
                 if (destroyWithReplacements(state, victim.id)) {
                     destroyedAny = true;

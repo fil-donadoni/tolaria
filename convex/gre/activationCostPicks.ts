@@ -10,7 +10,7 @@
 //   `cost.discardFilter`      → `selectActivationDiscardCost`  (CR 118.3)
 //   `cost.exileFromGraveyard` → `selectActivationExileCost`    (CR 118.5)
 //   `cost.tapOtherFilter`     → `selectActivationCost`         (CR 118.8)
-//   `cost.sacrificeFilter`    → `selectSacrifice`              (CR 701.16 / 118.5)
+//   `cost.sacrificeFilter`    → `selectSacrifice`              (CR 701.21 / 118.5)
 //
 // The bot has to answer them exactly like a human does, so the picks are part of
 // the `activate-ability` Move (`moves.ts`) rather than re-derived at each site:
@@ -72,7 +72,7 @@ export type ActivationCostPicks = {
     /** CR 118.8 — other permanents tapped to pay `cost.tapOtherFilter`
      *  (Hand of Justice's fixed N, Crew N's power threshold). */
     tapOtherIds?: string[];
-    /** CR 701.16 / 118.5 — permanents sacrificed to pay `cost.sacrificeFilter`
+    /** CR 701.21 / 118.5 — permanents sacrificed to pay `cost.sacrificeFilter`
      *  (plus any static additional-sacrifice tax, CR 601.2f). Only the picks
      *  the payer must SUBMIT: a fungible board is auto-resolved server-side at
      *  announcement (`autoResolveFungible`), and those victims are already
@@ -177,7 +177,7 @@ function planExilePick(
     return undefined;
 }
 
-/** The sacrifice selection an activation announces (CR 701.16 / 601.2f): the
+/** The sacrifice selection an activation announces (CR 701.21 / 601.2f): the
  *  ability's own `sacrificeFilter` leg plus any static additional-sacrifice tax
  *  (Drought), already collapsed by `autoResolveFungible` where the board offers
  *  no real choice. Lives here rather than in `game.ts` because BOTH the server
@@ -374,7 +374,7 @@ export function enumerateActivationCostPicks(
         return variants.length > 0 ? variants : [base];
     }
 
-    // CR 701.16 — the sacrifice victim, when the board leaves a real choice.
+    // CR 701.21 — the sacrifice victim, when the board leaves a real choice.
     // `base.sacrificeIds` is undefined when `autoResolveFungible` already
     // settled the whole selection server-side, and a multi-victim payment
     // (a Drought tax on top of the ability's own leg) keeps the deterministic

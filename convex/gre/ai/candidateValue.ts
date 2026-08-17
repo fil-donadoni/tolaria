@@ -145,7 +145,7 @@ export function prospectiveCardWorth(
         : noncreatureCardWorth(card, ctx);
 }
 
-// --- Library-search target pricing (CR 701.19) ------------------------------
+// --- Library-search target pricing (CR 701.23) ------------------------------
 
 /** Lands in play at which searching up ANOTHER land stops being development
  *  and starts being flood (a rough Forge-style curve point). Below it a
@@ -159,7 +159,7 @@ const LAND_SEARCH_BASE = 70;
 const LAND_SEARCH_STEP = 10;
 const LAND_SEARCH_FLOODED = 20;
 
-/** Rough latent worth of a card a library search could find (CR 701.19), used
+/** Rough latent worth of a card a library search could find (CR 701.23), used
  *  to RANK targets and to feed the `priorFor` seam — never legality. A LAND
  *  is priced against the SEARCHER's own mana development (real board state —
  *  genuinely context-aware), which is what makes a fetchland pick sensible

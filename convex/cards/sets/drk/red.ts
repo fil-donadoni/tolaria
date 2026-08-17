@@ -353,7 +353,7 @@ export const fireDrake: CardDefinition = {
 };
 
 // Fissure — "Destroy target creature or land. It can't be regenerated."
-// (CR 701.7 destroy with the regen-shield suppression; CR 114 multi-type
+// (CR 701.8 destroy with the regen-shield suppression; CR 114 multi-type
 // target.)
 export const fissure: CardDefinition = {
     id: "aa2d778d-d74b-45ec-a86b-5d52ffad6ba5",
@@ -401,7 +401,7 @@ export const goblinCaves: CardDefinition = {
 };
 
 // Goblin Digging Team — "{T}, Sacrifice this creature: Destroy target Wall."
-// (CR 605 activated ability with tap + self-sacrifice cost; CR 701.7 destroy
+// (CR 605 activated ability with tap + self-sacrifice cost; CR 701.8 destroy
 // restricted to Wall-subtyped creatures via `subtypeFilter`.)
 export const goblinDiggingTeam: CardDefinition = {
     id: "8a538b9d-351e-40bb-be11-9ba08c16352b",
@@ -425,7 +425,7 @@ export const goblinDiggingTeam: CardDefinition = {
                 subtypeFilter: "Wall",
             },
             // Migrated resolve()→effects[] (ADR 0045, #832): destroy the
-            // announced target Wall (CR 701.8). The self-sacrifice is an
+            // announced target Wall (CR 701.8 destroy). The self-sacrifice is an
             // activation cost.
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
@@ -608,7 +608,7 @@ export const goblinWizard: CardDefinition = {
 };
 
 // Goblins of the Flarg — "Mountainwalk\nWhen you control a Dwarf, sacrifice this
-// creature." (CR 702.19 landwalk keyword; CR 603.8 state-trigger self-sacrifice
+// creature." (CR 702.14 landwalk keyword; CR 603.8 state-trigger self-sacrifice
 // when the controller controls a Dwarf.)
 export const goblinsOfTheFlarg: CardDefinition = {
     id: "fd333b18-b896-4ab8-9c46-eed4efdd94f2",

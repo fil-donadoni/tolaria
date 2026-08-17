@@ -7,7 +7,7 @@ import type { CardDefinition } from "../../types";
 import { HUMAN_TOKEN } from "../../sharedTokens";
 
 // Cathar Commando — "Flash. {1}, Sacrifice this creature: Destroy target
-// artifact or enchantment." (CR 702.8 flash; CR 701.7 destroy; CR 602.1
+// artifact or enchantment." (CR 702.8 flash; CR 701.8 destroy; CR 602.1
 // activated ability with a sacrifice-self cost.)
 export const catharCommando: CardDefinition = {
     id: "98cbc1c2-b76e-4da3-aa43-00e10b2ce532",

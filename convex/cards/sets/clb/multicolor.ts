@@ -144,7 +144,7 @@ export const minscAndBooTimelessHeroes: CardDefinition = {
             oracleText:
                 "−2: Sacrifice a creature. When you do, Minsc & Boo deals X damage to any target, where X is that creature's power. If the sacrificed creature was a Hamster, draw X cards.",
             effects: [
-                // CR 701.16 — the sacrifice is an EFFECT (not a cost), so it
+                // CR 701.21 — the sacrifice is an EFFECT (not a cost), so it
                 // happens here, on resolution, and the player picks which
                 // creature.
                 {

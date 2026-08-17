@@ -133,7 +133,7 @@ describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR
         applySourceStaticEffects(state, urborg);
         expect(dual.subtypes).toContain("Swamp");
 
-        // CR 701.16 — sacrifice is one of the "leaves the battlefield" paths
+        // CR 701.21 — sacrifice is one of the "leaves the battlefield" paths
         // that must unwind subtype-add grants (unapplySourceStaticEffects).
         removePermanentTo(state, urborg.id, "graveyard", "sacrifice");
 

@@ -374,7 +374,7 @@ export function applyActivationCostsForSearch(
             ? (planActivationCostPicks(state, owner, src, ability) ?? undefined)
             : undefined);
     if (!owner) return true;
-    // CR 701.16 — the filtered-sacrifice victims, both the ones the server
+    // CR 701.21 — the filtered-sacrifice victims, both the ones the server
     // auto-resolves at announcement and the ones the payer names.
     for (const id of activationSacrificeVictims(
         state,

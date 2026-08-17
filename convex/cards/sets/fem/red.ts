@@ -194,7 +194,7 @@ export const goblinChirurgeon: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.15a).
+            // announced creature target (CR 701.19a).
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
@@ -833,7 +833,7 @@ export const raidingParty: CardDefinition = {
                         Array.from(protectedPlains)
                     );
                 }
-                // Destroy every Plains not protected by any player (CR 701.7).
+                // Destroy every Plains not protected by any player (CR 701.8).
                 for (const pid of ctx.allPlayerIds) {
                     for (const id of ctx.getBattlefieldIds(pid, {
                         subtypes: "Plains",

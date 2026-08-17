@@ -50,7 +50,7 @@ make projection a pure function of it.
 
 - **Clear triggers** (the single principle: knowledge of viewer V over hidden
   zone Z is cleared when Z changes in a way V did not choose-and-witness):
-    1. **Shuffle library** → clear all viewers, whole library (CR 701.20).
+    1. **Shuffle library** → clear all viewers, whole library (CR 701.24).
     2. ~~**Random or owner-chosen discard** → clear all non-owner viewers, whole
        hand.~~ **Revised (2026-07, see below): discards no longer clear
        knowledge of the remaining hand.** A discard moves one instance to the

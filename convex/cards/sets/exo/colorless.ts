@@ -5,7 +5,7 @@
 import type { CardDefinition, SpellContext } from "../../types";
 
 // City of Traitors — "When you play another land, sacrifice this land.
-// {T}: Add {C}{C}." (CR 603.2 triggered ability, CR 701.16 sacrifice.) The
+// {T}: Add {C}{C}." (CR 603.2 triggered ability, CR 701.21 sacrifice.) The
 // trigger's `resolve()` calls `ctx.sacrifice(ctx.sourceInstanceId)` directly:
 // the `sacrifice` Op's `permanents` field only accepts a `choice`-bound picks
 // LIST (the shape a `{op:"choice", ...}` step produces), not the `$source`

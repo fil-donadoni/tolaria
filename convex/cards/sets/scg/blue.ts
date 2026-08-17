@@ -3,7 +3,7 @@
 import type { CardDefinition } from "../../types";
 
 // Stifle — "Counter target activated or triggered ability. (Mana abilities
-// can't be targeted.)" (CR 701.5a — countering an ability removes it from the
+// can't be targeted.)" (CR 701.6a — countering an ability removes it from the
 // stack; it does not resolve. CR 605.3a — mana abilities never use the stack,
 // so they are never legal targets.) Reuses the shipped `counter` Op —
 // `ctx.counter` vanishes any ability on the stack (CR 113.7a: an ability is not

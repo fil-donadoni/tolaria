@@ -8,10 +8,10 @@ Arabian Nights Batch 3 (#175) ships Pyramids, whose second mode is "the next
 time target land would be destroyed this turn, remove all damage marked on it
 instead" — a **replacement effect** (CR 614) that intercepts a destruction
 before it happens. The engine already models destruction through
-`regenerateOrDestroy` (CR 614.5 / 701.15a), which folds two distinct rules into
+`regenerateOrDestroy` (CR 614.5 / 701.19a), which folds two distinct rules into
 one tested function:
 
-1. **Regeneration** (CR 701.15) — a specialised shield consulted at destruction
+1. **Regeneration** (CR 701.19) — a specialised shield consulted at destruction
    time: spend a shield, heal marked damage, tap, remove from combat, and the
    permanent survives.
 2. The actual move to the graveyard / exile.
@@ -57,7 +57,7 @@ Concretely:
 
 - **Replacement effects and regeneration are different rules.** CR 614
   replacements rewrite/forbid an event before it happens; regeneration (CR
-  701.15) is a shield consulted _as part of_ the destruction. Modelling Pyramids
+  701.19) is a shield consulted _as part of_ the destruction. Modelling Pyramids
   as a true replacement keeps the rules layering honest, while keeping
   regeneration where the CR puts it.
 - **The hot path is untouched.** `regenerateOrDestroy`'s body and its tests are
@@ -74,7 +74,7 @@ Concretely:
 ## Consequences
 
 - Destruction now has two intercept points consulted in order: CR 614 destroy
-  replacement (this ADR), then CR 701.15 regeneration (inside
+  replacement (this ADR), then CR 701.19 regeneration (inside
   `regenerateOrDestroy`). This matches the CR ordering (replacement before the
   event; regeneration as the event resolves).
 - A new persisted field must stay in sync with the serializer (enforced by the

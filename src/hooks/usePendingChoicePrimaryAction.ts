@@ -172,7 +172,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                           mayPaySacrificeCount(
                               choice.cost,
                               chooser.battlefield,
-                              // CR 701.16 — resolves `controllerRelation`
+                              // CR 701.21 — resolves `controllerRelation`
                               // ("sacrifice two Swamps YOU control") against
                               // the CHOOSER, mirroring the server's own
                               // `sacrificeCandidates` (`convex/gre/state.ts`).

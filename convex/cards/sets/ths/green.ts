@@ -5,8 +5,8 @@
 import type { ActivatedAbilityContext, CardDefinition } from "../../types";
 
 // Sylvan Caryatid — Defender, hexproof; "{T}: Add one mana of any color."
-// (CR 605.1a mana ability, `useStack: false`, CR 702.16 hexproof, CR 702.3
-// defender.) The any-color choice follows the established Birds of
+// (CR 605.1a mana ability, `useStack: false`, CR 702.11 hexproof, CR 702.3 defender
+// .) The any-color choice follows the established Birds of
 // Paradise / Talisman shape: `effect` produces a representative default, the
 // `manaChoices` array exposes every option to the picker. Vintage Cube free
 // tranche (issue #675, ADR 0041).

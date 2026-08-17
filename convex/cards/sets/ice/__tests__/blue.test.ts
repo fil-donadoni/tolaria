@@ -742,7 +742,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
         expect(slim.counters?.age).toBe(1);
     });
 
-    it("sacrifice-cost CU (Polar Kraken) sacrifices N lands per age (CR 701.16)", () => {
+    it("sacrifice-cost CU (Polar Kraken) sacrifices N lands per age (CR 701.21)", () => {
         const { state, kraken } = setup({ lands: 3 });
         kraken.counters = { age: 1 }; // makes 2 this upkeep
         fireCumulativeUpkeep(state, kraken, "polar-kraken-cumulative-upkeep");
@@ -1666,7 +1666,7 @@ describe("Clairvoyance (look at hand + cantrip, CR 401.4)", () => {
     });
 });
 
-describe("Enervate (tap target, CR 701.20)", () => {
+describe("Enervate (tap target, CR 701.26)", () => {
     it("taps the target and schedules the cantrip", () => {
         const dummy = vanilla("d", 1, 1, {
             id: "d",
@@ -1690,7 +1690,7 @@ describe("Enervate (tap target, CR 701.20)", () => {
     });
 });
 
-describe("Infuse (untap target, CR 701.20)", () => {
+describe("Infuse (untap target, CR 701.26)", () => {
     it("untaps the target and schedules the cantrip", () => {
         const dummy = vanilla("d", 1, 1, {
             id: "d",
@@ -1748,7 +1748,7 @@ describe("Portent (look at top 3, reorder, may shuffle, CR 401)", () => {
     });
 });
 
-describe("Ray of Erasure (mill a card, CR 701.13a)", () => {
+describe("Ray of Erasure (mill a card, CR 701.17a)", () => {
     it("mills the target's top card and schedules the cantrip", () => {
         const state = makeState({
             players: [
@@ -1794,7 +1794,7 @@ describe("Updraft (grant flying, CR 702.9)", () => {
 
 // ── #671: parametric/timed effects & mana tracking ──────────────────────────
 
-describe("Illusionary Presence (CR 603.6a upkeep + 702.13 chosen-type landwalk)", () => {
+describe("Illusionary Presence (CR 603.6a upkeep + 702.14 chosen-type landwalk)", () => {
     it("grants the chosen landwalk until end of turn, re-choosing each upkeep", () => {
         const presence = makeInstance(illusionaryPresence.id, {
             id: "ip",
@@ -2313,9 +2313,9 @@ describe("Mystic Might (activated-grant on enchanted land, CR 611/702.24)", () =
     });
 });
 
-// --- Musician — music counters + granted destroy-unless-pay (CR 122/701.7) --
+// --- Musician — music counters + granted destroy-unless-pay (CR 122/701.8) --
 
-describe("Musician (music counters + granted upkeep tax, CR 122/701.7)", () => {
+describe("Musician (music counters + granted upkeep tax, CR 122/701.8)", () => {
     it("the activated ability adds a music counter and grants the upkeep ability", () => {
         const musie = makeInstance(musician.id, {
             id: "musie",
@@ -2491,7 +2491,7 @@ describe("Ray of Command — steal a creature until EOT (CR 611.2b / 613.1b / 70
             (c) => c.id === "victim"
         );
         expect(stolen?.controllerId).toBe("p1"); // control gained (CR 613.1b)
-        expect(stolen?.isTapped).toBe(false); // untapped (CR 701.20a)
+        expect(stolen?.isTapped).toBe(false); // untapped (CR 701.26a)
         expect(stolen?.staticAbilities).toContain("haste"); // CR 702.10b
     });
 
@@ -2610,7 +2610,7 @@ describe("Magus of the Unseen — steal an artifact until EOT (CR 611.2b / 613.1
     });
 });
 
-describe("Mistfolk — counter spell that targets it (CR 701.5a / 114.1)", () => {
+describe("Mistfolk — counter spell that targets it (CR 701.6a / 114.1)", () => {
     const ability = mistfolk.activatedAbilities![0];
 
     it("getTargetRequirement injects the source id → only spells targeting Mistfolk are legal", () => {
@@ -3419,12 +3419,12 @@ describe("Soul Barrier (tax on an opponent's creature spell, CR 601.2i / 120.1)"
 
 // ---------------------------------------------------------------------------
 // Icy Prison — ETB exile target creature + upkeep pay-{3}-or-sacrifice +
-// return-on-leave (CR 701.18 exile / 603.6a phase trigger / 603.7a leaves-
+// return-on-leave (CR 701.13 exile / 603.6a phase trigger / 603.7a leaves-
 // the-battlefield). The smoke sweep skips all three of its Op sites
 // (`exileWithAttachments`, `mayPay`, `returnExiledForSource`).
 // ---------------------------------------------------------------------------
 
-describe("Icy Prison (ETB exile + upkeep tax + return on leave, CR 701.18 / 603.6a / 603.7a)", () => {
+describe("Icy Prison (ETB exile + upkeep tax + return on leave, CR 701.13 / 603.6a / 603.7a)", () => {
     function setup() {
         const prison = makeInstance(icyPrison.id, {
             id: "prison",
@@ -3444,7 +3444,7 @@ describe("Icy Prison (ETB exile + upkeep tax + return on leave, CR 701.18 / 603.
         return { state, prison, victim };
     }
 
-    it("exiles the targeted creature on ETB, keyed to itself (CR 701.18 / ADR 0028)", () => {
+    it("exiles the targeted creature on ETB, keyed to itself (CR 701.13 / ADR 0028)", () => {
         const { state, prison } = setup();
         resolveTrigger(
             state,

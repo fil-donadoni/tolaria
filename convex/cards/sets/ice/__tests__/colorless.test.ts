@@ -397,7 +397,7 @@ describe("Celestial Sword ({3},{T}: +3/+3 then sac, CR 605 / 603.7b)", () => {
     });
 });
 
-describe("Despotic Scepter ({T}: destroy a permanent you own, CR 605 / 701.7)", () => {
+describe("Despotic Scepter ({T}: destroy a permanent you own, CR 605 / 701.8)", () => {
     it("destroys the targeted permanent (can't be regenerated)", () => {
         const scepter = makeInstance(despoticScepter.id, {
             id: "scepter",
@@ -484,7 +484,7 @@ describe("Icy Manipulator ({1},{T}: tap any of three types, CR 605 / 701.20a)", 
     });
 });
 
-describe("Jester's Cap ({2},{T},Sac: strip 3 from a library, CR 701.19)", () => {
+describe("Jester's Cap ({2},{T},Sac: strip 3 from a library, CR 701.23 search)", () => {
     it("exiles the picked cards from the target player's library and shuffles", () => {
         const cap = makeInstance(jestersCap.id, {
             id: "cap",
@@ -1457,7 +1457,7 @@ describe("Soldevi Golem (does-not-untap + upkeep untap, CR 702 / 603.3d / 701.20
             id: "oppc",
         });
         expect(state.pendingTarget).toBeUndefined();
-        // Resolution: the "you may" gate; accept untaps BOTH (CR 701.20b).
+        // Resolution: the "you may" gate; accept untaps BOTH (CR 701.26b).
         resolveTopOfStack(state);
         expect(state.pendingChoices![0].kind).toBe("may-pay");
         applyMayPaySubmit(state, {
@@ -1562,7 +1562,7 @@ describe("Pentagram of the Ages ({4},{T}: prevent next damage, CR 615)", () => {
     });
 });
 
-describe("Jester's Mask ({1},{T},Sac: hand shuffle, CR 701.19 / 701.20)", () => {
+describe("Jester's Mask ({1},{T},Sac: hand shuffle, CR 701.23 search / 701.24 shuffle)", () => {
     it("enters tapped and shuffles the opponent's hand back via library search", () => {
         expect(jestersMask.entersTapped).toBe(true);
         const mask = makeInstance(jestersMask.id, {
@@ -1611,7 +1611,7 @@ describe("Jester's Mask ({1},{T},Sac: hand shuffle, CR 701.19 / 701.20)", () => 
     });
 });
 
-describe("Force Void (counter unless pay {1}, CR 701.5a)", () => {
+describe("Force Void (counter unless pay {1}, CR 701.6a)", () => {
     it("counters the targeted spell when controller declines, then cantrips", () => {
         const state = makeState({
             players: [
@@ -3288,7 +3288,7 @@ describe("Pox (proportional mass loss/sacrifice/discard, CR 107.2 round-up)", ()
 });
 
 // Urza's Bauble — {T}, Sacrifice: private look at a random card in the target's
-// hand (CR 701.18a, `lookRandomHand` Op) + next-upkeep cantrip (issue #674,
+// hand (CR 400.2, `lookRandomHand` Op) + next-upkeep cantrip (issue #674,
 // CR 603.7d delayed triggered ability).
 describe("Urza's Bauble (private hand look + next-upkeep cantrip, CR 603.7d)", () => {
     it("schedules a draw that fires at the next upkeep", () => {
@@ -3319,7 +3319,7 @@ describe("Urza's Bauble (private hand look + next-upkeep cantrip, CR 603.7d)", (
         expect(state.players[0].hand.map((c) => c.id)).toContain("a");
     });
 
-    it("privately looks at a random card in the target player's hand (CR 701.18a)", () => {
+    it("privately looks at a random card in the target player's hand (CR 400.2)", () => {
         const bauble = makeInstance(urzasBauble.id, {
             id: "bauble",
             controllerId: "p1",
@@ -3447,7 +3447,7 @@ describe("Elkin Bottle ({3},{T}: exile top card, play it — CR 601.3e impulse)"
 // attack restriction), and "prevent all damage that would be dealt to you"
 // (continuous damage-prevention replacement).
 // ---------------------------------------------------------------------------
-describe("Glacial Chasm (CR 702.24 / 508.1c / 615.1 / 701.16)", () => {
+describe("Glacial Chasm (CR 702.24 / 508.1c / 615.1 / 701.21)", () => {
     it("forbids the controller's creatures from attacking (CR 508.1c)", () => {
         const chasm = makeInstance(glacialChasm.id, {
             id: "chasm",
@@ -3917,7 +3917,7 @@ describe("Arcum's Whistle (forced attack with pay-{X} gate + delayed destroy)", 
     });
 });
 
-describe("Staff of the Ages (CR 509.1b / 702.13 landwalk-negation static, all basic subtypes)", () => {
+describe("Staff of the Ages (CR 509.1b / 702.14 landwalk-negation static, all basic subtypes)", () => {
     function setup(withStaff: boolean) {
         const attacker = makeInstance(balduvianBears.id, {
             id: "atk",
@@ -3951,7 +3951,7 @@ describe("Staff of the Ages (CR 509.1b / 702.13 landwalk-negation static, all ba
         return { state, attacker, blocker, defenderBattlefield };
     }
 
-    it("islandwalk attacker stays unblockable behind an Island with no Staff (CR 702.13b)", () => {
+    it("islandwalk attacker stays unblockable behind an Island with no Staff (CR 702.14b)", () => {
         const { attacker, blocker, defenderBattlefield, state } = setup(false);
         const res = validateBlockerEligibility(
             attacker,

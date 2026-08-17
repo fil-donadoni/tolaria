@@ -74,7 +74,7 @@ export const powderKeg: CardDefinition = {
                 "{T}, Sacrifice this artifact: Destroy each artifact and creature with mana value equal to the number of fuse counters on this artifact.",
             cost: { tap: true, sacrifice: true },
             useStack: true,
-            // CR 608.2g / 701.16 — sweep every artifact and creature (all
+            // CR 608.2g / 701.21 — sweep every artifact and creature (all
             // players' battlefields, so no `controller`) whose mana value
             // equals the source's fuse-counter count. The count is read as
             // last-known information: the source was sacrificed as a cost, so

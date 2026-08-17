@@ -17,7 +17,7 @@ import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 
-describe("Misty Rainforest (CR 701.19 / 400.7 / 701.20)", () => {
+describe("Misty Rainforest (CR 701.23 / 400.7 / 701.24)", () => {
     it("fetches a Forest or Island card onto the battlefield, then shuffles", () => {
         const land = makeInstance(mistyRainforest.id, {
             id: "mistyLand",
@@ -78,7 +78,7 @@ describe("Misty Rainforest (CR 701.19 / 400.7 / 701.20)", () => {
     });
 });
 
-describe("Expedition Map (CR 701.19 / 400.7 / 701.20)", () => {
+describe("Expedition Map (CR 701.23 / 400.7 / 701.24)", () => {
     it("searches for a land card and puts it into hand", () => {
         const map = makeInstance(expeditionMap.id, {
             id: "map1",

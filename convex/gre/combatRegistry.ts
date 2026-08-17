@@ -71,11 +71,11 @@ const UNBLOCKABLE_RULE: EvasionRule = {
     reason: "Attacker can't be blocked",
 };
 
-// CR 702.13b — Landwalk: "A creature with [type]walk can't be blocked as
+// CR 702.14b — Landwalk: "A creature with [type]walk can't be blocked as
 // long as the defending player controls a land of the specified subtype."
 // One rule per variant, parameterized via LANDWALK_KEYWORDS.
 //
-// CR 509.1b / 702.13 — a `landwalk-negation` static on the defending player's
+// CR 509.1b / 702.14 — a `landwalk-negation` static on the defending player's
 // battlefield (Great Wall, Undertow) suppresses the matching landwalk: the
 // attacker can then be blocked as though it didn't have the keyword. We scan
 // for that negation first and treat a negated subtype as "no evasion".
@@ -104,7 +104,7 @@ const LANDWALK_RULES: EvasionRule[] = Object.entries(LANDWALK_KEYWORDS).map(
     })
 );
 
-// CR 702.13 — Landwalk keyed on a land *supertype* ("legendary landwalk",
+// CR 702.14 — Landwalk keyed on a land *supertype* ("legendary landwalk",
 // Livonya Silone): the attacker can't be blocked while the defending player
 // controls a land with the named supertype. Same evasion shape as subtype
 // landwalk, but the match reads `supertypes` (CR 205.4) via the registry
@@ -115,7 +115,7 @@ const LANDWALK_SUPERTYPE_RULES: EvasionRule[] = Object.entries(
     LANDWALK_SUPERTYPE_KEYWORDS
 ).map(([keyword, supertype]) => ({
     keyword,
-    cr: "702.13",
+    cr: "702.14",
     canBlock: (
         _attacker: CardInstanceState,
         _blocker: CardInstanceState,
@@ -124,7 +124,7 @@ const LANDWALK_SUPERTYPE_RULES: EvasionRule[] = Object.entries(
     reason: `Attacker can't be blocked while defender controls a ${supertype} land`,
 }));
 
-// CR 702.13 / 205.4a — Snow landwalk ("snow swampwalk", "snow forestwalk"):
+// CR 702.14 / 205.4a — Snow landwalk ("snow swampwalk", "snow forestwalk"):
 // the attacker can't be blocked while the defending player controls a SNOW
 // land of the named subtype. Same shape as subtype landwalk, but the match
 // additionally requires the live Snow supertype (`controlsSnowSubtype` reads
@@ -135,7 +135,7 @@ const LANDWALK_SNOW_RULES: EvasionRule[] = Object.entries(
     LANDWALK_SNOW_SUBTYPE_KEYWORDS
 ).map(([keyword, subtype]) => ({
     keyword,
-    cr: "702.13",
+    cr: "702.14",
     canBlock: (
         _attacker: CardInstanceState,
         _blocker: CardInstanceState,

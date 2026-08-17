@@ -200,12 +200,12 @@ export const andraditeLeech: CardDefinition = {
 };
 
 // Annihilate — {3}{B}{B} Instant. "Destroy target nonblack creature. It
-// can't be regenerated. Draw a card." (CR 701.8 destroy, CR 701.15c
+// can't be regenerated. Draw a card." (CR 701.8 destroy, CR 701.19c
 // regeneration suppression, CR 121.1 draw.)
 //
 // Migrated resolve()→effects[] (ADR 0045, issue #1264): the `destroy` Op's
 // `cantBeRegenerated` param (added since this card's original comment was
-// written) now covers the CR 701.15c clause, so the whole effect composes
+// written) now covers the CR 701.19c clause, so the whole effect composes
 // from registered Ops.
 export const annihilate: CardDefinition = {
     id: "4a3bf039-ecf6-477e-997c-e32c55323c01", // INV 94
@@ -384,7 +384,7 @@ export const desperateResearch: CardDefinition = {
 // Devouring Strossus — {5}{B}{B}{B} 9/9. "Flying, trample. At the beginning
 // of your upkeep, sacrifice a creature. Sacrifice a creature: Regenerate
 // this creature." (CR 702.9 flying, CR 702.19 trample, CR 603.6a upkeep,
-// CR 701.16 sacrifice, CR 701.15/701.19 regenerate.) The forced upkeep
+// CR 701.21 sacrifice, CR 701.19/701.19 regenerate.) The forced upkeep
 // sacrifice is the Innocent Blood `choice(sacrifice-permanents)` + `sacrifice`
 // template (ody/black.ts), narrowed to `count: 1` and the resolving
 // controller only (no `forEach` needed — only one player's upkeep fires this
@@ -438,7 +438,7 @@ export const devouringStrossus: CardDefinition = {
 };
 
 // Dredge — {B} Instant. "Sacrifice a creature or land. Draw a card." (CR
-// 701.16 sacrifice, CR 121.1 draw.) Not the Dredge KEYWORD (CR 702.53) —
+// 701.21 sacrifice, CR 121.1 draw.) Not the Dredge KEYWORD (CR 702.52) —
 // this INV card predates it and is a plain sacrifice-then-draw effect;
 // choice count clamps to 0 when the caster controls neither (CR 608.2b), so
 // the draw still happens with no sacrifice.
@@ -533,7 +533,7 @@ export const duskwalker: CardDefinition = {
 
 // Goham Djinn — {5}{B} 5/5. "{1}{B}: Regenerate this creature. This creature
 // gets -2/-2 as long as black is the most common color among all permanents
-// or is tied for most common." (CR 701.15/701.19 regenerate, CR 613.4a CDA.)
+// or is tied for most common." (CR 701.19/701.19 regenerate, CR 613.4a CDA.)
 // The conditional P/T reduction is a `pt-cda` whose `compute` reads the full
 // board via `StaticEffectStateView` (mirrors People of the Woods,
 // drk/green.ts) through the shared `mostCommonColors` helper (`cards/types.ts`).
@@ -712,7 +712,7 @@ export const maraudingKnight: CardDefinition = {
 };
 
 // Mourning — {1}{B} Aura. "Enchant creature. Enchanted creature gets -2/-0.
-// {B}: Return this Aura to its owner's hand." (CR 613.4c pt-buff, CR 701.10
+// {B}: Return this Aura to its owner's hand." (CR 613.4c pt-buff, CR 400.7
 // return-to-hand self-bounce.)
 export const mourning: CardDefinition = {
     id: "4649d881-709f-4ed0-91de-744d232a82f5", // INV 111
@@ -853,7 +853,7 @@ export const phyrexianDelver: CardDefinition = {
 
 // Phyrexian Reaper — {4}{B} 3/3. "Whenever this creature becomes blocked by
 // a green creature, destroy that creature. It can't be regenerated." (CR
-// 509.1h becomes-blocked, CR 701.8 destroy, CR 701.15c regen suppression.)
+// 509.1h becomes-blocked, CR 701.8 destroy, CR 701.19c regen suppression.)
 //
 // The trigger CONDITION still depends on the blocker's live color, which
 // isn't carried on `BLOCKERS_CONFIRMED` — read via
@@ -1117,7 +1117,7 @@ export const soulBurnInv: CardPrint = {
 // Spreading Plague — {4}{B} Enchantment. "Whenever a creature enters,
 // destroy all other creatures that share a color with it. They can't be
 // regenerated." (CR 603.6a ETB — watching ANY creature, CR 701.8 destroy,
-// CR 701.15c regen suppression.)
+// CR 701.19c regen suppression.)
 //
 // NOT DSL-migratable (ADR 0045): needs the entering creature's live color to
 // filter "destroy all OTHER creatures that share a color with it" — a
@@ -1209,7 +1209,7 @@ export const taintedWell: CardDefinition = {
 // Tsabo's Assassin — {2}{B}{B} 1/1. "{T}: Destroy target creature if it
 // shares a color with the most common color among all permanents or a
 // color tied for most common. A creature destroyed this way can't be
-// regenerated." (CR 701.8 destroy, CR 701.15c regen suppression.)
+// regenerated." (CR 701.8 destroy, CR 701.19c regen suppression.)
 //
 // NOT DSL-migratable (ADR 0045): the frozen `if` predicate is only a boolean
 // binding or a numeric comparison — "shares a color with the board's
@@ -1323,7 +1323,7 @@ export const urborgShambler: CardDefinition = {
 
 // Urborg Skeleton — {B} 0/1. "Kicker {3}. {B}: Regenerate this creature. If
 // this creature was kicked, it enters with a +1/+1 counter on it." (CR
-// 702.33 Kicker, CR 122.1/614.1c ETB counter, CR 701.15/701.19 regenerate.)
+// 702.33 Kicker, CR 122.1/614.1c ETB counter, CR 701.19/701.19 regenerate.)
 // A single `entersWith.counters` entry with `count: "kicker"` is exact here
 // (kickerCount is 0/1 for a single Kicker, matching "a +1/+1 counter" 1:1) —
 // unlike Duskwalker, no keyword grant is involved, so no proxy is needed.
@@ -1519,7 +1519,7 @@ export const exoticCurse: CardDefinition = {
 
 // Do or Die — {1}{B} Sorcery. "Separate all creatures target player controls
 // into two piles. Destroy all creatures in the pile of that player's choice.
-// They can't be regenerated." (CR 701.8 destroy, CR 701.15c regeneration
+// They can't be regenerated." (CR 701.8 destroy, CR 701.19c regeneration
 // suppression, ADR 0053 pile division.) Divider = the caster (`controller`,
 // the one doing the separating); chooser = the TARGET player (whose own
 // creatures are being divided) — the pile-division table's "Divider: you /

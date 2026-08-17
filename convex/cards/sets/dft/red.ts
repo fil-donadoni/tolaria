@@ -7,7 +7,7 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 
 // Marauding Mako — {R} Creature — Shark Pirate, 1/1. "Whenever you discard one
 // or more cards, put that many +1/+1 counters on this creature." plus Cycling
-// {1} (CR 702.29). The discard trigger rides the CR 701.8 CARD_DISCARDED event
+// {1} (CR 702.29). The discard trigger rides the CR 701.9 CARD_DISCARDED event
 // (one per discarded card); cycling any card — including this one — flows
 // through the shared discard choke point, so cycling ANOTHER card while the
 // Mako is on the battlefield grows it (issue #689).

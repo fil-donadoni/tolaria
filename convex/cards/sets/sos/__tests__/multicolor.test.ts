@@ -151,7 +151,7 @@ describe("Traumatic Critique (X damage + draw two, discard one; CR 107.3 / 115.4
 });
 
 describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or destroy)", () => {
-    it("sacrifice-draw mode: accepting sacrifices a permanent and draws two (CR 701.16 / 121.1)", () => {
+    it("sacrifice-draw mode: accepting sacrifices a permanent and draws two (CR 701.21 / 121.1)", () => {
         const fodder = makeInstance(ARTIFACT_ID, {
             id: "fodder",
             controllerId: "p1",
@@ -362,7 +362,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
         expect(state.players[0].life).toBe(25);
     });
 
-    it("destroy mode: destroys target nonland permanent with mana value 2 or less (CR 701.7)", () => {
+    it("destroy mode: destroys target nonland permanent with mana value 2 or less (CR 701.8)", () => {
         const cheapArtifact = makeInstance(ARTIFACT_ID, {
             id: "cheap",
             controllerId: "p2",
@@ -448,7 +448,7 @@ describe("Silverquill Charm (CR 700.2 modal — counters, exile-weak-creature, o
 });
 
 describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchantment, or set P/T; issue #683)", () => {
-    it("counter mode: declining payment counters the target spell (CR 701.5a / 117.3a)", () => {
+    it("counter mode: declining payment counters the target spell (CR 701.6a / 117.3a)", () => {
         const state = makeState();
         const filler = pushSpell(state, QC_FILLER_SPELL_ID, "p2");
         const item = pushSpell(state, quandrixCharm.id, "p1", [
@@ -482,7 +482,7 @@ describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchant
         expect(state.stack.find((s) => s.id === filler.id)).toBeDefined();
     });
 
-    it("destroy-enchantment mode: destroys the target enchantment (CR 701.7)", () => {
+    it("destroy-enchantment mode: destroys the target enchantment (CR 701.8)", () => {
         const ench = makeInstance(QC_ENCHANTMENT_ID, {
             id: "ench-1",
             controllerId: "p2",
@@ -561,7 +561,7 @@ describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchant
 // through-the-stack coverage without a hand-written test — the same gap the
 // three sibling Charms above already close for themselves.
 describe("Lorehold Charm (CR 700.2 modal — edict sacrifice, graveyard reanimation, or mass pump; issue #1529)", () => {
-    it("sacrifice-artifact mode: each opponent sacrifices a NONTOKEN artifact of their choice, the token is not a candidate (CR 701.16 / issue #920)", () => {
+    it("sacrifice-artifact mode: each opponent sacrifices a NONTOKEN artifact of their choice, the token is not a candidate (CR 701.21 / issue #920)", () => {
         const nontoken = makeInstance(ARTIFACT_ID, {
             id: "nontoken-art",
             controllerId: "p2",
@@ -583,7 +583,7 @@ describe("Lorehold Charm (CR 700.2 modal — edict sacrifice, graveyard reanimat
         item.chosenModeId = "sacrifice-artifact";
         expect(resolveTopOfStack(state)).toBeNull(); // suspended on the opponent's pick
 
-        // The choice belongs to the OPPONENT (CR 701.16a) and only the
+        // The choice belongs to the OPPONENT (CR 701.21a) and only the
         // nontoken artifact is a legal candidate (`isToken: false`).
         const head = state.pendingChoices![0];
         expect(head.playerId).toBe("p2");

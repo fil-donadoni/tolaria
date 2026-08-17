@@ -810,7 +810,7 @@ describe("controlledSinceTurnStart target filter (CR 302.6 / 400.7, issue #1824)
 
 // ---------------------------------------------------------------------------
 // Single-authority intrinsic filter gate (Phelia bug class, CR 109.1 / 115 /
-// 202 / 205 / 613 / 701.20). `intrinsicPermanentTargetViolation` is the ONE
+// 202 / 205 / 613 / 701.26). `intrinsicPermanentTargetViolation` is the ONE
 // function both getLegalTargets (offered set) and selectTarget (accepted set)
 // run per permanent, so offered == accepted by construction. These guard the
 // five filters that were previously honored ONLY by getLegalTargets and
@@ -1937,7 +1937,7 @@ describe("checkSpellTargetFilters — shared offered/accepted gate (ADR 0068, is
         ...overrides,
     });
 
-    it("spellStackKind: 'spell' (the lowered default for an omitted requirement, CR 701.5a) rejects an ability, accepts a spell", () => {
+    it("spellStackKind: 'spell' (the lowered default for an omitted requirement, CR 701.6a) rejects an ability, accepts a spell", () => {
         const anAbility = spellItem({ abilityId: "some-ability" });
         const aSpell = spellItem();
         // `lowerSpellFilters` resolves an omitted requirement to the explicit
@@ -2169,7 +2169,7 @@ describe("checkSpellTargetFilters — shared offered/accepted gate (ADR 0068, is
         ).not.toBeNull();
     });
 
-    it("spellWouldDestroyLandYouControl: rejects a spell that would not destroy the chooser's land, accepts one that would (CR 114.1 + 701.7, Equinox)", () => {
+    it("spellWouldDestroyLandYouControl: rejects a spell that would not destroy the chooser's land, accepts one that would (CR 114.1 + 701.8, Equinox)", () => {
         const land = makeCard({
             id: "land1",
             types: ["Land"],
@@ -2249,7 +2249,7 @@ describe("pendingTargetFiltersFromRequirement — spell filter carry-completenes
         expect(pt.spellWouldDestroyLandYouControl).toBe(true);
     });
 
-    it("spellStackKind defaults to 'spell' when omitted (always-active filter, never skipped — CR 701.5a)", () => {
+    it("spellStackKind defaults to 'spell' when omitted (always-active filter, never skipped — CR 701.6a)", () => {
         const req: TargetRequirement = { type: "spell", count: 1 };
         const pt = pendingTargetFiltersFromRequirement(req, undefined);
         expect(pt.spellStackKind).toBe("spell");
@@ -3362,14 +3362,14 @@ describe("pendingTargetFiltersFromRequirement — player/card filter carry-compl
 });
 
 // ---------------------------------------------------------------------------
-// Counterspell — CR 701.5a
+// Counterspell — CR 701.6a
 // "Counter target spell."
 // ---------------------------------------------------------------------------
 
 import { counterspell, lightningBolt, giantGrowth } from "../../cards/sets/lea";
 import { stifle } from "../../cards/sets/scg/blue";
 
-describe("spell resolution: Counterspell (CR 701.5a)", () => {
+describe("spell resolution: Counterspell (CR 701.6a)", () => {
     function makeCounterspellItem(
         castBy: string,
         targets: StackItem["targets"]
@@ -3411,7 +3411,7 @@ describe("spell resolution: Counterspell (CR 701.5a)", () => {
         };
     }
 
-    it("counters target spell: target goes to its owner's graveyard (CR 701.5a)", () => {
+    it("counters target spell: target goes to its owner's graveyard (CR 701.6a)", () => {
         const state = makeGameState();
         const bolt = makeBoltItem("p2");
         state.stack.push(bolt);

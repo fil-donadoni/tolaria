@@ -144,7 +144,7 @@ function listCandidates(
                       effectivePermanentView(state, c),
                       head.filter!,
                       {
-                          // CR 701.16 (issue #1938 fixup 2) — resolves
+                          // CR 701.21 (issue #1938 fixup 2) — resolves
                           // `controllerRelation` ("sacrifice two Swamps YOU
                           // control") against the CHOOSER. Without this the
                           // filter fails CLOSED, the candidate pool goes empty

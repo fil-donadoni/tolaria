@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // ONCE at construct entry (CR 608.2i, every player's battlefield — no
 // `controller` scope) and each member is destroyed via the `$each` object
 // ref. Destroy routes through the replacement layer, so indestructible
-// creatures survive (CR 702.12) and regeneration shields apply — modern
+// indestructible creatures survive (CR 702.12) and regeneration shields apply — modern
 // oracle text carries no "can't be regenerated" rider. Engine simplification
 // (flagged): members are destroyed sequentially in APNAP controller order
 // rather than simultaneously; a member that leaves the battlefield

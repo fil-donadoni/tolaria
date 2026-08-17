@@ -235,7 +235,7 @@ describe("blade setup — wired into the build pipeline", () => {
 
 /**
  * `activate` (issue #1491) — the step that reaches a decision only a real
- * ACTIVATION can open: a fetchland's live search-library choice (CR 701.19).
+ * ACTIVATION can open: a fetchland's live search-library choice (CR 701.23).
  *
  * The invariant it has to earn is the no-copy one (ADR 0070 §4). The step
  * calls `activateAbilityOnState` (`convex/game.ts`), which IS the mutation's

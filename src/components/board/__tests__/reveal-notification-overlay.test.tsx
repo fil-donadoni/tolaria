@@ -1,4 +1,4 @@
-// Frontend wiring for the transient look/reveal popup (CR 701.18a look /
+// Frontend wiring for the transient look/reveal popup (CR 400.2 look /
 // CR 701.20 reveal, `SpellContext.notifyReveal`, ADR 0026). The projection
 // filters `pendingReveals` to the viewer's audience, so the overlay shows every
 // entry it receives — each id once (dismiss on click or after a timeout). This

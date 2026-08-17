@@ -176,7 +176,7 @@ export const camel: CardDefinition = {
 // of death onto the CREATURE_DIED event (`combatPartnerIds`, computed by
 // `combatPartnerIds()` in state.ts). The body re-checks each partner is still
 // on the battlefield (CR 608.2b) and destroys it with `cantBeRegenerated`
-// (CR 701.15c — the printed "they can't be regenerated").
+// (CR 701.19c — the printed "they can't be regenerated").
 export const abuJafar: CardDefinition = {
     id: "0e9ad288-d164-44a6-96ec-4185a1587f1a",
     rarity: "uncommon",

@@ -94,7 +94,7 @@ export const calderaKavu: CardDefinition = {
 };
 
 // Deadapult — {2}{R} Enchantment. "{R}, Sacrifice a Zombie: This enchantment
-// deals 2 damage to any target." (CR 602.1 activated ability; CR 701.16
+// deals 2 damage to any target." (CR 602.1 activated ability; CR 701.21
 // sacrifice-as-cost via `sacrificeFilter` — the activating player chooses
 // which Zombie to give up, the Thopter Foundry precedent `arb/multicolor.ts`;
 // CR 120 damage to `type: "any"`.)
@@ -119,7 +119,7 @@ export const deadapult: CardDefinition = {
     ],
 };
 
-// Implode — {4}{R} Sorcery. "Destroy target land.\nDraw a card." (CR 701.6
+// Implode — {4}{R} Sorcery. "Destroy target land.\nDraw a card." (CR 701.8
 // destroy; CR 121 draw — two already-registered Ops, no new capability.)
 export const implode: CardDefinition = {
     id: "a76ee318-8126-4ebf-884d-8369ae8726ac", // PLS 62
@@ -137,7 +137,7 @@ export const implode: CardDefinition = {
 
 // Insolence — {2}{R} Enchantment — Aura. "Enchant creature.\nWhenever
 // enchanted creature becomes tapped, this Aura deals 2 damage to that
-// creature's controller." (CR 303.4 aura attachment; CR 701.20a becomes-tapped
+// creature's controller." (CR 303.4 aura attachment; CR 701.26a becomes-tapped
 // trigger scoped to the host via `tappedTrigger({ scope: "host" })`, the
 // Seizures precedent `ice/black.ts` — this card is the SAME shape minus the
 // "unless that player pays" rider.)

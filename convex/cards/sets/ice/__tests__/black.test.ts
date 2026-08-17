@@ -192,7 +192,7 @@ describe("Brine Shaman (sacrifice engine, CR 602.1 / 118.5)", () => {
     });
 });
 
-describe("Dark Banishing (destroy nonblack creature, CR 701.7)", () => {
+describe("Dark Banishing (destroy nonblack creature, CR 701.8)", () => {
     it("destroys the target creature", () => {
         const victim = vanilla("v", 2, 2, {
             controllerId: "p2",
@@ -339,7 +339,7 @@ describe("Hyalopterous Lemure ({0}: -1/-0 + flying, CR 611.2a)", () => {
     });
 });
 
-describe("Kjeldoran Dead (ETB sac + regenerate, CR 603.6 / 701.15)", () => {
+describe("Kjeldoran Dead (ETB sac + regenerate, CR 603.6 / 701.19)", () => {
     it("regenerates via a shield when the ability resolves", () => {
         const dead = makeInstance(kjeldoranDead.id, {
             id: "kd",
@@ -393,7 +393,7 @@ describe("Knight of Stromgald (grants + pump, CR 611.2a)", () => {
     });
 });
 
-describe("Leshrac's Rite (Aura grants swampwalk, CR 611 / 702.13)", () => {
+describe("Leshrac's Rite (Aura grants swampwalk, CR 611 / 702.14)", () => {
     it("grants swampwalk to the host when the Aura resolves onto it", () => {
         const host = vanilla("host", 2, 2, {
             controllerId: "p1",
@@ -421,7 +421,7 @@ describe("Leshrac's Rite (Aura grants swampwalk, CR 611 / 702.13)", () => {
     });
 });
 
-describe("Mind Warp (look + discard X, CR 701.8)", () => {
+describe("Mind Warp (look + discard X, CR 701.9)", () => {
     // Regression (#1719 review finding 1) — the #1698 fix gated the
     // cross-player hand exposure on `kind === "choose-hand-card"`, missing
     // Mind Warp's IDENTICAL "look at target player's hand, caster picks which
@@ -770,7 +770,7 @@ describe("Call to Arms (#653) — white anthem while chosen colour is opponent's
     });
 });
 
-describe("Lim-Dûl's Cohort (blocks/becomes-blocked → can't be regenerated, CR 509.1h / 701.15c)", () => {
+describe("Lim-Dûl's Cohort (blocks/becomes-blocked → can't be regenerated, CR 509.1h / 701.19c)", () => {
     function setup() {
         const cohort = makeInstance(limDLsCohort.id, {
             id: "cohort",
@@ -883,7 +883,7 @@ describe("Mind Whip (host-controller upkeep pay {3} or 2 dmg + tap, CR 603.6a)",
     });
 });
 
-describe("Minion of Leshrac (protection, sac-or-5, {T} destroy, CR 702.16 / 603.6a / 701.7)", () => {
+describe("Minion of Leshrac (protection, sac-or-5, {T} destroy, CR 702.16 / 603.6a / 701.8)", () => {
     it("declining the sacrifice deals 5 to controller and taps Minion", () => {
         const minion = makeInstance(minionOfLeshrac.id, {
             id: "minion",
@@ -1060,7 +1060,7 @@ describe("Soul Kiss (Aura +2/+2, hard cap 3/turn, CR 611.2a / 602.5)", () => {
     });
 });
 
-describe("Norritt (untap blue / force-attack, CR 701.20b / 508.1d)", () => {
+describe("Norritt (untap blue / force-attack, CR 701.26b / 508.1d)", () => {
     it("{T} untaps a target blue creature", () => {
         const norr = makeInstance(norritt.id, {
             id: "norr",
@@ -1463,7 +1463,7 @@ describe("Flow of Maggots (cumulative upkeep {1} + Walls-only block, CR 702.24 /
     });
 });
 
-describe("Gravebind (can't be regenerated, CR 701.15c)", () => {
+describe("Gravebind (can't be regenerated, CR 701.19c)", () => {
     it("flags the target and schedules the cantrip", () => {
         const dummy = vanilla("d", 1, 1, {
             id: "d",
@@ -1541,7 +1541,7 @@ describe("Krovikan Fetish (Aura +1/+1 + ETB cantrip, CR 603.6a)", () => {
     });
 });
 
-describe("Mind Ravel (target player discards a card, CR 701.8)", () => {
+describe("Mind Ravel (target player discards a card, CR 701.9)", () => {
     it("discards the chosen card then cantrips", () => {
         const handCard = vanilla("h", 1, 1, {
             id: "h",
@@ -1662,7 +1662,7 @@ describe("Icequake (CR 205.4a snow-land destroy rider)", () => {
     });
 });
 
-describe("snow landwalk (CR 702.13 / 205.4a)", () => {
+describe("snow landwalk (CR 702.14 / 205.4a)", () => {
     it("Legions of Lim-Dûl has snow swampwalk and is unblockable vs a snow Swamp", () => {
         expect(legionsOfLimDL.staticAbilities).toContain("snow swampwalk");
         const attacker = makeInstance(legionsOfLimDL.id, {
@@ -1878,11 +1878,11 @@ describe("Infernal Darkness — lands produce {B} (CR 614, #665)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Necropotence (#667) — CR 504/614 skip-draw + CR 701.8/603 discard→exile
+// Necropotence (#667) — CR 504/614 skip-draw + CR 701.9/603 discard→exile
 // trigger + CR 118.4 pay-life face-down exile + CR 603.7a next-end-step return.
 // ---------------------------------------------------------------------------
 
-describe("Necropotence (CR 504/614 skip-draw + CR 701.8 discard→exile)", () => {
+describe("Necropotence (CR 504/614 skip-draw + CR 701.9 discard→exile)", () => {
     // A distinct vanilla filler in the named zone (library/hand/graveyard).
     const filler = (id: string, zone: CardInstanceState["zone"]) =>
         makeInstance(balduvianBears.id, { id, controllerId: "p1", zone });
@@ -1919,7 +1919,7 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.8 discard→exile)", () =>
         expect(state.players[0].library.map((c) => c.id)).toEqual(["top"]);
     });
 
-    // --- Discard → exile trigger (CR 701.8/603) ----------------------------
+    // --- Discard → exile trigger (CR 701.9/603) ----------------------------
     it("emits CARD_DISCARDED on a discard and exiles it from the graveyard", () => {
         const necro = makeInstance(necropotence.id, {
             id: "necro",
@@ -1935,7 +1935,7 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.8 discard→exile)", () =>
                 makePlayer("p2"),
             ],
         });
-        // CR 701.8 — discard the card (any discard path; random is the simplest
+        // CR 701.9 — discard the card (any discard path; random is the simplest
         // engine driver and flows through the same discardToGraveyard choke).
         discardCardsAtRandom(state, "p1", 1);
 
@@ -2333,7 +2333,7 @@ describe("Seizures (host-scoped becomes-tapped, CR 303.4b / 701.20a)", () => {
     });
 });
 
-describe("Stench of Evil (destroy all Plains + pay-{2}-or-1 rider, CR 701.7 / 118)", () => {
+describe("Stench of Evil (destroy all Plains + pay-{2}-or-1 rider, CR 701.8 / 118)", () => {
     function answerMayPay(state: GameState, accept: boolean): void {
         const head = state.pendingChoices![0];
         applyMayPaySubmit(state, { playerId: head.playerId, accept });
@@ -2652,7 +2652,7 @@ describe("Ashen Ghoul (graveyard-source activated ability, CR 113.6 / 602.5b / 6
 
 // ===========================================================================
 // Cloak of Confusion — assign-no-combat-damage + random discard rider
-// (CR 510.1c "assigns no combat damage"; CR 701.8 discard at random)
+// (CR 510.1c "assigns no combat damage"; CR 701.9 discard at random)
 // ===========================================================================
 describe("Cloak of Confusion — unblocked-attacker rider (CR 510.1c)", () => {
     function cloakScenario() {
@@ -3081,7 +3081,7 @@ describe("Dread Wight — paralyzation counters (CR 511.3 / 122.1 / 502.1 / 611)
 
     it("the untap step leaves the paralyzed creature tapped (CR 502.1)", () => {
         const { state } = paralyzedByCombat();
-        // The end-of-combat trigger also tapped it (CR 701.20a).
+        // The end-of-combat trigger also tapped it (CR 701.26a).
         expect(
             state.players[1].battlefield.find((c) => c.id === "victim")!
                 .isTapped
@@ -3334,12 +3334,12 @@ describe("Krovikan Vampire (reanimates a creature it killed, CR 603.2 / 603.7c)"
 });
 
 // ---------------------------------------------------------------------------
-// Stromgald Cabal — {T}, Pay 1 life: Counter target white spell (CR 701.5a).
+// Stromgald Cabal — {T}, Pay 1 life: Counter target white spell (CR 701.6a).
 // The smoke sweep skips it because the `counter` Op targets a live spell on
 // the stack, which the canned-scenario generator can't seed.
 // ---------------------------------------------------------------------------
 
-describe("Stromgald Cabal ({T}, Pay 1 life: Counter target white spell, CR 701.5a)", () => {
+describe("Stromgald Cabal ({T}, Pay 1 life: Counter target white spell, CR 701.6a)", () => {
     it("counters the targeted white spell, sending it to its owner's graveyard", () => {
         const cabal = makeInstance(stromgaldCabal.id, {
             id: "cabal",

@@ -103,7 +103,7 @@ describe("Echo of Eons (Timetwister with flashback, CR 103.4 / 702.34)", () => {
 // itself is already class-wide covered (Spell Pierce,
 // convex/gre/__tests__/targeting.test.ts), so this focuses on the resolution
 // outcome the sweep can't reach.
-describe("Force of Negation (counter → exile instead of graveyard, CR 701.5a)", () => {
+describe("Force of Negation (counter → exile instead of graveyard, CR 701.6a counter)", () => {
     it("countering a noncreature spell removes it from the stack and exiles it (not the graveyard)", () => {
         const state = makeState();
         const bolt = pushSpell(state, lightningBolt.id, "p2", [
@@ -381,7 +381,7 @@ describe("Urza, Lord High Artificer — tap-another-artifact mana ability (CR 60
     });
 });
 
-describe("Urza, Lord High Artificer — {5} shuffle/exile/free-cast ability (CR 601.3e / 608.2g / 701.20)", () => {
+describe("Urza, Lord High Artificer — {5} shuffle/exile/free-cast ability (CR 601.3e / 608.2g / 701.24)", () => {
     function resolveImpulse(state: GameState, urza: CardInstanceState): void {
         state.stack.push({
             ...urza,

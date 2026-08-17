@@ -61,7 +61,7 @@ function activate(
     resolveTopOfStack(state);
 }
 
-describe("Jace, the Mind Sculptor — +2 fateseal (CR 701.20, chooser param, issue #1532)", () => {
+describe("Jace, the Mind Sculptor — +2 fateseal (CR 701.29, chooser param, issue #1532)", () => {
     function fatesealState() {
         return makeState({
             players: [

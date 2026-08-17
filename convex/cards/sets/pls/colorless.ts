@@ -13,7 +13,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { makeTapForMana } from "../../abilities";
 
-// CR 117.3a / 701.16 / 701.24 — the Planeshift "Lair" cycle (5 tri-colour tap
+// CR 117.3a / 701.21 / 400.7 — the Planeshift "Lair" cycle (5 tri-colour tap
 // lands: Crosis's Catacombs, Darigaaz's Caldera, Dromar's Cavern, Rith's
 // Grove, Treva's Ruins). Each reads "When this land enters, sacrifice it
 // unless you return a non-Lair land you control to its owner's hand." — a

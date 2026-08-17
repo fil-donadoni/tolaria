@@ -33,7 +33,7 @@ function pt(filters: Record<string, unknown>): PendingTarget {
     } as unknown as PendingTarget;
 }
 
-describe("Stifle target integration (server build → client eligibility, CR 701.5a)", () => {
+describe("Stifle target integration (server build → client eligibility, CR 701.6a)", () => {
     const filters = pendingTargetFiltersFromRequirement(
         stifle.targetRequirement!,
         undefined

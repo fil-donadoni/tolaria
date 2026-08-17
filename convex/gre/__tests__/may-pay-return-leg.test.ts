@@ -1,4 +1,4 @@
-// May-pay PERMANENT leg, `action: "return"` (CR 701.24 / 118.9, ADR 0079,
+// May-pay PERMANENT leg, `action: "return"` (CR 400.7 / 118.9, ADR 0079,
 // issue #1933).
 //
 // Unifying `AlternativeCost` and `MayPayCost` onto one `CostLegs` type hands
@@ -53,7 +53,7 @@ function stateWith(extraLands: string[]): {
 
 // ─── Layer 1: the leg vocabulary itself ────────────────────────────────────
 
-describe("CostLegs.permanent — return leg (CR 701.24 / 118.9, ADR 0079)", () => {
+describe("CostLegs.permanent — return leg (CR 400.7 / 118.9, ADR 0079)", () => {
     it("normalizes onto the shared `permanent` leg with its action", () => {
         const norm = normalizeMayPayCost(RETURN_A_LAND);
         expect(norm.permanent).toEqual({
@@ -97,7 +97,7 @@ describe("CostLegs.permanent — return leg (CR 701.24 / 118.9, ADR 0079)", () =
         ).toBe(false);
     });
 
-    it("pays by bouncing the CHOSEN permanent to its owner's hand (CR 701.24)", () => {
+    it("pays by bouncing the CHOSEN permanent to its owner's hand (CR 400.7)", () => {
         const { state } = stateWith(["keep", "bounce"]);
         payMayPayCost(state, "p1", RETURN_A_LAND, undefined, ["bounce"]);
         const p1 = state.players[0];

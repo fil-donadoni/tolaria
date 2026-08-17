@@ -60,7 +60,7 @@ describe.each(cases)(
     }
 );
 
-describe("Prismatic Vista (CR 701.19 / 400.7 / 701.20, issue #677)", () => {
+describe("Prismatic Vista (CR 701.23 / 400.7 / 701.24, issue #677)", () => {
     it("fetches a basic land card onto the battlefield untapped, then shuffles", () => {
         const land = makeInstance(prismaticVista.id, {
             id: "vistaLand",

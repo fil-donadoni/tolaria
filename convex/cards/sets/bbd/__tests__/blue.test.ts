@@ -26,7 +26,7 @@ registerTokenDefinition({
     types: ["Sorcery"],
 });
 
-describe("Spellseeker (CR 603.6a ETB / 701.19 / 400.7 / 701.20, issue #677)", () => {
+describe("Spellseeker (CR 603.6a ETB / 701.23 / 400.7 / 701.24, issue #677)", () => {
     it("ETB: may search for an instant/sorcery card with mana value 2 or less, put it into hand", () => {
         const seeker = makeInstance(spellseeker.id, {
             id: "seeker1",

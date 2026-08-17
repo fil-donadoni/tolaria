@@ -66,7 +66,7 @@ import { getDefinition, getCardByName } from "../../../index";
 // BLUE free tranche (#412)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("Amnesia — reveal hand, discard all nonland cards (CR 701.8)", () => {
+describe("Amnesia — reveal hand, discard all nonland cards (CR 701.9)", () => {
     it("discards nonland cards and keeps lands", () => {
         const islandId = getCardByName("Island").id;
         const bolt = makeInstance(getCardByName("Grizzly Bears").id, {
@@ -152,7 +152,7 @@ describe("Erosion — upkeep destroy enchanted land unless pay {1} or 1 life (CR
     });
 });
 
-describe("Flood — {U}{U}: tap target creature without flying (CR 701.20a / 702.9)", () => {
+describe("Flood — {U}{U}: tap target creature without flying (CR 701.26a / 702.9)", () => {
     it("only non-flyers are legal targets (excludeAbility)", () => {
         const ground = makeInstance(getCardByName("Grizzly Bears").id, {
             id: "ground",
@@ -203,7 +203,7 @@ describe("Flood — {U}{U}: tap target creature without flying (CR 701.20a / 702
     });
 });
 
-describe("Ghost Ship — flying + regenerate (CR 702.9 / 701.15a)", () => {
+describe("Ghost Ship — flying + regenerate (CR 702.9 / 701.19a)", () => {
     it("the regenerate ability stacks a shield consumed by the next destroy", () => {
         const gs = makeInstance(ghostShip.id, {
             id: "gs",
@@ -440,7 +440,7 @@ describe("Merfolk Assassin — destroy target creature with islandwalk (CR 605 /
     });
 });
 
-describe("Mind Bomb — each player may discard up to 3, damage = 3 − discarded (CR 701.8 / 119)", () => {
+describe("Mind Bomb — each player may discard up to 3, damage = 3 − discarded (CR 701.9 / 119)", () => {
     it("a player who discards nothing takes 3 damage", () => {
         // Empty hands → no discard prompt → each player takes the full 3.
         const state = makeState({
@@ -535,7 +535,7 @@ describe("Psychic Allergy — choose color, damage per nontoken permanent, upkee
     });
 });
 
-describe("Riptide — tap all blue creatures (CR 701.20a / 202.2)", () => {
+describe("Riptide — tap all blue creatures (CR 701.26a / 202.2)", () => {
     it("taps blue creatures of either controller, spares nonblue", () => {
         const blue1 = makeInstance(getCardByName("Air Elemental").id, {
             id: "blue1",
@@ -1007,7 +1007,7 @@ describe("Dance of Many — upkeep pay-{U}{U}-or-sacrifice (reuses LEG C7, CR 60
             activePlayerId: playerId,
         }) as StackItem["triggerEvent"];
 
-    it("declining the {U}{U} payment sacrifices the enchantment (CR 701.16)", () => {
+    it("declining the {U}{U} payment sacrifices the enchantment (CR 701.21)", () => {
         const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
         resolveTrigger(state, dance, "dance-of-many-upkeep", UPKEEP("p1"));
         answerChoice(state, ["decline"]);
@@ -1106,8 +1106,8 @@ describe("Dance of Many — serialization round-trip (linkedTokenId, CR 603.10)"
 // Free tranche — Multicolor (#416)
 // ───────────────────────────────────────────────────────────────────────────
 
-describe("Drowned — {1}{U} 1/1 Zombie, {B}: Regenerate (CR 701.15a)", () => {
-    it("the {B} ability stacks a regeneration shield (CR 701.15a)", () => {
+describe("Drowned — {1}{U} 1/1 Zombie, {B}: Regenerate (CR 701.19a)", () => {
+    it("the {B} ability stacks a regeneration shield (CR 701.19a)", () => {
         const d = makeInstance(drowned.id, { id: "d", controllerId: "p1" });
         const state = makeState({
             players: [makePlayer("p1", { battlefield: [d] }), makePlayer("p2")],

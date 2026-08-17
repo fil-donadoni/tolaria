@@ -6,7 +6,7 @@ import type { CardDefinition } from "../../types";
 
 // No More Lies — {W}{U} Instant. "Counter target spell unless its controller
 // pays {3}. If that spell is countered this way, exile it instead of putting
-// it into its owner's graveyard." (CR 701.5a counter-unless-pay, CR 117.3a
+// it into its owner's graveyard." (CR 701.6a counter-unless-pay, CR 117.3a
 // may-pay, and the new `destination` parameter on `SpellContext.counter` —
 // issue #683's "exile it instead" redirect clause.) Same mayPay + if(not
 // $paid) + counter shape as Force Spike (leg/blue.ts), with a `destination`
@@ -30,7 +30,7 @@ export const noMoreLies: CardDefinition = {
             bind: "$paid",
         },
         {
-            // CR 701.5a — counter unless the payment was made; redirect to
+            // CR 701.6a — counter unless the payment was made; redirect to
             // exile instead of the graveyard default.
             op: "if",
             predicate: { not: { binding: "$paid" } },

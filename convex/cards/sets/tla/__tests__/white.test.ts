@@ -90,7 +90,7 @@ function submitChoice(state: GameState, cardInstanceIds: string[]) {
     });
 }
 
-describe("Aang's Iceberg (CR 603.6a exile-until-leaves + CR 701.42-style scry)", () => {
+describe("Aang's Iceberg (CR 603.6a exile-until-leaves + CR 701.22-style scry)", () => {
     it("ETB exiles up to one chosen nonland permanent (CR 603.6a, target locked at stack placement per CR 603.3d)", () => {
         const iceberg = makeInstance(aangsIceberg.id, {
             id: "iceberg",

@@ -1,6 +1,6 @@
 // PLS (Planeshift) — colorless card behavior tests (ADR 0043 colour split).
 //
-// The Lair cycle (CR 117.3a / 701.16 / 701.24, issue #1938): each land's ETB
+// The Lair cycle (CR 117.3a / 701.21 / 400.7, issue #1938): each land's ETB
 // offers a may-pay PERMANENT return leg (ADR 0079 `CostLegs`, issue #1933)
 // with a "not $paid" sacrifice fallback (CR 118 "unless"). The `mayPay` +
 // `if` + `sacrifice` Op combination is already exercised at the interpreter
@@ -127,7 +127,7 @@ const LAIR_CYCLE = [
     },
 ];
 
-describe("Planeshift Lair cycle (CR 117.3a / 701.16 / 701.24, issue #1938)", () => {
+describe("Planeshift Lair cycle (CR 117.3a / 701.21 / 400.7, issue #1938)", () => {
     for (const { def, triggerId, colors } of LAIR_CYCLE) {
         describe(def.name, () => {
             it("taps for each of its three colours (CR 605.1a)", () => {
@@ -1290,7 +1290,7 @@ describe("Draco upkeep — {10} reduced by {2} per basic land type (CR 118 'unle
         expect(state.players[0].graveyard).toHaveLength(0);
     });
 
-    it("declining sacrifices Draco (CR 701.16)", () => {
+    it("declining sacrifices Draco (CR 701.21)", () => {
         const { state, dracoPerm } = dracoUpkeepBoard(3, 4);
         fireDracoUpkeep(state, dracoPerm);
         applyMayPaySubmit(state, { playerId: "p1", accept: false });

@@ -42,7 +42,7 @@ export const wyluliWolf: CardDefinition = {
 
 // Erhnam Djinn — "At the beginning of your upkeep, target non-Wall creature an
 // opponent controls gains forestwalk until your next upkeep." (CR 603.6a upkeep
-// trigger, CR 702.13 forestwalk evasion, CR 611.2a layer-6 keyword grant.)
+// trigger, CR 702.14 forestwalk evasion, CR 611.2a layer-6 keyword grant.)
 //
 // CR 603.3d — "target non-Wall creature an opponent controls" is a REAL target
 // chosen when the trigger is PUT ON THE STACK (issue #1193 machinery,

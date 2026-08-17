@@ -337,7 +337,7 @@ describe("matchesTargetRequirement", () => {
 // creature" rings every creature, then errors on selection)
 // ---------------------------------------------------------------------------
 
-describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1697)", () => {
+describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issue #1697)", () => {
     // Builds a server-side GameState with Karakas's bounce ability's
     // TargetRequirement lowered onto a real PendingTarget
     // (pendingTargetFiltersFromRequirement, the exact function selectTarget
@@ -2219,7 +2219,7 @@ describe("matchesSpellPendingTarget (spellStackKind dimension — Brown Ouphe / 
         ).toBe(true);
     });
 
-    it("rejects an ability under the default (omitted) and explicit 'spell' — target spell targets a spell (CR 701.5a)", () => {
+    it("rejects an ability under the default (omitted) and explicit 'spell' — target spell targets a spell (CR 701.6a)", () => {
         // Regression: Counterspell ("target spell", omitted spellStackKind)
         // must NOT be clickable on a triggered/activated ability.
         const triggeredAbility = {
@@ -2818,7 +2818,7 @@ describe("matchesSpellPendingTarget (controller dimension — Lutri, the Spellch
 
 // ---------------------------------------------------------------------------
 // matchesSpellPendingTarget (spellWouldDestroyLandYouControl dimension —
-// Equinox, CR 114.1 + 701.7). The UI marks a stack spell clickable only if
+// Equinox, CR 114.1 + 701.8). The UI marks a stack spell clickable only if
 // it would destroy a land the activator controls.
 // ---------------------------------------------------------------------------
 
@@ -3640,7 +3640,7 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 expected: false,
             },
         ],
-        // CR 111.5 / 701.16 — "sacrifice a nontoken permanent". Before this
+        // CR 111.5 / 701.21 — "sacrifice a nontoken permanent". Before this
         // fixup `toMatchablePermanent` dropped `isToken` entirely, so an
         // ACTUAL token read as `undefined` → treated as non-token by
         // `matchesPermanentFilter`'s boolean-equality check → an
@@ -3683,7 +3683,7 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 expected: false,
             },
         ],
-        // CR 701.16 (issue #1938 fixup 2 REGRESSION) — `controllerRelation`
+        // CR 701.21 (issue #1938 fixup 2 REGRESSION) — `controllerRelation`
         // requires a `FilterMatchContext`; `mayPaySacrificeCount` /
         // `mayPaySacrificePower` called the engine matcher with NO third
         // argument, so `matchesControllerRelation` always failed CLOSED.
@@ -4281,10 +4281,10 @@ describe("getNonTapManaChoices — Vivi Ornitier (non-tap choice-based mana abil
     });
 });
 
-// CR 509.1b / 702.13 — client-side block-eligibility view must agree with the
+// CR 509.1b / 702.14 — client-side block-eligibility view must agree with the
 // server: a landwalk-negation static (Great Wall / Undertow) suppresses the
 // matching landwalk so the creature is no longer treated as unblockable.
-describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.13)", () => {
+describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.14)", () => {
     const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
     const ISLAND_ID = "90a57c0e-fa61-45ef-955d-d296403967d5";
 
@@ -4340,7 +4340,7 @@ describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.13)",
         ).toBe(true);
     });
 
-    // CR 702.13 — supertype-keyed landwalk ("legendary landwalk", Livonya
+    // CR 702.14 — supertype-keyed landwalk ("legendary landwalk", Livonya
     // Silone). The client matcher must agree with the server's
     // `LANDWALK_SUPERTYPE_RULES` so the board lights up the same blockers.
     const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";

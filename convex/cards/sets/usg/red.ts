@@ -88,8 +88,8 @@ export const goblinCadets: CardDefinition = {
 // Sneak Attack — {3}{R} Enchantment. "{R}: You may put a creature card from
 // your hand onto the battlefield. That creature gains haste. Sacrifice the
 // creature at the beginning of the next end step." (CR 400.7 hand →
-// battlefield, CR 702.10 haste, CR 603.7 delayed trigger, CR 701.16
-// sacrifice.) Vintage Cube FREE tranche, issue #686; SHIPPED by issue #1151,
+// battlefield, CR 702.10 haste, CR 603.7 delayed trigger, CR 701.21 sacrifice
+// .) Vintage Cube FREE tranche, issue #686; SHIPPED by issue #1151,
 // which closed two composability gaps this card needed:
 //   1. `sacrificeObject` (mechanicsRegistry.ts EFFECT_OP_BACKLOG) — turned out
 //      to already be shipped as the existing `sacrifice` Op's single-object

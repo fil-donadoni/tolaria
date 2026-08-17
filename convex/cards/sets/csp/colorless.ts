@@ -40,7 +40,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 
 // Mishra's Bauble — {0} Artifact. "{T}, Sacrifice this artifact: Look at the top
 // card of target player's library. Draw a card at the beginning of the next
-// turn's upkeep." (CR 605 activated ability; CR 701.18a — a look grants the
+// turn's upkeep." (CR 605 activated ability; CR 400.2 — a look grants the
 // looker persistent knowledge of the card, modelled via the engine's existing
 // look-at-top-N mechanism (`peekLibraryTop` + `SpellContext.markKnown`, ADR
 // 0026): the top card stays revealed to the controller until it changes zones
@@ -64,7 +64,7 @@ export const mishrasBauble: CardDefinition = {
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (t?.type === "player") {
-                    // CR 701.18a look → markKnown to the controller (ADR
+                    // CR 400.2 look → markKnown to the controller (ADR
                     // 0026), the same mechanism the other look-at-top-N cards
                     // use (Visions, Diabolic Vision, Portent): the top card
                     // is revealed to the controller and stays visible until

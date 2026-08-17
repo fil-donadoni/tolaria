@@ -168,7 +168,7 @@ describe("Lavaspur Boots (OTJ #243, issue #1530)", () => {
         expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
         applyMayPaySubmit(state, { playerId: "p2", accept: false });
 
-        // The removal spell is countered (CR 701.5a) — the equipped bear
+        // The removal spell is countered (CR 701.6a) — the equipped bear
         // survives, still equipped.
         expect(state.stack).toHaveLength(0);
         expect(

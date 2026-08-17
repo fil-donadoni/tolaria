@@ -229,7 +229,7 @@ export const feralThallid: CardDefinition = {
             cost: { removeCounter: { type: "spore", count: 3 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -492,7 +492,7 @@ export const sporeCloud: CardDefinition = {
     manaCost: { X: 1, G: 2 },
     types: ["Instant"],
     resolve: (ctx: SpellContext) => {
-        // CR 701.20a — tap every blocking creature (both controllers).
+        // CR 701.26a — tap every blocking creature (both controllers).
         for (const pid of ctx.allPlayerIds) {
             for (const id of ctx.getBattlefieldIds(pid, {
                 types: "Creature",

@@ -315,11 +315,23 @@ two comment lines** — so keep one on a single line; an id on a line mentioning
 `CR ` **nowhere** (1,795 today, 597 of them in `mechanicsRegistry.ts` alone — a
 deliberate boundary, since reaching them reds the gate on 16 ids that are mostly
 not citations at all — including the happy-dom benchmark seconds quoted a few
-sections above); and a
-**resolvable but wrong** id, since the scan only asks whether an id exists. A citation
-"corrected" to a plausible-but-wrong number passes, which is why the correction
-has to come from `bun run cr <id>` printing text that matches the claim.
-Wizards
+sections above); and a **resolvable but wrong** id, since the scan only asks
+whether an id exists.
+
+**Resolvable-but-wrong is now covered for keywords.** `cr:lint` also runs a
+SECOND scan (`scripts/cr-keyword-citations.ts`): for every `CR 701.N`/`702.N`
+citation it reads the section TITLE out of the vendored document and reds when
+the line names a different keyword — "701.19 search" is Regenerate, "701.16
+sacrifice" is Investigate, "702.13 landwalk" is Intimidate. Wizards inserts
+keyword actions alphabetically, so the 701 block renumbers every few revisions
+and citations rot silently; keying the check on titles rather than numbers means
+the NEXT renumbering reds the gate instead of going unnoticed. 793 sites stood
+wrong when it was added (plus ~200 more, bare ids on keyword-less lines, found
+by hand in the same pass). It sees only lines that name a keyword: keep the
+citation and its keyword word on ONE line. Outside 701/702 the old caveat
+stands — a citation "corrected" to a plausible-but-wrong number passes, which is
+why the correction has to come from `bun run cr <id>` printing text that matches
+the claim. Wizards
 republishes roughly per set at
 <https://magic.wizards.com/en/rules>; `bun run cr:check` says whether a newer
 document exists, `bun run cr:sync` takes it. `cr:check` is deliberately outside

@@ -221,7 +221,7 @@ describe("Goblin Warrens — sacrifice two Goblins for three tokens (CR 111)", (
     });
 });
 
-describe("Goblin Chirurgeon — sacrifice a Goblin, regenerate (CR 701.15a)", () => {
+describe("Goblin Chirurgeon — sacrifice a Goblin, regenerate (CR 701.19a)", () => {
     it("applies a regeneration shield to the target creature", () => {
         const chirurgeon = makeInstance(goblinChirurgeon.id, {
             id: "chir",
@@ -554,7 +554,7 @@ describe("Dwarven Catapult — X damage split among opponent creatures (CR 107.3
     });
 });
 
-describe("Raiding Party — symmetric Plains destruction (CR 701.7)", () => {
+describe("Raiding Party — symmetric Plains destruction (CR 701.8)", () => {
     it("sacrifices an Orc and destroys unprotected Plains", () => {
         const party = makeInstance(raidingParty.id, {
             id: "party",

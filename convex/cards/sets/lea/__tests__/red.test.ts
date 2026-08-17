@@ -353,7 +353,7 @@ describe("Earthquake ({X}{R} — X damage to each non-flying creature and each p
     });
 });
 
-describe("Wheel of Fortune (each player discards hand + draws 7, CR 701.8 / 121.1)", () => {
+describe("Wheel of Fortune (each player discards hand + draws 7, CR 701.9 / 121.1)", () => {
     function libraryCards(
         owner: string,
         count: number,
@@ -462,7 +462,7 @@ describe("Wheel of Fortune (each player discards hand + draws 7, CR 701.8 / 121.
 // Circle of Protection: {color} (CR 615.1, 615.6 — one-shot damage prevention)
 // ---------------------------------------------------------------------------
 
-describe("Burrowing (Aura — host has mountainwalk, CR 702.13c)", () => {
+describe("Burrowing (Aura — host has mountainwalk, CR 702.14c)", () => {
     function setupAttached() {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -710,7 +710,7 @@ describe("Shatter / Stone Rain / Tunnel (destroy-target shorthand)", () => {
         expect(state.players[1].graveyard.map((c) => c.id)).toContain("wall");
     });
 
-    it("Tunnel can't be regenerated — a regen shield does not save the Wall (CR 701.15c)", () => {
+    it("Tunnel can't be regenerated — a regen shield does not save the Wall (CR 701.19c)", () => {
         const wall = makeInstance(wallOfSwords.id, {
             id: "wall",
             controllerId: "p2",
@@ -1691,7 +1691,7 @@ describe("Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast
     });
 });
 
-describe("Sedge Troll (conditional +1/+1 if Swamp + {B}: regen, CR 611/701.15a)", () => {
+describe("Sedge Troll (conditional +1/+1 if Swamp + {B}: regen, CR 611/701.19a)", () => {
     it("gets +1/+1 when controller has a Swamp", () => {
         const troll = makeInstance(sedgeTroll.id, {
             id: "troll",
@@ -2773,7 +2773,7 @@ describe("Fork (copy target instant or sorcery spell, CR 707.10)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Banding (CR 702.21) — W28: benalishHero, mesaPegasus, timberWolves,
+// Banding (CR 702.22) — W28: benalishHero, mesaPegasus, timberWolves,
 // helmOfChatzuk. Covers keyword recognition, band-composition legality,
 // block-as-group, and the two damage-assignment authority shifts (702.22j-k).
 // ---------------------------------------------------------------------------
@@ -2967,7 +2967,7 @@ describe("Raging River (pile combat — CR 509.2 variant, ADR 0012)", () => {
 // Migration harness (ADR 0045, issue #831): Flashfires had no per-card test, so
 // this behaviour test is authored to guard the resolve()→effects[] migration
 // (destroyAll{Plains} → forEach/destroy).
-describe("Flashfires ({3}{R} — destroy all Plains, CR 701.7)", () => {
+describe("Flashfires ({3}{R} — destroy all Plains, CR 701.8)", () => {
     it("destroys every Plains across both players and spares other lands", () => {
         const p1Plains = makeInstance(plains.id, {
             id: "p1-plains",

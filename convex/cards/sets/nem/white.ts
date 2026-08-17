@@ -10,7 +10,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // Parallax Wave — "Fading 5 (…) Remove a fade counter from this enchantment:
 // Exile target creature. When this enchantment leaves the battlefield, each
 // player returns to the battlefield all cards they own exiled with it."
-// (CR 702.32 Fading; CR 701.18 exile; CR 603.7a leaves-the-battlefield.)
+// (CR 702.32 Fading; CR 701.13 exile; CR 603.7a leaves-the-battlefield.)
 //
 // Fading 5 is expanded implicitly at the getDefinition seam (ADR 0054): the
 // "fading 5" string injects `entersWith` five fade counters + the upkeep
@@ -41,7 +41,7 @@ export const parallaxWave: CardDefinition = {
             cost: { removeCounter: { type: "fade", count: 1 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            // CR 701.18 host-only exile (auras die, equipment detaches); ADR
+            // CR 701.13 host-only exile (auras die, equipment detaches); ADR
             // 0028 arms the return keyed to `$source`. Op defaults
             // includeAttachments/returnTapped false — the host-only shape.
             effects: [{ op: "exileWithAttachments", target: { target: 0 } }],

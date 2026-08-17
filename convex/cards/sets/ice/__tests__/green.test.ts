@@ -186,9 +186,9 @@ describe("Fyndhorn Elves / Elder (CR 605.1a mana ability)", () => {
     });
 });
 
-// --- Untap utility creatures (CR 701.20a untap) ----------------------------
+// --- Untap utility creatures (CR 701.26a untap) ----------------------------
 
-describe("Fyndhorn Brownie / Juniper Order Druid (CR 701.20a untap)", () => {
+describe("Fyndhorn Brownie / Juniper Order Druid (CR 701.26a untap)", () => {
     it("Fyndhorn Brownie untaps a target creature", () => {
         const brownie = makeInstance(fyndhornBrownie.id, {
             id: "brownie",
@@ -320,9 +320,9 @@ describe("Lhurgoyf (CR 604.3 graveyard-counting CDA P/T)", () => {
     });
 });
 
-// --- Regeneration via {G} (CR 701.15 regeneration shield) ------------------
+// --- Regeneration via {G} (CR 701.19 regeneration shield) ------------------
 
-describe("Wall of Pine Needles / Yavimaya Gnats regenerate (CR 701.15)", () => {
+describe("Wall of Pine Needles / Yavimaya Gnats regenerate (CR 701.19)", () => {
     it("Wall of Pine Needles applies a regeneration shield to itself", () => {
         const wall = makeInstance(wallOfPineNeedles.id, {
             id: "wall",
@@ -398,9 +398,9 @@ describe("Tinder Wall (CR 605.1a mana sac + CR 120.1 bolt)", () => {
     });
 });
 
-// --- Nature's Lore — search a Forest onto the battlefield (CR 701.19) -------
+// --- Nature's Lore — search a Forest onto the battlefield (CR 701.23) -------
 
-describe("Nature's Lore (CR 701.19 search Forest onto battlefield)", () => {
+describe("Nature's Lore (CR 701.23 search Forest onto battlefield)", () => {
     it("puts a Forest from library onto the battlefield and shuffles", () => {
         const forest: CardInstanceState = {
             id: "forest",
@@ -798,9 +798,9 @@ describe("Earthlore (CR 611 activated-grant on enchanted land)", () => {
     });
 });
 
-// --- Elder Druid — modal tap/untap (CR 701.20a) -----------------------------
+// --- Elder Druid — modal tap/untap (CR 701.26a) -----------------------------
 
-describe("Elder Druid (CR 701.20a tap-or-untap)", () => {
+describe("Elder Druid (CR 701.26a tap-or-untap)", () => {
     function setup(targetTapped: boolean) {
         const druid = makeInstance(elderDruid.id, {
             id: "druid",
@@ -845,7 +845,7 @@ describe("Elder Druid (CR 701.20a tap-or-untap)", () => {
     });
 });
 
-// --- Essence Filter — modal mass enchantment destroy (CR 700.2 / 701.7) -----
+// --- Essence Filter — modal mass enchantment destroy (CR 700.2 / 701.8) -----
 
 describe("Essence Filter (CR 700.2 modal mass enchantment destroy)", () => {
     function setup() {
@@ -1107,9 +1107,9 @@ describe("Gorilla Pack (CR 508.1c Forest-gated attack + CR 603.8 sacrifice)", ()
     });
 });
 
-// --- Thermokarst — destroy target land (CR 701.7) ---------------------------
+// --- Thermokarst — destroy target land (CR 701.8) ---------------------------
 
-describe("Thermokarst (CR 701.7 destroy target land)", () => {
+describe("Thermokarst (CR 701.8 destroy target land)", () => {
     it("destroys the targeted land", () => {
         const land = vanilla("land", 0, 0, {
             id: "land",
@@ -1232,7 +1232,7 @@ describe("Venomous Breath (CR 603.7a delayed combat-partner destroy, ADR 0049 li
         expect([...(frozen as string[])].sort()).toEqual(["blkA", "blkB"]);
         // Fire the delayed trigger at end of combat through the REAL path
         // (fireDelayedTriggers → resolveTopOfStack runs the inline forEach body)
-        // → both blockers are destroyed (CR 603.7a / 701.7).
+        // → both blockers are destroyed (CR 603.7a / 701.8).
         fireDelayedTriggers(state, "next-end-of-combat");
         resolveTopOfStack(state);
         expect(state.players[1].battlefield).toHaveLength(0);
@@ -2282,7 +2282,7 @@ describe("Ritual of Subdual (lands → colourless, CR 614/702.24)", () => {
     });
 });
 
-describe("Brown Ouphe — filtered ability counter (CR 701.5a / 113.7a)", () => {
+describe("Brown Ouphe — filtered ability counter (CR 701.6a / 113.7a)", () => {
     const req = brownOuphe.activatedAbilities![0].targetRequirement!;
 
     /** Build an activated-ability stack item from a source card def id. */

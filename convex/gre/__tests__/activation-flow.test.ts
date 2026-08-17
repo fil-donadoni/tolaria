@@ -1091,7 +1091,7 @@ describe("activation flow — Bazaar of Baghdad ({T}: draw two, discard three)",
 // Tracker — full activate ({G}{G},{T}) → pay → tap source → select target →
 // resolve → Fight. Integration across the GRE activation/payment/targeting/
 // resolution path (mirrors the game.ts mutation chain) for the new generic
-// Fight primitive (CR 701.12 mutual damage; #422).
+// Fight primitive (CR 701.14 mutual damage; #422).
 // ---------------------------------------------------------------------------
 
 describe("activation flow — Tracker Fight ({G}{G},{T}: mutual damage)", () => {
@@ -1200,7 +1200,7 @@ describe("activation flow — Clergy of the Holy Nimbus ({1}, opponents-only, CR
         ).toThrow(/Only your opponents/);
     });
 
-    it("an opponent pays {1}, the ability resolves, and the next destroy is lethal (CR 701.15c)", () => {
+    it("an opponent pays {1}, the ability resolves, and the next destroy is lethal (CR 701.19c)", () => {
         const { state } = setup();
         // Opponent (p2) activates the controller's Clergy — empty pool → pending.
         expect(activateAbility(state, "p2", "clergy", CANT_REGEN_ID)).toBe(

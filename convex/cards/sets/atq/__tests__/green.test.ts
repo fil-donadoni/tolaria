@@ -63,7 +63,7 @@ import {
 // Artifact removal & bounce (free tranche, #274)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 701.7 / 701.15c)", () => {
+describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 701.8 / 701.19c)", () => {
     it("destroys the target artifact and grants its controller life = mv", () => {
         // Clay Statue is mv 4 (MTGJSON {4}).
         const statue = makeInstance(clayStatue.id, {
@@ -91,7 +91,7 @@ describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 70
         expect(state.players[1].life).toBe(24);
     });
 
-    it("can't be regenerated — a regen shield does not save it (CR 701.15c)", () => {
+    it("can't be regenerated — a regen shield does not save it (CR 701.19c)", () => {
         const statue = makeInstance(clayStatue.id, {
             id: "statue",
             controllerId: "p2",

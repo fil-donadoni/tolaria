@@ -36,7 +36,7 @@ export const ancientTomb: CardDefinition = {
 };
 
 // Lotus Petal — "{T}, Sacrifice this artifact: Add one mana of any color."
-// (CR 605.1a mana ability, `useStack: false`, CR 701.16 sacrifice cost.) The
+// (CR 605.1a mana ability, `useStack: false`, CR 701.21 sacrifice cost.) The
 // any-color choice follows the established Birds of Paradise / Talisman
 // shape. Vintage Cube free tranche (issue #675, ADR 0041).
 export const lotusPetal: CardDefinition = {
@@ -62,8 +62,8 @@ export const lotusPetal: CardDefinition = {
 };
 
 // Wasteland — "{T}: Add {C}.\n{T}, Sacrifice this land: Destroy target
-// nonbasic land." (CR 701.26 tap mana ability; CR 701.16 sacrifice cost;
-// CR 701.7 destroy.) "Nonbasic" needs a NEGATIVE supertype filter — the
+// nonbasic land." (CR 701.26 tap mana ability; CR 701.21 sacrifice cost;
+// CR 701.8 destroy.) "Nonbasic" needs a NEGATIVE supertype filter — the
 // engine only had the positive `supertypeFilter` (Avalanche's "target snow
 // lands"); this card motivates a small, general, orthogonal addition
 // (`TargetRequirement.excludeSupertypes`, mirroring the existing

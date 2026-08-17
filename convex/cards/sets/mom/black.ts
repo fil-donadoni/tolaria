@@ -7,7 +7,7 @@ import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 // Consuming Aetherborn — {3}{B} Creature — Aetherborn Vampire, 2/2. "Backup 1
 // (When this creature enters, put a +1/+1 counter on target creature. If
 // that's another creature, it gains the following ability until end of
-// turn.) Lifelink" (CR 702.165, issue #1315 — the first catalogue card
+// turn.) Lifelink" (CR 702.165 backup, issue #1315 — the first catalogue card
 // proving the Backup keyword end-to-end). A SIMPLE Backup card on purpose:
 // its only granted ability is the single already-implemented keyword
 // `lifelink`, so `backupTrigger(1, ["lifelink"])` is the entire triggered-

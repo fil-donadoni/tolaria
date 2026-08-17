@@ -460,7 +460,7 @@ describe("target-legality gate at resolution (CR 608.2b / 608.2c)", () => {
     });
 });
 
-describe("Wrath of God (destroy all creatures, can't regenerate, CR 701.15c)", () => {
+describe("Wrath of God (destroy all creatures, can't regenerate, CR 701.19c)", () => {
     it("moves every creature to its owner's graveyard", () => {
         const angel = makeInstance(serraAngel.id, { id: "angel" });
         const lion = makeInstance(savannahLions.id, {
@@ -655,7 +655,7 @@ describe("White Knight (first strike + protection from black, CR 702.7 + 702.16)
         expect(result.eligible).toBe(false);
     });
 
-    it("CR 702.16e — blocking a black attacker prevents its return damage while WK's first strike still hits back", () => {
+    it("CR 702.16e protection — blocking a black attacker prevents its return damage while WK's first strike still hits back", () => {
         // Bog Wraith (3/3, black) attacks; White Knight (2/2 first strike,
         // protection from black) blocks. First-strike step: WK deals 2 to
         // wraith (toughness 3 → survives with 2 marked). Regular step: wraith
@@ -1047,7 +1047,7 @@ describe("Protection-detach SBA (CR 702.16c + 702.16n)", () => {
     });
 });
 
-describe("White Ward (exempt self-referential aura, CR 702.16n)", () => {
+describe("White Ward (exempt self-referential protection aura, CR 702.16n)", () => {
     it("stays attached even though aura-color matches granted protection", () => {
         // White Ward is a white aura that grants pro-white. Without the
         // CR 702.16n exemption, the aura would immediately fall off as SBA
@@ -1795,7 +1795,7 @@ describe("Crusade (static pt-buff: +1/+1 to white creatures)", () => {
     });
 });
 
-describe("Death Ward (instant — regenerate target creature, CR 701.15a)", () => {
+describe("Death Ward (instant — regenerate target creature, CR 701.19a)", () => {
     it("stacks one regeneration shield on the target", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -1835,7 +1835,7 @@ describe("Death Ward (instant — regenerate target creature, CR 701.15a)", () =
         ]);
         resolveTopOfStack(state);
         // Use a regen-honoring destroy (no can't-be-regenerated rider). Wrath
-        // would suppress the shield (CR 701.15c) — exercised separately.
+        // would suppress the shield (CR 701.19c) — exercised separately.
         regenerateOrDestroy(state, "bear");
         const bearAfter = state.players[1].battlefield.find(
             (c) => c.id === "bear"
@@ -3401,7 +3401,7 @@ describe("Serialization: removedKeywords + damageCapShields", () => {
 });
 
 // ---------------------------------------------------------------------------
-// W25b: Counter-unless-pay + draw-skip (CR 701.5a, 614)
+// W25b: Counter-unless-pay + draw-skip (CR 701.6a, 614)
 // ---------------------------------------------------------------------------
 
 describe("Island Sanctuary (CR 614 — draw-skip replacement)", () => {
@@ -3561,7 +3561,7 @@ describe("Island Sanctuary (CR 614 — draw-skip replacement)", () => {
 // W25a: Mass forced-attack + combat manipulation (CR 508.1d, 506.4)
 // ---------------------------------------------------------------------------
 
-describe("Banding keyword recognition (CR 702.21)", () => {
+describe("Banding keyword recognition (CR 702.22)", () => {
     it("Mesa Pegasus flying still gates blocking (CR 702.9b)", () => {
         const peg = makeInstance(mesaPegasus.id, {
             id: "peg",

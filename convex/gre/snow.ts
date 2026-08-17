@@ -1,4 +1,4 @@
-// Snow supertype reads + supertype mutation (CR 205.4a, 702.13 snow landwalk).
+// Snow supertype reads + supertype mutation (CR 205.4a, 702.14 snow landwalk).
 //
 // The pure READ helpers live in the cycle-free leaf `cards/snowReads` (so card
 // sets can value-import them without re-entering the registry build); this

@@ -102,7 +102,7 @@ no new capability beyond the `attach` Op.
   Regeneration-on-Aura and any equip/aura ability acting on its host) and
   **per-mode modal targeting** (`EffectMode.targetRequirement`, so a "choose one"
   mode can carry its own target while sibling modes carry none — CR 601.2b/c).
-- **Living Weapon** (CR 702.90) — ETB creates a 0/0 black Phyrexian Germ token
+- **Living Weapon** (CR 702.92) — ETB creates a 0/0 black Phyrexian Germ token
   and auto-attaches this Equipment to it (no target, no equip cost). Unblocks
   Batterskull and Kaldra Compleat.
 

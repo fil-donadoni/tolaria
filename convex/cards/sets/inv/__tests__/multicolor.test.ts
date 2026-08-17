@@ -797,7 +797,7 @@ describe("Vile Consumption (triggered-grant to every creature, CR 113.1/611 + up
         expect(state.players[0].life).toBe(19);
     });
 
-    it("declining sacrifices the creature (CR 701.16)", () => {
+    it("declining sacrifices the creature (CR 701.21)", () => {
         const { state } = withVileConsumption("p1");
         state.stack.push(
             ...collectTriggers(state, [
@@ -902,7 +902,7 @@ describe("Recoil (bounce to OWNER's hand + owner discards, CR 400.7, issue #1106
     });
 });
 
-describe("Agonizing Demise (CR 702.33 Kicker + 701.8 destroy + 701.15c regen-suppression, issue #1077)", () => {
+describe("Agonizing Demise (CR 702.33 Kicker + 701.8 destroy + 701.19c regen-suppression, issue #1077)", () => {
     function cast(kicked: boolean) {
         const foe = makeInstance(grizzlyBears.id, {
             id: "foe",
@@ -1051,7 +1051,7 @@ describe("Hooded Kavu (CR 702.14b fear temporary grant, issue #1077)", () => {
     });
 });
 
-describe("Plague Spores (CR 701.8 destroy x2 + 701.15c regen-suppression, issue #1077)", () => {
+describe("Plague Spores (CR 701.8 destroy x2 + 701.19c regen-suppression, issue #1077)", () => {
     it("destroys both the creature and the land, neither regenerable", () => {
         const foe = makeInstance(grizzlyBears.id, {
             id: "foe",
@@ -1101,7 +1101,7 @@ describe("Reckless Assault (CR 602.1/118.5 mana+life activation cost, issue #107
     });
 });
 
-describe("Smoldering Tar (CR 603.6a upkeep target-player drain + 701.16 sacrifice-for-damage, issue #1077)", () => {
+describe("Smoldering Tar (CR 603.6a upkeep target-player drain + 701.21 sacrifice-for-damage, issue #1077)", () => {
     it("upkeep trigger: the chosen target player loses 1 life (CR 603.3d — target at stack placement)", () => {
         const tar = makeInstance(smolderingTar.id, {
             id: "tar",
@@ -1361,7 +1361,7 @@ describe("Fires of Yavimaya (controller-scoped haste anthem + sacrifice-for-pump
     });
 });
 
-describe("Frenzied Tilling (CR 701.8 destroy + 401.4 search/tapped/701.20 shuffle, issue #1078)", () => {
+describe("Frenzied Tilling (CR 701.8 destroy + 401.4 search/tapped/701.24 shuffle, issue #1078)", () => {
     it("destroys the targeted land, then searches a basic land onto the battlefield tapped", () => {
         const targetLand = makeInstance(forest.id, {
             id: "victim-land",
@@ -1949,7 +1949,7 @@ describe("Captain Sisay (CR 605 tap ability, CR 701.23 search-by-supertype + rev
     });
 });
 
-describe("Charging Troll (CR 702.20b vigilance + CR 701.15a self-regenerate, GW issue #1079)", () => {
+describe("Charging Troll (CR 702.20b vigilance + CR 701.19a self-regenerate, GW issue #1079)", () => {
     it("stacks a regeneration shield on itself for {G}", () => {
         const troll = makeInstance(chargingTroll.id, {
             id: "troll",
@@ -2091,7 +2091,7 @@ describe("Dromar, the Banisher (CR 702.9b flying + 510.4/603.2 combat-damage tri
     }
 });
 
-describe("Rith, the Awakener (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 111/701.7 domain-agnostic count, issue #1080)", () => {
+describe("Rith, the Awakener (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 111/701.7 create domain-agnostic count, issue #1080)", () => {
     function setup() {
         const rithInst = makeInstance(rith.id, {
             id: "rith",
@@ -2789,7 +2789,7 @@ describe("Lobotomy (CR 201.2 dynamic same-name filter + CR 400.7 multi-zone swee
 
         submitChoice(state, ["lb-hand1"]);
 
-        // CR 701.19a — the LIBRARY leg is an explicit search: resolution
+        // CR 701.23a — the LIBRARY leg is an explicit search: resolution
         // suspends again with the opponent's library open to the caster and
         // only the same-named copies eligible, so the caster actually SEES the
         // deck (the whole point of "search that player's library"). The count
@@ -2971,7 +2971,7 @@ describe("Seer's Vision (CR 702-adjacent opponents-hand-reveal static + sac-for-
     });
 });
 
-describe("Aether Rift (CR 701.8a random discard, CR 603.2 upkeep trigger, CR 117.3a unless-a-player-pays, issue #1123)", () => {
+describe("Aether Rift (CR 701.9a random discard, CR 603.2 upkeep trigger, CR 117.3a unless-a-player-pays, issue #1123)", () => {
     const upkeep = {
         type: "PHASE_BEGIN" as const,
         phase: "UPKEEP" as const,

@@ -205,7 +205,7 @@ export function isTapLockedBySummoningSickness(card: CardInstance): boolean {
 }
 
 /**
- * Returns true if `attacker` has a landwalk keyword (CR 702.13b) for a land
+ * Returns true if `attacker` has a landwalk keyword (CR 702.14b) for a land
  * subtype present anywhere in `defenderBattlefield`. Such an attacker can't
  * be blocked at all and should be filtered out of blocker-eligibility checks.
  */
@@ -214,7 +214,7 @@ export function isLandwalkUnblockable(
     defenderBattlefield: CardInstance[]
 ): boolean {
     const abilities = attacker.staticAbilities ?? [];
-    // CR 509.1b / 702.13 — a landwalk-negation static (Great Wall, Undertow)
+    // CR 509.1b / 702.14 — a landwalk-negation static (Great Wall, Undertow)
     // on the defender's battlefield suppresses the matching landwalk so the
     // creature can be blocked normally. Mirrors the server rule in
     // `combatRegistry.ts` so the client's block view agrees with the engine.
@@ -227,7 +227,7 @@ export function isLandwalkUnblockable(
         );
         if (hasLand) return true;
     }
-    // CR 702.13 — supertype-keyed landwalk ("legendary landwalk", Livonya
+    // CR 702.14 — supertype-keyed landwalk ("legendary landwalk", Livonya
     // Silone): unblockable while the defender controls a land with the named
     // supertype. Mirrors the server's `LANDWALK_SUPERTYPE_RULES`.
     for (const [keyword, supertype] of Object.entries(
@@ -1098,7 +1098,7 @@ export function hasBattlefieldTargetCandidate(
     return false;
 }
 
-/** CR 109.1 / 109.3 / 102.1 / 202 / 205 / 601.2c / 613 / 701.20 / 702 — THE
+/** CR 109.1 / 109.3 / 102.1 / 202 / 205 / 601.2c / 613 / 701.26 / 702 — THE
  *  single client-side authority for every PERMANENT-kind target-filter
  *  dimension, delegating to the SAME registry (`checkPermanentTargetFilters`,
  *  `convex/gre/targetFilters.ts`, ADR 0068) `getLegalTargets` (the offered
@@ -1535,7 +1535,7 @@ export function buildTriggerStateView(
                 // `removedSupertypes`, which cross the wire unchanged
                 // (`slimCard` only strips `card`/`knownTo`).
                 supertypes: liveSupertypesOf(c),
-                // CR 111.5 / 701.16 — token-ness, for a `sacrificeFilter`
+                // CR 111.5 / 701.21 — token-ness, for a `sacrificeFilter`
                 // activation cost narrowed by `isToken` (Thopter Foundry's
                 // "sacrifice a NONTOKEN artifact", Caribou Range's "sacrifice
                 // a Caribou TOKEN"). `CardInstanceState.isToken` IS a real
@@ -3101,7 +3101,7 @@ export function phyrexianSplitChoices(
 export interface NormalizedMayPayCost {
     mana?: ManaCost;
     life?: number;
-    /** PERMANENT leg (CR 701.16 sacrifice / 701.24 return, ADR 0079). `count`
+    /** PERMANENT leg (CR 701.21 sacrifice / 400.7 return, ADR 0079). `count`
      *  is either a fixed cardinal ("sacrifice N") or a summed-power threshold
      *  `{ minTotalPower }` (CR 118, Phyrexian Dreadnought — "sacrifice any
      *  number of matching permanents with total power ≥ N"). The `filter` is
@@ -3286,7 +3286,7 @@ export function toMatchablePermanent(
         isAttacking: card.isAttacking,
         isBlocking: card.isBlocking,
         isTapped: card.isTapped,
-        // CR 111.5 / 701.16 — token-ness, for a permanent leg's `isToken`
+        // CR 111.5 / 701.21 — token-ness, for a permanent leg's `isToken`
         // clause ("sacrifice a nontoken permanent"). `card.isToken` crosses
         // the wire (`slimCard` forwards it unchanged) — populated so a filter
         // that uses it doesn't silently fail OPEN the way `excludeSubtypes`
@@ -3511,11 +3511,11 @@ export const TRIGGER_STATE_VIEW_CENSUS: Record<
 };
 
 /** Count of a chooser's battlefield permanents that satisfy a `may-pay` cost's
- *  sacrifice leg (CR 701.16). Returns 0 when the cost has no sacrifice leg.
+ *  sacrifice leg (CR 701.21). Returns 0 when the cost has no sacrifice leg.
  *  Used by the UI affordability gate to know whether the Pay button is legal.
  *
  *  `ctx` resolves `PermanentFilter.controllerRelation` ("sacrifice two Swamps
- *  YOU control", Infernal Denizen / Minion of Leshrac, CR 701.16) — without it
+ *  YOU control", Infernal Denizen / Minion of Leshrac, CR 701.21) — without it
  *  `matchesControllerRelation` (`convex/cards/filters.ts`) fails CLOSED (the
  *  filter never matches), undercounting a legal sacrifice to 0 and permanently
  *  disabling the Pay button (issue #1938 fixup 2 regression). Callers pass the
@@ -3544,7 +3544,7 @@ export function mayPayRequiredSacrifices(cost: MayPayCost | undefined): number {
 }
 
 /** The terminal action of a `may-pay` cost's permanent leg — `"sacrifice"` (CR
- *  701.16) or `"return"` to the owner's hand (CR 701.24 / 118.9, ADR 0079) —
+ *  701.21) or `"return"` to the owner's hand (CR 400.7 / 118.9, ADR 0079) —
  *  or `undefined` when the cost has no permanent leg. Client mirror of the
  *  backend `mayPayPermanentAction`; words the pick prompt. */
 export function mayPayPermanentAction(
@@ -3679,7 +3679,7 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
                 `sacrifice creatures with total power ${n.minTotalPower}`
             );
         } else if (norm.permanent.action === "return") {
-            // CR 701.24 / 118.9 (ADR 0079) — the return-to-hand leg.
+            // CR 400.7 / 118.9 (ADR 0079) — the return-to-hand leg.
             parts.push(n === 1 ? "return a permanent" : `return ${n}`);
         } else {
             parts.push(n === 1 ? "sacrifice" : `sacrifice ${n}`);

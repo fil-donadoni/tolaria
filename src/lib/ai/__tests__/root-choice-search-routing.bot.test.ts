@@ -87,7 +87,7 @@ function stateWithBotChoice(
 }
 
 /** A library of `names` owned by the bot, with a live `search-library` choice
- *  (CR 701.19) — the shape a fetchland / tutor opens. */
+ *  (CR 701.23) — the shape a fetchland / tutor opens. */
 function stateWithBotLibrarySearch(names: string[]): GameState {
     return stateWithBotChoice(
         {

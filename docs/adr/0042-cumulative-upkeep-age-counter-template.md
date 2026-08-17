@@ -66,7 +66,7 @@ combination of which may be present (Infernal Darkness sets both `mana` and
 `life`). Scaling by age count is **repetition of the whole cost**, not a
 multiply-the-numbers shortcut, so "pay {B} and 1 life" at three age counters is
 "pay {B}{B}{B} and 3 life", and "Sacrifice a land" at two counters sacrifices
-two lands — paid all-or-nothing (CR 702.24a). **Discard-as-cost is deliberately
+two lands — paid all-or-nothing (CR 702.24a cumulative upkeep). **Discard-as-cost is deliberately
 omitted** — no ICE card uses it; it is added the day a set needs it.
 
 **`requestMayPay` is generalized from `ManaCost` to the cost union.** The
@@ -111,7 +111,7 @@ The `MayPayCost` sacrifice leg introduced above (`{ filter, count }`) originally
 carried a **fixed cardinal** `count` — "sacrifice N matching permanents". Mirage
 adds Phyrexian Dreadnought, whose self-ETB punisher is _"sacrifice it unless you
 sacrifice any number of creatures with total power 12 or greater"_ (CR 118 /
-701.16). That is not a fixed count but a **variable-size set gated on summed
+701.21). That is not a fixed count but a **variable-size set gated on summed
 power**. Rather than add a new Effect Script Op (the mechanic is already a
 `mayPay` punisher — the counter/consequence shape the interpreter runs), the
 `count` field is widened in place to a union:

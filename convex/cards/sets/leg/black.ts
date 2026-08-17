@@ -151,7 +151,7 @@ export const theAbyss: CardDefinition = {
                 if (chosen === undefined) return; // suspended on the choice
                 const id = chosen[0];
                 if (!id) return;
-                // CR 701.7c — "It can't be regenerated."
+                // CR 701.19c — "It can't be regenerated."
                 ctx.destroy(
                     { type: "permanent", id },
                     { cantBeRegenerated: true }
@@ -176,7 +176,7 @@ export const headlessHorseman: CardDefinition = {
     toughness: 2,
 };
 
-// Lost Soul — swampwalk (CR 702.19 landwalk variant).
+// Lost Soul — swampwalk (CR 702.14 landwalk variant).
 export const lostSoul: CardDefinition = {
     id: "601eed5c-436d-425b-a45f-07881ad893c8",
     rarity: "common",
@@ -226,7 +226,7 @@ export const carrionAnts: CardDefinition = {
     ],
 };
 
-// Walking Dead — "{B}: Regenerate this creature." (CR 701.15a regeneration
+// Walking Dead — "{B}: Regenerate this creature." (CR 701.19a regeneration
 // shield.)
 export const walkingDead: CardDefinition = {
     id: "d7533a72-77d1-40cd-b3a1-7597d566c428",
@@ -245,7 +245,7 @@ export const walkingDead: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -364,7 +364,7 @@ export const hellsCaretaker: CardDefinition = {
 // --- Auras (CR 303 — Enchant land) ----------------------------------------
 
 // Blight — "Enchant land. When enchanted land becomes tapped, destroy it."
-// (CR 303.4 host trigger via the tapped factory → CR 701.7 destroy.)
+// (CR 303.4 host trigger via the tapped factory → CR 701.8 destroy.)
 export const blight: CardDefinition = {
     id: "9ca19b39-4201-463c-bd40-fbffa31c9eda",
     rarity: "uncommon",
@@ -564,7 +564,7 @@ export const touchOfDarkness: CardDefinition = {
 };
 
 // Horror of Horrors — "Sacrifice a Swamp: Regenerate target black creature."
-// (CR 602.1 sacrifice cost via `sacrificeFilter` + CR 701.15a regeneration
+// (CR 602.1 sacrifice cost via `sacrificeFilter` + CR 701.19a regeneration
 // shield on a colour-restricted target.)
 export const horrorOfHorrors: CardDefinition = {
     id: "b9f68dc2-c048-41ec-b237-c36fdd99c27d",
@@ -581,7 +581,7 @@ export const horrorOfHorrors: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1, colorFilter: "B" },
             // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.15a).
+            // announced creature target (CR 701.19a).
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
@@ -665,7 +665,7 @@ export const darkness: CardDefinition = {
 // upkeep tax with a self-damage rider: "At the beginning of your upkeep,
 // destroy this creature unless you pay {3}{B}{B}{B}. If this creature is
 // destroyed this way, it deals 7 damage to you." CR 603.6a + CR 117.3a +
-// CR 701.7 destroy. The self-damage only fires on the destroy branch.
+// CR 701.8 destroy. The self-damage only fires on the destroy branch.
 export const cosmicHorror: CardDefinition = {
     id: "18bc6ac2-19e0-4765-852b-e303a5bb4040",
     rarity: "rare",
@@ -703,7 +703,7 @@ export const cosmicHorror: CardDefinition = {
                 });
                 if (paid === undefined) return; // suspended
                 if (paid) return;
-                // CR 701.7 destroy; the 7-damage rider only fires if the
+                // CR 701.8 destroy; the 7-damage rider only fires if the
                 // creature is actually destroyed this way (an indestructible
                 // Cosmic Horror survives and deals no damage).
                 const destroyed = ctx.destroy({
@@ -722,7 +722,7 @@ export const cosmicHorror: CardDefinition = {
 // do-X-unless-you-pay family: "When this creature enters, sacrifice it unless
 // you sacrifice two Swamps." Not an upkeep trigger, but the same shape — the
 // "pay" is an alternate cost (sacrifice two Swamps, CR 118.3) rather than mana.
-// CR 603.6a ETB + CR 701.16 sacrifice. Composes `requestMayPay` (the yes/no
+// CR 603.6a ETB + CR 701.21 sacrifice. Composes `requestMayPay` (the yes/no
 // gate) + a `sacrifice-permanents` `requestChoice` for the Swamp cost.
 export const moldDemon: CardDefinition = {
     id: "649a33aa-7eac-4161-ae1a-fcbc758abccf",
@@ -860,7 +860,7 @@ export const moldDemon: CardDefinition = {
 // ═════════════════════════════════════════════════════════════════════════════
 
 // Spirit Shackle — {B}{B} Aura. "Whenever enchanted creature becomes tapped,
-// put a -0/-2 counter on it." (CR 701.20a becomes-tapped trigger via the
+// put a -0/-2 counter on it." (CR 701.26a becomes-tapped trigger via the
 // tapped-trigger factory; CR 122.1 / 613.4d the -0/-2 counter rides the layer-7d
 // P/T pipeline, so the toughness drop is visible the moment the counter lands.)
 export const spiritShackle: CardDefinition = {
@@ -953,13 +953,13 @@ export const spiritShackle: CardDefinition = {
 // (CR 603.2 / 601.2i "whenever a player casts a spell") goes on the stack ABOVE
 // the cast spell, and on resolution the spell's controller MAY pay a tax
 // (CR 117.3a) — paying lets the spell remain on the stack and resolve normally,
-// declining (or being unable to pay) counters it (CR 701.5a).
+// declining (or being unable to pay) counters it (CR 701.6a).
 //
 // ZERO engine change — this is the SAME composition Force Spike already uses
 // (counter target spell unless its controller pays {1}), only fired from a
 // SPELL_CAST trigger instead of a targeted instant:
 //   spellCastTrigger (CR 601.2i) → ctx.requestMayPay (CR 117.3a, the C7
-//   pending-may-pay → submitMayPay path) → ctx.counter on decline (CR 701.5a).
+//   pending-may-pay → submitMayPay path) → ctx.counter on decline (CR 701.6a).
 // No new SpellContext primitive, no new GameState field: the pay choice rides
 // the existing `pendingChoices` may-pay queue, so serialization is untouched.
 //
@@ -979,7 +979,7 @@ export const spiritShackle: CardDefinition = {
 
 // Nether Void — {3}{B} World Enchantment. "Whenever a player casts a spell,
 // counter it unless that player pays {3}." (CR 601.2i cast trigger → CR 117.3a
-// may-pay billed to the spell's controller → CR 701.5a counter on decline.)
+// may-pay billed to the spell's controller → CR 701.6a counter on decline.)
 export const netherVoid: CardDefinition = {
     id: "2e72f8cb-5bc3-4711-9b7c-a6eea9a0beaf",
     rarity: "rare",
@@ -1007,7 +1007,7 @@ export const netherVoid: CardDefinition = {
             // targeting mechanism) for the causing spell. Stays resolve().
             resolve: (ctx, _event, spell) => {
                 // CR 117.3a — the spell's controller may pay {3} to keep it;
-                // declining (or being unable to pay) counters it (CR 701.5a).
+                // declining (or being unable to pay) counters it (CR 701.6a).
                 const paid = ctx.requestMayPay({
                     playerId: spell.casterId,
                     choiceId: `nether-void-pay-${spell.instanceId}`,

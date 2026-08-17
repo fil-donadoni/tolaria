@@ -75,7 +75,7 @@ export function countSnowLands(battlefield: readonly SupertypeView[]): number {
 
 /** True if `battlefield` contains a snow land of the given basic subtype
  *  (snow Swamp, snow Mountain, snow Forest). Used by snow landwalk
- *  (CR 702.13) and snow-subtype activation gates. */
+ *  (CR 702.14) and snow-subtype activation gates. */
 export function controlsSnowSubtype(
     battlefield: readonly SupertypeView[],
     subtype: string

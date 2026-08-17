@@ -179,7 +179,7 @@ describe("projectFullState (CR: debug contract)", () => {
     });
 });
 
-// Regression (issue #239): a `search-library` choice (CR 401.4 / 701.19)
+// Regression (issue #239): a `search-library` choice (CR 401.4 / 701.23)
 // exposes the chooser's library face-up via `librarySearch` so the picker pile
 // can open. Two failure modes are guarded here:
 //  1. In solo mode the projection's viewer must be the choice owner, not the
@@ -188,7 +188,7 @@ describe("projectFullState (CR: debug contract)", () => {
 //     chooser without its library and the dialog opens empty until a refresh.
 //  2. The full/debug projection never populated `librarySearch` at all, so the
 //     picker was broken in "show all cards" mode regardless of timing.
-describe("search-library library exposure (issue #239, CR 401.4 / 701.19)", () => {
+describe("search-library library exposure (issue #239, CR 401.4 / 701.23)", () => {
     function stateWithSearch(): GameState {
         // p2 is the chooser; priority still reads as p1 (the active player) —
         // the mid-resolution divergence that the solo viewer must resolve.

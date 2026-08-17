@@ -308,8 +308,8 @@ export const darkSuspicions: CardDefinition = {
 // Death Bomb — {3}{B} Instant. "As an additional cost to cast this spell,
 // sacrifice a creature. Destroy target nonblack creature. It can't be
 // regenerated. Its controller loses 2 life." (CR 601.2b/118.8 additional
-// sacrifice cost via `additionalCosts.sacrificeFilter`, CR 701.7/701.15c
-// destroy + can't-be-regenerated, CR 202.2 "nonblack" via `excludeColors`.)
+// sacrifice cost via `additionalCosts.sacrificeFilter`, CR 701.8 destroy / 701.19c regeneration
+// suppression, CR 202.2 "nonblack" via `excludeColors`.)
 // The life-loss reads the target's controller BEFORE the `destroy` Op runs
 // — `{ controllerOf: { target: 0 } }` (`inv/multicolor.ts`'s precedent)
 // resolves through `ctx.getController`, which throws once the permanent has
@@ -624,7 +624,7 @@ export const nightscapeBattlemage: CardDefinition = {
 // spells you cast cost {1} less to cast. {1}{B}: Regenerate this creature."
 // (CR 601.2f `cost-modifier` static effect, two-colour `appliesToSpell`
 // filter — Derelor's single-colour shape (`fem/black.ts`) widened to an OR
-// of two colours; CR 701.15/701.19 regenerate, Goham Djinn's `{1}{B}:
+// of two colours; CR 701.19/701.19 regenerate, Goham Djinn's `{1}{B}:
 // Regenerate` shape, `inv/black.ts`.)
 export const nightscapeFamiliar: CardDefinition = {
     id: "24fa6853-09b0-4c9f-a138-9dd005780255", // PLS 48
@@ -744,7 +744,7 @@ export const phyrexianScuta: CardDefinition = {
 // (`SpellContext.revealRandomHandCard`, CR 701.20a public reveal, used today
 // only from a `resolve()` closure in `tmp/colorless.ts`) but no Effect
 // Script Op wraps it. The DSL's only random-hand-card Op is `lookRandomHand`
-// — deliberately the PRIVATE CR 701.18a "look" sibling
+// — deliberately the PRIVATE CR 400.2 "look" sibling
 // (`lookRandomHandCard`, known to the looker alone); using it here for a
 // card whose Oracle text says "reveals" would be a silent CR/visibility
 // violation, not a valid substitute, and it has no `bind` to read the
@@ -833,7 +833,7 @@ export const sinisterStrength: CardDefinition = {
 };
 
 // Slay — {2}{B} Instant. "Destroy target green creature. It can't be
-// regenerated. Draw a card." (CR 701.7/701.15c destroy + can't-be-
+// regenerated. Draw a card." (CR 701.8/701.19c destroy + can't-be-
 // regenerated — Terror's shape (`lea/black.ts`) with a positive
 // `colorFilter: "G"` instead of `excludeColors`; CR 120.1 draw.)
 export const slay: CardDefinition = {

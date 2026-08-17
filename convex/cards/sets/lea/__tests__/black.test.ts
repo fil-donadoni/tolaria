@@ -217,7 +217,7 @@ describe("Dark Ritual (add {B}{B}{B}, CR 608.3 + 106.1)", () => {
     });
 });
 
-describe("Demonic Tutor (search library, put into hand, CR 701.19)", () => {
+describe("Demonic Tutor (search library, put into hand, CR 701.23)", () => {
     function commitHead(state: GameState, picks: string[]) {
         const queue = state.pendingChoices ?? [];
         const head = queue[0];
@@ -252,7 +252,7 @@ describe("Demonic Tutor (search library, put into hand, CR 701.19)", () => {
         });
     });
 
-    it("wire format: exposes library face-up to the searcher and hides it from the opponent (CR 401.4 / 701.19)", () => {
+    it("wire format: exposes library face-up to the searcher and hides it from the opponent (CR 401.4 / 701.23)", () => {
         const wanted = makeInstance(grizzlyBears.id, {
             id: "wanted",
             controllerId: "p1",
@@ -380,7 +380,7 @@ describe("Drain Life (X damage to any target, gain X life, CR 107.3 + 120.1)", (
     });
 });
 
-describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.20 + 701.7)", () => {
+describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.26 + 701.8)", () => {
     function setup() {
         const assassin = makeInstance(royalAssassin.id, {
             id: "assassin",
@@ -731,7 +731,7 @@ describe("Sengir Vampire (+1/+1 on damaged-creature death, CR 603.2)", () => {
     });
 });
 
-describe("Sinkhole (destroy target land, CR 701.7)", () => {
+describe("Sinkhole (destroy target land, CR 701.8)", () => {
     it("destroys a target Swamp and sends it to its owner's graveyard", () => {
         const land = makeInstance(swamp.id, {
             id: "p1-swamp",
@@ -849,7 +849,7 @@ describe("Black Knight (first strike + protection from white, CR 702.7 + 702.16)
     });
 });
 
-describe("Bog Wraith (swampwalk evasion, CR 702.13b)", () => {
+describe("Bog Wraith (swampwalk evasion, CR 702.14b)", () => {
     it("cannot be blocked when defending player controls a Swamp", () => {
         const wraith = makeInstance(bogWraith.id, {
             id: "wraith",
@@ -1058,7 +1058,7 @@ describe("Cursed Land (Aura on Land — 1 dmg to host's controller at upkeep)", 
     });
 });
 
-describe("Drudge Skeletons ({B}: regenerate self, CR 701.15a)", () => {
+describe("Drudge Skeletons ({B}: regenerate self, CR 701.19a)", () => {
     function setup() {
         const skel = makeInstance(drudgeSkeletons.id, {
             id: "skel",
@@ -2266,7 +2266,7 @@ describe("Lich (multi-replacement enchantment)", () => {
         expect(state.players[0].hand.length).toBe(3);
     });
 
-    it("damage to controller with enough fodder enqueues a player choice (CR 701.16)", () => {
+    it("damage to controller with enough fodder enqueues a player choice (CR 701.21)", () => {
         const lichInst = makeInstance(lich.id, {
             id: "lich",
             controllerId: "p1",
@@ -2668,7 +2668,7 @@ describe("Lord of the Pit (flying, trample, upkeep sacrifice-or-7dmg)", () => {
     });
 });
 
-describe("Terror (destroy target nonartifact, nonblack creature, CR 701.7)", () => {
+describe("Terror (destroy target nonartifact, nonblack creature, CR 701.8)", () => {
     it("destroys a non-artifact, non-black creature", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -4403,7 +4403,7 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
     });
 });
 
-describe("Deathgrip ({B}, Sacrifice: counter target green spell, CR 701.5a)", () => {
+describe("Deathgrip ({B}, Sacrifice: counter target green spell, CR 701.6a)", () => {
     it("counters a green spell on the stack", () => {
         const deathgripPerm = makeInstance(deathgrip.id, {
             id: "deathgrip",

@@ -378,7 +378,7 @@ describe("Escape capability (CR 702.138)", () => {
             ).toThrow(/card types/);
         });
 
-        it("rejects exiling the escaping card itself (CR 702.138a 'other cards')", () => {
+        it("rejects exiling the escaping card itself (CR 702.138a escape, 'other cards')", () => {
             const state = stateWithPendingExile({
                 count: 1,
                 minCardTypes: 4,

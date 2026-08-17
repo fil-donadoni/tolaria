@@ -484,7 +484,7 @@ describe("High Tide — extra {U} per Island tapped this turn (CR 614)", () => {
     });
 });
 
-describe("River Merfolk — mountainwalk grant (CR 702.13)", () => {
+describe("River Merfolk — mountainwalk grant (CR 702.14)", () => {
     it("gains mountainwalk until end of turn on activation", () => {
         const inst = makeInstance(riverMerfolk.id, {
             id: "rm",
@@ -504,7 +504,7 @@ describe("River Merfolk — mountainwalk grant (CR 702.13)", () => {
     });
 });
 
-describe("Vodalian Mage — counter-unless-pay (CR 701.5a, 117.3a)", () => {
+describe("Vodalian Mage — counter-unless-pay (CR 701.6a, 117.3a)", () => {
     it("counters the target spell unless its controller pays {1}", () => {
         const mage = makeInstance(vodalianMage.id, {
             id: "mage",
@@ -524,7 +524,7 @@ describe("Vodalian Mage — counter-unless-pay (CR 701.5a, 117.3a)", () => {
             { type: "spell", id: spell.id },
         ]);
         // The spell's controller (p2) is asked to pay {1}; declining (empty
-        // pool) counters the spell (CR 701.5a).
+        // pool) counters the spell (CR 701.6a).
         const head = state.pendingChoices?.[0];
         expect(head?.kind).toBe("may-pay");
         applyMayPaySubmit(state, { playerId: "p2", accept: false });
@@ -863,7 +863,7 @@ describe("Homarid Warrior — shroud + skip-untap dive (CR 702.18, 502.1)", () =
     });
 });
 
-describe("Homarid Shaman — tap a green creature (CR 701.21)", () => {
+describe("Homarid Shaman — tap a green creature (CR 701.21 sacrifice cost / 701.26a tap)", () => {
     it("taps the targeted green creature", () => {
         const shaman = makeInstance(homaridShaman.id, {
             id: "shaman",

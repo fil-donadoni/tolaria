@@ -10,7 +10,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // Parallax Tide — "Fading 5 (…) Remove a fade counter from this enchantment:
 // Exile target land. When this enchantment leaves the battlefield, each player
 // returns to the battlefield all cards they own exiled with it."
-// (CR 702.32 Fading; CR 701.18 exile; CR 603.7a leaves-the-battlefield.)
+// (CR 702.32 Fading; CR 701.13 exile; CR 603.7a leaves-the-battlefield.)
 //
 // The blue land-exiling half of the Parallax Wave cycle — identical structure
 // (see nem/white.ts for the full rationale), the only divergence being the
@@ -35,7 +35,7 @@ export const parallaxTide: CardDefinition = {
             cost: { removeCounter: { type: "fade", count: 1 } },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            // CR 701.18 host-only exile; ADR 0028 arms the keyed return. Op
+            // CR 701.13 host-only exile; ADR 0028 arms the keyed return. Op
             // defaults includeAttachments/returnTapped false (host-only).
             effects: [{ op: "exileWithAttachments", target: { target: 0 } }],
         },
@@ -123,7 +123,7 @@ export const dominate: CardDefinition = {
 // Daze — {1}{U} Instant. "You may return an Island you control to its owner's
 // hand rather than pay this spell's mana cost. Counter target spell unless its
 // controller pays {1}." (CR 118.9 alternative pitch cost — return an Island;
-// CR 701.24 return; CR 701.5a counter-unless-pay; CR 117.3a may-pay.)
+// CR 400.7 return; CR 701.6a counter-unless-pay; CR 117.3a may-pay.)
 //
 // The alternative cost is a censusless CR 118.9 rules concept (no keyword name):
 // the existing PERMANENT `action: "return"` leg (Gush's shape) narrowed to a
@@ -160,7 +160,7 @@ export const daze: CardDefinition = {
             bind: "$paid",
         },
         {
-            // CR 701.5a — counter unless the payment was made.
+            // CR 701.6a — counter unless the payment was made.
             op: "if",
             predicate: { not: { binding: "$paid" } },
             then: [{ op: "counter", target: { target: 0 } }],

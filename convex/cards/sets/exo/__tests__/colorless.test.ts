@@ -19,7 +19,7 @@ import {
 
 const FOREST = getCardByName("Forest").id;
 
-describe("City of Traitors (CR 603.2 triggered ability, CR 701.16 sacrifice)", () => {
+describe("City of Traitors (CR 603.2 triggered ability, CR 701.21 sacrifice)", () => {
     it("sacrifices itself when the controller plays another land", () => {
         const city = makeInstance(cityOfTraitors.id, {
             id: "city",

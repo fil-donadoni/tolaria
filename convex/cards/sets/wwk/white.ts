@@ -8,7 +8,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // Stoneforge Mystic — {1}{W} Creature. "When this creature enters, you may
 // search your library for an Equipment card, reveal it, put it into your
 // hand, then shuffle. {1}{W}, {T}: You may put an Equipment card from your
-// hand onto the battlefield." (CR 701.19 search / 400.7 / 701.20 shuffle.)
+// hand onto the battlefield." (CR 701.23 search / 400.7 / 701.24 shuffle.)
 // The ETB is a `choice`(zone: "library", filter: { subtype: "Equipment" },
 // count: { min: 0, max: 1 }) — the range makes it "you may" (issue #677) —
 // + `moveZone` to hand + shuffle. The activated ability is the hand-source

@@ -122,7 +122,7 @@ describe("Tireless Tracker — Landfall investigate (CR 603.6a / 701.16, issue #
     });
 });
 
-describe("Tireless Tracker — sacrifice-a-Clue (+1/+1 counter, CR 701.16 / 205.3, issue #1191)", () => {
+describe("Tireless Tracker — sacrifice-a-Clue (+1/+1 counter, CR 701.21 / 205.3, issue #1191)", () => {
     function setup() {
         const tracker = makeInstance(tirelessTracker.id, {
             id: "tracker",
@@ -185,7 +185,7 @@ describe("Tireless Tracker — sacrifice-a-Clue (+1/+1 counter, CR 701.16 / 205.
         expect(trig).toBeUndefined();
     });
 
-    it("does NOT fire when the Clue was destroyed, not sacrificed (CR 701.8 vs 701.16)", () => {
+    it("does NOT fire when the Clue was destroyed, not sacrificed (CR 701.8 vs 701.21)", () => {
         const { state } = setup();
         removePermanentTo(state, "clue1", "graveyard", "destroy");
         processPendingActionTriggers(state);

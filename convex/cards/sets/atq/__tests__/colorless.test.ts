@@ -369,10 +369,10 @@ describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Clay Statue — {2}: Regenerate (CR 701.15)
+// Clay Statue — {2}: Regenerate (CR 701.19)
 // ---------------------------------------------------------------------------
 
-describe("Clay Statue ({2}: regenerate, CR 701.15)", () => {
+describe("Clay Statue ({2}: regenerate, CR 701.19)", () => {
     it("stacks a regeneration shield on itself", () => {
         const statue = makeInstance(clayStatue.id, { id: "statue" });
         const state = makeState({
@@ -499,10 +499,10 @@ describe("Colossus of Sardia (trample + does-not-untap + {9} untap)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Strip Mine — {T}: add {C}; {T}, sacrifice: destroy target land (CR 305, 701.7)
+// Strip Mine — {T}: add {C}; {T}, sacrifice: destroy target land (CR 305, 701.8)
 // ---------------------------------------------------------------------------
 
-describe("Strip Mine ({T}: add C; sac: destroy target land, CR 701.7)", () => {
+describe("Strip Mine ({T}: add C; sac: destroy target land, CR 701.8)", () => {
     it("destroys a target land", () => {
         const mine = makeInstance(stripMine.id, { id: "mine" });
         const victim = makeInstance(stripMine.id, {
@@ -530,10 +530,10 @@ describe("Strip Mine ({T}: add C; sac: destroy target land, CR 701.7)", () => {
 
 // ---------------------------------------------------------------------------
 // Obelisk of Undoing — {6},{T}: return a permanent you own and control to hand
-// (CR 701.10)
+// (CR 400.7)
 // ---------------------------------------------------------------------------
 
-describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 701.10)", () => {
+describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 400.7)", () => {
     it("only the activator's own permanents are legal targets", () => {
         const obelisk = makeInstance(obeliskOfUndoing.id, { id: "obelisk" });
         const mine = makeInstance(clayStatue.id, {
@@ -628,7 +628,7 @@ describe("ATQ free-tranche #275 registration", () => {
     });
 });
 
-describe("Feldon's Cane ({T}, exile self: shuffle graveyard into library, CR 400.7 / 701.20)", () => {
+describe("Feldon's Cane ({T}, exile self: shuffle graveyard into library, CR 400.7 / 701.24)", () => {
     it("moves the controller's graveyard into the library and exiles itself", () => {
         const g1 = makeInstance(clayStatue.id, {
             id: "g1",
@@ -679,7 +679,7 @@ describe("Feldon's Cane ({T}, exile self: shuffle graveyard into library, CR 400
     });
 });
 
-describe("Millstone ({2},{T}: target player mills two, CR 701.13a)", () => {
+describe("Millstone ({2},{T}: target player mills two, CR 701.17a)", () => {
     it("moves the top two cards of the target's library to their graveyard", () => {
         const c1 = makeInstance(yotianSoldier.id, {
             id: "c1",
@@ -1897,7 +1897,7 @@ describe("game.ts playCard play-land path is summoning-sick (CR 302.6)", () => {
     });
 });
 
-// Battering Ram (CR 702.21 banding grant + blocked-by-Wall destroy)
+// Battering Ram (CR 702.22 banding grant + blocked-by-Wall destroy)
 describe("Battering Ram (banding grant + destroy blocking Wall)", () => {
     it("grants banding at the beginning of combat on your turn", () => {
         const ram = makeInstance(batteringRam.id, {
@@ -3786,7 +3786,7 @@ describe("Tetravus (token provenance link, CR 111 / 122 / 303.4)", () => {
     });
 });
 
-describe("Tawnos's Coffin (ATQ cluster K — exile-with-attachments + return, CR 701.18 / 122 / 603.7a / 502.1)", () => {
+describe("Tawnos's Coffin (ATQ cluster K — exile-with-attachments + return, CR 701.13 / 122 / 603.7a / 502.1)", () => {
     /** p1 controls Tawnos's Coffin; p2 controls `victim`, a creature with the
      *  given counters (and optionally an attached Holy Strength). Activates the
      *  coffin's exile ability targeting `victim` and returns the resolved
@@ -3975,7 +3975,7 @@ describe("Tawnos's Coffin (ATQ cluster K — exile-with-attachments + return, CR
         ).toBeUndefined();
     });
 
-    it("emits PERMANENT_UNTAPPED only on a real tapped → untapped transition (CR 701.20b)", () => {
+    it("emits PERMANENT_UNTAPPED only on a real tapped → untapped transition (CR 701.26b)", () => {
         const card = makeInstance(grizzlyBears.id, {
             id: "c",
             isTapped: true,

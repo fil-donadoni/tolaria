@@ -484,7 +484,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
         expect(getEffectiveToughness(state, buffed)).toBe(4);
     });
 
-    it("Draconian Cylix applies a regeneration shield to target creature (CR 701.15)", () => {
+    it("Draconian Cylix applies a regeneration shield to target creature (CR 701.19)", () => {
         const cylix = makeInstance(draconianCylix.id, {
             id: "cylix",
             controllerId: "p1",
@@ -508,7 +508,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
         expect(shielded.regenerationShields ?? 0).toBeGreaterThan(0);
     });
 
-    it("Delif's Cube regenerates a creature by removing a cube counter (CR 122.6/701.15)", () => {
+    it("Delif's Cube regenerates a creature by removing a cube counter (CR 122.6/701.19)", () => {
         const cube = makeInstance(delifsCube.id, {
             id: "cube",
             controllerId: "p1",

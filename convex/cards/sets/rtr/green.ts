@@ -102,7 +102,7 @@ function worldspineWurmShuffleFromGraveyard(): TriggeredAbility {
         oracleText:
             "When Worldspine Wurm is put into a graveyard from anywhere, shuffle it into its owner's library.",
         // "From anywhere" = one Oracle line spanning the FOUR engine events that
-        // partition graveyard entry: battlefield death, discard (CR 701.8), mill
+        // partition graveyard entry: battlefield death, discard (CR 701.9), mill
         // (CR 701.17) and — the residual catch-all — any other general zone move
         // into a graveyard. ONE ability listening on all four via an array
         // `event`, so the line is shown once, not four near-duplicate entries

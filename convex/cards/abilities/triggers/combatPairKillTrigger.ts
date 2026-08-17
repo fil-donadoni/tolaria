@@ -153,7 +153,7 @@ export function combatPairKill(args: CombatPairKillArgs): {
         timing: "next-end-of-combat",
         resolve: (ctx: SpellContext, payload: Record<string, string>) => {
             if (!payload.targetId) return;
-            // CR 701.7 — destroy returns true only when the creature actually
+            // CR 701.8 — destroy returns true only when the creature actually
             // moved to a graveyard (not regenerated / replaced / already gone).
             // That truth is the "destroyed this way" condition for any follow-up.
             const destroyed = ctx.destroy({

@@ -1456,7 +1456,7 @@ function isCounterDestination(value: unknown): boolean {
     );
 }
 
-/** The action of a `libraryLook` Op (issue #844, CR 701.20). Only `"shuffle"`
+/** The action of a `libraryLook` Op (issue #844, CR 701.24). Only `"shuffle"`
  *  is folded; peek/reorder are the `scryReorder` Op (issue #885). */
 function isLibraryLookAction(value: unknown): boolean {
     return value === "shuffle";
@@ -1529,7 +1529,7 @@ function isChooseCategorizedZone(value: unknown): boolean {
 /** The `onPicked` action of a `chooseCategorized` Op (issue #1945) — what
  *  happens to the members actually picked: `"keep"` leaves them exactly where
  *  they are (Noxious Vapors), `"returnToHand"` bounces them via
- *  `SpellContext.returnToHand` (Planar Overlay, CR 701.10 — battlefield
+ *  `SpellContext.returnToHand` (Planar Overlay, CR 400.7 — battlefield
  *  only, enforced by that schema's `check`). */
 function isChooseCategorizedOnPicked(value: unknown): boolean {
     return value === "keep" || value === "returnToHand";
@@ -2038,7 +2038,7 @@ function isMayPayCost(value: unknown): boolean {
             return false;
         }
         if ("permanent" in obj) {
-            // Permanent leg (CR 701.16 sacrifice / 701.24 return, ADR 0079):
+            // Permanent leg (CR 701.21 sacrifice / 400.7 return, ADR 0079):
             // all three fields are required — the nested shape is what makes an
             // orphan `count` with no `filter` unrepresentable.
             const p = obj.permanent;
@@ -2935,7 +2935,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // redirects the currently-resolving stack item. Mirrors
     // `shuffleSelfIntoLibrary`'s empty-required shape exactly.
     exileSelf: { required: {} },
-    // CR 603.7a / 701.18 / ADR 0028 — exile the announced target keyed to
+    // CR 603.7a / 701.13 / ADR 0028 — exile the announced target keyed to
     // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
     // Tawnos's Coffin). `returnTapped` returns the host tapped; `includeAttachments`
     // bundles its Auras/Equipment to travel with and return re-attached (default
@@ -3371,7 +3371,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
-    // CR 701.15 (issue #846) — stack a regeneration shield on a permanent.
+    // CR 701.19 (issue #846) — stack a regeneration shield on a permanent.
     // `target` is an object selector (announced slot, `$source`, or a forEach
     // `$each`). No amount / duration — one shield per Op, consumed by the next
     // destroy event and expiring at CLEANUP (CR 514.2 / 614.5).
@@ -3635,7 +3635,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             duration: isDurationSpec,
         },
     },
-    // CR 701.20 (issue #844) — shuffle a player's library. `action` is
+    // CR 701.24 (issue #844) — shuffle a player's library. `action` is
     // "shuffle" (the only folded library primitive); `player` names whose
     // library (controller / announced slot / forEach `$each`).
     libraryLook: {
@@ -3648,7 +3648,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // into its owner's library instead of the graveyard (Green Sun's Zenith).
     // No fields — it always redirects the currently-resolving stack item.
     shuffleSelfIntoLibrary: { required: {} },
-    // CR 401.4 / 701.22 / 701.44 (issue #885) — look at / reorder the top of a
+    // CR 401.4 / 701.22 / 701.25 (issue #885) — look at / reorder the top of a
     // library through the suspending `orderTop` primitive. `player` names whose
     // library; `count` is how many top cards to look at; `destination` is where
     // the un-kept cards go. `prompt` is an optional choice header. No `bind` —
@@ -3773,7 +3773,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // halves, since (unlike that Op) there is no fixed kept→hand/rest→bottom
     // polarity here. `check` enforces the two combinations the two shipped
     // cards actually need: `sweep` (a real CR 701.9 discard) only makes sense
-    // when the domain IS the hand, and `onPicked: "returnToHand"` (CR 701.10)
+    // when the domain IS the hand, and `onPicked: "returnToHand"` (CR 400.7)
     // only makes sense when the domain IS the battlefield (a hand card is
     // already in hand — "returning" it would be a no-op the grammar should
     // never even express).
@@ -3906,7 +3906,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             return [];
         },
     },
-    // CR 701.18a look (Urza's Bauble) — private "look at a card at random in
+    // CR 400.2 look (Urza's Bauble) — private "look at a card at random in
     // `player`'s hand". `looker` (optional) names the private looker; defaults
     // to the resolving controller (CR 113.7).
     lookRandomHand: {
@@ -4056,9 +4056,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: { player: isPlayerRef },
         optional: { cards: isBarePicksRef },
     },
-    // CR 701.5a (issue #806) — counter the target spell. `destination`
+    // CR 701.6a (issue #806) — counter the target spell. `destination`
     // (issue #683) redirects a COUNTERED SPELL to exile/library-top/hand
-    // instead of the CR 701.5a graveyard default.
+    // instead of the CR 701.6a graveyard default.
     counter: {
         required: { target: isTargetRef },
         optional: { destination: isCounterDestination },
@@ -4084,8 +4084,8 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: { predicate: isPredicate, then: isOpList },
         optional: { else: isOpList },
     },
-    // CR 701.16 (issue #807) — sacrifice the permanents a `choice` Op picked.
-    // CR 701.16 — sacrifice a `choice` Op's picks (`permanents`, the "each
+    // CR 701.21 (issue #807) — sacrifice the permanents a `choice` Op picked.
+    // CR 701.21 — sacrifice a `choice` Op's picks (`permanents`, the "each
     // player sacrifices …" forEach pattern) OR a single announced target /
     // snapshot-bound permanent (`target`, "sacrifice that/this creature" —
     // Kjeldoran Elite Guard, Phantasmal Mount, issue #731). Exactly one form.

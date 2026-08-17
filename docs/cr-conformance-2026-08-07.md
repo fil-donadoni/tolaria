@@ -529,7 +529,7 @@ unreachable.
 The clauses the engine does implement are at
 `removePermanentFromCombat` (`convex/gre/state.ts:7317-7340`, control change),
 `convex/gre/state.ts:7959` / `:8031` (regeneration), and
-`convex/gre/banding.ts:217` (CR 701.20 + 506.4). The doc comment at
+`convex/gre/banding.ts:217` (CR 701.26 untap + 506.4). The doc comment at
 `convex/gre/state.ts:7301-7316` records one accepted simplification — "CR 506.4d's
 cascading un-block of a removed attacker's blockers is rare and out of scope" —
 which is not part of this revision's delta and is therefore not this audit's

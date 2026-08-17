@@ -8,7 +8,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 // counters on it. {1}, {T}, Remove a wish counter from this artifact: Search
 // your library for a card, put it into your hand, then shuffle. An opponent
 // gains control of this artifact. Activate only during your turn." (CR 122
-// counters / 701.19 search / 400.7 / 701.20 shuffle / 613.1b control change.)
+// counters / 701.19 search / 400.7 / 701.24 shuffle / 613.1b control change.)
 // The entry counters are a REPLACEMENT effect (CR 121.6 / 614.1c, issue
 // #1693): `entersWith.counters`, applied as the artifact enters, so the three
 // wish counters are already on it the first instant it is on the battlefield

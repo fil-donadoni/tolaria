@@ -220,7 +220,7 @@ describe("Abu Ja'far (dies → destroy combat partners; no regen; CR 603.2/603.1
             creatureToughness: 1,
             combatPartnerIds: ["partner"],
         } as StackItem["triggerEvent"]);
-        // cantBeRegenerated suppressed the shield (CR 701.15c).
+        // cantBeRegenerated suppressed the shield (CR 701.19c).
         expect(state.players[1].graveyard.some((c) => c.id === "partner")).toBe(
             true
         );

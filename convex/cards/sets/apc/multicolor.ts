@@ -5,7 +5,7 @@
 import type { CardDefinition } from "../../types";
 import { PERMANENT_TYPES } from "../../types";
 
-// Vindicate — "Destroy target permanent." (CR 701.7 destroy.) `type: "any"`
+// Vindicate — "Destroy target permanent." (CR 701.8 destroy.) `type: "any"`
 // matches only the CR 115.4 damageable types (creature/planeswalker/battle/
 // player); "target permanent" of any type uses the full CR 300.1 permanent-type
 // set (incl. Land) instead.

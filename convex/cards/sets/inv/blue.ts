@@ -165,7 +165,7 @@ export const empressGalina: CardDefinition = {
 };
 
 // Exclude — {2}{U} Instant. "Counter target creature spell. Draw a card."
-// (CR 701.5a + CR 121.1, the shipped creature-counter template — leg/blue.ts
+// (CR 701.6a + CR 121.1, the shipped creature-counter template — leg/blue.ts
 // Dissipate-style precedent.)
 export const exclude: CardDefinition = {
     id: "aeb359c8-209c-455f-84b2-970e5678a9fa",
@@ -674,7 +674,7 @@ export const worldlyCounsel: CardDefinition = {
 
 // Fact or Fiction — {3}{U} Instant. "Reveal the top five cards of your
 // library. An opponent separates those cards into two piles. Put one pile
-// into your hand and the other into your graveyard." (CR 701.16 reveal,
+// into your hand and the other into your graveyard." (CR 701.20 reveal,
 // ADR 0053 pile division, issue #1067.) The marquee pile-division card: the
 // object set is a PUBLIC reveal of the caster's own top 5 library cards
 // (`{ set: "library-top" }`, which marks them known to all — the opponent's

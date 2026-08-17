@@ -7,7 +7,7 @@
 //   1. `emitLibrarySearchedEvent` / `applyPendingChoiceSubmit` — a
 //      `search-library` PendingChoice commit emits ONE `LIBRARY_SEARCHED`
 //      pendingEvent, regardless of DSL-vs-resolve() authoring and
-//      regardless of whether the search finds anything (CR 701.19a — the
+//      regardless of whether the search finds anything (CR 701.23a — the
 //      ACT of searching is what matters, not the result).
 //   2. `librarySearchedTrigger` — the declarative factory building a
 //      TriggeredAbility off that event — fires end-to-end through the
@@ -347,7 +347,7 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
         expect(getPlayer(state, "p1").life).toBe(21);
     });
 
-    it("fires on a 0-pick 'whiff' search (CR 701.19a — the act of searching is what matters, not the result)", () => {
+    it("fires on a 0-pick 'whiff' search (CR 701.23a — the act of searching is what matters, not the result)", () => {
         const watcher = makeInstance(WATCHER_OPPONENTS_ID, {
             id: "watcher-opp-2",
             controllerId: "p1",
@@ -405,7 +405,7 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
     // Bugfix regression (issue #788 post-review): a Jester's Cap / Jester's
     // Mask / Lobotomy-shaped search has the CASTER search a DIFFERENT
     // player's library ("search TARGET PLAYER's library"). That is NOT "an
-    // opponent searches their [own] library" for CR 701.19a purposes, so it
+    // opponent searches their [own] library" for CR 701.23a purposes, so it
     // must never satisfy ANY `librarySearchedTrigger` scope — the exact bug
     // this test locks down: p1 casting a cross-library tutor at p2 used to
     // fire p1's OWN "opponents"-scope watcher (a free trigger off a search
@@ -547,7 +547,7 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
 // Bugfix regression (issue #788 PR #1987 re-review finding 1): `search-library`
 // is an OVERLOADED PendingChoice kind. Expressive Iteration (stx/multicolor.ts)
 // and Diabolic Vision (ice/multicolor.ts) both reuse it for a "look at the top
-// N, pick one" prompt — NOT a CR 701.19a search, which requires looking at the
+// N, pick one" prompt — NOT a CR 701.23a search, which requires looking at the
 // WHOLE zone. Before the `isSearch` discriminator, `applyPendingChoiceSubmit`
 // gated the `LIBRARY_SEARCHED` emit on `kind === "search-library"` alone, so
 // casting either card fired a false event — a `librarySearchedTrigger` watcher

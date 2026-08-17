@@ -9,7 +9,7 @@ import { TREASURE_TOKEN } from "../../sharedTokens";
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
 // Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage
 // to target creature or planeswalker." (CR 118.9 alternative pitch cost —
-// sacrifice a Mountain, gated on the your-turn condition; CR 701.16 sacrifice;
+// sacrifice a Mountain, gated on the your-turn condition; CR 701.21 sacrifice;
 // CR 120.1 damage.)
 //
 // The alternative cost is a censusless CR 118.9 rules concept (no keyword name):

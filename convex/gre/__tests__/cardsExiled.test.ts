@@ -149,7 +149,7 @@ describe("CARDS_EXILED emission (issue #1558, CR 400.1 / 603.3b / 608.2i)", () =
         expect(cardsExiledEvents(flushPendingEvents(state))).toHaveLength(0);
     });
 
-    it("exileWithAttachments batches a host + its Aura into ONE CARDS_EXILED event (CR 701.18)", () => {
+    it("exileWithAttachments batches a host + its Aura into ONE CARDS_EXILED event (CR 701.13)", () => {
         const host: CardInstanceState = {
             id: "host",
             card: { id: "def-host" },

@@ -120,7 +120,7 @@ export const blackKnight: CardDefinition = {
     staticAbilities: knightStaticAbilities("white"),
 };
 
-// Bog Wraith — swampwalk (landwalk keyword, CR 702.13b). Enforced at
+// Bog Wraith — swampwalk (landwalk keyword, CR 702.14b). Enforced at
 // blocker-assignment time by validateBlockerEligibility in gre/combat.ts.
 export const bogWraith: CardDefinition = {
     id: "6701874e-986e-4b81-9268-90b6171e6187",
@@ -244,7 +244,7 @@ export const deathlace: CardDefinition = makeLace({
 
 // Demonic Hordes — "{T}: Destroy target land. At the beginning of your
 // upkeep, unless you pay {B}{B}{B}, tap this creature and sacrifice a land
-// of an opponent's choice." (CR 701.6 destroy, CR 603.6a phase trigger,
+// of an opponent's choice." (CR 701.8 destroy, CR 603.6a phase trigger,
 // CR 117.3a optional cost.) The novel piece is the cross-player choice on
 // decline: the OPPONENT picks which of the controller's lands to sacrifice.
 // Implemented via `requestChoice` with `zoneOwnerId: ctx.controller` —
@@ -322,7 +322,7 @@ export const demonicHordes: CardDefinition = {
 };
 
 // Demonic Tutor — "Search your library for a card, then shuffle and put that
-// card on top." (CR 701.19 for search, CR 701.20 for shuffle). Modern oracle
+// card on top." (CR 701.23 for search, CR 701.24 for shuffle). Modern oracle
 // simplifies to "Search your library for a card, put it into your hand, then
 // shuffle." Effect Script: search-library choice (count=1), then move the
 // picked card into the caster's hand, then shuffle. (Comment deliberately
@@ -406,7 +406,7 @@ export const drainLife: CardDefinition = {
     ],
 };
 
-// Drudge Skeletons — "{B}: Regenerate Drudge Skeletons." (CR 701.15a regen,
+// Drudge Skeletons — "{B}: Regenerate Drudge Skeletons." (CR 701.19a regen,
 // 614.5 destroy replacement). Self-targeting via `ctx.sourceInstanceId`, no
 // targetRequirement on the activated ability.
 export const drudgeSkeletons: CardDefinition = {
@@ -427,7 +427,7 @@ export const drudgeSkeletons: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -559,7 +559,7 @@ export const howlFromBeyond: CardDefinition = {
 };
 
 // Hypnotic Specter — CR 603 triggered ability on combat/spell damage to an
-// opponent. The random discard uses the game's seeded PRNG (CR 701.8a).
+// opponent. The random discard uses the game's seeded PRNG (CR 701.9a).
 export const hypnoticSpecter: CardDefinition = {
     id: "b43b900f-2d9b-442b-9699-058483604ec9",
     rarity: "uncommon",
@@ -602,14 +602,14 @@ export const hypnoticSpecter: CardDefinition = {
 //   4. Damage trigger (CR 603): "whenever you're dealt damage, sacrifice
 //      that many nontoken permanents. If you can't, you lose the game."
 //      Counts non-token permanents controlled by Lich's controller
-//      (excluding Lich itself, CR 701.16) and sacrifices that many; falls
+//      (excluding Lich itself, CR 701.21) and sacrifices that many; falls
 //      back to a forced loss via `ctx.loseGame` when the supply runs out.
 //   5. LTB trigger (CR 603): when Lich is put into a graveyard from the
 //      battlefield, controller loses the game outright. Fires after Lich
 //      has left play so its own lose-game replacement no longer protects.
 //
 // Scope notes: the sacrifice choice is deterministic (battlefield-order
-// non-token, non-Lich) rather than player-driven — CR 701.16 says the
+// non-token, non-Lich) rather than player-driven — CR 701.21 says the
 // controller picks, but mid-trigger choice requires a richer pendingChoices
 // integration than this wave. Documented limitation.
 export const lich: CardDefinition = {
@@ -653,7 +653,7 @@ export const lich: CardDefinition = {
             resolve: (ctx, _event, damage) => {
                 const amount = damage.amount;
                 if (amount <= 0) return;
-                // CR 701.16 — controller picks. Filter to nontoken permanents
+                // CR 701.21 — controller picks. Filter to nontoken permanents
                 // other than Lich itself (avoids self-sacrifice forcing the
                 // LTB-lose trigger to fire spuriously).
                 const filter = {
@@ -671,7 +671,7 @@ export const lich: CardDefinition = {
                     ctx.loseGame(ctx.controller);
                     return;
                 }
-                // CR 701.16 player choice — directly pick N permanents to
+                // CR 701.21 player choice — directly pick N permanents to
                 // sacrifice. If candidates equal `amount` exactly, there is
                 // no meaningful pick: sac all without prompting (saves a
                 // round-trip on an empty choice).
@@ -1103,7 +1103,7 @@ export const pestilence: CardDefinition = {
                       )
                     : true,
             // Migrated resolve()→effects[] (ADR 0045): self-sacrifice via the
-            // implicit $source (CR 701.16).
+            // implicit $source (CR 701.21).
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
@@ -1200,8 +1200,8 @@ export const raiseDead: CardDefinition = {
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
 };
 
-// Royal Assassin — "{T}: Destroy target tapped creature." (CR 701.20 for
-// tap-state, CR 701.7 for destroy). The tappedFilter on TargetRequirement
+// Royal Assassin — "{T}: Destroy target tapped creature." (CR 701.26 for
+// tap-state, CR 701.8 for destroy). The tappedFilter on TargetRequirement
 // enforces legality at activation (CR 602.2b); the resolve re-checks at
 // resolution (CR 608.2b) so an opposing Twiddle-style untap fizzles this.
 export const royalAssassin: CardDefinition = {
@@ -1283,7 +1283,7 @@ export const scatheZombies: CardDefinition = {
 // Scavenging Ghoul — "At the beginning of each end step, put a corpse counter
 // on this creature for each creature that died this turn. / Remove a corpse
 // counter from this creature: Regenerate this creature." (CR 603.6a end-step
-// trigger, CR 122.1 counter, CR 701.15a regenerate). The deaths-this-turn
+// trigger, CR 122.1 counter, CR 701.19a regenerate). The deaths-this-turn
 // tally is maintained on `GameState.deathsThisTurn` and reset on advanceTurn.
 export const scavengingGhoul: CardDefinition = {
     id: "426984e0-88e1-4a2d-9a1c-798b95864df3",
@@ -1328,7 +1328,7 @@ export const scavengingGhoul: CardDefinition = {
             cost: { removeCounter: { type: "corpse", count: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -1407,7 +1407,7 @@ export const simulacrum: CardDefinition = {
     },
 };
 
-// Sinkhole — "Destroy target land." (CR 701.7). Targeting uses the generic
+// Sinkhole — "Destroy target land." (CR 701.8). Targeting uses the generic
 // Land type filter; resolution delegates to the shared destroy primitive.
 export const sinkhole: CardDefinition = {
     id: "04b31611-9053-4eaf-b392-21bb644fef5f",
@@ -1461,7 +1461,7 @@ export const wallOfBone: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -1542,7 +1542,7 @@ export const willOTheWisp: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -1840,14 +1840,14 @@ export const zombieMaster: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): the granted
-            // self-regenerate shield on the bearer (CR 701.15a) via $source.
+            // self-regenerate shield on the bearer (CR 701.19a) via $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
 
 // Terror — {1}{B} Instant. "Destroy target nonartifact, nonblack creature.
-// It can't be regenerated." (CR 701.7, 701.15c, 202.2, 205)
+// It can't be regenerated." (CR 701.8, 701.19c, 202.2, 205)
 export const terror: CardDefinition = {
     id: "21004958-2c7e-4a55-bc80-411c4d780106",
     rarity: "common",

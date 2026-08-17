@@ -141,7 +141,7 @@ export const blizzard: CardDefinition = {
     ],
 };
 // Brown Ouphe — {G} 1/1 Ouphe with "{1}{G}, {T}: Counter target activated
-// ability from an artifact source." (CR 701.5a counter of an ability, CR 113.7a
+// ability from an artifact source." (CR 701.6a counter of an ability, CR 113.7a
 // source, CR 605.3a mana abilities never use the stack.) Reuses the shipped
 // `counter` Op — `ctx.counter` already vanishes an activated ability on the
 // stack (CR 113.7a). The filter is a stack-object target restriction:
@@ -235,7 +235,7 @@ export const chubToad: CardDefinition = {
     ],
 };
 // Dire Wolves — {2}{G} 2/2 Wolf. "This creature has banding as long as you
-// control a Plains." (CR 702.21 banding; `gre/banding.ts` reads the keyword from
+// control a Plains." (CR 702.22 banding; `gre/banding.ts` reads the keyword from
 // `staticAbilities`.)
 //
 // SIMPLIFICATION (flagged, no engine change): the "as long as you control a
@@ -314,7 +314,7 @@ export const earthlore: CardDefinition = {
     ],
 };
 // Elder Druid — {3}{G} 2/2. "{3}{G}, {T}: You may tap or untap target artifact,
-// creature, or land." (CR 605 activated ability; CR 701.20a tap/untap.) The
+// creature, or land." (CR 605 activated ability; CR 701.26a tap/untap.) The
 // "tap or untap" choice is offered via `requestOptionChoice` at resolution — a
 // genuine tactical branch (CR 608.2). The "you may" permits choosing neither,
 // but with both branches always legal the engine auto-resolves to a real pick;
@@ -344,7 +344,7 @@ export const elderDruid: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, issue #849): the "tap or
             // untap" pick is the `optionChoice` Op — two modes over the
-            // announced target (CR 701.20a), preserving the "tap" / "untap"
+            // announced target (CR 701.26a), preserving the "tap" / "untap"
             // option ids. The "you may" auto-resolves to a real pick (declining
             // is equivalent to the no-op direction), so two modes suffice.
             effects: [
@@ -382,7 +382,7 @@ export const elderDruid: CardDefinition = {
 };
 // Essence Filter — {1}{G}{G} Sorcery. "Destroy all enchantments or all nonwhite
 // enchantments." (CR 700.2 modal — "or" between two mass-destroy effects; CR
-// 701.7 destroy.) Two `modes`, each a mass forEach+destroy over every
+// 701.8 destroy.) Two `modes`, each a mass forEach+destroy over every
 // battlefield's Enchantments (the nonwhite mode adds `excludeColor: "W"` to
 // the filter — CR 105.2, the Day of Judgment shape widened with a colour
 // exclusion instead of `ctx.getColors`).
@@ -627,7 +627,7 @@ export const forgottenLore: CardDefinition = {
 };
 // Foxfire — {2}{G} Instant. "Untap target attacking creature. Prevent all
 // combat damage that would be dealt to and dealt by that creature this turn"
-// (CR 701.20 untap; CR 615 two-way combat-damage shield, via
+// (CR 701.26 untap; CR 615 two-way combat-damage shield, via
 // `preventAllCombatDamageToAndBy` — Ebony Horse pattern) plus the next-upkeep
 // cantrip rider.
 export const foxfire: CardDefinition = {
@@ -765,7 +765,7 @@ export const freyalisesCharm: CardDefinition = {
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #839): return the source
             // permanent to its owner's hand via the implicit $source binding
-            // (CR 701.10 / 400.7).
+            // (CR 400.7).
             effects: [
                 { op: "moveZone", target: { ref: "$source" }, to: "hand" },
             ],
@@ -777,7 +777,7 @@ export const freyalisesCharm: CardDefinition = {
 //   "Whenever a permanent becomes tapped, put a wind counter on it.
 //    If a permanent with a wind counter on it would untap during its
 //    controller's untap step, remove all wind counters from it instead."
-// 1. CR 701.20a / 603 — the tap half is a `tappedTrigger` with `scope: "any"`
+// 1. CR 701.26a / 603 — the tap half is a `tappedTrigger` with `scope: "any"`
 //    (any permanent, any controller) that adds a `wind` counter (CR 122.1) to
 //    the tapped permanent.
 // 2. CR 614.6 — the untap half is the engine seam in `untapStep`
@@ -798,7 +798,7 @@ export const freyalisesWinds: CardDefinition = {
             id: "freyalises-winds-tapped",
             oracleText:
                 "Whenever a permanent becomes tapped, put a wind counter on it.",
-            // CR 701.20a — any permanent becoming tapped, regardless of
+            // CR 701.26a — any permanent becoming tapped, regardless of
             // controller (including a tap for mana — no `forMana` gate).
             scope: "any",
             // NOT DSL-migratable (ADR 0045): `tappedTrigger` now HAS an
@@ -860,7 +860,7 @@ export const freyalisesWinds: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Fyndhorn Brownie — "{2}{G}, {T}: Untap target creature." (CR 605 activated
-// ability; CR 701.20a untap. The Twiddle-on-a-stick untap, scoped to creatures.)
+// ability; CR 701.26a untap. The Twiddle-on-a-stick untap, scoped to creatures.)
 export const fyndhornBrownie: CardDefinition = {
     id: "06204e82-9dfd-4334-a23a-f8240fc37772",
     name: "Fyndhorn Brownie",
@@ -981,7 +981,7 @@ export const gorillaPack: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045): stateTrigger's
             // effects[] site binds `$source`; sacrifice the triggering
-            // permanent itself (CR 701.16a).
+            // permanent itself (CR 701.21a).
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
@@ -1105,7 +1105,7 @@ export const johtullWurm: CardDefinition = {
     ],
 };
 // Juniper Order Druid — "{T}: Untap target land." (CR 605 activated ability;
-// CR 701.20a untap, scoped to lands.)
+// CR 701.26a untap, scoped to lands.)
 export const juniperOrderDruid: CardDefinition = {
     id: "cb211704-ff8e-498b-b7bb-f8384f198ffd",
     name: "Juniper Order Druid",
@@ -1174,8 +1174,8 @@ export const lureIce: CardPrint = {
     rarity: "uncommon",
 };
 // Nature's Lore — "Search your library for a Forest card, put that card onto the
-// battlefield, then shuffle." (CR 701.19 search; CR 400.7 put onto battlefield;
-// CR 701.20 shuffle.) A library search restricted to Forest cards, then put
+// battlefield, then shuffle." (CR 701.23 search; CR 400.7 put onto battlefield;
+// CR 701.24 shuffle.) A library search restricted to Forest cards, then put
 // onto the battlefield and shuffle — the Natural Order (vis/green.ts) shape.
 //
 // Migrated resolve()→effects[] (ADR 0045): `choice(kind:"search-library",
@@ -1212,7 +1212,7 @@ export const naturesLore: CardDefinition = {
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
 };
-// Pale Bears — {2}{G} 2/2 with islandwalk (CR 702.18 landwalk evasion).
+// Pale Bears — {2}{G} 2/2 with islandwalk (CR 702.14 landwalk evasion).
 export const paleBears: CardDefinition = {
     id: "7f19c2a3-6403-4a78-bf45-6e339578d673",
     name: "Pale Bears",
@@ -1226,7 +1226,7 @@ export const paleBears: CardDefinition = {
     toughness: 2,
     staticAbilities: ["islandwalk"],
 };
-// Pygmy Allosaurus — {2}{G} 2/2 with swampwalk (CR 702.18 landwalk evasion).
+// Pygmy Allosaurus — {2}{G} 2/2 with swampwalk (CR 702.14 landwalk evasion).
 export const pygmyAllosaurus: CardDefinition = {
     id: "88a68767-9822-4f15-895e-32164e2159be",
     name: "Pygmy Allosaurus",
@@ -1284,7 +1284,7 @@ export const regenerationIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// Rime Dryad — snow forestwalk (CR 702.13 / 205.4a): can't be blocked while the
+// Rime Dryad — snow forestwalk (CR 702.14 / 205.4a): can't be blocked while the
 // defending player controls a snow Forest. The `snow forestwalk` keyword is
 // enforced by the combat registry's `LANDWALK_SNOW_RULES`
 // (`controlsSnowSubtype(..., "Forest")`).
@@ -1494,7 +1494,7 @@ export const tarpan: CardDefinition = {
     ],
 };
 // Thermokarst — {1}{G}{G} Sorcery. "Destroy target land. If that land was a snow
-// land, you gain 1 life." (CR 701.7 destroy.)
+// land, you gain 1 life." (CR 701.8 destroy.)
 //
 // SIMPLIFICATION (flagged, no engine change): the "if that land was a snow land,
 // you gain 1 life" rider degrades to a no-op — the ICE pool ships NO snow-
@@ -1662,7 +1662,7 @@ export const trailblazer: CardDefinition = {
 // Venomous Breath — {3}{G} Instant. "Choose target creature. At this turn's next
 // end of combat, destroy all creatures that blocked or were blocked by it this
 // turn." (CR 509.1h combat pairing; CR 603.7a delayed end-of-combat destroy;
-// CR 701.7 destroy.)
+// CR 701.8 destroy.)
 //
 // DSL-migrated (ADR 0045/0049, issue #866): the delayed capture is now a
 // LIST-valued `delayedTrigger` capture. `{ select: { set: "combatPartners",
@@ -1706,7 +1706,7 @@ export const venomousBreath: CardDefinition = {
     ],
 };
 // Wall of Pine Needles — 3/3 Wall with Defender and "{G}: Regenerate this
-// creature." (CR 702.3 defender; CR 605 activated ability; CR 701.15
+// creature." (CR 702.3 defender; CR 605 activated ability; CR 701.19
 // regeneration shield.)
 export const wallOfPineNeedles: CardDefinition = {
     id: "5d879923-55fc-46ab-9306-5e1f10441c89",
@@ -1727,7 +1727,7 @@ export const wallOfPineNeedles: CardDefinition = {
             cost: { mana: { G: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -1964,8 +1964,8 @@ export const woollySpider: CardDefinition = {
         },
     ],
 };
-// Yavimaya Gnats — 0/1 flier with "{G}: Regenerate this creature." (CR 702.9
-// flying; CR 605 activated ability; CR 701.15 regeneration shield.)
+// Yavimaya Gnats — 0/1 flier with "{G}: Regenerate this creature." (CR 702.9 flying
+// CR 605 activated ability; CR 701.19 regeneration shield.)
 export const yavimayaGnats: CardDefinition = {
     id: "9d8b7020-ca8f-4867-bc51-13d824daf154",
     name: "Yavimaya Gnats",
@@ -1984,7 +1984,7 @@ export const yavimayaGnats: CardDefinition = {
             cost: { mana: { G: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],

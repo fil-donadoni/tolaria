@@ -120,8 +120,8 @@ describe("Overload (Kicker {2}, CR 702.33 / 202.3)", () => {
 });
 
 // Obliterate — "This spell can't be countered. Destroy all artifacts,
-// creatures, and lands. They can't be regenerated." (CR 113.6g, 701.7,
-// 701.15c, issue #1065). Same NOT-DSL-migratable shape as Wrath of God /
+// creatures, and lands. They can't be regenerated." (CR 113.6g, 701.8,
+// 701.19c, issue #1065). Same NOT-DSL-migratable shape as Wrath of God /
 // Damnation / Jokulhaups (destroyAll + cantBeRegenerated); the card-specific
 // assertion here is the artifact+creature+LAND scope and the regen-shield
 // bypass. The can't-be-countered MECHANISM itself is proven generically in
@@ -134,7 +134,7 @@ registerTokenDefinition({
     manaCost: { X: 1 },
     types: ["Artifact"],
 });
-describe("Obliterate (CR 113.6g can't-be-countered, 701.7 destroy, 701.15c regen suppression)", () => {
+describe("Obliterate (CR 113.6g can't-be-countered, 701.8 destroy, 701.19c regen suppression)", () => {
     it("destroys every artifact, creature, and land on both battlefields", () => {
         const artifact = makeInstance(TEST_ARTIFACT_ID, {
             id: "artifact",
@@ -1461,7 +1461,7 @@ describe("Loafing Giant — attack/block mill, land ⇒ source-scoped combat shi
     });
 });
 
-describe("Scorching Lava — kicked rider: regen lock + exile-on-death (CR 702.33 / 701.15c / 614.1a)", () => {
+describe("Scorching Lava — kicked rider: regen lock + exile-on-death (CR 702.33 / 701.19c / 614.1a)", () => {
     function cast(kicked: boolean, target: TargetSelection) {
         const victim = makeInstance(GREEN_5_5, {
             controllerId: "p2",

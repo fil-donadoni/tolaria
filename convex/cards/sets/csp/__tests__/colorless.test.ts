@@ -67,7 +67,7 @@ describe("Mishra's Bauble (free sac + next-upkeep cantrip, CR 603.7d)", () => {
         expect((state.delayedTriggers ?? []).length).toBeGreaterThan(0);
     });
 
-    it("reveals the looked-at top card to the controller as persistent knowledge (CR 701.18a, ADR 0026), surviving the wire projection", () => {
+    it("reveals the looked-at top card to the controller as persistent knowledge (CR 400.2, ADR 0026), surviving the wire projection", () => {
         const bauble = makeInstance(mishrasBauble.id, {
             id: "bauble",
             controllerId: "p1",

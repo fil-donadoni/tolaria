@@ -113,7 +113,7 @@ export type BladeSetupStep =
      *  legality check and every cost is the one a live game applies (CR 602).
      *  The ability ends up on the stack UNRESOLVED; pair it with a
      *  `resolve-top` step to reach the decision its resolution opens (a
-     *  fetchland's live search-library choice, CR 701.19).
+     *  fetchland's live search-library choice, CR 701.23).
      *
      *  `ability` names the ability id and may be omitted when the card has
      *  exactly one stack-using activated ability. Throws when the name matches

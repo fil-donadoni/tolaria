@@ -223,7 +223,7 @@ export const mossMonster: CardDefinition = {
     toughness: 6,
 };
 
-// Cat Warriors — forestwalk (CR 702.19 landwalk variant).
+// Cat Warriors — forestwalk (CR 702.14 landwalk variant).
 export const catWarriors: CardDefinition = {
     id: "d2187a64-2823-4f58-ad35-70f8913db2dc",
     rarity: "common",
@@ -291,7 +291,7 @@ export const elvenRiders: CardDefinition = {
 // --- pt-cda creatures (CR 604.3 — characteristic-defining P/T) -------------
 
 // Rabid Wombat — Vigilance; "This creature gets +2/+2 for each Aura attached to
-// it." (CR 702.21 vigilance + a `pt-cda` that counts Auras attached to the
+// it." (CR 702.20 vigilance + a `pt-cda` that counts Auras attached to the
 // source at stat-read time, added on top of its base 0/1.)
 export const rabidWombat: CardDefinition = {
     id: "9d9b9eb8-6367-4ab5-8e00-a9c9e1d69032",
@@ -557,7 +557,7 @@ export const typhoon: CardDefinition = {
 // --- Combat tricks (CR 611.1) ----------------------------------------------
 
 // Winter Blast — "Tap X target creatures. Winter Blast deals 2 damage to each
-// of those creatures with flying." (CR 107.3 X chosen on cast → CR 701.20a tap
+// of those creatures with flying." (CR 107.3 X chosen on cast → CR 701.26a tap
 // of each target → CR 120.1 damage gated on flying, snapshot at resolution.)
 export const winterBlast: CardDefinition = {
     id: "fb846366-2105-4999-8af1-a11687f42e17",
@@ -760,7 +760,7 @@ export const shelkinBrownie: CardDefinition = {
 // has a pupa counter; each upkeep remove a pupa counter, and if none remain to
 // remove, sacrifice the Aura, put a +1/+1 counter on the host, and the host
 // gains flying. CR 122 (counters on the Aura itself), CR 502.1 untap skip,
-// CR 701.16 sacrifice, CR 613.1b/6 flying grant.
+// CR 701.21 sacrifice, CR 613.1b/6 flying grant.
 export const cocoon: CardDefinition = {
     id: "a82c87b1-de37-4423-a1a4-533a1d8108b2",
     rarity: "uncommon",

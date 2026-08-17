@@ -1003,7 +1003,7 @@ describe("spell resolution: Ancestral Recall", () => {
     });
 });
 
-describe("regenerateOrDestroy (CR 614.5, 701.15a, 702.12)", () => {
+describe("regenerateOrDestroy (CR 614.5, 701.19a, 702.12)", () => {
     function setup(
         opts: {
             staticAbilities?: string[];
@@ -1500,7 +1500,7 @@ describe("moveCardById grants knowledge on a public→hidden move (issue #1721)"
     // and never proved the clearing assertion was reached through a real
     // card path. Drive the actual `SpellContext.shuffleLibrary` primitive
     // instead (state.ts: seededShuffle + clearKnowledge).
-    it("a later real shuffle still clears the stamped knowledge for everyone (CR 701.20 regression)", () => {
+    it("a later real shuffle still clears the stamped knowledge for everyone (CR 701.24 regression)", () => {
         const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
         const player = makePlayer({ id: "p1", graveyard });
         const state = makeGameState({

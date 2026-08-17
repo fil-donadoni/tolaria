@@ -213,7 +213,7 @@ export function causedByOpponent(
 }
 
 /** CR 603.4 `condition` helper (issue #1191): true when this departure was a
- *  SACRIFICE (CR 701.16), as opposed to destruction, bounce, mill, or any
+ *  SACRIFICE (CR 701.21), as opposed to destruction, bounce, mill, or any
  *  other exit. Combine with `scope: "yours"` + `filter: { subtypes: "..." }`
  *  for the general "whenever you sacrifice a <subtype>" shape (Tireless
  *  Tracker's "whenever you sacrifice a Clue"; reusable by any future

@@ -5,7 +5,7 @@
 // identity keys — plus the three traversal seams (`decidingPlayer`,
 // `enumerateMoves`, `applyMoveInSearch`) for the yes/no family and the
 // modal `option-pick` generator (issue #1428) and the `search-library`
-// fetch/tutor generator (CR 701.19, issue #1429).
+// fetch/tutor generator (CR 701.23, issue #1429).
 
 import { describe, it, expect, afterEach, vi } from "vitest";
 import type { GameState, PendingChoice } from "../state";
@@ -118,7 +118,7 @@ function stateWithChoice(
 
 /** p1 owns a library of `libraryDefIds` (instance ids `<prefix>-<i>`) and
  *  `landsInPlay` Forests on the battlefield, with a head `search-library`
- *  pending choice (CR 701.19). */
+ *  pending choice (CR 701.23). */
 function stateWithLibrarySearch(
     libraryDefIds: string[],
     choice: Partial<PendingChoice> = {},
@@ -761,7 +761,7 @@ describe("option-pick playout: searchWithTrace picks a sensible mode (issue #142
     });
 });
 
-describe("search-library generator (CR 701.19 — fetchlands / tutors, issue #1429)", () => {
+describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #1429)", () => {
     it("collapses the pool to DISTINCT card identities, keyed by name", () => {
         // Four Forests are ONE decision ("fetch a Forest"), not four.
         const state = stateWithLibrarySearch([
@@ -835,7 +835,7 @@ describe("search-library generator (CR 701.19 — fetchlands / tutors, issue #14
         });
     });
 
-    it("CR 701.19c: 'fail to find' is a branch only when the count admits it", () => {
+    it("CR 701.23b: 'fail to find' is a branch only when the count admits it", () => {
         const may = stateWithLibrarySearch([forest.id], {
             count: { min: 0, max: 1 },
         });

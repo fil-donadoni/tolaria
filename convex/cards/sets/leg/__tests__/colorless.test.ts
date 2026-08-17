@@ -474,7 +474,7 @@ describe("Planar Gate (creature spells you cast cost {2} less, CR 601.2f)", () =
     });
 });
 
-describe("Relic Barrier ({T}: Tap target artifact, CR 701.20)", () => {
+describe("Relic Barrier ({T}: Tap target artifact, CR 701.26)", () => {
     it("taps the target artifact", () => {
         const barrier = makeInstance(relicBarrier.id, { id: "barrier" });
         const otherArtifact = makeInstance(manaMatrix.id, { id: "other" });
@@ -878,7 +878,7 @@ describe("The Tabernacle at Pendrell Vale (CR 113.1 triggered-grant + CR 603.6a 
         expect(state.players[0].manaPool.C).toBe(0);
     });
 
-    it("backend integration: declining destroys the creature (CR 701.7)", () => {
+    it("backend integration: declining destroys the creature (CR 701.8)", () => {
         const { state } = withTabernacle("p1");
         state.stack.push(...collectTriggers(state, [UPKEEP_C7("p1") as never]));
         expect(resolveTopOfStack(state)).toBeNull();

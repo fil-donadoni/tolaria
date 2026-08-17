@@ -21,7 +21,7 @@ const libFor = (owner: string, ids: string[]) =>
         })
     );
 
-describe("Thought Scour (target mills two, draw one; CR 701.13a / 121.1)", () => {
+describe("Thought Scour (target mills two, draw one; CR 701.17a / 121.1)", () => {
     it("mills the target's top two cards and draws one for the caster", () => {
         const state = makeState({
             players: [

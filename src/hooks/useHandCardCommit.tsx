@@ -53,8 +53,8 @@ type PhyrexianPickerState = {
     choices: PhyrexianSplitChoice[];
 };
 
-/** Cost-choice dialog state (CR 601.2b {X} + CR 702.33 Kicker + CR 702.27
- *  Buyback). Opened before the mode / alt-cost pickers when the card needs a
+/** Cost-choice dialog state (CR 601.2b {X} + CR 702.33 Kicker + CR 702.27 buyback
+ *  ). Opened before the mode / alt-cost pickers when the card needs a
  *  numeric X and/or a kicker/buyback decision; `position` is captured at click
  *  time so the downstream pickers can still anchor to the card after the
  *  dialog closes. */

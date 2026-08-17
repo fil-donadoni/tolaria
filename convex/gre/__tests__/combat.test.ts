@@ -182,7 +182,7 @@ describe("validateAttackerEligibility", () => {
 });
 
 // ---------------------------------------------------------------------------
-// validateBlockerEligibility (CR 509.1b, 702.9, 702.13)
+// validateBlockerEligibility (CR 509.1b, 702.9, 702.14)
 // ---------------------------------------------------------------------------
 
 describe("validateBlockerEligibility — flying (CR 702.9b)", () => {
@@ -258,7 +258,7 @@ describe("validateBlockerEligibility — can't be blocked by subtype (Tower of C
     });
 });
 
-describe("validateBlockerEligibility — landwalk (CR 702.13b)", () => {
+describe("validateBlockerEligibility — landwalk (CR 702.14b)", () => {
     function makeLand(subtype: string): CardInstanceState {
         return makeCard({ types: ["Land"], subtypes: [subtype] });
     }

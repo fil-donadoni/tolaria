@@ -111,7 +111,7 @@ export function countDistinctCardTypes(cards: CardInstanceState[]): number {
     return types.size;
 }
 
-/** CR 702.138a — how many OTHER graveyard cards `card` demands the caster exile
+/** CR 702.138a escape — how many OTHER graveyard cards `card` demands the caster exile
  *  for its escape cost, as a picker spec, or undefined when the card either has
  *  no escape or its escape mana-only (never — every escape exiles at least
  *  one other card in the current pool). Returns the fixed `count` shape or the

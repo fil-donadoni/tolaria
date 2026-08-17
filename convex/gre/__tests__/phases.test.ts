@@ -171,7 +171,7 @@ describe("advancePhase", () => {
             expect(state.phase).toBe("DECLARE_BLOCKERS");
         });
 
-        it("DECLARE_BLOCKERS auto-skips when all attackers are unblockable (landwalk, CR 702.13b)", () => {
+        it("DECLARE_BLOCKERS auto-skips when all attackers are unblockable (landwalk, CR 702.14b)", () => {
             // Active player p1 attacks with a swampwalker; p2 defender
             // controls a Swamp → every attacker is unblockable, phase skips.
             const state = makeGameState({

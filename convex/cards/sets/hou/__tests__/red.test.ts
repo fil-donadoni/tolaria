@@ -43,7 +43,7 @@ describe("Abrade (CR 700.2 modal — damage a creature or destroy an artifact)",
         ).toBe(false);
     });
 
-    it("destroy mode destroys target artifact (CR 701.7)", () => {
+    it("destroy mode destroys target artifact (CR 701.8)", () => {
         expect(getDefinition(ARTIFACT_ID).types).toContain("Artifact");
         const artifact = makeInstance(ARTIFACT_ID, {
             id: "artifact-1",

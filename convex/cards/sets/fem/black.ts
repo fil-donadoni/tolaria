@@ -381,10 +381,10 @@ export const mindstabThrull: CardDefinition = {
                 event.type === "ATTACKER_UNBLOCKED" &&
                 event.attackerId === self.id,
             // Migrated resolve()→effects[] (ADR 0045, #795): "you may
-            // sacrifice it" is a cost-free `mayPay` (CR 701.7a); on accept,
+            // sacrifice it" is a cost-free `mayPay` (CR 701.21a); on accept,
             // sacrifice `$source` then the defending player — CR 506.2's
             // 2-player/solo "opponent" relative to this ability's controller
-            // — discards three (CR 701.8a, `choice` clamps the literal 3 down
+            // — discards three (CR 701.9a, `choice` clamps the literal 3 down
             // to hand size, matching the closure's `Math.min(3, handSize)`).
             effects: [
                 {
@@ -470,8 +470,8 @@ export const necrite: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, #795): the target is
             // already announced (`{ target: 0 }`, CR 603.3d — locked at stack
             // placement above). "You may sacrifice it. If you do" is a
-            // cost-free `mayPay` (CR 701.7a); on accept, sacrifice `$source`
-            // and destroy the target, unregenerable (CR 701.19c / 701.7).
+            // cost-free `mayPay` (CR 701.21a); on accept, sacrifice `$source`
+            // and destroy the target, unregenerable (CR 701.19c / 701.8).
             effects: [
                 {
                     op: "mayPay",

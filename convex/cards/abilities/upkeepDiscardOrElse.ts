@@ -1,7 +1,7 @@
 // `upkeepDiscardOrElseTrigger` — shared factory for the "at the beginning of
 // your upkeep, sacrifice this unless you discard a card" maintenance-cost
 // family (CR 603.6a beginning-of-upkeep trigger + CR 117.3a "unless you pay
-// [cost]" intervening/alternative cost, where the cost is CR 701.8 discarding
+// [cost]" intervening/alternative cost, where the cost is CR 701.9 discarding
 // a card rather than mana). Solitary Confinement / Nettletooth-Djinn-style
 // upkeep discards (issue #1129, parent PRD #1058).
 //
@@ -41,7 +41,7 @@
 // DSL-first case (`.claude/rules/gre-development.md` § DSL-first authoring).
 //
 // CR 117.3a — the controller MAY discard a card instead of the default
-// consequence (`onDecline`, typically sacrifice, CR 701.16). Auto-resolves
+// consequence (`onDecline`, typically sacrifice, CR 701.21). Auto-resolves
 // straight to `onDecline` with an empty hand — Arena UX (`.claude/rules/
 // gre-development.md`-adjacent convention): there is no real choice to
 // present when the alternative is unavailable, so no prompt is shown at all.
@@ -59,7 +59,7 @@ export interface UpkeepDiscardOrElseArgs {
     prompt: string;
     /** Runs when the controller declines the discard, OR has no card to
      *  discard (auto-resolved, no prompt). Typically
-     *  `ctx.sacrifice(ctx.sourceInstanceId)` (CR 701.16); a `destroy` variant
+     *  `ctx.sacrifice(ctx.sourceInstanceId)` (CR 701.21); a `destroy` variant
      *  is legal too (mirrors `payOrSacrificeUpkeepTrigger`'s `consequence`). */
     onDecline: (ctx: SpellContext) => void;
 }
@@ -89,7 +89,7 @@ export function upkeepDiscardOrElseTrigger(
                 });
                 if (accept === undefined) return; // suspended for the choice
                 if (accept) {
-                    // CR 701.8 — pick and discard exactly one card. Routes
+                    // CR 701.9 — pick and discard exactly one card. Routes
                     // through `discardCard` (→ `discardToGraveyard`) so the
                     // Library of Leng replacement and CARD_DISCARDED
                     // triggers apply exactly like every other discard.

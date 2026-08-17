@@ -3,7 +3,7 @@
  * client board). In a solo game one user controls both seats; the viewer
  * follows whoever currently owes input so the UI shows that player's private
  * zones (hand, legal actions, and the face-up library of an active
- * `search-library` choice — CR 401.4 / 701.19).
+ * `search-library` choice — CR 401.4 / 701.23).
  *
  * This MUST be the single source of truth for "who is the solo viewer": the
  * server uses it to decide which seat's private zones to project, and the

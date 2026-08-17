@@ -1,7 +1,7 @@
 // hml — blue behavior tests (ADR 0043 colour split).
 //
 // Memory Lapse counters a spell and redirects it to the TOP of its owner's
-// library (CR 701.5a + the `destination` parameter on `SpellContext.counter`).
+// library (CR 701.6a + the `destination` parameter on `SpellContext.counter`).
 // The stack is a public zone (CR 405.1), so every player watched that specific
 // card go to a known position in a hidden zone; CR 400.2's concealment of a
 // hidden zone does not retroactively un-reveal what the players already saw.
@@ -57,7 +57,7 @@ function setupCounter() {
     return state;
 }
 
-describe("Memory Lapse — counter to top of library (CR 701.5a / 400.2, #1696)", () => {
+describe("Memory Lapse — counter to top of library (CR 701.6a / 400.2, #1696)", () => {
     it("puts the countered spell on top of its owner's library", () => {
         const state = setupCounter();
         resolveTopOfStack(state);
@@ -112,7 +112,7 @@ describe("Memory Lapse — counter to top of library (CR 701.5a / 400.2, #1696)"
         expect(lib.known).toHaveLength(0);
     });
 
-    it("clears the knowledge on a shuffle (CR 701.20) for every player", () => {
+    it("clears the knowledge on a shuffle (CR 701.24) for every player", () => {
         const state = setupCounter();
         resolveTopOfStack(state);
         const p2 = getPlayer(state, "p2");

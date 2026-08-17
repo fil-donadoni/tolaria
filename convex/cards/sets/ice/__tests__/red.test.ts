@@ -157,9 +157,9 @@ describe("ICE Red reprints (CardPrint wiring, ADR 0014)", () => {
     });
 });
 
-// --- Anarchy (destroy all white permanents, CR 701.7 / 105.2) --------------
+// --- Anarchy (destroy all white permanents, CR 701.8 / 105.2) --------------
 
-describe("Anarchy (CR 701.7 destroy by colour)", () => {
+describe("Anarchy (CR 701.8 destroy by colour)", () => {
     it("destroys white permanents and spares others", () => {
         // `matchesPermanentFilter` reads the instance `colors` field (the engine
         // enriches it at read time; tests set it explicitly via spread — same
@@ -222,9 +222,9 @@ describe("Pyroclasm (CR 120.3 sweep)", () => {
     });
 });
 
-// --- Incinerate (3 damage + regen-lock, CR 120.1 / 701.15c) ----------------
+// --- Incinerate (3 damage + regen-lock, CR 120.1 / 701.19c) ----------------
 
-describe("Incinerate (CR 120.1 damage + CR 701.15c regen-lock)", () => {
+describe("Incinerate (CR 120.1 damage + CR 701.19c regen-lock)", () => {
     it("deals 3 damage to a player", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
@@ -269,9 +269,9 @@ describe("Lava Burst (CR 120.1 X damage)", () => {
     });
 });
 
-// --- Jokulhaups (destroy all artifacts/creatures/lands, CR 701.7) ----------
+// --- Jokulhaups (destroy all artifacts/creatures/lands, CR 701.8) ----------
 
-describe("Jokulhaups (CR 701.7 mass destruction)", () => {
+describe("Jokulhaups (CR 701.8 mass destruction)", () => {
     it("destroys creatures and lands", () => {
         const creature = vanilla("c", 2, 2, {
             controllerId: "p2",
@@ -456,7 +456,7 @@ describe("Imposing Visage (CR 702.111 menace grant)", () => {
     });
 });
 
-// --- Karplusan Yeti (fight, CR 701.12-style) -------------------------------
+// --- Karplusan Yeti (fight, CR 701.14-style) -------------------------------
 
 describe("Karplusan Yeti (mutual fight damage)", () => {
     it("deals mutual damage, killing both when lethal", () => {
@@ -514,7 +514,7 @@ describe("Orcish Cannoneers (CR 120.1 damage + self-damage)", () => {
 
 // --- Orcish Healer (regen-lock + regenerate B/G) ---------------------------
 
-describe("Orcish Healer (CR 701.15 regen)", () => {
+describe("Orcish Healer (CR 701.19 regen)", () => {
     it("the regen-lock leg flags the target as can't-be-regenerated", () => {
         const healer = makeInstance(orcishHealer.id, {
             id: "healer",
@@ -586,9 +586,9 @@ describe("Vertigo (CR 120.1 damage + CR 611.2a lose flying)", () => {
     });
 });
 
-// --- Word of Blasting (destroy Wall + damage = MV, CR 701.7 / 120.1) -------
+// --- Word of Blasting (destroy Wall + damage = MV, CR 701.8 / 120.1) -------
 
-describe("Word of Blasting (CR 701.7 destroy Wall + MV damage)", () => {
+describe("Word of Blasting (CR 701.8 destroy Wall + MV damage)", () => {
     it("destroys the Wall and deals its mana value to its controller", () => {
         // Glacial Wall is a registered {2}{U} Wall (mana value 3) → both the
         // Wall subtype target and the mana-value read resolve via the registry.
@@ -830,7 +830,7 @@ describe("Battle Frenzy — instant batch pump (CR 611.1)", () => {
     });
 });
 
-describe("Bone Shaman — grants a damage-rider regen-lock (CR 113.1 / 701.15c)", () => {
+describe("Bone Shaman — grants a damage-rider regen-lock (CR 113.1 / 701.19c)", () => {
     it("the rider template locks regeneration on a creature it damages", () => {
         const shaman = makeInstance(boneShaman.id, {
             id: "shaman",
@@ -889,7 +889,7 @@ describe("Bone Shaman — grants a damage-rider regen-lock (CR 113.1 / 701.15c)"
         const live = state.players[1].battlefield.find(
             (c) => c.id === "victim"
         )!;
-        // The regen-lock flag is set on the instance (CR 701.15c).
+        // The regen-lock flag is set on the instance (CR 701.19c).
         expect(live.cantBeRegeneratedThisTurn).toBe(true);
     });
 });
@@ -1702,7 +1702,7 @@ describe("Goblin Ski Patrol (CR 205.4a snow-Mountain activation gate)", () => {
     });
 });
 
-describe("Barbarian Guides (CR 702.13 chosen-type snow landwalk grant)", () => {
+describe("Barbarian Guides (CR 702.14 chosen-type snow landwalk grant)", () => {
     it("grants snow forestwalk and schedules a next-end-step bounce", () => {
         const guides = makeInstance(barbarianGuides.id, {
             id: "guides",

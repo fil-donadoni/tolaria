@@ -9,7 +9,7 @@ import { investigateOp } from "../../abilities/tokens/clueToken";
 
 // Thraben Inspector — {W} Creature — Human Soldier, 1/2. "When this creature
 // enters, investigate. (Create a Clue token. It's an artifact with '{2},
-// Sacrifice this token: Draw a card.')" (CR 603.6a ETB, CR 701.16
+// Sacrifice this token: Draw a card.')" (CR 603.6a ETB, CR 701.21
 // Investigate — Cube FREE wave 3, issue #1531/#1525.) Fully free: exactly the
 // Tireless Tracker precedent (`sets/soi/green.ts`) — `investigateOp()` is a
 // `createToken` Op with the shared `CLUE_TOKEN_SPEC`, no new capability.

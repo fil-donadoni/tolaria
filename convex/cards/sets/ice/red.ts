@@ -143,7 +143,7 @@ export const aggression: CardDefinition = {
         }),
     ],
 };
-// Anarchy — "Destroy all white permanents." (CR 701.7 destroy + CR 105.2 colour
+// Anarchy — "Destroy all white permanents." (CR 701.8 destroy + CR 105.2 colour
 // filter.) A one-line `destroyAll` over the white colour filter.
 export const anarchy: CardDefinition = {
     id: "28d941da-b5cb-4b7e-84f2-ece883f89af3",
@@ -154,7 +154,7 @@ export const anarchy: CardDefinition = {
     types: ["Sorcery"],
     // Migrated resolve()→effects[] (ADR 0045, PRD #795): the Day of Judgment
     // sweep shape — forEach over battlefield permanents matching the colour
-    // filter, destroy each (CR 701.7 / 105.2).
+    // filter, destroy each (CR 701.8 / 105.2).
     effects: [
         {
             op: "forEach",
@@ -191,7 +191,7 @@ export const avalanche: CardDefinition = {
     },
     // Migrated resolve()→effects[] (ADR 0045, PRD #795): a forEach over the
     // announced `{ set: "targets" }` set (the X-multi-target shape) destroying
-    // each (CR 701.7). No hand-written per-card outcome test exists (the
+    // each (CR 701.8). No hand-written per-card outcome test exists (the
     // colorless.test.ts coverage checks target legality only) — the per-Op
     // regime (catalogue static sweep + canned-scenario smoke) covers it.
     effects: [
@@ -276,7 +276,7 @@ export const balduvianHydra: CardDefinition = {
 // Barbarian Guides — "{2}{R}, {T}: Choose a land type. Target creature you
 // control gains snow landwalk of the chosen type until end of turn. Return that
 // creature to its owner's hand at the beginning of the next end step."
-// (CR 702.13 / 205.4a snow landwalk.) The land-type choice is a
+// (CR 702.14 / 205.4a snow landwalk.) The land-type choice is a
 // `requestOptionChoice` over the five basic types; the matching
 // `snow <type>walk` keyword (enforced by the combat registry's snow-landwalk
 // rules) is granted until end of turn, and a `next-end-step` delayed trigger
@@ -413,7 +413,7 @@ export const battleFrenzy: CardDefinition = {
 // ability to self until end of turn (CR 611.2a duration-scoped trigger grant via
 // `grantTriggeredAbility`); the granted rider (a `damageDealtTrigger` template on
 // `triggeredGrantTemplates[]`) fires whenever self deals damage to a creature and
-// applies a regen-lock to that creature (CR 701.15c, the Lim-Dûl's Cohort leg).
+// applies a regen-lock to that creature (CR 701.19c, the Lim-Dûl's Cohort leg).
 const BONE_SHAMAN_ID = "0a5e3d54-4dc4-482b-8ecc-bb819ba03d2c";
 export const boneShaman: CardDefinition = {
     id: BONE_SHAMAN_ID,
@@ -1371,7 +1371,7 @@ export const imposingVisage: CardDefinition = {
     ],
 };
 // Incinerate — 3 damage to any target; a creature dealt damage this way can't be
-// regenerated this turn (CR 120.1 damage, CR 701.15c regen-lock). The damage is
+// regenerated this turn (CR 120.1 damage, CR 701.19c regen-lock). The damage is
 // dealt first, then the target-scoped regen-lock is applied to a creature.
 export const incinerate: CardDefinition = {
     id: "9c3f00af-010d-4485-b8b7-47400d99c496",
@@ -1388,7 +1388,7 @@ export const incinerate: CardDefinition = {
     ],
 };
 // Jokulhaups — "Destroy all artifacts, creatures, and lands. They can't be
-// regenerated." (CR 701.7 destroy + CR 701.15c regen suppression.)
+// regenerated." (CR 701.8 destroy + CR 701.19c regen suppression.)
 export const jokulhaups: CardDefinition = {
     id: "3bf0d325-5928-4593-8faa-64ffa414cb48",
     name: "Jokulhaups",
@@ -1400,7 +1400,7 @@ export const jokulhaups: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, PRD #795): forEach over
     // battlefield permanents matching the OR-within-field type filter
     // (Artifact/Creature/Land), destroy each with `cantBeRegenerated: true`
-    // (CR 701.7 / 701.15c).
+    // (CR 701.8 / 701.19c).
     effects: [
         {
             op: "forEach",
@@ -1469,7 +1469,7 @@ export const karplusanGiant: CardDefinition = {
 };
 // Karplusan Yeti — "{T}: This creature deals damage equal to its power to target
 // creature. That creature deals damage equal to its power to this creature." —
-// the mutual-damage "fight" shape (CR 701.12-style), expressed with the `fight`
+// the mutual-damage "fight" shape (CR 701.14-style), expressed with the `fight`
 // primitive which snapshots both powers and deals simultaneously.
 export const karplusanYeti: CardDefinition = {
     id: "7dd9b214-d9fe-4c2e-b45b-7145ad98c408",
@@ -1652,7 +1652,7 @@ export const melting: CardDefinition = {
     ],
 };
 // Meteor Shower is implemented below (divide-as-you-choose cluster, #664).
-// Mountain Goat — 1/1 with mountainwalk (CR 702.13 landwalk; unblockable while
+// Mountain Goat — 1/1 with mountainwalk (CR 702.14 landwalk; unblockable while
 // the defender controls a Mountain).
 export const mountainGoat: CardDefinition = {
     id: "ccf70276-a40c-4d25-b584-4c8a07a00602",
@@ -1846,8 +1846,8 @@ export const orcishFarmer: CardDefinition = {
         },
     ],
 };
-// Orcish Healer — three activated abilities (CR 605, CR 701.15c regen-lock /
-// CR 701.15a regeneration shield): a regen-lock on any creature, and two
+// Orcish Healer — three activated abilities (CR 605, CR 701.19c regen-lock /
+// CR 701.19a regeneration shield): a regen-lock on any creature, and two
 // regenerate-a-black-or-green-creature legs differing only in their mana cost
 // (the black/green target restriction uses `colorFilterAny`).
 export const orcishHealer: CardDefinition = {
@@ -1883,7 +1883,7 @@ export const orcishHealer: CardDefinition = {
                 colorFilterAny: ["B", "G"],
             },
             // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.15a).
+            // announced creature target (CR 701.19a).
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
         {
@@ -1898,7 +1898,7 @@ export const orcishHealer: CardDefinition = {
                 colorFilterAny: ["B", "G"],
             },
             // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.15a).
+            // announced creature target (CR 701.19a).
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
@@ -2352,8 +2352,8 @@ export const wallOfLava: CardDefinition = {
     ],
 };
 // Word of Blasting — "Destroy target Wall. It can't be regenerated. Deals damage
-// equal to that Wall's mana value to the Wall's controller." (CR 701.7 destroy +
-// CR 701.15c regen-lock + CR 120.1 damage.) The Wall's mana value and controller
+// equal to that Wall's mana value to the Wall's controller." (CR 701.8 destroy +
+// CR 701.19c regen-lock + CR 120.1 damage.) The Wall's mana value and controller
 // are read BEFORE the destroy; the target uses a Wall subtype restriction.
 export const wordOfBlasting: CardDefinition = {
     id: "46b383c8-d604-4131-a869-9e9d13e30b94",

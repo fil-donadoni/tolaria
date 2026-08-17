@@ -85,7 +85,7 @@ export const gaeasTouch: CardDefinition = {
 
 // Tracker — "{G}{G}, {T}: This creature deals damage equal to its power to
 // target creature. That creature deals damage equal to its power to this
-// creature." This is the pre-"fight" template (CR 701.12-style mutual damage):
+// creature." This is the pre-"fight" template (CR 701.14-style mutual damage):
 // both creatures deal damage equal to their power to one another SIMULTANEOUSLY
 // through the normal damage path (CR 120, 510-style), so replacement /
 // prevention / protection effects apply and damage triggers fire. A creature
@@ -271,7 +271,7 @@ export const landLeeches: CardDefinition = {
 };
 
 // Hidden Path — global anthem grant: "Green creatures have forestwalk." (CR 611
-// continuous keyword-grant, layer 6; CR 702.13c forestwalk evasion.) Modeled
+// continuous keyword-grant, layer 6; CR 702.14c forestwalk evasion.) Modeled
 // exactly like Zombie Master's group `keyword-grant` (lea.ts), but the predicate
 // filters on effective color (CR 105 / 202.2 — `ctx.getColors` honors any
 // color-changing effect, e.g. a green creature laced blue stops getting it). The
@@ -371,7 +371,7 @@ export const peopleOfTheWoods: CardDefinition = {
 };
 
 // Savaen Elves — "{G}{G}, {T}: Destroy target Aura attached to a land." (CR 605
-// activated ability; CR 701.7 destroy.) The target is any Aura (`subtypeFilter`),
+// activated ability; CR 701.8 destroy.) The target is any Aura (`subtypeFilter`),
 // and the "attached to a LAND" host constraint is enforced in the resolve body —
 // there is no host-relation field on TargetRequirement, exactly as Pyramids
 // (arn.ts) and Miracle Worker (drk.ts) do it via `ctx.getAttachedTo`.
@@ -403,7 +403,7 @@ export const savaenElves: CardDefinition = {
             resolve: (ctx: SpellContext) => {
                 const [target] = ctx.targets;
                 if (!target || target.type !== "permanent") return;
-                // CR 701.7 — only destroy if the Aura's host is a land. There
+                // CR 701.8 — only destroy if the Aura's host is a land. There
                 // is no type-reading SpellContext helper, so test membership in
                 // any player's Land battlefield (mirrors Pyramids' host check).
                 const hostId = ctx.getAttachedTo(target.id);
@@ -420,8 +420,8 @@ export const savaenElves: CardDefinition = {
 };
 
 // Scavenger Folk — "{G}, {T}, Sacrifice this creature: Destroy target artifact."
-// (CR 605 activated ability; CR 118.5 sacrifice-self as a cost; CR 701.7
-// destroy.) `cost.sacrifice: true` sacrifices the source itself as part of
+// (CR 605 activated ability; CR 118.5 sacrifice-self as a cost; CR 701.8 destroy
+// .) `cost.sacrifice: true` sacrifices the source itself as part of
 // activation; the destroy runs on resolution.
 export const scavengerFolk: CardDefinition = {
     id: "8e99870c-b2b9-431b-b8a8-3f4a80aa8fa5",
@@ -442,7 +442,7 @@ export const scavengerFolk: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Artifact", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #832): destroy the
-            // announced target artifact (CR 701.8). The self-sacrifice is an
+            // announced target artifact (CR 701.8 destroy). The self-sacrifice is an
             // activation cost, not part of the effect.
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
@@ -450,7 +450,7 @@ export const scavengerFolk: CardDefinition = {
 };
 
 // Niall Silvain — "{G}{G}{G}{G}, {T}: Regenerate target creature." (CR 605
-// activated ability; CR 701.15 regeneration shield.) Targets ANY creature
+// activated ability; CR 701.19 regeneration shield.) Targets ANY creature
 // (including itself). The regen primitive is `applyRegenerationShield`, the same
 // one Walking Dead / Zombie Master use, here applied to the chosen target.
 export const niallSilvain: CardDefinition = {
@@ -471,7 +471,7 @@ export const niallSilvain: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.15a).
+            // announced creature target (CR 701.19a).
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
@@ -479,7 +479,7 @@ export const niallSilvain: CardDefinition = {
 
 // Scarwood Hag — two activated abilities granting / stripping forestwalk until
 // end of turn (CR 605 activated abilities; CR 611 layer-6 keyword grant /
-// removal; CR 702.13c forestwalk). The grant reuses `grantStaticAbility` with an
+// removal; CR 702.14c forestwalk). The grant reuses `grantStaticAbility` with an
 // end-of-turn DurationSpec (like Part Water, leg.ts); the strip reuses
 // `removeStaticAbilities` (the duration-scoped counterpart, used by Shelkin
 // Brownie / Tolaria).
@@ -535,7 +535,7 @@ export const scarwoodHag: CardDefinition = {
     ],
 };
 
-// Scarwood Bandits — forestwalk (CR 702.13c keyword) + "{2}{G}, {T}: Unless an
+// Scarwood Bandits — forestwalk (CR 702.14c keyword) + "{2}{G}, {T}: Unless an
 // opponent pays {2}, gain control of target artifact for as long as this creature
 // remains on the battlefield." (CR 605 activated ability; CR 118.8 "unless ...
 // pays" cost-on-opponent; CR 613.1b layer-2 control change.) The opponent's
@@ -669,7 +669,7 @@ export const spittingSlug: CardDefinition = {
 // Venom — Aura. "Enchant creature\nWhenever enchanted creature blocks or becomes
 // blocked by a non-Wall creature, destroy the other creature at end of combat."
 // (CR 303.4 aura; CR 509.1h combat-pairing trigger keyed to the host; CR 511.3
-// end-of-combat timing; CR 701.7 destroy.) Reuses the LEA Basilisk / Cockatrice
+// end-of-combat timing; CR 701.8 destroy.) Reuses the LEA Basilisk / Cockatrice
 // "destroy at end of combat" machinery (BLOCKERS_CONFIRMED trigger →
 // `scheduleDelayedTrigger("next-end-of-combat")` → destroy), but the trigger is
 // keyed to the aura's HOST (`self.attachedTo`) rather than the source itself.

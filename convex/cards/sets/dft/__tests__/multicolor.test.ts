@@ -29,7 +29,7 @@ registerTokenDefinition({
     types: ["Enchantment"],
 });
 
-describe("Brightglass Gearhulk (CR 603.6a ETB / 701.19 / 400.7 / 701.20, issue #677)", () => {
+describe("Brightglass Gearhulk (CR 603.6a ETB / 701.23 / 400.7 / 701.24, issue #677)", () => {
     it("ETB: may search for up to two cheap artifact/creature/enchantment cards, put them into hand", () => {
         const hulk = makeInstance(brightglassGearhulk.id, {
             id: "hulk1",

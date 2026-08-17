@@ -25,10 +25,10 @@ import { getDefinition } from "../../../index";
 // ---------------------------------------------------------------------------
 // Chain of Vapor — {U} instant: return target nonland permanent to hand, then
 // that permanent's controller may sacrifice a land to copy this spell and
-// retarget the copy (CR 701.10 bounce, CR 608.2 stepped resolution, CR 701.16
+// retarget the copy (CR 400.7 bounce, CR 608.2 stepped resolution, CR 701.21
 // sacrifice cost, CR 707.12 "copy this spell").
 // ---------------------------------------------------------------------------
-describe("Chain of Vapor (CR 701.10 / 608.2 / 701.16 / 707.12)", () => {
+describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.12)", () => {
     type Targets = NonNullable<StackItem["targets"]>;
 
     // Mirrors finalizeTargetSelection's "copy-retarget" branch in game.ts:
@@ -50,7 +50,7 @@ describe("Chain of Vapor (CR 701.10 / 608.2 / 701.16 / 707.12)", () => {
         expect(getDefinition(chainOfVapor.id)).toBe(chainOfVapor);
     });
 
-    it("returns the target nonland permanent to its owner's hand and offers the controller a may-sacrifice (CR 701.10)", () => {
+    it("returns the target nonland permanent to its owner's hand and offers the controller a may-sacrifice (CR 400.7 return / 701.21 sacrifice)", () => {
         const bears = makeInstance(grizzlyBears.id, {
             id: "p2-bears",
             controllerId: "p2",
@@ -135,7 +135,7 @@ describe("Chain of Vapor (CR 701.10 / 608.2 / 701.16 / 707.12)", () => {
         ).toEqual([chainOfVapor.id]);
     });
 
-    it("sacrificing a land copies the spell; the copy retargets and bounces another permanent (CR 701.16 / 707.12)", () => {
+    it("sacrificing a land copies the spell; the copy retargets and bounces another permanent (CR 701.21 / 707.12)", () => {
         const bears = makeInstance(grizzlyBears.id, {
             id: "p2-bears",
             controllerId: "p2",
@@ -166,7 +166,7 @@ describe("Chain of Vapor (CR 701.10 / 608.2 / 701.16 / 707.12)", () => {
         ]);
         resolveTopOfStack(state);
 
-        // p2 sacrifices their island to copy the spell (CR 701.16 / 707.12).
+        // p2 sacrifices their island to copy the spell (CR 701.21 / 707.12).
         applyMayPaySubmit(state, {
             playerId: "p2",
             accept: true,

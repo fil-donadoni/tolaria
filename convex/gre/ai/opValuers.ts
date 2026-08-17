@@ -263,7 +263,7 @@ const exileSelf: Valuer<"exileSelf"> = () => ({
     tags: [],
 });
 
-// CR 603.7a / 701.18 / ADR 0028 — the exile half of the O-Ring / Banishing
+// CR 603.7a / 701.13 / ADR 0028 — the exile half of the O-Ring / Banishing
 // Light family removes an opponent's permanent from the board (until this
 // source leaves), so for search purposes it values like `exile` removal: a
 // targeted board answer. The conditional return (when the source dies) is a
@@ -305,7 +305,7 @@ const sacrifice: Valuer<"sacrifice"> = (op) => {
     }
     // Issue #1521 — a single-permanent sacrifice signs by WHOSE permanent it
     // is, not a blanket self-cost. `target` covers two distinct shapes
-    // (CR 701.16):
+    // (CR 701.21):
     //   - an ANNOUNCED target slot (`{ target: N }`) — a legal target chosen
     //     at cast/activation time, which the target requirement may allow to
     //     be an opponent's permanent (a targeted removal effect, like

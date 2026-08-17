@@ -6,7 +6,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 
 // Fetchland family (issue #677) — "{T}, Pay 1 life, Sacrifice this land:
 // Search your library for a [Subtype] or [Subtype] card, put it onto the
-// battlefield, then shuffle." (CR 701.19 search / 400.7 zone change / 701.20
+// battlefield, then shuffle." (CR 701.23 search / 400.7 zone change / 701.24
 // shuffle). DSL: `choice(zone: "library", filter: { subtype: [A, B] })` — the
 // subtype array is an OR (Forest OR Island), mirroring `PermanentFilter`'s
 // own array-OR semantics (issue #677) — + `moveZone(cards, from: "library",

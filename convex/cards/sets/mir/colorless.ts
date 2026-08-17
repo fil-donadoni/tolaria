@@ -40,7 +40,7 @@ export const lionsEyeDiamond: CardDefinition = {
 };
 
 // Phyrexian Dreadnought — {1} 12/12 Artifact Creature with trample and a
-// self-ETB punisher (CR 603.6a trigger; CR 118 / 701.16 sacrifice cost). Modern
+// self-ETB punisher (CR 603.6a trigger; CR 118 / 701.21 sacrifice cost). Modern
 // Scryfall oracle (ADR 0004): "Trample\nWhen this creature enters, sacrifice it
 // unless you sacrifice any number of creatures with total power 12 or greater."
 // Expressed as an Effect Script (ADR 0045, DSL-first): a `mayPay` whose cost is

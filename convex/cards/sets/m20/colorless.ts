@@ -3,7 +3,7 @@ import type { CardDefinition, PermanentView } from "../../types";
 
 // Manifold Key — {1} Artifact (issue #684, Cube FREE evasion/protection
 // statics). "{1}, {T}: Untap another target artifact.\n{3}, {T}: Target
-// creature can't be blocked this turn." (CR 701.20 untap; CR 702.9-class
+// creature can't be blocked this turn." (CR 701.26 untap; CR 702.9 flying-class
 // "can't be blocked" via the engine's `unblockable` keyword grant, CR
 // 613.1f temporary keyword grant.)
 export const manifoldKey: CardDefinition = {

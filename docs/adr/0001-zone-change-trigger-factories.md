@@ -7,8 +7,8 @@
 The GRE emits `PERMANENT_LEFT` events for battlefield-exit transitions. A future
 need will arise for triggers anchored to other zone transitions:
 
-- "When ~ is discarded" (CR 701.7) — hand → graveyard or hand → exile
-- "When ~ is milled" (CR 701.13) — library → graveyard
+- "When ~ is discarded" (CR 701.9) — hand → graveyard or hand → exile
+- "When ~ is milled" (CR 701.17) — library → graveyard
 - "When ~ is put into a graveyard from anywhere" (CR 603.6c) — any zone → graveyard
 - "When ~ is exiled from your library" — library → exile
 - Etc.
@@ -41,8 +41,8 @@ No god event with optional fields.
 ## Rationale
 
 1. **CR taxonomy diverges.** "Leaves the battlefield" (CR 603.10), "is
-   discarded" (CR 701.7), "is put into a graveyard from anywhere" (CR 603.6c)
-   and "is milled" (CR 701.13) are distinct triggered ability conditions in the
+   discarded" (CR 701.9), "is put into a graveyard from anywhere" (CR 603.6c)
+   and "is milled" (CR 701.17) are distinct triggered ability conditions in the
    Comprehensive Rules. Oracle text uses different formulations. Collapsing them
    into a single `zoneChangeTrigger` erases the CR-level semantic distinction
    and forces card authors to reverse-engineer which `fromZone`/`toZone`
@@ -50,7 +50,7 @@ No god event with optional fields.
 
 2. **Engine emit sites are distinct.** Battlefield exits run through
    `removePermanentTo`. Discards happen from hand inside cost-paying
-   (`payDiscardCost`, CR 701.7c) and effect-induced discard (e.g. Hymn to
+   (`payDiscardCost`, CR 701.9c) and effect-induced discard (e.g. Hymn to
    Tourach). Milling happens inside the library-to-graveyard primitive. Each
    site has different state to snapshot (e.g. discard tracks "was this discard
    cost-paid?" — relevant for madness). Forcing one god-event means every emit
@@ -59,7 +59,7 @@ No god event with optional fields.
 3. **Last-known-information payload shapes are incompatible.**
    `PERMANENT_LEFT` carries `attachedToBeforeLeave`, P/T snapshot, types
    snapshot (CR 603.10) — battlefield-anchored info. `CARD_DISCARDED` needs
-   `wasCostPaid: boolean` (CR 701.7c) for madness interaction. `CARD_MILLED`
+   `wasCostPaid: boolean` (CR 701.9c discard) for madness interaction. `CARD_MILLED`
    has no host-attachment data. Unifying produces a payload where most fields
    are null for any given transition.
 

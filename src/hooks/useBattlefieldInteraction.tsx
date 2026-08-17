@@ -523,7 +523,7 @@ export function useBattlefieldInteraction(player: Player) {
             // is inert here; the stepper owns assignment.
             pendingTarget.divideTotal === undefined &&
             matchesTargetRequirement(card, pendingTarget.targetType) &&
-            // CR 109.1/.3/102.1/202/205/601.2c/613/701.20/702 (issue #1697) —
+            // CR 109.1/.3/102.1/202/205/601.2c/613 / 701.26 / 702 (issue #1697) —
             // don't fire selectTarget for a permanent the shared target-filter
             // registry would reject (supertype/subtype/color/tapped/combat
             // role/keyword/power/toughness/mv/controller/sameController);

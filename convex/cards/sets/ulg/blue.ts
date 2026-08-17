@@ -5,7 +5,7 @@ import type { CardDefinition } from "../../types";
 import { cyclingAbility } from "../../abilities/cycling";
 
 // Frantic Search — {2}{U} Instant. "Draw two cards, then discard two cards.
-// Untap up to three lands." (CR 121.1 draw, CR 701.8 discard, CR 701.20
+// Untap up to three lands." (CR 121.1 draw, CR 701.9 discard, CR 701.26
 // untap.) DSL Effect Script (ADR 0045): `draw` runs first (the hand always
 // grows by 2 before the discard pick, so the fixed `count: 2` on the
 // following `choose-hand-card` choice never over-asks), then a `choice(
@@ -68,7 +68,7 @@ export const franticSearch: CardDefinition = {
 // Tinker — {2}{U} Sorcery. "As an additional cost to cast this spell,
 // sacrifice an artifact. Search your library for an artifact card, put that
 // card onto the battlefield, then shuffle." (CR 118.8 additional cost /
-// 701.19 / 400.7 / 701.20.) The additional cost reuses
+// 701.23 / 400.7 / 701.24.) The additional cost reuses
 // `additionalCosts.sacrificeFilter` (a plain `PermanentFilter`); the search
 // is an unrestricted-by-value type filter (`type: "Artifact"`) straight to
 // the battlefield.
@@ -108,7 +108,7 @@ export const tinker: CardDefinition = {
 // Miscalculation — {1}{U} Instant. "Counter target spell unless its controller
 // pays {2}." plus Cycling {2} (CR 702.29). Same counter-unless-pay shape as
 // Mana Leak (mayPay by the target spell's controller + if(not paid) → counter,
-// CR 701.5a / 117.3a); the Cycling ability is the engine/cost capability from
+// CR 701.6a counter / 117.3a); the Cycling ability is the engine/cost capability from
 // issue #689, declared via the shared `cyclingAbility` factory.
 export const miscalculation: CardDefinition = {
     id: "4b4956a2-9a39-4152-9c98-70e4b2acfa26",
@@ -129,7 +129,7 @@ export const miscalculation: CardDefinition = {
             bind: "$paid",
         },
         {
-            // CR 701.5a — counter unless the payment was made.
+            // CR 701.6a — counter unless the payment was made.
             op: "if",
             predicate: { not: { binding: "$paid" } },
             then: [{ op: "counter", target: { target: 0 } }],

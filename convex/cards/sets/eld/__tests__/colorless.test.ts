@@ -8,7 +8,7 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 
-describe("Fabled Passage (CR 701.19 / 400.7 / 701.20, issue #677)", () => {
+describe("Fabled Passage (CR 701.23 / 400.7 / 701.24, issue #677)", () => {
     it("fetches a basic land card onto the battlefield TAPPED, then shuffles", () => {
         const land = makeInstance(fabledPassage.id, {
             id: "passageLand",

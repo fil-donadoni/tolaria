@@ -571,7 +571,7 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // shuffleLibrary) for which no DSL Op exists yet (tracked as #1056), so
         // it classifies Op-blocked. Total 653→654, Op-blocked 220→221, FREE 419
         // / AFK-ready 385 / X-only 14 unchanged. Partition holds: 419+14+221=654.
-        // #1065 (INV can't-be-countered flag + 4 cards, CR 701.5) adds TWO
+        // #1065 (INV can't-be-countered flag + 4 cards, CR 701.6) adds TWO
         // resolve() closures. Obliterate (inv/red.ts) is a spell resolve()
         // calling the shared `destroyAll` primitive with regen suppression —
         // the same NOT-DSL-migratable shape as the already-FREE Wrath of
@@ -1094,7 +1094,7 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 429+14+217=660.
         //
         // 2026-07-21 lookRandomHand Op ships (Urza's Bauble private hand look,
-        // CR 701.18a): `lookRandomHandCard` / `notifyReveal` join the Covered
+        // CR 400.2): `lookRandomHandCard` / `notifyReveal` join the Covered
         // Ops, reclassifying a previously Op-blocked private-random-hand-look
         // closure as FREE. Measured census after this Op AND the concurrent
         // #1281 (coinFlip) / #1282 (Bazaar) / #1285 (Stun) migrations logged

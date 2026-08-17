@@ -7,8 +7,8 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Spellseeker — {2}{U} Creature. "When this creature enters, you may search
 // your library for an instant or sorcery card with mana value 2 or less,
-// reveal it, put it into your hand, then shuffle." (CR 701.19 / 400.7 /
-// 701.20.) `filter.type` is an OR-array (Instant/Sorcery, issue #677);
+// reveal it, put it into your hand, then shuffle." (CR 701.23 search / 400.7 /
+// 701.24 shuffle.) `filter.type` is an OR-array (Instant/Sorcery, issue #677);
 // `filter.manaValueAtMost: 2` is the fixed mana-value ceiling (issue #677);
 // `count: { min: 0, max: 1 }` makes the search optional ("you may"). The
 // "reveal it" clause is a `reveal` Op on the picked card (issue #945, CR

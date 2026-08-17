@@ -156,7 +156,7 @@ export const talismanOfDominance: CardDefinition = makeTalisman({
 // issue #687). "{U}, Sacrifice this artifact: Return target creature to its
 // owner's hand. {1}, Sacrifice this artifact: Draw a card." Two independent
 // activated abilities (CR 602.1), each with a mana + sacrifice-self cost
-// (`sacrifice: true`, CR 118.5 / 701.16). The effects compose live Ops only:
+// (`sacrifice: true`, CR 118.5 / 701.21). The effects compose live Ops only:
 // `moveZone` to hand (CR 400.7 bounce) and `draw` (CR 121.1).
 export const aetherSpellbomb: CardDefinition = {
     id: "f3792e8b-4ad7-4e2d-994c-c4eaac0fa55f",

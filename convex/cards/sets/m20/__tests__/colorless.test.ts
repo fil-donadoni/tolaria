@@ -29,9 +29,9 @@ function resolveActivated(
     resolveTopOfStack(state);
 }
 
-// Manifold Key — {1} Artifact (CR 701.20 untap; "can't be blocked" via the
+// Manifold Key — {1} Artifact (CR 701.26 untap; "can't be blocked" via the
 // engine's `unblockable` keyword grant, CR 613.1f temporary keyword grant).
-describe("Manifold Key (CR 701.20 untap-another; CR 613.1f unblockable grant)", () => {
+describe("Manifold Key (CR 701.26 untap-another; CR 613.1f unblockable grant)", () => {
     function setup() {
         const key = makeInstance(manifoldKey.id, {
             id: "key",

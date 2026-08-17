@@ -23,7 +23,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // basic land types as categories (`{ subtype: "Plains"|"Island"|"Swamp"|
 // "Mountain"|"Forest" }`) over `zone: "battlefield"` (already public — no
 // preceding `reveal`), `onPicked: "returnToHand"` bounces each nominated land
-// via `SpellContext.returnToHand` (CR 701.10); no `sweep` — the Oracle text
+// via `SpellContext.returnToHand` (CR 400.7); no `sweep` — the Oracle text
 // never mentions the unpicked lands, so they are left exactly where they
 // are. A land with several basic land types may be chosen as EACH of those
 // types with the same physical nomination — Gatherer: "If you have a land
@@ -163,7 +163,7 @@ export const arcticMerfolk: CardDefinition = {
 // };
 
 // Escape Routes — {2}{U} Enchantment. "{2}{U}: Return target white or black
-// creature you control to its owner's hand." (CR 701.10 bounce via the
+// creature you control to its owner's hand." (CR 400.7 bounce via the
 // target-shape `moveZone` Op.)
 export const escapeRoutes: CardDefinition = {
     id: "dbc9062e-ddd9-41ac-a88a-33f5a7b22103", // PLS 25
@@ -191,7 +191,7 @@ export const escapeRoutes: CardDefinition = {
     ],
 };
 
-// Gainsay — {1}{U} Instant. "Counter target blue spell." (CR 701.5a counter,
+// Gainsay — {1}{U} Instant. "Counter target blue spell." (CR 701.6a counter,
 // `colorFilter` restricting the stack-spell target to blue.)
 export const gainsay: CardDefinition = {
     id: "a70a2092-5048-49c0-9351-a3f882c2f56e", // PLS 26

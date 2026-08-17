@@ -1473,11 +1473,11 @@ describe("Effect Script Op: draw (CR 121.1)", () => {
 });
 
 // New-Op permanent test (Urza's Bauble): the private "look at a card at random
-// in target player's hand" Op (CR 701.18a). Interpreter unit path + the
+// in target player's hand" Op (CR 400.2). Interpreter unit path + the
 // mandatory wire-format assertion — a private look grants knowledge to the
 // looker ALONE, and BOTH the `knownTo` grant and the reveal dialog must survive
 // (and stay scoped) through `projectPublicState`.
-describe("Effect Script Op: lookRandomHand (CR 701.18a look, Urza's Bauble)", () => {
+describe("Effect Script Op: lookRandomHand (CR 400.2 look, Urza's Bauble)", () => {
     const lookScript = () =>
         registerScript(
             "test-op-lookrandomhand",
@@ -1498,7 +1498,7 @@ describe("Effect Script Op: lookRandomHand (CR 701.18a look, Urza's Bauble)", ()
         });
         pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
         resolveTopOfStack(state);
-        // CR 701.18a — the looker (controller p1) knows the card; nobody else.
+        // CR 400.2 — the looker (controller p1) knows the card; nobody else.
         expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
         // The transient look dialog is addressed to the looker alone.
         expect(state.pendingReveals).toHaveLength(1);
@@ -4346,7 +4346,7 @@ describe("Effect Script Op: attach / unattach (CR 701.3, ADR 0065, issue #1311)"
 });
 
 describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
-    // A permanent target → hand: the bounce half (returnToHand, CR 701.10).
+    // A permanent target → hand: the bounce half (returnToHand, CR 400.7).
     it("returns an announced battlefield permanent to its owner's hand", () => {
         const id = registerScript("test-op-movezone-bounce", [
             { op: "moveZone", target: { target: 0 }, to: "hand" },
@@ -6496,7 +6496,7 @@ describe("Effect Script Op: moveZone — library-top destination (CR 401.4, issu
             cardInstanceIds: ["found1"],
         });
         const after = state.players[0].library.map((c) => c.id);
-        // Multiset preserved (CR 701.20 randomizes order, never adds/removes).
+        // Multiset preserved (CR 701.24 randomizes order, never adds/removes).
         expect([...after].sort()).toEqual([...before].sort());
         // The searched card is now the very top of the library.
         expect(after[0]).toBe("found1");
@@ -9342,7 +9342,7 @@ describe("Effect Script Op: libraryLook (CR 701.20, issue #844)", () => {
         );
 
     // The controller's library is shuffled: the multiset of cards is preserved
-    // (CR 701.20 randomizes order, never adds/removes), the order is permuted
+    // (CR 701.24 randomizes order, never adds/removes), the order is permuted
     // (rngSeed is fixed at 0, so the permutation is deterministic), and every
     // card's persistent knowledge is cleared (ADR 0026 — an unwitnessed reorder).
     it("shuffles the controller's library — multiset preserved, order permuted, knowledge cleared", () => {
@@ -9361,7 +9361,7 @@ describe("Effect Script Op: libraryLook (CR 701.20, issue #844)", () => {
         expect([...after].sort()).toEqual([...before].sort());
         // Reordered (deterministic under the fixed rngSeed).
         expect(after).not.toEqual(before);
-        // Knowledge cleared — the proof the shuffle actually ran (CR 701.20 /
+        // Knowledge cleared — the proof the shuffle actually ran (CR 701.24 /
         // ADR 0026).
         for (const c of state.players[0].library) {
             expect(c.knownTo ?? []).toEqual([]);
@@ -10167,9 +10167,9 @@ describe("Effect Script predicate: sharesColor (CR 202.2, issue #1955)", () => {
     });
 });
 
-describe("Effect Script Op: regenerate (CR 701.15, issue #846)", () => {
+describe("Effect Script Op: regenerate (CR 701.19, issue #846)", () => {
     // Announced-target regenerate (Death Ward / Niall Silvain): the Op stacks a
-    // single regeneration shield on the announced creature (CR 701.15a).
+    // single regeneration shield on the announced creature (CR 701.19a).
     it("stacks a regeneration shield on the announced creature target", () => {
         const id = registerScript("test-op-regen-target", [
             { op: "regenerate", target: { target: 0 } },
@@ -10186,7 +10186,7 @@ describe("Effect Script Op: regenerate (CR 701.15, issue #846)", () => {
         expect(state.players[1].battlefield[0].regenerationShields).toBe(1);
     });
 
-    // End-to-end shield consumption (CR 614.5 / 701.15a): the shield replaces
+    // End-to-end shield consumption (CR 614.5 / 701.19a): the shield replaces
     // the next destroy with "heal marked damage, tap, remove from combat", so
     // the shielded creature SURVIVES the destroy and the shield is spent.
     it("the shield replaces the next destroy — the creature survives, is tapped, damage healed", () => {
@@ -10208,7 +10208,7 @@ describe("Effect Script Op: regenerate (CR 701.15, issue #846)", () => {
         pushSpell(state, id, "p1", [{ type: "permanent", id: "rg2" }]);
         resolveTopOfStack(state);
         // Destroy replaced by the regen rider — the creature is still on the
-        // battlefield (CR 701.15a).
+        // battlefield (CR 701.19a).
         const survivor = state.players[1].battlefield.find(
             (c) => c.id === "rg2"
         );
@@ -10519,7 +10519,7 @@ describe("Effect Script Op: createToken with token.activatedAbilities (CR 707.2,
     // out of scope for this GRE-only resolution test, exactly like every
     // other `cost.sacrifice` ability's GRE test in the catalogue (e.g.
     // Mishra's Bauble, csp/colorless.test.ts).
-    it("activating the Clue's sac-draw ability draws a card for the controller (CR 701.16a)", () => {
+    it("activating the Clue's sac-draw ability draws a card for the controller (CR 701.21a)", () => {
         const id = registerScript("test-op-token-clue-activate", [clueSpec()]);
         const state = makeState({
             players: [
@@ -15104,7 +15104,7 @@ describe("Effect Script construct: forEach — permanent sets (ADR 0045 / CR 608
     });
 });
 
-describe("Effect Script Op: sacrifice — single-object target form (CR 701.16, issue #731)", () => {
+describe("Effect Script Op: sacrifice — single-object target form (CR 701.21, issue #731)", () => {
     it("sacrifices the announced target permanent", () => {
         const id = registerScript("test-sac-target", [
             { op: "sacrifice", target: { target: 0 } },
@@ -16005,7 +16005,7 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
 });
 
 // --- Sneak Attack shape: choice(hand) + moveZone(bind) + grantAbility +
-// delayedTrigger(capture) + sacrifice(target) (CR 400.7 / 603.7 / 701.16,
+// delayedTrigger(capture) + sacrifice(target) (CR 400.7 / 603.7 / 701.21,
 // issue #1151) -----------------------------------------------------------
 // The full "You may put a creature card from your hand onto the
 // battlefield. That creature gains haste. Sacrifice the creature at the
@@ -16014,7 +16014,7 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
 // `moveZone` cards-shape `bind` feeding BOTH an immediate `grantAbility` and
 // a `delayedTrigger` capture, whose body sacrifices the EXACT captured
 // creature via the `sacrifice` Op's `target` form — not a fresh `choice`.
-describe("Effect Script construct: choice + moveZone(bind) + grantAbility + delayedTrigger(capture) + sacrifice(target) — Sneak Attack shape (CR 400.7 / 603.7 / 701.16, issue #1151)", () => {
+describe("Effect Script construct: choice + moveZone(bind) + grantAbility + delayedTrigger(capture) + sacrifice(target) — Sneak Attack shape (CR 400.7 / 603.7 / 701.21, issue #1151)", () => {
     const SNEAK_SCRIPT: EffectOp[] = [
         {
             op: "choice",
@@ -16941,7 +16941,7 @@ describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #
     });
 });
 
-// --- counter Op + destination (CR 701.5a, issue #683) -----------------------
+// --- counter Op + destination (CR 701.6a, issue #683) -----------------------
 //
 // The bare `counter` Op (default graveyard destination) predates this suite —
 // existing per-card tests (Counterspell, Force Spike) are its only coverage.
@@ -16951,7 +16951,7 @@ describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #
 // rule) — the redirect half of "if that spell is countered this way, exile it
 // / put it on top of its owner's library / put it into its owner's hand
 // instead" (No More Lies, Memory Lapse, Remand).
-describe("Effect Script Op: counter + destination (CR 701.5a, issue #683)", () => {
+describe("Effect Script Op: counter + destination (CR 701.6a, issue #683)", () => {
     it("removes the target spell from the stack into its owner's graveyard by default", () => {
         const id = registerScript(
             "test-op-counter-default",
@@ -17338,7 +17338,7 @@ describe("Effect Script: reveal→discard keeps knowledge of the remaining hand 
 // path (`applyPendingChoiceSubmit`) commits the kept order + the un-kept split,
 // and resolution resumes AT the Op (later Ops — e.g. the draw — then run).
 
-describe("Effect Script Op: scryReorder (CR 401.4 / 701.22 / 701.44, issue #885)", () => {
+describe("Effect Script Op: scryReorder (CR 401.4 / 701.22 / 701.25, issue #885)", () => {
     const libOf = (owner: "p1" | "p2", ids: string[]) =>
         ids.map((cid) =>
             makeInstance(BEAR_ID, {
@@ -18948,7 +18948,7 @@ describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
     });
 });
 
-describe("Effect Script Op: scryReorder — fateseal chooser (CR 701.20, issue #1532)", () => {
+describe("Effect Script Op: scryReorder — fateseal chooser (CR 701.29, issue #1532)", () => {
     // Jace, the Mind Sculptor +2: the CONTROLLER looks at the TARGET player's
     // library and decides top/bottom. The new `chooser` param raises the
     // order-top choice for the chooser with `zoneOwnerId` = the library owner.
@@ -22434,7 +22434,7 @@ describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)"
     });
 });
 
-describe("Effect Script Op: exileWithAttachments / returnExiledForSource (CR 603.7a / 701.18 / ADR 0028)", () => {
+describe("Effect Script Op: exileWithAttachments / returnExiledForSource (CR 603.7a / 701.13 / ADR 0028)", () => {
     // A minimal Aura for the includeAttachments tests (attaches to a creature).
     const TEST_AURA_ID = "test-op-exile-aura";
     registerTokenDefinition({
@@ -22465,7 +22465,7 @@ describe("Effect Script Op: exileWithAttachments / returnExiledForSource (CR 603
             { type: "permanent", id: "ewaBear" },
         ]);
         resolveTopOfStack(state);
-        // CR 701.18 — the target left the battlefield into its owner's exile.
+        // CR 701.13 — the target left the battlefield into its owner's exile.
         expect(
             state.players[1].battlefield.find((c) => c.id === "ewaBear")
         ).toBeUndefined();
@@ -23117,7 +23117,7 @@ describe("Effect Script Op: skipNextUntap (CR 302.6 / 502.1)", () => {
     });
 });
 
-describe("Effect Script Op: discardAtRandom (CR 701.8a)", () => {
+describe("Effect Script Op: discardAtRandom (CR 701.9a)", () => {
     /** p2 holds `n` bears in hand as the random-discard pool. */
     function handOf(n: number): GameState {
         return makeState({
@@ -23425,7 +23425,7 @@ describe("Effect Script Op: discardAtRandom (CR 701.8a)", () => {
     });
 });
 
-describe("Effect Script Op: preventRegeneration (CR 701.15c)", () => {
+describe("Effect Script Op: preventRegeneration (CR 701.19c)", () => {
     /** p2 controls one bear (a 2/5 Creature) as the announced regen-lock target. */
     function oneBear(): GameState {
         return makeState({
@@ -23917,7 +23917,7 @@ describe("Effect Script Op: reflexiveTrigger (CR 603.3c)", () => {
         expect(state.players[0].hand).toHaveLength(0);
     });
 
-    it("a picks binding crosses into the body VERBATIM, so a graveyard filter can read the sacrificed card (CR 701.16 + 608.2h)", () => {
+    it("a picks binding crosses into the body VERBATIM, so a graveyard filter can read the sacrificed card (CR 701.21 + 608.2h)", () => {
         const id = registerScript("test-op-reflexive-picks", [
             {
                 op: "choice",

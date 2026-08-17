@@ -124,7 +124,7 @@ type GameContext = {
      *  {@link PlayerCityBlessingTile} to render the marker tile beside the
      *  pile column. */
     cityBlessingIds?: string[];
-    /** One-shot look/reveal notifications for this viewer (CR 701.18a look /
+    /** One-shot look/reveal notifications for this viewer (CR 400.2 look /
      *  701.20 reveal, `SpellContext.notifyReveal`). The projection filters
      *  `pendingReveals` to entries whose `audience` includes this viewer — a
      *  private look (Urza's Bauble) reaches only the looker, a public reveal

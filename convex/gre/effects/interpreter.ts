@@ -1055,7 +1055,7 @@ function matchesCardFilter(
  *  (issue #677/#680) and `selectForEachMembers`'s permanents branch (issue
  *  #807), but ALWAYS single-owner (every one of the six INV pile cards'
  *  object sets belongs to exactly one player). `library-top` additionally
- *  REVEALS the peeked cards (CR 701.16, Fact or Fiction) — a public reveal,
+ *  REVEALS the peeked cards (CR 701.20, Fact or Fiction) — a public reveal,
  *  not a private look, so it marks them known to ALL players rather than
  *  routing through the `libraryPeek` chooser-only exposure. Returns
  *  `undefined` when the owning player cannot be resolved (CR 608.2b). */
@@ -1878,7 +1878,7 @@ export const OP_EXECUTORS: {
         if (amount === undefined || amount <= 0) return;
         ctx.loseLife(playerId, amount);
     },
-    // CR 701.8a — random discard: `count` cards chosen AT RANDOM from
+    // CR 701.9a — random discard: `count` cards chosen AT RANDOM from
     // `player`'s hand (Hymn to Tourach, Mind Twist, Gwendlyn Di Corci). The
     // primitive owns the seeded-PRNG selection (deterministic replays); the
     // `discard` Op discards a player-CHOSEN or whole-hand set instead. Skipped
@@ -2445,7 +2445,7 @@ export const OP_EXECUTORS: {
     exileSelf(ctx) {
         ctx.exileSelf();
     },
-    // CR 603.7a / 701.18 / ADR 0028 — exile the announced target keyed to
+    // CR 603.7a / 701.13 / ADR 0028 — exile the announced target keyed to
     // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
     // Tawnos's Coffin). The `sourceId` is ALWAYS the resolving source
     // (`ctx.sourceInstanceId`), so the later `returnExiledForSource` on the
@@ -2723,7 +2723,7 @@ export const OP_EXECUTORS: {
         }
         if (!target) return;
         if (target.type === "permanent") {
-            // Battlefield source (CR 110). The bounce-to-hand pair (CR 701.10)
+            // Battlefield source (CR 110). The bounce-to-hand pair (CR 400.7)
             // and the positional library insert (issue #1726) both route
             // through LTB-aware primitives; other destinations from the
             // battlefield are skipped (destroy/exile are their own Ops).
@@ -3015,7 +3015,7 @@ export const OP_EXECUTORS: {
             op.duration ?? "indefinite"
         );
     },
-    // CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
+    // CR 701.24 (issue #844) — shuffle a player's library. A thin declarative
     // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded
     // PRNG reorder that also clears persistent knowledge (ADR 0026). Skipped
     // when the referenced player is gone (CR 608.2b — `resolvePlayerRef`
@@ -3037,7 +3037,7 @@ export const OP_EXECUTORS: {
     shuffleSelfIntoLibrary(ctx) {
         ctx.shuffleSelfIntoLibrary();
     },
-    // CR 401.4 look / CR 701.22 Scry / 701.44 Surveil / order-only (issue
+    // CR 401.4 look / CR 701.22 Scry / 701.25 Surveil / order-only (issue
     // #885) — look at / reorder the top of a library. A thin declarative skin
     // over the single SpellContext primitive `orderTop`, ONE execution path
     // (ADR 0045). SUSPENDS like `choice`/`mayPay`: `orderTop` returns `false`
@@ -3772,7 +3772,7 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.preventNextNDamageToTarget(target, amount, op.duration);
     },
-    // CR 701.15 (issue #846) — stack a regeneration shield on a permanent. A
+    // CR 701.19 (issue #846) — stack a regeneration shield on a permanent. A
     // thin declarative skin over the single SpellContext primitive
     // `applyRegenerationShield`, ONE execution path (ADR 0045). Skipped when the
     // referenced permanent is gone (CR 608.2b — `resolveObjectRef` returns
@@ -3783,7 +3783,7 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.applyRegenerationShield(target);
     },
-    // CR 701.15c (issue #1283) — the inverse of `regenerate`: flag the creature
+    // CR 701.19c (issue #1283) — the inverse of `regenerate`: flag the creature
     // so it can't be regenerated for the rest of the turn. `$source` resolves
     // to the source's own selection, so the single setTarget primitive covers
     // the self-lock (Clergy) too. No-op off the battlefield / on a non-creature
@@ -4155,7 +4155,7 @@ export const OP_EXECUTORS: {
         if (ids.length === 0) return; // CR 608.2b — nothing to reveal
         ctx.markKnownToAll(playerId, ids);
     },
-    // CR 701.18a look (Urza's Bauble) — "Look at a card at random in
+    // CR 400.2 look (Urza's Bauble) — "Look at a card at random in
     // `player`'s hand": a PRIVATE look. A thin adapter over the two
     // SpellContext primitives `lookRandomHandCard` (seeded-PRNG pick + private
     // `markKnown` to the looker) and `notifyReveal` (the transient look dialog,
@@ -4420,11 +4420,11 @@ export const OP_EXECUTORS: {
         });
         if (paid === undefined) return "suspend"; // enqueued — wait
     },
-    // CR 701.5a — counter the announced target spell. A silent no-op when the
+    // CR 701.6a — counter the announced target spell. A silent no-op when the
     // target already left the stack (CR 608.2b — the spell does as much as it
     // can). The consequence half of the counter/punisher pattern. `destination`
     // (issue #683) redirects a COUNTERED SPELL to exile/library-top/hand
-    // instead of the CR 701.5a graveyard default (No More Lies, Memory Lapse,
+    // instead of the CR 701.6a graveyard default (No More Lies, Memory Lapse,
     // Remand).
     counter(ctx, op) {
         const target = resolveTargetRef(ctx, op.target);
@@ -4569,13 +4569,13 @@ export const OP_EXECUTORS: {
         const branch = won ? op.win.effects : op.loss.effects;
         return runOpList(ctx, branch, cursor);
     },
-    // CR 701.16 (issue #807) — sacrifice the permanents a `choice` Op picked.
+    // CR 701.21 (issue #807) — sacrifice the permanents a `choice` Op picked.
     // Routes through `SpellContext.sacrifice`: the controller puts each pick
     // into its owner's graveyard; indestructible does not prevent sacrifice
-    // (CR 701.16a) and dies-triggers fire as for imperative cards. A pick
+    // (CR 701.21a) and dies-triggers fire as for imperative cards. A pick
     // already gone from the battlefield is a no-op inside the primitive.
     sacrifice(ctx, op) {
-        // Single-object form (CR 701.16 — "sacrifice that/this creature",
+        // Single-object form (CR 701.21 — "sacrifice that/this creature",
         // Kjeldoran Elite Guard, Phantasmal Mount): resolve one announced
         // target / snapshot-bound permanent through the object-ref path, which
         // re-checks battlefield presence (CR 608.2b — a permanent already gone
@@ -4589,7 +4589,7 @@ export const OP_EXECUTORS: {
             ctx.sacrifice(target.id);
             return;
         }
-        // Picks form (CR 701.16 — the "each player sacrifices …" forEach
+        // Picks form (CR 701.21 — the "each player sacrifices …" forEach
         // pattern): sacrifice every permanent a `choice` Op picked.
         if (op.permanents === undefined) return;
         const ids = resolvePicks(ctx, op.permanents);

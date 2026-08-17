@@ -6790,7 +6790,7 @@ export function buildCastSacrificeSelection(
 }
 
 /** CR 601.2f / 601.2h — announcement-PRELUDE gate for a paid Kicker's
- *  permanent leg (CR 702.33a — "sacrifice two lands", "return a creature you
+ *  permanent leg (CR 702.33a kicker — "sacrifice two lands", "return a creature you
  *  control") colliding with the cast's own additional-cost sacrifice (its own
  *  `additionalCosts`, or a board-wide one like Drought, CR 118.5): the cast has
  *  exactly ONE permanent-cost selection slot, and honouring both would mean
@@ -7699,7 +7699,7 @@ export const announceCast = mutation({
         // Nethergoyf variable "any number … with N+ card types among them").
         // Applies ONLY on an escape (graveyard) cast; the caster exiles the cost
         // cards from their OWN graveyard, never the escaping card itself
-        // (CR 702.138a "other cards"). Reuses the flashback exile picker slot.
+        // (CR 702.138a escape, "other cards"). Reuses the flashback exile picker slot.
         const escExileSpec =
             castFromZone === "graveyard"
                 ? getEscapeExileSpec(state, cardInHand)
@@ -9368,7 +9368,7 @@ export function recordCastExileCostPick(
             );
         }
     }
-    // CR 702.138a (Nethergoyf) — the exiled OTHER cards must collectively carry
+    // CR 702.138a escape (Nethergoyf) — the exiled OTHER cards must collectively carry
     // at least `minCardTypes` distinct card types.
     if (ec.minCardTypes !== undefined) {
         const picked = cardInstanceIds
@@ -9830,7 +9830,7 @@ export function applyOneTargetSelection(
             }
         }
         if (!matchedCard) throw new Error("Invalid target");
-        // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 / 109.3 / 102.1 —
+        // CR 109.1 / 115 / 202 / 205 / 613 / 701.26 / 109.3 / 102.1 —
         // every PERMANENT-kind filter (including `controller`, anti-spoof
         // #904), routed through the SINGLE shared authority — the
         // target-filter registry (ADR 0068 / issue #1408). `getLegalTargets`
@@ -11385,7 +11385,7 @@ export const assignBlockerTarget = mutation({
             throw new Error("Target is not an attacker");
         }
 
-        // Evasion checks (CR 509.1b): flying (CR 702.9) + landwalk (CR 702.13).
+        // Evasion checks (CR 509.1b): flying (CR 702.9) + landwalk (CR 702.14).
         const activePlayer = getPlayer(state, state.activePlayerId);
         const attacker = activePlayer.battlefield.find(
             (c) => c.id === args.attackerId

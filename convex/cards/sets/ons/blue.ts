@@ -20,7 +20,7 @@ import { PERMANENT_TYPES } from "../../types";
 // retarget, so this composes the same SpellContext primitives Chain Lightning
 // (leg/red.ts) already uses — `copyResolvingSpell` (CR 707.12) +
 // `requestCopyRetarget` (CR 707.10c) — differing only in the optional cost:
-// a `sacrifice`-leg may-pay ("Sacrifice a land", CR 701.16) instead of a mana
+// a `sacrifice`-leg may-pay ("Sacrifice a land", CR 701.21) instead of a mana
 // may-pay.
 //
 // Two resolveSteps so the irreversible bounce (step 0) is checkpointed before
@@ -46,7 +46,7 @@ export const chainOfVapor: CardDefinition = {
     },
     resolveSteps: [
         // Step 0 — capture "that permanent's controller" (CR 611 / 608.2h) THEN
-        // return the permanent to its owner's hand (CR 701.10 / 400.7). The
+        // return the permanent to its owner's hand (CR 400.7). The
         // controller must be read BEFORE the bounce: after `returnToHand` the
         // permanent is no longer on the battlefield. Persisted for step 1 via
         // `noteChoice`; the bounce stays in step 0 so the suspend/replay of the
@@ -59,7 +59,7 @@ export const chainOfVapor: CardDefinition = {
             ctx.returnToHand(target);
         },
         // Step 1 — offer the bounced permanent's controller the optional
-        // "Sacrifice a land" (CR 701.16). On sacrifice, they copy this spell
+        // "Sacrifice a land" (CR 701.21). On sacrifice, they copy this spell
         // (CR 707.12) and may choose a new target for the copy (CR 707.10c).
         // The copy is a fresh resolution that can itself chain again.
         (ctx: SpellContext) => {

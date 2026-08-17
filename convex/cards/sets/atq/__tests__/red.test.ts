@@ -35,7 +35,7 @@ import {
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveActivated, vanilla } from "./helpers";
 
-describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller, CR 107.3 / 701.7)", () => {
+describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller, CR 107.3 / 701.8)", () => {
     it("destroys an artifact with mv X and deals X damage to its controller", () => {
         // Dragon Engine is mv 3 (MTGJSON {3}). X = 3.
         const engine = makeInstance(dragonEngine.id, {
@@ -115,7 +115,7 @@ describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller,
     });
 });
 
-describe("Shatterstorm (destroy all artifacts, no regen, CR 701.7 / 701.15c)", () => {
+describe("Shatterstorm (destroy all artifacts, no regen, CR 701.8 / 701.19c)", () => {
     it("destroys every artifact on the battlefield, leaving non-artifacts", () => {
         const a1 = makeInstance(clayStatue.id, {
             id: "a1",
@@ -189,7 +189,7 @@ describe("Shatterstorm (destroy all artifacts, no regen, CR 701.7 / 701.15c)", (
     });
 });
 
-describe("Artifact Blast (counter target artifact spell, CR 701.5a / 114.1)", () => {
+describe("Artifact Blast (counter target artifact spell, CR 701.6a / 114.1)", () => {
     it("counters an artifact spell on the stack", () => {
         const state = makeState();
         // p2 casts Clay Statue (an Artifact spell). p1 responds with blast.

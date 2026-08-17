@@ -99,7 +99,7 @@ describe("Consuming Aetherborn (CR 702.165 Backup, issue #1315)", () => {
             (c) => c.id === "bearTarget"
         )!;
         expect(granted.counters?.["+1/+1"]).toBe(1);
-        // CR 702.165a — the target gains lifelink (Consuming Aetherborn's own
+        // CR 702.165a backup — the target gains lifelink (Consuming Aetherborn's own
         // printed ability) until end of turn — Grizzly Bears has no lifelink
         // of its own.
         expect(granted.staticAbilities).toContain("lifelink");

@@ -202,7 +202,7 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
         );
     });
 
-    it("discards the chosen creature card and finds a creature card in the library, revealed into hand, CR 701.19/701.20", () => {
+    it("discards the chosen creature card and finds a creature card in the library, revealed into hand, CR 701.23 search / 701.20 reveal", () => {
         const bears = makeInstance(grizzlyBears.id, {
             id: "bears-1",
             controllerId: "p1",
@@ -240,7 +240,7 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
         expect(state.stack).toHaveLength(1);
 
         // The ability is now on the stack; resolving it drives the DSL
-        // search-library choice (CR 701.19), which suspends for the pick.
+        // search-library choice (CR 701.23), which suspends for the pick.
         expect(resolveTopOfStack(state)).toBeNull();
         const head = state.pendingChoices![0];
         expect(head.candidateIds).toEqual(["lib-bears-1"]);

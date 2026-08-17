@@ -11,7 +11,7 @@
 // point EVERY library search funnels through, whether authored as a DSL
 // `choice(kind: "search-library")` Op (every shipped tutor/fetchland) or an
 // imperative `resolve()` closure, and regardless of whether the search
-// finds anything (CR 701.19a — the ACT of searching is the trigger
+// finds anything (CR 701.23a — the ACT of searching is the trigger
 // condition, not the result). See the event's own doc comment in
 // `cards/types.ts`.
 //
@@ -41,7 +41,7 @@ export type LibrarySearchedScope = "you" | "opponents" | "any";
 
 /** Flattened payload handed to a `librarySearchedTrigger`'s resolve callback. */
 export interface LibrarySearchedInfo {
-    /** The player who performed the search (CR 701.19a). */
+    /** The player who performed the search (CR 701.23a). */
     playerId: string;
 }
 
@@ -83,7 +83,7 @@ function matchesLibrarySearchedScope(
     event: LibrarySearchedEvent,
     self: PermanentView
 ): boolean {
-    // CR 701.19a (bugfix, issue #788 post-review) — "searches THEIR
+    // CR 701.23a (bugfix, issue #788 post-review) — "searches THEIR
     // library" requires the searcher to be searching their OWN library.
     // `event.playerId` (the searcher) and `event.libraryOwnerId` (whose
     // library) differ for a Jester's Cap/Jester's Mask/Lobotomy-shaped

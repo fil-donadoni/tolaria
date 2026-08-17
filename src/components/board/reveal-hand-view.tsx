@@ -5,7 +5,7 @@ import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { Button } from "~/components/ui/button";
 import CardsPile from "./cards-pile";
 
-/** Modal viewer for a `reveal-hand` look choice (CR 401.4 / 701.18a) — the
+/** Modal viewer for a `reveal-hand` look choice (CR 401.4 / 400.2) — the
  *  private "Look at target player's hand" of Gitaxian Probe / Glasses of Urza.
  *  It reuses the SAME picker surface as `HandCardPick` (Thoughtseize / Duress):
  *  a `CardsPile` grid of the target's hand rendered face-up. It differs in one

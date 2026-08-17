@@ -7,7 +7,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // Snuff Out — {3}{B} Instant. "If you control a Swamp, you may pay 4 life rather
 // than pay this spell's mana cost. Destroy target nonblack creature. It can't be
 // regenerated." (CR 118.9 alternative pitch cost — a pay-life leg gated on a
-// control condition; CR 118.4 pay life; CR 701.7 destroy; CR 701.15c
+// control condition; CR 118.4 pay life; CR 701.8 destroy; CR 701.19c
 // regeneration suppression; CR 202.2 colour restriction.)
 //
 // The alternative cost is a censusless CR 118.9 rules concept (no keyword name):

@@ -1924,7 +1924,7 @@ export interface IntrinsicPermanentTargetFilters {
 }
 
 /** THE single authority on whether a permanent passes a target requirement's
- *  intrinsic filters (CR 109.1 / 115 / 202 / 205 / 613 / 701.20). Returns
+ *  intrinsic filters (CR 109.1 / 115 / 202 / 205 / 613 / 701.26). Returns
  *  `null` when the permanent is a legal target, else a short human-readable
  *  reason. BOTH `getLegalTargets` (the offered set) and the `selectTarget`
  *  mutation (the accepted set — the authoritative anti-spoof gate) route every
@@ -2294,7 +2294,7 @@ export function getLegalTargets(
                 );
                 if (!matchesAny && !wantsSpellOrPermanent && !matchesExplicit)
                     continue;
-                // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 / 109.3 / 102.1 /
+                // CR 109.1 / 115 / 202 / 205 / 613 / 701.26 / 109.3 / 102.1 /
                 // 302.6 / 400.7 — every permanent-kind filter (including
                 // `controller` and `controlledSinceTurnStart`), routed through
                 // the SINGLE shared authority — the target-filter registry
@@ -2411,7 +2411,7 @@ export function getLegalTargets(
 
     // CR 114.1: any spell or ability currently on the stack is a legal target
     // (The casting spell itself isn't on the stack yet during target selection.)
-    // CR 113 / 114.1 / 202.2 / 202.3 / 208.2 / 601.2c / 701.7 / 702 — every
+    // CR 113 / 114.1 / 202.2 / 202.3 / 208.2 / 601.2c / 701.8 / 702 — every
     // spell-kind filter (spellStackKind, controller, stackSourceTypeFilter,
     // spellTargetsInstanceIds, colorFilter, mvFilter, spellTypeFilter,
     // spellExcludeTypeFilter, spellCreaturePtFilter,

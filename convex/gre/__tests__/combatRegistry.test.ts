@@ -58,9 +58,9 @@ describe("EVASION_RULES registry", () => {
         expect(keywords).toContain("mountainwalk");
         expect(keywords).toContain("forestwalk");
         expect(keywords).toContain("desertwalk");
-        // CR 702.13 — supertype-keyed landwalk (Livonya Silone).
+        // CR 702.14 — supertype-keyed landwalk (Livonya Silone).
         expect(keywords).toContain("legendary landwalk");
-        // CR 702.13 / 205.4a — snow landwalk (#661, Legions of Lim-Dûl,
+        // CR 702.14 / 205.4a — snow landwalk (#661, Legions of Lim-Dûl,
         // Rime Dryad, Barbarian Guides grants).
         expect(keywords).toContain("snow plainswalk");
         expect(keywords).toContain("snow islandwalk");
@@ -116,10 +116,10 @@ describe("evaluateBlockerKeywords — unblockable (CR 509.1b)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// evaluateBlockerKeywords — landwalk (CR 702.13b)
+// evaluateBlockerKeywords — landwalk (CR 702.14b)
 // ---------------------------------------------------------------------------
 
-describe("evaluateBlockerKeywords — landwalk (CR 702.13b)", () => {
+describe("evaluateBlockerKeywords — landwalk (CR 702.14b)", () => {
     function makeLand(subtype: string): CardInstanceState {
         return makeCard({ types: ["Land"], subtypes: [subtype] });
     }

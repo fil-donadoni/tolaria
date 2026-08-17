@@ -135,7 +135,7 @@ export type ManaCost = {
  *  (`convex/gre/flashback.ts` → `normalizeFlashbackCost`). All additional costs
  *  reuse existing cost machinery scoped to the flashback cast path only:
  *  `sacrifice` routes through the unified sacrificeChoice layer (always an
- *  explicit player choice, CR 701.21a), `exileFromHand` through the flashback
+ *  explicit player sacrifice choice, CR 701.21a), `exileFromHand` through the flashback
  *  exile-cost picker. Used by Lava Dart ("Flashback—Sacrifice a Mountain",
  *  no mana). */
 export interface FlashbackCost {
@@ -167,7 +167,7 @@ export interface FlashbackCost {
 export interface EscapeCost {
     /** The mana portion of the escape cost (CR 702.138a). */
     mana: ManaCost;
-    /** CR 702.138a — exile OTHER cards from the caster's graveyard as an
+    /** CR 702.138a escape — exile OTHER cards from the caster's graveyard as an
      *  additional cost; the escaping card itself is never eligible ("other
      *  cards"). Two shapes:
      *   - FIXED count ("exile three/five other cards", Uro / Phlage /
@@ -401,7 +401,7 @@ export interface TargetRequirement {
      *  shorthand for one supertype. Ignored for player / spell / graveyard
      *  targets. */
     excludeSupertypes?: CardSupertype | CardSupertype[];
-    /** Restricts legal permanent targets by tap state (CR 701.20). Used by
+    /** Restricts legal permanent targets by tap state (CR 701.26). Used by
      *  "target tapped creature" (Royal Assassin) and "target untapped
      *  creature" style filters. Ignored for player / spell targets. */
     tappedFilter?: "tapped" | "untapped";
@@ -584,7 +584,7 @@ export interface TargetRequirement {
      *  banner hard-coded "Deal damage" for every divide spell regardless). */
     divideAsChosen?: { total: number | "X" | "X+1"; kind?: "deal" | "prevent" };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that WOULD
-     *  destroy a land the activating player controls (CR 114.1 + 701.7). A
+     *  destroy a land the activating player controls (CR 114.1 + 701.8). A
      *  spell qualifies when either:
      *    - it has `effect: "destroy-target"` and one of its chosen targets is a
      *      Land the activating player controls, or
@@ -596,7 +596,7 @@ export interface TargetRequirement {
     spellWouldDestroyLandYouControl?: boolean;
     /** Restricts a stack-object target (`type: "spell"`) by object KIND
      *  (CR 113 / 114.1). Omitted = SPELLS ONLY — a "target spell" targets a
-     *  spell, never an ability (CR 701.5a; a triggered/activated ability on the
+     *  spell, never an ability (CR 701.6a; a triggered/activated ability on the
      *  stack is not a legal target for Counterspell et al.). `"spell"` is the
      *  explicit form of that same spell-only default. `"activated-ability"`
      *  instead keeps ONLY activated abilities on the stack (CR 602 / 113.3 — the
@@ -757,11 +757,11 @@ export type GainControlDuration =
     | "while-source-tapped"
     | "while-source-tapped-and-power-ge";
 
-/** Where a COUNTERED SPELL ends up instead of CR 701.5a's default owner's
+/** Where a COUNTERED SPELL ends up instead of CR 701.6a's default owner's
  *  graveyard (issue #683's "if that spell is countered this way, …" clause —
  *  No More Lies "exile it", Memory Lapse "put it on top of its owner's
  *  library", Remand "put it into its owner's hand"). `"graveyard"` is the
- *  CR 701.5a default; every other member is a `moveZone`-style destination
+ *  CR 701.6a default; every other member is a `moveZone`-style destination
  *  applied to the stack item at the moment it's removed from the stack
  *  (before a plain `moveZone` Op could reach it — a spell on the stack isn't
  *  one of `moveZone`'s recognized object kinds). */
@@ -1552,12 +1552,12 @@ export interface CostLegs {
      *  nothing; for an alternative cost it is mana paid INSTEAD of the printed
      *  cost (Dash, CR 702.109a — a pure mana-for-mana swap). */
     mana?: ManaCost;
-    /** PERMANENT leg (CR 701.16 sacrifice / 701.24 return): permanents matching
+    /** PERMANENT leg (CR 701.21 sacrifice / 400.7 return): permanents matching
      *  `filter` that the payer controls leave the battlefield to pay the cost.
      *
      *   - `action: "sacrifice"` — moved to the owner's graveyard as a sacrifice
-     *     (CR 701.16; shock lands, cumulative upkeep, Fireblast, Mine Collapse).
-     *   - `action: "return"` — bounced to the owner's hand (CR 701.24 / 118.9;
+     *     (CR 701.21 sacrifice; shock lands, cumulative upkeep, Fireblast, Mine Collapse).
+     *   - `action: "return"` — bounced to the owner's hand (CR 400.7 / 118.9;
      *     Gush / Thwart / Daze, and the may-pay "unless you return a land you
      *     control to its owner's hand" shape).
      *
@@ -1566,7 +1566,7 @@ export interface CostLegs {
      *   - **fixed cardinal** (`number`) — "give up N matching permanents". The
      *     payer picks exactly `count` (CR 701.21a); the historical shape.
      *   - **summed-power threshold** (`{ minTotalPower: N }`) — "sacrifice ANY
-     *     NUMBER of matching permanents with total power ≥ N" (CR 118 / 701.16,
+     *     NUMBER of matching permanents with total power ≥ N" (CR 118 / 701.21,
      *     Phyrexian Dreadnought). The payer picks a variable-size set whose
      *     summed EFFECTIVE power (layer pipeline, CR 613) meets or exceeds `N`;
      *     over-payment is legal, minimality is not required. Threshold mode is
@@ -2548,7 +2548,7 @@ export interface SpellContext {
         playerId: string,
         amount: number
     ) => void;
-    /** Generic Fight primitive (CR 701.12-style mutual damage). The resolving
+    /** Generic Fight primitive (CR 701.14-style mutual damage). The resolving
      *  ability's source permanent (`sourceInstanceId`) and `target` each deal
      *  damage equal to their power to the other, simultaneously, through the
      *  normal damage path (so replacement/prevention/protection effects apply
@@ -2695,19 +2695,19 @@ export interface SpellContext {
      *  Enchantments' "Auras attached to attacking creatures opponents
      *  control"). */
     getIsAttacking: (cardInstanceId: string) => boolean;
-    /** Whether the target permanent is tapped (CR 701.20a). Returns false for
+    /** Whether the target permanent is tapped (CR 701.26a). Returns false for
      *  players and for permanents no longer on the battlefield. Used by
      *  intervening-if checks like Howling Mine's "if ~ is untapped". */
     getIsTapped: (target: TargetSelection) => boolean;
-    /** Destroys a permanent (CR 701.7). Routes through the regeneration /
+    /** Destroys a permanent (CR 701.8). Routes through the regeneration /
      *  indestructible replacement layer. Returns true if the permanent was
      *  actually moved to the graveyard, false if a regen shield or
      *  indestructible saved it or if the target had already left the
      *  battlefield. Used by spells like Volcanic Eruption that must count
-     *  "permanents put into a graveyard this way" (CR 614.5, 701.15a).
+     *  "permanents put into a graveyard this way" (CR 614.5, 701.19a).
      *
      *  Pass `cantBeRegenerated: true` (Terror, Disintegrate) to suppress the
-     *  regen shield replacement (CR 701.15c) — indestructible still
+     *  regen shield replacement (CR 701.19c) — indestructible still
      *  protects. */
     destroy: (
         target: TargetSelection,
@@ -2768,7 +2768,7 @@ export interface SpellContext {
         subtype: string,
         enchantRestriction?: EnchantRestriction
     ) => void;
-    /** Returns a target permanent to its owner's hand (CR 701.10). The card
+    /** Returns a target permanent to its owner's hand (CR 400.7). The card
      *  becomes a new object on the zone change (CR 400.7) — battlefield-only
      *  transient state (tapped, marked damage, regen shields, summoning
      *  sickness, attached/granted-by-aura state) is cleared. No-op if the
@@ -2846,7 +2846,7 @@ export interface SpellContext {
      *  static effects push out, and an ETB notification fires (CR 603.6).
      *  Returns true if the card was in the library and moved, false on silent
      *  fizzle (CR 608.2b). Used by Transmute Artifact. Pair with
-     *  `shuffleLibrary` (CR 701.20) after the search resolves. */
+     *  `shuffleLibrary` (CR 701.24) after the search resolves. */
     putFromLibraryOntoBattlefield: (
         playerId: string,
         cardInstanceId: string
@@ -2890,11 +2890,11 @@ export interface SpellContext {
         cardInstanceId: string,
         opts?: { sourceZone?: "hand" | "graveyard" | "exile" }
     ) => boolean;
-    /** Taps a permanent on the battlefield (CR 701.20a). No-op if already
+    /** Taps a permanent on the battlefield (CR 701.26a). No-op if already
      *  tapped or if the target is no longer on the battlefield (CR 608.2b).
      *  Used by Icy Manipulator and similar "tap target permanent" effects. */
     tap: (target: TargetSelection) => void;
-    /** Untaps a permanent on the battlefield (CR 701.20b). No-op if already
+    /** Untaps a permanent on the battlefield (CR 701.26b). No-op if already
      *  untapped or if the target is no longer on the battlefield (CR 608.2b).
      *  Used by Twiddle's untap mode and similar "untap target permanent"
      *  effects. */
@@ -2951,7 +2951,7 @@ export interface SpellContext {
      *  conditional-control SBA), this installs an "until end of turn" duration
      *  that the phase-boundary purge reverts at the cleanup step (CR 514.2).
      *  Pass `opts.tapOnLoss` for the "when you lose control of it, tap it"
-     *  rider (CR 701.20a): the permanent taps the instant control reverts.
+     *  rider (CR 701.26a): the permanent taps the instant control reverts.
      *  No-op if the target has left the battlefield. */
     gainControlUntilEndOfTurn: (
         target: TargetSelection,
@@ -2959,14 +2959,14 @@ export interface SpellContext {
         opts?: { tapOnLoss?: boolean }
     ) => void;
     /** Destroys every permanent on the battlefield matching the filter
-     *  (CR 701.7). Shorthand `CardType | CardType[]` is equivalent to
+     *  (CR 701.8). Shorthand `CardType | CardType[]` is equivalent to
      *  `{ types }`. The object form supports compounding types, subtypes, and
      *  keyword requirements — e.g. `{ types: "Creature", excludeAbility: "flying" }`
      *  for "destroy all non-flying creatures". Undefined filter destroys every
      *  permanent.
      *
      *  Pass `opts.cantBeRegenerated: true` (Wrath of God, Damnation) to
-     *  suppress the regen shield replacement (CR 701.15c) — indestructible
+     *  suppress the regen shield replacement (CR 701.19c) — indestructible
      *  still protects. */
     destroyAll: (
         filter?: CardType | CardType[] | PermanentFilter,
@@ -3069,7 +3069,7 @@ export interface SpellContext {
         opts: {
             sourceId: string;
             returnTapped: boolean;
-            /** CR 701.18 — whether the host's attachments travel into exile WITH
+            /** CR 701.13 — whether the host's attachments travel into exile WITH
              *  it and return re-attached. Default `true` (Tawnos's Coffin:
              *  Auras/Equipment are exiled and come back attached). Set `false`
              *  for host-only exile (Banishing Light / O-Ring): only the host is
@@ -3095,7 +3095,7 @@ export interface SpellContext {
      *  becomes the monarch"). */
     becomeMonarch: (playerId: string) => void;
     /** CR 720 (Palace Jailer, issue #1199) — exiles `targetId` (host-only,
-     *  CR 701.18, the O-Ring precedent: its Auras fall to the orphan-aura SBA
+     *  CR 701.13, the O-Ring precedent: its Auras fall to the orphan-aura SBA
      *  and Equipment detaches) and arms a watch that returns it the moment an
      *  OPPONENT of the resolving ability's controller next becomes the
      *  monarch (`becomeMonarch`). Unlike `exileWithAttachments`, the return
@@ -3119,10 +3119,10 @@ export interface SpellContext {
      *  knowledge on the moved cards is cleared (ADR 0026, like a shuffle).
      *  No-op when the graveyard is empty. */
     putGraveyardOnBottomOfLibrary: (playerId: string) => void;
-    /** Counters a spell or ability on the stack (CR 701.5a). Target must be
+    /** Counters a spell or ability on the stack (CR 701.6a). Target must be
      *  TargetSelection with type "spell". No-op if target no longer on stack
      *  (CR 608.2b). `destination` overrides where a COUNTERED SPELL (never an
-     *  ability — CR 701.5a / 113.7a, abilities simply cease to exist) ends up
+     *  ability — CR 701.6a / 113.7a, abilities simply cease to exist) ends up
      *  instead of its owner's graveyard — the "if that spell is countered this
      *  way, exile/return/put-on-top instead" clause carried by No More Lies,
      *  Memory Lapse, and Remand. Omitted/`"graveyard"` is the default CR
@@ -3131,7 +3131,7 @@ export interface SpellContext {
         target: TargetSelection,
         destination?: CounterDestination
     ) => void;
-    /** CR 701.5-adjacent (issue #1205, Subtlety) — move a SPELL on the stack
+    /** CR 701.6-adjacent (issue #1205, Subtlety) — move a SPELL on the stack
      *  onto the top or bottom of its owner's library WITHOUT countering it.
      *  Distinct from `counter(target, "library-top")`: this is a "put on
      *  library" effect, not a counter, so it ignores `cantBeCountered` (CR
@@ -3143,11 +3143,11 @@ export interface SpellContext {
         target: TargetSelection,
         position: "top" | "bottom"
     ) => void;
-    /** Player discards `amount` cards chosen uniformly at random (CR 701.8a).
+    /** Player discards `amount` cards chosen uniformly at random (CR 701.9a).
      *  Capped at current hand size — no-op on an empty hand. Randomness is
      *  drawn from the game's seeded PRNG so replays reproduce the same picks.
      *  `requireType` restricts the candidate pool to cards whose printed types
-     *  include that type (CR 701.8a — Rag Man: "discards a creature card at
+     *  include that type (CR 701.9a — Rag Man: "discards a creature card at
      *  random"); the random pick is taken only from matching cards, and the
      *  effect is a no-op when none match. Returns the discarded cards'
      *  instance ids, in discard order (issue #1123 — the `discardAtRandom` Op's
@@ -4027,14 +4027,14 @@ export interface SpellContext {
      *  battlefield. Used by Nettling Imp. */
     setMustAttackThisTurn: (target: TargetSelection) => void;
     /** Marks the resolving ability's source permanent (`sourceInstanceId`) so
-     *  it can't be regenerated for the rest of the turn (CR 701.15c). Suppresses
+     *  it can't be regenerated for the rest of the turn (CR 701.19c). Suppresses
      *  both regeneration shields and the continuous `"auto-regenerate"`
      *  replacement on that permanent. Cleared at CLEANUP. No-op if the source is
      *  no longer on the battlefield. Used by Clergy of the Holy Nimbus's "{1}:
      *  This creature can't be regenerated this turn." */
     setSourceCantBeRegeneratedThisTurn: () => void;
     /** Marks a TARGET creature so it can't be regenerated for the rest of the
-     *  turn (CR 701.15c — the target-scoped twin of
+     *  turn (CR 701.19c — the target-scoped twin of
      *  `setSourceCantBeRegeneratedThisTurn`). Sets the same per-instance
      *  `cantBeRegeneratedThisTurn` flag, so it suppresses both regeneration
      *  shields and the continuous `"auto-regenerate"` replacement on that
@@ -4349,7 +4349,7 @@ export interface SpellContext {
          *  `cardInstanceIds` ARE the top order). When set, the client mounts the
          *  ordered HAND→TOP drag picker instead of the in-hand toggle. */
         putOnTop?: boolean;
-        /** `kind: "search-library"` only (CR 701.19a, issue #788 re-review
+        /** `kind: "search-library"` only (CR 701.23a, issue #788 re-review
          *  finding 1) — mark this as a GENUINE library search (look at the
          *  whole library, filtered by characteristics) as opposed to a "look
          *  at the top N, pick one" prompt that reuses this `kind` for its
@@ -4485,7 +4485,7 @@ export interface SpellContext {
      *  random from your hand"). */
     revealRandomHandCard: (playerId: string) => string | undefined;
 
-    /** Private sibling of `revealRandomHandCard` (CR 701.18a look, NOT CR
+    /** Private sibling of `revealRandomHandCard` (CR 400.2 look, NOT CR
      *  701.20 reveal — Urza's Bauble): picks a card at random from `ownerId`'s
      *  hand via the game's seeded PRNG (deterministic on replay, like
      *  `flipCoin` / `discardCardsAtRandom`) and stamps it known to `knowerId`
@@ -4668,7 +4668,7 @@ export interface SpellContext {
      *  turn" pick. */
     getDrawnThisTurnIds: (playerId: string) => string[];
 
-    /** Sacrifices a permanent controlled by its current controller (CR 701.16).
+    /** Sacrifices a permanent controlled by its current controller (CR 701.21).
      *  No-op if the id is not on the battlefield. */
     sacrifice: (cardInstanceId: string) => void;
     /** CR 702.30a — Echo: clears the resolving trigger source's `echoPending`
@@ -4678,11 +4678,11 @@ export interface SpellContext {
      *  (`abilities/echo.ts`). */
     markEchoPaid: () => void;
 
-    /** Discards a specific card from `playerId`'s hand (CR 701.8). No-op if
+    /** Discards a specific card from `playerId`'s hand (CR 701.9). No-op if
      *  the card is no longer in hand. */
     discardCard: (playerId: string, cardInstanceId: string) => void;
 
-    /** Stacks a regeneration shield on a permanent (CR 701.15a). The next
+    /** Stacks a regeneration shield on a permanent (CR 701.19a). The next
      *  time that permanent would be destroyed this turn, the shield is
      *  consumed and the destroy is replaced with "remove all marked damage,
      *  tap, remove from combat". Multiple shields stack — each is consumed
@@ -4758,7 +4758,7 @@ export interface SpellContext {
         target: TargetSelection
     ) => { types: string[]; subtypes: string[]; name: string } | undefined;
 
-    /** Taps all lands controlled by `playerId` (CR 701.20a). Used by Mana
+    /** Taps all lands controlled by `playerId` (CR 701.26a). Used by Mana
      *  Short and Drain Power. No-op for lands already tapped. */
     tapAllLands: (playerId: string) => void;
 
@@ -4808,7 +4808,7 @@ export interface SpellContext {
     putLibraryCardsOnTop: (playerId: string, orderedIds: string[]) => void;
 
     /** The reusable ordered-top primitive behind the drag picker — Scry
-     *  (CR 701.22), Surveil (CR 701.44) and order-only "put them back in any
+     *  scry (CR 701.22), Surveil (CR 701.25) and order-only "put them back in any
      *  order" (Ponder / Index). Looks at the top `n` cards and raises an
      *  `order-top` `PendingChoice` (projected face-up as `libraryPeek`); on
      *  resume it puts the KEPT cards back on top in the player's chosen order and
@@ -4825,7 +4825,7 @@ export interface SpellContext {
             destination: LibraryDestination;
             prompt?: string;
             choiceId?: string;
-            /** CR 701.20 fateseal (issue #1532) — the player who MAKES the
+            /** CR 701.29 fateseal (issue #1532) — the player who MAKES the
              *  top/bottom decision when it is NOT the library owner
              *  (`playerId`). Jace, the Mind Sculptor's +2 looks at the TARGET
              *  player's library and the CONTROLLER decides. Omitted/equal to
@@ -4862,7 +4862,7 @@ export interface SpellContext {
      *  `cardInstanceIds` owned by `zoneOwnerId`. This is the _reveal_ class of
      *  knowledge (vs `markKnown`, the _look_ class which grants to one player):
      *  a revealed card is face-up to everyone and stays so until an uncertainty
-     *  event clears it (e.g. a library shuffle, CR 701.20). Idempotent; no-op
+     *  event clears it (e.g. a library shuffle, CR 701.24). Idempotent; no-op
      *  for ids not currently in that owner's library or hand. */
     markKnownToAll: (zoneOwnerId: string, cardInstanceIds: string[]) => void;
 
@@ -6471,7 +6471,7 @@ export interface StaticAttackManaTax {
     oracleText: string;
 }
 
-/** Battlefield-scanned landwalk-negation static (CR 509.1b / 702.13). The
+/** Battlefield-scanned landwalk-negation static (CR 509.1b / 702.14). The
  *  source permanent declares that one or more named landwalk keywords can be
  *  blocked "as though the attacker didn't have it" — i.e. the matching
  *  landwalk no longer makes a creature unblockable just because the defending
@@ -7568,7 +7568,7 @@ export interface PermanentLeftEvent {
     /** Destination zone of the move. */
     toZone: "graveyard" | "exile" | "hand" | "library";
     /** Why the permanent left the battlefield (CR 603.10). `"sacrifice"` is set
-     *  only when the permanent was sacrificed (CR 701.16); `"destroy"` (issue
+     *  only when the permanent was sacrificed (CR 701.21); `"destroy"` (issue
      *  #1054) is set only when the permanent was destroyed via
      *  `SpellContext.destroy` / `destroyAll` (CR 701.8) — the replacement-aware
      *  path in `destroyWithReplacements`/`regenerateOrDestroy`. Every other
@@ -7689,7 +7689,7 @@ export interface SpellKickedEvent {
 }
 
 /** Tap event emitted whenever a permanent transitions from untapped to
- *  tapped (CR 701.20a). Carries `forMana: true` when the tap is paying the
+ *  tapped (CR 701.26a). Carries `forMana: true` when the tap is paying the
  *  cost of a mana ability (CR 605) — the canonical "tapped for mana"
  *  trigger condition for Mana Flare, Manabarbs, Wild Growth. Emitted from
  *  every tap site (twiddle/spell tap, combat declaration, mana abilities,
@@ -7716,7 +7716,7 @@ export interface PermanentTappedEvent {
     manaTriggersResolved?: boolean;
 }
 
-/** Emitted when a permanent transitions tapped → untapped (CR 701.20b "becomes
+/** Emitted when a permanent transitions tapped → untapped (CR 701.26b "becomes
  *  untapped"). Fired by every untap site that flips `isTapped` from true to
  *  false: the untap step (CR 502.2) and untap effects (Twiddle). NOT fired for
  *  a permanent that was already untapped (no transition). Carries the source's
@@ -7898,7 +7898,7 @@ export interface CardDrawnEvent {
 }
 
 /** Emitted whenever a card is discarded — moved from a player's hand to their
- *  graveyard by a discard (CR 701.8). One event per card, emitted AFTER the
+ *  graveyard by a discard (CR 701.9). One event per card, emitted AFTER the
  *  card has landed in the graveyard (and after CR 614 discard replacements such
  *  as Library of Leng have had their chance) so "whenever you discard a card"
  *  triggers (Necropotence — "exile that card from your graveyard") can find the
@@ -7910,7 +7910,7 @@ export interface CardDrawnEvent {
  *  single `discardToGraveyard` choke point that emits this. */
 export interface CardDiscardedEvent {
     type: "CARD_DISCARDED";
-    /** Player who discarded the card (its owner — CR 701.8). */
+    /** Player who discarded the card (its owner — CR 701.9). */
     playerId: string;
     /** Instance id of the discarded card, now in `playerId`'s graveyard. */
     cardInstanceId: string;
@@ -7981,7 +7981,7 @@ export interface CardMilledEvent {
  *  | zone change                                | event                      |
  *  | ------------------------------------------ | -------------------------- |
  *  | battlefield → graveyard                    | CREATURE_DIED / PERMANENT_LEFT |
- *  | hand → graveyard, as a DISCARD (CR 701.8)  | CARD_DISCARDED             |
+ *  | hand → graveyard, as a DISCARD (CR 701.9)  | CARD_DISCARDED             |
  *  | library → graveyard, as a MILL (CR 701.17) | CARD_MILLED                |
  *  | any other general move into a graveyard    | **this event**             |
  *
@@ -8213,7 +8213,7 @@ export interface CardsExiledEvent {
     }>;
 }
 
-/** Library-search event (CR 701.19a "search a library", 603.2 trigger
+/** Library-search event (CR 701.23a "search a library", 603.2 trigger
  *  condition) — emitted ONCE per completed `search-library` PendingChoice
  *  commit (issue #788, residual of the trigger-condition trio started by
  *  `BecameTargetEvent`/#1265 and `TokensCreatedEvent`/#1345: "whenever an
@@ -8226,7 +8226,7 @@ export interface CardsExiledEvent {
  *  `SpellContext.requestChoice` / PendingChoice commit path, so this one
  *  emit site covers the whole catalogue with no per-card wiring. Fires even
  *  on a zero-pick "whiff" search (a fetchland with no basic land left still
- *  SEARCHED, CR 701.19a — the ACT of searching is the trigger condition,
+ *  SEARCHED, CR 701.23a — the ACT of searching is the trigger condition,
  *  not the result).
  *
  *  Carries BOTH the searcher and the library's owner (bugfix, issue #788
@@ -8235,7 +8235,7 @@ export interface CardsExiledEvent {
  *  player's library ("Search target player's library..."). A single
  *  `playerId` field cannot distinguish "an opponent searches THEIR OWN
  *  library" (the only condition any shipped `librarySearchedTrigger` card
- *  cares about, CR 701.19a "searches a library" always names whose library)
+ *  cares about, CR 701.23a "searches a library" always names whose library)
  *  from "the controller searches someone else's library" — collapsing them
  *  let Wan Shi Tong's own controller trigger a free counter+draw by casting
  *  Lobotomy. `librarySearchedTrigger`'s `matchesLibrarySearchedScope` gates
@@ -8243,14 +8243,14 @@ export interface CardsExiledEvent {
  *  Jester's-Cap-shaped cross-library search never fires. */
 export interface LibrarySearchedEvent {
     type: "LIBRARY_SEARCHED";
-    /** The player who performed the search (CR 701.19a) — the ACTING
+    /** The player who performed the search (CR 701.23a) — the ACTING
      *  searcher (the stack item's controller), not necessarily the library's
      *  owner. For the ordinary "target player searches THEIR library" case
      *  this equals `libraryOwnerId`; for a Jester's Cap/Lobotomy-shaped
      *  "search TARGET PLAYER's library" this is the caster, and
      *  `libraryOwnerId` is the target. */
     playerId: string;
-    /** Owner of the library actually searched (CR 701.19a). The "opponent"
+    /** Owner of the library actually searched (CR 701.23a). The "opponent"
      *  in "whenever an opponent searches THEIR library" is judged against
      *  this field, relative to the trigger source's controller — and ONLY
      *  when it equals `playerId` (a genuine "searches their own library"),
@@ -8320,7 +8320,7 @@ export interface TriggerStateView {
              *  `manaCost` to derive color (CR 202.2). Populated from the raw
              *  `CardInstanceState` the engine passes through as the view. */
             card?: Record<string, unknown>;
-            /** Tap state (CR 701.20a). Exposed so a frontend affordability hint
+            /** Tap state (CR 701.26a). Exposed so a frontend affordability hint
              *  for a `tapOtherFilter` activation cost (Hand of Justice) can
              *  count untapped matching permanents the controller controls. */
             isTapped?: boolean;
@@ -8928,7 +8928,7 @@ export interface LoseGameReplacementEvent {
     reason: "life-zero" | "poison";
 }
 
-/** Tap event: a permanent about to become tapped (CR 701.20a). Face-down
+/** Tap event: a permanent about to become tapped (CR 701.26a). Face-down
  *  permanents intercept this to turn face up first (CR 708, ADR 0013). The
  *  replacement does not cancel the tap — it turns the creature up and lets it
  *  become tapped as its real self. */
@@ -8937,9 +8937,9 @@ export interface TapReplacementEvent {
     cardInstanceId: string;
 }
 
-/** Destroy event: a permanent about to be destroyed (CR 701.7). A
+/** Destroy event: a permanent about to be destroyed (CR 701.8). A
  *  replacement intercepts the destruction BEFORE it happens (CR 614),
- *  distinct from regeneration (CR 701.15, a specialised shield consulted
+ *  distinct from regeneration (CR 701.19, a specialised shield consulted
  *  inside `regenerateOrDestroy`). Pyramids' "the next time target land
  *  would be destroyed this turn" save runs as a transient destroy
  *  replacement; a permanent-bound `replacementEffects[]` entry with
@@ -10367,7 +10367,7 @@ export type EffectForEachSelector =
  *    (Do or Die's "creatures target player controls", Bend or Break's
  *    "nontoken lands they control").
  *  - `library-top` — the top `count` cards of one player's library, REVEALED
- *    to all players (CR 701.16) as the selector resolves (Fact or Fiction).
+ *    to all players (CR 701.21) as the selector resolves (Fact or Fiction).
  *  - `graveyard` — cards in one player's graveyard, optionally filtered
  *    (Death or Glory's "creature cards in your graveyard"). The graveyard is
  *    already public (CR 400.2), so no reveal step is needed. */
@@ -10834,7 +10834,7 @@ export type EffectOp =
      *  Do or Die's "They can't be regenerated") is a direct passthrough of
      *  `SpellContext.destroy`'s existing `{ cantBeRegenerated }` option
      *  (Terror, Disintegrate already use it imperatively) — suppresses the
-     *  regeneration-shield replacement (CR 701.15c) while indestructible
+     *  regeneration-shield replacement (CR 701.19c) while indestructible
      *  still protects. Omitted/false is the default preventable-by-regen path
      *  every other `destroy` card uses. */
     | {
@@ -10862,7 +10862,7 @@ export type EffectOp =
      *  is never exiled). Mirrors `shuffleSelfIntoLibrary` (issue #898)
      *  exactly, but redirects to exile instead of a shuffled library. */
     | { op: "exileSelf" }
-    /** CR 603.7a / 701.18 / ADR 0028 — exile the announced target permanent
+    /** CR 603.7a / 701.13 / ADR 0028 — exile the announced target permanent
      *  keyed to `$source` (the resolving ability's source), arming an
      *  exile-and-return bundle a later `returnExiledForSource` Op restores.
      *  The O-Ring / Banishing Light / Oblivion Ring / Tawnos's Coffin family.
@@ -10872,7 +10872,7 @@ export type EffectOp =
      *  the resolving source, so it is not a field). `returnTapped` returns the
      *  host tapped (default false). `includeAttachments` bundles the host's
      *  Auras/Equipment to travel WITH it into exile and return re-attached (CR
-     *  701.18 — Tawnos's Coffin / Safe Haven); default FALSE — the host-only
+     *  701.13 — Tawnos's Coffin / Safe Haven); default FALSE — the host-only
      *  O-Ring behaviour where the host's Auras die to the orphan-aura SBA (CR
      *  704.5n) and its Equipment detaches and stays on the battlefield. No-op
      *  if the target has left the battlefield (CR 608.2b). */
@@ -10922,7 +10922,7 @@ export type EffectOp =
      *  self-bounce, Blinking Spirit). Its CURRENT zone is INFERRED from its kind
      *  (a permanent is on the battlefield; a graveyard-card is in the
      *  graveyard) — the Op carries no `from`. `to` is the destination:
-     *  - a permanent → `hand` returns it to its owner's hand (CR 701.10;
+     *  - a permanent → `hand` returns it to its owner's hand (CR 400.7;
      *    battlefield-only state is cleared, CR 400.7);
      *  - a graveyard card → `battlefield` reanimates it under its owner's
      *    control (Resurrection), or → `hand`/`library`/`exile`/`graveyard`
@@ -11510,7 +11510,7 @@ export type EffectOp =
            *  already accepted an `"indefinite"` sentinel; this exposes it. */
           duration?: DurationSpec;
       }
-    /** CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
+    /** CR 701.24 (issue #844) — shuffle a player's library. A thin declarative
      *  skin over the SpellContext primitive `shuffleLibrary`, one execution
      *  path (ADR 0045). `action` is `"shuffle"` — the seeded-PRNG randomization
      *  that also clears every library card's persistent knowledge (ADR 0026, an
@@ -11518,7 +11518,7 @@ export type EffectOp =
      *  controller (`"controller"`), an announced target-slot player
      *  (`{ target: N }`), or the current member of a `forEach` set
      *  (`{ ref: "$each" }` — a per-player shuffle). SCOPE (issue #844): only
-     *  the `shuffle` primitive is folded — it is the one CR 401 / 701.20 library
+     *  the `shuffle` primitive is folded — it is the one CR 401 / 701.24 library
      *  primitive expressible as a pure declarative Op (no runtime value read
      *  back into the effect). Looking at / reordering the top (peekLibraryTop /
      *  reorderLibraryTop) stays a `planned` backlog Op (`scryReorder`): every
@@ -11540,7 +11540,7 @@ export type EffectOp =
      *  DSL-first card. No parameters — it always applies to the currently-
      *  resolving spell card; no-op for an ability or a spell copy (CR 707.10). */
     | { op: "shuffleSelfIntoLibrary" }
-    /** CR 401.4 look / CR 701.22 Scry / 701.44 Surveil / order-only (issue
+    /** CR 401.4 look / CR 701.22 Scry / 701.25 Surveil / order-only (issue
      *  #885) — look at the top `count` cards of a library, then reorder / place
      *  them per `destination`. A thin declarative skin over the single
      *  SpellContext primitive `orderTop` (the reusable drag-picker behind Scry /
@@ -11562,7 +11562,7 @@ export type EffectOp =
           count: EffectValue;
           destination: LibraryDestination;
           prompt?: string;
-          /** CR 701.20 fateseal (issue #1532) — the player who MAKES the
+          /** CR 701.29 fateseal (issue #1532) — the player who MAKES the
            *  top/bottom decision, when it is NOT the library's owner. Jace, the
            *  Mind Sculptor's +2 "Look at the top card of TARGET player's
            *  library. You may put that card on the bottom …" is fateseal: the
@@ -11864,7 +11864,7 @@ export type EffectOp =
      *  land type. Return those lands to their owners' hands." Zone =
      *  battlefield (already public, no reveal needed), categories = the five
      *  basic land types (`subtype` filters), `onPicked: "returnToHand"` (the
-     *  picks bounce via `returnToHand`, CR 701.10), no `sweep` (the
+     *  picks bounce via `returnToHand`, CR 400.7), no `sweep` (the
      *  unpicked lands are untouched — Oracle text never mentions them).
      *
      *  Both Oracle texts read as MANDATORY ("chooses", not "may choose"): a
@@ -11898,7 +11898,7 @@ export type EffectOp =
      *  once per side, in APNAP order, each acting on their OWN set only
      *  (CR 601.2b — no player chooses for another). No new SpellContext
      *  primitive: `getHandCards`/`getBattlefieldIds` resolve the categories,
-     *  `discardCard` (CR 701.9) applies the sweep, `returnToHand` (CR 701.10)
+     *  `discardCard` (CR 701.9) applies the sweep, `returnToHand` (CR 400.7)
      *  applies the bounce — the same primitives `discard`/`moveZone` already
      *  use (ADR 0045 "generalize, don't add"). */
     | {
@@ -12052,7 +12052,7 @@ export type EffectOp =
           total: number | "X" | "X+1";
           duration: DurationSpec;
       }
-    /** CR 701.15 (issue #846) — stack a regeneration shield on a permanent. A
+    /** CR 701.19 (issue #846) — stack a regeneration shield on a permanent. A
      *  thin declarative skin over the single SpellContext primitive
      *  `applyRegenerationShield`, one execution path (ADR 0045). `target` is an
      *  object selector: an announced target slot (`{ target: N }` — Death Ward
@@ -12060,7 +12060,7 @@ export type EffectOp =
      *  (`{ ref: "$source" }` — a self-regenerate activated ability like Drudge
      *  Skeletons / Sedge Troll / Clay Statue), or a forEach `$each` (a
      *  regenerate-each rider). The shield is consumed by the next destroy event
-     *  on that permanent this turn (CR 614.5 / 701.15a), expiring at CLEANUP if
+     *  on that permanent this turn (CR 614.5 / 701.19a), expiring at CLEANUP if
      *  unused (CR 514.2). Skipped when the referenced permanent is gone
      *  (CR 608.2b — the resolver returns undefined; the primitive itself also
      *  no-ops off the battlefield and on a non-permanent selection). */
@@ -12068,7 +12068,7 @@ export type EffectOp =
           op: "regenerate";
           target: EffectObjectSelector;
       }
-    /** CR 701.15c (issue #1283) — flag a creature so it CAN'T be regenerated
+    /** CR 701.19c (issue #1283) — flag a creature so it CAN'T be regenerated
      *  for the rest of the turn (the inverse of the `regenerate` shield): every
      *  regeneration shield AND the auto-regenerate replacement on it are
      *  suppressed until CLEANUP (CR 514.2). A thin declarative skin over the
@@ -12443,7 +12443,7 @@ export type EffectOp =
      *  broader "reveal" note, `mechanicsRegistry.ts`). */
     | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
     | { op: "reveal"; player: EffectPlayerRef; cards: EffectRef }
-    /** CR 701.18a look (Urza's Bauble) — "Look at a card at random in
+    /** CR 400.2 look (Urza's Bauble) — "Look at a card at random in
      *  `player`'s hand", a PRIVATE look shown only to `looker` (default the
      *  resolving controller, CR 113.7). Distinct from the public `reveal` Op
      *  (CR 701.20, every player): the seeded-PRNG-picked card is stamped known
@@ -12632,7 +12632,7 @@ export type EffectOp =
      *  candidates — CR 608.2b); the whole-hand shape skips only when `player`
      *  cannot be resolved (an empty hand is simply a no-op loop). */
     | { op: "discard"; player: EffectPlayerRef; cards?: EffectRef }
-    /** CR 701.8a — `player` discards `count` cards chosen AT RANDOM from their
+    /** CR 701.9a — `player` discards `count` cards chosen AT RANDOM from their
      *  hand (Hymn to Tourach's "discards two cards at random", Mind Twist's
      *  "discards X cards at random", Gwendlyn Di Corci's random-discard
      *  activated ability). A thin declarative skin over the single
@@ -12725,7 +12725,7 @@ export type EffectOp =
            *  outcome nothing reads is meaningless, so the grammar demands it. */
           bind: string;
       }
-    /** CR 701.5a — counter the announced target spell (remove it from the
+    /** CR 701.6a — counter the announced target spell (remove it from the
      *  stack, put it into its owner's graveyard). Routes through
      *  `SpellContext.counter`; skipped when the target already left the stack
      *  (CR 608.2b). The consequence half of the counter/punisher pattern
@@ -12734,7 +12734,7 @@ export type EffectOp =
      *  for a COUNTERED SPELL — "if that spell is countered this way, exile it
      *  / put it on top of its owner's library / put it into its owner's hand
      *  instead" (No More Lies, Memory Lapse, Remand). Omitted/`"graveyard"`
-     *  is the CR 701.5a default. */
+     *  is the CR 701.6a default. */
     | {
           op: "counter";
           target: EffectTargetRef;
@@ -12755,22 +12755,22 @@ export type EffectOp =
           then: EffectOp[];
           else?: EffectOp[];
       }
-    /** CR 701.16 — sacrifice the permanents a `choice` Op picked (a bare
+    /** CR 701.21 — sacrifice the permanents a `choice` Op picked (a bare
      *  picks ref, issue #807). Each picked permanent still on the battlefield
      *  is sacrificed through `SpellContext.sacrifice` — its controller puts
      *  it into its owner's graveyard; indestructible does not save it
-     *  (CR 701.16a) and dies-triggers fire exactly as for imperative cards.
+     *  (CR 701.21a) and dies-triggers fire exactly as for imperative cards.
      *  Skipped when the binding was never captured (the choice found no
      *  candidates — CR 608.2b: a player with nothing to sacrifice does
      *  nothing). */
     | {
           op: "sacrifice";
           /** A bare picks ref naming a `choice` Op's bind — sacrifices EVERY
-           *  picked permanent (CR 701.16, the "each player sacrifices …"
+           *  picked permanent (CR 701.21, the "each player sacrifices …"
            *  forEach pattern). Mutually exclusive with `target`. */
           permanents?: EffectRef;
           /** A single announced target / snapshot-bound permanent to sacrifice
-           *  (CR 701.16 — "sacrifice that creature" / "sacrifice this
+           *  (CR 701.21 — "sacrifice that creature" / "sacrifice this
            *  creature", Kjeldoran Elite Guard, Phantasmal Mount). Resolved via
            *  the object-ref path (SNAP_ID + battlefield re-check, CR 608.2b),
            *  so a permanent already gone is a no-op. Mutually exclusive with
@@ -13586,7 +13586,7 @@ export interface CardDefinition {
      *  from GROWING. */
     aiEffects?: EffectOp[];
     /** Declarative marker: this spell's resolution destroys every land in play
-     *  (CR 701.7, e.g. Armageddon's `ctx.destroyAll("Land")`). Purely a
+     *  (CR 701.8, e.g. Armageddon's `ctx.destroyAll("Land")`). Purely a
      *  classification hint for effects that need to reason about a spell's
      *  outcome WITHOUT running its imperative `resolve()` — currently
      *  Equinox's "{T}: Counter target spell if it would destroy a land you

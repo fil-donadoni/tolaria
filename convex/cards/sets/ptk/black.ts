@@ -5,8 +5,8 @@
 import type { CardDefinition } from "../../types";
 
 // Imperial Seal — {B} Sorcery. "Search your library for a card, then
-// shuffle and put that card on top. You lose 2 life." (CR 701.19 search /
-// 701.20 shuffle / 401.4 top-of-library / 119.3 life loss, issue #1125 —
+// shuffle and put that card on top. You lose 2 life." (CR 701.23 search /
+// 701.24 shuffle / 401.4 top-of-library / 119.3 life loss, issue #1125 —
 // same shape as Vampiric Tutor, unblocked by the `moveZone` `to:
 // "library-top"` destination.)
 export const imperialSeal: CardDefinition = {

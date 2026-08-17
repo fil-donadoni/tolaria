@@ -52,7 +52,7 @@ export const ornithopter: CardDefinition = {
 };
 
 // Yotian Soldier — {3} Artifact Creature — Soldier, 1/4 with vigilance
-// (CR 702.21). A durable attacker that stays back to block.
+// (CR 702.20). A durable attacker that stays back to block.
 export const yotianSoldier: CardDefinition = {
     id: "27cf53e3-76f6-4831-800e-1259394d779d",
     rarity: "common",
@@ -84,7 +84,7 @@ export const wallOfSpears: CardDefinition = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifact creatures with activated abilities (CR 605 — activated abilities;
-// CR 611.1 temp P/T mods; CR 701.15 regeneration; CR 502.1 untap restriction)
+// CR 611.1 temp P/T mods; CR 701.19 regeneration; CR 502.1 untap restriction)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Dragon Engine — {3} Artifact Creature — Construct, 1/3 with "{2}: This
@@ -120,7 +120,7 @@ export const dragonEngine: CardDefinition = {
 };
 
 // Clay Statue — {4} Artifact Creature — Golem, 3/1 with "{2}: Regenerate this
-// creature." (CR 701.15a regeneration shield — the next time this would be
+// creature." (CR 701.19a regeneration shield — the next time this would be
 // destroyed this turn, instead tap it, remove damage, and remove it from
 // combat). The shield is armed via `applyRegenerationShield` on the source.
 export const clayStatue: CardDefinition = {
@@ -140,7 +140,7 @@ export const clayStatue: CardDefinition = {
             cost: { mana: { X: 2 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -148,7 +148,7 @@ export const clayStatue: CardDefinition = {
 
 // Grapeshot Catapult — {4} Artifact Creature — Construct, 2/3 with "{T}: This
 // creature deals 1 damage to target creature with flying." (CR 605 activated
-// ability with a tap cost and a target; CR 120.3 damage; CR 702.9 the
+// ability with a tap cost and a target; CR 120.3 damage; CR 702.9 flying — the
 // `requireAbility: "flying"` filter restricts legal targets to flyers).
 export const grapeshotCatapult: CardDefinition = {
     id: "4c7a7348-c82e-453c-975c-e5365e152a3a",
@@ -220,7 +220,7 @@ export const colossusOfSardia: CardDefinition = {
 
 // Strip Mine — Land with "{T}: Add {C}." and "{T}, Sacrifice this land:
 // Destroy target land." (CR 605.1a/605.3a mana ability useStack:false; CR
-// 701.7 destroy via a sacrifice-cost activated ability that uses the stack so
+// 701.8 destroy via a sacrifice-cost activated ability that uses the stack so
 // it can be responded to). The sac cost is paid at activation; the destroy
 // resolves later from the stack.
 export const stripMine: CardDefinition = {
@@ -253,7 +253,7 @@ export const stripMine: CardDefinition = {
 };
 
 // Obelisk of Undoing — Artifact with "{6}, {T}: Return target permanent you
-// both own and control to your hand." (CR 701.10 return to hand; CR 605
+// both own and control to your hand." (CR 400.7 return to hand; CR 605
 // activated ability with mana + tap cost; the `controller: "you"` filter
 // scopes legal targets to permanents the activator controls — and, since you
 // can only own-and-control a permanent you also own, this is effectively "you
@@ -282,14 +282,14 @@ export const obeliskOfUndoing: CardDefinition = {
                 controller: "you",
             },
             // Migrated resolve()→effects[] (ADR 0045, #839): return the
-            // targeted permanent to its owner's hand (CR 701.10 / 400.7).
+            // targeted permanent to its owner's hand (CR 400.7).
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
 };
 
 // Feldon's Cane — {1} Artifact. "{T}, Exile this artifact: Shuffle your
-// graveyard into your library." (CR 400.7 zone change + CR 701.20 shuffle.)
+// graveyard into your library." (CR 400.7 zone change + CR 701.24 shuffle.)
 // Composition: moveZone(graveyard → library) appends the graveyard cards to the
 // library, then shuffleLibrary randomizes — exactly "shuffle your graveyard
 // into your library".
@@ -358,7 +358,7 @@ export const millstone: CardDefinition = {
 };
 
 // Jalum Tome — {3} Artifact — Book. "{2}, {T}: Draw a card, then discard a
-// card." (CR 121.1 draw, CR 701.8 discard; loot.) Composition: drawCards(1)
+// card." (CR 121.1 draw, CR 701.9 discard; loot.) Composition: drawCards(1)
 // then a `choose-hand-card` choice to pick which card to discard (modern oracle
 // text: the player chooses). The discard happens "then" — sequenced via a
 // two-step resolve so the drawn card is in hand before the discard pick.
@@ -975,7 +975,7 @@ export const mishrasFactory: CardDefinition = {
 
 // Battering Ram — {2} Artifact Creature — Construct, 1/1. Two combat clauses:
 //  • "At the beginning of combat on your turn, this creature gains banding
-//    until end of combat." (CR 702.21 banding — a real engine capability,
+//    until end of combat." (CR 702.22 banding — a real engine capability,
 //    `gre/banding.ts` reads `staticAbilities.includes("banding")`; granted for
 //    the combat via `grantStaticAbility` with an end-of-combat duration.)
 //  • "Whenever this creature becomes blocked by a Wall, destroy that Wall at
@@ -1281,8 +1281,8 @@ export const ashnodsTransmogrant: CardDefinition = {
 
 // Mishra's War Machine — {7} Artifact Creature — Juggernaut, 5/5 with banding.
 // "At the beginning of your upkeep, this creature deals 3 damage to you unless
-// you discard a card. If it deals damage to you this way, tap it." (CR 702.21
-// banding; CR 603.6a upkeep trigger; CR 117.3a pay-or-else with a discard
+// you discard a card. If it deals damage to you this way, tap it." (CR 702.22 banding;
+// CR 603.6a upkeep trigger; CR 117.3a pay-or-else with a discard
 // cost.) Declining the discard runs the else-branch: 3 damage + tap self.
 export const mishrasWarMachine: CardDefinition = {
     id: "8f6b4652-a1d4-418f-a89b-6a977a920a9e",
@@ -1960,7 +1960,7 @@ export const coralHelm: CardDefinition = {
 
 // Golgothian Sylex — {4} Artifact. "{1}, {T}: Each nontoken permanent with a
 // name originally printed in the Antiquities expansion is sacrificed by its
-// controller." (CR 701.16 sacrifice; the "originally printed in ATQ" origin
+// controller." (CR 701.21 sacrifice; the "originally printed in ATQ" origin
 // filter is `isPrintedInSet(cardId, "atq")` — keyed off the home set of each
 // permanent's card definition. Golgothian Sylex itself is an ATQ card, so it
 // sacrifices itself too.)
@@ -1990,7 +1990,7 @@ export const golgothianSylex: CardDefinition = {
             // Blocked on: a printed-in-set origin filter field.
             resolve: (ctx: SpellContext) => {
                 // Snapshot the matching ids first; sacrificing mutates the
-                // battlefield arrays. CR 701.16 — each is sacrificed by its
+                // battlefield arrays. CR 701.21 — each is sacrificed by its
                 // controller (ctx.sacrifice resolves the current controller).
                 const toSacrifice: string[] = [];
                 for (const playerId of ctx.allPlayerIds) {
@@ -2240,7 +2240,7 @@ export const tetravus: CardDefinition = {
                 });
                 if (chosen === undefined) return; // suspended — await the pick
                 if (chosen.length === 0) return; // chose none
-                // CR 701.18 exile, then CR 122.1 put back that many counters.
+                // CR 701.13 exile, then CR 122.1 put back that many counters.
                 for (const id of chosen) {
                     ctx.exile({ type: "permanent", id });
                 }
@@ -2265,7 +2265,7 @@ export const tetravus: CardDefinition = {
 // card to the battlefield under its owner's control tapped with the noted
 // number and kind of counters on it. If you do, return the other exiled cards
 // to the battlefield under their owner's control attached to that permanent."
-// (CR 502.1 optional untap, CR 701.18 exile, CR 122 counters, CR 603.7a
+// (CR 502.1 optional untap, CR 701.13 exile, CR 122 counters, CR 603.7a
 // delayed return, CR 303.4 aura attachment.)
 //
 // The exile-and-return is the general holding mechanism (ADR 0028): the
@@ -2299,7 +2299,7 @@ export const tawnossCoffin: CardDefinition = {
             cost: { tap: true, mana: { X: 3 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            // CR 701.18 / 122 — exile the announced creature + its Auras and
+            // CR 701.13 / 122 — exile the announced creature + its Auras and
             // note its counters; arm the return keyed to `$source` (ADR 0028).
             // `includeAttachments: true` (the "and all Auras attached to it"
             // clause — the primitive default this closure relied on);

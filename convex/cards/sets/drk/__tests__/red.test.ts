@@ -426,7 +426,7 @@ describe("Fire Drake — flying + once-per-turn pump (CR 702.9 / 602.5)", () => 
     });
 });
 
-describe("Fissure — destroy target creature or land, no regen (CR 701.7)", () => {
+describe("Fissure — destroy target creature or land, no regen (CR 701.8)", () => {
     it("destroys a target creature without it being regeneratable", () => {
         const victim = makeInstance(goblinHero.id, {
             id: "victim",
@@ -504,7 +504,7 @@ describe("Goblin Caves — conditional Goblin anthem +0/+2 (CR 611.2c)", () => {
     });
 });
 
-describe("Goblin Digging Team — {T}, Sac this: destroy target Wall (CR 701.7)", () => {
+describe("Goblin Digging Team — {T}, Sac this: destroy target Wall (CR 701.8)", () => {
     it("destroys a Wall creature", () => {
         const wallId = getCardByName("Wall of Stone").id;
         const wall = makeInstance(wallId, {
@@ -669,7 +669,7 @@ describe("Goblin Wizard — put Goblin from hand + grant protection from white (
     });
 });
 
-describe("Goblins of the Flarg — mountainwalk + sac when you control a Dwarf (CR 702.19 / 603.8)", () => {
+describe("Goblins of the Flarg — mountainwalk + sac when you control a Dwarf (CR 702.14 / 603.8)", () => {
     it("sacrifices itself when its controller controls a Dwarf", () => {
         const flarg = makeInstance(goblinsOfTheFlarg.id, {
             controllerId: "p1",

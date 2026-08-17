@@ -27,7 +27,7 @@ export const formidableSpeaker: CardDefinition = {
     power: 2,
     toughness: 4,
     // "{1}, {T}: Untap another target permanent." (CR 605 activated ability,
-    // CR 701.20b untap.) "another target permanent" = any of the CR 300.1
+    // CR 701.26b untap.) "another target permanent" = any of the CR 300.1
     // permanent types (Vindicate precedent) minus the source itself, injected
     // via a dynamic getTargetRequirement carrying the source id (Sorceress
     // Queen precedent).

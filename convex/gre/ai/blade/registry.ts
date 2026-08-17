@@ -259,7 +259,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // CHARTER SCENARIO 2 — the FETCH TARGET (issue #1491, PRD #1423,
         // charter gate #1434). The only charter entry whose root decision is a
         // CHOICE NODE: the live search-library choice of a cracked fetchland
-        // (CR 701.19), reached by activating Polluted Delta through the real
+        // (CR 701.23), reached by activating Polluted Delta through the real
         // activation path and resolving its ability (`setup` below).
         //
         // FAIRNESS BY CONSTRUCTION (ADR 0070 §1). The position is deliberately
@@ -336,7 +336,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "resolution-choice", card: "Swamp" }],
         },
-        note: "Charter scenario 2 (the fetch target). Fetching the Island instead of the Swamp loses the Hill Giant kill BY FORCE: the bot's only other land is a Mountain, so Terror ({1}{B}) is uncastable without the Swamp and the 3/3 survives with the removal stranded in hand. The root decision is the live search-library choice (CR 701.19), reached by really activating and resolving the fetchland.",
+        note: "Charter scenario 2 (the fetch target). Fetching the Island instead of the Swamp loses the Hill Giant kill BY FORCE: the bot's only other land is a Mountain, so Terror ({1}{B}) is uncastable without the Swamp and the 3/3 survives with the removal stranded in hand. The root decision is the live search-library choice (CR 701.23), reached by really activating and resolving the fetchland.",
     },
     {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #1487).

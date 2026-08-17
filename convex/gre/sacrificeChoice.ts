@@ -1,7 +1,7 @@
 // Unified permanent-cost choice layer (CR 701.21a / 118.9). Every time a player
 // must give up matching permanents they control — as a sacrifice (cost, an
-// attack-declaration tax, or an effect; CR 701.16) OR as a "return to hand"
-// alternative cost (Gush / Thwart; CR 118.9 / 701.24) — WHICH permanents go is
+// attack-declaration tax, or an effect; CR 701.21) OR as a "return to hand"
+// alternative cost (Gush / Thwart; CR 118.9 / 400.7) — WHICH permanents go is
 // the player's choice. This module is the single place those choices are built,
 // validated, and executed, so no seam can silently auto-pick a victim
 // (`autoResolveFungible` still collapses the choice inline when it isn't a real
@@ -42,8 +42,8 @@ export type SacrificeSelection = {
     picked: string[];
     /** How the chosen permanents leave the battlefield once the choice is
      *  complete. `"sacrifice"` (default, omitted) → owner's graveyard with a
-     *  sacrifice cause (CR 701.16). `"return"` → owner's hand, a bounce with no
-     *  cause (CR 701.24 / 118.9, the return-N-lands alternative cost). The
+     *  sacrifice cause (CR 701.21). `"return"` → owner's hand, a bounce with no
+     *  cause (CR 400.7 / 118.9, the return-N-lands alternative cost). The
      *  build/validate/auto-resolve logic is identical for both; only the
      *  terminal step in `applySacrificeSelection` differs. */
     action?: "sacrifice" | "return";
@@ -267,9 +267,9 @@ function pickSnapshotFlags(sel: SacrificeSelection): Map<string, boolean> {
 /** Execute the chosen permanent-cost picks. The ONLY place
  *  removePermanentTo(…, "sacrifice") runs for the converted seams. Re-checks
  *  each victim is still on the battlefield (CR 608.2b); a vanished victim is
- *  skipped. Routes to the graveyard with a sacrifice cause (CR 701.16) or —
+ *  skipped. Routes to the graveyard with a sacrifice cause (CR 701.21) or —
  *  when `sel.action === "return"` — to the owner's hand as a causeless bounce
- *  (CR 701.24 / 118.9). Returns per-victim MV/subtypes for snapshot-flagged
+ *  (CR 400.7 / 118.9). Returns per-victim MV/subtypes for snapshot-flagged
  *  requirements (return picks never snapshot). */
 export function applySacrificeSelection(
     state: GameState,

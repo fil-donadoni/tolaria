@@ -16,8 +16,8 @@ import { projectPublicState } from "../../../../gameProjections";
 import { sunfall } from "../white";
 
 // Sunfall — {3}{W}{W} Sorcery. "Exile all creatures. Incubate X, where X is
-// the number of creatures exiled this way." (CR 701.13 exile; CR 701.53
-// Incubate, issue #924/#1210.) Exercises the full Incubate composition end to
+// the number of creatures exiled this way." (CR 701.13 exile; CR 701.53 incubate
+// — issue #924/#1210.) Exercises the full Incubate composition end to
 // end through the real card: dynamic X = creature count, a token-scoped
 // "{2}: Transform this artifact." activated ability, and the front/back
 // (Incubator → Phyrexian) transform.

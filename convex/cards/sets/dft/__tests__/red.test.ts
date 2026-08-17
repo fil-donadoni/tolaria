@@ -1,7 +1,7 @@
 // DFT (Aetherdrift) — red: Marauding Mako (issue #689). {R} 1/1 Shark Pirate:
 // "Whenever you discard one or more cards, put that many +1/+1 counters on this
 // creature." plus Cycling {1} (CR 702.29). Cycling itself is exercised in
-// convex/gre/__tests__/cycling.test.ts; this covers the CR 701.8 discard
+// convex/gre/__tests__/cycling.test.ts; this covers the CR 701.9 discard
 // trigger and its interaction with cycling another card.
 
 import { describe, it, expect } from "vitest";
@@ -24,7 +24,7 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 
 const DISCARD_TRIGGER = "marauding-mako-discard";
 
-describe("Marauding Mako (CR 701.8 discard trigger, CR 702.29 Cycling)", () => {
+describe("Marauding Mako (CR 701.9 discard trigger, CR 702.29 Cycling)", () => {
     it("puts a +1/+1 counter on itself when you discard a card", () => {
         const mako = makeInstance(maraudingMako.id, {
             id: "mako",
@@ -45,7 +45,7 @@ describe("Marauding Mako (CR 701.8 discard trigger, CR 702.29 Cycling)", () => {
             ],
         });
 
-        // CR 701.8 — discard a card (routes through the shared choke point).
+        // CR 701.9 — discard a card (routes through the shared choke point).
         discardCardsAtRandom(state, "p1", 1);
         const triggers = collectTriggers(state, state.pendingEvents ?? []);
         const trig = triggers.find(

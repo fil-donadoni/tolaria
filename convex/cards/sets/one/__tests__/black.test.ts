@@ -37,7 +37,7 @@ function pushEdict(state: GameState, modeId: string): StackItem {
 }
 
 describe("Sheoldred's Edict (ONE, {1}{B} modal instant — CR 700.2)", () => {
-    it("mode 1 — the opponent sacrifices a nontoken creature of their choice (CR 701.16)", () => {
+    it("mode 1 — the opponent sacrifices a nontoken creature of their choice (CR 701.21)", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
             controllerId: "p2",
@@ -58,7 +58,7 @@ describe("Sheoldred's Edict (ONE, {1}{B} modal instant — CR 700.2)", () => {
         pushEdict(state, "nontoken-creature");
         resolveTopOfStack(state);
 
-        // The sacrifice choice belongs to the OPPONENT (CR 701.16a), and only
+        // The sacrifice choice belongs to the OPPONENT (CR 701.21a), and only
         // the nontoken creature is a candidate (`isToken: false`, issue #920).
         const head = state.pendingChoices![0];
         expect(head.playerId).toBe("p2");

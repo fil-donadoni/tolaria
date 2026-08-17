@@ -231,7 +231,7 @@ export const absorb: CardDefinition = {
 // Angelic Shield — {W}{U} Enchantment. "Creatures you control get +0/+1.
 // Sacrifice this enchantment: Return target creature to its owner's hand."
 // (CR 611/613 layer 7c controller-scoped anthem, precedent Vibrating Sphere
-// `ice/colorless.ts`; CR 701.16 sacrifice cost, CR 400.7 zone move.) The
+// `ice/colorless.ts`; CR 701.21 sacrifice cost, CR 400.7 zone move.) The
 // static half is unconditional (unlike Vibrating Sphere's turn-gated pair) —
 // a plain "creatures you control" `pt-buff` with no `condition`. The
 // activated half pays sacrifice-self as its entire cost (no mana/tap,
@@ -832,7 +832,7 @@ export const stalkingAssassin: CardDefinition = {
 };
 
 // Undermine — {U}{U}{B} Instant. "Counter target spell. Its controller
-// loses 3 life." (CR 701.5a counter, CR 119.3 life loss.) A plain two-Op
+// loses 3 life." (CR 701.6a counter, CR 119.3 life loss.) A plain two-Op
 // sequence, exact precedent shape Absorb (this same file) with `loseLife`
 // in place of `gainLife` and `{ controllerOf }` in place of the resolving
 // controller.
@@ -1080,7 +1080,7 @@ export const seersVision: CardDefinition = {
 // Agonizing Demise deals damage equal to that creature's power to the
 // creature's controller." (CR 702.33 Kicker; CR 701.8 destroy +
 // `excludeColors` target filter, "nonblack creature" — Terror precedent;
-// CR 701.15c "can't be regenerated" via `destroy`'s `cantBeRegenerated`;
+// CR 701.19c "can't be regenerated" via `destroy`'s `cantBeRegenerated`;
 // CR 120.1 damage.) `bind: "$slain"` snapshots the destroyed creature's
 // power/controller BEFORE it leaves the battlefield (CR 608.2h last-known
 // information) — the kicked damage reads `$slain.power` to `$slain`'s
@@ -1164,7 +1164,7 @@ export const backlash: CardDefinition = {
 // field (ADR 0049's event-field registry) is a PLAYER-family ref legal
 // directly in a triggered ability's own `effects[]` — no bind/capture
 // needed: `{ ref: "$event.damagedPlayer" }` names both the chooser of
-// `choice(choose-hand-card)` and the `discard` player (CR 701.8a default —
+// `choice(choose-hand-card)` and the `discard` player (CR 701.9a default —
 // the discarding player picks their own card).
 export const blazingSpecter: CardDefinition = {
     id: "3bd397be-0e61-4f41-b0cf-f0c9d2440da7",
@@ -1297,7 +1297,7 @@ export const hoodedKavu: CardDefinition = {
 
 // Plague Spores — {4}{B}{R} Sorcery. "Destroy target nonblack creature and
 // target land. They can't be regenerated." (CR 701.8 destroy +
-// `excludeColors` "nonblack creature" filter, CR 701.15c "can't be
+// `excludeColors` "nonblack creature" filter, CR 701.19c "can't be
 // regenerated"; two INDEPENDENT target groups — Fumarole's "destroy target
 // creature and target land" `additionalTargetRequirements` precedent.)
 export const plagueSpores: CardDefinition = {
@@ -1360,7 +1360,7 @@ export const shivanZombie: CardDefinition = {
 // Smoldering Tar — {2}{B}{R} Enchantment. "At the beginning of your
 // upkeep, target player loses 1 life. Sacrifice this enchantment: It deals
 // 4 damage to target creature. Activate only as a sorcery." (CR 603.6a
-// upkeep trigger; CR 701.16 sacrifice cost; CR 120.1 damage.)
+// upkeep trigger; CR 701.21 sacrifice cost; CR 120.1 damage.)
 //
 // CR 603.3d — "target player" is a REAL target chosen when the upkeep
 // trigger is put on the stack, declared as a `targetRequirement` on the
@@ -1510,7 +1510,7 @@ export const viciousKavu: CardDefinition = {
 // Shivan Emissary — {2}{R} Creature — Human Wizard, 1/1. "Kicker {1}{B}.
 // When this creature enters, if it was kicked, destroy target nonblack
 // creature. It can't be regenerated." (CR 702.33 Kicker, CR 603.6a ETB
-// trigger with a CR 603.3d target announcement, CR 701.15c regeneration
+// trigger with a CR 603.3d target announcement, CR 701.19c regeneration
 // shield suppression.)
 //
 // Closed by issue #1328 (capability slice, decomposed from #1086): same
@@ -1663,7 +1663,7 @@ export const shivanEmissary: CardDefinition = {
 // too; and Tsabo Tavoc is itself a legendary creature, so its activated
 // ability can never target itself (the ability's source IS the protected-from
 // quality). The destroy clause is the ordinary `destroy` +
-// `cantBeRegenerated` shape (CR 701.8 / 701.15c, Annihilate in `inv/black.ts`),
+// `cantBeRegenerated` shape (CR 701.8 / 701.19c, Annihilate in `inv/black.ts`),
 // with `supertypeFilter: "Legendary"` narrowing "target legendary creature"
 // (CR 205.4a, read LIVE so a supertype-stripping effect is honoured).
 export const tsaboTavoc: CardDefinition = {
@@ -1737,7 +1737,7 @@ export const tsaboTavoc: CardDefinition = {
 
 // Artifact Mutation — {R}{G} Instant. "Destroy target artifact. It can't be
 // regenerated. Create X 1/1 green Saproling creature tokens, where X is
-// that artifact's mana value." (CR 701.8 destroy + 701.15c regeneration
+// that artifact's mana value." (CR 701.8 destroy + 701.19c regeneration
 // suppression — the Agonizing Demise `cantBeRegenerated` + `bind` shape,
 // this file's BR tranche — then CR 111 token creation with `count` reading
 // the ninth EffectValue grammar member's SIBLING, `{ ref: "$x.manaValue" }`
@@ -1820,7 +1820,7 @@ export const firesOfYavimaya: CardDefinition = {
 
 // Frenzied Tilling — {3}{R}{G} Sorcery. "Destroy target land. Search your
 // library for a basic land card, put that card onto the battlefield
-// tapped, then shuffle." (CR 701.8 destroy, CR 401.4 search / 701.20
+// tapped, then shuffle." (CR 701.8 destroy, CR 401.4 search / 701.24
 // shuffle — the Quirion Trailblazer / Harrow search-put-tapped-shuffle
 // idiom, `inv/green.ts`, composed after a plain land `destroy`.)
 export const frenziedTilling: CardDefinition = {
@@ -2252,7 +2252,7 @@ export const shivanOasis: CardDefinition = {
 // Aether Rift — {1}{R}{G} Enchantment. "At the beginning of your upkeep,
 // discard a card at random. If you discard a creature card this way, return
 // it from your graveyard to the battlefield unless any player pays 5 life."
-// (CR 701.8a random discard, CR 603.2 upkeep trigger, CR 117.3a "unless a
+// (CR 701.9a random discard, CR 603.2 upkeep trigger, CR 117.3a "unless a
 // player pays", CR 400.7 graveyard→battlefield zone change. Closes issue
 // #1123's three sub-gaps against Aether Rift.)
 //
@@ -2532,7 +2532,7 @@ export const auraShards: CardDefinition = {
 // Captain Sisay — {2}{G}{W} Legendary Creature — Human Soldier, 2/2. "{T}:
 // Search your library for a legendary card, reveal that card, put it into
 // your hand, then shuffle." (CR 605 activated ability, CR 701.23 search
-// filtered by `supertype: "Legendary"`, CR 701.20 reveal, CR 701.24
+// filtered by `supertype: "Legendary"`, CR 701.20 reveal, CR 400.7
 // shuffle — the Stoneforge Mystic `choice(search-library)` + `reveal` +
 // `moveZone` + `libraryLook` shape, `wwk/white.ts`, no "may"/no count
 // range since the printed text has neither.)
@@ -2589,7 +2589,7 @@ export const captainSisay: CardDefinition = {
 };
 
 // Charging Troll — {2}{G}{W} Creature — Troll, 3/3. "Vigilance\n{G}:
-// Regenerate this creature." (CR 702.20b vigilance; CR 701.15a
+// Regenerate this creature." (CR 702.20b vigilance; CR 701.19a
 // regeneration via the shipped `regenerate` Op self-targeted through
 // `$source` — the Clay Statue/Ghost Ship shape, `atq/colorless.ts` /
 // `drk/blue.ts`.)
@@ -3660,7 +3660,7 @@ export const thunderscapeMaster: CardDefinition = {
 // this enchantment: Search your library for an enchantment card, reveal it,
 // then shuffle and put that card on top." (CR 611/613 layer 6 keyword grant
 // + CR 702.18 shroud enforcement, scoped to "other enchantments you
-// control"; CR 701.19 search / 701.20 reveal + shuffle / 401.4
+// control"; CR 701.23 search / 701.20 reveal + shuffle / 401.4
 // top-of-library, issue #1125.) The static half pairs a `keyword-grant`
 // (the reminder string) with a `permanent-guard` (`cantBeTargeted: true`,
 // the real CR-702.18-compliant enforcement `isGuardedAgainst` reads) — the

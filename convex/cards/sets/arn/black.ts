@@ -79,7 +79,7 @@ export const jununEfreet: CardDefinition = {
                     bind: "$paid",
                 },
                 {
-                    // CR 701.16 — unless paid, sacrifice Junún Efreet (the
+                    // CR 701.21 — unless paid, sacrifice Junún Efreet (the
                     // source). The `sacrifice` Op's `target` form (a single
                     // object selector, not a `choice`-picked set) resolves
                     // `$source` to the trigger's own permanent.

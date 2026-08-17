@@ -68,7 +68,7 @@ describe("Emrakul, the Aeons Torn — definition (CR 702.9 / 702.16a / 702.86)",
     });
 });
 
-describe("Emrakul, the Aeons Torn — put into a graveyard from anywhere (CR 400.7 / 603.2 / 701.20)", () => {
+describe("Emrakul, the Aeons Torn — put into a graveyard from anywhere (CR 400.7 / 603.2 / 701.24)", () => {
     /** p1 owns Emrakul and has a stocked graveyard; p2 has their own graveyard
      *  which must never be touched. `emrakulZone` places Emrakul for the
      *  origin under test. */
@@ -171,7 +171,7 @@ describe("Emrakul, the Aeons Torn — put into a graveyard from anywhere (CR 400
         expect(p2.library).toHaveLength(0);
     });
 
-    it("discarded from hand: fires with no battlefield presence at all (CR 701.8)", () => {
+    it("discarded from hand: fires with no battlefield presence at all (CR 701.9)", () => {
         const { state } = setup("hand");
 
         expect(discardToGraveyard(state, "p1", "emrakul")).toBe(true);

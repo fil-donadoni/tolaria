@@ -427,7 +427,7 @@ describe("CR 702.29c — an ordinary discard is NOT a cycling discard", () => {
         expect(cycledFires(state)).toBe(false);
     });
 
-    it("a random discard does not fire it (CR 701.8a — Rag Man / Coral Helm)", () => {
+    it("a random discard does not fire it (CR 701.9a — Rag Man / Coral Helm)", () => {
         const state = boardWith(CYCLER_ID);
         discardCardsAtRandom(state, "p1", 1);
         expect(

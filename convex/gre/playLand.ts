@@ -463,7 +463,7 @@ function payCostText(cost: MayPayCost): string {
     if (norm.permanent) {
         // CR 118 threshold mode ("sacrifice any number … total power ≥ N") vs.
         // the fixed-cardinal "sacrifice N" (shock lands, cumulative upkeep) vs.
-        // the return-to-hand leg (CR 701.24 / 118.9, ADR 0079).
+        // the return-to-hand leg (CR 400.7 / 118.9, ADR 0079).
         const leg = norm.permanent;
         parts.push(
             typeof leg.count === "object"

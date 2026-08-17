@@ -558,7 +558,7 @@ export const nemataGroveGuardian: CardDefinition = {
 // the engine has the underlying primitive (`SpellContext.
 // revealRandomHandCard`, CR 701.20a public reveal) but no Effect Script Op
 // wraps it — the DSL's only random-hand-card Op, `lookRandomHand`, is the
-// deliberately PRIVATE CR 701.18a sibling and has no `bind` to read the
+// deliberately PRIVATE CR 400.2 sibling and has no `bind` to read the
 // picked card's mana value back afterward regardless. Same gap as
 // Planeswalker's Scorn (`pls/black.ts`, the cycle's black member, issue
 // #1950) — tracked by the SAME shared issue, which explicitly lists this

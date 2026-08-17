@@ -96,7 +96,7 @@ describe("Gitaxian Probe (look at target player's hand, draw; {U/P}, CR 107.4f)"
         // The caster (p1) sees p2's known hand card as the real card.
         const forP1 = projectPublicState(state, 1, "p1");
         expect(forP1.players[1].hand[0]?.id).toBe("oh1");
-        // Privacy (CR 701.18a — a private LOOK, not a public reveal): a viewer
+        // Privacy (CR 400.2 — a private LOOK, not a public reveal): a viewer
         // who is NOT the caster never sees p2's hand card. Had the card used the
         // all-players `reveal` op instead of `markKnown(controller)`, this slot
         // would leak the real id. A non-participant spectator stands in for "any

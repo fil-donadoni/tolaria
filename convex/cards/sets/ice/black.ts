@@ -120,7 +120,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 
 // Abyssal Specter — flying 2/3; "Whenever this creature deals damage to a
 // player, that player discards a card." (CR 702.9 flying, CR 120.3 / 603.4
-// damage trigger, CR 701.8 discard.) The damaged player chooses which card to
+// damage trigger, CR 701.9 discard.) The damaged player chooses which card to
 // discard (modern oracle — not at random), modelled with a `discard-hand`
 // requestChoice scoped to the damaged player's hand.
 export const abyssalSpecter: CardDefinition = {
@@ -218,7 +218,7 @@ export const ashenGhoul: CardDefinition = {
 // Brine Shaman — sacrifice-a-creature engine (CR 602.1 / 118.5 sacrifice cost).
 // "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn."
 // and "{1}{U}{U}, Sacrifice a creature: Counter target creature spell."
-// (CR 611.2a temporary buff; CR 701.5 counter.) The sacrifice cost uses
+// (CR 611.2a temporary buff; CR 701.6 counter.) The sacrifice cost uses
 // `sacrificeFilter` (a Creature the activator controls).
 export const brineShaman: CardDefinition = {
     id: "f445962c-44a1-4f3f-88d4-17048f8ca9dc",
@@ -266,7 +266,7 @@ export const brineShaman: CardDefinition = {
                 spellTypeFilter: "Creature",
             },
             // Migrated resolve()→effects[] (ADR 0045): counter the announced
-            // target creature spell (CR 701.5a). The other ability (pump) is
+            // target creature spell (CR 701.6a). The other ability (pump) is
             // also migrated (brine-shaman-pump, pump Op, issue #840). Untouched
             // per-card test is the equivalence harness.
             effects: [{ op: "counter", target: { target: 0 } }],
@@ -496,7 +496,7 @@ export const danceOfTheDead: CardDefinition = {
     ],
 };
 // Dark Banishing — "Destroy target nonblack creature. It can't be regenerated."
-// (CR 701.7 destroy, CR 701.15 regeneration suppression, CR 202.2 colour
+// (CR 701.8 destroy, CR 701.19 regeneration suppression, CR 202.2 colour
 // restriction.) The colour gate is enforced at target selection via the
 // `excludeColors` TargetRequirement filter.
 export const darkBanishing: CardDefinition = {
@@ -509,7 +509,7 @@ export const darkBanishing: CardDefinition = {
     targetRequirement: { type: "Creature", count: 1, excludeColors: "B" },
     // Migrated resolve()→effects[] (ADR 0045, migration PRD #795): destroy
     // the announced target with the regeneration shield suppressed (CR
-    // 701.15c), a direct passthrough of the `destroy` Op's `cantBeRegenerated`
+    // 701.19c), a direct passthrough of the `destroy` Op's `cantBeRegenerated`
     // option (ADR 0053).
     effects: [
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
@@ -585,7 +585,7 @@ export const demonicConsultation: CardDefinition = {
 // stale — issue #728 re-verification):
 //   1. The END_OF_COMBAT trigger (CR 511.3, `scope: "each"`) puts a
 //      `paralyzation` counter on and taps every combat partner (CR 122.1,
-//      CR 701.20a tap). The partner set walks `getBlockersByAttacker()` in BOTH
+//      CR 701.26a tap). The partner set walks `getBlockersByAttacker()` in BOTH
 //      directions relative to the source — the exact Kjeldoran Frostbeast
 //      (`ice/multicolor.ts`) shape, which is why this trigger stays `resolve()`
 //      (see the justification on the ability).
@@ -750,7 +750,7 @@ export const dreadWight: CardDefinition = {
                         type: "permanent",
                         id,
                     };
-                    // CR 122.1 counter, then CR 701.20a tap.
+                    // CR 122.1 counter, then CR 701.26a tap.
                     ctx.addCounter(partner, "paralyzation", 1);
                     ctx.tap(partner);
                 }
@@ -874,7 +874,7 @@ export const foulFamiliar: CardDefinition = {
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #839): return the source
             // permanent to its owner's hand via the implicit $source binding
-            // (CR 701.10 / 400.7).
+            // (CR 400.7).
             effects: [
                 { op: "moveZone", target: { ref: "$source" }, to: "hand" },
             ],
@@ -1061,7 +1061,7 @@ export const gazeOfPain: CardDefinition = {
     ],
 };
 // Gravebind — {B} Instant. "Target creature can't be regenerated this turn"
-// (CR 701.15c regeneration lock, via `setTargetCantBeRegeneratedThisTurn`) plus
+// (CR 701.19c regeneration lock, via `setTargetCantBeRegeneratedThisTurn`) plus
 // the next-upkeep cantrip rider.
 export const gravebind: CardDefinition = {
     id: "4782fd4f-2474-4d0d-8301-e0b52af93746",
@@ -1073,7 +1073,7 @@ export const gravebind: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
     // NOT DSL-migratable (ADR 0045): the regeneration-lock half now HAS an Op
-    // (`preventRegeneration`, CR 701.15c, #1283 — shipped), but the next-upkeep
+    // (`preventRegeneration`, CR 701.19c, #1283 — shipped), but the next-upkeep
     // cantrip rider keeps this resolve(): it arms a card-specific delayed
     // trigger (`scheduleNextUpkeepDraw` + the `delayedTriggers` entry below)
     // with a draw body, which the `scheduleDelayedTrigger` Op vocabulary
@@ -1090,7 +1090,7 @@ export const gravebind: CardDefinition = {
     delayedTriggers: [nextUpkeepDrawTrigger()],
 };
 // Hecatomb — ETB "sacrifice this enchantment unless you sacrifice four
-// creatures" (CR 603.6a ETB + CR 117.3a unless-cost + CR 701.16 sacrifice,
+// creatures" (CR 603.6a ETB + CR 117.3a unless-cost + CR 701.21 sacrifice,
 // same shape as Mold Demon) plus an activated "Tap an untapped Swamp you
 // control: deal 1 damage to any target." The tap-a-Swamp leg is a
 // `tapOtherFilter` activation cost (CR 602.1 / 118.8) — the same generic
@@ -1341,7 +1341,7 @@ export const infernalDarkness: CardDefinition = {
 // you can't, tap this creature, and an opponent may gain control of a creature
 // you control of their choice for as long as this creature remains on the
 // battlefield. {T}: Gain control of target creature for as long as this creature
-// remains on the battlefield." (CR 603.6a upkeep trigger, CR 701.16 sacrifice,
+// remains on the battlefield." (CR 603.6a upkeep trigger, CR 701.21 sacrifice,
 // CR 613.1b layer-2 control change.) The "sacrifice two Swamps" is the may-pay
 // sacrifice leg (count 2, subtype Swamp); on decline / inability the engine
 // collapses to the false branch (the affordability gate blocks an accept the
@@ -1453,9 +1453,9 @@ export const infernalDenizen: CardDefinition = {
     ],
 };
 // Kjeldoran Dead — "When this creature enters, sacrifice a creature." (CR 603.6
-// ETB trigger + CR 701.16 sacrifice; the controller chooses which Creature they
+// ETB trigger + CR 701.21 sacrifice; the controller chooses which Creature they
 // control, and may choose Kjeldoran Dead itself.) Plus "{B}: Regenerate this
-// creature." (CR 701.15 regeneration shield.)
+// creature." (CR 701.19 regeneration shield.)
 export const kjeldoranDead: CardDefinition = {
     id: "d3f7b614-6075-4b7c-acc7-ab63185b570b",
     name: "Kjeldoran Dead",
@@ -1475,7 +1475,7 @@ export const kjeldoranDead: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
             // choice(sacrifice-permanents) + sacrifice(picks) — the Innocent
             // Blood shape (ody/black.ts) — over the controller's own
-            // battlefield (CR 701.16). No exclusion, so Kjeldoran Dead itself
+            // battlefield (CR 701.21). No exclusion, so Kjeldoran Dead itself
             // is a legal pick, matching the original closure.
             effects: [
                 {
@@ -1499,7 +1499,7 @@ export const kjeldoranDead: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.15a) via the implicit $source.
+            // shield on the source (CR 701.19a) via the implicit $source.
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
@@ -1786,7 +1786,7 @@ export const krovikanVampire: CardDefinition = {
         },
     ],
 };
-// Legions of Lim-Dûl — snow swampwalk (CR 702.13 / 205.4a): can't be blocked
+// Legions of Lim-Dûl — snow swampwalk (CR 702.14 / 205.4a): can't be blocked
 // while the defending player controls a snow Swamp. Modeled as the
 // `snow swampwalk` keyword in `staticAbilities`; the combat registry's
 // `LANDWALK_SNOW_RULES` enforces it (`controlsSnowSubtype(..., "Swamp")`).
@@ -1803,7 +1803,7 @@ export const legionsOfLimDL: CardDefinition = {
     toughness: 3,
     staticAbilities: ["snow swampwalk"],
 };
-// Leshrac's Rite — Aura that grants swampwalk to its host (CR 702.13 landwalk,
+// Leshrac's Rite — Aura that grants swampwalk to its host (CR 702.14 landwalk,
 // CR 611 keyword grant via `keyword-grant` staticEffect on the host).
 export const leshracsRite: CardDefinition = {
     id: "4e0a6b4e-95b4-40f6-bb19-568dbd908a2b",
@@ -1827,7 +1827,7 @@ export const leshracsRite: CardDefinition = {
 // {B}{B}. If you do, look at that player's hand and choose a card from it. The
 // player discards that card. {B}{B}: Return this enchantment to its owner's
 // hand." (CR 603.2 spell-cast trigger filtered to green opponents' spells +
-// CR 117.3a may-pay + CR 701.8 discard chosen by the Sigil's controller.) The
+// CR 117.3a may-pay + CR 701.9 discard chosen by the Sigil's controller.) The
 // chosen discard is a `discard-hand` requestChoice scoped to the caster's hand
 // (Mind Warp pattern); the Sigil's controller is the chooser.
 export const leshracsSigil: CardDefinition = {
@@ -1887,7 +1887,7 @@ export const leshracsSigil: CardDefinition = {
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #839): return the source
             // permanent to its owner's hand via the implicit $source binding
-            // (CR 701.10 / 400.7).
+            // (CR 400.7).
             effects: [
                 { op: "moveZone", target: { ref: "$source" }, to: "hand" },
             ],
@@ -1896,7 +1896,7 @@ export const leshracsSigil: CardDefinition = {
 };
 // Lim-Dûl's Cohort — "Whenever this creature blocks or becomes blocked by a
 // creature, that creature can't be regenerated this turn." (CR 509.1h
-// blocks-or-becomes-blocked + CR 701.15c regeneration suppression.) The
+// blocks-or-becomes-blocked + CR 701.19c regeneration suppression.) The
 // combatPairKill family captures this exact "the other creature in the pair"
 // targeting, but it always *destroys* at end of combat — here the effect is an
 // immediate, no-destroy `setTargetCantBeRegeneratedThisTurn`, so we declare the
@@ -1925,7 +1925,7 @@ export const limDLsCohort: CardDefinition = {
                 event.type === "BLOCKERS_CONFIRMED" &&
                 (event.attackerId === self.id || event.blockerId === self.id),
             // NOT DSL-migratable (ADR 0045): the regeneration-lock half now HAS
-            // an Op (`preventRegeneration`, CR 701.15c, #1283 — shipped), but
+            // an Op (`preventRegeneration`, CR 701.19c, #1283 — shipped), but
             // "that creature" is the OTHER creature in the attacker/blocker
             // pair, read off the firing `BLOCKERS_CONFIRMED` event's
             // `attackerId`/`blockerId` fields at resolve time — a raw
@@ -2009,7 +2009,7 @@ export const limDLsHex: CardDefinition = {
         }),
     ],
 };
-// Mind Ravel — {2}{B} Sorcery. "Target player discards a card" (CR 701.8 —
+// Mind Ravel — {2}{B} Sorcery. "Target player discards a card" (CR 701.9 —
 // chosen by the discarding player; Zuran Enchanter pattern) plus the next-upkeep
 // cantrip rider. The discard choice and the schedule live in separate resolve
 // steps so a suspension on the discard never double-schedules.
@@ -2023,7 +2023,7 @@ export const mindRavel: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, issue #1264): the target player
-    // discards one card of their own choosing (CR 701.8, `discard-hand`
+    // discards one card of their own choosing (CR 701.9, `discard-hand`
     // choice + `discard`), then the next-upkeep draw cantrip via the ADR 0048
     // `delayedTrigger` Op with an inline `draw` body.
     effects: [
@@ -2047,7 +2047,7 @@ export const mindRavel: CardDefinition = {
     ],
 };
 // Mind Warp — "Look at target player's hand and choose X cards from it. That
-// player discards those cards." (CR 702.x reveal-to-caster + CR 701.8 discard.)
+// player discards those cards." (CR 702.x reveal-to-caster + CR 701.9 discard.)
 // The caster (not the target) chooses which X cards via a `discard-hand`
 // requestChoice scoped to the target's hand; the picks are then discarded.
 // Mana cost is {X}{3}{B} (MTGJSON ICE.json) — the fixed {3} generic pip
@@ -2138,9 +2138,9 @@ export const mindWhip: CardDefinition = {
 // this creature deals 5 damage to you unless you sacrifice a creature other than
 // this creature. If this creature deals damage to you this way, tap it. {T}:
 // Destroy target creature or land." (CR 702.16 protection, CR 603.6a upkeep
-// trigger, CR 117.3a may-pay with a typed-sacrifice cost, CR 701.7 destroy.) The
+// trigger, CR 117.3a may-pay with a typed-sacrifice cost, CR 701.8 destroy.) The
 // "sacrifice a creature other than this" is the may-pay sacrifice leg
-// (CR 701.16) filtered to creatures the controller controls; decline → 5 damage
+// (CR 701.21) filtered to creatures the controller controls; decline → 5 damage
 // to controller + tap self.
 const MINION_OF_LESHRAC_ID = "61278908-a1b4-4b4c-84f5-498ca41fc6b6";
 export const minionOfLeshrac: CardDefinition = {
@@ -2179,7 +2179,7 @@ export const minionOfLeshrac: CardDefinition = {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
                     choiceId: ctx.controller,
-                    // CR 701.16 — sacrifice a creature OTHER than this one. The
+                    // CR 701.21 — sacrifice a creature OTHER than this one. The
                     // sacrifice leg excludes the source by id so the player
                     // can't feed Minion of Leshrac to its own upkeep.
                     cost: {
@@ -2211,7 +2211,7 @@ export const minionOfLeshrac: CardDefinition = {
             useStack: true,
             targetRequirement: { type: ["Creature", "Land"], count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
-            // destroy the announced target (CR 701.7).
+            // destroy the announced target (CR 701.8).
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
@@ -2327,7 +2327,7 @@ export const moleWorms: CardDefinition = {
         },
     ],
 };
-// Moor Fiend — 3/3 swampwalk (CR 702.13b landwalk evasion).
+// Moor Fiend — 3/3 swampwalk (CR 702.14b landwalk evasion).
 export const moorFiend: CardDefinition = {
     id: "57089dd4-e30d-498d-9341-43c104c6f3f9",
     name: "Moor Fiend",
@@ -2348,7 +2348,7 @@ export const moorFiend: CardDefinition = {
 //      skip is UNCONDITIONAL (no "may"), so the flag alone suffices — no DRAW
 //      phaseTrigger offers a choice (unlike Island Sanctuary / Fasting).
 //   2. "Whenever you discard a card, exile that card from your graveyard." —
-//      CR 701.8 discard event + CR 603 trigger via the new `discardTrigger`
+//      CR 701.9 discard event + CR 603 trigger via the new `discardTrigger`
 //      factory (CARD_DISCARDED). The card has already landed in the graveyard
 //      when the event fires, so the resolve moves it graveyard → exile.
 //   3. "Pay 1 life: Exile the top card of your library face down. Put that card
@@ -2372,7 +2372,7 @@ export const necropotence: CardDefinition = {
     //    unconditionally (no DRAW phaseTrigger, unlike the "may skip" cards).
     drawStepReplacement: true,
     triggeredAbilities: [
-        // 2. CR 701.8 / 603 — "Whenever you discard a card, exile that card from
+        // 2. CR 701.9 / 603 — "Whenever you discard a card, exile that card from
         //    your graveyard." Fires off the CARD_DISCARDED choke point.
         // NOT DSL-migratable (ADR 0045, migration PRD #795): the `discardTrigger`
         // factory (convex/cards/abilities/triggers/discardTrigger.ts) has no
@@ -2472,7 +2472,7 @@ export const necropotence: CardDefinition = {
 // creature the active player has controlled continuously since the beginning of
 // the turn. That creature attacks this turn if able. Destroy it at the beginning
 // of the next end step if it didn't attack this turn. Activate only before
-// attackers are declared." (CR 701.20b untap; CR 508.1d force-attack +
+// attackers are declared." (CR 701.26b untap; CR 508.1d force-attack +
 // CR 603.7a delayed end-step destroy — the Nettling Imp shape.) The
 // "the active player has controlled continuously since the beginning of the
 // turn" clause is BOTH halves of a target filter (issue #1824): `controller:
@@ -2648,7 +2648,7 @@ export const oathOfLimDul: CardDefinition = {
                         }
                     }
                     // Default: sacrifice a permanent other than Oath itself
-                    // (CR 701.16). If the only permanent is Oath (or none),
+                    // (CR 701.21). If the only permanent is Oath (or none),
                     // there is nothing to sacrifice — the clause does nothing.
                     const sacCandidates = ctx
                         .getBattlefieldIds(losingPlayerId)
@@ -2718,8 +2718,8 @@ export const pestilenceRats: CardDefinition = {
 // third of the cards in their hand, rounds up, then sacrifices a third of the
 // creatures they control, rounds up, then sacrifices a third of the lands they
 // control, rounds up. (Each player chooses which cards to discard and which
-// permanents to sacrifice.)" — modern Oracle text (CR 119.3 life loss; CR 701.8
-// discard; CR 701.16 sacrifice; CR 107.2 "round up"). The four phases happen in
+// permanents to sacrifice.)" — modern Oracle text (CR 119.3 life loss; CR 701.9 discard;
+// CR 701.21 sacrifice; CR 107.2 "round up"). The four phases happen in
 // APNAP order (CR 101.4) and each is a SEPARATE suspension point so a player's
 // choice in one phase doesn't leak into another; modeled as four `resolveSteps`.
 //
@@ -3079,7 +3079,7 @@ export const stenchOfEvil: CardDefinition = {
     types: ["Sorcery"],
     resolveSteps: [
         (ctx: SpellContext) => {
-            // CR 701.7 — destroy each Plains individually so the controller of
+            // CR 701.8 — destroy each Plains individually so the controller of
             // every land that actually dies is captured for the rider. (A
             // bulk `destroyAll` would not report which/whose lands moved.)
             const billed: string[] = [];
@@ -3119,7 +3119,7 @@ export const stenchOfEvil: CardDefinition = {
     ],
 };
 // Stromgald Cabal — "{T}, Pay 1 life: Counter target white spell." (CR 602.1
-// tap + CR 118.4 life cost; CR 701.5 counter restricted to white spells via the
+// tap + CR 118.4 life cost; CR 701.6 counter restricted to white spells via the
 // spell-target `colorFilter`.)
 export const stromgaldCabal: CardDefinition = {
     id: "6ac6fa0c-753e-4fbc-8a70-0f956503cf4e",
@@ -3139,7 +3139,7 @@ export const stromgaldCabal: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "spell", count: 1, colorFilter: "W" },
             // Migrated resolve()→effects[] (ADR 0045): counter the announced
-            // target spell (CR 701.5a). Untouched per-card test is the
+            // target spell (CR 701.6a). Untouched per-card test is the
             // equivalence harness.
             effects: [{ op: "counter", target: { target: 0 } }],
         },

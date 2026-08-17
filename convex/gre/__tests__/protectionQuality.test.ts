@@ -1400,7 +1400,7 @@ describe("CR 702.16e — damage from a coloured spell is prevented, from an abil
     });
 });
 
-describe("CR 702.16d/f — a coloured PERMANENT blocks, is blocked, and equips normally", () => {
+describe("CR 702.16d/f protection — a coloured PERMANENT blocks, is blocked, and equips normally", () => {
     it("must-NOT — a coloured creature can block it and be blocked by it", () => {
         // CR 702.16f is VACUOUS for this quality (a spell never blocks), but
         // the code path still RUNS and must answer "no" rather than be

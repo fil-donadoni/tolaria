@@ -320,7 +320,7 @@ describe("may-pay FILTERED hand leg — client Brain (CR 701.9 / 118.9, PR #1963
 
 describe("may-pay combined sacrifice+discard cost shape (issue #1507 regression)", () => {
     it("botActionToMove propagates BOTH sacrificeIds and discardIds when the brain answers with both", () => {
-        // CR 117.3a/118.4/701.16/701.9 — `MayPayCost` allows a sacrifice leg
+        // CR 117.3a/118.4/701.21/701.9 — `MayPayCost` allows a sacrifice leg
         // AND a discard leg on the SAME cost (types.ts: "All present legs
         // must be paid together"). Only one leg's PendingChoice ever surfaces
         // a real pick at a time today (state.ts: mutually-exclusive `zone`),

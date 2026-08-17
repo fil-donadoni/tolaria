@@ -145,7 +145,7 @@ export default function PendingChoicePrompt({
             ? formatOracleText(mayPayCostLabel(choice.cost))
             : null;
 
-    // CR 701.21a / 701.24 — a may-pay PERMANENT leg with a real choice sets
+    // CR 701.21a / 400.7 — a may-pay PERMANENT leg with a real choice sets
     // `zone: "battlefield"`; the chooser clicks the permanent(s) to sacrifice
     // (or, for a `"return"` leg, to bounce — ADR 0079) before Pay enables.
     // Show the pick progress; the verb comes from `choice.permanentAction`.
@@ -258,7 +258,7 @@ export default function PendingChoicePrompt({
         return null;
     }
 
-    // A `reveal-hand` look (CR 401.4 / 701.18a — Gitaxian Probe / Glasses of
+    // A `reveal-hand` look (CR 401.4 / 400.2 — Gitaxian Probe / Glasses of
     // Urza) for the CHOOSER owns its own modal picker (`RevealHandView`, mounted
     // by the board), which shows the target's hand face-up as a CardsPile grid +
     // a Done ack. Suppress this generic "Reveal" banner so it doesn't double up

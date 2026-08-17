@@ -474,7 +474,7 @@ describe("Braingeyser ({X}{U}{U} — target player draws X, CR 107.3 / 121.1)", 
     });
 });
 
-describe("Counterspell (counter target spell, CR 701.5a)", () => {
+describe("Counterspell (counter target spell, CR 701.6a)", () => {
     it("removes a spell from the stack (doesn't let it resolve)", () => {
         const state = makeState();
         const bolt = pushSpell(state, lightningBolt.id, "p2", [
@@ -1250,7 +1250,7 @@ describe("Time Walk (extra turn after this one, CR 500.7)", () => {
 // library, then draws seven cards." (CR 121.1, 701.20)
 // ---------------------------------------------------------------------------
 
-describe("Timetwister (each player reshuffles + draws 7, CR 121.1 / 701.20)", () => {
+describe("Timetwister (each player reshuffles + draws 7, CR 121.1 / 701.24)", () => {
     function libraryCards(
         owner: string,
         count: number,
@@ -1499,7 +1499,7 @@ describe("Twiddle (modal tap/untap target artifact/creature/land, CR 701.26)", (
     });
 });
 
-describe("Unsummon (return target creature to its owner's hand, CR 701.10 / 400.7)", () => {
+describe("Unsummon (return target creature to its owner's hand, CR 400.7)", () => {
     it("returns the target creature from battlefield to its owner's hand", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -2995,7 +2995,7 @@ describe("Phantasmal Terrain ({U}{U} — modal aura: choose basic land type)", (
     });
 });
 
-describe("Power Sink (CR 701.5a — counter unless controller pays {X})", () => {
+describe("Power Sink (CR 701.6a — counter unless controller pays {X})", () => {
     function commitHead(state: GameState, picks: string[]) {
         const queue = state.pendingChoices ?? [];
         const head = queue[0];
@@ -3527,7 +3527,7 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         expect(getBasicLandMana(slim as CardInstanceState)).toBe("U");
     });
 
-    it("rewrites a landwalk keyword so blocking follows the new word (CR 702.13b)", () => {
+    it("rewrites a landwalk keyword so blocking follows the new word (CR 702.14b)", () => {
         // Shanodin Dryads (forestwalk) attacking; defender controls an Island.
         const dryads = makeInstance(shanodinDryads.id, {
             id: "d1",

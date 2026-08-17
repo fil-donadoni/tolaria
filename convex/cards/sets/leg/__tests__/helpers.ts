@@ -228,7 +228,7 @@ export const END_STEP_C5 = (playerId: string): StackItem["triggerEvent"] =>
 // A SPELL_CAST trigger (CR 601.2i) on a World enchantment goes on the stack
 // above the freshly-cast spell; on resolution it bills the spell's controller a
 // may-pay tax (CR 117.3a) and, on decline (or inability to pay), counters the
-// spell (CR 701.5a). Same composition as Force Spike, fired from a trigger.
+// spell (CR 701.6a). Same composition as Force Spike, fired from a trigger.
 // ===========================================================================
 
 /** Build the SPELL_CAST trigger payload the spellCastTrigger.resolve reads back
@@ -322,7 +322,7 @@ export function upkeepEvent487(
 
 // ---------------------------------------------------------------------------
 // Equinox (CR 303.4 enchant-land aura + 611.2 activated-grant + 701.5a counter
-// + 701.7 destroy). The enchanted land gains a {T} ability that counters target
+// + 701.8 destroy). The enchanted land gains a {T} ability that counters target
 // spell ONLY IF it would destroy a land the activating player controls. The
 // hard part is targeting legality: `spellWouldDestroyLandControlledBy` must
 // accept land-destruction (Stone Rain at your land, Armageddon) and reject

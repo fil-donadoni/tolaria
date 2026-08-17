@@ -185,7 +185,7 @@ describe("spell-target client parity (issue #1734)", () => {
         expect(clientSpellOffered(state, req)).toEqual(server);
     });
 
-    it("spellWouldDestroyLandYouControl via an Effect Script destroy Op (CR 701.7) — offered set matches the server", () => {
+    it("spellWouldDestroyLandYouControl via an Effect Script destroy Op (CR 701.8) — offered set matches the server", () => {
         // The deleted mirror recognised only `def.effect === "destroy-target"`
         // and missed the `effects: [{ op: "destroy" }]` authoring mode (ADR
         // 0045) the registry handles — so a DSL land-destruction spell was

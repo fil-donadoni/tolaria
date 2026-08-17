@@ -172,7 +172,7 @@ describe("Backfire (reflect host's damage to you back to its controller)", () =>
     });
 });
 
-describe("Flash Counter / Remove Soul (type-restricted counters, CR 701.5a)", () => {
+describe("Flash Counter / Remove Soul (type-restricted counters, CR 701.6a)", () => {
     it("Flash Counter counters an instant on the stack", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -188,7 +188,7 @@ describe("Flash Counter / Remove Soul (type-restricted counters, CR 701.5a)", ()
     });
 });
 
-describe("Force Spike (counter unless controller pays {1}, CR 701.5a)", () => {
+describe("Force Spike (counter unless controller pays {1}, CR 701.6a)", () => {
     it("counters the spell when the controller declines to pay", () => {
         const p1 = makePlayer("p1");
         const p2 = makePlayer("p2", {
@@ -252,7 +252,7 @@ describe("Force Spike (counter unless controller pays {1}, CR 701.5a)", () => {
     });
 });
 
-describe("Boomerang (return target permanent to hand, CR 701.10)", () => {
+describe("Boomerang (return target permanent to hand, CR 400.7)", () => {
     it("bounces a permanent to its owner's hand", () => {
         const drake = makeInstance(azureDrake.id, {
             id: "drake",
@@ -275,7 +275,7 @@ describe("Boomerang (return target permanent to hand, CR 701.10)", () => {
         expect(state.players[1].hand.some((c) => c.id === "drake")).toBe(true);
     });
 
-    it("offers a land as a legal target (CR 701.10 — any permanent type)", () => {
+    it("offers a land as a legal target (CR 400.7 — any permanent type)", () => {
         const land = makeInstance(forest.id, {
             id: "land",
             controllerId: "p2",
@@ -321,7 +321,7 @@ describe("Boomerang (return target permanent to hand, CR 701.10)", () => {
     });
 });
 
-describe("Acid Rain (destroy all Forests, CR 701.7)", () => {
+describe("Acid Rain (destroy all Forests, CR 701.8)", () => {
     it("destroys Forests and spares other lands", () => {
         const f = makeInstance(forest.id, {
             id: "f",
@@ -458,7 +458,7 @@ describe("Teleport (target creature can't be blocked, CR 509.1b)", () => {
     });
 });
 
-describe("Mana Drain (counter + next-main-phase {C}=MV, CR 701.5a/603.7/505)", () => {
+describe("Mana Drain (counter + next-main-phase {C}=MV, CR 701.6a/603.7/505)", () => {
     // Build p1 (caster) with a Mana Drain on the stack targeting an opponent
     // spell, and the opponent spell beneath it. Returns the assembled state.
     function makeCounterScenario(targetMv: 4 = 4) {
@@ -479,7 +479,7 @@ describe("Mana Drain (counter + next-main-phase {C}=MV, CR 701.5a/603.7/505)", (
         return { state, drakeSpell };
     }
 
-    it("counters the target spell (CR 701.5a) and the spell hits the graveyard", () => {
+    it("counters the target spell (CR 701.6a) and the spell hits the graveyard", () => {
         const { state, drakeSpell } = makeCounterScenario();
         resolveTopOfStack(state); // resolve Mana Drain
         // Drake spell is gone from the stack, in its owner's graveyard.
@@ -1062,7 +1062,7 @@ describe("Recall ({X}{X}{U} sorcery, CR 107.3/701.8/400.7/608.2)", () => {
             graveyardIds: ["g0"],
             chosenX: 2,
         });
-        // Step 0 — discard h0, h1 (CR 701.8). They land in the graveyard.
+        // Step 0 — discard h0, h1 (CR 701.9). They land in the graveyard.
         answerChoice(state, ["h0", "h1"]);
         const p1 = () => state.players[0];
         expect(p1().hand.map((c) => c.id)).toEqual([]);
@@ -1302,7 +1302,7 @@ describe("Wall of Vapor (prevent combat damage from creatures it's blocking, CR 
     });
 });
 
-describe("Remove Soul (counter target creature spell, CR 701.5a)", () => {
+describe("Remove Soul (counter target creature spell, CR 701.6a)", () => {
     it("counters a creature spell on the stack", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

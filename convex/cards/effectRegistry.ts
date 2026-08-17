@@ -21,7 +21,7 @@ type ResolveFn = (ctx: SpellContext) => void;
 /** Registry for the param-less string shorthands. Parametric shorthands
  *  (object form, e.g. `pump-combat`) are dispatched in `getResolveFn`. */
 export const EFFECT_REGISTRY: Record<string, ResolveFn> = {
-    // CR 701.7 — "destroy target X". Routes through the regen/indestructible
+    // CR 701.8 — "destroy target X". Routes through the regen/indestructible
     // replacement layer via `ctx.destroy`. Used by Disenchant, Sinkhole.
     "destroy-target": (ctx) => {
         const target = ctx.targets[0];

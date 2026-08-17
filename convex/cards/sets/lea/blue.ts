@@ -295,7 +295,7 @@ export const copyArtifact: CardDefinition = {
     ],
 };
 
-// Counterspell — "Counter target spell." (CR 701.5a)
+// Counterspell — "Counter target spell." (CR 701.6a)
 export const counterspell: CardDefinition = {
     id: "0df55e3f-14de-46ef-b6b1-616618724d9e",
     rarity: "uncommon",
@@ -846,7 +846,7 @@ export const powerLeak: CardDefinition = {
 
 // Power Sink — "Counter target spell unless its controller pays {X}. If that
 // player doesn't, they tap all lands with mana abilities they control and
-// lose all unspent mana." (CR 701.5a counter-unless-pay, CR 117.3a may-pay).
+// lose all unspent mana." (CR 701.6a counter-unless-pay, CR 117.3a may-pay).
 export const powerSink: CardDefinition = {
     id: "1b342dd3-09b9-4108-bf12-a65d4cef4eb9",
     rarity: "common",
@@ -1139,7 +1139,7 @@ export const sleightOfMind: CardDefinition = {
 };
 
 // Spell Blast — "Counter target spell with mana value X." (CR 107.3 X cost,
-// CR 202.3 mana value, CR 701.5a counter.) Target selection uses the new
+// CR 202.3 mana value, CR 701.6a counter.) Target selection uses the new
 // `mvFilter: { equals: "X" }` which resolves X at announcement against the
 // chosen value and filters the stack to spells whose mana value equals X.
 export const spellBlast: CardDefinition = {
@@ -1164,7 +1164,7 @@ export const spellBlast: CardDefinition = {
 
 // Stasis — "Players skip their untap steps. At the beginning of your upkeep,
 // sacrifice this enchantment unless you pay {U}." (CR 502.1 skip, 603.6a
-// upkeep trigger, 117.3a optional cost, 701.16 sacrifice). The skip is encoded
+// upkeep trigger, 117.3a optional cost, 701.21 sacrifice). The skip is encoded
 // as a data-driven `untapRestriction` (ADR 0005) with `maxUntap: 0` and an
 // any-permanent filter — the dispatcher in `untapStep` recognises a hard skip
 // and clears cleanup flags without enqueueing a prompt. The upkeep trigger
@@ -1300,7 +1300,7 @@ export const timetwister: CardDefinition = {
     ],
 };
 
-// CR 701.20: oracle reads "you may tap or untap target ~". Modal-spell
+// CR 701.26: oracle reads "you may tap or untap target ~". Modal-spell
 // infrastructure (CR 700.2) is not implemented yet, so the resolve toggles
 // the target's tap state — the only mode-with-effect for any board state.
 // Replace with explicit mode selection once modal cast UI lands.
@@ -1360,7 +1360,7 @@ export const unsummon: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #839): return the announced
-    // creature to its owner's hand (CR 701.10 / 400.7).
+    // creature to its owner's hand (CR 400.7).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
 };
 

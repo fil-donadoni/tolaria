@@ -101,7 +101,7 @@ export const wallOfVapor: CardDefinition = {
 
 // Recall — "Discard X cards, then return a card from your graveyard to your
 // hand for each card discarded this way. Exile Recall." (CR 107.3 X chosen on
-// cast; CR 701.8 discard; CR 400.7 graveyard→hand; CR 608.2 self-exile.)
+// cast; CR 701.9 discard; CR 400.7 graveyard→hand; CR 608.2 self-exile.)
 //
 // Cost is {X}{X}{U}: the player pays twice the chosen X (`xFactor: 2`) but the
 // DISCARD COUNT equals the announced X (`getX()`), not the paid generic.
@@ -132,7 +132,7 @@ export const recall: CardDefinition = {
     // Classifier over-count (folds discardCard + getX). Blocked on protocol /
     // cross-step state + arithmetic, not on X alone.
     resolveSteps: [
-        // Step 0 — discard X chosen cards (CR 701.8). Clamp to hand size so a
+        // Step 0 — discard X chosen cards (CR 701.9). Clamp to hand size so a
         // chosen X above hand count discards everything held without stalling.
         (ctx: SpellContext) => {
             const me = ctx.controller;
@@ -196,7 +196,7 @@ export const azureDrake: CardDefinition = {
     staticAbilities: ["flying"],
 };
 
-// Zephyr Falcon — flying, vigilance (CR 702.9, 702.21).
+// Zephyr Falcon — flying, vigilance (CR 702.9, 702.20).
 export const zephyrFalcon: CardDefinition = {
     id: "25a173fd-e10c-45f8-a6e5-ad7a747a8050",
     rarity: "common",
@@ -210,7 +210,7 @@ export const zephyrFalcon: CardDefinition = {
     staticAbilities: ["flying", "vigilance"],
 };
 
-// Undertow — global islandwalk negation (CR 509.1b / 702.13). Twin of Great
+// Undertow — global islandwalk negation (CR 509.1b / 702.14). Twin of Great
 // Wall via the shared parametric `landwalk-negation` static, differing only in
 // the negated subtype (Island). Creatures with islandwalk can be blocked as
 // though they didn't have it, regardless of the defender's Islands.
@@ -233,7 +233,7 @@ export const undertow: CardDefinition = {
     ],
 };
 
-// Devouring Deep — islandwalk (CR 702.19 landwalk variant).
+// Devouring Deep — islandwalk (CR 702.14 landwalk variant).
 export const devouringDeep: CardDefinition = {
     id: "0855a5a8-8c40-4396-9ad1-8fa0fc6a0c59",
     rarity: "common",
@@ -248,7 +248,7 @@ export const devouringDeep: CardDefinition = {
     staticAbilities: ["islandwalk"],
 };
 
-// Segovian Leviathan — islandwalk (CR 702.19).
+// Segovian Leviathan — islandwalk (CR 702.14).
 export const segovianLeviathan: CardDefinition = {
     id: "e5a814f1-7f8d-4c2c-b706-ee0ed5892f7b",
     rarity: "uncommon",
@@ -400,10 +400,10 @@ export const backfire: CardDefinition = {
     ],
 };
 
-// --- Counterspells (CR 701.5a) ---------------------------------------------
+// --- Counterspells (CR 701.6a) ---------------------------------------------
 
 // Mana Drain — "Counter target spell. At the beginning of your next main phase,
-// add an amount of {C} equal to that spell's mana value." (CR 701.5a counter +
+// add an amount of {C} equal to that spell's mana value." (CR 701.6a counter +
 // CR 603.7 / 505 next-main-phase delayed trigger + CR 107.4c {C} colorless mana.)
 // The countered spell's mana value (CR 202.3, including any chosen X via
 // `getManaValue`) is snapshotted at resolution and carried on the delayed
@@ -461,7 +461,7 @@ export const manaDrain: CardDefinition = {
     ],
 };
 
-// Flash Counter — "Counter target instant spell." (CR 701.5a + spellTypeFilter
+// Flash Counter — "Counter target instant spell." (CR 701.6a + spellTypeFilter
 // for the instant-only restriction, CR 114.1.)
 export const flashCounter: CardDefinition = {
     id: "3c3cd450-f1cd-416b-9271-37d95815c089",
@@ -478,7 +478,7 @@ export const flashCounter: CardDefinition = {
     effects: [{ op: "counter", target: { target: 0 } }],
 };
 
-// Remove Soul — "Counter target creature spell." (CR 701.5a, CR 114.1.)
+// Remove Soul — "Counter target creature spell." (CR 701.6a, CR 114.1.)
 export const removeSoul: CardDefinition = {
     id: "63de147c-2e62-41b9-8ada-93406387f08b",
     rarity: "common",
@@ -495,7 +495,7 @@ export const removeSoul: CardDefinition = {
 };
 
 // Force Spike — "Counter target spell unless its controller pays {1}."
-// (CR 701.5a counter-unless-pay, CR 117.3a may-pay against the spell's
+// (CR 701.6a counter-unless-pay, CR 117.3a may-pay against the spell's
 // controller.)
 //
 // DSL-only (ADR 0045, issue #806) — the canonical "unless pays" card, migrated
@@ -523,7 +523,7 @@ export const forceSpike: CardDefinition = {
             bind: "$paid",
         },
         {
-            // CR 701.5a — counter unless the payment was made.
+            // CR 701.6a — counter unless the payment was made.
             op: "if",
             predicate: { not: { binding: "$paid" } },
             then: [{ op: "counter", target: { target: 0 } }],
@@ -533,7 +533,7 @@ export const forceSpike: CardDefinition = {
 
 // --- Bounce / removal spells -----------------------------------------------
 
-// Boomerang — "Return target permanent to its owner's hand." (CR 701.10.)
+// Boomerang — "Return target permanent to its owner's hand." (CR 400.7.)
 export const boomerang: CardDefinition = {
     id: "b8286edd-644b-4135-8dca-af97f3920de3",
     rarity: "common",
@@ -546,11 +546,11 @@ export const boomerang: CardDefinition = {
     // permanent-type set (incl. Land) instead.
     targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #839): return the targeted
-    // permanent to its owner's hand (CR 701.10 / 400.7).
+    // permanent to its owner's hand (CR 400.7).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
 };
 
-// Acid Rain — "Destroy all Forests." (CR 701.7 mass destroy filtered on the
+// Acid Rain — "Destroy all Forests." (CR 701.8 mass destroy filtered on the
 // Forest land subtype, CR 205.3.)
 export const acidRain: CardDefinition = {
     id: "ba93c50a-2440-4e92-9cba-d97e20b1d29c",
@@ -602,7 +602,7 @@ export const flashFlood: CardDefinition = {
                 subtypeFilter: "Mountain",
             },
             // Migrated resolve()→effects[] (ADR 0045, #795): return the
-            // announced target to its owner's hand (CR 701.10/400.7). Same
+            // announced target to its owner's hand (CR 400.7). Same
             // moveZone shape as Boomerang (`leg/blue.ts`).
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
@@ -715,7 +715,7 @@ export const teleport: CardDefinition = {
 // --- Mana / untap utility --------------------------------------------------
 
 // Energy Tap — "Tap target untapped creature you control. If you do, add an
-// amount of {C} equal to that creature's mana value." (CR 701.20a tap +
+// amount of {C} equal to that creature's mana value." (CR 701.26a tap +
 // CR 106.1 mana, snapshotting the MV before the tap.)
 export const energyTap: CardDefinition = {
     id: "37e69940-bdc8-48ff-a296-540343910adf",
@@ -957,7 +957,7 @@ export const venarianGold: CardDefinition = {
 // In the Eye of Chaos — {2}{U} World Enchantment. "Whenever a player casts an
 // instant spell, counter it unless that player pays {X}, where X is its mana
 // value." (CR 601.2i cast trigger restricted to instants → CR 117.3a may-pay
-// taxed at the cast spell's mana value → CR 701.5a counter on decline.)
+// taxed at the cast spell's mana value → CR 701.6a counter on decline.)
 export const inTheEyeOfChaos: CardDefinition = {
     id: "733933dd-c871-4f75-8b08-d7c010dddbe6",
     rarity: "rare",

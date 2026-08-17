@@ -15,8 +15,8 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { abilityActivatedTrigger } from "../../abilities/triggers/abilityActivatedTrigger";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Artifact removal & bounce (free tranche, #274) — CR 701.7 destroy, CR
-// 701.10 return to hand, CR 701.5a counter, CR 202.3 mana value. Modern
+// Artifact removal & bounce (free tranche, #274) — CR 701.8 destroy, CR
+// 400.7 return to hand, CR 701.6a counter, CR 202.3 mana value. Modern
 // Scryfall oracle text is authoritative (ADR 0004); mana costs / type lines
 // come from MTGJSON ATQ.json. All effects compose existing SpellContext
 // primitives (no new primitive, no engine change).
@@ -27,7 +27,7 @@ import { abilityActivatedTrigger } from "../../abilities/triggers/abilityActivat
 // matters: read the controller and the mana value BEFORE the destroy moves the
 // permanent off the battlefield (CR 608.2c — the effect uses last-known
 // information once the object has left). `cantBeRegenerated: true` suppresses
-// the regen-shield replacement (CR 701.15c); indestructible still protects.
+// the regen-shield replacement (CR 701.19c); indestructible still protects.
 // Migrated to Effect Script (ADR 0045): `destroy`'s `bind` snapshots the
 // target's controller + mana value BEFORE it leaves the battlefield (CR
 // 608.2h/608.2c), mirroring Reanimate's `bind` + `{ ref: "$x.manaValue" }`

@@ -16,7 +16,7 @@ import { projectPublicState } from "../../../../gameProjections";
 // spell-on-the-stack target isn't scenario-generatable), so hand-write it
 // here, cast the plain (mana-cost) way to keep the alternative-cost machinery
 // out of scope.
-describe("Force of Will (counter target spell, CR 701.5a)", () => {
+describe("Force of Will (counter target spell, CR 701.6a)", () => {
     it("countering a spell removes it from the stack and sends it to its owner's graveyard", () => {
         const state = makeState();
         const bolt = pushSpell(state, lightningBolt.id, "p2", [

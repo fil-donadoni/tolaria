@@ -88,7 +88,7 @@ function choosePortalTarget(
 }
 
 describe("Portal to Phyrexia (CR 603.6a ETB sacrifice + CR 603.3d targeted upkeep reanimation, issue #1965)", () => {
-    it("ETB: each opponent sacrifices three creatures of their choice (CR 701.16)", () => {
+    it("ETB: each opponent sacrifices three creatures of their choice (CR 701.21)", () => {
         const portal = makeInstance(portalToPhyrexia.id, {
             id: "portal",
             controllerId: "p1",

@@ -43,7 +43,7 @@ export const grimMonolith: CardDefinition = {
 // all cards from their hand face down and draws seven cards. At the
 // beginning of the next end step, each player discards their hand and
 // returns to their hand each card they exiled this way." (CR 400.7 zone
-// changes, CR 701.20a-adjacent face-down exile, CR 603.7a delayed trigger.)
+// changes, CR 701.20a reveal-adjacent face-down exile, CR 603.7a delayed trigger.)
 //
 // PROTOCOL (`resolve()` — no Op vocabulary gap, a genuine per-player linked-
 // state capability the frozen Effect Script grammar doesn't carry, ADR 0045):

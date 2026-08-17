@@ -10,7 +10,7 @@ import { PERMANENT_TYPES } from "../../types";
 
 // Gitaxian Probe — "Look at target player's hand. Draw a card." Mana cost is a
 // single Phyrexian pip `{U/P}` (pay {U} or 2 life). "Look at target player's
-// hand" is a PRIVATE look (CR 701.18a — the knowledge goes to the CASTER only),
+// hand" is a PRIVATE look (CR 400.2 — the knowledge goes to the CASTER only),
 // expressed with the `revealHand` suspend/ack display primitive + `markKnown`
 // exactly as Glasses of Urza does; the trailing unconditional draw rides in the
 // same closure.

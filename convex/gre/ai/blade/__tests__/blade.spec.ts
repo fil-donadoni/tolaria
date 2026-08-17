@@ -213,7 +213,7 @@ describe("blade suite — determinism (acceptance criterion, #1427)", () => {
     // engine calls (`emitPermanentEntered` / `processPendingActionTriggers`,
     // CR 603.6/603.2); a CHOICE-NODE-ROOT entry exercises the search's
     // choice-candidate path (`choiceCandidates.ts`, the live search-library
-    // choice of a cracked fetchland, CR 701.19). Each is a DIFFERENT place a
+    // choice of a cracked fetchland, CR 701.23). Each is a DIFFERENT place a
     // stray `Date.now()`/object-iteration-order/`Math.random` could leak in —
     // a regression confined to one shape would have stayed invisible behind
     // a single-entry probe.

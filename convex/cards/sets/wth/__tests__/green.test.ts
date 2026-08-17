@@ -134,7 +134,7 @@ describe("Gaea's Blessing — mill self-trigger (CR 701.17 / 603.6e, issue #1055
             MILL_ABILITY,
             MILLED("p1", "gaea", gaeasBlessing.id)
         );
-        // Whole graveyard moved into the library (CR 701.17 "shuffle your
+        // Whole graveyard moved into the library (CR 701.24 "shuffle your
         // graveyard into your library"); order is randomized, so assert as a set.
         expect(state.players[0].graveyard).toHaveLength(0);
         expect(state.players[0].library.map((c) => c.id).sort()).toEqual([

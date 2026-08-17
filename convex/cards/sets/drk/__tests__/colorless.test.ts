@@ -275,7 +275,7 @@ describe("Book of Rass — {2}, Pay 2 life: Draw a card (CR 118.4/121.1)", () =>
     });
 });
 
-describe("Diabolic Machine — {3}: Regenerate this creature (CR 701.15a)", () => {
+describe("Diabolic Machine — {3}: Regenerate this creature (CR 701.19a)", () => {
     it("arms a regeneration shield that replaces the next destroy", () => {
         const machine = makeInstance(diabolicMachine.id, {
             id: "machine",
@@ -1055,7 +1055,7 @@ describe("Reflecting Mirror (retarget existing spell, CR 115.7)", () => {
 
 // ---------------------------------------------------------------------------
 // Sorrow's Path (C9, #426) — swap two of one opponent's blockers' assignments
-// (CR 509.1 / 506.4 reassignment) + on-tap 2-damage-to-you drawback (CR 701.20a)
+// (CR 509.1 / 506.4 reassignment) + on-tap 2-damage-to-you drawback (CR 701.26a)
 // ---------------------------------------------------------------------------
 
 /** Builds a mid-combat board: p1 (Sorrow's Path controller) is the active /
@@ -1197,7 +1197,7 @@ describe("Sorrow's Path — swap blockers (CR 509.1 / 506.4)", () => {
         expect(blk2.damageMarked).toBe(2); // from atk1 (its new attacker)
     });
 
-    it("on-tap drawback: deals 2 to controller and each creature they control (CR 701.20a)", () => {
+    it("on-tap drawback: deals 2 to controller and each creature they control (CR 701.26a)", () => {
         const path = makeInstance(sorrowsPath.id, {
             id: "path",
             controllerId: "p1",

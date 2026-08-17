@@ -5,7 +5,7 @@ import type { CardDefinition } from "../../types";
 // disruption, issue #682). "Choose one — • Each opponent sacrifices a
 // nontoken creature of their choice. • Each opponent sacrifices a creature
 // token of their choice. • Each opponent sacrifices a planeswalker of their
-// choice." (CR 700.2 modal, CR 701.16 sacrifice.)
+// choice." (CR 700.2 modal, CR 701.21 sacrifice.)
 //
 // Modes are locked at CAST, not at resolution (CR 601.2b–c / 700.2c, issue
 // #1274): the card rides the cast-time `modes` framework, so the mode is

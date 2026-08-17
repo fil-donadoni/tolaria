@@ -20,7 +20,7 @@ function setupRemand() {
     return state;
 }
 
-describe("Remand — counter to owner's hand (CR 701.5a / 400.2, #1696)", () => {
+describe("Remand — counter to owner's hand (CR 701.6a / 400.2, #1696)", () => {
     it("returns the countered spell to its owner's hand, known to both players", () => {
         const state = setupRemand();
         resolveTopOfStack(state);

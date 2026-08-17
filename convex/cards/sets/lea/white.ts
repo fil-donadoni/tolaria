@@ -50,7 +50,7 @@ export const armageddon: CardDefinition = {
     oracleText: "Destroy all lands.",
     manaCost: { X: 3, W: 1 },
     types: ["Sorcery"],
-    // CR 701.7 — mass land destruction. The declarative marker lets effects that
+    // CR 701.8 — mass land destruction. The declarative marker lets effects that
     // reason about a spell's outcome (Equinox's counter) recognise this as
     // land destruction without running the effect script below.
     destroysAllLands: true,
@@ -75,7 +75,7 @@ export const armageddon: CardDefinition = {
 // Balance — "Each player chooses a number of lands they control equal to the
 // number of lands controlled by the player who controls the fewest, then
 // sacrifices the rest. Players discard cards and sacrifice creatures the same
-// way." (CR 608.2, 101.4 APNAP, 701.16 sacrifice, 701.8 discard)
+// way." (CR 608.2, 101.4 APNAP, 701.21 sacrifice, 701.8 discard)
 //
 // Ruling (2016-06-08): the order is lands → discard → creatures, each step
 // applied simultaneously after all players have chosen. Counts are sampled
@@ -211,7 +211,7 @@ export const balance: CardDefinition = {
     ],
 };
 
-// Benalish Hero — vanilla 1/1 with banding (CR 702.21). The keyword lives in
+// Benalish Hero — vanilla 1/1 with banding (CR 702.22). The keyword lives in
 // staticAbilities[]; the combat engine reads it to expand band-blocking and
 // shift combat-damage assignment authority (CR 702.22j-k).
 export const benalishHero: CardDefinition = {
@@ -465,7 +465,7 @@ export const crusade: CardDefinition = {
     ],
 };
 
-// Death Ward — "Regenerate target creature." (CR 701.15a regenerate, 614.5
+// Death Ward — "Regenerate target creature." (CR 701.19a regenerate, 614.5
 // destroy replacement). Stacks one regen shield on the target via the same
 // primitive used by Regeneration's activated ability — consumed by the next
 // destroy attempt, expiring at CLEANUP if unused (CR 514.2).
@@ -478,7 +478,7 @@ export const deathWard: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the announced
-    // creature target (CR 701.15a).
+    // creature target (CR 701.19a).
     effects: [{ op: "regenerate", target: { target: 0 } }],
 };
 
@@ -840,7 +840,7 @@ export const mesaPegasus: CardDefinition = {
     staticAbilities: ["flying", "banding"],
 };
 
-// Northern Paladin — "{W}{W}, {T}: Destroy target black creature." (CR 701.7
+// Northern Paladin — "{W}{W}, {T}: Destroy target black creature." (CR 701.8
 // destroy, 202.2 color filter on target).
 export const northernPaladin: CardDefinition = {
     id: "6303233b-35eb-49ca-b844-ba6b9fe1cbd2",
@@ -864,7 +864,7 @@ export const northernPaladin: CardDefinition = {
                 colorFilter: "B",
             },
             // Migrated resolve() → effects[] (ADR 0045, issue #831): a single
-            // `destroy` Op on the announced target (CR 701.7), same shape as
+            // `destroy` Op on the announced target (CR 701.8), same shape as
             // Dwarven Demolition Team. Per-card test is the migration harness.
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
@@ -1296,7 +1296,7 @@ export const whiteWard: CardDefinition = makeColorWard({
 });
 
 // Wrath of God — "Destroy all creatures. They can't be regenerated."
-// (CR 701.7, 701.15c). The `cantBeRegenerated` rider suppresses any
+// (CR 701.7, 701.19c). The `cantBeRegenerated` rider suppresses any
 // regeneration shields the victims may have stacked; indestructible still
 // protects (CR 702.12).
 export const wrathOfGod: CardDefinition = {

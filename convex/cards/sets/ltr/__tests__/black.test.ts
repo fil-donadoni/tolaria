@@ -263,7 +263,7 @@ describe("Amass [subtype] N (CR 701.47a)", () => {
         effectDraw(state, "p2");
         announceTargetAndResolve(state, { type: "player", id: "p2" });
 
-        // The resolution suspended on the CR 701.47a Army choice.
+        // The resolution suspended on the CR 701.47a amass Army choice.
         const choice = state.pendingChoices?.[0];
         expect(choice?.kind).toBe("choose-permanents");
         expect(choice?.playerId).toBe("p1");

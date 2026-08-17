@@ -160,7 +160,7 @@ export type PublicGrantedAbility = {
 
 /** PlayerState as seen through the public projection (library hidden, opponent hand nulled).
  *  `library` is always `{ count }` on the wire. When the viewer is the chooser
- *  of an active `search-library` pending choice (CR 401.4 / 701.19), the
+ *  of an active `search-library` pending choice (CR 401.4 / 701.23), the
  *  searched library is additionally exposed as `librarySearch` — a slim card
  *  list rendered face-up to the searcher. The flag does not alter the
  *  library shape so existing consumers (and tests asserting `library.count`)
@@ -201,7 +201,7 @@ export type FullPlayer = Omit<
     hand: SlimHandCard[];
     library: SlimCardInstance[];
     /** Set only on the chooser's player while a `search-library` choice is
-     *  active (CR 401.4 / 701.19) — the library exposed face-up for the picker.
+     *  active (CR 401.4 / 701.23) — the library exposed face-up for the picker.
      *  Mirrors `PublicPlayer.librarySearch` so the same UI gate works in the
      *  full debug view. */
     librarySearch?: SlimCardInstance[];
@@ -481,7 +481,7 @@ function projectExileCard(
         : slimmed;
 }
 
-/** CR 702.34 / 702.138 / 305.1-analog — projects a graveyard card, attaching
+/** CR 702.34 flashback / 702.138 escape / 305.1-analog — projects a graveyard card, attaching
  *  `legalActions` when the card is the viewer's own and currently has a
  *  Flashback cost (printed or granted), an Escape cost, OR is a LAND while the
  *  controller holds an unconditional play-lands-from-graveyard permission
@@ -502,7 +502,7 @@ function projectGraveyardCard(
 ): SlimGraveyardCard {
     const slim = slimCard(card);
     // CR 702.34a — tag any flashback-castable card, including a purely non-mana
-    // flashback (Lava Dart) whose mana portion is absent. CR 702.138 — likewise
+    // flashback (Lava Dart) whose mana portion is absent. CR 702.138 escape — likewise
     // tag any escape-castable card (Uro/Phlage/Nethergoyf, or a card granted
     // escape by Underworld Breach) so the client can offer + gate the escape
     // cast (the board never sees the GRE).
@@ -659,7 +659,7 @@ function hydrateGrantedAbilities(
 
 /** Resolved peek/reveal exposure derived from the head pending choice, scoped
  *  to a single chooser. Shared by the public and full projections so both views
- *  open the same picker piles (CR 401.4 / 701.19). All fields are `undefined`
+ *  open the same picker piles (CR 401.4 / 701.23). All fields are `undefined`
  *  when the chooser is not the head choice's player. */
 interface ChoiceExposure {
     /** `search-library`: expose THIS player's whole library face-up (the
@@ -745,7 +745,7 @@ function computeChoiceExposure(
     const head = state.pendingChoices?.[0];
     const isChooser = head !== undefined && head.playerId === chooserId;
 
-    // CR 401.4 / 701.19: search-library exposes the SEARCHED library to the
+    // CR 401.4 / 701.23: search-library exposes the SEARCHED library to the
     // chooser. The searched zone's owner is `zoneOwnerId ?? playerId` — for a
     // normal Demonic Tutor that's the chooser's own library, but for a
     // controlled cast (Word of Command, ADR 0037 / #580) the chooser is the
@@ -907,7 +907,7 @@ export function projectPublicState(
     viewerId: string,
     allActions: boolean = false
 ): PublicGameState {
-    // CR 401.4 / 701.19: while the viewer is the chooser of an active
+    // CR 401.4 / 701.23: while the viewer is the chooser of an active
     // search-library / reorder-library / draw-look-keep / look-top / reveal-hand
     // choice, expose the looked-at zone face-up so the UI can render its picker
     // pile.
@@ -1137,7 +1137,7 @@ export function projectFullState(
     seq: number,
     allActions: boolean = false
 ): FullGameState {
-    // CR 401.4 / 701.19: an active search-library / reorder-library /
+    // CR 401.4 / 701.23: an active search-library / reorder-library /
     // draw-look-keep / look-top / reveal-hand choice exposes the looked-at zone
     // face-up so the picker pile can open. The full debug view shows every zone,
     // but the
@@ -1248,7 +1248,7 @@ export function projectFullState(
         // the raw `...state` spread never leaks fat card defs (mirror of the
         // public projection).
         pendingTriggerBatch: state.pendingTriggerBatch?.map(slimCard),
-        // CR 702.26 — full debug view reveals everything; slim the phased-out
+        // CR 702.26 phasing — full debug view reveals everything; slim the phased-out
         // bundle cards to match the battlefield treatment (line above).
         phasedOut: state.phasedOut?.map((b) => ({
             ...b,

@@ -59,7 +59,7 @@ function makeErodeState(): GameState {
     });
 }
 
-describe("Erode (CR 701.7 destroy + CR 205.4a basic land card search)", () => {
+describe("Erode (CR 701.8 destroy + CR 205.4a basic land card search)", () => {
     it("offers ONLY basic land cards — a dual land with basic land types is nonbasic", () => {
         const state = makeErodeState();
         pushSpell(state, erode.id, "p1", [{ type: "permanent", id: "victim" }]);

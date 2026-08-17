@@ -1,7 +1,7 @@
 // wth — blue cards (ADR 0043 colour split).
 
 // Disrupt — {U} Instant. "Counter target instant or sorcery spell unless its
-// controller pays {1}. Draw a card." (CR 701.5a counter/punisher pattern +
+// controller pays {1}. Draw a card." (CR 701.6a counter/punisher pattern +
 // CR 121.1 draw.) `mayPay` + `if` on the outcome is the shipped punisher
 // template (leg/blue.ts Force Spike / fem/blue.ts Vodalian Mage).
 //

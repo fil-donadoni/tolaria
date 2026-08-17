@@ -65,7 +65,7 @@ import { mountain } from "../../lea";
 // BLACK free tranche (#413)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("Ashes to Ashes — exile two nonartifact creatures, 5 to you (CR 701.18 / 119)", () => {
+describe("Ashes to Ashes — exile two nonartifact creatures, 5 to you (CR 701.13 / 119)", () => {
     it("exiles both targets and deals 5 to the caster", () => {
         const a = makeInstance(getCardByName("Grizzly Bears").id, {
             id: "a",
@@ -268,7 +268,7 @@ describe("Curse Artifact — upkeep 2 damage unless sacrifice the artifact (CR 6
     });
 });
 
-describe("Eater of the Dead — {0}: if tapped, exile a graveyard creature + untap (CR 605 / 701.18)", () => {
+describe("Eater of the Dead — {0}: if tapped, exile a graveyard creature + untap (CR 605 / 701.13)", () => {
     function setup(tapped: boolean) {
         const eater = makeInstance(eaterOfTheDead.id, {
             id: "eater",
@@ -319,7 +319,7 @@ describe("Eater of the Dead — {0}: if tapped, exile a graveyard creature + unt
     });
 });
 
-describe("Grave Robbers — {B},{T}: exile a graveyard artifact, gain 2 life (CR 605 / 701.18)", () => {
+describe("Grave Robbers — {B},{T}: exile a graveyard artifact, gain 2 life (CR 605 / 701.13)", () => {
     it("exiles the artifact card and gains 2 life", () => {
         const robber = makeInstance(graveRobbers.id, {
             id: "robber",
@@ -515,7 +515,7 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
     });
 });
 
-describe("Rag Man — {B}{B}{B},{T}: opponent discards a creature at random (CR 701.8a)", () => {
+describe("Rag Man — {B}{B}{B},{T}: opponent discards a creature at random (CR 701.9a)", () => {
     it("discards a creature card, leaving noncreature cards", () => {
         const creature = makeInstance(getCardByName("Grizzly Bears").id, {
             id: "cre",

@@ -24,7 +24,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
  *  ONE `TriggeredAbility` on an ARRAY `event`, never one near-duplicate ability
  *  per event (a duplicate renders the same Oracle line N times on the stack;
  *  `triggerDedup.test.ts` guards it). The FOUR events partition graveyard entry:
- *  battlefield death (CR 700.4), discard (CR 701.8), mill (CR 701.17), and
+ *  battlefield death (CR 700.4), discard (CR 701.9), mill (CR 701.17), and
  *  `CARD_PUT_INTO_GRAVEYARD` — the residual catch-all without which "from
  *  anywhere" misses a "put the rest into your graveyard" dig, which is NOT a
  *  mill (CR 701.17a). `PERMANENT_LEFT` is deliberately EXCLUDED: it is emitted
@@ -56,7 +56,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
  *      `moveZone` shape (`player` + `from` + `to`, both restricted to
  *      `MovableZone`, which admits `library`) — the same shape Timetwister's
  *      "shuffles their hand and graveyard into their library" uses.
- *   3. shuffle (CR 701.20).
+ *   3. shuffle (CR 701.24).
  *  Steps 1+2 together move exactly the set the Oracle names (Emrakul is itself
  *  in that graveyard when the trigger resolves), and step 3 randomizes, so the
  *  split into two moves is outcome-identical to one sweep.
@@ -125,7 +125,7 @@ export const emrakulTheAeonsTorn: CardDefinition = {
     subtypes: ["Eldrazi"],
     power: 15,
     toughness: 15,
-    // CR 701.5a — "This spell can't be countered", honoured at the counter site.
+    // CR 701.6a — "This spell can't be countered", honoured at the counter site.
     cantBeCountered: true,
     // CR 702.9 flying; CR 702.16a protection from spells that are one or more
     // colors (the spell-restricted any-colour quality, #2296 — a CONJUNCTION:

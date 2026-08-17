@@ -29,7 +29,7 @@ export const lorienRevealed: CardDefinition = {
 };
 
 // Stern Scolding — {U} Instant. "Counter target creature spell with power or
-// toughness 2 or less." (CR 701.5a counter, CR 114.1 + 208.2 the new
+// toughness 2 or less." (CR 701.6a counter, CR 114.1 + 208.2 the new
 // `spellCreaturePtFilter` targeting restriction, issue #683 — a stack-item
 // power/toughness gate on a "spell" target that didn't exist before this
 // card). No mayPay/if — an unconditional counter, so the effect is a single

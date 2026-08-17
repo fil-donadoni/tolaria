@@ -102,7 +102,7 @@ function botOf(state: GameState) {
 // ───────────────────────────────────────────────────────────────────────────
 
 describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
-    it("cost.sacrificeFilter — the land leaves the battlefield (CR 701.16)", () => {
+    it("cost.sacrificeFilter — the land leaves the battlefield (CR 701.21)", () => {
         const safekeeper = bf(SAFEKEEPER, "keeper");
         const state = makeState({
             players: [

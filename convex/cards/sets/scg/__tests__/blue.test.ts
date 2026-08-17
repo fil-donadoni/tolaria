@@ -53,7 +53,7 @@ function activatedOnStack(
     };
 }
 
-describe("Stifle — counter target activated or triggered ability (CR 701.5a / 113.7a)", () => {
+describe("Stifle — counter target activated or triggered ability (CR 701.6a / 113.7a)", () => {
     const req = stifle.targetRequirement!;
 
     it("targets a TRIGGERED ability on the stack", () => {

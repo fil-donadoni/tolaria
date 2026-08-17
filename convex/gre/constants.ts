@@ -59,7 +59,7 @@ export const PLACEHOLDER_CARD_ID = "placeholder:hidden-library";
  *  is unaffected. */
 export { LAND_SUBTYPE_MANA };
 
-// Landwalk keywords mapped to the land subtype they reference (CR 702.13c-g).
+// Landwalk keywords mapped to the land subtype they reference (CR 702.14c-g).
 // The five-basic-type leg is DERIVED from `LANDWALK_KEYWORD_BY_BASIC_TYPE`
 // (`cards/types.ts` — inverted here), not a hand-authored parallel table, so
 // the two can't drift; only the non-basic `desertwalk` entry is added on top.
@@ -82,7 +82,7 @@ export const LANDWALK_KEYWORDS: Record<string, string> = {
     desertwalk: "Desert",
 };
 
-/** Landwalk keywords keyed on a land *supertype* (CR 205.4 / 702.13) rather
+/** Landwalk keywords keyed on a land *supertype* (CR 205.4 / 702.14) rather
  *  than a subtype. "Legendary landwalk" (Livonya Silone, LEG) is the only
  *  printed instance — the attacker can't be blocked while the defending player
  *  controls a land with the named supertype. Kept separate from
@@ -94,7 +94,7 @@ export const LANDWALK_SUPERTYPE_KEYWORDS: Record<string, CardSupertype> = {
     "legendary landwalk": "Legendary",
 };
 
-/** Snow landwalk keywords (CR 702.13 / 205.4a) keyed on the basic land
+/** Snow landwalk keywords (CR 702.14 / 205.4a) keyed on the basic land
  *  *subtype* the snow land must also have — the attacker can't be blocked
  *  while the defending player controls a SNOW land of that subtype (Legions
  *  of Lim-Dûl's "snow swampwalk", Rime Dryad's "snow forestwalk"). Kept

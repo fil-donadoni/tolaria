@@ -6,7 +6,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 
 // Fabled Passage — "{T}, Sacrifice this land: Search your library for a basic
 // land card, put it onto the battlefield tapped, then shuffle. Then if you
-// control four or more lands, untap that land." (CR 701.19 / 400.7 / 701.20.)
+// control four or more lands, untap that land." (CR 701.23 search / 400.7 / 701.24 shuffle.)
 // No life payment (unlike the classic fetchlands). DSL: `choice` filtered by
 // `supertype: "Basic"` + `moveZone(cards, tapped: true)` (forces the entering
 // land tapped, issue #677) + `libraryLook`(shuffle). SIMPLIFIED (documented

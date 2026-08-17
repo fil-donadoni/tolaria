@@ -378,7 +378,7 @@ describe("search leaves record an attacker DECLARATION (CR 506.3, issue #1944)",
 // of the cost that changes the board, so both simulators must apply it — else
 // a single rollout line can spend the SAME graveyard card N times, each
 // enumeration still offering the activation it has already paid for.
-describe("graveyard-source activations pay `exileThis` in the search leaves (CR 702.129a, issue #2339)", () => {
+describe("graveyard-source activations pay `exileThis` in the search leaves (CR 702.129a eternalize, issue #2339)", () => {
     const FANATIC = getCardByName("Fanatic of Rhonas").id; // {1}{G}, Eternalize {2}{G}{G}
     const FOREST = getCardByName("Forest").id;
     const BOT = "p1";

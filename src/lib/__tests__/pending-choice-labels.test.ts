@@ -37,7 +37,7 @@ describe("pendingChoiceRoutesToBattlefield (issue #1823 review fixup)", () => {
 
     // The discriminator this predicate exists for (review fixup #1823,
     // finding 1): a zone-less `may-pay` with a payable MANA leg (Echo,
-    // cumulative upkeep, "unless you pay {mana}" triggers — CR 702.61/117.3a)
+    // cumulative upkeep, "unless you pay {mana}" triggers — CR 702.30 echo / 117.3a)
     // never sets `zone` (`requestMayPay` only sets it for a real
     // sacrifice/discard victim pick). If this predicate wrongly returned
     // `true` for it, `useBattlefieldInteraction.tsx`'s click router would

@@ -59,8 +59,8 @@ export const echoOfEons: CardDefinition = {
 // blue card from your hand rather than pay this spell's mana cost. Counter
 // target noncreature spell. If that spell is countered this way, exile it
 // instead of putting it into its owner's graveyard." (CR 118.9 alternative pitch
-// cost — exile a blue card from hand, gated on not-your-turn; CR 701.5a counter;
-// CR 114.1 noncreature spell target; CR 701.5a counter-to-exile.)
+// cost — exile a blue card from hand, gated on not-your-turn; CR 701.6a counter;
+// CR 114.1 noncreature spell target; CR 701.6a counter-to-exile.)
 //
 // The alternative cost is a censusless CR 118.9 rules concept (no keyword name):
 // a `handCost.action: "exile"` leg with `condition: not-your-turn`. The
@@ -159,7 +159,7 @@ export const forceOfNegation: CardDefinition = {
 //
 //   3. "{5}: Shuffle your library, then exile the top card. Until end of
 //      turn, you may play that card without paying its mana cost." (CR
-//      601.3e / 608.2g impulse-play idiom, CR 701.20 shuffle.) Composes
+//      601.3e / 608.2g impulse-play idiom, CR 701.24 shuffle.) Composes
 //      shipped `SpellContext` primitives exactly like Elkin Bottle
 //      (`ice/colorless.ts`) plus a leading shuffle: `shuffleLibrary` →
 //      `peekLibraryTop` → `exileFaceDown` (CR 406.3 — hidden to the opponent,
@@ -277,7 +277,7 @@ export const urzaLordHighArtificer: CardDefinition = {
             // this marker (`scripts/migration-classifier.mjs`) so the FREE
             // tranche stops re-listing a closure already confirmed unskinnable.
             resolve: (ctx: SpellContext) => {
-                // CR 701.20 — shuffle FIRST (the oracle's own ordering), then
+                // CR 701.24 — shuffle FIRST (the oracle's own ordering), then
                 // exile the (new) top card.
                 ctx.shuffleLibrary(ctx.caster);
                 const top = ctx.peekLibraryTop(ctx.caster, 1);

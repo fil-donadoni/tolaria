@@ -153,7 +153,7 @@ export function applyMayPaySubmit(
         ) {
             throw new Error("Cannot pay the cost");
         }
-        // CR 701.21a / 701.24 — validate the payer's permanent pick when the
+        // CR 701.21a / 400.7 — validate the payer's permanent pick when the
         // leg admits a real choice. The candidate set is recomputed live (the board may have
         // shifted since the choice was enqueued). Two shapes:
         //   - fixed cardinal (`count: number`): the pick must name exactly
@@ -1137,7 +1137,7 @@ export function applyPendingChoiceSubmit(
         );
     }
 
-    // CR 701.19a / 603.2 (issue #788) — a `search-library` choice commits
+    // CR 701.23a / 603.2 (issue #788) — a `search-library` choice commits
     // exactly when the player finishes searching, whether or not they found
     // anything (a fetchland whiff still "searched"). This is the single
     // choke point every tutor/fetchland library search funnels through

@@ -433,10 +433,10 @@ describe("Soul Exchange — exile-as-cost + reanimate + Thrull +2/+2 (CAPABILITY
 });
 
 // ---------------------------------------------------------------------------
-// Hymn to Tourach — Target player discards two cards at random (CR 701.8a).
+// Hymn to Tourach — Target player discards two cards at random (CR 701.9a).
 // ---------------------------------------------------------------------------
 
-describe("Hymn to Tourach — random discard two (CR 701.8a)", () => {
+describe("Hymn to Tourach — random discard two (CR 701.9a)", () => {
     it("discards exactly two cards from the targeted player's hand", () => {
         const hand = [
             makeInstance(grizzlyBears.id, {
@@ -1081,10 +1081,10 @@ describe("Thrull Champion — Thrull anthem + conditional gainControl (CR 611)",
 
 // ---------------------------------------------------------------------------
 // Thrull Retainer — Aura: +1/+1 to host + sac-self regenerate (CR 303.4, 611,
-// 701.15a).
+// 701.19a).
 // ---------------------------------------------------------------------------
 
-describe("Thrull Retainer — Aura +1/+1 + sac-self regenerate (CR 303.4, 701.15a)", () => {
+describe("Thrull Retainer — Aura +1/+1 + sac-self regenerate (CR 303.4, 701.19a)", () => {
     it("buffs the enchanted host by +1/+1 (survives projection)", () => {
         const host = makeInstance(grizzlyBears.id, {
             id: "host",
@@ -1143,12 +1143,12 @@ describe("Thrull Retainer — Aura +1/+1 + sac-self regenerate (CR 303.4, 701.15
 
 // ---------------------------------------------------------------------------
 // Thrull Wizard — {1}{B}: counter target black spell unless its controller pays
-// {B} or {3} (CR 701.5a, 117.3a). The "{B} or {3}" alternative is modelled as
+// {B} or {3} (CR 701.6a, 117.3a). The "{B} or {3}" alternative is modelled as
 // two sequential may-pay offers ({B}, then {3} if {B} was declined) — issue
 // #961; paying either saves the spell, declining both counters it.
 // ---------------------------------------------------------------------------
 
-describe("Thrull Wizard — counter black spell unless pay {B} or {3} (CR 701.5a)", () => {
+describe("Thrull Wizard — counter black spell unless pay {B} or {3} (CR 701.6a)", () => {
     const setup = () => {
         const wiz = makeInstance(thrullWizard.id, {
             id: "wiz",

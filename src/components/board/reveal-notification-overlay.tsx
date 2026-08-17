@@ -10,7 +10,7 @@ import CardImage from "~/components/cards/card-image";
 const REVEAL_NOTIFICATION_MS = 5000;
 
 /** Transient center-screen popup for a private look or public reveal
- *  (`SpellContext.notifyReveal`, ADR 0026 / CR 701.18a look / CR 701.20
+ *  (`SpellContext.notifyReveal`, ADR 0026 / CR 400.2 look / CR 701.20
  *  reveal). The projection has already filtered `pendingReveals` to the entries
  *  this viewer may see — a private look (Urza's Bauble) reaches only the looker,
  *  a public reveal reaches everyone — so every entry here is for us to show.

@@ -6,8 +6,8 @@ import type { CardDefinition } from "../../types";
 
 // Survival of the Fittest — {1}{G} Enchantment. "{G}, Discard a creature
 // card: Search your library for a creature card, reveal that card, put it
-// into your hand, then shuffle." (CR 701.19 search / 400.7 zone change /
-// 701.20 shuffle.) Unblocked by issue #901: `ActivatedAbility.cost` gained a
+// into your hand, then shuffle." (CR 701.23 search / 400.7 zone change /
+// 701.24 shuffle.) Unblocked by issue #901: `ActivatedAbility.cost` gained a
 // `discardFilter` leg (mirrors `sacrificeFilter`'s player-choice discipline —
 // the activator picks WHICH matching creature card in hand to discard via a
 // dedicated picker, `selectActivationDiscardCost`; never auto-picked). The

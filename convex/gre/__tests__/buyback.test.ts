@@ -317,7 +317,7 @@ describe("Buyback — a COUNTERED spell drops buybackPaid at every SpellContext.
 });
 
 // Non-blocking gap flagged in PR #2412 review round 2: `putSpellOnLibrary`
-// (`SpellContext.putSpellOnLibrary`, the Subtlety CR 701.5-adjacent "put
+// (`SpellContext.putSpellOnLibrary`, the Subtlety CR 701.6-adjacent "put
 // target spell on top/bottom of its owner's library" effect — NOT a counter,
 // CR 113.6g) shares `resetStackTransientState` with `counter()`'s
 // library-top/exile/hand branches but had no `buybackPaid` coverage of its
@@ -326,7 +326,7 @@ describe("Buyback — a COUNTERED spell drops buybackPaid at every SpellContext.
 // resolve-side redirects (`exileOnResolve`/`shuffleIntoLibraryOnResolve`/
 // `reboundFromHand`) which are mutually exclusive with buyback by
 // construction (a spell mid-resolution already chose its own destination).
-describe("Buyback — putSpellOnLibrary (Subtlety) strips buybackPaid (CR 701.5-adjacent / issue #2137)", () => {
+describe("Buyback — putSpellOnLibrary (Subtlety) strips buybackPaid (CR 701.6 counter-adjacent / issue #2137)", () => {
     it("top — a paid-buyback spell put on top of its library carries no buybackPaid", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

@@ -2,7 +2,7 @@
 // (Planar Chaos, split by colour per ADR 0043). Damnation is a `resolve()`
 // card (NOT DSL-migratable — see the justification comment on the card
 // itself): it mirrors Wrath of God's "destroy all creatures, can't be
-// regenerated" shape (CR 701.8 / 701.15c) via the shared
+// regenerated" shape (CR 701.8 / 701.19c) via the shared
 // `SpellContext.destroyAll` primitive, so its test suite mirrors
 // `convex/cards/sets/lea/__tests__/white.test.ts`'s Wrath of God block.
 
@@ -17,7 +17,7 @@ import {
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 
-describe("Damnation (destroy all creatures, can't be regenerated, CR 701.15c)", () => {
+describe("Damnation (destroy all creatures, can't be regenerated, CR 701.19c)", () => {
     it("moves every creature to its owner's graveyard", () => {
         const angel = makeInstance(serraAngel.id, { id: "angel" });
         const lion = makeInstance(savannahLions.id, {

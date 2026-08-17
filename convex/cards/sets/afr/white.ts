@@ -54,7 +54,7 @@ export const portableHole: CardDefinition = {
                 controller: "opponent",
                 mvFilter: { max: 2 },
             },
-            // CR 701.18 — host-only exile (ADR 0028 arms the return keyed to
+            // CR 701.13 — host-only exile (ADR 0028 arms the return keyed to
             // `$source`); the `exileWithAttachments` Op reads the announced
             // target and defaults `includeAttachments`/`returnTapped` to false
             // — the host-only O-Ring shape (ADR 0045 DSL-first).

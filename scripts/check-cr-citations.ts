@@ -46,6 +46,11 @@ import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+    formatHit,
+    keywordIndex,
+    scanKeywordCitations,
+} from "./cr-keyword-citations.ts";
 
 // `import.meta.dir` is Bun-only; the regression guard imports this module under
 // vitest/node, where it is undefined.
@@ -147,11 +152,10 @@ export function scanCitations(
     return { bad, total };
 }
 
-/** Reads every tracked source and scans it. Used by the CLI and the guard. */
-export function scanRepo(root = ROOT): ScanResult & { fileCount: number } {
-    const files = scannedFiles(root);
+/** Every tracked source, read once — shared by both scans. */
+export function readSources(root = ROOT): { file: string; text: string }[] {
     const sources: { file: string; text: string }[] = [];
-    for (const file of files) {
+    for (const file of scannedFiles(root)) {
         try {
             sources.push({
                 file,
@@ -161,10 +165,48 @@ export function scanRepo(root = ROOT): ScanResult & { fileCount: number } {
             continue;
         }
     }
+    return sources;
+}
+
+/** Reads every tracked source and scans it. Used by the CLI and the guard. */
+export function scanRepo(root = ROOT): ScanResult & { fileCount: number } {
+    const sources = readSources(root);
     return {
         ...scanCitations(sources, knownRuleIds()),
-        fileCount: files.length,
+        fileCount: sources.length,
     };
+}
+
+/**
+ * The keyword-semantics scan (`cr-keyword-citations.ts`), reported alongside
+ * the existence scan because they answer the two halves of one question: does
+ * the id resolve, and does it mean what the line says. Both run under
+ * `bun run cr:lint`, so `check:guards` covers both with no new wiring.
+ */
+function keywordScan(showFiles: boolean): number {
+    const index = keywordIndex();
+    const { hits, scanned } = scanKeywordCitations(readSources(), index);
+    console.log(
+        `\nscanned ${scanned} CR 701/702 keyword citations against their section titles`
+    );
+    if (!hits.length) {
+        console.log("every keyword citation names the section it cites");
+        return 0;
+    }
+    console.log(
+        `\n${hits.length} citation(s) point at a DIFFERENT keyword than the line names:\n`
+    );
+    for (const hit of showFiles ? hits : hits.slice(0, 25)) {
+        console.log(formatHit(hit, index));
+    }
+    if (!showFiles && hits.length > 25) {
+        console.log(`  … ${hits.length - 25} more (re-run with --files)`);
+    }
+    console.log(
+        `\nPrint both rules with \`bun run cr <id>\` before editing. If the citation is` +
+            `\nright and the line simply never names its keyword, say the keyword on that line.`
+    );
+    return 1;
 }
 
 function main(): number {
@@ -177,7 +219,7 @@ function main(): number {
     );
     if (!bad.size) {
         console.log("all citations resolve");
-        return 0;
+        return keywordScan(showFiles);
     }
     console.log(`\n${bad.size} unresolvable rule ids:\n`);
     for (const [id, hits] of [...bad.entries()].sort(
@@ -192,6 +234,7 @@ function main(): number {
     console.log(
         `\nFind the real rule with \`bun run cr grep "<keyword>"\` — never guess the letter.`
     );
+    keywordScan(showFiles);
     return 1;
 }
 

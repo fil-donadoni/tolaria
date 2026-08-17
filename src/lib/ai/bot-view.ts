@@ -407,7 +407,7 @@ function readChoiceZone(
                     matchesPermanentFilter(
                         projectedPermanentView(state, c),
                         filter,
-                        // CR 701.16 (issue #1938 fixup 2) — resolves
+                        // CR 701.21 (issue #1938 fixup 2) — resolves
                         // `controllerRelation` ("sacrifice two Swamps YOU
                         // control", Infernal Denizen / Minion of Leshrac)
                         // against the CHOOSER. Without this the filter fails
@@ -521,7 +521,7 @@ function mayPayIsAffordable(
                 projectedPermanentView(state, c),
                 norm.permanent!.filter,
                 {
-                    // CR 701.16 (issue #1938 fixup 2) — resolves
+                    // CR 701.21 (issue #1938 fixup 2) — resolves
                     // `controllerRelation` ("sacrifice two Swamps YOU
                     // control") against the bot itself, the mayPay's payer.
                     // Without this the filter fails CLOSED and the bot always

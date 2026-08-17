@@ -231,7 +231,7 @@ function buildApplyCtx(
                 cardInstanceId
             ),
         revealHandCard: () => {
-            // CR 701.15 reveal: publicly note the card's identity. Currently a
+            // CR 701.20 reveal: publicly note the card's identity. Currently a
             // no-op for state — the replacement caller already inspects the
             // card via state, and the UI surfaces hand contents through the
             // game projection. A future event-log entry would land here.

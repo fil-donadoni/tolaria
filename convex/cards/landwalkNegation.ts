@@ -1,5 +1,5 @@
 // Shared, frontend-safe scan for battlefield-wide landwalk-negation statics
-// (CR 509.1b / 702.13) — Great Wall, Undertow (LEG #484).
+// (CR 509.1b / 702.14) — Great Wall, Undertow (LEG #484).
 //
 // Lives under `convex/cards/` (NOT `convex/gre/`) so the React client can call
 // it directly to keep its block-eligibility view (`isLandwalkUnblockable`) in
@@ -23,7 +23,7 @@ interface LandwalkNegationPermanent {
 }
 
 /** Returns the set of land subtypes whose landwalk evasion is currently
- *  negated on `battlefield` (CR 509.1b / 702.13). A creature with `X-walk`
+ *  negated on `battlefield` (CR 509.1b / 702.14). A creature with `X-walk`
  *  whose land subtype is in this set can be blocked as though it didn't have
  *  the keyword, regardless of the defender's lands.
  *
@@ -59,7 +59,7 @@ interface LandSupertypePermanent {
 /** True if `battlefield` contains a Land whose printed supertypes include
  *  `supertype` (CR 205.4). Backs supertype-keyed landwalk ("legendary landwalk",
  *  Livonya Silone, LEG) — the attacker can't be blocked while the defending
- *  player controls a land with the named supertype (CR 702.13). Supertypes live
+ *  player controls a land with the named supertype (CR 702.14). Supertypes live
  *  on the card definition (not a text-changeable, instance-mutable field), so we
  *  resolve them through the registry — the same frontend-safe lookup pattern as
  *  `negatedLandwalkSubtypes`, keeping the client's block view in sync with the

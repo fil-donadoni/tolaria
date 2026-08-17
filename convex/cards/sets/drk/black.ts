@@ -24,7 +24,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // ═════════════════════════════════════════════════════════════════════════════
 
 // Ashes to Ashes — "Exile two target nonartifact creatures. Ashes to Ashes
-// deals 5 damage to you." (CR 701.18 exile two distinct creature targets, CR
+// deals 5 damage to you." (CR 701.13 exile two distinct creature targets, CR
 // 601.2c; `excludeTypes: "Artifact"` enforces "nonartifact"; CR 119 the 5
 // damage to the caster.)
 export const ashesToAshes: CardDefinition = {
@@ -197,7 +197,7 @@ export const curseArtifact: CardDefinition = {
 // Eater of the Dead — "{0}: If this creature is tapped, exile target creature
 // card from a graveyard and untap this creature." (CR 605 activated ability
 // with a free {0} cost gated on the source being tapped via `canActivate`; CR
-// 701.18 exile the graveyard-card target; CR 701.20b untap. The famous "untap
+// 701.13 exile the graveyard-card target; CR 701.26b untap. The famous "untap
 // loop" is harmless here — each activation requires a distinct creature card in
 // a graveyard, so it terminates when graveyards run dry.)
 export const eaterOfTheDead: CardDefinition = {
@@ -229,7 +229,7 @@ export const eaterOfTheDead: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, #842): exile the announced
             // graveyard creature-card target (moveZone graveyard→exile, CR
-            // 701.13), then untap the source (CR 701.26b). The "if tapped" gate
+            // 701.13 exile), then untap the source (CR 701.26b). The "if tapped" gate
             // is enforced by `canActivate` above.
             effects: [
                 { op: "moveZone", target: { target: 0 }, to: "exile" },
@@ -254,7 +254,7 @@ export const eaterOfTheDead: CardDefinition = {
 // exported CardDefinition) to keep the pool honest.
 
 // Grave Robbers — "{B}, {T}: Exile target artifact card from a graveyard. You
-// gain 2 life." (CR 605 activated ability; CR 701.18 exile the graveyard-card
+// gain 2 life." (CR 605 activated ability; CR 701.13 exile the graveyard-card
 // target filtered to artifacts; CR 119.3 lifegain.)
 export const graveRobbers: CardDefinition = {
     id: "a131605a-f646-4745-a1e4-48d155a3d94f",
@@ -452,7 +452,7 @@ export const namelessRace: CardDefinition = {
 
 // Rag Man — "{B}{B}{B}, {T}: Target opponent reveals their hand and discards a
 // creature card at random. Activate only during your turn." (CR 605 activated
-// ability with `controllerTurnOnly`; CR 701.x reveal; CR 701.8a the filtered
+// ability with `controllerTurnOnly`; CR 701.20a reveal; CR 701.9a the filtered
 // random discard via `discardAtRandom(..., "Creature")`.)
 export const ragMan: CardDefinition = {
     id: "f4c133b8-8383-433f-be96-c47a937287b7",
@@ -695,7 +695,7 @@ export const uncleIstvan: CardDefinition = {
 };
 
 // Word of Binding — "Tap X target creatures." (CR 601.2c a variable number of
-// creature targets fixed at announcement by X; CR 701.20a tap each.) Mana
+// creature targets fixed at announcement by X; CR 701.26a tap each.) Mana
 // cost is {X}{B}{B} (MTGJSON DRK.json) — `X: 1` (a FIXED generic amount, not
 // the variable marker `"X"`) was a typo the widened data/json conformance
 // guard caught: `hasX` (gre/moves.ts) keys on `typeof cost.X === "string"`,
@@ -741,7 +741,7 @@ export const wordOfBinding: CardDefinition = {
 //     automatically the instant Worms leaves play (no LTB cleanup); the engine
 //     mirrors it into `state.landPlayLocked` for serialization.
 //
-// Upkeep clause (CR 603.6a "each" upkeep; CR 117.3a optional; CR 701.16
+// Upkeep clause (CR 603.6a "each" upkeep; CR 117.3a optional; CR 701.21
 // sacrifice): on EVERY player's upkeep, that player MAY (a) sacrifice two of
 // their lands, OR (b) take 5 damage from Worms; if they do EITHER, destroy
 // Worms. Modeled as a three-way option pick (sacrifice / take 5 / decline);

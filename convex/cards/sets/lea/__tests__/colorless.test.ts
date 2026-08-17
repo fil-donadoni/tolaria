@@ -769,7 +769,7 @@ describe("Jade Statue (animate until end of combat, CR 208.2 + 511.3 + 602.5)", 
     });
 });
 
-describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.20a)", () => {
+describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.26a)", () => {
     function activate(
         state: ReturnType<typeof makeState>,
         icy: CardInstanceState,
@@ -802,7 +802,7 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
         expect(state.players[1].battlefield[0].isTapped).toBe(true);
     });
 
-    it("is a no-op when the target is already tapped (CR 701.20a)", () => {
+    it("is a no-op when the target is already tapped (CR 701.26a)", () => {
         const icy = makeInstance(icyManipulator.id, { id: "icy" });
         const lion = makeInstance(savannahLions.id, {
             id: "lion",
@@ -2787,10 +2787,10 @@ describe("Dingus Egg (land LTB to graveyard → 2 damage to controller)", () => 
 });
 
 // ---------------------------------------------------------------------------
-// Terror (CR 701.7, 701.15c — destroy target nonartifact, nonblack creature)
+// Terror (CR 701.8, 701.19c — destroy target nonartifact, nonblack creature)
 // ---------------------------------------------------------------------------
 
-describe("Disrupting Scepter ({3},{T}: target player discards, CR 701.8)", () => {
+describe("Disrupting Scepter ({3},{T}: target player discards, CR 701.9)", () => {
     it("opponent chooses which card to discard", () => {
         const scepter = makeInstance(disruptingScepter.id, {
             id: "scepter",
@@ -3242,7 +3242,7 @@ describe("skipNextTurn serialization", () => {
 // GRE primitive → serialize (DB) → projection → clear path that a
 // reveal-the-top-card style effect drives via SpellContext.markKnownToAll.
 // ---------------------------------------------------------------------------
-describe("Reveal-to-all library knowledge (ADR 0026 slice 2, CR 701.16 / 701.20)", () => {
+describe("Reveal-to-all library knowledge (ADR 0026 slice 2, CR 701.20 / 701.20)", () => {
     function setup() {
         const library = ["r1", "r2", "r3"].map((id) =>
             makeInstance(swamp.id, {
@@ -4626,7 +4626,7 @@ describe("Celestial Prism ({2}, {T}: Add one mana of any color, CR 605.1a)", () 
     });
 });
 
-describe("Living Wall (CR 701.15a regenerate)", () => {
+describe("Living Wall (CR 701.19a regenerate)", () => {
     it("activating the regenerate ability shields it from a destroy effect", () => {
         const wall = makeInstance(livingWall.id, {
             id: "wall",

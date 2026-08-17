@@ -37,9 +37,9 @@ export const tirelessTracker: CardDefinition = {
                 "Landfall — Whenever a land you control enters, investigate.",
             effects: [investigateOp()],
         }),
-        // CR 701.16 / 205.3 — "whenever you sacrifice a Clue" is scoped to
+        // CR 701.21 / 205.3 — "whenever you sacrifice a Clue" is scoped to
         // THIS controller (`scope: "yours"`), the Clue's departure must land
-        // in a graveyard (`toZone: "graveyard"` — CR 701.16a's sacrifice
+        // in a graveyard (`toZone: "graveyard"` — CR 701.21a's sacrifice
         // destination), match the "Clue" subtype (`filter.subtypes`, now
         // carried by `PermanentLeftEvent`), and be a genuine sacrifice, not a
         // destroy/bounce/mill (`wasSacrificed`).

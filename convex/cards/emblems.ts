@@ -156,7 +156,7 @@ registerEmblemDefinition({
                 count: 1,
                 controller: "opponent",
             },
-            // CR 701.13 — the announced opponent slot mills five. An unfilled
+            // CR 701.17 — the announced opponent slot mills five. An unfilled
             // slot resolves to undefined and the Op skips (CR 608.2b).
             effects: [{ op: "mill", player: { target: 0 }, count: 5 }],
         },

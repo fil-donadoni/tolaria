@@ -93,7 +93,7 @@ export type MoveMutations = {
     tapForActivationPayment: (
         a: GP & { cardInstanceId: string; manaChoiceIndex?: number }
     ) => Promise<unknown>;
-    /** CR 701.16 / 118.5 — names ONE permanent to sacrifice for a
+    /** CR 701.21 / 118.5 — names ONE permanent to sacrifice for a
      *  `sacrificeFilter` activation cost (Fallen Angel, Atog) or a static
      *  additional-sacrifice tax. One call per victim. */
     selectSacrifice: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
@@ -198,7 +198,7 @@ export async function executeMove(
         case "may-pay":
             // Yes/no family (CR 117.3a / 118.4) — a SEPARATE entry point from
             // submitResolutionChoice (ADR 0016). CR 701.21a — a sacrifice-leg
-            // pick rides along as `sacrificeIds`; CR 701.9 / 118.3 (issue
+            // pick rides along as `sacrificeIds`; CR 701.9 discard / 118.3 (issue
             // #899 / #1507) — a discard-leg pick rides along as `discardIds`.
             await mutations.submitMayPay({
                 ...base,
@@ -414,7 +414,7 @@ export async function executeMove(
             // picker asserts "priority".
             const picks = move.costPicks;
             if (picks) {
-                // CR 701.16 — one call per victim; the server routes it to
+                // CR 701.21 — one call per victim; the server routes it to
                 // whichever in-flight action awaits a sacrifice choice.
                 for (const cardInstanceId of picks.sacrificeIds ?? []) {
                     await mutations.selectSacrifice({

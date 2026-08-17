@@ -120,7 +120,7 @@ function makeUpkeepPayOrElse(args: {
 // Altar of Bone — {G}{W} Sorcery. "As an additional cost to cast this spell,
 // sacrifice a creature. Search your library for a creature card, reveal it, put
 // it into your hand, then shuffle." (CR 118.8 / 601.2f sacrifice additional cost
-// via `additionalCosts.sacrificeFilter`; CR 701.19 library search for a creature
+// via `additionalCosts.sacrificeFilter`; CR 701.23 library search for a creature
 // card → hand; CR 701.20 shuffle.) The reveal is implicit — the searched card
 // moves to the caster's hand and the library is shuffled.
 export const altarOfBone: CardDefinition = {
@@ -160,7 +160,7 @@ export const altarOfBone: CardDefinition = {
             candidateIds: creatures.map((c) => c.id),
             count: { min: 0, max: 1 },
             prompt: "Search your library for a creature card.",
-            // Genuine CR 701.19a search (candidateIds is a whole-library
+            // Genuine CR 701.23a search (candidateIds is a whole-library
             // filter match, not a peeked window) — issue #788 finding 1.
             isSearch: true,
         });
@@ -383,7 +383,7 @@ export const diabolicVision: CardDefinition = {
 // creature's controller sacrifices a land of their choice" (CR 603.2 death
 // trigger over `scope: "any"`; the dying creature's controller is read from the
 // `diedTrigger` last-known-information payload, CR 603.10, and chooses which
-// Land to sacrifice via a `sacrifice-permanents` choice, CR 701.16). Modern
+// Land to sacrifice via a `sacrifice-permanents` choice, CR 701.21). Modern
 // Scryfall oracle text (ADR 0004): the upkeep clause is a flat "pay {2}", NOT
 // cumulative upkeep.
 const EARTHLINK_ID = "a83cb1c4-7c5b-4a5e-b15e-138d644f5cdb";
@@ -418,7 +418,7 @@ export const earthlink: CardDefinition = {
             scope: "any",
             resolve: (ctx, _event, deadCreature) => {
                 const controller = deadCreature.controllerId;
-                // CR 701.16 — only ask when the controller actually has a Land
+                // CR 701.21 — only ask when the controller actually has a Land
                 // to sacrifice (a no-Land board makes the sacrifice a no-op).
                 const lands = ctx.getBattlefieldIds(controller, {
                     types: "Land",
@@ -496,7 +496,7 @@ export const elementalAugury: CardDefinition = {
 // can't be regenerated." (CR 117.3a / 118.4 — a "pay life unless" offer to the
 // target's controller via `requestMayPay` (no mana cost = a yes/no life gate);
 // pay `getToughness` life to keep it, else destroy with the no-regen rider
-// CR 701.15a.) The toughness is snapshotted at resolution (CR 608.2g).
+// CR 701.19a.) The toughness is snapshotted at resolution (CR 608.2g).
 export const essenceVortex: CardDefinition = {
     id: "fe07e496-5070-4116-a91a-a3bbe19c12af",
     name: "Essence Vortex",
@@ -618,7 +618,7 @@ export const floodedWoodlands: CardDefinition = {
 };
 // Fumarole — {3}{B}{R} Sorcery. "As an additional cost to cast this spell, pay
 // 3 life.\nDestroy target creature and target land." (CR 601.2b fixed pay-life
-// additional cost; CR 601.2c two INDEPENDENT typed target groups; CR 701.7
+// additional cost; CR 601.2c two INDEPENDENT typed target groups; CR 701.8
 // destroy.) The dual-target seam (issue #737): `targetRequirement` names the
 // creature (target 0) and `additionalTargetRequirements` the land (target 1);
 // the Effect Script destroys each positionally. The fixed 3-life cost rides
@@ -766,7 +766,7 @@ export const hymnOfRebirth: CardDefinition = {
 };
 // Kjeldoran Frostbeast — "At end of combat, destroy all creatures blocking or
 // blocked by this creature." (CR 511.3 END_OF_COMBAT phase trigger, scope
-// "each"; CR 701.7 destroy.) The block graph is still live at the END_OF_COMBAT
+// "each"; CR 701.8 destroy.) The block graph is still live at the END_OF_COMBAT
 // step (combat is torn down on step exit), so the resolve reads
 // `getBlockersByAttacker()` and walks BOTH directions relative to Frostbeast:
 //   • if Frostbeast attacked → the creatures BLOCKING it (its entry's blockers),
@@ -836,7 +836,7 @@ export const kjeldoranFrostbeast: CardDefinition = {
 // stamps a per-source marker counter (`merieke:<sourceInstanceId>`) on the
 // stolen creature (idiomatic custom counter, cf. "wind"/"hunger"/"mire"). The
 // leave/untap triggers scan the battlefield for that marker, destroy each
-// marked creature (no regen, CR 701.15a), and clear the marker — no closure or
+// marked creature (no regen, CR 701.19a), and clear the marker — no closure or
 // new control primitive needed. Because Merieke "doesn't untap", it normally
 // stays tapped (so the untap clause fires only if something force-untaps it).
 const MERIEKE_RI_BERIT_ID = "3bf47c0a-5c17-47d0-b663-becff62fbdf8";
@@ -941,7 +941,7 @@ export const meriekeRiBerit: CardDefinition = {
 // Islands that player controls and this enchantment deals X damage to the
 // player, where X is the number of Islands tapped this way." (CR 603.6a phase
 // trigger, scope "each" with the step's player delivered as `scopedPlayerId`;
-// CR 701.20a tap; CR 120.1 damage.) Tap only the UNTAPPED Islands (already-
+// CR 701.26a tap; CR 120.1 damage.) Tap only the UNTAPPED Islands (already-
 // tapped ones don't count), then deal damage equal to the number tapped this
 // way (Power Surge's "untapped lands" read, but Monsoon also TAPS them).
 const MONSOON_ID = "254fcc50-79a5-40cd-b028-e78dde3f8480";

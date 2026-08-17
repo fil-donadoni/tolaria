@@ -44,7 +44,7 @@ export interface Player {
      *  top-relative `index` (0 = top). */
     library: CardInstance[] | PublicLibrary;
     /** Set only on the searcher's own player while a `search-library` choice
-     *  is active (CR 401.4 / 701.19) — slim card list rendered face-up so the
+     *  is active (CR 401.4 / 701.23) — slim card list rendered face-up so the
      *  player can pick one. Independent of `library` to keep the wire shape
      *  stable for all other consumers. */
     librarySearch?: CardInstance[];
@@ -53,7 +53,7 @@ export interface Player {
      *  reorder-library and by Aladdin's Lamp's `draw-look-keep` (keep one). */
     libraryPeek?: CardInstance[];
     /** Set only on the hand owner's player while a `reveal-hand` look choice is
-     *  active (CR 401.4 / 701.18a — Gitaxian Probe's private look) — the owner's
+     *  active (CR 401.4 / 400.2 — Gitaxian Probe's private look) — the owner's
      *  hand rendered face-up to the single chooser. Independent of `hand` (which
      *  stays the sparse ADR 0026 shape) so the wire shape is stable for all other
      *  consumers; the `RevealHandView` pile reads it. */
@@ -382,7 +382,7 @@ export interface CardInstance {
      *  strips `card`/`knownTo`), so the client can hide a used-up activation
      *  identically to the server's `assertActivationTimingLegal` (issue #1694). */
     activationsThisTurn?: Readonly<Record<string, number>>;
-    /** CR 111.5 / 701.16 — true iff this permanent is a token (not backed by a
+    /** CR 111.5 / 701.21 — true iff this permanent is a token (not backed by a
      *  card). Mirrors `CardInstanceState.isToken` (`convex/gre/state.ts`);
      *  forwarded by `slimCard` (the projection only strips `card`/`knownTo`).
      *  Read by `toMatchablePermanent` (`~/lib/card-utils.ts`) so a client-side

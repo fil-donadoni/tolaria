@@ -127,7 +127,7 @@ describe("Gaea's Touch (CR 400.7 — put a basic Forest from hand; CR 605 sacrif
 });
 
 // ---------------------------------------------------------------------------
-// Tracker — generic Fight primitive (CR 701.12 mutual damage; CR 120 / 510-
+// Tracker — generic Fight primitive (CR 701.14 mutual damage; CR 120 / 510-
 // style simultaneous damage through the normal damage path)
 // ---------------------------------------------------------------------------
 
@@ -173,7 +173,7 @@ const onField = (state: GameState, pIdx: number, id: string): boolean =>
 const inGrave = (state: GameState, pIdx: number, id: string): boolean =>
     state.players[pIdx].graveyard.some((c) => c.id === id);
 
-describe("Tracker — Fight primitive (CR 701.12 mutual damage)", () => {
+describe("Tracker — Fight primitive (CR 701.14 mutual damage)", () => {
     it("both survive: 2/2 Tracker vs 1/3 — damage marked, neither destroyed", () => {
         const state = fightTracker(
             { power: 2, toughness: 2 },
@@ -327,7 +327,7 @@ describe("Tracker — Fight primitive (CR 701.12 mutual damage)", () => {
         expect(trk.damageMarked).toBe(1);
     });
 
-    it("only creatures are legal fight targets (CR 701.12)", () => {
+    it("only creatures are legal fight targets (CR 701.14)", () => {
         const foe = makeInstance(getCardByName("Goblin Hero").id, {
             id: "foe",
             controllerId: "p2",
@@ -565,7 +565,7 @@ describe("People of the Woods — toughness = Forests you control (CR 613.4c CDA
     });
 });
 
-describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.7)", () => {
+describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.8)", () => {
     function setup(hostIsLand: boolean) {
         const elves = makeInstance(savaenElves.id, {
             id: "elves",
@@ -619,7 +619,7 @@ describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.7)", () =
     });
 });
 
-describe("Scavenger Folk — sacrifice to destroy an artifact (CR 118.5 / 701.7)", () => {
+describe("Scavenger Folk — sacrifice to destroy an artifact (CR 118.5 / 701.8)", () => {
     it("destroys the target artifact (sacrifice-self cost paid by the engine)", () => {
         const folk = makeInstance(scavengerFolk.id, {
             id: "folk",
@@ -646,7 +646,7 @@ describe("Scavenger Folk — sacrifice to destroy an artifact (CR 118.5 / 701.7)
     });
 });
 
-describe("Niall Silvain — regenerate target creature (CR 605 / 701.15)", () => {
+describe("Niall Silvain — regenerate target creature (CR 605 / 701.19)", () => {
     it("shields the target so the next destroy is replaced by regeneration", () => {
         const niall = makeInstance(niallSilvain.id, {
             id: "niall",
@@ -836,7 +836,7 @@ describe("Spitting Slug — combat first-strike trigger (CR 509.1h / 118.4)", ()
     });
 });
 
-describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.7)", () => {
+describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.8)", () => {
     function setupCombat(otherSubtypes: string[] = ["Bear"]) {
         const otherName = otherSubtypes.includes("Wall")
             ? "Wall of Swords"

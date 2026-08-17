@@ -5,6 +5,22 @@ status: draft
 confidence: high
 ---
 
+**PARTLY RESOLVED — the CR 701/702 half is done and now guarded.** Option (2) at
+the bottom of this entry shipped: `scripts/cr-keyword-citations.ts` compares
+every `CR 701.N`/`702.N` citation against the section TITLE in the vendored
+document and reds `cr:lint` (hence `check:guards`) on a mismatch, with
+`scripts/__tests__/cr-keyword-citations.test.ts` as its regression guard. The
+sweep it forced re-pointed 793 flagged lines plus ~200 bare ids on keyword-less
+lines: the whole 701 keyword-action shift, landwalk/banding/vigilance/hexproof/
+dredge/wither/morph/disguise/echo, `702.88c`→`702.88a` for the rebound decline,
+and the "return to hand" family (`701.10`/`701.14`/`701.24`), which names no
+keyword action at all and is now CR 400.7.
+
+**What is NOT covered and still stands below:** `602.5b` (86 sites), `704.5m`
+(the world-rule half), `707.10b`/`707.12`, `702.14b`-for-Fear and
+`702.35c`-for-Madness. None sit in a titled keyword section, so the guard has
+nothing to compare them against — they remain a hand worklist.
+
 **What is wrong.** #2429 fixed the 44 rule ids that resolve to _nothing_. While
 printing the replacements it surfaced a much larger, structurally different
 class: ids that **resolve fine and point at the wrong rule**. `bun run cr:lint`

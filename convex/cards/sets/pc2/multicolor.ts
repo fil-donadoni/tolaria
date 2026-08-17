@@ -6,8 +6,8 @@ import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Baleful Strix — {U}{B} Artifact Creature — Bird 1/1. "Flying, deathtouch.
-// When this creature enters, draw a card." (CR 702.9 flying / 702.2
-// deathtouch as static keyword strings; CR 603.6a self-ETB via
+// When this creature enters, draw a card." (CR 702.9 flying / 702.2 deathtouch
+// as static keyword strings; CR 603.6a self-ETB via
 // `enteredTrigger` with an Effect Script body — the `draw` Op, ADR 0045.
 // Part of the #674 card-draw/card-advantage FREE tranche.)
 export const balefulStrix: CardDefinition = {

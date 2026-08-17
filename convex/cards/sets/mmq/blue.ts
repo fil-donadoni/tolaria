@@ -41,7 +41,7 @@ export const gush: CardDefinition = {
 
 // Thwart — "You may return three Islands you control to their owner's hand
 // rather than pay this spell's mana cost. Counter target spell." (CR 118.9
-// alternative cost; CR 701.5a counter.) The resolution effect is a single
+// alternative cost; CR 701.6a counter.) The resolution effect is a single
 // already-censused `counter` Op.
 export const thwart: CardDefinition = {
     id: "c12a0717-e9ea-4be3-a29f-179671ed4489", // MMQ 108

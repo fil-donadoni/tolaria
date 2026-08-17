@@ -65,7 +65,7 @@ preloadDefinitions([
 ]);
 
 /** Runs the whole server-side path — declare attackers, collect + place the
- *  CR 702.86a trigger, resolve it into a suspended Pending Choice — then
+ *  CR 702.86a annihilator trigger, resolve it into a suspended Pending Choice — then
  *  projects the result for the DEFENDING player, exactly as the wire delivers
  *  it. `defenderCards` is a deliberately mixed set of permanent types. */
 function projectDefenderBoardMidChoice(): {

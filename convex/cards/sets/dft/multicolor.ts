@@ -23,8 +23,8 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // Brightglass Gearhulk — {G}{G}{W}{W} Artifact Creature 4/4. "First strike,
 // trample. When this creature enters, you may search your library for up to
 // two artifact, creature, and/or enchantment cards with mana value 1 or
-// less, reveal them, put them into your hand, then shuffle." (CR 701.19 /
-// 400.7 / 701.20.) `filter.type` is an OR-array (Artifact/Creature/
+// less, reveal them, put them into your hand, then shuffle." (CR 701.23 search /
+// 400.7 / 701.24 shuffle.) `filter.type` is an OR-array (Artifact/Creature/
 // Enchantment, issue #677); `filter.manaValueAtMost: 1` is the fixed
 // mana-value ceiling (issue #677); `count: { min: 0, max: 2 }` is "up to two"
 // (issue #677) — the `moveZone` cards-shape moves every picked id (0, 1, or

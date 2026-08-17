@@ -2197,7 +2197,7 @@ describe("validateEffectScript — forEach simultaneous batch reanimation (CR 40
     });
 });
 
-describe("validateEffectScript — sacrifice Op (CR 701.16, issue #807)", () => {
+describe("validateEffectScript — sacrifice Op (CR 701.21, issue #807)", () => {
     it("requires exactly one of `permanents` / `target`", () => {
         // Neither form present (issue #731 — the Op is now a `permanents`
         // picks OR a single `target`).

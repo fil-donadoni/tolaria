@@ -322,10 +322,10 @@ export const daringLeap: CardDefinition = {
     ],
 };
 
-// Eladamri's Call — {G}{W} Instant. The canonical CR 701.19 search: search,
-// reveal (CR 701.16 — the reveal is public and is what distinguishes this from
+// Eladamri's Call — {G}{W} Instant. The canonical CR 701.23 search: search,
+// reveal (CR 701.20 — the reveal is public and is what distinguishes this from
 // Demonic Tutor's silent fetch), put into hand, shuffle. `count: { min: 0,
-// max: 1 }` because a search may legally fail to find (CR 701.19b) — a library
+// max: 1 }` because a search may legally fail to find (CR 701.23b) — a library
 // with no creature card is a legal, visible no-op, not a stuck resolution.
 export const eladamrisCall: CardDefinition = {
     id: "dcb79f39-5ef3-4ad6-9a43-04beb27d8480", // PLS printing (scryfallId)
@@ -378,7 +378,7 @@ export const fleetfootPanther: CardDefinition = {
     ],
 };
 
-// Gerrard's Command — {G}{W} Instant. Untap (CR 701.20b) then a CR 613 layer-7c
+// Gerrard's Command — {G}{W} Instant. Untap (CR 701.26b) then a CR 613 layer-7c
 // pump, in oracle order.
 export const gerrardsCommand: CardDefinition = {
     id: "d0fda263-b6a7-43e3-998a-72a9d84c4572", // PLS printing (scryfallId)
@@ -687,7 +687,7 @@ export const steelLeafPaladin: CardDefinition = {
 };
 
 // Terminate — {B}{R} Instant. The set's most-played card and the cleanest
-// possible Effect Script: CR 701.7 destroy with the CR 701.15 regeneration
+// possible Effect Script: CR 701.8 destroy with the CR 701.19 regeneration
 // shield explicitly denied (`cantBeRegenerated`, applied BEFORE the destroy so
 // a shield already on the creature is stripped rather than consumed).
 export const terminate: CardDefinition = {
@@ -825,7 +825,7 @@ export const sawtoothLoon: CardDefinition = {
 // and choose a card from it" is `choice(kind: "choose-hand-card")` with
 // `player: "controller"` (WHO chooses) split from `zoneOwnerId` (WHOSE hand) —
 // the Thoughtseize shape (`lrw/black.ts`). Note there is deliberately NO
-// `reveal` Op here: the Oracle text says "look at", a CR 701.16 private look
+// `reveal` Op here: the Oracle text says "look at", a CR 701.20 private look
 // for this creature's controller, not Thoughtseize's public "reveals their
 // hand".
 //
@@ -1482,7 +1482,7 @@ export const trevasCharm: CardDefinition = {
 // #1066 / ADR 0049) reads the player whose upkeep it is — needed under
 // `scope: "each"`, where that differs from the ability's own `"controller"`
 // on the opponent's turn. Zero matching nonbasic lands clamps the choice to
-// zero and the sacrifice is a no-op (CR 701.16a / 608.2b).
+// zero and the sacrifice is a no-op (CR 701.21a / 608.2b).
 export const destructiveFlow: CardDefinition = {
     id: "7db86e34-c3ec-4a29-8779-81350a985644", // PLS 102
     rarity: "rare",

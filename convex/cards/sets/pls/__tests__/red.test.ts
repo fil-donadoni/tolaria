@@ -323,7 +323,7 @@ describe("Planeswalker's Fury — random reveal → damage equal to mana value (
     });
 });
 
-describe("Tahngarth, Talruum Hero — mutual power-for-power damage (CR 701.12, resolve() justified, established fight() gap)", () => {
+describe("Tahngarth, Talruum Hero — mutual power-for-power damage (CR 701.14, resolve() justified, established fight() gap)", () => {
     it("deals damage equal to its power to the target, which deals its own power back", () => {
         const tahngarth = makeInstance(tahngarthTalruumHero.id, {
             id: "tahngarth",

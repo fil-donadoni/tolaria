@@ -50,7 +50,7 @@ When a fixed-output mana ability has `cost.sacrifice === true`:
   via `getActivatedManaColor` / `getFixedManaAmount`, add to the pool, emit the
   `PERMANENT_TAPPED` event _before_ the source leaves so leaves-the-battlefield
   triggers see the mana already added, CR 605.2).
-- **Move the source to the graveyard** (sacrifice, CR 701.16) instead of tapping.
+- **Move the source to the graveyard** (sacrifice, CR 701.21) instead of tapping.
 - The activation is **one-way**: a sacrificed source is never recorded as an
   untappable `tappedLandIds` entry, so the existing
   `"Cannot untap a sacrifice ability"` guard (already present in `tapUntap`)

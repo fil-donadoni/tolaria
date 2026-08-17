@@ -189,7 +189,7 @@ export function spellMatchesCreaturePtFilter(
     return powerOk || toughnessOk;
 }
 
-/** CR 114.1 + 701.7 — would the spell `item` on the stack destroy a land that
+/** CR 114.1 + 701.8 — would the spell `item` on the stack destroy a land that
  *  `playerId` controls? Inspects the spell DECLARATIVELY (never runs its
  *  imperative `resolve()`): a single-target `effect: "destroy-target"` whose
  *  chosen permanent target is a land controlled by `playerId`, or a mass
@@ -419,7 +419,7 @@ function defineFilter<V>(d: FilterDescriptor<V>): FilterDescriptor<V> {
 
 // ─── T1 permanent-filter descriptors ────────────────────────────────────────
 // One entry per filter currently covered by `intrinsicPermanentTargetViolation`
-// (CR 109.1 / 115 / 202 / 205 / 613 / 701.20), plus `controller` (CR 109.3 /
+// (CR 109.1 / 115 / 202 / 205 / 613 / 701.26), plus `controller` (CR 109.3 /
 // 102.1, via `matchesBattlefieldController`). Messages match the prior
 // hand-written implementations verbatim — this is a behavior-preserving
 // refactor, not a behavior change.
@@ -714,7 +714,7 @@ const colorFilterAnyDescriptor = defineFilter<ReadonlyArray<Color>>({
     },
 });
 
-// CR 701.20 — tap-state filter ("target tapped/untapped ~").
+// CR 701.26 — tap-state filter ("target tapped/untapped ~").
 const tappedFilterDescriptor = defineFilter<"tapped" | "untapped">({
     lower: (req) => req.tappedFilter,
     checks: {
@@ -963,7 +963,7 @@ const playerAttackedThisTurnDescriptor = defineFilter<boolean>({
 
 // CR 113 / 114.1 — stack-object KIND filter ("target ability", Ward's
 // "spell or ability" — CR 702.21a). The omitted default means SPELLS ONLY
-// (CR 701.5a: a "target spell" never targets an ability), so `lower`
+// (CR 701.6a: a "target spell" never targets an ability), so `lower`
 // resolves the omitted case to its explicit default `"spell"` — the filter
 // stays ALWAYS ACTIVE (never `undefined`, never skipped by the registry's
 // loop semantics), matching the pre-refactor implicit default exactly.
@@ -1137,7 +1137,7 @@ const spellWasKickedDescriptor = defineFilter<boolean>({
     },
 });
 
-// CR 114.1 + 701.7 — Equinox's granted counter ability: the chosen spell
+// CR 114.1 + 701.8 — Equinox's granted counter ability: the chosen spell
 // must be one that would destroy a land the activating player controls.
 const spellWouldDestroyLandYouControlDescriptor = defineFilter<boolean>({
     lower: (req) => (req.spellWouldDestroyLandYouControl ? true : undefined),

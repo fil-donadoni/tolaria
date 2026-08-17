@@ -288,7 +288,7 @@ export function projectedToGameState(
             //
             // EXCEPTION (issue #1506): while a `search-library` choice is live,
             // the projection legitimately exposes the searched pile face-up to
-            // the chooser (`librarySearch`, CR 401.4 / 701.19) — the same field
+            // the chooser (`librarySearch`, CR 401.4 / 701.23) — the same field
             // the human's picker renders. The search decides that choice at the
             // root now, and its candidate moves name library INSTANCE IDS the
             // server must recognise, so the real revealed cards MUST win: opaque

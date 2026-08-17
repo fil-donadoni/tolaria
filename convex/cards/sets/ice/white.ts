@@ -267,7 +267,7 @@ export const arcticFoxes: CardDefinition = {
 // Arenson's Aura — {2}{W} Enchantment with two activated abilities:
 //   • "{W}, Sacrifice an enchantment: Destroy target enchantment." — the
 //     `destroy` Op with a typed sacrifice activation cost (CR 602.1 / 118.5,
-//     `cost.sacrificeFilter`) targeting an enchantment (CR 701.7).
+//     `cost.sacrificeFilter`) targeting an enchantment (CR 701.8 destroy).
 //   • "{3}{U}{U}: Counter target enchantment spell." — the `counter` Op with a
 //     `spellTypeFilter: "Enchantment"` stack-spell restriction (CR 114.1 /
 //     701.5a).
@@ -445,7 +445,7 @@ export const blinkingSpirit: CardDefinition = {
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #839): return the source
             // permanent to its owner's hand via the implicit $source binding
-            // (CR 701.10 / 400.7).
+            // (CR 400.7).
             effects: [
                 { op: "moveZone", target: { ref: "$source" }, to: "hand" },
             ],
@@ -567,7 +567,7 @@ export const callToArms: CardDefinition = {
                 );
             },
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): sacrifice
-            // the source permanent (CR 701.16) via the implicit `$source`
+            // the source permanent (CR 701.21) via the implicit `$source`
             // binding — the arn/green.ts Sacred Boon shape.
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
@@ -738,7 +738,7 @@ export const cooperation: CardDefinition = {
         },
     ],
 };
-// Death Ward — ICE reprint of the LEA instant (CR 701.15 regenerate). The
+// Death Ward — ICE reprint of the LEA instant (CR 701.19 regenerate). The
 // mechanics live on the LEA definition; this is a CardPrint onto it (ADR 0014).
 export const deathWardIce: CardPrint = {
     printId: "c7b21d29-050d-4704-a4c8-93e3b55086ac",
@@ -1117,7 +1117,7 @@ export const greenScarab: CardDefinition = makeScarab({
     color: "G",
 });
 // Hallowed Ground — {W}{W}: Return target nonsnow land you control to its
-// owner's hand (CR 701.14). A blink/protection engine for your own lands.
+// owner's hand (CR 400.7). A blink/protection engine for your own lands.
 //
 // The "nonsnow" clause (CR 205.4a Snow supertype exclusion) is enforced via
 // `excludeSupertypes: "Snow"` — the Wasteland pattern (`sets/tmp/colorless.ts`,
@@ -1150,7 +1150,7 @@ export const hallowedGround: CardDefinition = {
                 excludeSupertypes: "Snow",
             },
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): return the
-            // announced target land to its owner's hand (CR 701.10 / 400.7) —
+            // announced target land to its owner's hand (CR 400.7) —
             // the Boomerang shape (leg/blue.ts); `moveZone … to: "hand"` routes
             // through the same `SpellContext.returnToHand` the old resolve
             // called directly.
@@ -1727,7 +1727,7 @@ export const mercenaries: CardDefinition = {
     ],
 };
 // Order of the Sacred Torch — {T}, Pay 1 life: Counter target black spell
-// (CR 701.5 counter, CR 118.4 life cost). Target restricted to black spells on
+// (CR 701.6 counter, CR 118.4 life cost). Target restricted to black spells on
 // the stack via the spell color filter.
 export const orderOfTheSacredTorch: CardDefinition = {
     id: "ccc5cb36-c43d-4c71-8019-9b683e160a0a",
@@ -2080,7 +2080,7 @@ export const snowHound: CardDefinition = {
             },
             // Migrated resolve()→effects[] (ADR 0045, #839): return the source
             // permanent ($source) and the targeted creature to their owners'
-            // hands (CR 701.10 / 400.7).
+            // hands (CR 400.7).
             effects: [
                 { op: "moveZone", target: { ref: "$source" }, to: "hand" },
                 { op: "moveZone", target: { target: 0 }, to: "hand" },

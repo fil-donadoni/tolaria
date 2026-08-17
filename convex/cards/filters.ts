@@ -56,7 +56,7 @@ export interface PermanentFilter {
     subtypes?: string | string[];
     /** Exclude permanents whose `subtypes` include any of these (CR 205.3/
      *  205.3i). The negative of `subtypes`; used for "non-Lair land" (the
-     *  Planeshift Lair cycle's return-leg cost filter, CR 701.24 — a Lair
+     *  Planeshift Lair cycle's return-leg cost filter, CR 400.7 — a Lair
      *  cannot pay for its own or a sibling Lair's survival). Single value is
      *  shorthand for one subtype. AND with every other field. */
     excludeSubtypes?: string | string[];
@@ -78,7 +78,7 @@ export interface PermanentFilter {
     requireAbility?: string;
     /** Skip permanents whose `staticAbilities` contains this keyword. */
     excludeAbility?: string;
-    /** Filter by token-ness (CR 111.5 / 701.16 — "sacrifice a nontoken
+    /** Filter by token-ness (CR 111.5 / 701.21 — "sacrifice a nontoken
      *  permanent"). `false` excludes token instances; `true` keeps only
      *  tokens. Omitted = no constraint. */
     isToken?: boolean;

@@ -31,11 +31,11 @@ const bearFor = (owner: string, cid: string) =>
     makeInstance(BEAR_ID, { id: cid, controllerId: owner, ownerId: owner });
 
 // Innocent Blood — "Each player sacrifices a creature of their choice."
-// (CR 701.16.) The first DSL card composing a `choice` Op inside a forEach
+// (CR 701.21.) The first DSL card composing a `choice` Op inside a forEach
 // construct (ADR 0045, issue #807): the players set iterates in APNAP order
 // (CR 101.4), each iteration suspending on a `sacrifice-permanents` Pending
 // Choice for the current player and resuming to sacrifice the pick.
-describe("Innocent Blood (each player sacrifices a creature — DSL-only choice-inside-forEach, CR 701.16 / 101.4 / issue #807)", () => {
+describe("Innocent Blood (each player sacrifices a creature — DSL-only choice-inside-forEach, CR 701.21 / 101.4 / issue #807)", () => {
     it("is a {B} sorcery, DSL-only with a valid Effect Script and no targets", () => {
         expect(innocentBlood.manaCost).toEqual({ B: 1 });
         expect(innocentBlood.types).toEqual(["Sorcery"]);
@@ -45,7 +45,7 @@ describe("Innocent Blood (each player sacrifices a creature — DSL-only choice-
         expect(validateEffectScript(innocentBlood)).toEqual([]);
     });
 
-    it("each player picks and sacrifices one creature, in APNAP order (CR 101.4 / 701.16)", () => {
+    it("each player picks and sacrifices one creature, in APNAP order (CR 101.4 / 701.21)", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -128,7 +128,7 @@ describe("Innocent Blood (each player sacrifices a creature — DSL-only choice-
         expect(state.stack).toHaveLength(0);
     });
 
-    it("indestructible does not prevent the sacrifice (CR 701.16a)", () => {
+    it("indestructible does not prevent the sacrifice (CR 701.21a)", () => {
         const tough = makeInstance(BEAR_ID, {
             id: "ibInd",
             controllerId: "p2",
@@ -199,7 +199,7 @@ describe("Innocent Blood (each player sacrifices a creature — DSL-only choice-
     });
 });
 
-describe("Entomb (CR 701.19 / 400.7 / 701.20, issue #677)", () => {
+describe("Entomb (CR 701.23 / 400.7 / 701.24, issue #677)", () => {
     it("searches for any card and puts it into the graveyard, then shuffles", () => {
         const libBear = makeInstance(BEAR_ID, {
             id: "bearEntomb",

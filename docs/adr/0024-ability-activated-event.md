@@ -16,7 +16,7 @@ react to "an artifact is used" in two distinct ways (modern Oracle text):
   artifact's controller.
 
 The "becomes tapped" half is already modeled by `PERMANENT_TAPPED`
-(CR 701.20a), emitted from every tap site (mana abilities, combat
+(CR 701.26a), emitted from every tap site (mana abilities, combat
 declaration, Twiddle). The second half — **a non-`{T}` activated ability is
 used** — has no event today. CR 602.1 activated abilities that have no tap
 component (Triskelion's "Remove a +1/+1 counter: deal 1 damage", Basalt

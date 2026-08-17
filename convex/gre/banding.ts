@@ -3,7 +3,7 @@ import { getPlayer, getOpponentId, untapPermanent } from "./state";
 import { tryGetDefinition } from "../cards";
 
 /**
- * Banding combat helpers (CR 702.21).
+ * Banding combat helpers (CR 702.22).
  *
  * Banding has two mechanical effects this module models:
  *  1. **Block as a group (CR 702.22h):** an attacking band is blocked as a
@@ -214,7 +214,7 @@ export function applyMeleeUnblockedRider(state: GameState): void {
     for (const attackerId of unblocked) {
         const card = activePlayer.battlefield.find((c) => c.id === attackerId);
         if (card) {
-            // CR 701.20 — untap, then CR 506.4 — remove from combat.
+            // CR 701.26 — untap, then CR 506.4 — remove from combat.
             untapPermanent(state, card);
             card.isAttacking = undefined;
         }

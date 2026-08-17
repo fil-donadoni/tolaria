@@ -188,7 +188,7 @@ describe("payment-park answer census (ADR 0091, issue #1209)", () => {
         }
     });
 
-    it("fires one call per id for the per-pick shapes (CR 701.16 / 118.8)", async () => {
+    it("fires one call per id for the per-pick shapes (CR 701.21 / 118.8)", async () => {
         const { calls, mutations } = recorder();
         await submitOwedPayment(
             {
@@ -250,7 +250,7 @@ describe("activation parks the bot used to stall on (CR 602.1 / 118)", () => {
         ]);
     });
 
-    it("Devouring Strossus — answers the filtered-sacrifice park (CR 701.16)", async () => {
+    it("Devouring Strossus — answers the filtered-sacrifice park (CR 701.21)", async () => {
         const state = baseState(
             {
                 battlefield: [

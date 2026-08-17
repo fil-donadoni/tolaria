@@ -602,7 +602,7 @@ describe("Kicker — LIFE leg (CR 702.33a / 118.4)", () => {
     });
 });
 
-describe("Kicker — PERMANENT leg is ALWAYS an explicit pick (CR 702.33a / 701.16)", () => {
+describe("Kicker — PERMANENT leg is ALWAYS an explicit pick (CR 702.33a kicker / 701.21 sacrifice)", () => {
     it("parks the cast on a sacrifice selection even when exactly two lands are legal", () => {
         const probe = makeInstance(LEG_PROBE_ID, {
             controllerId: "p1",
@@ -661,7 +661,7 @@ describe("Kicker — PERMANENT leg is ALWAYS an explicit pick (CR 702.33a / 701.
         ).toBe(false);
     });
 
-    it("carries a RETURN leg's terminal action onto the selection (CR 701.24)", () => {
+    it("carries a RETURN leg's terminal action onto the selection (CR 400.7)", () => {
         const probe = makeInstance(RETURN_LEG_PROBE_ID, {
             controllerId: "p1",
             ownerId: "p1",
@@ -693,7 +693,7 @@ describe("Kicker — PERMANENT leg is ALWAYS an explicit pick (CR 702.33a / 701.
     });
 });
 
-describe("Kicker — HAND leg (CR 702.33a / 701.9)", () => {
+describe("Kicker — HAND leg (CR 702.33a kicker / 701.9 discard)", () => {
     it("opens the cast's hand-cost picker and pays the kicker mana alongside", () => {
         const probe = makeInstance(HAND_LEG_PROBE_ID, {
             controllerId: "p1",

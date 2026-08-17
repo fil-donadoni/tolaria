@@ -350,7 +350,7 @@ describe("Centaur Archer ({T}: 1 damage to a flyer, CR 605 / 120.1)", () => {
     });
 });
 
-describe("Essence Vortex (destroy unless pay life = toughness, CR 118.4 / 701.15a)", () => {
+describe("Essence Vortex (destroy unless pay life = toughness, CR 118.4 / 701.19a)", () => {
     function answerMayPay(state: GameState, accept: boolean): void {
         // applyMayPaySubmit commits the answer and re-resumes the suspended
         // resolution itself when the choice queue empties — no extra resolve.
@@ -482,7 +482,7 @@ describe("Giant Trap Door Spider ({1}{R}{G},{T}: exile self + attacker, CR 605 /
 // Gold / miscellaneous buildable-now completion (#659)
 // ---------------------------------------------------------------------------
 
-describe("Earthlink — upkeep pay {2} or sac + dies→sac-land (CR 603.6a / 603.2 / 701.16)", () => {
+describe("Earthlink — upkeep pay {2} or sac + dies→sac-land (CR 603.6a / 603.2 / 701.21)", () => {
     it("paying {2} at upkeep keeps Earthlink on the battlefield", () => {
         const link = makeInstance(earthlink.id, {
             id: "link",
@@ -583,7 +583,7 @@ describe("Earthlink — upkeep pay {2} or sac + dies→sac-land (CR 603.6a / 603
     });
 });
 
-describe("Kjeldoran Frostbeast — end-of-combat destroy blockers/blocked-by (CR 511.3 / 701.7)", () => {
+describe("Kjeldoran Frostbeast — end-of-combat destroy blockers/blocked-by (CR 511.3 / 701.8)", () => {
     function combatState(frostbeastAttacks: boolean) {
         const frostbeast = makeInstance(kjeldoranFrostbeast.id, {
             id: "frost",
@@ -1082,7 +1082,7 @@ describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => 
     });
 });
 
-// --- Fumarole (dual-target destroy + fixed pay-life, CR 601.2b/601.2c/701.7) --
+// --- Fumarole (dual-target destroy + fixed pay-life, CR 601.2b/601.2c/701.8) --
 
 describe("Fumarole ({3}{B}{R} — destroy target creature AND target land, pay 3 life; CR 601.2b/601.2c/701.7 — issue #737)", () => {
     it("keeps the two target groups independent — creatures for group 0, lands for group 1 (CR 601.2c)", () => {
@@ -1208,7 +1208,7 @@ describe("Fumarole ({3}{B}{R} — destroy target creature AND target land, pay 3
         ]);
 
         resolveTopOfStack(state);
-        // CR 701.7 — both destroyed.
+        // CR 701.8 — both destroyed.
         expect(state.players[1].battlefield.some((c) => c.id === "bear")).toBe(
             false
         );

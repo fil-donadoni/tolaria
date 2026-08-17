@@ -1857,7 +1857,7 @@ describe("Kjeldoran Royal Guard — combat-damage redirect (CR 614.6)", () => {
     });
 });
 
-describe("Arenson's Aura — destroy/counter enchantment (CR 701.7 / 701.5a)", () => {
+describe("Arenson's Aura — destroy/counter enchantment (CR 701.8 destroy / 701.6a counter)", () => {
     const counterAbility = arensonsAura.activatedAbilities![1];
 
     it("destroys the target enchantment — gone from board, survives projection (wire format)", () => {
@@ -3035,11 +3035,11 @@ describe("Adarkar Unicorn ({T}: Add {U} or {C}{U}, CU-restricted, CR 106.6 / 605
 
 // ---------------------------------------------------------------------------
 // Order of the Sacred Torch — {T}, Pay 1 life: Counter target black spell
-// (CR 701.5a). The smoke sweep skips it because the `counter` Op targets a
+// (CR 701.6a). The smoke sweep skips it because the `counter` Op targets a
 // live spell on the stack, which the canned-scenario generator cannot seed.
 // ---------------------------------------------------------------------------
 
-describe("Order of the Sacred Torch ({T}, Pay 1 life: Counter target black spell, CR 701.5a)", () => {
+describe("Order of the Sacred Torch ({T}, Pay 1 life: Counter target black spell, CR 701.6a)", () => {
     function withOrder() {
         const order = makeInstance(orderOfTheSacredTorch.id, {
             id: "order",

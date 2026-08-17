@@ -31,7 +31,7 @@ function getBandsWithOtherQualities(c: CardInstance): BandQuality[] {
     return out;
 }
 
-/** Plain banding keyword (CR 702.21). */
+/** Plain banding keyword (CR 702.22). */
 export function hasBanding(c: CardInstance): boolean {
     return c.staticAbilities?.includes("banding") ?? false;
 }

@@ -157,7 +157,7 @@ describe("Opt (scry 1 then draw; CR 701.22 / 121.1)", () => {
     });
 });
 
-describe("Disrupt (counter unless controller pays {1}, then draw; CR 701.5a / 121.1)", () => {
+describe("Disrupt (counter unless controller pays {1}, then draw; CR 701.6a / 121.1)", () => {
     it("counters the spell when the controller declines to pay", () => {
         const state = makeState({
             players: [
@@ -206,7 +206,7 @@ describe("Disrupt (counter unless controller pays {1}, then draw; CR 701.5a / 12
     });
 });
 
-describe("Exclude (counter target creature spell, then draw; CR 701.5a / 121.1)", () => {
+describe("Exclude (counter target creature spell, then draw; CR 701.6a / 121.1)", () => {
     it("counters a creature spell and draws a card", () => {
         const state = makeState({
             players: [
@@ -267,7 +267,7 @@ describe("Manipulate Fate (search 3, exile, shuffle, then draw; CR 701.23 / 701.
     });
 });
 
-describe("Prohibit (counter cheap spells, wider if kicked; CR 702.33 / 701.5a)", () => {
+describe("Prohibit (counter cheap spells, wider if kicked; CR 702.33 kicker / 701.6a counter)", () => {
     it("unkicked: counters a spell with mana value 2 or less", () => {
         const state = makeState();
         const bear = pushSpell(state, grizzlyBears.id, "p2"); // MV 2
@@ -1017,7 +1017,7 @@ describe("Worldly Counsel (CR 401.4 dig-to-hand — Domain, issue #1066)", () =>
     });
 });
 
-describe("Fact or Fiction (CR 701.16 reveal, ADR 0053 pile division, issue #1067)", () => {
+describe("Fact or Fiction (CR 701.20 reveal, ADR 0053 pile division, issue #1067)", () => {
     it("reveals the top 5, an opponent divides, and the caster's chosen pile goes to hand while the other goes to the graveyard", () => {
         const libCards = ["ff-1", "ff-2", "ff-3", "ff-4", "ff-5"].map((id) =>
             makeInstance(opt.id, {
@@ -1047,7 +1047,7 @@ describe("Fact or Fiction (CR 701.16 reveal, ADR 0053 pile division, issue #1067
             "ff-4",
             "ff-5",
         ]);
-        // CR 701.16 — revealed to all players, not just the divider.
+        // CR 701.20 — revealed to all players, not just the divider.
         expect(state.players[0].library[0].knownTo).toContain("p2");
 
         applyPendingChoiceSubmit(state, {
@@ -1105,7 +1105,7 @@ describe("Fact or Fiction (CR 701.16 reveal, ADR 0053 pile division, issue #1067
         expect(divide.candidateIds).toEqual(["short-1", "short-2"]);
     });
 
-    it("survives the wire projection for both viewers (public reveal, CR 701.16)", () => {
+    it("survives the wire projection for both viewers (public reveal, CR 701.20)", () => {
         const libCards = ["wf-1", "wf-2"].map((id) =>
             makeInstance(opt.id, {
                 id,

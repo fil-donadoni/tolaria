@@ -119,7 +119,7 @@ export const wallOfLight: CardDefinition = {
     staticAbilities: ["defender", "protection from black"],
 };
 
-// Righteous Avengers — plainswalk (CR 702.19 landwalk variant).
+// Righteous Avengers — plainswalk (CR 702.14 landwalk variant).
 export const righteousAvengers: CardDefinition = {
     id: "d96b463e-9579-4e7b-87c2-342527b91e7c",
     rarity: "uncommon",
@@ -134,7 +134,7 @@ export const righteousAvengers: CardDefinition = {
     staticAbilities: ["plainswalk"],
 };
 
-// Great Wall — global plainswalk negation (CR 509.1b / 702.13). The
+// Great Wall — global plainswalk negation (CR 509.1b / 702.14). The
 // `landwalk-negation` static is scanned across the defending player's
 // battlefield by the keyword-evasion pass (`combatRegistry.ts`): a creature
 // with plainswalk can then be blocked as though it didn't have it, regardless
@@ -541,7 +541,7 @@ export const infiniteAuthority: CardDefinition = {
 
 // --- Sweepers / removal spells (CR 701.7) ----------------------------------
 
-// Cleanse — "Destroy all black creatures." (CR 701.7 mass destroy filtered on
+// Cleanse — "Destroy all black creatures." (CR 701.8 mass destroy filtered on
 // colour, CR 202.2.)
 // Migrated resolve()→effects[] (ADR 0045): `forEach` over every player's
 // battlefield creatures filtered to color B (CR 202.2) → `destroy` each.
@@ -566,7 +566,7 @@ export const cleanse: CardDefinition = {
 };
 
 // Divine Offering — "Destroy target artifact. You gain life equal to its mana
-// value." (CR 701.7 + 118.3 lifegain; snapshot the MV before the destroy.)
+// value." (CR 701.8 + 118.3 lifegain; snapshot the MV before the destroy.)
 // Migrated resolve()→effects[] (ADR 0045): `destroy` binds the target's
 // snapshot (captures mana value BEFORE it leaves the battlefield, CR 608.2h —
 // the Swords to Plowshares shape) → `gainLife` reads it back via `ref`.
@@ -600,8 +600,8 @@ export const divineOffering: CardDefinition = {
 // is the union of: (a) enchantments the caster controls, (b) Auras attached to
 // a permanent the caster controls, (c) Auras attached to an attacking creature
 // an opponent controls. Within that category, ownership (CR 108.3, immutable)
-// splits the outcome: an object the caster owns is RETURNED to hand (CR 701.10),
-// everything else is DESTROYED (CR 701.7). Order matters — return first so a
+// splits the outcome: an object the caster owns is RETURNED to hand (CR 400.7),
+// everything else is DESTROYED (CR 701.8). Order matters — return first so a
 // returned card is no longer on the battlefield when the destroy sweep runs
 // (CR 608.2 — sequential one-shot effect; a card that left play is untouched by
 // the later step). No target: it's a mass effect (CR 608.2 reads the board at
@@ -669,7 +669,7 @@ export const removeEnchantments: CardDefinition = {
         const ids = [...new Set(affected)];
 
         // Step 1 — return to hand everything in the category the caster OWNS
-        // (CR 108.3 ownership, CR 701.10 return). Must run before the destroy
+        // (CR 108.3 ownership, CR 400.7 return). Must run before the destroy
         // sweep so these cards are off the battlefield and untouched by step 2.
         const returned = new Set<string>();
         for (const id of ids) {
@@ -679,7 +679,7 @@ export const removeEnchantments: CardDefinition = {
             }
         }
 
-        // Step 2 — destroy the remainder of the category (CR 701.7). Cards
+        // Step 2 — destroy the remainder of the category (CR 701.8). Cards
         // returned in step 1 are no longer on the battlefield, so destroy is a
         // no-op for them anyway; we skip them explicitly for clarity.
         for (const id of ids) {
@@ -881,7 +881,7 @@ export const spiritualSanctuary: CardDefinition = {
 };
 
 // Lifeblood — "Whenever a Mountain an opponent controls becomes tapped, you
-// gain 1 life." (CR 701.20a tap trigger, scoped to opponents' Mountains.)
+// gain 1 life." (CR 701.26a tap trigger, scoped to opponents' Mountains.)
 export const lifeblood: CardDefinition = {
     id: "4ecb1362-9a67-4d4c-8d69-9ac2ebf4d0b0",
     rarity: "rare",
@@ -913,7 +913,7 @@ export const lifeblood: CardDefinition = {
 };
 
 // Presence of the Master — "Whenever a player casts an enchantment spell,
-// counter it." (CR 601.2i cast trigger → CR 701.5a counter.)
+// counter it." (CR 601.2i cast trigger → CR 701.6a counter.)
 export const presenceOfTheMaster: CardDefinition = {
     id: "1cb86b2f-116d-4952-b35a-1398341baaf5",
     rarity: "uncommon",
@@ -947,7 +947,7 @@ export const presenceOfTheMaster: CardDefinition = {
 
 // Visions — "Look at the top five cards of target player's library. You may
 // then have that player shuffle that library." (CR 401.4 look → markKnown to
-// the caster; optional shuffle, CR 701.20.)
+// the caster; optional shuffle, CR 701.24.)
 export const visions: CardDefinition = {
     id: "21d00299-e183-4b3d-b015-18808e7135b9",
     rarity: "uncommon",
@@ -1352,7 +1352,7 @@ export const akronLegionnaire: CardDefinition = {
 // player may name a card to dig for their own top card). Composition: a
 // `name-card` open choice (#489 `requestNameCard`) → `peekLibraryTop(1)` to
 // read the top instance → `getCardName` to compare against the named card →
-// `markKnownToAll` (CR 701.13 the card is revealed to all) → `moveCardById`
+// `markKnownToAll` (CR 701.20 the card is revealed to all) → `moveCardById`
 // library → hand on a match, library → graveyard on a mismatch.
 export const petraSphinx: CardDefinition = {
     id: "5ef99f07-c987-451a-b18a-2719eea654cd",
@@ -1374,8 +1374,8 @@ export const petraSphinx: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045): `nameCard` (CR 201.3,
-            // suspends for the open choice) → `digMatchingToHand` (CR 701.20a
-            // reveal + 401.4 look/split, `look: 1`) reads the chosen name
+            // suspends for the open choice) → `digMatchingToHand` (CR 701.20a reveal
+            // + 401.4 look/split, `look: 1`) reads the chosen name
             // back via a bare `ref` into `EffectCardFilter.name` — the exact
             // Desperate Research shape (inv/black.ts) narrowed to a single
             // card and a graveyard (not exile) miss destination.
@@ -1400,7 +1400,7 @@ export const petraSphinx: CardDefinition = {
 
 // Clergy of the Holy Nimbus — "If this creature would be destroyed, regenerate
 // it. {1}: This creature can't be regenerated this turn. Only your opponents
-// may activate this ability." (CR 614.5, 701.15c, 602.1)
+// may activate this ability." (CR 614.5, 701.19c, 602.1)
 //
 // The first ability is a CONTINUOUS auto-regeneration replacement, modeled as
 // the `"auto-regenerate"` static ability keyword: `regenerateOrDestroy` reads
@@ -1410,7 +1410,7 @@ export const petraSphinx: CardDefinition = {
 //
 // The second ability is controller-locked via `activatableByOpponentsOnly`:
 // only the controller's OPPONENTS may pay {1}, which sets the source's
-// `cantBeRegeneratedThisTurn` flag (CR 701.15c) — suppressing the auto-regen
+// `cantBeRegeneratedThisTurn` flag (CR 701.19c) — suppressing the auto-regen
 // so the next lethal destruction kills it. The flag clears at CLEANUP.
 export const clergyOfTheHolyNimbus: CardDefinition = {
     id: "db1f578f-fa3b-4447-953b-1490852b6c80",

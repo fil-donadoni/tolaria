@@ -11,8 +11,8 @@ import { snuffOut } from "../black";
 
 // Snuff Out — {3}{B} Instant. "If you control a Swamp, you may pay 4 life rather
 // than pay this spell's mana cost. Destroy target nonblack creature. It can't be
-// regenerated." (CR 118.9 pitch cost; CR 701.7 destroy; CR 701.15c no-regen.)
-describe("Snuff Out (destroy nonblack creature, can't regenerate — CR 701.7)", () => {
+// regenerated." (CR 118.9 pitch cost; CR 701.8 destroy; CR 701.19c no-regen.)
+describe("Snuff Out (destroy nonblack creature, can't regenerate — CR 701.8)", () => {
     const bears = getCardByName("Grizzly Bears"); // green 2/2 — a nonblack creature
 
     it("destroys the target creature", () => {
@@ -52,7 +52,7 @@ describe("Snuff Out (destroy nonblack creature, can't regenerate — CR 701.7)",
         });
         pushSpell(state, snuffOut.id, "p1", [{ type: "permanent", id: "v" }]);
         resolveTopOfStack(state);
-        // CR 701.15c — the shield is bypassed; the creature is destroyed anyway.
+        // CR 701.19c — the shield is bypassed; the creature is destroyed anyway.
         expect(state.players[1].graveyard.some((c) => c.id === "v")).toBe(true);
     });
 });

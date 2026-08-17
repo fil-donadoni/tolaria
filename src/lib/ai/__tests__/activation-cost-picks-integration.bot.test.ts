@@ -215,12 +215,12 @@ describe("activation cost picks (CR 602.1 / 118.3)", () => {
     });
 });
 
-// The SACRIFICE leg (CR 701.16 / 118.5) is the same bug on the widest surface —
+// The SACRIFICE leg (CR 701.21 / 118.5) is the same bug on the widest surface —
 // 44 stack-using abilities in the catalogue carry a `sacrificeFilter`. It only
 // defers when the board is NOT fungible (`autoResolveFungible` collapses an
 // indistinguishable victim set inline), which is why it survived: with one
 // creature out, or two identical ones, the bot was fine.
-describe("activation sacrifice cost (CR 701.16 / 118.5)", () => {
+describe("activation sacrifice cost (CR 701.21 / 118.5)", () => {
     const ANGEL = getCardByName("Fallen Angel").id;
 
     /** Fallen Angel ("Sacrifice a creature: Fallen Angel gets +2/+0") with two

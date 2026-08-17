@@ -5,7 +5,7 @@
 // auto-generated smoke test (per-Op regime, `.claude/rules/gre-development.md`
 // § DSL-first authoring). What is card-specific and worth a hand-written test
 // is the flashback cast's non-mana "Sacrifice a Mountain" additional cost
-// (CR 702.34a / 118.5) — the sacrificeChoice fold shipped generically in
+// (CR 702.34a flashback / 118.5) — the sacrificeChoice fold shipped generically in
 // #1035/#1037 (`convex/gre/__tests__/flashback.test.ts`), and this is its
 // first real-card consumer.
 

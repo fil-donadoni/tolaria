@@ -4,7 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../types";
 
-// Infernal Grasp — "Destroy target creature. You lose 2 life." (CR 701.7
+// Infernal Grasp — "Destroy target creature. You lose 2 life." (CR 701.8
 // destroy; CR 119.3 life loss.)
 export const infernalGrasp: CardDefinition = {
     id: "17824929-f131-4b8d-addb-66c25323155e",

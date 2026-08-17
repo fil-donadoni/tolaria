@@ -42,7 +42,7 @@ export const pathToExile: CardDefinition = {
             candidateIds: basics.map((c) => c.id),
             count: { min: 0, max: 1 },
             prompt: "Path to Exile: you may search your library for a basic land card.",
-            // Genuine CR 701.19a search (candidateIds is a whole-library
+            // Genuine CR 701.23a search (candidateIds is a whole-library
             // filter match, not a peeked window) — issue #788 finding 1.
             isSearch: true,
         });

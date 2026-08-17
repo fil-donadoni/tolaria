@@ -581,7 +581,7 @@ export const dreamsOfTheDead: CardDefinition = {
     ],
 };
 // Enervate — {1}{U} Instant. "Tap target artifact, creature, or land"
-// (CR 701.20 tap) plus the next-upkeep cantrip rider.
+// (CR 701.26 tap) plus the next-upkeep cantrip rider.
 export const enervate: CardDefinition = {
     id: "c4fdfc5b-c2ab-4c4d-b120-301e17f3d9c6",
     name: "Enervate",
@@ -664,7 +664,7 @@ export const essenceFlare: CardDefinition = {
     ],
 };
 // Force Void — {2}{U} Instant. "Counter target spell unless its controller
-// pays {1}" (CR 701.5a counter-unless-pay; CR 117.3a may-pay billed to the
+// pays {1}" (CR 701.6a counter-unless-pay; CR 117.3a may-pay billed to the
 // spell's controller) plus the next-upkeep cantrip rider.
 //
 // Migrated resolve()→effects[] (ADR 0045): the Force Spike shape
@@ -694,7 +694,7 @@ export const forceVoid: CardDefinition = {
             bind: "$paid",
         },
         {
-            // CR 701.5a — counter unless the payment was made.
+            // CR 701.6a — counter unless the payment was made.
             op: "if",
             predicate: { not: { binding: "$paid" } },
             then: [{ op: "counter", target: { target: 0 } }],
@@ -816,7 +816,7 @@ export const icyPrison: CardDefinition = {
             id: "icy-prison-exile",
             oracleText: "When this enchantment enters, exile target creature.",
             scope: "self",
-            // CR 701.18 / ADR 0028 — exile the announced creature keyed to
+            // CR 701.13 / ADR 0028 — exile the announced creature keyed to
             // `$source`; the paired leftTrigger returns it via
             // `returnExiledForSource`. `includeAttachments: true` (the primitive
             // default this closure previously relied on) bundles the creature's
@@ -874,7 +874,7 @@ export const illusionaryForces: CardDefinition = {
 // Illusionary Presence — cumulative upkeep {U} (CR 702.24, ADR 0042) plus an
 // "at the beginning of your upkeep, choose a land type" trigger that grants
 // THIS creature the matching landwalk until end of turn (CR 603.6a /
-// 702.13 / 611.2a). The land-type choice is a `requestOptionChoice` over the
+// 702.14 / 611.2a). The land-type choice is a `requestOptionChoice` over the
 // five basic types (same single-pick primitive Barbarian Guides uses for its
 // snow-landwalk grant); the matching `<type>walk` keyword is granted until end
 // of turn via `grantStaticAbility`, so a fresh choice is made each upkeep. The
@@ -905,7 +905,7 @@ export const illusionaryPresence: CardDefinition = {
             scope: "your",
             // Migrated resolve()→effects[] (ADR 0045, issue #849): the "choose a
             // land type" pick is the `optionChoice` Op — five modes over the
-            // basic types (CR 702.13), each granting the matching landwalk
+            // basic types (CR 702.14), each granting the matching landwalk
             // keyword to this creature (`$source`) until end of turn via
             // grantAbility (CR 611.2a). The land-type option ids are preserved.
             effects: [
@@ -1125,7 +1125,7 @@ export const illusionsOfGrandeur: CardDefinition = {
     ],
 };
 // Infuse — {2}{U} Instant. "Untap target artifact, creature, or land"
-// (CR 701.20 untap) plus the next-upkeep cantrip rider.
+// (CR 701.26 untap) plus the next-upkeep cantrip rider.
 export const infuse: CardDefinition = {
     id: "223287b6-224c-4e00-946c-e7ac5539bd45",
     name: "Infuse",
@@ -1159,7 +1159,7 @@ export const infuse: CardDefinition = {
 // zone had a matching card to discard (CR 608.2b: zero candidates means the
 // choice Op never captures the binding). Each ability taps (CR 602.1) and
 // goes on the stack (`useStack: true`). The black branch is a
-// draw-2-then-discard-1 (CR 121.1 draw, CR 701.8 discard) sequenced inside
+// draw-2-then-discard-1 (CR 121.1 draw, CR 701.9 discard) sequenced inside
 // the `if`'s `then` list.
 export const krovikanSorcerer: CardDefinition = {
     id: "9c5fc053-7b0b-4e76-bf87-ccdb1e8752ed",
@@ -1262,7 +1262,7 @@ export const krovikanSorcerer: CardDefinition = {
 };
 // Shared "gain control until end of turn" body for Ray of Command (steals a
 // creature) and Magus of the Unseen (steals an artifact), issue #730. The three
-// clauses — untap (CR 701.20a), gain control until end of turn (CR 611.2b /
+// clauses — untap (CR 701.26a), gain control until end of turn (CR 611.2b /
 // 613.1b layer 2, reverted at cleanup CR 514.2 by `tickAllDurations`), and
 // grant haste until end of turn (CR 702.10b / 611.2a, so a stolen creature can
 // attack the turn control is gained) — are all resolve()-time primitives.
@@ -1271,7 +1271,7 @@ export const krovikanSorcerer: CardDefinition = {
 // variant (gainControl Op note, #848). The `tapUntap` / `grantAbility` clauses
 // ARE expressible Ops, but `effects[]` and `resolve()` are mutually exclusive
 // per effect site (ADR 0045 validate.ts), so the whole effect stays resolve().
-// The "when you lose control of it, tap it" rider (CR 701.20a) is carried by the
+// The "when you lose control of it, tap it" rider (CR 701.26a) is carried by the
 // `tapOnLoss` flag on the duration-scoped control change.
 function gainControlUntilEndOfTurnBody(ctx: SpellContext): void {
     const target = ctx.targets[0];
@@ -1310,7 +1310,7 @@ export const magusOfTheUnseen: CardDefinition = {
     ],
 };
 // Mesmeric Trance — {1}{U}{U} Enchantment with cumulative upkeep {1}
-// (CR 702.24) and "{U}, Discard a card: Draw a card." The chosen-discard cost
+// (CR 702.24 cumulative upkeep) and "{U}, Discard a card: Draw a card." The chosen-discard cost
 // is paid in-resolve (CR 601.2h convention, Dwarven Armorer pattern): step 0
 // discards a chosen card, step 1 draws only if the discard was paid.
 export const mesmericTrance: CardDefinition = {
@@ -1367,7 +1367,7 @@ export const mesmericTrance: CardDefinition = {
     ],
 };
 // Mistfolk — {U}{U} 1/2 Illusion with "{U}: Counter target spell that targets
-// this creature." (CR 701.5a counter, CR 114.1 spell targeting.) The filtered
+// this creature." (CR 701.6a counter, CR 114.1 spell targeting.) The filtered
 // counter reuses the shipped `counter` Op; the "targets this creature" clause
 // is a stack-SPELL filter (`spellTargetsInstanceIds`) injected at activation
 // time via a dynamic `getTargetRequirement` carrying the source's own instance
@@ -1406,7 +1406,7 @@ export const mistfolk: CardDefinition = {
 // it lacks the music-upkeep ability, GRANTS it: "At the beginning of your
 // upkeep, destroy this creature unless you pay {1} for each music counter on
 // it." (CR 122 counters, CR 113.1 / 611.2c indefinite triggered-ability grant
-// via `grantTriggeredAbilityPermanent`, CR 701.7 destroy.) The granted ability
+// via `grantTriggeredAbilityPermanent`, CR 701.8 destroy.) The granted ability
 // lives on `triggeredGrantTemplates[]` (Balduvian Shaman shape) so Musician
 // never carries it natively; it is unioned onto the target by
 // `effectiveTriggeredAbilities` and reads the host's live `music` counter count
@@ -1494,14 +1494,14 @@ export const musician: CardDefinition = {
                     prompt: `Pay {${music}} (one per music counter) to keep this creature?`,
                 });
                 if (accept === undefined) return; // suspended for the choice
-                // CR 701.7 — declined or unable to pay: destroy the creature.
+                // CR 701.8 — declined or unable to pay: destroy the creature.
                 if (!accept) ctx.destroy(self);
             },
         }),
     ],
 };
 // Mystic Might — {U} Aura "Enchant land you control" with cumulative upkeep
-// {1}{U} (CR 702.24, ADR 0042) granting the enchanted land "{T}: Target creature
+// {1}{U} (CR 702.24 cumulative upkeep, ADR 0042) granting the enchanted land "{T}: Target creature
 // gets +2/+2 until end of turn." (CR 611 activated-grant — the Earthlore shape:
 // the granted ability lives on `grantTemplates[]` and an `activated-grant`
 // static pushes it onto the host land. The cost is the LAND's own tap
@@ -1715,7 +1715,7 @@ export const polarKraken: CardDefinition = {
 };
 // Portent — {U} Sorcery. "Look at the top three cards of target player's
 // library, then put them back in any order. You may have that player shuffle."
-// (CR 401.4 look, CR 401 reorder, CR 701.20 shuffle.) Composed from existing
+// (CR 401.4 look, CR 401 reorder, CR 701.24 shuffle.) Composed from existing
 // primitives: `peekLibraryTop(3)` + a `reorder-library` choice over those ids
 // (Drafna's Restoration pattern), then an optional may-shuffle, then the
 // next-upkeep cantrip rider. Each interactive step is its own `resolveSteps`
@@ -1801,7 +1801,7 @@ export const rayOfCommand: CardDefinition = {
     // tap-on-loss rider has no ControlChangeCondition variant (#848).
     resolve: gainControlUntilEndOfTurnBody,
 };
-// Ray of Erasure — {U} Instant. "Target player mills a card" (CR 701.13a mill)
+// Ray of Erasure — {U} Instant. "Target player mills a card" (CR 701.17a mill)
 // plus the next-upkeep cantrip rider.
 //
 // Migrated resolve()→effects[] (ADR 0045): the `mill` Op (a thin skin over
@@ -2441,7 +2441,7 @@ export const wintersChill: CardDefinition = {
     ],
 };
 // Word of Undoing — "Return target creature and all white Auras you own
-// attached to it to their owners' hands." (CR 701.14 return to hand.) Before
+// attached to it to their owners' hands." (CR 400.7 return to hand.) Before
 // bouncing the creature (which would otherwise drop its Auras to the
 // graveyard), the caster's white Auras attached to that creature are returned
 // to hand: scan the caster's white Auras and match each host id to the target.
@@ -2479,7 +2479,7 @@ export const wordOfUndoing: CardDefinition = {
     },
 };
 // Wrath of Marit Lage — ETB taps every red creature (CR 603.6b enters trigger,
-// CR 701.20a tap) and a static untap-lock on red creatures (CR 611 — the
+// CR 701.26a tap) and a static untap-lock on red creatures (CR 611 — the
 // Meekstone pattern with a colour filter).
 export const wrathOfMaritLage: CardDefinition = {
     id: "1d512f5c-0327-4d49-8a26-672574a49102",
@@ -2563,7 +2563,7 @@ export const zursWeirding: CardDefinition = {
     },
 };
 // Zuran Enchanter — "{2}{B}, {T}: Target player discards a card. Activate only
-// during your turn." (CR 605 activated ability, CR 701.8 discard chosen by the
+// during your turn." (CR 605 activated ability, CR 701.9 discard chosen by the
 // targeted player, CR 602.5b "only during your turn" via `controllerTurnOnly`.)
 // The discarding player picks via a `discard-hand` requestChoice scoped to their
 // own hand (Abyssal Specter pattern). Cast cost is {1}{U} (a blue creature whose
@@ -2589,7 +2589,7 @@ export const zuranEnchanter: CardDefinition = {
             controllerTurnOnly: true,
             targetRequirement: { type: "player", count: 1 },
             // Migrated resolve()→effects[] (ADR 0045): the targeted player
-            // chooses and discards one card (CR 701.8) — the Mind Rot choice +
+            // chooses and discards one card (CR 701.9) — the Mind Rot choice +
             // discard pair. The choice Op clamps to hand availability
             // (CR 608.2b), subsuming the empty-hand guard. Untouched per-card
             // test is the equivalence harness.

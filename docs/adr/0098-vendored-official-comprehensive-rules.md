@@ -74,10 +74,28 @@ resolve against the vendored document; since issue #2429 it is **part of
 `scripts/__tests__/cr-citations.test.ts` running the same scan inside the node
 project so the guard survives the gate wiring being changed.
 
-**What the linter cannot check.** It only asks whether an id RESOLVES. A
-citation repointed to a plausible-but-wrong number passes it silently, and the
-repo still contains such cases outside the #2429 sweep — see
-`docs/findings/2429-resolvable-but-wrong-cr-citations.md`.
+**The keyword half of "does it say what the line claims".** The existence scan
+only asks whether an id RESOLVES, so a citation repointed to a
+plausible-but-wrong number passed it silently — the shape that let the whole CR
+701 keyword-action block rot to a pre-renumbering document (Wizards inserts
+keyword actions alphabetically, so Behold/Create/Double/Goad/Investigate pushed
+Destroy, Discard, Regenerate, Sacrifice, Search and the rest down by four or
+five, and every citation kept resolving to a real rule about something else).
+
+`cr:lint` therefore runs a SECOND scan, `scripts/cr-keyword-citations.ts`: CR
+701/702 sections are titled with the term they define ("701.23. Search"), so for
+each keyword citation it compares the section title — read out of the vendored
+document at scan time, never hardcoded — against the keyword the line names, and
+reds on a mismatch. Keying on titles rather than numbers is the point: the next
+renumbering reds the gate on exactly the citations it invalidated. 793 sites
+were wrong when it landed, plus roughly 200 bare ids on keyword-less lines found
+by hand in the same pass. `scripts/__tests__/cr-keyword-citations.test.ts` is
+its regression guard, same belt-and-braces as the existence scan.
+
+Its blind spots, both accepted: a citation on a line that names no keyword at
+all, and one whose keyword wrapped onto the neighbouring line — keep the
+citation and its keyword on ONE line. Outside 701/702 the original caveat still
+holds; there is no section title to check a `602.5b` against.
 
 It is also **line-based**: it scans a line for prefixed ids, then — if that line
 mentions `CR ` at all — for every bare `NNN.N[a-z]` token on it, which covers

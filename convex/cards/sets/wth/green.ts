@@ -71,7 +71,7 @@ export const gaeasBlessing: CardDefinition = {
             // Feldon's Cane composition (see file-level justification above).
             resolve: (ctx: SpellContext, event: GameEvent) => {
                 if (event.type !== "CARD_MILLED") return;
-                // CR 701.17 — shuffle the OWNER's graveyard into their library.
+                // CR 701.24 — shuffle the OWNER's graveyard into their library.
                 ctx.moveZone(event.ownerId, "graveyard", "library");
                 ctx.shuffleLibrary(event.ownerId);
             },

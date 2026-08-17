@@ -14,7 +14,7 @@ import {
 import { solRing, grizzlyBears } from "../../lea";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
 
-describe("Tear Asunder (Kicker {1}{B}, CR 702.33 / 701.13)", () => {
+describe("Tear Asunder (Kicker {1}{B}, CR 702.33 kicker / 701.13 exile)", () => {
     it("exiles the targeted artifact on resolution", () => {
         const rock = makeInstance(solRing.id, {
             controllerId: "p2",

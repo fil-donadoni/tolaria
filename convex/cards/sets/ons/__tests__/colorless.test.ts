@@ -18,7 +18,7 @@ import {
     tryAutoCommitPendingActivation,
 } from "../../../../game";
 
-describe("Polluted Delta (CR 701.19 / 400.7 / 701.20)", () => {
+describe("Polluted Delta (CR 701.23 / 400.7 / 701.24)", () => {
     it("fetches an Island or Swamp card onto the battlefield, then shuffles", () => {
         const land = makeInstance(pollutedDelta.id, {
             id: "deltaLand",

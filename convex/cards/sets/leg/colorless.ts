@@ -177,7 +177,7 @@ export const planarGate: CardDefinition = {
 
 // --- Utility artifacts (CR 602 activated abilities) -----------------------
 
-// Relic Barrier — "{T}: Tap target artifact." (CR 701.20 tap.)
+// Relic Barrier — "{T}: Tap target artifact." (CR 701.26 tap.)
 export const relicBarrier: CardDefinition = {
     id: "c062cbae-ce5e-43be-9932-c81a0a3622e8",
     rarity: "uncommon",
@@ -593,7 +593,7 @@ const IS_CREATURE: (
 // Tabernacle is in play via a `triggered-grant` static effect (CR 113.1 / 611),
 // exactly like Energy Flux taxes every artifact. Each creature's controller, at
 // the start of their OWN upkeep, may pay {1} to keep it — otherwise it is
-// destroyed (CR 701.7). Each creature gets its own trigger on the stack so the
+// destroyed (CR 701.8). Each creature gets its own trigger on the stack so the
 // pay-or-destroy decision is independent per creature (CR 603.3b). Legendary
 // land → tapping for no mana; supertype carried as data (CR 205.4a), legend
 // rule applies once the C1 SBA lands.

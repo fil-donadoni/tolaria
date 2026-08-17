@@ -59,7 +59,7 @@ describe("causedByOpponent (issue #1054)", () => {
     });
 });
 
-describe("wasSacrificed (CR 701.16, issue #1191)", () => {
+describe("wasSacrificed (CR 701.21, issue #1191)", () => {
     it("is true when cause is 'sacrifice'", () => {
         expect(wasSacrificed(makeEvent({ cause: "sacrifice" }))).toBe(true);
     });

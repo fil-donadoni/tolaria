@@ -5,8 +5,8 @@
 import type { CardDefinition } from "../../types";
 
 // Vampiric Tutor — {B} Instant. "Search your library for a card, then
-// shuffle and put that card on top. You lose 2 life." (CR 701.19 search /
-// 701.20 shuffle / 401.4 top-of-library / 119.3 life loss, issue #1125 —
+// shuffle and put that card on top. You lose 2 life." (CR 701.23 search /
+// 701.24 shuffle / 401.4 top-of-library / 119.3 life loss, issue #1125 —
 // unblocked by the `moveZone` `to: "library-top"` destination.)
 // `count: { min: 0, max: 1 }` is CR 701.19b's fail-to-find allowance (no
 // filter — "a card" is any card). The shuffle Op runs BEFORE the
