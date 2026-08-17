@@ -309,14 +309,22 @@ function cmdShip(argv: string[]): void {
         return;
     }
 
-    if (!run("gh", ["pr", "merge", "--squash", "--delete-branch"], cwd)) {
+    if (!run("gh", ["pr", "merge", "--squash"], cwd)) {
         fail("merge failed — the PR is open, resolve it there.");
     }
+    // `--delete-branch` is deliberately NOT passed. gh switches the local repo
+    // to the default branch before deleting, and `main` is checked out in the
+    // primary worktree, so it dies with
+    // `fatal: 'main' is already used by worktree at …` — AFTER the merge has
+    // landed. The run then reports a failure on a PR that merged fine, which is
+    // the worst shape an error can take. Delete both refs ourselves.
+    run("git", ["push", "origin", "--delete", branch], cwd);
 
     // Tear down from the primary checkout: a worktree cannot remove itself.
     process.chdir(primary);
     run("git", ["worktree", "remove", "--force", cwd], primary);
-    console.log("docs-lane: merged, worktree removed.");
+    run("git", ["branch", "-D", branch], primary);
+    console.log("docs-lane: merged, worktree and branch removed.");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
