@@ -10,9 +10,11 @@ an agent's context automatically — these are read on demand.
 
 ## The guides
 
-| Guide                   | Answers                                                                                     |
-| ----------------------- | ------------------------------------------------------------------------------------------- |
-| [AFK loop](afk-loop.md) | Run the queue unattended: `bun run loop:afk`, monitoring, stop reasons, what to fix by hand |
+| Guide                                           | Answers                                                                                       |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [AFK loop](afk-loop.md)                         | Run the queue unattended: `bun run loop:afk`, monitoring, stop reasons, what to fix by hand   |
+| [Browser verification](browser-verification.md) | Prove a UI change renders: CDP tooling, the viewport matrix, the occlusion probe, the receipt |
+| [UI runbooks](ui-runbooks.md)                   | Click sequences: solo game from cold, the active-game blocker, deck builder, debug scenarios  |
 
 ## The rest of the map
 

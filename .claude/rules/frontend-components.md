@@ -23,4 +23,4 @@ globs:
 ## After changes
 
 - Run `bun run check:all` — format + lint + type-check must pass
-- Browser verification is on-demand only. Do not auto-launch Chrome for new cards or features — run it only when the user explicitly asks.
+- **Verify in a real browser at three viewports** (desktop, phone portrait, phone landscape) and paste the probe receipt in the PR. The `dom` project runs on happy-dom, which has no layout: it cannot see a collapsed or occluded element. `.claude/rules/chrome-debug.md`
