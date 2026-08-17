@@ -1,0 +1,155 @@
+# UI runbooks
+
+**Click sequences that get you to a screen.** Read a runbook instead of
+rediscovering the navigation — the rediscovery costs a dozen snapshots and it
+gets the branches wrong (the single-active-game guard, the coin toss, the
+per-seat mulligan).
+
+How to drive the browser at all, and what to measure once you arrive:
+[Browser verification](browser-verification.md). Everything below assumes the
+CDP tools from that guide and `bun run dev` already listening on 5173.
+
+Every runbook here was executed against `main` on the date in its heading. A
+sequence nobody has run is not in this file — see [What is not written
+yet](#what-is-not-written-yet).
+
+## Conventions
+
+`snapshot` means `take_snapshot`, whose uids the next `click` consumes. Pass
+`includeSnapshot: true` on a click that changes the screen and you get the
+next tree without a second round trip — that is the difference between a
+6-call runbook and a 12-call one.
+
+The uids in this file are illustrative. Read them from your own snapshot; they
+are per-session.
+
+## Start a solo game from cold (2026-08-17)
+
+A solo game is one user driving both seats, the viewer following priority. It
+is the default for any gameplay check.
+
+1. `navigate_page` → `http://localhost:5173`
+2. `snapshot`. Branch on what the lobby says:
+    - "You have an active game in progress" → see [Blocked by an active
+      game](#blocked-by-an-active-game-2026-08-17) below, then come back.
+    - otherwise continue.
+3. Click `Select` on the deck row you want, under PRESET DECKS or MY DECKS.
+   The PLAY box then names the deck instead of "No deck selected", and
+   `Solo Game` becomes enabled.
+4. Click `Solo Game`. The route changes to `/game` and the coin-toss dialog
+   opens.
+5. Click `Play` (or `Draw`). The toss is decided server-side; the dialog only
+   asks the winner to choose.
+6. Mulligan prompt, **once per seat**. Click `Keep` for the first seat; the
+   viewer auto-switches to the other seat and the prompt reappears — click
+   `Keep` again.
+7. `snapshot`. `YOUR GO` plus `Pass` / `Pass Turn` buttons means the board is
+   live and priority is with the seat you are viewing.
+
+Do not set `tolaria:selectedDeckId` by hand to skip step 3. Preset decks are
+DB rows now (#770/#1455) and the old slugs (`mono-red-burn`, `le-deck`, …) no
+longer resolve — a stale id is silently cleared by the lobby and you land back
+on "No deck selected", having spent a navigation to learn it.
+
+### Blocked by an active game (2026-08-17)
+
+One active game per user is a server guard (#155), so the PLAY buttons are
+disabled until the current one ends. The lobby offers `Resume` and
+`Concede Match`.
+
+- Want the game that is running? `Resume`.
+- Want a fresh one? `Concede Match` → a confirm dialog titled "Concede match?"
+  → click its own `Concede Match` button. **This ends the match as a loss and
+  cannot be undone**, so it is the user's call, not yours: ask before
+  conceding a game you did not create in this session.
+
+After the dialog closes the lobby drops the banner and the PLAY buttons
+re-enable (still needing a deck selected).
+
+**Already inside a game?** Do not route back through the lobby. Debug panel →
+`Restart Solo` reuses the current deck and deals a fresh solo game in one
+click. `New vs-AI Game` is the same shape for a bot opponent.
+
+## Load a debug scenario (2026-08-17)
+
+Scenarios are DB rows, not code (ADR 0044) — the panel lists whatever the
+deployment has.
+
+1. From a live board: click `Debug ▼` (bottom-left of the dev rail).
+2. Click `Scenarios`. The list expands **inline** — no dialog — with a
+   `Search scenarios…` field, 65 rows on this deployment, each row a button
+   labelled with the scenario, plus `★` favourite, `✎` edit, `×` delete.
+3. Click the row. The board reloads into that position.
+
+The same panel carries `Reset Game`, `Copy State`, `Show all cards`,
+`All actions`, `Bo3 Sideboarding` and `Verbose`. Avoid `Clear Storage`: it
+forces a full reload and drops you at the lobby mid-sequence.
+
+To add a scenario, use the panel's own save form (label + spec) — a DB insert,
+never a code edit. Headless agents do not insert: they emit `{ label, spec }`
+in the PR receipt and the orchestrator seeds it post-merge.
+
+## Reach the Limited deck builder (2026-08-17)
+
+The pool builder is where a Sealed/Draft pool becomes a deck, and it is the
+screen the mobile-occlusion bug lives on.
+
+1. `navigate_page` → `http://localhost:5173/limited`
+2. Under YOUR CURRENT EVENTS, click `View` on the event. The route becomes
+   `/limited/<eventId>`.
+3. Click `Build Deck` (in the "Your Pool is ready" box). The route becomes
+   `/limited/<eventId>/build`.
+
+The build screen carries: ADD BASIC steppers, `Maindeck N` with
+All/Creatures/Non-creatures + colour filters, `Pool (Sideboard) N` with the
+same, a curve strip, and a fixed footer with the legality verdict, the deck
+name field and `Done`.
+
+No event in the list? A new one is `+ Create Event` on `/limited` — that flow
+is not written up yet.
+
+## Sweep a screen across viewports (2026-08-17)
+
+Run this on any screen a change can reach, before calling it done.
+
+1. `emulate { viewport: "1440x900x2" }` → walk the runbook → probe →
+   screenshot.
+2. `emulate { viewport: "390x844x3,mobile,touch" }` → probe → screenshot.
+3. `emulate { viewport: "844x390x3,mobile,touch,landscape" }` → probe →
+   screenshot.
+4. `list_console_messages { types: ["error"] }`.
+
+Emulation survives navigation, so set it once and re-walk the runbook rather
+than re-emulating per step. The probe itself, and what its numbers mean, are
+in [Browser verification](browser-verification.md#the-occlusion-probe).
+
+## Where client state is kept
+
+`src/lib/session.ts` owns every key. Clearing `tolaria:gameId` +
+`tolaria:playerId` is what forces a return to the lobby.
+
+| Key                        | Holds                                            |
+| -------------------------- | ------------------------------------------------ |
+| `tolaria:gameId`           | active game id                                   |
+| `tolaria:playerId`         | session player handle                            |
+| `tolaria:selectedDeckId`   | lobby deck selection (a DB id — see the warning) |
+| `tolaria:aiDeckId`         | vs-AI opponent deck; unset = mirror the human    |
+| `tolaria:aiDifficulty`     | easy / medium / hard                             |
+| `tolaria:matchFormat`      | `1` (Bo1) or `3` (Bo3)                           |
+| `tolaria:deckFormatFilter` | deck-list Format filter, `all` or a FormatId     |
+
+There is no player-name key: the nickname comes from the authenticated user.
+
+## What is not written yet
+
+Add a runbook after you run it, not before. Missing today: creating a Limited
+event, the draft pick screen, the vs-AI setup dialog (difficulty + opponent
+deck), Bo3 sideboarding between games, the deck builder outside Limited, and
+the admin panels.
+
+## Two browsers, one of which does not work
+
+Use the `chrome-devtools-mcp` plugin (CDP). The Claude-in-Chrome extension
+cannot work in Arc — no `chrome.sidePanel`, so its per-site approval can never
+be granted and every call times out. The reasoning is in [Browser
+verification](browser-verification.md#the-tool-chrome-devtools-mcp-not-the-claude-extension).

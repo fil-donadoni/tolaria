@@ -176,13 +176,14 @@ spawns leaking to the inherited tier over 30 days):
   `model: sonnet` (they pin no model of their own; the duplicate user-level
   copies were removed in #2189).
 
-## Chrome Browser Debug
+## Browser verification
 
-**On-demand only** — never launch Chrome to verify cards/features by default
-(vitest + wire tests + preset scenarios are the standard verification). When
-the user explicitly asks: always **solo mode** (one user, two seats, viewer
-follows priority). Setup, storage keys, and step-by-step:
-`.claude/rules/chrome-debug.md` (auto-loaded).
+**Mandatory for any diff that can change what a user sees** — component, CSS,
+layout, responsive rule, overlay, scroll container — at three viewports, with
+a measured receipt, because happy-dom has no layout and cannot see a collapsed
+or occluded element. Engine/Convex/script work owes nothing here. Rule:
+`.claude/rules/chrome-debug.md` (auto-loaded); procedure and click sequences:
+`docs/guides/browser-verification.md`, `docs/guides/ui-runbooks.md`.
 
 ## Automated Development Workflow
 
@@ -244,7 +245,9 @@ prose is the fallback for judgment, not the home of invariants.
    (upserts by label; row is deployment-local by design). Interactive work:
    Debug panel → Scenarios → "Save scenario" (`saveDebugScenario`). Skip only
    for pure refactors.
-8. **UI verify** — only when the user explicitly asks for a browser check
+8. **UI verify** — mandatory whenever the diff can change what a user sees
+   (three viewports + probe receipt, `.claude/rules/chrome-debug.md`); nothing
+   owed when the diff cannot reach the DOM
 
 ### Quality gates (mandatory, no exceptions)
 
@@ -298,7 +301,10 @@ baseline).
 my test" is not an exemption; never branch off red, never merge on red, never
 silence a test. Red baseline → fix or surface first.
 
-Browser visual verification is NOT a default gate.
+**Browser verification is a gate for UI-affecting diffs** — three viewports, a
+measured probe receipt, `.claude/rules/chrome-debug.md`. It is not part of
+`check:all` (no headless browser lane exists yet), so nothing fails on its
+absence: the receipt in the PR is the whole enforcement.
 
 ## Rules Implementation Process
 
