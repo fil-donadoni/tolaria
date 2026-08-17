@@ -108,6 +108,23 @@ name field and `Done`.
 No event in the list? A new one is `+ Create Event` on `/limited` — that flow
 is not written up yet.
 
+## Reach the draft pick screen (2026-08-17)
+
+While an event's status is `drafting`, the event detail route IS the pick
+screen — there is no separate `/draft` route to navigate to.
+
+1. `navigate_page` → `http://localhost:5173/limited/<eventId>`
+2. `snapshot`. The pack renders as buttons labelled
+   `Draft pick: <card name>`, each `roledescription="draggable"` (drag or
+   keyboard: space to lift, arrows to move, space to drop).
+
+The header carries `Booster N of M` and the queued-pack count; a
+`Booster card size` slider resizes the tiles. `Your Pool (N)` sits below the
+pack and holds what this seat has taken.
+
+An event whose status is `playing` shows the table, pairings and
+`Build Deck` instead — the runbook above.
+
 ## Sweep a screen across viewports (2026-08-17)
 
 Run this on any screen a change can reach, before calling it done.
@@ -143,9 +160,10 @@ There is no player-name key: the nickname comes from the authenticated user.
 ## What is not written yet
 
 Add a runbook after you run it, not before. Missing today: creating a Limited
-event, the draft pick screen, the vs-AI setup dialog (difficulty + opponent
-deck), Bo3 sideboarding between games, the deck builder outside Limited, and
-the admin panels.
+event, the vs-AI setup dialog (difficulty + opponent deck), Bo3 sideboarding
+between games, and the admin panels. (`/decks/create` and `/decks/<slug>/edit`
+are the deck builder outside Limited — same components as the Limited build
+screen, reached straight from the URL or from a deck's `Edit` in the lobby.)
 
 ## Two browsers, one of which does not work
 
