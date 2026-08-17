@@ -945,6 +945,14 @@ const setProtectionFromEverything: Valuer<
     tags: ["protection"],
 });
 
+// Tamiyo, Seasoned Scholar's +2 ("Until your next turn, whenever a creature
+// attacks you or a planeswalker you control, it gets -1/-0 until end of
+// turn", CR 606 / 603.7a, issue #2385) is now a real `delayedTrigger` +
+// `pump` composition (no dedicated Op) — its value is the generic
+// `delayedTrigger` valuer's recursion into the nested Effect Script below
+// (`valueEffectScript`), which prices the inline `pump -1/-0` the same as
+// any other `pump` Op. No per-card valuer needed.
+
 const reveal: Valuer<"reveal"> = () => ZERO_OP_VALUE;
 
 // A private look at a random hand card grants information, no board material.

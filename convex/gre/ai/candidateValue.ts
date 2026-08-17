@@ -518,6 +518,24 @@ function resolveValueAgainstBoard(
             ) * v.scaled.times
         );
     }
+    // divide (issue #2385) — a terminal divided by a fixed divisor, rounded
+    // per `rounding`. Both operand shapes (a literal or a `count`) are
+    // genuinely resolvable pre-cast, the same board-read `difference`/
+    // `scaled` already use.
+    if ("divide" in v) {
+        const operand = (o: number | { count: EffectCountSpec }): number =>
+            typeof o === "number"
+                ? o
+                : resolveCountSpecAgainstBoard(
+                      state,
+                      perspectivePlayerId,
+                      o.count
+                  );
+        const quotient = operand(v.divide.value) / v.divide.by;
+        return v.divide.rounding === "up"
+            ? Math.ceil(quotient)
+            : Math.floor(quotient);
+    }
     // ref / manaValue / domain — object- or player-scoped reads with no
     // resolvable object/announcement pre-cast.
     return CF_ASSUMED_REF_FALLBACK;

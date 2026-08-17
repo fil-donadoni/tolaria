@@ -445,6 +445,22 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
             );
         });
     }
+    // targetMatchesGraveyardFilter (issue #2385) — the ANNOUNCED-TARGET
+    // sibling of `picksMatchFilter`: true iff the resolved object selector
+    // names a card currently in `player`'s graveyard AND that card matches
+    // `filter`. Reuses the SAME `getGraveyardCards` + `matchesCardFilter`
+    // reader `picksMatchFilter` uses, just keyed by a target/object selector
+    // (`targetRequirement: { zone: "graveyard" }`) instead of a `choice` Op's
+    // picks binding.
+    if ("targetMatchesGraveyardFilter" in pred) {
+        const target = resolveObjectRef(ctx, pred.targetMatchesGraveyardFilter);
+        if (!target) return false;
+        const playerId = resolvePlayerRef(ctx, pred.player);
+        if (!playerId) return false;
+        const graveyardCards = ctx.getGraveyardCards(playerId);
+        const card = graveyardCards.find((c) => c.id === target.id);
+        return card !== undefined && matchesCardFilter(ctx, card, pred.filter);
+    }
     // objectMatchesFilter (issue #1747) — the LIVE-object counterpart of
     // `boundMatchesFilter` (a CR 608.2h snapshot) and `picksMatchFilter` (a
     // graveyard lookup): true iff the referenced permanent is on the
@@ -511,7 +527,8 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
  *  CR 107.3 / 601.2b), a `counters` count on a selected object (issue #1015
  *  — a thin skin over `ctx.getCounterCount`, CR 122.6), a `difference` of two
  *  terminals (issue #2006), a terminal `scaled` by a fixed multiplier (issue
- *  #2366), or — at a SIGNED value site (`EffectSignedValue`, today only
+ *  #2366), a terminal `divide`d by a fixed divisor with explicit rounding
+ *  (issue #2385), or — at a SIGNED value site (`EffectSignedValue`, today only
  *  `pump`'s power/toughness) — a `negate`-wrapped value (issue #926, one
  *  unary sign flip, no other arithmetic). Returns `undefined` when a ref
  *  names a binding that was never captured, a selected object has left play
@@ -689,6 +706,18 @@ function resolveValue(
         return (
             resolveScaledOperand(ctx, value.scaled.value) * value.scaled.times
         );
+    }
+    // divide (issue #2385) — a terminal divided by a fixed positive-integer
+    // divisor, rounded per the mandatory `rounding` field (CR 107.1a). The
+    // operand is `EffectDifferenceOperand` — the SAME non-X terminal set
+    // `difference` uses — so it reads through the identical
+    // `resolveDifferenceOperand` helper; no separate resolver needed.
+    if ("divide" in value) {
+        const dividend = resolveDifferenceOperand(ctx, value.divide.value);
+        const quotient = dividend / value.divide.by;
+        return value.divide.rounding === "up"
+            ? Math.ceil(quotient)
+            : Math.floor(quotient);
     }
     return countSet(ctx, value.count);
 }

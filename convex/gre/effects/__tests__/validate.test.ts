@@ -4056,6 +4056,281 @@ describe("validateEffectScript — scaled (issue #2366)", () => {
     });
 });
 
+// --- divide value (issue #2385) ---------------------------------------------
+//
+// The static sweep must accept every terminal operand `divide` was built for
+// (literal, count — no X, deliberately narrower than `scaled`) and a
+// mandatory `rounding`, and reject anything that would widen it into an
+// expression grammar or make rounding silently optional.
+
+describe("validateEffectScript — divide (issue #2385)", () => {
+    const loseLife = (amount: unknown): EffectOp[] => [
+        { op: "loseLife", player: "opponent", amount } as unknown as EffectOp,
+    ];
+
+    it("accepts both terminal operands: literal and count", () => {
+        for (const value of [
+            3,
+            { count: { zone: "battlefield", controller: "controller" } },
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: loseLife({
+                            divide: { value, by: 2, rounding: "up" },
+                        }),
+                    })
+                )
+            ).toEqual([]);
+        }
+    });
+
+    it("accepts both rounding directions", () => {
+        for (const rounding of ["up", "down"]) {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: loseLife({
+                            divide: { value: 3, by: 2, rounding },
+                        }),
+                    })
+                )
+            ).toEqual([]);
+        }
+    });
+
+    it("rejects an `X` operand — divide stays as narrow as difference, no X dividend", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        divide: { value: { X: true }, by: 2, rounding: "up" },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a NESTED divide — the operand type is a terminal, so the grammar stays depth-1", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        divide: {
+                            value: {
+                                divide: { value: 4, by: 2, rounding: "up" },
+                            },
+                            by: 2,
+                            rounding: "up",
+                        },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a non-positive-int `by` (0, negative, fractional)", () => {
+        for (const by of [0, -2, 1.5]) {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: loseLife({
+                            divide: { value: 3, by, rounding: "up" },
+                        }),
+                    })
+                ).length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("rejects a missing or invalid `rounding` — mandatory, no default (CR 107.1a)", () => {
+        for (const rounding of [undefined, "nearest", "toward-zero", 1]) {
+            const divide: Record<string, unknown> = { value: 3, by: 2 };
+            if (rounding !== undefined) divide.rounding = rounding;
+            expect(
+                validateEffectScript(host({ effects: loseLife({ divide }) }))
+                    .length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("rejects a malformed divide shape (missing key, extra key)", () => {
+        for (const divide of [
+            { value: 3, by: 2 },
+            { by: 2, rounding: "up" },
+            { value: 3, rounding: "up" },
+            { value: 3, by: 2, rounding: "up", extra: 1 },
+            {},
+        ]) {
+            expect(
+                validateEffectScript(host({ effects: loseLife({ divide }) }))
+                    .length
+            ).toBeGreaterThan(0);
+        }
+    });
+});
+
+// --- delayedTrigger "until-next-turn-creature-attacks-you" timing
+// (CR 606 / 603.7a / 506.2, issue #2385, review round 2) -------------------
+
+describe("validateEffectScript — delayedTrigger until-next-turn-creature-attacks-you (issue #2385)", () => {
+    it("accepts the timing with an $event.soleAttacker-reading body, no targetPlayer/watch", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "delayedTrigger",
+                            timing: "until-next-turn-creature-attacks-you",
+                            oracleText:
+                                "Whenever a creature attacks you or a planeswalker you control, it gets -1/-0 until end of turn.",
+                            effects: [
+                                {
+                                    op: "pump",
+                                    target: { ref: "$event.soleAttacker" },
+                                    power: -1,
+                                    toughness: 0,
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects targetPlayer on this timing (phase-boundary-only field)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "until-next-turn-creature-attacks-you",
+                        targetPlayer: "controller",
+                        oracleText: "x",
+                        effects: [{ op: "becomeMonarch" }],
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(/"targetPlayer".*only valid/);
+    });
+
+    it("rejects watch on this timing (instance-scoped-only field)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "until-next-turn-creature-attacks-you",
+                        watch: { ref: "$source" },
+                        oracleText: "x",
+                        effects: [{ op: "becomeMonarch" }],
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(/"watch".*only valid/);
+    });
+});
+
+// --- targetMatchesGraveyardFilter predicate (issue #2385) -------------------
+
+describe("validateEffectScript — targetMatchesGraveyardFilter (issue #2385)", () => {
+    it("accepts an announced target, a player ref, and a card filter", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "hand",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                targetMatchesGraveyardFilter: { target: 0 },
+                                player: "controller",
+                                filter: { color: "G" },
+                            },
+                            then: [],
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a missing `player` or `filter`", () => {
+        for (const pred of [
+            {
+                targetMatchesGraveyardFilter: { target: 0 },
+                filter: { color: "G" },
+            },
+            {
+                targetMatchesGraveyardFilter: { target: 0 },
+                player: "controller",
+            },
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: [
+                            {
+                                op: "if",
+                                predicate: pred,
+                                then: [],
+                            } as unknown as EffectOp,
+                        ],
+                    })
+                ).length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    // Review round 2 (PR #2487) — `collectRefUses`'s object-family keyHint
+    // list was missing "targetMatchesGraveyardFilter", so a `{ ref: "$each"
+    // }` there mis-tagged as a NUMBER ref and failed as a "malformed ref"
+    // even though the predicate routes through the identical object-selector
+    // path `objectMatchesFilter` uses one line above it (validate.ts). The
+    // type doc on `targetMatchesGraveyardFilter` advertises this exact form
+    // (a forEach-driven graveyard sweep, not just an announced target).
+    it("accepts the $each form inside a forEach (review round 2, #2487)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "graveyard",
+                                controller: "controller",
+                            },
+                            effects: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        targetMatchesGraveyardFilter: {
+                                            ref: "$each",
+                                        },
+                                        player: "controller",
+                                        filter: { color: "G" },
+                                    },
+                                    then: [],
+                                },
+                            ],
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Reserved `$target<N>.name` ref (issue #2065) — static half.
 //

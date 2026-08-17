@@ -5243,7 +5243,39 @@ export type DelayedTriggerTiming =
      *  battlefield seed re-snapshots it live and `{ ref: "$c.power" }` reads
      *  its EFFECTIVE power (CR 613) at resolution. `$event` stays illegal
      *  here, exactly as for the leave-watch timings. */
-    | "attacks-unblocked";
+    | "attacks-unblocked"
+    /** CR 606 / 603.7a / 506.2 (issue #2385) — a REPEATING window, bounded
+     *  "until your next turn" rather than "this turn": "Until your next
+     *  turn, whenever a creature attacks you or a planeswalker you control,
+     *  …" (Tamiyo, Seasoned Scholar's +2). Shares `this-turn-creature-
+     *  blocks`'s repeating SHAPE (stays queued after firing, the firing
+     *  event is threaded onto the built StackItem so the body may read
+     *  `$event` directly) but a DIFFERENT bound: it is deliberately excluded
+     *  from the CLEANUP purge (`gre/phases.ts`) — same precedent as
+     *  `leaves-battlefield-indefinite` for a timing surviving CLEANUP — and
+     *  is instead purged at the START of the delayed trigger's OWN
+     *  controller's next turn (`advanceTurn`, `gre/phases.ts`), the same
+     *  "until your next turn" boundary `playerProtectionFromEverything` /
+     *  `castTimingFlashGrants` use.
+     *
+     *  Fires once PER ATTACKER named in an `ATTACKERS_DECLARED` event whose
+     *  `attackingPlayerId` is NOT this instance's controller — CR 506.2:
+     *  during the combat phase of a two-player game, the nonactive player
+     *  is the defending player, and only that player (or planeswalkers
+     *  they control) may be attacked, so in this engine's 2-player scope
+     *  "the attacking player isn't the instance's controller" already
+     *  identifies every attacker in the batch as attacking the controller
+     *  (or their planeswalker). Unlike
+     *  `BLOCKERS_CONFIRMED` (already one event per attacker/blocker pair),
+     *  `ATTACKERS_DECLARED` carries the WHOLE batch as one event
+     *  (`attackerIds: string[]`) — `collectTriggers` (`gre/triggers.ts`)
+     *  builds one synthetic single-attacker `ATTACKERS_DECLARED` event per
+     *  attacker so the body can read `{ ref: "$event.soleAttacker" }`,
+     *  reusing the EXISTING `soleAttacker` `EVENT_FIELD_REGISTRY` row (ADR
+     *  0049) rather than adding a new one — a length-1 `attackerIds` array is
+     *  exactly what that row already flattens. Rejects `targetPlayer` /
+     *  `watch`, like the other repeating combat-event timings. */
+    | "until-next-turn-creature-attacks-you";
 
 /** ADR 0048 — the inline body of an Effect-Script-scheduled delayed trigger
  *  (CR 603.7a): a pure-JSON Op list persisted ON the `DelayedTriggerInstance`
@@ -9831,17 +9863,59 @@ export interface EffectScaledValue {
     };
 }
 
+/** divide — a terminal DIVIDED by a fixed positive-integer divisor, rounded
+ *  toward the stated direction (issue #2385, Tamiyo, Seasoned Scholar's
+ *  ultimate: "Draw cards equal to half the number of cards in your library,
+ *  rounded up"). A FIFTEENTH `EffectValue` grammar member, `scaled`'s
+ *  division counterpart (`difference` subtracts, `scaled` multiplies,
+ *  `divide` divides) — same non-Op, non-ADR-0045-reopening status as every
+ *  member since `X` (#852): a value member, not a structural construct.
+ *
+ *  Operand type is `EffectDifferenceOperand` (a literal or a `count`), NOT
+ *  `EffectScaledOperand` — no shipped divide card needs `X` as the dividend,
+ *  so the operand stays as narrow as `difference`'s (mirrors why `scaled`
+ *  needed its OWN wider operand type rather than widening
+ *  `EffectDifferenceOperand` in place: adding X here "just in case" would
+ *  silently reopen a type nothing asks for). Still a TERMINAL — depth-1,
+ *  matching `difference`/`scaled`.
+ *
+ *  `by` is a plain positive-integer literal divisor (mirrors `scaled.times` —
+ *  literal only, never a ref/X/nested value; dividing by a VARIABLE amount is
+ *  a different, unimplemented feature). `rounding` is mandatory, no default:
+ *  CR 107.1a — "if a spell or ability could generate a fractional number, the
+ *  spell or ability will tell you whether to round up or down" — MTG never
+ *  rounds to nearest or truncates toward zero, so the field forces every card
+ *  author to say which the Oracle text specifies rather than silently picking
+ *  one.
+ *
+ *  CR 107.1b: unlike `difference`, the dividend here is a `count` or a
+ *  non-negative literal (never negative by construction — cardinalities and
+ *  positive-int literals only), so the quotient is always non-negative and
+ *  needs no sign clamp. */
+export interface EffectDivideValue {
+    divide: {
+        /** The terminal value being divided. */
+        value: EffectDifferenceOperand;
+        /** Fixed positive-integer divisor. */
+        by: number;
+        /** CR 107.1a — which way to round a fractional result. */
+        rounding: "up" | "down";
+    };
+}
+
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
  *  reading a bound object's numeric property, a `count` of a selected set, the
  *  chosen-cost `X` (issue #852), a `counters` count on a selected object
  *  (issue #1015), a selected object's `manaValue` (issue #680), a player's
  *  `domain` (issue #1066), a permanent's `escaped` flag (issue #695), the
  *  currently-resolving triggered ability's `abilityResolutionCount` (issue
- *  #1189), the `difference` of two terminals (issue #2006), or a terminal
- *  `scaled` by a fixed multiplier (issue #2366). The value grammar is capped
- *  at these — beyond `difference`'s single, non-nestable subtraction and
- *  `scaled`'s single, non-nestable multiplication there is no arithmetic and
- *  there are no expressions (the frozen-grammar defence, ADR 0045). */
+ *  #1189), the `difference` of two terminals (issue #2006), a terminal
+ *  `scaled` by a fixed multiplier (issue #2366), or a terminal `divide`d by a
+ *  fixed divisor with explicit rounding (issue #2385). The value grammar is
+ *  capped at these — beyond `difference`'s subtraction, `scaled`'s
+ *  multiplication and `divide`'s division, none of them nestable, there is no
+ *  arithmetic and there are no expressions (the frozen-grammar defence, ADR
+ *  0045). */
 export type EffectValue =
     | number
     | EffectRef
@@ -9856,7 +9930,8 @@ export type EffectValue =
     | EffectAbilityResolutionCountValue
     | EffectLifeGainedThisTurnValue
     | EffectDifferenceValue
-    | EffectScaledValue;
+    | EffectScaledValue
+    | EffectDivideValue;
 
 /** lifeGainedThisTurn — the total life a PLAYER has gained so far this turn
  *  (CR 119.3, issue #1457), a thin JSON-pure skin over
@@ -12883,6 +12958,15 @@ export type EffectOp =
  *    was picked match a card shape" — reuses the SAME `matchesCardFilter`
  *    reader the `choice`/`count` constructs already share, no new filter
  *    grammar.
+ *  - a TARGET-MATCHES-GRAVEYARD-FILTER test (issue #2385) — `picksMatchFilter`'s
+ *    ANNOUNCED-TARGET sibling: an object selector (`{ target: n }` / `$source`
+ *    / a `forEach` `$each`) instead of a `choice` Op's picks binding, resolved
+ *    against `player`'s graveyard with the SAME `matchesCardFilter` reader.
+ *    Tamiyo, Seasoned Scholar's -3 "if it's a green card, add one mana of any
+ *    color": `{ targetMatchesGraveyardFilter: { target: 0 }, player:
+ *    "controller", filter: { color: "G" } }` — the card targeted by
+ *    `targetRequirement: { zone: "graveyard" }` was never a `choice` pick, so
+ *    `picksMatchFilter` cannot reach it.
  *
  *  Growing the predicate vocabulary (a new comparison operator, a new binding
  *  kind) is cheap; adding a NON-enumerated form (a raw expression) requires
@@ -12896,7 +12980,8 @@ export type EffectPredicate =
     | EffectBoundMatchesFilterPredicate
     | EffectObjectMatchesFilterPredicate
     | EffectSharesColorPredicate
-    | EffectHasCityBlessingPredicate;
+    | EffectHasCityBlessingPredicate
+    | EffectTargetMatchesGraveyardFilterPredicate;
 
 /** Shares-a-colour predicate (issue #1955, CR 105.2 / 202.2): true iff the two
  *  referenced objects have at least one colour in common. Both sides are
@@ -13045,6 +13130,39 @@ export interface EffectObjectMatchesFilterPredicate {
  *  predicates. */
 export interface EffectHasCityBlessingPredicate {
     hasCityBlessing: EffectPlayerRef;
+}
+
+/** Target-matches-graveyard-filter predicate (issue #2385, Tamiyo, Seasoned
+ *  Scholar's -3: "Return target instant or sorcery card from your graveyard
+ *  to your hand. If it's a green card, add one mana of any color"). True iff
+ *  the resolved object selector names a card currently found in `player`'s
+ *  graveyard AND that card matches `filter` — reusing the SAME
+ *  `matchesCardFilter` reader `choice`/`count`/`picksMatchFilter` already
+ *  share, so `color` (and every other `EffectCardFilter` field a graveyard
+ *  snapshot carries) works here even though it does NOT work on
+ *  `boundMatchesFilter`'s CR 608.2h snapshot (that shape has no `colors`
+ *  slot) or on `objectMatchesFilter` (battlefield-only).
+ *
+ *  The `picksMatchFilter` sibling of this predicate answers "does a `choice`
+ *  Op's PICK match" — this one answers "does an ANNOUNCED TARGET match",
+ *  for exactly the shape `targetRequirement: { zone: "graveyard", ... }`
+ *  produces (Tamiyo's -3, Jace Telepath Unbound's -3) but `picksMatchFilter`
+ *  cannot reach (no `choice` Op is involved — the graveyard card was
+ *  targeted at announcement, CR 601.2c, not picked during resolution).
+ *
+ *  Order-independent w.r.t. a subsequent `moveZone` of the SAME object: a
+ *  card's colour does not change with its zone (CR 105/202.2), so evaluating
+ *  this predicate BEFORE or AFTER a same-script `moveZone` reads identically
+ *  — Tamiyo's own script checks it first (while the object is still
+ *  findable in the graveyard) and moves it after, even though the printed
+ *  Oracle sentence order is reversed; CR 608.2 places no ordering
+ *  requirement on two clauses that don't depend on each other's outcome.
+ *  Reads `false` for an unresolvable object/player ref or an object no
+ *  longer in that graveyard (CR 608.2b — a response emptied it first). */
+export interface EffectTargetMatchesGraveyardFilterPredicate {
+    targetMatchesGraveyardFilter: EffectObjectSelector;
+    player: EffectPlayerRef;
+    filter: EffectCardFilter;
 }
 
 // `EffectChoiceKind` must stay a subset of the engine's `ZonePickKind` — the

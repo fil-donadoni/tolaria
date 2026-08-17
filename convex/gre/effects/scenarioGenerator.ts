@@ -337,6 +337,15 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount is a scaled (multiplied) terminal — the canned predictor sizes exactly one unscaled count set`;
         return;
     }
+    // divide (issue #2385): a terminal divided by a fixed divisor. Same
+    // unmodelable-magnitude reason as `scaled` — the quotient is a fresh
+    // number `predictAmount`'s fixed COUNT_SET_SIZE contract doesn't cover.
+    // Skip-with-reason — the member's own interpreter test is the
+    // behavioural guarantor (new-grammar-member regime).
+    if ("divide" in value) {
+        req.skip ??= `amount is a divided terminal — the canned predictor sizes exactly one undivided count set`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
@@ -1421,6 +1430,7 @@ function predictAmount(value: EffectValue): number | null {
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
     if ("difference" in value) return null; // skipped earlier — defensive
     if ("scaled" in value) return null; // skipped earlier — defensive
+    if ("divide" in value) return null; // skipped earlier — defensive
     return COUNT_SET_SIZE;
 }
 

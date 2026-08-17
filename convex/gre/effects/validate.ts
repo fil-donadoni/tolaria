@@ -1231,15 +1231,46 @@ function isScaledValue(value: unknown): boolean {
     return isScaledOperand(s.value);
 }
 
+/** `{ divide: { value, by, rounding } }` — SHAPE of the division value
+ *  construct (issue #2385, Tamiyo Seasoned Scholar's "half the number of
+ *  cards in your library, rounded up"). Exactly three keys, all required:
+ *  `value` a terminal operand (`isDifferenceOperand` — literal or count, the
+ *  same non-X terminal set `difference` uses, since no shipped divide card
+ *  needs an X dividend), `by` a positive-int literal divisor (mirrors
+ *  `scaled.times`'s literal-only rule), `rounding` the CR 107.1a fractional-
+ *  result direction — mandatory, no default (MTG never rounds to nearest or
+ *  truncates toward zero; the Oracle text always states the direction).
+ *  Mirrors `isDifferenceValue`/`isScaledValue`'s shape check. */
+function isDivideValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "divide") return false;
+    const spec = (value as { divide: unknown }).divide;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (
+        !Object.keys(s).every(
+            (k) => k === "value" || k === "by" || k === "rounding"
+        )
+    ) {
+        return false;
+    }
+    if (!isPositiveInt(s.by)) return false;
+    if (s.rounding !== "up" && s.rounding !== "down") return false;
+    return isDifferenceOperand(s.value);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
  *  on a selected object (issue #1015), a selected object's `manaValue` (issue
  *  #680), a player's `domain` (issue #1066), an object's `escaped` flag
  *  (issue #695), the resolving triggered ability's `abilityResolutionCount`
- *  (issue #1189), the `difference` of two terminals (issue #2006), or a
- *  terminal `scaled` by a fixed multiplier (issue #2366). Exactly those — one
- *  non-nestable subtraction, one non-nestable multiplication, and beyond them
- *  no arithmetic and no expressions. */
+ *  (issue #1189), the `difference` of two terminals (issue #2006), a
+ *  terminal `scaled` by a fixed multiplier (issue #2366), or a terminal
+ *  `divide`d by a fixed divisor with explicit rounding (issue #2385).
+ *  Exactly those — one non-nestable subtraction, one non-nestable
+ *  multiplication, one non-nestable division, and beyond them no arithmetic
+ *  and no expressions. */
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
@@ -1255,7 +1286,8 @@ function isEffectValue(value: unknown): boolean {
         isAbilityResolutionCountValue(value) ||
         isLifeGainedThisTurnValue(value) ||
         isDifferenceValue(value) ||
-        isScaledValue(value)
+        isScaledValue(value) ||
+        isDivideValue(value)
     );
 }
 
@@ -2222,6 +2254,23 @@ function isPredicate(value: unknown): boolean {
             isCardFilter(obj.filter)
         );
     }
+    // targetMatchesGraveyardFilter form (issue #2385) — an OBJECT SELECTOR
+    // (announced target slot / `$source` / forEach `$each`), plus `player`
+    // (whose graveyard to resolve it against) and `filter` (the card shape
+    // to test). The announced-target sibling of `picksMatchFilter` — same
+    // three-key shape, just a selector position instead of a bare picks ref.
+    if (
+        keys.length === 3 &&
+        keys.includes("targetMatchesGraveyardFilter") &&
+        keys.includes("player") &&
+        keys.includes("filter")
+    ) {
+        return (
+            isObjectSelector(obj.targetMatchesGraveyardFilter) &&
+            isPlayerRef(obj.player) &&
+            isCardFilter(obj.filter)
+        );
+    }
     // boundMatchesFilter form (Minsc & Boo) — a bare ref to an object
     // SNAPSHOT plus the card shape to test its CR 608.2h last-known
     // characteristics against. No `player`: unlike `picksMatchFilter` this
@@ -2540,6 +2589,17 @@ const DELAYED_TIMINGS = new Set([
     // turn (Forth Eorlingas!). Rejects both `targetPlayer` and `watch`, same
     // shape as "this-turn-creature-blocks".
     "this-turn-creature-deals-combat-damage-to-player",
+    // Repeating combat-event watch, "UNTIL YOUR NEXT TURN" bound rather than
+    // "this turn" (CR 606 / 603.7a / 506.2, issue #2385) — fires once per
+    // attacker in an ATTACKERS_DECLARED batch that attacks the instance's
+    // controller, for the rest of THIS turn AND the whole intervening
+    // opponent turn (Tamiyo, Seasoned Scholar's +2). Same repeating SHAPE as
+    // "this-turn-creature-blocks" (stays queued after firing, its body may
+    // read `$event` — checked below) but purged at the controller's own
+    // next-turn start instead of CLEANUP (`gre/phases.ts` advanceTurn).
+    // Rejects both `targetPlayer` and `watch`, same shape as
+    // "this-turn-creature-blocks".
+    "until-next-turn-creature-attacks-you",
     // Instance unblocked-attack watch (CR 603.7a / 509.1h) — fires on the
     // WATCHED permanent's ATTACKER_UNBLOCKED event ("This turn, when target
     // creature you control attacks and isn't blocked, …", Delif's Cone /
@@ -4415,7 +4475,18 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                             // like `target`. No other field in the vocabulary is
                             // named `with`.
                             keyHint === "sharesColor" ||
-                            keyHint === "with"
+                            keyHint === "with" ||
+                            // `targetMatchesGraveyardFilter` (issue #2385) — the
+                            // announced graveyard-zone target under test, an
+                            // `EffectObjectSelector` exactly like `target` /
+                            // `objectMatchesFilter`. Review finding: this row
+                            // was missing, so a `{ ref: "$each" }` here mis-tagged
+                            // as "number" and a forEach's `$each` form was
+                            // rejected as a malformed ref even though the predicate
+                            // routes it through the identical object-selector path
+                            // one line below (`collectRefUses(p.
+                            // targetMatchesGraveyardFilter, "targetMatchesGraveyardFilter", out)`).
+                            keyHint === "targetMatchesGraveyardFilter"
                           ? "object"
                           : "number",
         });
@@ -4581,6 +4652,18 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
     // caught exactly as at every other selector site.
     if ("objectMatchesFilter" in p) {
         collectRefUses(p.objectMatchesFilter, "objectMatchesFilter", out);
+        return;
+    }
+    // targetMatchesGraveyardFilter (issue #2385) — an object SELECTOR (same
+    // routing as objectMatchesFilter), plus a player-position ref on `player`
+    // (same routing as picksMatchFilter's `player`).
+    if ("targetMatchesGraveyardFilter" in p) {
+        collectRefUses(
+            p.targetMatchesGraveyardFilter,
+            "targetMatchesGraveyardFilter",
+            out
+        );
+        collectRefUses(p.player, "player", out);
         return;
     }
     // sharesColor (issue #1955) — TWO object selectors, each of which may be a
@@ -5192,23 +5275,30 @@ function checkOpListRefs(
                     );
                 }
             }
-            // "this-turn-creature-blocks" (issue #884) is the ONE delayed
-            // timing whose firing event is still live at fire time: it
-            // re-fires per BLOCKERS_CONFIRMED event, and `triggers.ts` threads
-            // that event onto the built StackItem exactly like a normal
-            // triggered ability — so its body may read `$event.blockerId`
-            // directly (no capture needed). Every OTHER timing's body runs at
-            // a phase boundary / after the watched permanent already left, so
-            // `$event` stays illegal there (ADR 0049) — `inDelayedBody` flips
-            // on for those.
-            const eventBody = entry.timing === "this-turn-creature-blocks";
+            // "this-turn-creature-blocks" (issue #884) and
+            // "until-next-turn-creature-attacks-you" (issue #2385) are the
+            // TWO delayed timings whose firing event is still live at fire
+            // time: each re-fires per its own combat event, and
+            // `triggers.ts` threads that event onto the built StackItem
+            // exactly like a normal triggered ability — so the body may read
+            // `$event.<field>` directly (no capture needed). Every OTHER
+            // timing's body runs at a phase boundary / after the watched
+            // permanent already left, so `$event` stays illegal there (ADR
+            // 0049) — `inDelayedBody` flips on for those.
+            const eventBody =
+                entry.timing === "this-turn-creature-blocks" ||
+                entry.timing === "until-next-turn-creature-attacks-you";
+            const liveEventType =
+                entry.timing === "until-next-turn-creature-attacks-you"
+                    ? "ATTACKERS_DECLARED"
+                    : "BLOCKERS_CONFIRMED";
             checkOpListRefs(
                 entry.effects,
                 (j) => `${at}: effects[${j}]`,
                 errors,
                 bodyScope,
                 eventBody
-                    ? { eventType: "BLOCKERS_CONFIRMED", inDelayedBody: false }
+                    ? { eventType: liveEventType, inDelayedBody: false }
                     : { eventType: eventScope.eventType, inDelayedBody: true }
             );
         }

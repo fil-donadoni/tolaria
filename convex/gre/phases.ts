@@ -51,6 +51,7 @@ import {
     tickDuration,
 } from "./state";
 import { tryGetDefinition } from "../cards";
+import { tryGetEmblemDefinition } from "../cards/emblems";
 import { resetControlContinuity } from "./controlContinuity";
 import { effectivePermanentView } from "./permanentView";
 import { advanceSagasAtPrecombatMain } from "./sagas";
@@ -2197,6 +2198,24 @@ export function effectiveMaxHandSize(
         }
     }
 
+    // CR 114 (issue #2385) — command-zone emblem sources of a hand-size
+    // override (Tamiyo, Seasoned Scholar's ultimate: "You get an emblem with
+    // 'You have no maximum hand size.'"). Mirrors the battlefield-permanent
+    // scan above; only the emblem's OWNER is affected (CR 114.3 "you") — no
+    // shipped emblem uses the `chosen-player` shape, so only the default
+    // scope is read here.
+    if (state) {
+        for (const emblem of state.emblems ?? []) {
+            if (emblem.ownerId !== player.id) continue;
+            const def = tryGetEmblemDefinition(emblem.emblemId);
+            for (const effect of def?.staticEffects ?? []) {
+                if (effect.kind !== "hand-size-override") continue;
+                if (effect.appliesTo === "chosen-player") continue;
+                if (consider(effect.value)) return Infinity;
+            }
+        }
+    }
+
     if (unlimited) return Infinity;
     return bestNumeric ?? MAX_HAND_SIZE;
 }
@@ -3153,6 +3172,20 @@ function advanceTurn(state: GameState): void {
         if (state.castTimingFlashGrants.length === 0) {
             state.castTimingFlashGrants = undefined;
         }
+    }
+    // CR 606 / 603.7a (issue #2385) — a `until-next-turn-creature-attacks-
+    // you` delayed trigger (Tamiyo, Seasoned Scholar's +2) lasts "until your
+    // next turn": drop the instance the moment ITS OWN controller's next
+    // turn begins (same boundary as islandSanctuaryProtection /
+    // playerProtectionFromEverything), NOT the unconditional CLEANUP purge
+    // the "this-turn-*" repeating timings use (`finalizeCleanup` above).
+    if (state.delayedTriggers?.length) {
+        const kept = state.delayedTriggers.filter(
+            (t) =>
+                t.timing !== "until-next-turn-creature-attacks-you" ||
+                t.controller !== state.activePlayerId
+        );
+        state.delayedTriggers = kept.length > 0 ? kept : undefined;
     }
     // Storm (CR 702.40a, ADR 0052) — "this turn" resets at the start of each
     // turn, by any player. A general primitive: future "spells cast this

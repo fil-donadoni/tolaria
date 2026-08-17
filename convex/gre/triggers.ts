@@ -566,6 +566,51 @@ export function collectTriggers(
         }
     }
 
+    // CR 606 / 603.7a / 506.2 (issue #2385, Tamiyo, Seasoned Scholar's +2)
+    // — a `timing: "until-next-turn-creature-attacks-you"` instance is the
+    // "until your next turn" (NOT "this turn") twin of the repeating
+    // combat-event family above: it stays queued after firing too (purged
+    // only at the controller's own next-turn start, `advanceTurn`,
+    // phases.ts), but its firing EVENT differs. `ATTACKERS_DECLARED` carries
+    // the WHOLE declare-attackers batch as one event (`attackerIds:
+    // string[]`), unlike `BLOCKERS_CONFIRMED`'s one-event-per-pair shape, so
+    // firing once per EVENT would only ever expose ONE (arbitrary) attacker
+    // to the body. Instead this fires once PER ATTACKER, each carrying a
+    // synthetic single-attacker `ATTACKERS_DECLARED` event — reusing the
+    // already-censused `soleAttacker` `EVENT_FIELD_REGISTRY` row (ADR 0049,
+    // `cards/mechanicsRegistry.ts`) rather than adding a new one, since a
+    // length-1 `attackerIds` array is exactly what that row already
+    // flattens. CR 506.2 — during the combat phase of a two-player game,
+    // the nonactive player is the defending player, and only that player
+    // (or planeswalkers they control) may be attacked, so in this engine's
+    // 2-player scope `event.attackingPlayerId !== t.controller` already
+    // identifies every attacker in the batch as attacking the instance's
+    // controller (or a planeswalker they control): no per-attacker
+    // `combat.attackTargets` check is needed.
+    if (state.delayedTriggers?.length) {
+        const attackWatchers = state.delayedTriggers.filter(
+            (t) => t.timing === "until-next-turn-creature-attacks-you"
+        );
+        if (attackWatchers.length > 0) {
+            for (const event of events) {
+                if (event.type !== "ATTACKERS_DECLARED") continue;
+                for (const t of attackWatchers) {
+                    if (event.attackingPlayerId === t.controller) continue;
+                    for (const attackerId of event.attackerIds) {
+                        out.push({
+                            ...buildDelayedTriggerStackItem(state, t),
+                            triggerEvent: {
+                                type: "ATTACKERS_DECLARED",
+                                attackingPlayerId: event.attackingPlayerId,
+                                attackerIds: [attackerId],
+                            },
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     // CR 720.2 (Forth Eorlingas!, issue #1199) — repeating combat-damage-to-
     // player delayed triggers: a `timing:
     // "this-turn-creature-deals-combat-damage-to-player"` instance fires AT

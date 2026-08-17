@@ -53,6 +53,7 @@ import {
     fireDelayedTriggers,
     finalizeCleanup,
     applyAllCombatDamage,
+    emitAttackersDeclaredEvents,
 } from "../../phases";
 import {
     checkConditionalControlChanges,
@@ -1960,6 +1961,113 @@ describe("Effect Script value: scaled (multiplication, issue #2366)", () => {
     // Suspicions), that consumer earns the same wire test `difference` has.
 });
 
+// `{ divide: { value, by, rounding } }` (issue #2385) — a FIFTEENTH
+// EffectValue grammar member, the value grammar's division counterpart to
+// `scaled`'s multiplication. Its own permanent test (new-grammar-member
+// regime): unblocks Tamiyo, Seasoned Scholar's "draw cards equal to half
+// the number of cards in your library, rounded up".
+describe("Effect Script value: divide (division, issue #2385)", () => {
+    it("divides a literal operand, rounding up", () => {
+        const id = registerScript("test-divide-literal-up", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { divide: { value: 7, by: 2, rounding: "up" } },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(24); // 20 + ceil(7/2) = 20 + 4
+    });
+
+    it("divides a literal operand, rounding down", () => {
+        const id = registerScript("test-divide-literal-down", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { divide: { value: 7, by: 2, rounding: "down" } },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(23); // 20 + floor(7/2) = 20 + 3
+    });
+
+    it("divides a `count` operand — Tamiyo, Seasoned Scholar's exact shape (half the library, rounded up)", () => {
+        const id = registerScript("test-divide-count", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    divide: {
+                        value: {
+                            count: {
+                                zone: "library",
+                                controller: "controller",
+                            },
+                        },
+                        by: 2,
+                        rounding: "up",
+                    },
+                },
+            },
+        ]);
+        const library = Array.from({ length: 5 }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `divide-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [], library }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // ceil(5/2) = 3 cards drawn.
+        expect(state.players[0].hand).toHaveLength(3);
+        expect(state.players[0].library).toHaveLength(2);
+    });
+
+    it("an even count rounds to the same value either direction", () => {
+        const up = registerScript("test-divide-even-up", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { divide: { value: 6, by: 2, rounding: "up" } },
+            },
+        ]);
+        const down = registerScript("test-divide-even-down", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { divide: { value: 6, by: 2, rounding: "down" } },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, up, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(23); // 20 + 6/2 = 23 either way
+        const state2 = makeState();
+        pushSpell(state2, down, "p1");
+        resolveTopOfStack(state2);
+        expect(state2.players[0].life).toBe(23);
+    });
+
+    // No wire-format test here — same reasoning as the `scaled` block above:
+    // `EffectValue` is static `CardDefinition` script data, never a
+    // `GameState`/`CardInstanceState` field. Tamiyo, Seasoned Scholar's own
+    // card test (`sets/mh3/__tests__/blue.test.ts`) carries the mandatory
+    // wire-format assertion for the VISIBLE consumer (drawn cards changing
+    // hand size), per the GRE testing convention for activated abilities.
+});
+
 describe("Effect Script Op: gainLife (CR 119.3)", () => {
     it("the selected player gains life", () => {
         const id = registerScript("test-op-gain", [
@@ -2606,6 +2714,284 @@ describe("Effect Script Op: setProtectionFromEverything (CR 702.16b/e/i, issue #
         // The window spans the opponent's whole turn, so it MUST survive the
         // DB writes in between (PERSISTED_OPTIONAL_KEYS, serialize.ts).
         expect(restored.playerProtectionFromEverything).toEqual(["p2"]);
+    });
+});
+
+// New DelayedTriggerTiming member (issue #2385, review round 2 on PR #2487)
+// → full per-Op regime: `delayedTrigger` itself already has permanent
+// coverage above (Battle Cry's "this-turn-creature-blocks"), so what earns
+// its OWN test here is the NEW timing's engine mechanism — the "until your
+// next turn" (not "this turn") repeating bound, and the multi-attacker
+// synthetic-event fan-out `gre/triggers.ts` builds for it (`ATTACKERS_
+// DECLARED` carries the WHOLE batch as one event, unlike `BLOCKERS_
+// CONFIRMED`'s one-per-pair shape).
+describe("delayedTrigger timing: until-next-turn-creature-attacks-you (CR 606 / 603.7a / 506.2, issue #2385)", () => {
+    const TIMING = "until-next-turn-creature-attacks-you" as const;
+
+    /** Opens the window for `controllerId` via the real `delayedTrigger` Op
+     *  (Tamiyo, Seasoned Scholar's +2 shape) — never hand-built. */
+    function openWindow(state: GameState, controllerId: string): void {
+        const id = registerScript(`test-op-attack-window-${controllerId}`, [
+            {
+                op: "delayedTrigger",
+                timing: TIMING,
+                oracleText:
+                    "Whenever a creature attacks you or a planeswalker you control, it gets -1/-0 until end of turn.",
+                effects: [
+                    {
+                        op: "pump",
+                        target: { ref: "$event.soleAttacker" },
+                        power: -1,
+                        toughness: 0,
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ]);
+        pushSpell(state, id, controllerId);
+        resolveTopOfStack(state);
+    }
+
+    /** Declares attackers through the real production entry point (CR
+     *  508.1), mirroring `mh3/blue.test.ts`'s own convention — a hand-built
+     *  stack item would never exercise the delayed-trigger fire path. This
+     *  is a REAL CR 603.7a triggered ability (review round 2): firing only
+     *  QUEUES the stack item, exactly like Battle Cry's own
+     *  "this-turn-creature-blocks" test convention (`ice/__tests__/
+     *  white.test.ts`) — draining the stack is what actually resolves the
+     *  `pump`. */
+    function declareAttackers(
+        state: GameState,
+        activePlayerId: string,
+        attackerIds: string[]
+    ): void {
+        state.activePlayerId = activePlayerId;
+        state.phase = "DECLARE_ATTACKERS";
+        state.combat = {
+            attackerIds,
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        emitAttackersDeclaredEvents(state);
+        while (state.stack.some((s) => s.delayedTriggerId !== undefined)) {
+            resolveTopOfStack(state);
+        }
+    }
+
+    it("schedules a delayed trigger for the resolving controller", () => {
+        const state = makeState();
+        openWindow(state, "p1");
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers?.[0]).toMatchObject({
+            timing: TIMING,
+            controller: "p1",
+        });
+    });
+
+    it("pumps EACH attacker -1/-0 when the OTHER player declares attackers (multi-attacker fan-out)", () => {
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "attacker-1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(bear.id, {
+                            id: "attacker-2",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        declareAttackers(state, "p2", ["attacker-1", "attacker-2"]);
+        for (const id of ["attacker-1", "attacker-2"]) {
+            const attacker = state.players[1].battlefield.find(
+                (c) => c.id === id
+            )!;
+            // 2/2 Grizzly Bears -1/-0 reads as 1/2 (layer 7c).
+            expect(getEffectivePower(state, attacker)).toBe(1);
+            expect(getEffectiveToughness(state, attacker)).toBe(2);
+        }
+    });
+
+    it("does NOT pump when the WINDOW'S OWN controller declares attackers (CR 506.2 — only the defending player, not the attacking player themselves, may be attacked)", () => {
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "own-attacker",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        openWindow(state, "p1");
+        declareAttackers(state, "p1", ["own-attacker"]);
+        const attacker = state.players[0].battlefield.find(
+            (c) => c.id === "own-attacker"
+        )!;
+        expect(getEffectivePower(state, attacker)).toBe(2);
+    });
+
+    it("is REPEATING — fires again on a LATER declare-attackers step, not consumed by the first firing", () => {
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "first-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(bear.id, {
+                            id: "second-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        declareAttackers(state, "p2", ["first-attacker"]);
+        expect(state.delayedTriggers).toHaveLength(1); // still queued
+        declareAttackers(state, "p2", ["second-attacker"]);
+        const second = state.players[1].battlefield.find(
+            (c) => c.id === "second-attacker"
+        )!;
+        expect(getEffectivePower(state, second)).toBe(1);
+    });
+
+    it("the pump survives projection (wire format)", () => {
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "wire-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        declareAttackers(state, "p2", ["wire-attacker"]);
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "wire-attacker"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
+    });
+
+    it("round-trips through compactState/expandState (persisted, not transient)", () => {
+        const state = makeState();
+        openWindow(state, "p1");
+        const restored = expandState(compactState(state));
+        // The window spans the opponent's whole turn, so it MUST survive the
+        // DB writes in between (PERSISTED_OPTIONAL_KEYS, serialize.ts —
+        // covered generically by `delayedTriggers`, checked again here as
+        // this timing's own regression pin).
+        expect(restored.delayedTriggers).toEqual(state.delayedTriggers);
+    });
+
+    it("TWO scheduled windows stack to -2/-0, not deduped to -1/-0 (review round 2, #2487)", () => {
+        // Guards the review-round-2 fix: the old `grantAttackerDebuffWindow`
+        // SpellContext primitive deduped concurrent windows onto one flag,
+        // capping the total at -1/-0 regardless of how many times +2 was
+        // activated. As independent `delayedTrigger` instances, two windows
+        // must schedule two separate triggers that BOTH fire and BOTH
+        // resolve on the same attacker.
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "double-pumped-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        openWindow(state, "p1");
+        expect(state.delayedTriggers).toHaveLength(2);
+        declareAttackers(state, "p2", ["double-pumped-attacker"]);
+        const attacker = state.players[1].battlefield.find(
+            (c) => c.id === "double-pumped-attacker"
+        )!;
+        // 2/2 Grizzly Bears, TWO -1/-0 pumps applied: power 0, toughness 2.
+        expect(getEffectivePower(state, attacker)).toBe(0);
+        expect(getEffectiveToughness(state, attacker)).toBe(2);
+    });
+
+    it("is genuinely stack-mediated — the pump lands only on drain, not at declare-attackers time (CR 603.7a)", () => {
+        // Guards the review-round-2 fix: as a real triggered ability, firing
+        // must only QUEUE the stack item. Reading the attacker's power
+        // immediately after `emitAttackersDeclaredEvents` (before draining)
+        // must show the pump has NOT yet applied — proving the -1/-0 is
+        // delivered by the stack resolving, not applied eagerly as a side
+        // effect of declaring attackers.
+        const bear = getCardByName("Grizzly Bears");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bear.id, {
+                            id: "stack-mediated-attacker",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        openWindow(state, "p1");
+        state.activePlayerId = "p2";
+        state.phase = "DECLARE_ATTACKERS";
+        state.combat = {
+            attackerIds: ["stack-mediated-attacker"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        emitAttackersDeclaredEvents(state);
+        const attacker = state.players[1].battlefield.find(
+            (c) => c.id === "stack-mediated-attacker"
+        )!;
+        // Stack holds the queued delayed-trigger item(s); pump not yet applied.
+        expect(state.stack.some((s) => s.delayedTriggerId !== undefined)).toBe(
+            true
+        );
+        expect(getEffectivePower(state, attacker)).toBe(2);
+        // Draining the stack is what actually resolves the `pump`.
+        while (state.stack.some((s) => s.delayedTriggerId !== undefined)) {
+            resolveTopOfStack(state);
+        }
+        expect(getEffectivePower(state, attacker)).toBe(1);
     });
 });
 
@@ -14343,6 +14729,148 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
             expect(slim.staticAbilities).toContain("trample");
             expect(slim.counters?.["+1/+1"]).toBe(1);
         });
+    });
+});
+
+// targetMatchesGraveyardFilter (issue #2385) — `picksMatchFilter`'s
+// ANNOUNCED-TARGET sibling: true iff the resolved object selector names a
+// card currently in `player`'s graveyard AND that card matches `filter`.
+// Reuses `picksMatchFilter`'s own `getGraveyardCards` + `matchesCardFilter`
+// reader, keyed by a target/object selector instead of a picks binding —
+// this is the predicate's own permanent test (any later card reusing it
+// inherits this coverage free). Tamiyo, Seasoned Scholar's -3 exact shape:
+// "Return target instant or sorcery card from your graveyard to your hand.
+// If it's a green card, add one mana of any color" — the colour gate
+// checked BEFORE the `moveZone` (a card's colour doesn't change with zone).
+const GREEN_CARD_ID = "test-target-gy-filter-green-card";
+registerTokenDefinition({
+    id: GREEN_CARD_ID,
+    name: GREEN_CARD_ID,
+    rarity: "common",
+    manaCost: { G: 1 },
+    types: ["Instant"],
+});
+
+const COLORLESS_ARTIFACT_ID = "test-target-gy-filter-colorless-card";
+registerTokenDefinition({
+    id: COLORLESS_ARTIFACT_ID,
+    name: COLORLESS_ARTIFACT_ID,
+    rarity: "common",
+    manaCost: { X: 2 },
+    types: ["Instant"],
+});
+
+describe("targetMatchesGraveyardFilter predicate (issue #2385)", () => {
+    function graveyardTargetScript(id: string): string {
+        return registerScript(
+            id,
+            [
+                {
+                    op: "if",
+                    predicate: {
+                        targetMatchesGraveyardFilter: { target: 0 },
+                        player: "controller",
+                        filter: { color: "G" },
+                    },
+                    then: [
+                        { op: "addMana", mana: { G: 1 }, player: "controller" },
+                    ],
+                },
+                { op: "moveZone", target: { target: 0 }, to: "hand" },
+            ],
+            {
+                types: ["Sorcery"],
+                targetRequirement: {
+                    type: "card",
+                    count: 1,
+                    zone: "graveyard",
+                    controller: "you",
+                },
+            }
+        );
+    }
+
+    it("a GREEN graveyard card matches — mana added, then returned to hand", () => {
+        const id = graveyardTargetScript("test-target-gy-filter-green");
+        const gy = makeInstance(GREEN_CARD_ID, {
+            id: "gy-green",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [gy] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-green", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.G).toBe(1);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("gy-green");
+        // The resolving SORCERY itself lands in the graveyard too (CR
+        // 608.2m) — assert the TARGETED card specifically left, not that
+        // the graveyard is empty.
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "gy-green"
+        );
+    });
+
+    it("a NON-green graveyard card (colourless) does not match — no mana added", () => {
+        const id = graveyardTargetScript("test-target-gy-filter-colorless");
+        const gy = makeInstance(COLORLESS_ARTIFACT_ID, {
+            id: "gy-colorless",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [gy] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-colorless", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.G ?? 0).toBe(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "gy-colorless"
+        );
+    });
+
+    it("reads FALSE for a card no longer in that graveyard (CR 608.2b) — no mana added", () => {
+        const id = graveyardTargetScript("test-target-gy-filter-gone");
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [] }), makePlayer("p2")],
+        });
+        // Target announced but the graveyard is empty by resolution — the
+        // Op itself no-ops (moveZone finds nothing), and the predicate must
+        // not throw or fail open.
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "already-gone", playerId: "p1" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].manaPool.G ?? 0).toBe(0);
+    });
+
+    it("survives projection (wire format) — the added mana is board-visible", () => {
+        const id = graveyardTargetScript("test-target-gy-filter-wire");
+        const gy = makeInstance(GREEN_CARD_ID, {
+            id: "gy-green-wire",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: [gy] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "gy-green-wire", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].manaPool.G).toBe(1);
+        expect(
+            projected.players[0].hand.some((c) => c?.id === "gy-green-wire")
+        ).toBe(true);
     });
 });
 
