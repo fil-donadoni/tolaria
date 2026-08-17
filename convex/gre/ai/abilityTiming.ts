@@ -40,7 +40,10 @@
 
 import type { ActivatedAbility, EffectOp } from "../../cards/types";
 import type { CardInstanceState } from "../state";
-import { getEffectiveActivatedAbilities } from "../activatedAbilities";
+import {
+    getEffectiveActivatedAbilities,
+    type EffectiveActivatedAbility,
+} from "../activatedAbilities";
 
 /** Whether `ability` may be activated at INSTANT SPEED, and therefore in some
  *  window LATER than the mover's own main phase (CR 117.1b — a player may
@@ -139,13 +142,36 @@ export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
     return ability.effects !== undefined && opsAllTransient(ability.effects);
 }
 
+/** One ENTRY of a permanent's POST-LAYER activated-ability set (CR 611.2a /
+ *  613.1f, layer 6), by id — the ability template plus, when it reached the
+ *  permanent through a grant (CR 113.1), the granting card's definition id.
+ *
+ *  This is the wrapper `effectiveAbilityOf` below discards. A caller that only
+ *  needs the ability's TEMPLATE (a timing/shape predicate: is it deferrable,
+ *  does it animate its own source) has no use for the provenance and should
+ *  keep using `effectiveAbilityOf`. A caller that PUSHES a stack item for the
+ *  ability — issue #2468, the search's own `activate-ability` push — needs the
+ *  provenance too: `resolveTopOfStack` resolves a GRANTED ability off the
+ *  granting card's `grantTemplates`, keyed by `grantedSourceCardId`
+ *  (`gre/state.ts`), and an item built without it falls through to a lookup on
+ *  the SOURCE's own `activatedAbilities`, finds nothing, and pops as a silent
+ *  no-op. */
+export function effectiveActivatedAbilityEntryOf(
+    card: CardInstanceState,
+    abilityId: string
+): EffectiveActivatedAbility | undefined {
+    return getEffectiveActivatedAbilities(card).find(
+        ({ ability }) => ability.id === abilityId
+    );
+}
+
 /** One ability of a permanent's POST-LAYER activated-ability set (CR 611.2a),
- *  by id — so a GRANTED ability is found exactly like a printed one. */
+ *  by id — so a GRANTED ability is found exactly like a printed one. Discards
+ *  the grant provenance; see `effectiveActivatedAbilityEntryOf` for callers
+ *  that need it (e.g. a stack-item push). */
 export function effectiveAbilityOf(
     card: CardInstanceState,
     abilityId: string
 ): ActivatedAbility | undefined {
-    return getEffectiveActivatedAbilities(card).find(
-        ({ ability }) => ability.id === abilityId
-    )?.ability;
+    return effectiveActivatedAbilityEntryOf(card, abilityId)?.ability;
 }
