@@ -359,9 +359,13 @@ describe("land.ts — nested heavy gate inside the locked command", () => {
         // BLOCKS THE WORKER SYNCHRONOUSLY, so vitest's own test timeout
         // cannot preempt a hang — without a `timeout` a regression here
         // hangs `bun run test` instead of reddening it, which on a repo
-        // whose green-main invariant is absolute is worse than a red. `r.signal`
-        // is the tell: a real passthrough finishes in well under 100ms and
-        // never sets it; a hang gets SIGTERMed by `timeout` and DOES.
+        // whose green-main invariant is absolute is worse than a red.
+        // `r.status` is the tell: a real passthrough finishes in well under
+        // 100ms with status 0, while a blocked one is SIGTERMed by `timeout`
+        // and gate.ts's own signal handler turns that into exit 130 — so
+        // `r.signal` stays null and line 371 is the assertion that fires.
+        // `expect(r.signal).toBeNull()` is kept as belt-and-braces for a
+        // child that dies BEFORE installing that handler.
         const r = spawnSync(
             "bun",
             [GATE, "heavy", `bun ${GATE} heavy "echo NESTED-OK"`],
@@ -416,15 +420,23 @@ describe("land.ts — nested heavy gate inside the locked command", () => {
 
     // Proof-of-failure: temporarily deleted the `TOLARIA_GATE_HELD:
     // tier === "heavy" ? "1" : …` line in gate.ts's `env` object (main()),
-    // so a nested heavy call would never see the flag its own parent had —
-    // the FIRST test above ("passes straight through") did NOT go red: it
-    // HUNG. spawnSync's own `timeout: 15_000` fired, SIGTERMing the child at
-    // 6013ms (`r.signal` = "SIGTERM", not null), and the outer `bun run test`
-    // process itself had to be force-stopped rather than completing with a
-    // failing assertion — this is exactly the failure mode `timeout` +
-    // `expect(r.signal).toBeNull()` were added to catch (review round 3,
-    // medium: without them this same mutation would have hung the suite
-    // instead of reddening it). Reverted.
+    // so a nested heavy call would never see the flag its own parent had.
+    // The FIRST test above ("passes straight through") then goes RED at
+    // ~15s: the inner call blocks in acquire()'s poll loop, spawnSync's
+    // `timeout: 15_000` SIGTERMs it, gate.ts's signal handler exits 130,
+    // and line 371 fails on `r.status`. vitest completes normally
+    // (1 failed, exit 1). Reverted.
+    //
+    // Why the bound is load-proof: the happy path returns in <100ms, three
+    // orders of magnitude inside 15s, and the bound sits under the test's
+    // own 20s vitest timeout so spawnSync always fires first and leaves
+    // room to report.
+    //
+    // Run WITHOUT that `timeout` (the round-2 shape), the same mutation did
+    // not redden at all — it hung: spawnSync blocks the worker
+    // synchronously, so vitest's timeout could not preempt it and
+    // `bun run test` had to be force-stopped. That is the regression the
+    // bound exists to convert into a failing assertion.
 });
 
 describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {
