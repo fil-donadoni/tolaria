@@ -60,6 +60,7 @@ import {
     buildAutoDamageAssignments,
     finalizeDrawReplacementPay,
     isSorceryTimingFor,
+    wasCastOffSorceryTiming,
 } from "./phases";
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
@@ -717,6 +718,22 @@ export function applyMoveInSearch(
                     : {}),
                 ...(move.chosenModeId
                     ? { chosenModeId: move.chosenModeId }
+                    : {}),
+                // CR 307.1 / 117.1a / 601.3a (issue #2473) — the ISMCTS
+                // in-tree `cast-spell` executor is the SECOND wholesale
+                // reimplementation of "build a StackItem from a cast" (the
+                // greedy 1-ply sandbox `applyMoveForSearch` in
+                // `applyMove.ts` is the first) and, unlike it, is the
+                // chokepoint every rollout, every blade scenario and all
+                // self-play route through. It never calls into `game.ts`, so
+                // it needs its own stamp or the bot simulates a game in which
+                // the flag is universally absent. Evaluated on `state`
+                // immediately PRE-push (the cost payment above has already
+                // been applied, exactly as the real commit paths do), so it
+                // reads the same pre-cast board the mutation path reads at
+                // announcement.
+                ...(wasCastOffSorceryTiming(state, playerId)
+                    ? { castOffSorceryTiming: true }
                     : {}),
             };
             state.stack.push(stackItem);

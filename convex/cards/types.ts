@@ -5521,7 +5521,18 @@ export interface PermanentView {
      *  Necromancy's "the controller of the permanent it becomes sacrifices
      *  it at the beginning of the next cleanup step" — issue #2392) and the
      *  field cannot change after ETB, so no resolve-time re-check plumbing
-     *  will be needed there either. */
+     *  will be needed there either.
+     *
+     *  FRONTEND WIRING — populated only on the ENGINE path, where a trigger
+     *  receives the raw `CardInstanceState`. The CLIENT's view reducer
+     *  `buildTriggerStateView` (`src/lib/card-utils.ts`) enumerates its
+     *  battlefield fields explicitly and carries neither `evoked`/`dashed`
+     *  nor this one, so a condition reading `self.castOffSorceryTiming`
+     *  client-side reads `undefined` today. No shipped card is affected (no
+     *  consumer exists yet), but #2392 MUST extend that reducer as part of
+     *  its own change — it is exactly the drop class
+     *  `.claude/rules/gre-development.md` § Frontend wiring analysis
+     *  describes. */
     castOffSorceryTiming?: boolean;
     /** CR 106.4 / 202.3 — per-colour mana spent to CAST this permanent,
      *  snapshotted from the originating stack item's `notedManaSpent`

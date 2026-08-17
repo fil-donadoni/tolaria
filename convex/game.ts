@@ -3499,16 +3499,18 @@ export function tryAutoCommitPendingCast(
         // through `PendingCast.dashed` (set at announcement) so it still
         // lands on the stack item once mana is covered / the picker completes.
         ...(state.pendingCast.dashed ? { dashed: true } : {}),
-        // CR 307.1 / 117.1a / 601.3a (issue #2473) — snapshot the timing
-        // memory Necromancy-shaped clauses key on, evaluated on THIS state
-        // (the item has not been pushed yet, so `state.stack.length` still
-        // reflects the pre-cast stack). Safe to evaluate here rather than at
-        // `announceCast` time: the guard above (`state.priorityPlayerId !==
-        // playerId → return null`, line ~3215) already forces phase/stack/
-        // priority to be unchanged from announcement for every legal
-        // deferred-commit flow — nothing else can have touched the stack
-        // while this caster still holds priority.
-        ...(wasCastOffSorceryTiming(state, playerId)
+        // CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the timing
+        // memory Necromancy-shaped clauses key on, read back off the
+        // ANNOUNCEMENT-time snapshot (`announceCast`) rather than re-derived
+        // here, exactly like `evoked`/`dashed` immediately above. Re-deriving
+        // at commit is NOT equivalent: activating mana abilities is part of
+        // casting (CR 601.2g), and `tapForPayment` →
+        // `resolveManaAbilityTriggerImmediately` can leave a SUSPENDED
+        // triggered mana ability (CR 605.4a — Fertile Ground parks on its
+        // colour pick) on the stack while this function runs in that very
+        // same mutation, which made a textbook sorcery-speed main-phase cast
+        // read as cast off sorcery timing.
+        ...(state.pendingCast.castOffSorceryTiming
             ? { castOffSorceryTiming: true }
             : {}),
         ...graveyardCastStackFlags(state, spellCard, castFromZone),
@@ -6198,6 +6200,12 @@ export function finalizeTargetSelection(
     // fires.
     const isDashCost =
         chosenAltCost !== undefined && chosenAltCost === cardDef.dash;
+    // CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the ANNOUNCEMENT-time
+    // timing snapshot, taken in `announceCast` and ridden here on
+    // `pendingTarget` (target selection is a separate mutation, so the board
+    // this commit runs on is not the board the cast was announced on). Never
+    // re-derived from `state`: see `PendingCast.castOffSorceryTiming`.
+    const castOffSorceryTiming = pt.castOffSorceryTiming === true;
 
     // CR 702.34a — a Flashback cast pays the flashback cost from the graveyard
     // instead of the printed mana cost.
@@ -6481,6 +6489,9 @@ export function finalizeTargetSelection(
                 : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
+            // CR 601.2 (issue #2473) — carry the announcement-time timing
+            // snapshot one more hop, to the deferred commit.
+            ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
         };
         (state.pendingCast as Record<string, unknown>).targets = targets;
         // CR 601.2g (issue #1660) — `castExileChoice` can come back from the
@@ -6596,12 +6607,10 @@ export function finalizeTargetSelection(
             ...(immediateUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
-            // CR 307.1 / 117.1a / 601.3a (issue #2473) — targeted-spell
-            // immediate-commit branch (mana already covered, no park). See
-            // the matching comment in `tryAutoCommitPendingCast`.
-            ...(wasCastOffSorceryTiming(state, playerId)
-                ? { castOffSorceryTiming: true }
-                : {}),
+            // CR 601.2 (issue #2473) — targeted-spell immediate-commit branch
+            // (mana already covered, no park). The announcement-time snapshot,
+            // not a re-derivation; see `PendingCast.castOffSorceryTiming`.
+            ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
             ...graveyardCastStackFlags(state, card, castZone),
             ...reboundCastStackFlags(card, castZone),
         };
@@ -6635,6 +6644,10 @@ export function finalizeTargetSelection(
             // like any ordinary cast; `tryAutoCommitPendingCast` reads this back
             // off `pendingCast.dashed` once `tapForPayment` covers it.
             ...(isDashCost ? { dashed: true } : {}),
+            // CR 601.2 (issue #2473) — the announcement-time timing snapshot
+            // rides through the payment park exactly like `dashed` above; it
+            // must NOT be re-derived once `tapForPayment` has run (CR 605.4a).
+            ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
         };
         // Targets ride along on pendingCast until payment completes.
         (state.pendingCast as Record<string, unknown>).targets = targets;
@@ -6971,6 +6984,26 @@ export const announceCast = mutation({
             throw new Error("Target selection is in progress");
         }
 
+        // CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — ANNOUNCEMENT is
+        // the moment this snapshot is taken: "to cast a spell is to take it
+        // from where it is, put it on the stack, and pay its costs", so the
+        // board that decides whether "a sorcery could have been cast" is the
+        // board as the proposal begins (CR 601.2a), before any target is
+        // chosen, any mana ability is activated (CR 601.2g) or any cost is
+        // paid (CR 601.2h). Everything below is downstream of that instant,
+        // and a cast can span several mutations (target selection, mana
+        // payment), so the value is computed ONCE here and threaded on
+        // `pendingTarget` / `pendingCast` — the same shape `evoked`/`dashed`
+        // use for the same deferred-commit boundary. Re-deriving it at commit
+        // is provably wrong: `tapForPayment` →
+        // `resolveManaAbilityTriggerImmediately` (CR 605.4a) can leave a
+        // SUSPENDED triggered mana ability (Fertile Ground's colour pick) on
+        // the stack when `tryAutoCommitPendingCast` runs in the same mutation.
+        const castOffSorceryTiming = wasCastOffSorceryTiming(
+            state,
+            args.playerId
+        );
+
         // CR 601.3e / 702.34 — a spell is normally cast from the hand, but Ice
         // Cauldron lets the noted card be cast from exile ("You may cast that
         // card for as long as it remains exiled"), and a Flashback card is cast
@@ -7306,6 +7339,11 @@ export const announceCast = mutation({
                 ...(args.alternativeCostId
                     ? { alternativeCostId: args.alternativeCostId }
                     : {}),
+                // CR 601.2 (issue #2473) — carry the ANNOUNCEMENT-time timing
+                // snapshot through target selection so the commit downstream
+                // stamps the board this cast was proposed on, not the board it
+                // finished paying on.
+                ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
                 ...pendingTargetFiltersFromRequirement(
                     activeTargetRequirement,
                     chosenX
@@ -7411,6 +7449,11 @@ export const announceCast = mutation({
                         : {}),
                     ...(isEvokeCost ? { evoked: true } : {}),
                     ...(isDashCost ? { dashed: true } : {}),
+                    // CR 601.2 (issue #2473) — the announcement-time timing
+                    // snapshot rides to the deferred commit.
+                    ...(castOffSorceryTiming
+                        ? { castOffSorceryTiming: true }
+                        : {}),
                 };
                 await saveGameState(
                     ctx,
@@ -7466,12 +7509,11 @@ export const announceCast = mutation({
                 ...(altUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
                 ...(isEvokeCost ? { evoked: true } : {}),
                 ...(isDashCost ? { dashed: true } : {}),
-                // CR 307.1 / 117.1a / 601.3a (issue #2473) — `announceCast`
-                // no-target + alternative-cost immediate-commit branch. See
-                // the matching comment in `tryAutoCommitPendingCast`.
-                ...(wasCastOffSorceryTiming(state, args.playerId)
-                    ? { castOffSorceryTiming: true }
-                    : {}),
+                // CR 601.2 (issue #2473) — `announceCast` no-target +
+                // alternative-cost immediate-commit branch. Uses the same
+                // announcement-time constant as every deferred path, so the
+                // one-mutation and the many-mutation flows can never disagree.
+                ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
             };
             state.stack.push(stackItem);
             state.passCount = 0;
@@ -7768,6 +7810,9 @@ export const announceCast = mutation({
                 ...(kickerHandChoice
                     ? { alternativeCostHandChoice: kickerHandChoice }
                     : {}),
+                // CR 601.2 (issue #2473) — the announcement-time timing
+                // snapshot rides to the deferred commit.
+                ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
             };
 
             // CR 601.2g (issue #1660) — `castExileChoice` can come back from
@@ -7864,12 +7909,10 @@ export const announceCast = mutation({
                 ...(normalUsedRiderMana
                     ? { dynamicCantBeCountered: true }
                     : {}),
-                // CR 307.1 / 117.1a / 601.3a (issue #2473) — `announceCast`
-                // no-target + normal-cost immediate-commit branch. See the
-                // matching comment in `tryAutoCommitPendingCast`.
-                ...(wasCastOffSorceryTiming(state, args.playerId)
-                    ? { castOffSorceryTiming: true }
-                    : {}),
+                // CR 601.2 (issue #2473) — `announceCast` no-target +
+                // normal-cost immediate-commit branch. Same announcement-time
+                // constant as every deferred path.
+                ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
                 ...graveyardCastStackFlags(state, card, castFromZone),
                 ...reboundCastStackFlags(card, castFromZone),
             };
@@ -7904,6 +7947,12 @@ export const announceCast = mutation({
                 // Auto-resolved sacrifice (complete) rides along so the
                 // deferred commit applies the chosen ids (CR 701.21a).
                 ...(castSac ? { sacrificeSelection: castSac } : {}),
+                // CR 601.2 (issue #2473) — the announcement-time timing
+                // snapshot rides to the deferred commit. THIS is the park the
+                // Fertile Ground counterexample goes through: `tapForPayment`
+                // resumes it in a mutation whose stack may hold a suspended
+                // triggered mana ability (CR 605.4a).
+                ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
             };
         }
 
