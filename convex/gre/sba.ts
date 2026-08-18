@@ -772,7 +772,19 @@ export function checkWorldRuleSBA(state: GameState): boolean {
  *  built by `gre/scenarioBuilder.ts`, `stageReanimatedOnBattlefield`'s direct
  *  `zone` writes) are covered without each of them having to know, and a zone
  *  path added later cannot silently fail open. Idempotent, so it does not gate
- *  the CR 704.4 fixpoint. */
+ *  the CR 704.4 fixpoint.
+ *
+ *  TOTALITY IS NOT FREE, so the per-card cost is kept at a `Set.has` on the
+ *  card id: `applyZoneCharacteristics` prechecks
+ *  `declaresOffBattlefieldCharacteristics` (`cards/registry.ts`) before any
+ *  definition lookup. This loop runs over both players' hand + library +
+ *  graveyard + exile on EVERY `checkStateBasedActions` entry, and one
+ *  400-iteration `search()` makes ~13k of those per bot decision against a
+ *  ~1.5s budget. Measured at 140 distinct hidden-zone cards over 20k calls
+ *  (median of 3): 1.74µs/call with no sweep at all, 4.39µs/call resolving a
+ *  definition per card, 2.47µs/call with the precheck — ~72% of the added
+ *  cost removed, ~35ms → ~10ms per search. Do NOT reintroduce a per-card
+ *  `getDefinition` here. */
 function refreshOffBattlefieldCharacteristics(state: GameState): void {
     for (const player of state.players) {
         for (const card of player.hand) applyZoneCharacteristics(card);

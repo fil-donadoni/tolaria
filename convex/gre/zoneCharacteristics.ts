@@ -57,7 +57,10 @@
 // difference is behavioural: a CDA would apply on the battlefield too.
 
 import type { CardDefinition, CardType } from "../cards/types";
-import { tryGetDefinition } from "../cards/registry";
+import {
+    declaresOffBattlefieldCharacteristics,
+    tryGetDefinition,
+} from "../cards/registry";
 import type { CardInstanceState } from "./state";
 import type { Zone } from "./types";
 
@@ -110,11 +113,21 @@ export function resolveZoneCharacteristics(
  *  factories (`gre/setup.ts`, `game.ts`, `gre/scenarioBuilder.ts`,
  *  `cards/__tests__/setup.ts`) alias `types` straight to the shared
  *  `CardDefinition.types` array, so an in-place edit would corrupt the
- *  registry catalogue-wide. */
+ *  registry catalogue-wide.
+ *
+ *  HOT: the SBA sweep (`gre/sba.ts` `refreshOffBattlefieldCharacteristics`)
+ *  calls this for every card in every hidden zone of both players on every
+ *  `checkStateBasedActions` entry, and the bot's search makes ~13k of those
+ *  per decision. The `declaresOffBattlefieldCharacteristics` precheck answers
+ *  the ~100% "no" case from a string `Set`, before the definition lookup and
+ *  its `expandDefinition` memo. It is a pure fast path: the id it reads is the
+ *  same one `tryGetDefinition` would take, and the index is written by the
+ *  registry's own write funnel, so it can only be stale in the fail-slow
+ *  direction (see `cards/registry.ts`). */
 export function applyZoneCharacteristics(card: CardInstanceState): void {
     if (card.zone === "battlefield") return;
     const cardId = (card.card as { id?: string }).id;
-    if (!cardId) return;
+    if (!cardId || !declaresOffBattlefieldCharacteristics(cardId)) return;
     const resolved = resolveZoneCharacteristics(
         tryGetDefinition(cardId),
         card.zone
@@ -132,18 +145,35 @@ export function applyZoneCharacteristics(card: CardInstanceState): void {
  *  planeswalker and stops being a 1/1 Insect creature the instant it arrives).
  *
  *  Kept SEPARATE from `applyZoneCharacteristics` rather than folded in as a
- *  battlefield branch: it must run BEFORE the layer-4 `type-add` grants of the
- *  entry path (`applyExistingGrantsTo` / `applySourceStaticEffects`), and an
- *  automatic battlefield branch on the general applier could be reached AFTER
- *  those grants by some other path and silently erase them. Only the two
- *  battlefield-entry sites in `state.ts` call this, both immediately after
- *  setting `zone = "battlefield"`.
+ *  battlefield branch of it: it must run BEFORE the layer-4 `type-add` grants
+ *  of the entry path (`applyExistingGrantsTo` / `applySourceStaticEffects`),
+ *  and an automatic battlefield branch on the general applier could be reached
+ *  AFTER those grants by some other path and silently erase them. The two are
+ *  paired EXPLICITLY at each call site instead, which is what lets every
+ *  battlefield-entry path be covered without the ordering hazard.
+ *
+ *  Called from every path that puts an existing card instance onto the
+ *  battlefield, each immediately after the `zone = "battlefield"` write and
+ *  before that path's grants:
+ *    • `state.ts` `finalizeSpellResolution` — a permanent spell resolving.
+ *    • `state.ts` `stageReanimatedOnBattlefield` — every put-onto-battlefield
+ *      effect (reanimation, tutor-to-play, blink return).
+ *    • `state.ts` `moveCard`'s `to === "battlefield"` branch — the general
+ *      zone-mover, which is how the four land-play paths in `playLand.ts`
+ *      enter (`applyPlayLand`, `applyPlayLandFromExile`,
+ *      `playLandFromGraveyard`, `playLandFromLibrary`).
+ *    • `playLand.ts` `moveCardAcrossPlayers` — the one cross-player
+ *      exile → battlefield play (issue #1156), which cannot use `moveCard`
+ *      because that primitive stays within one player's own zones.
+ *  A token created directly on the battlefield never needs it: its instance is
+ *  built from the printed definition, with no off-battlefield state to strip.
  *
  *  A no-op for every card declaring no such ability, so it cannot disturb the
  *  ordinary entry path. */
 export function clearZoneCharacteristics(card: CardInstanceState): void {
     const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    if (!cardId || !declaresOffBattlefieldCharacteristics(cardId)) return;
+    const def = tryGetDefinition(cardId);
     if (!def?.offBattlefieldCharacteristics) return;
     card.types = [...def.types];
     card.subtypes = [...(def.subtypes ?? [])];

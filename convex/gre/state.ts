@@ -18787,7 +18787,17 @@ export function moveCard(
     // re-derived for the zone the card just landed in (a no-op for every card
     // whose definition declares none). Total, not incremental: it recomputes
     // from the printed definition, so repeated moves can't accumulate.
-    applyZoneCharacteristics(card);
+    //
+    // BOTH directions, so this general zone-mover cannot fail open either way.
+    // `to === "battlefield"` is reachable — the four land-play paths
+    // (`applyPlayLand`, `applyPlayLandFromExile`, `playLandFromGraveyard`,
+    // `playLandFromLibrary`) put a land onto the battlefield through here —
+    // and there the ability switches OFF, so the printed characteristics have
+    // to be restored. Safe for the layer-4 ordering `clearZoneCharacteristics`
+    // warns about: the move happens before the caller's `settleEnteredLand`,
+    // hence before any entry-path `type-add` grant exists to clobber.
+    if (to === "battlefield") clearZoneCharacteristics(card);
+    else applyZoneCharacteristics(card);
 
     return card;
 }
