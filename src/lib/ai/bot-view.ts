@@ -37,7 +37,11 @@ import { manaValue, parseHybridCostKey } from "@convex/gre/constants";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import { hasControlledSinceTurnStart } from "@convex/gre/controlContinuity";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
-import { getAllCards, tryGetDefinition } from "@convex/cards";
+// `@convex/cards` is the CLIENT entry (`convex/cards/client.ts` via the Vite
+// alias): the runtime registry only, never the catalogue. Both names below are
+// registry seams — see `nameCardDefaultFor` for why the fallback enumerates the
+// registry rather than `catalogue.ts`'s `getAllCards()`.
+import { registeredDefinitions, tryGetDefinition } from "@convex/cards";
 import { isExileCostEligible } from "@convex/cards/exileCostEligibility";
 import { getEffectiveColors } from "@convex/cards/effectiveColors";
 import type { Color, PermanentView } from "@convex/cards/types";
@@ -852,9 +856,10 @@ function buildOwedChoice(
  *      digs the top into hand;
  *   2. "Plains" — the historical always-registered fallback, kept FIRST among
  *      the fallbacks so an unrestricted head keeps its exact pre-#2497 answer;
- *   3. the first registered card name that satisfies the head, in catalogue
- *      load order (deterministic). Correctness only: WHICH name is worth
- *      naming is a valuation question and belongs to #2467.
+ *   3. the first registered card name that satisfies the head, in registry
+ *      hydration (= catalogue load) order (deterministic). Correctness only:
+ *      WHICH name is worth naming is a valuation question and belongs to
+ *      #2467.
  *
  *  `undefined` means the registry holds no legal name at all — the caller
  *  surfaces that as an unanswered window rather than submitting a name the
@@ -882,9 +887,39 @@ function nameCardDefaultFor(
     return (
         legal(topName) ??
         legal("Plains") ??
-        getAllCards().find((def) => isLegalNamedCard(state, head, def.name))
-            ?.name
+        firstLegalRegisteredName(state, head)
     );
+}
+
+/** Rung 3 of `nameCardDefaultFor`: the first name in the runtime registry that
+ *  satisfies the head, in hydration (= catalogue load) order.
+ *
+ *  Enumerates the REGISTRY, not `catalogue.ts`'s `getAllCards()`, and the
+ *  distinction is a build constraint rather than a taste: `@convex/cards`
+ *  resolves to `convex/cards/client.ts` under the Vite alias, which exports the
+ *  registry and deliberately NOT the catalogue. Importing `getAllCards` here
+ *  type-checked (tsconfig maps the same specifier to the barrel) and then broke
+ *  the client bundle outright — `[MISSING_EXPORT] "getAllCards" is not exported
+ *  by "convex/cards/client.ts"`, empty `#root`, every route down (#2530).
+ *
+ *  The two sets agree where it matters. Both client and server hydrate the
+ *  registry from the same `allCards` — the isolate at module load, the browser
+ *  through `src/main.tsx`'s catalogue side-effect import — so this yields the
+ *  same names in the same order. What it yields EXTRA (the face-down sentinel,
+ *  runtime token definitions) is filtered out by `isLegalNamedCard` itself,
+ *  whose `tryGetCardByName` reads the catalogue's printed-name registry: a
+ *  synthetic definition is not a legal card name and cannot be returned here.
+ *
+ *  Lazy, so the common case stops at the first candidate instead of expanding
+ *  ~1900 definitions to read one `.name`. */
+function firstLegalRegisteredName(
+    state: PublicGameState,
+    head: PendingChoice
+): string | undefined {
+    for (const def of registeredDefinitions()) {
+        if (isLegalNamedCard(state, head, def.name)) return def.name;
+    }
+    return undefined;
 }
 
 /** Project the bot-viewpoint `PublicGameState` into the gate's decision window.
