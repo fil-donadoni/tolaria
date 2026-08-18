@@ -3835,7 +3835,17 @@ export const OP_EXECUTORS: {
     exileAndReturnTransformed(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
-        ctx.exileAndReturnTransformed(target);
+        // `controller` omitted (every caller before issue #2399) keeps the
+        // primitive's OWNER default — the ORI flip-walker wording. An
+        // unresolvable ref falls back to that same default rather than
+        // skipping the flip: the exile leg of the Oracle clause is
+        // unconditional (CR 608.2b applies to the missing TARGET, not to a
+        // missing controller).
+        const controllerId =
+            op.controller === undefined
+                ? undefined
+                : resolvePlayerRef(ctx, op.controller);
+        ctx.exileAndReturnTransformed(target, controllerId);
     },
     // CR 111 / 701.7 (issue #847) — create token permanents. A thin declarative
     // skin over the single SpellContext primitive `createToken`, ONE execution
@@ -4040,6 +4050,13 @@ export const OP_EXECUTORS: {
                           ? {
                                 additionalSubtypes: [
                                     ...except.additionalSubtypes,
+                                ],
+                            }
+                          : {}),
+                      ...(except?.additionalStaticAbilities
+                          ? {
+                                additionalStaticAbilities: [
+                                    ...except.additionalStaticAbilities,
                                 ],
                             }
                           : {}),

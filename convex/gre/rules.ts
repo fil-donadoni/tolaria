@@ -2882,6 +2882,37 @@ function triggerTargetMinMax(count: TargetRequirement["count"]): {
  *  `raiseTriggerTargetSelection` so the mode-legality question is answered by
  *  the SAME code that later announces the targets — a mode offered here must
  *  never turn out to have no legal target one step later. */
+/** Reflexive self-EXCLUDE for a requirement whose source is known by instance
+ *  id — "ANOTHER target nonlegendary creature you control" (Reflection of
+ *  Kiki-Jiki, issue #2399). Merges `sourceInstanceId` into the requirement's
+ *  `excludeInstanceIds` when `excludeSource` is set, preserving any author-time
+ *  entries; returns the requirement untouched otherwise.
+ *
+ *  `excludeInstanceIds` — not a new mechanism — is deliberate: it is the field
+ *  `getLegalTargets`, the pending-target carrier `applyOneTargetSelection`
+ *  validates against, and the client's `matchesTargetRequirement` all already
+ *  read, so ONE merge here reaches every consumer (ADR 0068 single-authority
+ *  target filtering). The alternative idiom shipped cards use for the same
+ *  clause — a dynamic `getTargetRequirement(source)` closure (Giver of Runes,
+ *  Manifold Key) — cannot serve here twice over: a back face's activated
+ *  abilities are JSON-encoded into their synthesized definition id
+ *  (`backFaceAsTokenSpec`), so a closure does not survive a client-side decode,
+ *  and `enumerateAbilityMoves` skips any ability carrying one, which would make
+ *  the ability invisible to the bot. */
+export function applySelfExclusion(
+    req: TargetRequirement,
+    sourceInstanceId: string
+): TargetRequirement {
+    if (!req.excludeSource) return req;
+    return {
+        ...req,
+        excludeInstanceIds: [
+            ...(req.excludeInstanceIds ?? []),
+            sourceInstanceId,
+        ],
+    };
+}
+
 function triggerTargetLegality(
     state: GameState,
     item: StackItem,
@@ -2907,14 +2938,8 @@ function triggerTargetLegality(
     // "exile ANOTHER target permanent" / "up to one OTHER target ~" trigger
     // cannot pick its own source permanent. Merge the source id into any
     // author-time `excludeInstanceIds` (CR 603.3d).
-    if (effectiveReq.excludeSource && item.triggerSourceId) {
-        effectiveReq = {
-            ...effectiveReq,
-            excludeInstanceIds: [
-                ...(effectiveReq.excludeInstanceIds ?? []),
-                item.triggerSourceId,
-            ],
-        };
+    if (item.triggerSourceId) {
+        effectiveReq = applySelfExclusion(effectiveReq, item.triggerSourceId);
     }
 
     // A triggered ability's source characteristics come from the on-stack

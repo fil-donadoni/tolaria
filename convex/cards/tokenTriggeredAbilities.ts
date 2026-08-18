@@ -8,7 +8,8 @@
 // closure and can never survive a JSON round trip, so a descriptor never
 // stores `matches` at all — this module REBUILDS it fresh, every time, from
 // plain data (`event` + `effects`) via the ordinary trigger factories
-// (`enteredTrigger`, `diedTrigger`). Both the `createToken` Op executor
+// (`enteredTrigger`, `diedTrigger`, `attacksTrigger`). Both the `createToken`
+// Op executor
 // (server registration, from an `EffectTokenSpec.triggeredAbilities`
 // literal) and any future cold-decode rebuild call this SAME function, so
 // they can never disagree.
@@ -22,7 +23,37 @@
 
 import { enteredTrigger } from "./abilities/triggers/enteredTrigger";
 import { diedTrigger } from "./abilities/triggers/diedTrigger";
-import type { TokenTriggeredAbility, TriggeredAbility } from "./types";
+import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
+import type {
+    TokenTriggeredAbility,
+    TokenTriggeredEventKind,
+    TriggeredAbility,
+} from "./types";
+
+/** The `TokenTriggeredEventKind` members, as a runtime-checkable table. Keyed
+ *  by the type so the two can never drift — a new member without a row here is
+ *  a COMPILE ERROR. Exported because the COLD-DECODE path (`cards/registry.ts`
+ *  `maybeSynthesizeToken`) has to ask "is this encoded `event` string a kind
+ *  this factory can rebuild?" before calling in, and it used to answer with a
+ *  hand-written `||` chain that no compiler checked — the one site a new kind
+ *  could silently miss (issue #2399). */
+export const TOKEN_TRIGGERED_EVENT_KINDS: Record<
+    TokenTriggeredEventKind,
+    true
+> = {
+    PERMANENT_ENTERED: true,
+    CREATURE_DIED: true,
+    ATTACKERS_DECLARED: true,
+};
+
+/** True when `event` names a kind `resolveTokenTriggeredAbilities` can
+ *  synthesize. Fail-closed: an unknown string (a descriptor written by a newer
+ *  build) answers false. */
+export function isTokenTriggeredEventKind(
+    event: unknown
+): event is TokenTriggeredEventKind {
+    return typeof event === "string" && event in TOKEN_TRIGGERED_EVENT_KINDS;
+}
 
 /** Rebuilds real, self-scoped `TriggeredAbility` objects from a token's
  *  declared descriptors. Shared by the `createToken` Op executor
@@ -51,6 +82,16 @@ export function resolveTokenTriggeredAbilities(
             case "CREATURE_DIED":
                 abilities.push(
                     diedTrigger({
+                        id: d.id,
+                        oracleText: d.oracleText,
+                        scope: "self",
+                        effects: d.effects,
+                    })
+                );
+                break;
+            case "ATTACKERS_DECLARED":
+                abilities.push(
+                    attacksTrigger({
                         id: d.id,
                         oracleText: d.oracleText,
                         scope: "self",

@@ -646,17 +646,28 @@ export interface TargetRequirement {
      *  elsewhere. Pair with `spellStackKind: "any"` for CR 702.21a's "spell OR
      *  ability" scope. */
     spellTargetsSelfSource?: boolean;
-    /** Reflexive self-EXCLUDE (the inverse of `spellTargetsSelfSource`): when
-     *  set on a TRIGGERED ability's `targetRequirement`,
-     *  `raiseTriggerTargetSelection` (`gre/rules.ts`) appends the firing stack
-     *  item's OWN source permanent id (`StackItem.triggerSourceId`) to
-     *  `excludeInstanceIds`, so "exile ANOTHER target permanent" / "up to one
-     *  OTHER target creature" cannot pick the source permanent itself
-     *  (CR 603.3d target choice at stack placement). Author-time
-     *  `excludeInstanceIds` are preserved and merged. Only meaningful on a
-     *  TriggeredAbility's requirement (a spell/activated ability expresses
-     *  "another" via a dynamic `getTargetRequirement(source)` instead, and has
-     *  no `triggerSourceId` to read); ignored elsewhere. */
+    /** Reflexive self-EXCLUDE (the inverse of `spellTargetsSelfSource`): the
+     *  source permanent's own instance id is merged into `excludeInstanceIds`,
+     *  so "exile ANOTHER target permanent" / "up to one OTHER target creature"
+     *  cannot pick the source permanent itself. Author-time
+     *  `excludeInstanceIds` are preserved and merged. One shared helper,
+     *  `applySelfExclusion` (`gre/rules.ts`), performs the merge everywhere.
+     *
+     *  Honoured on BOTH ability kinds, each reading the source id it has:
+     *  a TRIGGERED ability's `StackItem.triggerSourceId`, via
+     *  `raiseTriggerTargetSelection` (CR 603.3d target choice at stack
+     *  placement); an ACTIVATED ability's on-battlefield source `card`, via
+     *  `activateAbilityOnState` (`game.ts`) and the bot's matching
+     *  `enumerateAbilityMoves` (issue #2399 — Reflection of Kiki-Jiki's
+     *  "another target nonlegendary creature you control"). Ignored on a SPELL
+     *  requirement, which has no source permanent to exclude.
+     *
+     *  The older per-card idiom for the same clause — a dynamic
+     *  `getTargetRequirement(source)` closure hand-rolling
+     *  `excludeInstanceIds: [source.id]` (Giver of Runes, Manifold Key) — still
+     *  works and is untouched, but prefer this flag: a closure cannot ride a
+     *  BACK FACE's JSON-encoded definition id, and `enumerateAbilityMoves`
+     *  skips any ability that carries one, hiding it from the bot entirely. */
     excludeSource?: boolean;
     /** CROSS-SLOT same-controller constraint spanning the announced target
      *  slots of THIS requirement (CR 601.2c, issue #1104 — Barrin's Spite:
@@ -2142,11 +2153,22 @@ export interface EffectTokenSpec {
 /** Event kinds a {@link TokenTriggeredAbility} descriptor can name — the
  *  ENCODE/DECODE dispatch key `resolveTokenTriggeredAbilities`
  *  (`cards/tokenTriggeredAbilities.ts`) maps to a real trigger factory
- *  (`enteredTrigger` / `diedTrigger`). Deliberately a small, curated set
- *  (not the full `GameEventType` union) — extend only when a card actually
- *  needs a new self-scoped token trigger kind, mirroring how a new Effect
- *  Op earns its place (ADR 0045), not upfront. */
-export type TokenTriggeredEventKind = "PERMANENT_ENTERED" | "CREATURE_DIED";
+ *  (`enteredTrigger` / `diedTrigger` / `attacksTrigger`). Deliberately a
+ *  small, curated set (not the full `GameEventType` union) — extend only when
+ *  a card actually needs a new self-scoped token trigger kind, mirroring how a
+ *  new Effect Op earns its place (ADR 0045), not upfront.
+ *
+ *  `ATTACKERS_DECLARED` (issue #2399) was earned by Fable of the Mirror-
+ *  Breaker's chapter-I token — "Whenever this token attacks, create a Treasure
+ *  token" — the first card in the catalogue needing a token to carry its own
+ *  attack trigger. Note CR 508.4: a token that ENTERS attacking is attacking
+ *  but was never declared, so no `ATTACKERS_DECLARED` is emitted for it and a
+ *  self-scoped attack trigger correctly does not fire (`finishTokenEntry`,
+ *  `gre/state.ts`). */
+export type TokenTriggeredEventKind =
+    | "PERMANENT_ENTERED"
+    | "CREATURE_DIED"
+    | "ATTACKERS_DECLARED";
 
 /** JSON-pure, restricted triggered-ability descriptor for
  *  `EffectTokenSpec.triggeredAbilities` (issue #2364). Always CR 109.2
@@ -2347,6 +2369,19 @@ export interface CopyEffectOptions {
      *  this list on every application, same idempotency shape as
      *  `additionalTypes`/`additionalSubtypes`. */
     additionalTriggeredAbilityIds?: string[];
+    /** CR 707.2's "except" clause granting a KEYWORD the copied object does
+     *  not have — Fable of the Mirror-Breaker's back face: "a token that's a
+     *  copy of another target nonlegendary creature you control, EXCEPT IT HAS
+     *  HASTE" (issue #2399). Appended to the copied definition's own
+     *  `staticAbilities` inside `applyCopy`'s copiable-value rebuild, exactly
+     *  the way `additionalSubtypes` is appended to its subtypes — so the
+     *  keyword is a COPIABLE VALUE of the copy (CR 707.2), not a layer-6
+     *  grant. That distinction is observable: copy the copy and the second
+     *  token has haste too, which a `grantAbility` Op after the fact would not
+     *  give. Fully recomputed from `opts` on every application (a re-copy
+     *  without the option leaves no stale keyword behind), same idempotency
+     *  shape as `additionalTypes`/`additionalSubtypes`. */
+    additionalStaticAbilities?: string[];
     /** CR 707.2 "except its base power and toughness are N/N" — the copy's
      *  BASE P/T (layer 7a) replaces the copied object's printed values.
      *  Eternalize (CR 702.129a) makes a 4/4; Embalm (CR 702.128a) omits it and
@@ -2957,8 +2992,19 @@ export interface SpellContext {
      *  some zone other than exile on its way out. A permanent whose current
      *  face declares no `backFace` is still exiled and returned (it simply
      *  comes back showing the same face) — the Oracle clause's exile is
-     *  unconditional. */
-    exileAndReturnTransformed: (target: TargetSelection) => void;
+     *  unconditional.
+     *
+     *  `controllerId` overrides who the returning permanent enters under. The
+     *  DEFAULT (omitted) is its OWNER — the ORI flip-walker wording, "return
+     *  him to the battlefield transformed under his OWNER's control", so a
+     *  stolen Jace flips back to its owner. Fable of the Mirror-Breaker's
+     *  chapter III says "under YOUR control" instead (issue #2399), which is a
+     *  different answer only when the Saga's controller is not its owner — pass
+     *  the ability's controller for that wording. */
+    exileAndReturnTransformed: (
+        target: TargetSelection,
+        controllerId?: string
+    ) => void;
     /** Changes control of a target permanent to `newControllerId` (CR 613.1b,
      *  layer 2). Routes through the shared control-change machinery: the host
      *  moves into the new controller's battlefield array, summoning sickness is
@@ -12233,10 +12279,18 @@ export type EffectOp =
      *  `target` is an object selector: almost always the implicit `$source`
      *  (`{ ref: "$source" }` — every card in the template flips ITSELF), but an
      *  announced target slot or a `forEach` `$each` member is accepted for
-     *  generality. Skipped when the target is gone (CR 608.2b). */
+     *  generality. Skipped when the target is gone (CR 608.2b).
+     *
+     *  `controller` names who the permanent returns UNDER. Omitted is its
+     *  OWNER, the ORI flip-walker wording ("under his owner's control") and the
+     *  behaviour of every caller before issue #2399. Fable of the Mirror-
+     *  Breaker's chapter III reads "under YOUR control" and therefore passes
+     *  `"controller"`; the two answers differ only for a Saga whose controller
+     *  is not its owner. */
     | {
           op: "exileAndReturnTransformed";
           target: EffectObjectSelector;
+          controller?: EffectPlayerRef;
       }
     /** CR 111 / 701.7 (issue #847) — create one or more token permanents. A
      *  thin declarative skin over the single SpellContext primitive
@@ -12341,6 +12395,11 @@ export type EffectOp =
               /** "…a Zombie in addition to its other types" — appended
                *  creature subtypes (CR 205.1b; Oracle-worded as a type). */
               additionalSubtypes?: string[];
+              /** "…except it has haste" — keywords the copy has on top of the
+               *  copied object's (issue #2399). A COPIABLE value per CR 707.2,
+               *  not a layer-6 grant; see
+               *  `CopyEffectOptions.additionalStaticAbilities`. */
+              additionalStaticAbilities?: string[];
               /** "…it has no mana cost" — mana value 0 (CR 202.3). */
               noManaCost?: boolean;
               /** Scryfall print id for the token's own printed art (CR 111).

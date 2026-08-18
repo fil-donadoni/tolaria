@@ -724,6 +724,7 @@ function isTokenActivatedAbility(value: unknown): boolean {
 const TOKEN_TRIGGERED_EVENT_KINDS: Record<TokenTriggeredEventKind, true> = {
     PERMANENT_ENTERED: true,
     CREATURE_DIED: true,
+    ATTACKERS_DECLARED: true,
 };
 
 /** A token-scoped triggered ability (issue #2364, `EffectTokenSpec.
@@ -1407,6 +1408,8 @@ function isCopyExceptClause(value: unknown): boolean {
         "baseToughness",
         "colors",
         "additionalSubtypes",
+        // CR 707.2 "except it has haste" (issue #2399).
+        "additionalStaticAbilities",
         "noManaCost",
         "imagePrintId",
     ]);
@@ -1423,6 +1426,16 @@ function isCopyExceptClause(value: unknown): boolean {
         (!Array.isArray(e.additionalSubtypes) ||
             e.additionalSubtypes.length === 0 ||
             !e.additionalSubtypes.every(
+                (s) => typeof s === "string" && s.length > 0
+            ))
+    ) {
+        return false;
+    }
+    if (
+        "additionalStaticAbilities" in e &&
+        (!Array.isArray(e.additionalStaticAbilities) ||
+            e.additionalStaticAbilities.length === 0 ||
+            !e.additionalStaticAbilities.every(
                 (s) => typeof s === "string" && s.length > 0
             ))
     ) {
@@ -3414,14 +3427,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
     },
     // CR 712 / 400.7 / 306.5b (issue #2380) — exile a permanent and return it
-    // to the battlefield transformed, under its OWNER's control. `target` is an
-    // object selector (announced slot, `$source`, or a forEach `$each`). No
-    // other fields: "under its owner's control" is fixed by the Oracle template
-    // (never the resolving controller), and the face is fixed by the card's own
-    // `backFace` — neither is a per-card choice.
+    // to the battlefield transformed. `target` is an object selector
+    // (announced slot, `$source`, or a forEach `$each`). `controller` (issue
+    // #2399) names who it returns UNDER: omitted is its OWNER, the ORI
+    // flip-walker template's "under his owner's control"; Fable of the
+    // Mirror-Breaker's chapter III says "under YOUR control" and passes
+    // `"controller"`. The FACE is not a per-card choice — it is fixed by the
+    // card's own `backFace`.
     exileAndReturnTransformed: {
         required: {
             target: isObjectSelector,
+        },
+        optional: {
+            controller: isPlayerRef,
         },
     },
     // CR 111 / 701.7 (issue #847) — create token permanents. `token` is the

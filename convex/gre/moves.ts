@@ -43,6 +43,7 @@ import {
     flashSurchargeOf,
     flashSurchargeRequired,
     foldFlashSurchargeCost,
+    applySelfExclusion,
 } from "./rules";
 // issue #2283 — the origin classification that decides whether a live
 // `pendingTarget` is the bot's own half-built announcement (hands off) or a
@@ -1303,13 +1304,26 @@ function enumerateAbilityMoves(
         // variant per mode, each with its OWN target requirement — the same
         // shape modal spells use above. A non-modal ability keeps its single
         // ability-level requirement.
+        //
+        // Reflexive self-EXCLUDE (issue #2399) is applied through the SAME
+        // shared helper `activateAbilityOnState` uses, so the bot enumerates
+        // exactly the tuples the mutation would accept — an "ANOTHER target"
+        // ability whose only other legal target is itself must yield NO move
+        // here, not a move the server then rejects.
+        const selfExcluded = (req: TargetRequirement | undefined) =>
+            req ? applySelfExclusion(req, perm.id) : req;
         const abilityModeVariants =
             ability.modes && ability.modes.length > 0
                 ? ability.modes.map((m) => ({
                       modeId: m.id as string | undefined,
-                      req: m.targetRequirement,
+                      req: selfExcluded(m.targetRequirement),
                   }))
-                : [{ modeId: undefined, req: ability.targetRequirement }];
+                : [
+                      {
+                          modeId: undefined,
+                          req: selfExcluded(ability.targetRequirement),
+                      },
+                  ];
         // CR 602.1 / 118 — the deferred cost legs (discard / exile-from-
         // graveyard / tap-other) are paid by NAMING cards, and the server never
         // commits the activation until they are named. The picks therefore ride

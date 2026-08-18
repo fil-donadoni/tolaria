@@ -73,6 +73,20 @@
             "name": "Squirrel"
         }
     ],
+    "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc": [
+        {
+            "scryfallId": "6911181d-573b-41eb-96a4-799c96e008fc",
+            "name": "Treasure"
+        },
+        {
+            "scryfallId": "0d9461c3-f545-4efb-926e-759961db0495",
+            "name": "Goblin Shaman"
+        },
+        {
+            "scryfallId": "f4e87a11-b3b1-47b2-bd73-f4c78d6fbe6c",
+            "name": "Copy"
+        }
+    ],
     "27bb371f-d49f-41bd-bbe0-d5e1e2067e36": [
         {
             "scryfallId": "0d6abdaa-7be5-48a1-acc9-b3cba4c10619",

@@ -13193,7 +13193,10 @@ export function buildSpellContext(
         // moved the card somewhere other than exile on the way out, so it is
         // left where it landed rather than force-returned — a card that never
         // reached exile was never exiled by this effect.
-        exileAndReturnTransformed(target: TargetSelection): void {
+        exileAndReturnTransformed(
+            target: TargetSelection,
+            controllerId?: string
+        ): void {
             if (target.type === "player")
                 throw new Error("Cannot transform a player");
             const found = findOnBattlefield(state, target.id);
@@ -13201,8 +13204,12 @@ export function buildSpellContext(
             // "under its OWNER's control" — read BEFORE the move, though
             // `ownerId` is immutable; the controller at the time of exile is
             // deliberately NOT consulted (a stolen Jace flips back to its
-            // owner).
+            // owner). An explicit `controllerId` overrides that for the "under
+            // YOUR control" wording (Fable of the Mirror-Breaker, issue #2399);
+            // the card still passes through its OWNER's exile zone either way,
+            // because exile is a zone owned by the card's owner (CR 400.3).
             const ownerId = found.card.ownerId;
+            const returnUnder = controllerId ?? ownerId;
             const cardId = found.card.id;
             const moved = removePermanentTo(state, cardId, "exile");
             emitCardsExiledFromBattlefield(state, moved);
@@ -13211,7 +13218,7 @@ export function buildSpellContext(
             if (idx === -1) return; // never reached exile — nothing to return
             const [returning] = exileZone.splice(idx, 1);
             stampBackFaceForEntry(returning);
-            putReanimatedOnBattlefield(state, returning, ownerId);
+            putReanimatedOnBattlefield(state, returning, returnUnder);
         },
         // CR 613.1b (layer 2): gain control of a permanent. The control change
         // is sourced by the resolving permanent (`item.id`) so it reverts when

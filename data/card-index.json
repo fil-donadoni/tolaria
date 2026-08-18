@@ -4304,6 +4304,14 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Fable of the Mirror-Breaker",
+        "scryfallId": "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc",
+        "oracleId": "c0957e5e-c71b-439c-931c-9f55d2f76ace",
+        "firstSet": "neo",
+        "firstPrintId": "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc",
+        "firstPrintSet": "neo"
+    },
+    {
         "name": "Fabled Passage",
         "scryfallId": "b841bfa8-7c17-4df2-8466-780ab9a4a53a",
         "oracleId": "0c85b8f7-0bd0-4680-9ec5-d4b110460a54",
