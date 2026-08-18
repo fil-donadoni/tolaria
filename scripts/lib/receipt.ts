@@ -807,6 +807,15 @@ function nowSeconds(): number {
  * 8176 files at the time that comment was written elsewhere in this file).
  * `undefined` when the root is missing or empty, which is the honest answer
  * for "no batch has ever run here", not an error.
+ *
+ * **Exact mtime tie**: the comparison below is a strict `>`, so the FIRST
+ * entry `fs.readdirSync` visits keeps the win and every later entry with the
+ * same mtime is skipped. That is deliberately arbitrary (there is no
+ * documented rule for "which of two batches created in the same
+ * millisecond is newer") rather than non-deterministic — the same directory
+ * contents produce the same answer on a given platform, it is just not a
+ * meaningful tie-break, so nothing should read significance into it beyond
+ * "some batch with the max mtime".
  */
 export function newestBatchDir(receiptsRoot: string): string | undefined {
     if (!fs.existsSync(receiptsRoot)) return undefined;
