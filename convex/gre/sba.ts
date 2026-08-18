@@ -12,6 +12,7 @@ import {
     unapplySourceStaticEffects,
 } from "./state";
 import { isAura, isCreature, isPlaneswalker } from "./constants";
+import { applyZoneCharacteristics } from "./zoneCharacteristics";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -757,7 +758,48 @@ export function checkWorldRuleSBA(state: GameState): boolean {
     return true;
 }
 
+/** CR 113.6c (issue #2391) — re-derives the off-battlefield characteristics of
+ *  every card in a non-battlefield zone. A no-op for every card whose
+ *  definition declares none (`applyZoneCharacteristics` returns immediately),
+ *  which today is all but one card in the catalogue.
+ *
+ *  This is the SAFETY NET, not the primary hook: the two zone funnels
+ *  (`moveCard` and `removePermanentTo`, `gre/state.ts`) apply it at the moment
+ *  a card changes zones, so a mid-resolution read is already correct. What
+ *  this sweep adds is TOTALITY — it re-derives from the printed definition
+ *  rather than reacting to a transition, so the paths that bypass both funnels
+ *  (the opening library built by `gre/setup.ts` / `game.ts`, debug scenarios
+ *  built by `gre/scenarioBuilder.ts`, `stageReanimatedOnBattlefield`'s direct
+ *  `zone` writes) are covered without each of them having to know, and a zone
+ *  path added later cannot silently fail open. Idempotent, so it does not gate
+ *  the CR 704.4 fixpoint.
+ *
+ *  TOTALITY IS NOT FREE, so the per-card cost is kept at a `Set.has` on the
+ *  card id: `applyZoneCharacteristics` prechecks
+ *  `declaresOffBattlefieldCharacteristics` (`cards/registry.ts`) before any
+ *  definition lookup. This loop runs over both players' hand + library +
+ *  graveyard + exile on EVERY `checkStateBasedActions` entry, and one
+ *  400-iteration `search()` makes ~13k of those per bot decision against a
+ *  ~1.5s budget. Measured at 140 distinct hidden-zone cards over 20k calls
+ *  (median of 3): 1.74µs/call with no sweep at all, 4.39µs/call resolving a
+ *  definition per card, 2.47µs/call with the precheck — ~72% of the added
+ *  cost removed, ~35ms → ~10ms per search. Do NOT reintroduce a per-card
+ *  `getDefinition` here. */
+function refreshOffBattlefieldCharacteristics(state: GameState): void {
+    for (const player of state.players) {
+        for (const card of player.hand) applyZoneCharacteristics(card);
+        for (const card of player.library) applyZoneCharacteristics(card);
+        for (const card of player.graveyard) applyZoneCharacteristics(card);
+        for (const card of player.exile) applyZoneCharacteristics(card);
+    }
+}
+
 export function checkStateBasedActions(state: GameState): void {
+    // CR 113.6c — same "canonical recompute point" placement as the two
+    // refreshes inside the loop below, but hoisted OUT of the fixpoint: it
+    // depends only on where cards are, never on what an SBA iteration did to
+    // the battlefield, so once per entry is enough.
+    refreshOffBattlefieldCharacteristics(state);
     // CR 704.4 — SBAs are performed repeatedly until none applies. A single
     // sweep routinely CREATES the condition for another: a creature dying frees
     // an Aura enchanting it (CR 704.5m), an Aura leaving drops a P/T buff that

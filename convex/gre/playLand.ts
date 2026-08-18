@@ -31,6 +31,7 @@ import {
     normalizeMayPayCost,
     resetBattlefieldTransientState,
 } from "./state";
+import { clearZoneCharacteristics } from "./zoneCharacteristics";
 import { checkStateBasedActions } from "./sba";
 import { canPlayLandsFromGraveyard, isPlayableLibraryTopLand } from "./rules";
 import { checkAscendCityBlessing } from "./cityBlessing";
@@ -148,6 +149,12 @@ function moveCardAcrossPlayers(
     // the same clear in `moveCard`.
     delete card.counters;
     toPlayer[to].push(card);
+    // CR 113.6c — mirrors `moveCard`'s battlefield branch: a static ability
+    // that functions only OUTSIDE the battlefield switches off on arrival, so
+    // the printed characteristics are restored. A no-op for every card
+    // declaring none. Runs before the caller's `settleEnteredLand`, hence
+    // before any entry-path layer-4 `type-add` grant it could clobber.
+    clearZoneCharacteristics(card);
     return card;
 }
 

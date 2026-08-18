@@ -1682,17 +1682,32 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Net across both: total 481->471, Op-blocked 150->140; FREE unchanged
         // at 316, AFK-ready at 307, X-only at 15. Partition: 316+15+140=471.
         //
-        // Sin, Spira's Punishment (issue #2382) adds ONE closure: 471->472,
-        // FREE 316->317, AFK-ready 307->308 (it ships with its own per-card
-        // test). Partition: 317+15+140=472. The classifier reads which
-        // uncovered PRIMITIVES a closure calls, and Sin calls none — but its
-        // body is a conditional repeat-until-land loop, which no frozen DSL
-        // construct expresses, so the FREE bucket overstates it. That is a
-        // known limit of the heuristic, not a regression; see
+        // Sin, Spira's Punishment (issue #2382) adds ONE closure. The
+        // classifier reads which uncovered PRIMITIVES a closure calls, and Sin
+        // calls none — but its body is a conditional repeat-until-land loop,
+        // which no frozen DSL construct expresses, so the FREE bucket
+        // overstates it. That is a known limit of the heuristic, not a
+        // regression; see
         // `docs/findings/2382-migration-classifier-blind-to-control-flow.md`.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(472);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(317);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(308);
+        //
+        // Grist, the Hunger Tide (mh2/multicolor.ts, issue #2391) ADDS a
+        // second: the `+1` loyalty ability. Every primitive it calls is
+        // covered (createToken / millCards / getGraveyardCards / addCounter),
+        // so the classifier files it FREE — the same false-FREE shape as
+        // Vaultborn Tyrant, Doomsday and Necromancy above, and the same
+        // control-flow blind spot as Sin. What actually keeps it `resolve()`
+        // is "…and repeat this process": an UNBOUNDED conditional loop, and
+        // the DSL's four frozen constructs (bind/ref/if/forEach, ADR
+        // 0045/0046) contain no loop — `forEach` iterates a KNOWN collection,
+        // and the iteration count here depends on what each mill turns up.
+        //
+        // Both ship with their own per-card test, so both are AFK-ready. Net
+        // across the two: total 471->473, FREE 316->318, AFK-ready 307->309;
+        // X-only unchanged at 15, Op-blocked unchanged at 140. Partition:
+        // 318+15+140=473.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(473);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });

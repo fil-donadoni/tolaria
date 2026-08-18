@@ -356,3 +356,30 @@ export const PEST_TOKEN: EffectTokenSpec = {
         },
     ],
 };
+
+/** Insect token (CR 111 / 707.2, issue #2391). "1/1 black and green Insect
+ *  creature token" — created today by Grist, the Hunger Tide's `+1` loyalty
+ *  ability (`sets/mh2/multicolor.ts`), once per iteration of its repeat loop.
+ *  Vanilla: no abilities, so the JSON-pure `EffectTokenSpec` shape (ADR 0046)
+ *  rather than `TokenSpec`.
+ *
+ *  Distinct from The Hive's Wasp (`sets/lea/colorless.ts`), which is also an
+ *  Insect but a COLORLESS artifact creature with flying and its own name — a
+ *  different token, not a candidate for this spec.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN`/
+ *  `HUMAN_TOKEN` treatment: the art-match rule is "the token associated with
+ *  the PRODUCING card's own printing", resolved per producer from
+ *  `generated/token-prints.json` (`tokenPrintIdFor`). Grist's own MH2 #202
+ *  printing reverse-links to the TMH2 #13 black-and-green Insect token, and
+ *  its `resolve()` body passes that id explicitly — `tokenPrintLookup.test.ts`
+ *  is blind to `resolve()`-created tokens (CLAUDE.md § Card definition
+ *  checklist), so the producer, not this spec, carries the lookup. */
+export const INSECT_TOKEN: EffectTokenSpec = {
+    name: "Insect",
+    types: ["Creature"],
+    subtypes: ["Insect"],
+    power: 1,
+    toughness: 1,
+    colors: ["B", "G"],
+};

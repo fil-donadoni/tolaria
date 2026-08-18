@@ -51,10 +51,45 @@ import { setCardSupertypeLookup } from "./supertypeLookup";
  *  or via `preloadDefinitions` (client). */
 const registry = new Map<string, CardDefinition>();
 
+/** CR 113.6c (issue #2391) — the registry keys whose definition declares
+ *  `offBattlefieldCharacteristics`. Exists purely so the hot readers in
+ *  `gre/zoneCharacteristics.ts` can answer "does this card have a
+ *  zone-conditional ability?" from a string `Set` instead of paying a
+ *  `getDefinition` (map lookup + `expandDefinition` memo) per card — the
+ *  state-based-action sweep asks it of EVERY card in every hidden zone of
+ *  both players, on every SBA entry, and the answer is no for all but one
+ *  card in the catalogue. Measured at 140 distinct hidden-zone cards, 20k
+ *  `checkStateBasedActions` calls: the sweep adds 2.65µs/call resolving a
+ *  definition per card, 0.73µs/call with this precheck.
+ *
+ *  DERIVED, never hand-maintained: `setRegistryEntry` below is the single
+ *  write funnel for the map, so a card declaring the field is indexed by the
+ *  same statement that registers it and the next such card cannot be missed.
+ *  Grows monotonically — a later `set` on the same id that DROPS the field
+ *  leaves a stale membership, which costs one wasted `tryGetDefinition` and
+ *  changes no behaviour (`resolveZoneCharacteristics` re-reads the live
+ *  definition and returns `null`). Fail-slow, never fail-open. */
+const zoneConditionalIds = new Set<string>();
+
+/** The ONLY writer of `registry`. Keeps `zoneConditionalIds` in step. */
+const setRegistryEntry = (key: string, def: CardDefinition): void => {
+    registry.set(key, def);
+    if (def.offBattlefieldCharacteristics) zoneConditionalIds.add(key);
+};
+
+/** CR 113.6c (issue #2391) — does `cardId`'s definition declare
+ *  zone-conditional characteristics? A cheap precheck for the readers in
+ *  `gre/zoneCharacteristics.ts`; see {@link zoneConditionalIds}. `false` for
+ *  an unregistered id and for a synthesized token (neither can declare the
+ *  field), so a `false` answer always means "nothing to resolve". */
+export const declaresOffBattlefieldCharacteristics = (
+    cardId: string
+): boolean => zoneConditionalIds.has(cardId);
+
 /** Preload a batch of CardDefinitions into the runtime registry. Idempotent:
  *  calling twice with the same id is a no-op (later loads win the value). */
 export function preloadDefinitions(defs: CardDefinition[]): void {
-    for (const def of defs) registry.set(def.id, def);
+    for (const def of defs) setRegistryEntry(def.id, def);
 }
 
 // ADR 0054 — implicit keyword expansion. `fading N` / `vanishing N` cards
@@ -144,7 +179,7 @@ setCardSupertypeLookup((cardId) => tryGetDefinition(cardId)?.supertypes);
  *  is a no-op so multiple `createToken` invocations share one entry. */
 export const registerTokenDefinition = (def: CardDefinition): void => {
     if (registry.has(def.id)) return;
-    registry.set(def.id, def);
+    setRegistryEntry(def.id, def);
 };
 
 /** Makes `printId` resolve to the same `CardDefinition` object as
@@ -157,7 +192,7 @@ export function registerPrintAlias(
     const def = registry.get(definitionId);
     if (!def) throw new Error(`Unknown definitionId: ${definitionId}`);
     if (registry.has(printId)) throw new Error(`Duplicate card id: ${printId}`);
-    registry.set(printId, def);
+    setRegistryEntry(printId, def);
 }
 
 /** Content-derived id for a synthesized token CardDefinition (CR 707.1). Two
@@ -324,7 +359,7 @@ export function tokenDefinitionId(spec: TokenSpec): string {
  *  vanilla 2/2 automatically. Registered in the lookup map only, NOT a set
  *  export, so it never enters the card pool or the catalogue guard tests. */
 export const FACE_DOWN_CARD_ID = "face-down:2-2-vanilla";
-registry.set(FACE_DOWN_CARD_ID, {
+setRegistryEntry(FACE_DOWN_CARD_ID, {
     id: FACE_DOWN_CARD_ID,
     name: "Face-down creature",
     // Rarity is a property of a printing (CR 206); a face-down permanent is
@@ -583,7 +618,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
             : {}),
         ...(backFace ? { backFace } : {}),
     };
-    registry.set(cardId, def);
+    setRegistryEntry(cardId, def);
     return def;
 }
 

@@ -72,6 +72,11 @@ import {
 } from "./playLand";
 import { handCardMatchesFilter } from "./alternativeCost";
 import {
+    applyZoneCharacteristics,
+    clearZoneCharacteristics,
+    resolveZoneCharacteristics,
+} from "./zoneCharacteristics";
+import {
     ASCEND_KEYWORD,
     checkAscendCityBlessing,
     grantCityBlessingIfThreshold,
@@ -6001,6 +6006,11 @@ function finalizeSpellResolution(
             item.attachedTo = hostPlayerId ?? host!.id;
         }
         item.zone = "battlefield";
+        // CR 113.6c — an ability that functions only OUTSIDE the battlefield
+        // switches off here: Grist stops being a 1/1 Insect creature the
+        // instant it resolves as a planeswalker. Before the layer-4 grants
+        // below, which own the instance's types from now on.
+        clearZoneCharacteristics(item);
         // CR 614.1c + 110.5b — a permanent enters tapped if its own card flag
         // says so OR a battlefield-scanned replacement (Kismet — "Artifacts,
         // creatures, and lands your opponents control enter tapped") forces it.
@@ -8856,6 +8866,14 @@ export function removePermanentTo(
     // this orientation holding here AND at `moveCard` — the two together are
     // the whole guarantee.
     (owner[toZone] as CardInstanceState[]).push(creature);
+    // CR 113.6c — the battlefield-departure twin of the `moveCard` call: a
+    // static ability that functions only OUTSIDE the battlefield switches on
+    // the moment the permanent lands in a hidden/public non-battlefield zone.
+    // Recomputed from the printed definition, so it also clears whatever
+    // layer-4 `type-add` was live on the battlefield — `removePermanentTo`
+    // only resets `types` via `resetBattlefieldTransientState` for the
+    // hand/library destinations, never for graveyard/exile.
+    applyZoneCharacteristics(creature);
     // ADR 0026 — a permanent bounced to its owner's HAND stays PUBLIC
     // knowledge: every player watched it sit on the battlefield and watched it
     // move, so its identity in hand is known to all (CR 400.3 — a zone change
@@ -10519,6 +10537,9 @@ function stageReanimatedOnBattlefield(
     // transient state. Then re-establish the fresh-permanent defaults.
     resetBattlefieldTransientState(card);
     card.zone = "battlefield";
+    // CR 113.6c — see the spell-resolution twin: the off-battlefield ability
+    // switches off on arrival, before the entry path's layer-4 grants.
+    clearZoneCharacteristics(card);
     card.controllerId = controllerId;
     card.attachedTo = undefined;
     // CR 302.6 — start the control-continuity clock for every reanimated /
@@ -13706,9 +13727,14 @@ export function buildSpellContext(
                 const top = player.library[0];
                 if (!top) break; // library empty — mill fewer (CR 701.17a)
                 const cardId = (top.card as { id?: string }).id;
-                const types = cardId
-                    ? tryGetDefinition(cardId)?.types
-                    : undefined;
+                const topDef = cardId ? tryGetDefinition(cardId) : undefined;
+                // CR 113.6c / 701.17c — the milled card is read in the public
+                // zone it moved to, so a card that is a creature card only
+                // while off the battlefield reports as one to every
+                // `CARD_MILLED` trigger that inspects `event.types`.
+                const types =
+                    resolveZoneCharacteristics(topDef, "graveyard")?.types ??
+                    topDef?.types;
                 // CR 614 (issue #1145) — a graveyard-bound replacement
                 // (Yawgmoth's Will / Dauthi Voidwalker) can redirect this
                 // mill to exile instead of the graveyard, or (issue #2106,
@@ -17138,13 +17164,16 @@ export function buildSpellContext(
             return getPlayer(state, playerId).hand.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
+                // CR 113.6c — a static ability that functions outside the
+                // battlefield wins over the printed type line here.
+                const zc = resolveZoneCharacteristics(def, "hand");
                 return {
                     id: c.id,
                     // CR 201.2 — printed name from the registry (empty for a
                     // definition-less instance; fail-closed for a name filter).
                     name: def?.name ?? "",
-                    types: def?.types ?? c.types,
-                    subtypes: def?.subtypes ?? c.subtypes,
+                    types: zc?.types ?? def?.types ?? c.types,
+                    subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
                     // CR 205.4 — supertypes (Basic) from the registry; hidden
                     // hand cards carry none on the instance.
                     supertypes: def?.supertypes ?? [],
@@ -17176,12 +17205,14 @@ export function buildSpellContext(
             return getPlayer(state, playerId).library.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
+                // CR 113.6c — see `getHandCards` above.
+                const zc = resolveZoneCharacteristics(def, "library");
                 return {
                     id: c.id,
                     // CR 201.2 — printed name from the registry.
                     name: def?.name ?? "",
-                    types: def?.types ?? c.types,
-                    subtypes: def?.subtypes ?? c.subtypes,
+                    types: zc?.types ?? def?.types ?? c.types,
+                    subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
                     // CR 205.4 — supertypes (Basic) from the registry; hidden
                     // library cards carry none on the instance.
                     supertypes: def?.supertypes ?? [],
@@ -17210,13 +17241,18 @@ export function buildSpellContext(
             return getPlayer(state, playerId).graveyard.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
+                // CR 113.6c — see `getHandCards` above. This is the site that
+                // makes a Grist in its own controller's graveyard both an
+                // Insect card (its +1's repeat test) and a creature card (its
+                // −5's count).
+                const zc = resolveZoneCharacteristics(def, "graveyard");
                 return {
                     id: c.id,
                     // CR 201.2 — printed name from the registry (Accumulated
                     // Knowledge's "each other card named ~", issue #985).
                     name: def?.name ?? "",
-                    types: def?.types ?? c.types,
-                    subtypes: def?.subtypes ?? c.subtypes,
+                    types: zc?.types ?? def?.types ?? c.types,
+                    subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
                     manaValue: manaValue(def?.manaCost),
                     colors: getColorsFromCost(def?.manaCost),
                     // CR 202 (issue #1881) — full printed cost for
@@ -17256,11 +17292,13 @@ export function buildSpellContext(
             return getPlayer(state, playerId).exile.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
+                // CR 113.6c — see `getHandCards` above.
+                const zc = resolveZoneCharacteristics(def, "exile");
                 return {
                     id: c.id,
                     name: def?.name ?? "",
-                    types: def?.types ?? c.types,
-                    subtypes: def?.subtypes ?? c.subtypes,
+                    types: zc?.types ?? def?.types ?? c.types,
+                    subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
                     manaValue: manaValue(def?.manaCost),
                     colors: getColorsFromCost(def?.manaCost),
                     counters: c.counters ?? {},
@@ -17323,12 +17361,14 @@ export function buildSpellContext(
                     if (c.exiledBySourceId !== sourceInstanceId) continue;
                     const cardId = (c.card as { id?: string }).id;
                     const def = cardId ? tryGetDefinition(cardId) : undefined;
+                    // CR 113.6c — see `getHandCards` above.
+                    const zc = resolveZoneCharacteristics(def, "exile");
                     out.push({
                         id: c.id,
                         ownerId: p.id,
                         name: def?.name ?? "",
-                        types: def?.types ?? c.types,
-                        subtypes: def?.subtypes ?? c.subtypes,
+                        types: zc?.types ?? def?.types ?? c.types,
+                        subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
                         manaValue: manaValue(def?.manaCost),
                         colors: getColorsFromCost(def?.manaCost),
                         counters: c.counters ?? {},
@@ -18743,6 +18783,22 @@ export function moveCard(
     const targetZone = player[toField] as CardInstanceState[];
     targetZone.push(card);
 
+    // CR 113.6c — a static ability that functions outside the battlefield is
+    // re-derived for the zone the card just landed in (a no-op for every card
+    // whose definition declares none). Total, not incremental: it recomputes
+    // from the printed definition, so repeated moves can't accumulate.
+    //
+    // BOTH directions, so this general zone-mover cannot fail open either way.
+    // `to === "battlefield"` is reachable — the four land-play paths
+    // (`applyPlayLand`, `applyPlayLandFromExile`, `playLandFromGraveyard`,
+    // `playLandFromLibrary`) put a land onto the battlefield through here —
+    // and there the ability switches OFF, so the printed characteristics have
+    // to be restored. Safe for the layer-4 ordering `clearZoneCharacteristics`
+    // warns about: the move happens before the caller's `settleEnteredLand`,
+    // hence before any entry-path `type-add` grant exists to clobber.
+    if (to === "battlefield") clearZoneCharacteristics(card);
+    else applyZoneCharacteristics(card);
+
     return card;
 }
 
@@ -19221,7 +19277,10 @@ export function discardCardsAtRandom(
         const matching = player.hand.filter((c) => {
             const cardId = (c.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
-            return (def?.types ?? c.types).includes(requireType);
+            // CR 113.6c — a card that is a creature card only while off the
+            // battlefield is one here too.
+            const zc = resolveZoneCharacteristics(def, "hand");
+            return (zc?.types ?? def?.types ?? c.types).includes(requireType);
         });
         if (matching.length === 0) return undefined;
         return matching[randomInt(state, matching.length)].id;
