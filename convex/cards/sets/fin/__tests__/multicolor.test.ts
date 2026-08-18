@@ -529,7 +529,7 @@ describe("Sin, Spira's Punishment (CR 603.2 multi-event trigger / CR 701.13a exi
         }
     });
 
-    it("only ever reads the CONTROLLER's graveyard (CR 404.2 — 'your graveyard')", () => {
+    it("only ever reads the CONTROLLER's graveyard (CR 400.3 — 'your graveyard')", () => {
         const mine = makeInstance(grizzlyBears.id, {
             id: "gy-bear",
             controllerId: "p1",

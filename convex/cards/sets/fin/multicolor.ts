@@ -176,8 +176,10 @@ function sinExileRandomPermanentAndCopy(ctx: SpellContext): void {
         if (picked === undefined) return;
         exiledThisResolution.add(pickedId);
         // CR 701.13a — "to exile an object, move it to the exile zone from
-        // wherever it is". A card in your graveyard is owned by you
-        // (CR 404.2), so the controller is also the zone owner here.
+        // wherever it is". A card in your graveyard is always your own
+        // (CR 400.3 — an object that would go to another player's graveyard
+        // goes to its owner's instead), so the controller is also the zone
+        // owner here.
         ctx.moveCardById(controller, pickedId, "graveyard", "exile");
         ctx.createTokenCopyOf(pickedId, controller, ctx.sourceInstanceId, {
             entersTapped: true,
