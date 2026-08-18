@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { fetchBoardPriority } from "../lib/board-priority";
 
 /**
@@ -170,24 +170,59 @@ describe("board-priority — fetchBoardPriority", () => {
         expect(messages[0]).toMatch(/truncated/);
     });
 
-    it("skip:true calls onError with the --no-priority message and makes no gh call", () => {
-        const messages: string[] = [];
-        let called = false;
+    it("skip:true warns directly and returns {} WITHOUT calling onError, and makes no gh call (PR #2545 review, finding 1)", () => {
+        // Before the fix, the skip branch routed its message through
+        // `opts.onError` — which is exactly the callback `queue:plan` wires
+        // to `die()`. That made `queue:plan --no-priority` (the documented
+        // escape hatch for a board that cannot be read) call `die()` on its
+        // OWN deliberate skip and exit(2), deleting the escape hatch. The
+        // fix: the skip is not an error, so it must never reach `onError` —
+        // it warns on its own and `onError` stays reserved for genuine
+        // failures (bad scope, truncated list, unrecognized priority value).
+        let onErrorCalled = false;
+        let ghCalled = false;
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
         const priority = fetchBoardPriority({
             owner: OWNER,
             projectNumber: PROJECT_NUMBER,
             repo: REPO,
             itemLimit: 100,
             skip: true,
-            onError: (m) => messages.push(m),
+            onError: () => {
+                onErrorCalled = true;
+            },
             ghClient: () => {
-                called = true;
+                ghCalled = true;
                 return "{}";
             },
         });
         expect(priority).toEqual({});
-        expect(called).toBe(false);
-        expect(messages[0]).toMatch(/--no-priority/);
+        expect(ghCalled).toBe(false);
+        expect(onErrorCalled).toBe(false);
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy.mock.calls[0]?.[0]).toMatch(/--no-priority/);
+        warnSpy.mockRestore();
+    });
+
+    it("skip:true with a DIE-style onError does not abort — the escape hatch survives queue:plan's own fail-loud policy", () => {
+        // The regression this guards: `queue:plan` passes `die` (never
+        // returns, calls `process.exit`) as `onError`. If the skip branch
+        // ever called `onError` again, this test would throw/exit instead of
+        // returning `{}`.
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const priority = fetchBoardPriority({
+            owner: OWNER,
+            projectNumber: PROJECT_NUMBER,
+            repo: REPO,
+            itemLimit: 100,
+            skip: true,
+            onError: (m) => {
+                throw new Error(`die: ${m}`);
+            },
+            ghClient: () => "{}",
+        });
+        expect(priority).toEqual({});
+        warnSpy.mockRestore();
     });
 
     it("lets a DIE-style onError (never returns) abort before any item is skipped — queue:plan's own policy", () => {

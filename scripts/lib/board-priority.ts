@@ -15,6 +15,16 @@
 // guidance) is unchanged by this extraction. `loop:status` passes a collector
 // that degrades gracefully: render priorities as unknown, print one warning
 // line, keep going.
+//
+// `--no-priority` is the ONE exception to "every degraded read goes through
+// `onError`" (PR #2545 review, finding 1). Skipping the board read on purpose
+// is not a failure — it is the documented escape hatch for exactly the case
+// `onError` exists to report (a board that cannot be read). Routing it through
+// `onError` anyway made `queue:plan --no-priority` call `die()` on its own
+// deliberate skip and exit 2, which deleted the escape hatch it was invoked
+// to use. So the skip branch warns UNCONDITIONALLY, itself, and never calls
+// `onError` — the caller's failure policy (fail-loud `die`, or a degrading
+// collector) never sees it and cannot abort on it.
 
 import { gh } from "./gh";
 import type { BoardPriority } from "./queue-plan";
@@ -35,11 +45,18 @@ export interface BoardPriorityOptions {
     /** Skip the read entirely (`queue:plan`'s `--no-priority` escape hatch). */
     skip?: boolean;
     /**
-     * Called on every degraded/failed read, with an operator-facing message.
-     * Returning normally means "continue in a degraded state" — what that
-     * means is the caller's business: `die()` never returns, so nothing
-     * after it runs; a collector returns and `fetchBoardPriority` degrades
-     * (empty map, or skips just the one bad item) instead of aborting.
+     * Called on every degraded/failed READ (a genuine failure — bad scope,
+     * truncated list, unrecognized priority value), with an operator-facing
+     * message. Returning normally means "continue in a degraded state" —
+     * what that means is the caller's business: `die()` never returns, so
+     * nothing after it runs; a collector returns and `fetchBoardPriority`
+     * degrades (empty map, or skips just the one bad item) instead of
+     * aborting.
+     *
+     * NOT called for the deliberate `--no-priority` skip (`opts.skip`) — see
+     * the module comment. That path warns on its own and never reaches this
+     * callback, so a `die`-style `onError` cannot turn the escape hatch into
+     * an abort.
      */
     onError: (message: string) => void;
     /** Test seam — defaults to the real `gh` wrapper. */
@@ -57,8 +74,12 @@ export function fetchBoardPriority(
     const run = opts.ghClient ?? gh;
 
     if (opts.skip) {
-        opts.onError(
-            "--no-priority: board priorities NOT applied; this plan uses the default order only"
+        // Deliberately NOT `opts.onError` — see the module comment. `--no-
+        // priority` is the documented escape hatch, not a failure, so it must
+        // warn and return regardless of the caller's error policy (`die` for
+        // `queue:plan` would otherwise exit(2) on its own escape hatch).
+        console.warn(
+            "⚠ --no-priority: board priorities NOT applied; this plan uses the default order only"
         );
         return {};
     }
