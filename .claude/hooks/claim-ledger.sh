@@ -15,6 +15,22 @@
 # this session took and nothing else.
 #
 # Observer only: always exits 0, never blocks. Denial is `deny-guard.sh`'s job.
+#
+# ── Plan join (issue #2518) ─────────────────────────────────────────────────
+# Nothing checked that the batch a pass claimed WAS the batch `queue:plan`
+# produced, and nothing recorded which plan a claim came from — a hand-picked
+# batch was indistinguishable from a planned one, after the fact. Every claim
+# row now names the plan in force for this session (the latest file
+# `queue-plan.ts` wrote to `.claude/telemetry/plans/<session>-<ts>.json`, or
+# `null` when none preceded it) and, when the claimed issue is absent from
+# that plan's admitted batch, a `planMismatch` naming both the claimed issue
+# and what the plan admitted instead.
+#
+# Report, never block: a legitimate same-pass replan
+# (`TOLARIA_ALLOW_REPLAN=1`, deny-guard.sh §5) needs no special case here —
+# it produces a NEWER plan file for the same session, and "latest plan for
+# this session" is exactly what this hook reads, so a real replan simply
+# joins clean against its own, more recent, plan.
 
 set -u
 
@@ -36,7 +52,43 @@ issue=$(printf '%s' "$cmd" | sed -nE 's/.*gh[[:space:]]+issue[[:space:]]+edit[[:
 dir="${CLAUDE_PROJECT_DIR:-.}/.claude/telemetry"
 mkdir -p "$dir" 2>/dev/null || exit 0
 
-printf '{"ts":%s,"session":"%s","issue":%s,"event":"claim"}\n' \
-    "$(date +%s)" "$session" "$issue" >>"$dir/claims.jsonl" 2>/dev/null
+# Latest plan file for THIS session. `queue-plan.ts` names each artefact
+# `<session>-<epoch-ms>.json`, so a plain lexicographic sort of one session's
+# own files is a chronological sort too — no JSON parsing needed to find it.
+plans_dir="$dir/plans"
+plan_file=""
+if [ -n "$session" ] && [ -d "$plans_dir" ]; then
+    plan_file=$(ls -1 "$plans_dir/$session"-*.json 2>/dev/null | sort | tail -1)
+fi
+
+plan_json="null"
+mismatch_json="null"
+if [ -n "$plan_file" ] && [ -f "$plan_file" ]; then
+    plan_id=$(basename "$plan_file")
+    plan_json=$(printf '%s' "$plan_id" | jq -R .)
+    in_plan=$(jq --argjson n "$issue" \
+        '([.plan.batch[].number] | index($n)) != null' \
+        "$plan_file" 2>/dev/null)
+    if [ "$in_plan" != "true" ]; then
+        planned=$(jq -c '[.plan.batch[].number]' "$plan_file" 2>/dev/null)
+        [ -n "$planned" ] || planned="[]"
+        mismatch_json=$(jq -n --argjson issue "$issue" --argjson planned "$planned" \
+            '{claimed: $issue, planned: $planned}')
+        printf 'queue-plan mismatch: claimed #%s is not in session %s'\''s latest plan (%s) — plan admitted %s\n' \
+            "$issue" "$session" "$plan_id" "$planned" >&2
+    fi
+else
+    printf 'queue-plan mismatch: claimed #%s with no preceding plan for session %s\n' \
+        "$issue" "$session" >&2
+fi
+
+jq -nc \
+    --argjson ts "$(date +%s)" \
+    --arg session "$session" \
+    --argjson issue "$issue" \
+    --argjson plan "$plan_json" \
+    --argjson planMismatch "$mismatch_json" \
+    '{ts: $ts, session: $session, issue: $issue, event: "claim", plan: $plan, planMismatch: $planMismatch}' \
+    >>"$dir/claims.jsonl" 2>/dev/null
 
 exit 0

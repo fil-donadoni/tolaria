@@ -941,6 +941,142 @@ describe("claim-ledger — records what THIS session claimed", () => {
     });
 });
 
+describe("claim-ledger — joins a claim to the plan in force (issue #2518)", () => {
+    // Observed 2026-08-17: a batch ran while 43 prioritized issues sat ready,
+    // and the claim rows carried nothing that could tell "planned" from
+    // "hand-picked" apart. `queue-plan.ts` now writes one artefact per run to
+    // `.claude/telemetry/plans/<session>-<epoch-ms>.json`; this hook is the
+    // other half — every claim row must name that artefact (or its absence)
+    // and flag, never block, a claimed issue the plan did not admit.
+    let projectDir: string;
+
+    const ledger = () =>
+        path.join(projectDir, ".claude", "telemetry", "claims.jsonl");
+
+    const lastRow = () => {
+        const lines = fs.readFileSync(ledger(), "utf8").trim().split("\n");
+        return JSON.parse(lines[lines.length - 1]);
+    };
+
+    /** Write a plan artefact in the exact shape `buildPlanRecord` produces —
+     *  this hook parses it with `jq` against that contract. */
+    const writePlan = (
+        session: string,
+        epochMs: number,
+        admittedNumbers: number[]
+    ) => {
+        const dir = path.join(projectDir, ".claude", "telemetry", "plans");
+        fs.mkdirSync(dir, { recursive: true });
+        const record = {
+            version: 1,
+            session,
+            ts: new Date(epochMs).toISOString(),
+            noPriority: false,
+            plan: {
+                version: 1,
+                batch: admittedNumbers.map((number) => ({
+                    number,
+                    title: `issue ${number}`,
+                    type: "fix",
+                    model: "sonnet",
+                    hitl: false,
+                    targetFiles: [],
+                    blastRadius: "unknown",
+                    reason: "admitted",
+                })),
+                deferred: [],
+                skipped: [],
+                staleClaims: [],
+            },
+        };
+        fs.writeFileSync(
+            path.join(dir, `${session}-${epochMs}.json`),
+            JSON.stringify(record)
+        );
+    };
+
+    const claim = (issueNumber: number, session: string) =>
+        runHook(
+            CLAIM_LEDGER,
+            bash(
+                `gh issue edit ${issueNumber} --add-label in-progress --add-assignee @me`,
+                "/x",
+                session
+            ),
+            { CLAUDE_PROJECT_DIR: projectDir }
+        );
+
+    beforeAll(() => {
+        projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-plan-"));
+    });
+
+    it("names the plan and reports no mismatch when the claim was admitted", () => {
+        writePlan("sess-match", 1_000, [2511]);
+        const r = claim(2511, "sess-match");
+        expect(r.code).toBe(0);
+        expect(lastRow()).toMatchObject({
+            issue: 2511,
+            session: "sess-match",
+            plan: "sess-match-1000.json",
+            planMismatch: null,
+        });
+    });
+
+    it("flags — but does not block — a claim absent from the plan's admitted batch", () => {
+        writePlan("sess-mismatch", 1_000, [2511]);
+        const r = claim(1852, "sess-mismatch");
+        expect(r.code).toBe(0); // report, never block
+        expect(lastRow()).toMatchObject({
+            issue: 1852,
+            session: "sess-mismatch",
+            plan: "sess-mismatch-1000.json",
+            planMismatch: { claimed: 1852, planned: [2511] },
+        });
+        // "loudly" — the flag is visible in real time, not just on disk.
+        expect(r.stderr).toMatch(/mismatch/i);
+        expect(r.stderr).toMatch(/#1852/);
+        expect(r.stderr).toMatch(/2511/);
+    });
+
+    it("records an explicit `plan: null` marker when no plan preceded the claim", () => {
+        const r = claim(700, "sess-no-plan");
+        expect(r.code).toBe(0);
+        expect(lastRow()).toMatchObject({
+            issue: 700,
+            session: "sess-no-plan",
+            plan: null,
+        });
+        expect(r.stderr).toMatch(/no preceding plan/i);
+    });
+
+    it("joins to the LATEST plan when a session has replanned", () => {
+        // A same-pass replan (TOLARIA_ALLOW_REPLAN=1, deny-guard.sh §5)
+        // produces a second, newer artefact for the same session. The hook
+        // must compare against that one, not the stale first pass.
+        writePlan("sess-replan", 1_000, [1111]);
+        writePlan("sess-replan", 2_000, [2222]);
+        const r = claim(2222, "sess-replan");
+        expect(r.code).toBe(0);
+        expect(lastRow()).toMatchObject({
+            issue: 2222,
+            session: "sess-replan",
+            plan: "sess-replan-2000.json",
+            planMismatch: null,
+        });
+    });
+
+    it("does not mistake a different session's plan for its own", () => {
+        writePlan("sess-owner", 1_000, [3333]);
+        const r = claim(3333, "sess-stranger");
+        expect(r.code).toBe(0);
+        expect(lastRow()).toMatchObject({
+            issue: 3333,
+            session: "sess-stranger",
+            plan: null, // sess-owner's plan is not sess-stranger's plan
+        });
+    });
+});
+
 describe("claim-sweep — releases this session's claims, and only those", () => {
     /** A fake `gh` on PATH, scripted per test. Recording what it was CALLED
      *  with is the whole assertion: the failure mode being guarded is the sweep
