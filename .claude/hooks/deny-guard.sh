@@ -171,13 +171,18 @@ esac
 # ─────────────────────────────────────────────────────────────────────────────
 
 # A backslash-continued line is still ONE pipeline (`bun run test \` +
-# newline + `  | tail -20` runs as a single command), but the newline-based
-# split below would otherwise treat the continuation as a separator and see
-# two harmless-looking halves — exactly the shape of the incident that
-# started this file (`docs:ship 2>&1 | tail -25`), just wrapped across a
-# line break instead of typed on one line. Join `\<newline>` into a space
+# newline + `  | tail -20` runs as a single command), and a line ending in a
+# bare shell operator (`|`/`||`/`&&`/`&`) is the same shape one step over
+# (`bun run test |` + newline + `tail -20`) — but the newline-based split
+# below would otherwise treat either continuation as a separator and see
+# two harmless-looking halves. That is exactly the shape of the incident
+# that started this file (`docs:ship 2>&1 | tail -25`), just wrapped across
+# a line break instead of typed on one line. Join both shapes into a space
 # BEFORE splitting into segments, so the pipe and the pager end up back in
-# the same segment.
+# the same segment. Both joins live in ONE shared, single-pass script —
+# `.claude/hooks/lib/join-continued-lines.awk` — so the hook and its test
+# suite (`scripts/__tests__/hook-policy.test.ts`) run the exact same code,
+# never two implementations of the same rule.
 #
 # **Not sed.** The original `sed -e :a -e '/\\$/N; s/\\\n/ /; ta'` is a
 # fail-OPEN hole on this machine's `sed` (BSD): `N` on the LAST line, with no
@@ -189,50 +194,16 @@ esac
 # §4 discarding git, §5 MAX_PASSES) match nothing. One trailing backslash
 # turned a fail-closed guard fully fail-open — the exact bug class this file
 # exists to close, reintroduced by its own fix. `awk`, one line per record,
-# has no such last-line special case.
-#
-# The join has to get three shapes right, all with no hand-rolled coverage
-# before this fix:
-#   * odd/even parity on the trailing backslash run — `echo foo\\` (an
-#     ESCAPED backslash, even count) must NOT join with the next line, only
-#     a genuine odd-count continuation does;
-#   * `\<CR><LF>` (a line saved with CRLF endings) joins exactly like
-#     `\<LF>`, not just the Unix ending;
-#   * a continuation on the truly last line of input, with nothing to join
-#     to, must still surface its content (minus the marker backslash) rather
-#     than vanish — that is the bug above, and the fix has to prove the
-#     content survives even when there is no next line at all.
-# A command with none of the above passes through unchanged: `_cmd_joined`
-# is captured via `$(...)`, which already strips trailing newlines from both
-# the input (`cmd` was captured the same way) and awk's output, so the one
-# newline `printf "%s\n"` adds after the final non-continued line never
-# survives to make this non-identical.
-_cmd_joined=$(printf '%s' "$cmd" | awk '
-{
-    line = $0
-    hadCR = 0
-    L = length(line)
-    if (L > 0 && substr(line, L, 1) == "\r") {
-        hadCR = 1
-        line = substr(line, 1, L - 1)
-        L = L - 1
-    }
-    # Count the trailing backslash RUN — parity decides continuation vs.
-    # literal: `\` (1, odd) continues the line; `\\` (2, even) is one
-    # escaped, literal backslash and does NOT continue it.
-    n = 0
-    while (n < L && substr(line, L - n, 1) == "\\") n++
-    if (n % 2 == 1) {
-        # Odd: genuine continuation. Drop the one marker backslash, join
-        # with a space (never a newline), keep any escaped pairs before it.
-        printf "%s ", substr(line, 1, L - 1)
-    } else if (hadCR) {
-        printf "%s\r\n", line
-    } else {
-        printf "%s\n", line
-    }
-}
-')
+# has no such last-line special case — see the script's own header for the
+# full shape inventory (backslash parity, CRLF, the four operators, and the
+# byte-identity guarantee for a line with neither).
+# LC_ALL=C: the joiner's own comparisons are all substr/length, never a
+# locale-aware regex, but pinning the locale here too is a free belt-and-
+# suspenders — command bytes are untrusted, and a wide-character conversion
+# routine invoked under a UTF-8 locale is exactly the kind of thing that can
+# throw on an invalid byte sequence instead of degrading gracefully.
+_cmd_joined=$(printf '%s' "$cmd" |
+    LC_ALL=C awk -f "$(dirname -- "$0")/lib/join-continued-lines.awk")
 
 segments=$(printf '%s' "$_cmd_joined" | sed -e 's/&&/\
 /g' -e 's/||/\
@@ -324,14 +295,33 @@ fi
 # `scripts/gate.ts` invocation (bypassing `bun run` entirely) is always the
 # gate itself and stays unconditionally denied when piped.
 #
-# **Known tradeoff, taken deliberately:** the backslash-continuation joiner
-# above cannot tell a live pipeline from a wrapped gate command merely
-# QUOTED inside a heredoc (a findings file, a commit body), so writing one
-# can now DENY where it used to pass — heredoc-awareness is out of scope for
-# the same reason the file's own header gives (parsing shell far enough to
+# **Known tradeoff, taken deliberately — and mislocated in an earlier
+# revision of this comment.** This rule matches SEGMENTS, never parsed
+# shell, so it cannot tell live pipeline text from the same characters
+# sitting inside a quoted string. Measured across three review rounds: MOST
+# of this false-denial class predates the joiner above entirely and has
+# nothing to do with backslashes — it is this section's own segment
+# matching reading a QUOTED pattern as if it were a live pipeline (3 of 5
+# observed shapes). The trigger is any command that **quotes the pager
+# pattern AND pipes its OWN output** — not specifically a heredoc, though a
+# heredoc is the commonest carrier: a `grep -E 'tail|head'` in a findings
+# file's body, piped through something else entirely for formatting, reads
+# as "gate piped into a pager" even though the quoted text never runs. This
+# bit an ordinary diagnostic command as readily as a heredoc, which is why
+# "redirect to a file and grep it" (this rule's own advice, below) does not
+# help here: the pattern IS the payload, there is no gate output to
+# redirect.
+#
+# The genuinely NEW shape, introduced by the backslash joiner itself: a
+# Markdown **hard line break** — a trailing `\` at end-of-line, welding two
+# otherwise-benign lines into one segment — which matters more than it
+# might look, because every findings/ADR write in this repo goes through a
+# heredoc, and hard line breaks are ordinary Markdown. Heredoc-awareness
+# (telling quoted body text apart from a live pipeline) is out of scope for
+# the same reason the file's own header gives: parsing shell far enough to
 # know the difference is how a guard starts denying legitimate work at
-# random), and this specific false-denial shape is accepted on purpose, not
-# overlooked.
+# random. This false-denial shape — mostly pre-existing, sharpened slightly
+# by the joiner — is accepted on purpose, not overlooked.
 #
 # **The informational allowlist, seeded against `package.json` (verify with
 # `bun run <name>` before adding another):** `cr`, `cr:check`, `findings`,
@@ -339,11 +329,15 @@ fi
 # `telemetry:dash`, `format`. Nothing else — in particular `lint`,
 # `format:check`, `check:ts`, `check:index`, `check:stubs` and
 # `telemetry:ingest` stay DENIED: piping any of those hides a real failure
-# exactly like piping the gate does (`telemetry:ingest` WRITES `telemetry.db`
-# and its exit code plausibly matters, so it defaults fail-closed like any
-# other writer — it is not "purely informational" the way a read-only report
-# is). `format` (`prettier --write`, thousands of lines on a real run, `|
-# tail -5` a daily reflex) is informational for a different reason: nobody
+# exactly like piping the gate does. The rule sorting these is NOT "writers
+# fail closed, readers are informational" — `format` below is a writer too
+# (`prettier --write`) and it stays allowlisted. The rule is **whether
+# anything downstream independently verifies the result or branches on the
+# exit code**: `telemetry:ingest` WRITES `telemetry.db` and nothing re-checks
+# that write afterward, so its own exit code is the only signal that it
+# happened correctly — piping it away is the same blind spot as piping the
+# gate. `format` (`prettier --write`, thousands of lines on a real run, `|
+# tail -5` a daily reflex) is safe to pipe for a different reason: nobody
 # branches on ITS exit code either way, and `check:all` re-verifies
 # formatting independently regardless of how this run went — the write is a
 # convenience, not the thing anyone is trusting. (Not "a parse error is loud
