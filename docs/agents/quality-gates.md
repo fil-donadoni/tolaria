@@ -151,6 +151,21 @@ isolated every time and an ordinary discussion never did. It is now in
 - Known hole, accepted: a `cat > file` heredoc in Bash still gets through.
   Matching redirections inside a command string is the false-denial shape § 4's
   header is about, and the authoring tools are what a model actually uses.
+- `deny-guard.sh` § 1 denies `gh pr merge` **anywhere** (#2537), not just from
+  an issue worktree: the gate mutex serialises gating, `land` extends it over
+  the merge, and a merge typed by hand takes no lock at all — three did on
+  2026-08-18, two of them from the main checkout as recovery after `land`
+  failed. `land`'s own merge is a child process, invisible to the hook by
+  design. Per-command hatch, naming the one merge it authorises:
+  `TOLARIA_ALLOW_MANUAL_MERGE=1 gh pr merge <PR#> --squash`.
+- **Still open, and unclosable from a hook: the GitHub web UI.** No hook sees a
+  merge clicked in a browser, so nothing stops `main` moving that way. The only
+  defence is not doing it; `land` exists so there is no reason to.
+- Heredoc BODIES are stripped before any rule reads the command
+  (`.claude/hooks/lib/strip-heredoc-bodies.awk`): a commit message, a PR body
+  or a `python3 - <<'PY'` patch is data the shell never executes, and a
+  substring scanner cannot tell it from a command. Widening § 1 made this
+  load-bearing — a patch script that merely MENTIONED the merge was denied.
 
 **The documentation lane** is the door beside that wall. A prose change cannot
 break the engine, so it does not owe the heavy suite:
@@ -166,6 +181,14 @@ bun run docs:ship --no-merge   # …but leave the PR open
 (`DOC_GATE_TESTS` in `scripts/docs-lane.ts`). Seconds, `light` tier, no
 machine-wide lock — which is what makes a PR per discussion affordable instead
 of a tax people route around.
+
+**Its MERGE, however, takes the lock** (#2537). Gating and merging are separate
+acts: a docs merge moves `main` exactly as much as any other, and `main` moving
+under a session mid-gate is what makes that session's verified tree stop being
+the tree that lands. So `docs:ship` re-runs the rebase, `check:docs` and the
+force-push _inside_ one `gate.ts heavy` invocation and merges there — paying
+the queue for the seconds it merges in, and for nothing else. The cheap gate is
+untouched; `bun run check:docs` on its own still takes no lock.
 
 `docs:ship` refuses a changeset containing anything that is not `*.md` or under
 `docs/`: a mixed change goes through the ordinary branch and the full gate.

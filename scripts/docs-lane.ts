@@ -160,6 +160,62 @@ function fail(message: string): never {
     process.exit(1);
 }
 
+const GATE = resolve(__dirname, "gate.ts");
+const PR_MERGE = resolve(__dirname, "pr-merge.ts");
+
+function shQuote(s: string): string {
+    return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Everything the docs lane does under the machine-wide merge lock, as ONE
+ * shell string — the same shape (and the same reasons) as `land`'s
+ * `buildLockedCommand`, with the doc gate in place of the full suite.
+ *
+ * WHY THE LANE TAKES THE LOCK AT ALL (issue #2537). The cheap gate is the
+ * lane's whole point and stays unlocked: prose cannot break the engine, so it
+ * owes `check:docs` (seconds), never `bun run test`. **Merging is a different
+ * act from gating.** `scripts/gate.ts`'s mutex serialises gating; `land`
+ * extends it across the merge (#2517) precisely because a merge moves `main`
+ * under whoever is mid-gate, and their verified tree stops being the tree that
+ * lands. A docs merge moves `main` exactly as much as any other. So the lane
+ * pays the queue for the seconds it merges in, and for nothing else.
+ *
+ * Re-gating inside the lock is what makes that meaningful: `main` may have
+ * moved between the pre-PR push and acquiring the lock, so the rebase, the doc
+ * gate and the force-push all happen in here, on the tree that actually lands.
+ *
+ * `pr-merge.ts`, not a bare `gh pr merge`, for the same reason `land` uses it
+ * (#2536): the force-push immediately above invalidates GitHub's cached view
+ * of the PR and the merge is refused while that recomputes. This lane
+ * force-pushes right before merging too, so it had the identical race.
+ *
+ * `--delete-branch` is deliberately NOT passed: `gh` switches the local repo to
+ * the default branch before deleting, and `main` is checked out in the primary
+ * worktree, so it dies with `fatal: 'main' is already used by worktree at …`
+ * AFTER the merge has landed — a failure reported on a PR that merged fine.
+ * Both refs are deleted explicitly instead, each wrapped `(… || true)` so
+ * cleanup can never turn a landed merge into a reported failure.
+ */
+export function buildShipMergeCommand(opts: {
+    branch: string;
+    pr: number;
+    primary: string;
+    cwd: string;
+}): string {
+    const b = shQuote(opts.branch);
+    return [
+        "git fetch origin main -q",
+        "git rebase origin/main",
+        "bun run check:docs",
+        `git push --force-with-lease origin ${b}`,
+        `bun ${shQuote(PR_MERGE)} ${opts.pr}`,
+        `(git push origin --delete ${b} || true)`,
+        `(git -C ${shQuote(opts.primary)} worktree remove --force ${shQuote(opts.cwd)} || true)`,
+        `(git -C ${shQuote(opts.primary)} branch -D ${b} || true)`,
+    ].join(" && ");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // `new` — open the lane
 // ─────────────────────────────────────────────────────────────────────────────
@@ -309,21 +365,30 @@ function cmdShip(argv: string[]): void {
         return;
     }
 
-    if (!run("gh", ["pr", "merge", "--squash"], cwd)) {
-        fail("merge failed — the PR is open, resolve it there.");
+    const pr = Number(
+        spawnSync(
+            "gh",
+            ["pr", "view", branch, "--json", "number", "--jq", ".number"],
+            { encoding: "utf8", cwd, env: NET_ENV }
+        ).stdout?.trim()
+    );
+    if (!Number.isInteger(pr) || pr <= 0) {
+        fail("could not read the PR number — the PR is open, merge it there.");
     }
-    // `--delete-branch` is deliberately NOT passed. gh switches the local repo
-    // to the default branch before deleting, and `main` is checked out in the
-    // primary worktree, so it dies with
-    // `fatal: 'main' is already used by worktree at …` — AFTER the merge has
-    // landed. The run then reports a failure on a PR that merged fine, which is
-    // the worst shape an error can take. Delete both refs ourselves.
-    run("git", ["push", "origin", "--delete", branch], cwd);
 
-    // Tear down from the primary checkout: a worktree cannot remove itself.
-    process.chdir(primary);
-    run("git", ["worktree", "remove", "--force", cwd], primary);
-    run("git", ["branch", "-D", branch], primary);
+    console.log(`docs-lane: landing PR #${pr} under the merge lock`);
+    const locked = spawnSync(
+        "bun",
+        [GATE, "heavy", buildShipMergeCommand({ branch, pr, primary, cwd })],
+        { stdio: "inherit", cwd, env: NET_ENV }
+    );
+    if (locked.status !== 0) {
+        fail(
+            `landing failed (exit ${locked.status ?? "?"}). Re-check with ` +
+                `\`gh pr view ${pr} --json state\`: MERGED means only a cleanup ` +
+                `step failed; OPEN means fix and re-run \`bun run docs:ship\`.`
+        );
+    }
     console.log("docs-lane: merged, worktree and branch removed.");
 }
 

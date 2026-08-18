@@ -137,22 +137,67 @@ afterAll(() => {
     fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-describe("deny-guard — a subagent may not merge a PR", () => {
+describe("deny-guard — merging goes through land, from anywhere (#2537)", () => {
     it("denies `gh pr merge` from an issue worktree", () => {
         const r = runHook(
             DENY_GUARD,
             bash("gh pr merge 123 --squash --delete-branch", issueWorktree)
         );
         expect(denied(r)).toBe(true);
-        expect(r.stderr).toMatch(/merge-train/);
+        expect(r.stderr).toMatch(/land/);
     });
 
-    it("allows `gh pr merge` from the main checkout — that is the orchestrator", () => {
+    it("denies it from the MAIN checkout too — the gap that let three merges bypass the lock", () => {
+        // Until #2537 this was the allowed case ("that is the orchestrator").
+        // It is how #2524 and #2526 moved `main` under sessions that were
+        // mid-gate on 2026-08-18: the gate mutex covers gating, `land` extends
+        // it over the merge, and a merge typed here takes no lock at all.
         const r = runHook(
             DENY_GUARD,
             bash("gh pr merge 123 --squash --delete-branch", mainCheckout)
         );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/bun run land/);
+    });
+
+    it("denies it from an ordinary linked worktree as well", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("gh pr merge 123 --squash", linkedWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("points the caller at the merge-only retry, not at re-running the gate", () => {
+        // The recovery instruction matters as much as the denial: a second
+        // `bun run land` re-pays a full heavy gate on a tree that is unchanged
+        // and already verified (#2536).
+        const r = runHook(DENY_GUARD, bash("gh pr merge 123", mainCheckout));
+        expect(r.stderr).toMatch(/pr-merge\.ts/);
+    });
+
+    it("allows it behind the explicit per-command hatch", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "TOLARIA_ALLOW_MANUAL_MERGE=1 gh pr merge 123 --squash",
+                mainCheckout
+            )
+        );
         expect(r.code).toBe(0);
+    });
+
+    it("requires the hatch in the SAME segment as the merge it authorises", () => {
+        // A hatch set by an earlier, unrelated command in the chain must not
+        // vouch for a merge further down: the opt-in names one command.
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "TOLARIA_ALLOW_MANUAL_MERGE=1 echo hi && gh pr merge 123 --squash",
+                mainCheckout
+            )
+        );
+        expect(denied(r)).toBe(true);
     });
 
     it("allows other `gh pr` commands from an issue worktree", () => {
@@ -163,6 +208,76 @@ describe("deny-guard — a subagent may not merge a PR", () => {
         ]) {
             expect(runHook(DENY_GUARD, bash(cmd, issueWorktree)).code).toBe(0);
         }
+    });
+});
+
+describe("deny-guard — heredoc bodies are data, not commands (#2537)", () => {
+    // A command carries text it does not run: commit messages, PR bodies,
+    // patch scripts. Widening §1 to the whole machine made this bite — a
+    // `python3 - <<'PY'` patch that MENTIONED the merge (the tests in this very
+    // file do) was denied while it edited a test file.
+
+    it("allows a patch script whose BODY names the merge", () => {
+        const cmd = [
+            "python3 - <<'PY'",
+            's = open("hook-policy.test.ts").read()',
+            // Whitespace before the phrase, so it really does reach §1's
+            // regex — this is the line that got the real patch denied.
+            "old = 'never passes --delete-branch to gh pr merge'",
+            "s = s.replace(old, 'never passes --delete-branch')",
+            "PY",
+        ].join("\n");
+        expect(runHook(DENY_GUARD, bash(cmd, mainCheckout)).code).toBe(0);
+    });
+
+    it("allows a commit message that discusses force-pushing main", () => {
+        const cmd = [
+            "git commit -F - <<'MSG'",
+            "fix: explain why nothing here runs git push --force origin main",
+            "and why no gate is ever piped: bun run test | tail -20",
+            "MSG",
+        ].join("\n");
+        expect(runHook(DENY_GUARD, bash(cmd, mainCheckout)).code).toBe(0);
+    });
+
+    it("still sees a REAL command after the terminator — the stripper resumes", () => {
+        // The failure that would matter: swallowing the rest of the script.
+        const cmd = [
+            "gh pr create --body-file - <<'EOF'",
+            "some prose",
+            "EOF",
+            "gh pr merge 123 --squash",
+        ].join("\n");
+        expect(denied(runHook(DENY_GUARD, bash(cmd, mainCheckout)))).toBe(true);
+    });
+
+    it("handles the tab-stripping `<<-` form", () => {
+        const cmd = ["cat <<-EOF", "\tgh pr merge 123", "\tEOF", "true"].join(
+            "\n"
+        );
+        expect(runHook(DENY_GUARD, bash(cmd, mainCheckout)).code).toBe(0);
+    });
+
+    it("does NOT treat a here-string as a heredoc — the next line is a command", () => {
+        // `<<<` has no body; consuming the following line would be a false
+        // ALLOW on a real command.
+        const cmd = ["cat <<<hello", "gh pr merge 123 --squash"].join("\n");
+        expect(denied(runHook(DENY_GUARD, bash(cmd, mainCheckout)))).toBe(true);
+    });
+
+    it("does NOT read `<<` buried mid-line as an introducer", () => {
+        // `echo 'a << b'` must not swallow everything up to a line reading
+        // `b` — the same false-ALLOW direction as the here-string case.
+        const cmd = ["echo 'shift a << b here'", "gh pr merge 123"].join("\n");
+        expect(denied(runHook(DENY_GUARD, bash(cmd, mainCheckout)))).toBe(true);
+    });
+
+    it("leaves a command with no heredoc byte-identical to the guard's eyes", () => {
+        // Regression on the filter itself: the shapes join-continued-lines.awk
+        // depends on (trailing `|`, trailing `\`) must survive it, or §3's
+        // pager gate silently stops seeing them.
+        const cmd = "bun run test |\ntail -20";
+        expect(denied(runHook(DENY_GUARD, bash(cmd, mainCheckout)))).toBe(true);
     });
 });
 
@@ -429,7 +544,8 @@ describe("deny-guard — the backslash-continuation joiner (awk, not sed)", () =
             bash("gh pr merge 123 --squash; echo \\", issueWorktree)
         );
         expect(denied(r)).toBe(true);
-        expect(r.stderr).toMatch(/merge-train/);
+        // §1's message names the one sanctioned path since #2537.
+        expect(r.stderr).toMatch(/bun run land/);
     });
 
     it("still denies force-push-main past an unrelated mid-line backslash — the joiner does not corrupt segments it should leave alone", () => {
