@@ -424,6 +424,11 @@ export const teferisMoat: CardDefinition = {
         "As this enchantment enters, choose a color.\nCreatures of the chosen color without flying can't attack you.",
     manaCost: { X: 3, W: 1, U: 1 },
     types: ["Enchantment"],
+    // CR 614.1c / 614.12a (issue #2019) — the colour is chosen AS the
+    // enchantment enters, a replacement effect, so the pick is declared on
+    // `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
+    // chokepoint on every entry path rather than at cast announcement.
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: TEFERIS_MOAT_COLORS.map((color) => ({
         id: color,
         label: color,

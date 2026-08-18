@@ -356,6 +356,7 @@ import {
     DAMAGEABLE_PERMANENT_TYPES,
     MANA_COLORS,
     applyLandManaReplacement,
+    declaresAsEntersMode,
     hybridCostKey,
     getActivatedManaAbility,
     manaAbilityPaidWithoutTapping,
@@ -7318,8 +7319,23 @@ export const announceCast = mutation({
         // Modal spell — caster locks in a mode at announcement (CR 700.2c).
         // The chosen mode's targetRequirement / resolve drive the rest of
         // the announcement and resolution flow.
+        //
+        // CR 614.12a (ADR 0100 slice 2, issue #2019) — EXCEPT when the card
+        // declares its pick as an as-enters choice ("As this creature enters,
+        // choose a color" — Voice of All, Prismatic Ward, Quirion Elves,
+        // Jihad). That clause is a CR 614.1c replacement effect, so the choice
+        // is made "before the permanent enters the battlefield" on EVERY entry
+        // path, and the CR 614 chokepoint raises it there. Taking it here too
+        // would ask a cast copy twice. Fail-closed: a stale client that still
+        // sends one is rejected rather than silently double-picking.
         let chosenMode: SpellMode | undefined;
-        if (cardDef.modes && cardDef.modes.length > 0) {
+        if (declaresAsEntersMode(cardDef)) {
+            if (args.chosenModeId) {
+                throw new Error(
+                    `${cardDef.name} chooses its mode as it enters the battlefield (CR 614.12a) — chosenModeId must not be supplied at announcement`
+                );
+            }
+        } else if (cardDef.modes && cardDef.modes.length > 0) {
             if (!args.chosenModeId) {
                 throw new Error(
                     "Modal spell — must choose a mode at announcement"

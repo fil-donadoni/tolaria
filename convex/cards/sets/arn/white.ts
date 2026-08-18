@@ -272,7 +272,13 @@ export const jihad: CardDefinition = {
         "As Jihad enters, choose a color and an opponent.\nWhite creatures get +2/+1 as long as the chosen player controls a nontoken permanent of the chosen color.\nWhen the chosen player controls no nontoken permanents of the chosen color, sacrifice Jihad.",
     manaCost: { W: 3 },
     types: ["Enchantment"],
-    // CR 700.2 — the colour is chosen as the enchantment enters (modal pick).
+    // CR 614.1c / 614.12a (issue #2019) — the colour is chosen AS the
+    // enchantment enters, which is a replacement effect, so the pick is
+    // declared on `entersWith.asEnters` (ADR 0100 D3) and raised at the single
+    // CR 614 chokepoint on every entry path rather than at cast announcement.
+    // The answer lands on `chosenModeId`, which selects the mode whose
+    // `staticEffects` the layer system applies (`getEffectiveStaticEffects`).
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: JIHAD_COLORS.map((color) => ({
         id: color,
         label: JIHAD_COLOR_NAMES[color],

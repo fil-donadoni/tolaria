@@ -1598,10 +1598,12 @@ describe("Chromatic Armor (re-choosable colour shield, CR 615 / 700.2c / 601.2f)
     // Every test above hand-builds the Aura ALREADY on the battlefield with
     // `chosenModeId` pre-set — none of them exercise the real cast commit
     // (`finalizeTargetSelection` → `resolveTopOfStack`), which is the ONLY
-    // path a real cast actually takes: `announceCast` stores the ETB colour
-    // pick on `state.pendingTarget.chosenModeId` (CR 700.2c), and it is this
-    // function that must carry it onto the stack item / permanent.
-    it("carries the ETB colour choice onto the permanent through the real cast commit (finalizeTargetSelection → resolveTopOfStack)", () => {
+    // path a real cast actually takes. CR 614.1c makes "As this Aura enters,
+    // choose a color" a REPLACEMENT effect, so since #2019 the pick is no
+    // longer carried from announcement: `announceCast` rejects a
+    // `chosenModeId` for this card and the CR 614 entry chokepoint raises the
+    // choice as the Aura enters (CR 614.12a, ADR 0100 slice 2).
+    it("raises the ETB colour choice AS THE AURA ENTERS through the real cast commit (finalizeTargetSelection → resolveTopOfStack)", () => {
         const host = vanilla("host", 2, 2, {
             controllerId: "p1",
             ownerId: "p1",
@@ -1629,14 +1631,27 @@ describe("Chromatic Armor (re-choosable colour shield, CR 615 / 700.2c / 601.2f)
             targetType: "Creature",
             count: 1,
             selected: [{ type: "permanent", id: "host" }],
-            chosenModeId: "W",
         };
         finalizeTargetSelection(state, pt, "p1");
         resolveTopOfStack(state);
+
+        // Parked off every zone until the colour is chosen (CR 614.12a).
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "armor-cast")
+        ).toBe(false);
+        expect(state.pendingChoices![0].asEntersKind).toBe("mode");
+        submitChoice(state, ["W"]);
+
         const onBattlefield = state.players[0].battlefield.find(
             (c) => c.id === "armor-cast"
         );
         expect(onBattlefield?.chosenModeId).toBe("W");
+        // The host it targeted at cast is still what it enchants, and the pick
+        // was raised exactly once.
+        expect(onBattlefield?.attachedTo).toBe("host");
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // CR 122.1 — the sleight counter still rides the same `entersWith`.
+        expect(onBattlefield?.counters?.sleight).toBe(1);
     });
 
     it("the {X} cost equals the source's sleight-counter count (CR 601.2f)", () => {

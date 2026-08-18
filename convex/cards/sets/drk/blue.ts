@@ -583,7 +583,11 @@ export const psychicAllergy: CardDefinition = {
         "As this enchantment enters, choose a color.\nAt the beginning of each opponent's upkeep, this enchantment deals X damage to that player, where X is the number of nontoken permanents of the chosen color they control.\nAt the beginning of your upkeep, destroy this enchantment unless you sacrifice two Islands.",
     manaCost: { X: 3, U: 2 },
     types: ["Enchantment"],
-    // CR 700.2 — the colour is chosen as the enchantment enters (modal pick).
+    // CR 614.1c / 614.12a (issue #2019) — the colour is chosen AS the
+    // enchantment enters, a replacement effect, so the pick is declared on
+    // `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
+    // chokepoint on every entry path rather than at cast announcement.
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: PSYCHIC_ALLERGY_COLORS.map((color) => ({
         id: color,
         label: PSYCHIC_ALLERGY_COLOR_NAMES[color],

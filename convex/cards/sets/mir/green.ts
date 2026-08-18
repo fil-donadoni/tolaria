@@ -14,13 +14,14 @@ import type { CardDefinition, Color, ManaCost } from "../../types";
 // tranche that authored them (`inv/__tests__/green.test.ts`), imported from
 // this module.
 //
-// The colour pick is modelled as a cast-time modal choice via
+// The colour pick is modelled as an AS-ENTERS choice (CR 614.12a) over
 // `CardDefinition.modes` — the SAME idiom Jihad (`arn/white.ts`), Prismatic
 // Ward and Chromatic Armor (`ice/white.ts` / `ice/multicolor.ts`) already use
-// for "as ~ enters, choose a color": the mode is locked at announcement and
-// rides onto the resulting permanent as `chosenModeId` (the stack item IS
-// the permanent object once it resolves, so nothing extra needs to copy the
-// field across). None of the five modes carries a `resolve`/`effects`
+// for "as ~ enters, choose a color". Since #2019 the mode is no longer locked
+// at cast announcement: `entersWith.asEnters: [{ kind: "mode" }]` raises it at
+// the CR 614 chokepoint as the permanent enters, on every entry path, and the
+// answer is written onto the permanent as `chosenModeId`. None of the five
+// modes carries a `resolve`/`effects`
 // body — exactly like Prismatic Ward's — because the mode's only job is to
 // drive the picker and persist the choice; the actual gameplay effect lives
 // on the second activated ability below.
@@ -75,6 +76,12 @@ export const quirionElves: CardDefinition = {
     subtypes: ["Elf", "Druid"],
     power: 1,
     toughness: 1,
+    // CR 614.1c / 614.12a (issue #2019) — "As this creature enters, choose a
+    // color" is a replacement effect, so the pick is declared on
+    // `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
+    // chokepoint on EVERY entry path, not only a cast. The answer lands on
+    // `chosenModeId`, which `getManaChoices` below reads.
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: QUIRION_ELVES_COLORS.map(({ id, label }) => ({
         id,
         label,
@@ -101,11 +108,12 @@ export const quirionElves: CardDefinition = {
             // always overrides via `getManaChoices` below.
             effect: (ctx) => ctx.addMana({ G: 1 }),
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-            // CR 700.2c / 605.1a — the actual output is the ETB-stored colour
+            // CR 614.12a / 605.1a — the actual output is the ETB-stored colour
             // (`source.chosenModeId`), read directly off the `PermanentView`
             // every mana-ability hook already receives (issue #1097 added
             // the field). A single-entry list — there is no REAL choice at
-            // activation, the choice was already locked at cast.
+            // activation, the choice was already locked as the creature
+            // entered the battlefield (CR 614.12a).
             getManaChoices: (source) => [
                 QUIRION_ELVES_COLOR_MANA[
                     (source.chosenModeId as Color | undefined) ?? "G"

@@ -68,6 +68,7 @@ import type { ActivationCostPicks } from "./activationCostPicks";
 import { enumerateActivationCostPicks } from "./activationCostPicks";
 import {
     MANA_COLORS,
+    declaresAsEntersMode,
     isPlaneswalker,
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
@@ -817,8 +818,14 @@ function enumerateCastMoves(
             [];
         return [primary, ...extra];
     };
+    // CR 614.12a (issue #2019) — a card whose modal pick is an AS-ENTERS choice
+    // (Voice of All, Prismatic Ward, Quirion Elves, Jihad) does not announce a
+    // mode: `announceCast` rejects a supplied `chosenModeId` outright, so
+    // enumerating one Move per mode here would generate moves the mutation
+    // throws on. The pick is answered later, at the CR 614 chokepoint, through
+    // the ordinary `option-pick` PendingChoice the Brain already realises.
     const modeVariants =
-        def?.modes && def.modes.length > 0
+        def?.modes && def.modes.length > 0 && !declaresAsEntersMode(def)
             ? def.modes.map((m) => ({
                   modeId: m.id as string | undefined,
                   groups: groupsFor(m),

@@ -820,15 +820,31 @@ export const surpriseDeployment: CardDefinition = {
 // `getLegalTargets`/`selectTarget`/`dealDamage`/block validation — sees it
 // identically to a printed keyword.)
 //
-// DIVERGENCE (tracked-by: #2019, issue #1948 review MINOR 7): `chosenModeId`
-// is only ever populated from the `castSpell` mutation's announcement-time
-// pick — there is no equivalent stamping when this creature enters WITHOUT
-// being cast (reanimation, a "put onto the battlefield" effect, a token
-// copy). CR 614.12 says the choice happens "as it enters", not "as it is
-// cast", so a non-cast entry currently grants protection from nothing. This
-// is INHERITED from the shared `modes`/`chosenModeId` idiom — Prismatic Ward
-// (`ice/white.ts`) and Quirion Elves (`mir/green.ts`) carry the identical
-// gap, not something this card introduces.
+// CR 614.1c makes "As this creature enters, choose a color" a REPLACEMENT
+// effect and CR 614.12a puts the choice before the permanent enters, so it is
+// declared as data on `entersWith.asEnters` (ADR 0100 D3, issue #2019) rather
+// than taken at cast announcement: the pick rides the single CR 614 chokepoint
+// and is therefore raised on every entry path that goes THROUGH a card — a
+// cast, reanimation, a "put onto the battlefield" effect, a blink out of
+// exile. `announceCast` rejects a `chosenModeId` for a card that declares
+// this, so the choice is raised once and only once.
+//
+// DIVERGENCE (tracked-by: #2043): a TOKEN COPY of this creature still gets no
+// colour choice, which is exactly CR 614.12's own worked example ("An effect
+// creates a token that's a copy of Voice of All. As that token is created, the
+// token's controller chooses a color for it."). `SpellContext
+// .createTokenCopyOf` (`convex/gre/state.ts:14411`) mints the token from a
+// minimal placeholder spec and only afterwards overwrites its copiable
+// characteristics via `applyCopy`; the CR 614 chokepoint runs inside
+// `createTokenPermanents` BEFORE that, and is handed the placeholder's
+// (absent) `entersWith` plus a card object carrying no definition — so neither
+// the declared nor the presented-definition branch can see this clause. The
+// gap is the shared `modes`/`chosenModeId` idiom's, not this card's: all ten
+// cards wired in #2019 carry it identically (Prismatic Ward `ice/white.ts`,
+// Quirion Elves `mir/green.ts`, …). The sibling `copy`-leg slice (#2451 /
+// PR #2546) reached the same conclusion and also deferred it, so it is a live
+// gap under PRD #2043 and NOT closed by any shipped slice. Write-up:
+// `docs/findings/2019-token-copy-misses-as-enters-mode.md`.
 export const voiceOfAll: CardDefinition = {
     id: "75f37536-db3d-4726-9e45-b9108247d0e6", // PLS 19
     name: "Voice of All",
@@ -841,6 +857,9 @@ export const voiceOfAll: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["flying"],
+    // CR 614.12a — the colour is chosen as the creature ENTERS, on every entry
+    // path; the answer lands on `chosenModeId` (`applyAsEntersAnswer`).
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: PLS_WHITE_COLORS.map((color) => ({
         id: color,
         label: PLS_WHITE_COLOR_NAMES[color],

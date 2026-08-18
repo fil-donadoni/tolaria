@@ -490,6 +490,11 @@ export const harshJudgment: CardDefinition = {
         "As this enchantment enters, choose a color.\nIf an instant or sorcery spell of the chosen color would deal damage to you, it deals that damage to its controller instead.",
     manaCost: { X: 2, W: 2 },
     types: ["Enchantment"],
+    // CR 614.1c / 614.12a (issue #2019) — the colour is chosen AS the
+    // enchantment enters, a replacement effect, so the pick is declared on
+    // `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
+    // chokepoint on every entry path rather than at cast announcement.
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: HARSH_JUDGMENT_COLORS.map((color) => ({
         id: color,
         label: HARSH_JUDGMENT_COLOR_NAMES[color],

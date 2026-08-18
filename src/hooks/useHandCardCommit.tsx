@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
+import { declaresAsEntersMode } from "@convex/gre/constants";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import {
@@ -223,7 +224,12 @@ export function useHandCardCommit(
         } = params;
         const def = getDefinition(cardInstance.card.id);
         // CR 700.2 — modal spell: pick a mode before announcement.
-        if (def.modes && def.modes.length > 0) {
+        // CR 614.12a (issue #2019) — but NOT when the card's pick is an
+        // as-enters choice (Voice of All, Prismatic Ward, Quirion Elves,
+        // Jihad): that choice is raised by the engine as the permanent ENTERS,
+        // on every entry path, and `announceCast` rejects a `chosenModeId` sent
+        // at announcement for such a card.
+        if (def.modes && def.modes.length > 0 && !declaresAsEntersMode(def)) {
             setModePickerState({
                 chosenX,
                 kickerPayments,
