@@ -7,28 +7,20 @@
 // 2011-07-15, scryfallId 98e7bf8f-dba7-4005-8cee-634c9153931d; its most
 // recent printing is Arena Cube "afc", which is where a bare Scryfall lookup
 // with no set filter lands).
-import type {
-    CardDefinition,
-    SpellContext,
-    TriggeredAbility,
-} from "../../types";
+import type { CardDefinition, TriggeredAbility } from "../../types";
 
 // Phantasmal Image — {1}{U} 0/0 Creature — Illusion (M12). "You may have
 // this creature enter as a copy of any creature on the battlefield, except
 // it's an Illusion in addition to its other types and it has 'When this
 // creature becomes the target of a spell or ability, sacrifice it.'"
 //
-// CR 707.2 copy effect (Clone-parity, `clone` in lea/blue.ts): the "may" +
-// choose-any-creature-on-the-battlefield flow runs in a `resolveSteps` step
-// while still on the stack — `requestMayPay` + `requestChoice` +
-// `becomeCopyOf` — mirroring Clone / Copy Artifact exactly.
-//
-// protocol card: `resolveSteps` is used here, not `effects: EffectOp[]`,
-// because there is no Op for "optionally become a copy of a chosen
-// battlefield permanent" — no `becomeCopyOf` Op exists in the Mechanics
-// Registry. This is the SAME established copy-effect shape every clone card
-// in this catalogue already uses (Clone, Copy Artifact, drk/blue.ts,
-// nph/blue.ts), not a novel imperative invention.
+// CR 707.2 copy effect (Clone-parity, `clone` in lea/blue.ts). The "may" +
+// choose-any-creature-on-the-battlefield flow is DECLARED as an as-enters
+// choice (`entersWith.asEnters`, ADR 0100 D3) rather than run imperatively:
+// CR 614.1c makes it a replacement effect, and CR 614.12a puts the choice
+// before the permanent enters on EVERY entry path. No Effect Script and no
+// `becomeCopyOf` Op is involved — a replacement is a declaration, not an
+// effect that resolves, the same reason `entersWith.counters` is data.
 //
 // The two-part "except" clause is the engine gap issue #1563 closes
 // (`CopyEffectOptions`, `convex/cards/types.ts`): `additionalSubtypes:
@@ -81,7 +73,8 @@ export const phantasmalImage: CardDefinition = {
     // no creature is in play.
     copySourceFilter: { types: "Creature" },
     // aiValue (PRD #1423, issue #1431) — NOT an `aiEffects` shadow script:
-    // this is a CREATURE whose top-level resolution is `resolveSteps`, and
+    // this is a CREATURE with no card-level spell script at all (its whole
+    // effect is an as-enters DECLARATION, #2451), and
     // `latentValue`'s CREATURE branch (`gre/cardValue.ts`) only ever
     // consults `aiValue` or the ability-script value derived from
     // `activatedAbilities`/`triggeredAbilities` (`dslAbilityScriptValue`) —
@@ -106,41 +99,29 @@ export const phantasmalImage: CardDefinition = {
     // so the un-copied base card doesn't fire it), referenced by
     // `additionalTriggeredAbilityIds: [phantasmalImageSacrifice.id]` below.
     triggeredGrantTemplates: [phantasmalImageSacrifice],
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            let candidates = 0;
-            for (const pid of ctx.allPlayerIds) {
-                candidates += ctx.getBattlefieldIds(pid, {
-                    types: "Creature",
-                }).length;
-            }
-            if (candidates === 0) return; // enters as a 0/0 Illusion
-            const accept = ctx.requestMayPay({
-                playerId: ctx.controller,
-                choiceId: "phantasmal-image-may-copy",
-                prompt: "Have Phantasmal Image enter as a copy of a creature?",
-            });
-            if (accept === undefined) return; // suspended
-            if (!accept) return;
-            const picks = ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: "phantasmal-image-copy-target",
-                kind: "choose-permanents",
-                zone: "battlefield",
-                allControllers: true,
+    // CR 614.1c / 614.12a / 707.5 (ADR 0100 D3, issue #2451) — the copy choice
+    // is a REPLACEMENT effect declared as data, so it is raised on every entry
+    // path rather than only while a permanent spell resolves. This card is the
+    // originating bug report: Reanimate on a Phantasmal Image put it onto the
+    // battlefield as its printed 0/0 Illusion with no prompt, and the next
+    // sweep binned it (CR 704.5f).
+    //
+    // Both halves of the two-part "except" clause ride on `opts`, byte-for-byte
+    // what the pre-#2451 `becomeCopyOf` call passed: `additionalSubtypes`
+    // (CR 707.2's "except" modifying a copiable value) and
+    // `additionalTriggeredAbilityIds` granting the self-sacrifice trigger.
+    entersWith: {
+        asEnters: [
+            {
+                kind: "copy",
                 filter: { types: "Creature" },
-                count: 1,
-                prompt: "Choose a creature for Phantasmal Image to copy.",
-            });
-            if (picks === undefined) return; // suspended
-            if (picks.length === 1) {
-                ctx.becomeCopyOf(picks[0], {
+                opts: {
                     additionalSubtypes: ["Illusion"],
                     additionalTriggeredAbilityIds: [
                         phantasmalImageSacrifice.id,
                     ],
-                });
-            }
-        },
-    ],
+                },
+            },
+        ],
+    },
 };

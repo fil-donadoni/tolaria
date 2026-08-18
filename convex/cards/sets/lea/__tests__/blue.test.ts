@@ -119,6 +119,7 @@ import {
     SERRA,
     activatePump,
     driveCopyChoice,
+    driveCopyChoiceAnswer,
     grizzlyBearsId,
     runUntapForJ,
 } from "./helpers";
@@ -3285,20 +3286,17 @@ describe("Clone (enter as a copy of any creature, CR 707.2)", () => {
 
     it("accepts a copy target from the opponent's battlefield via the submit path", () => {
         const { state, item } = cloneState();
-        // step 1: may-pay yes
-        expect(resolveTopOfStack(state)).toBeNull();
-        let head = state.pendingChoices![0];
-        item.collectedChoices = {
-            [`${head.step}:${head.choiceId}`]: ["yes"],
-        };
-        state.pendingChoices = undefined;
-        // step 2: cross-battlefield choose-permanents — serra is on p2's side.
-        expect(resolveTopOfStack(state)).toBeNull();
-        head = state.pendingChoices![0];
+        // CR 614.12a (#2451) — one stackless as-enters prompt, raised as the
+        // permanent enters and answered through the real submit mutation.
+        // Serra is on p2's side: `allControllers` is what admits it.
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.asEntersKind).toBe("copy");
         expect(head.allControllers).toBe(true);
+        expect(head.candidateIds).toEqual(["serra"]);
         applyPendingChoiceSubmit(state, {
             playerId: "p1",
-            stackItemId: item.id,
+            stackItemId: head.stackItemId,
             step: head.step,
             choiceId: head.choiceId,
             cardInstanceIds: ["serra"],
@@ -3307,6 +3305,7 @@ describe("Clone (enter as a copy of any creature, CR 707.2)", () => {
             (c) => c.id === "clone1"
         )!;
         expect((copy.card as { id: string }).id).toBe(SERRA);
+        expect(item.id).toBe("clone1");
     });
 
     it("survives the wire projection as the copied creature", () => {
@@ -3347,25 +3346,22 @@ describe("Copy Artifact (copy artifact + keep Enchantment, CR 707.9d)", () => {
                 makePlayer("p2", { battlefield: [helm] }),
             ],
         });
+        // A CREATURE on the board proves the declared `{ types: "Artifact" }`
+        // filter is enforced on the as-enters candidate set (#2451).
+        state.players[1].battlefield.push(
+            makeInstance(BEARS, {
+                id: "bears",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
         const item = pushSpell(state, copyArtifact.id, "p1");
         item.id = "copy1";
-        // may-pay yes
-        expect(resolveTopOfStack(state)).toBeNull();
-        let head = state.pendingChoices![0];
-        item.collectedChoices = {
-            [`${head.step}:${head.choiceId}`]: ["yes"],
-        };
-        state.pendingChoices = undefined;
-        // choose-permanents (artifacts only)
-        expect(resolveTopOfStack(state)).toBeNull();
-        head = state.pendingChoices![0];
-        expect(head.filter?.types).toBe("Artifact");
-        item.collectedChoices = {
-            ...item.collectedChoices,
-            [`${head.step}:${head.choiceId}`]: ["helm"],
-        };
-        state.pendingChoices = undefined;
         resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.asEntersKind).toBe("copy");
+        expect(head.candidateIds).toEqual(["helm"]);
+        driveCopyChoiceAnswer(state, ["helm"]);
 
         const copy = state.players[0].battlefield.find(
             (c) => c.id === "copy1"

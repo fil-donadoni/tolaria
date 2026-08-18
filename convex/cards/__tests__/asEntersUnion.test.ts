@@ -60,14 +60,17 @@ function declaredAsEnters(
 /** The legs whose bot arm and UI affordance have NOT shipped yet. `discard`
  *  left this set in #2389 (Mox Diamond): its prompt reuses the shipped
  *  `discard-hand` shape, `chooseResolution` answers it, and both branches are
- *  covered end to end — so a card wiring it is no longer half-implemented. */
+ *  covered end to end — so a card wiring it is no longer half-implemented.
+ *  `copy` left it in #2451 (Clone, Copy Artifact, Vesuvan Doppelganger,
+ *  Phyrexian Metamorph, Phantasmal Image): its prompt reuses the shipped
+ *  `choose-permanents` shape, `chooseResolution` has a `copy` arm that picks a
+ *  real source rather than declining, and both branches are covered. */
 const UNWIRED_KINDS = [
     "mode",
     "name",
     "subtypes",
     "body",
     "payLife",
-    "copy",
     "aura-host",
     "pay",
     "anchor",
@@ -88,7 +91,7 @@ describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)",
                 .flatMap(declaredAsEnters)
                 .flatMap((w) => w.choices.map((c) => c.kind))
         );
-        expect([...kinds].sort()).toEqual(["discard"]);
+        expect([...kinds].sort()).toEqual(["copy", "discard"]);
     });
 
     it("the guard is not vacuous — the sweep does find a declaration when one exists", () => {

@@ -253,16 +253,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
-        cardId: "f00d33dd-4eb2-4446-9813-1923d8e2d2f3",
-        name: "Clone",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
-        cardId: "fd5ed955-1193-4e6a-a3e2-f54c1f9bf063",
-        name: "Copy Artifact",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
         cardId: "26c68473-70ca-40ba-b5c6-71ec30f88a2c",
         name: "Damnation",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
@@ -503,11 +493,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
-        cardId: "d2e27911-87cb-49a0-a34f-6afe4bddd592",
-        name: "Phyrexian Metamorph",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
         cardId: "e040be83-3fb5-4da5-ba7a-4923b8854b74",
         name: "Portent",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
@@ -660,11 +645,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
     {
         cardId: "3067e7af-7bbd-48c1-9f1d-df2a91a0ec54",
         name: "Vertigo",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
-        cardId: "768f3a05-bd06-4a23-b9f2-94f6e618fd9f",
-        name: "Vesuvan Doppelganger",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
