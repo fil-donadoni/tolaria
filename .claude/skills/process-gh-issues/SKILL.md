@@ -360,7 +360,7 @@ This skill implements **one pass**. Continuous operation is an outer loop that r
 
 **Do NOT drive this with `/loop`**, or run many passes in one conversation to "save" the startup cost — both keep one context across passes, which is the failure mode this design removes, and `.claude/hooks/deny-guard.sh` denies the second `bun run queue:plan` anyway.
 
-**Headless: nothing waits on a background job.** Under `claude -p` the end of the turn is the end of the process, so a backgrounded gate never reports back and the pass dies with its batch claimed. Gates run in the foreground. Tell, cleanup, incident: `references/afk-driver.md` § Dead passes.
+**Headless: nothing waits on a background job.** Under `claude -p` the turn's end ends the process: a backgrounded gate never reports back and the pass dies with its batch claimed. Gate in the foreground — `references/afk-driver.md` § Dead passes.
 
 Start an unattended run with **`bun run loop:afk`** (ADR 0097/0099): it arms the checkout and detaches the out-of-process driver into its own session, so the run outlives the terminal, the SSH connection and the Claude Code process that started it, and every finished pass hands the baton on (§4 last step) even if the driver died. `bun run loop:drain` runs the same driver in the foreground. Commands, arming, permission mode, stop reasons, crash retry, budget proxy: `references/afk-driver.md`.
 
