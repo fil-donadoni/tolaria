@@ -133,6 +133,7 @@ import type { SacrificeSelection } from "./sacrificeChoice";
 // pay through, so a return-to-hand cost has ONE execution path in the engine.
 import { applySacrificeSelection } from "./sacrificeChoice";
 import {
+    declaresAsEntersMode,
     getActivatedManaColor,
     getBasicLandMana,
     isAura,
@@ -10688,11 +10689,28 @@ export function putReanimatedSetOnBattlefield(
             if (stageReanimatedOnBattlefield(state, card, controllerId)) {
                 card.attachedTo = hosts[0].id;
                 staged.push(card);
+                continue;
             }
+            // CR 614.12a (issue #2019) — it did NOT enter because it owes its
+            // own as-enters choice (Prismatic Ward's colour pick) and is now
+            // parked. The zero-branch host is still decided, so record it on
+            // the parked object: `stageAsEntersEntry` has already run its
+            // CR 400.7 clean of `attachedTo`, which is exactly what makes
+            // `runStagedEntryTail` re-apply a value written here — "carry only
+            // what we wrote". Nothing is parked when the entry was redirected
+            // (Worms of the Earth / Containment Priest), and the lookup is a
+            // no-op then.
+            const parked = findStagedEntry(state, card.id);
+            if (parked) parked.card.attachedTo = hosts[0].id;
             continue;
         }
         // CR 303.4f — 2+ legal hosts: the controller chooses. Hold the Aura
         // off every zone and enqueue the pick; it enters via `finalizeAsEnters`.
+        // The Aura's OWN as-enters clauses (CR 614.12a — Prismatic Ward's,
+        // Chromatic Armor's, Phantasmal Terrain's colour/land-type pick) ride
+        // the SAME owed list: the tail re-enters `stageReanimatedOnBattlefield`
+        // with `asEntersResolved`, so a clause left off here would be skipped
+        // by the chokepoint and lost outright (issue #2019).
         enqueueAuraHostChoice(state, card, controllerId);
     }
 
@@ -11531,14 +11549,33 @@ function enqueueAuraHostChoice(
     // Every park on this path is MID-RESOLUTION (`putReanimatedSetOnBattlefield`
     // is only ever reached from a `SpellContext` method), so the resolving item
     // on top of the stack is the one the finalize resumes.
+    // CR 614.12a (issue #2019) — the Aura's OWN "as it enters" clauses are owed
+    // alongside the host pick, host first. They cannot be left to the chokepoint
+    // on the far side: `runStagedEntryTail` re-enters
+    // `stageReanimatedOnBattlefield` with `asEntersResolved`, so a clause not in
+    // this list is never asked at all.
     stageAsEntersEntry(
         state,
         aura,
         controllerId,
         "effect",
-        [{ kind: "aura-host" }],
+        [{ kind: "aura-host" }, ...declaredAsEntersFor(aura)],
         state.stack[state.stack.length - 1]?.id
     );
+}
+
+/** CR 614.1c — the "as it enters" clauses the object's PRESENTED definition
+ *  declares (CR 707.2 makes them a copiable value, so a copy owes the copied
+ *  card's). The same read `enterBattlefieldDestinationFor` and
+ *  `refreshOwedAsEnters` perform; extracted so the Aura-host park can fold them
+ *  into its own owed list instead of relying on a chokepoint pass that the
+ *  resume deliberately skips. */
+function declaredAsEntersFor(card: CardInstanceState): AsEntersChoice[] {
+    const defId = presentedDefId(card);
+    const declared = defId
+        ? tryGetDefinition(defId)?.entersWith?.asEnters
+        : undefined;
+    return declared ? [...declared] : [];
 }
 
 /** CR 611.2 / 613.1b / 603.6 — finish an Aura's entry once its host is set:
@@ -17328,6 +17365,14 @@ export function buildSpellContext(
             // Acting Player to choose one (CR 700.2c). Empty for a non-modal
             // card. Only id/label are surfaced (the picker's needs).
             const def = getHandCardDef(state, casterId, cardInstanceId);
+            // CR 614.12a (issue #2019) — also empty when the card's pick is an
+            // AS-ENTERS choice (Voice of All, Prismatic Ward, Quirion Elves,
+            // Jihad): that choice belongs to the entry moment and the CR 614
+            // chokepoint raises it when the permanent enters, so a cast driven
+            // from here (Word of Command's controlled cast, the
+            // `castDuringResolution` Op) must not take it a second time at
+            // announcement.
+            if (declaresAsEntersMode(def)) return [];
             return (def?.modes ?? []).map((m) => ({
                 id: m.id,
                 label: m.label,

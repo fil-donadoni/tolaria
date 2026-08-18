@@ -820,15 +820,15 @@ export const surpriseDeployment: CardDefinition = {
 // `getLegalTargets`/`selectTarget`/`dealDamage`/block validation — sees it
 // identically to a printed keyword.)
 //
-// DIVERGENCE (tracked-by: #2019, issue #1948 review MINOR 7): `chosenModeId`
-// is only ever populated from the `castSpell` mutation's announcement-time
-// pick — there is no equivalent stamping when this creature enters WITHOUT
-// being cast (reanimation, a "put onto the battlefield" effect, a token
-// copy). CR 614.12 says the choice happens "as it enters", not "as it is
-// cast", so a non-cast entry currently grants protection from nothing. This
-// is INHERITED from the shared `modes`/`chosenModeId` idiom — Prismatic Ward
-// (`ice/white.ts`) and Quirion Elves (`mir/green.ts`) carry the identical
-// gap, not something this card introduces.
+// CR 614.1c makes "As this creature enters, choose a color" a REPLACEMENT
+// effect and CR 614.12a puts the choice before the permanent enters, so it is
+// declared as data on `entersWith.asEnters` (ADR 0100 D3, issue #2019) rather
+// than taken at cast announcement: the pick rides the single CR 614 chokepoint
+// and is therefore raised on EVERY entry path — cast, reanimation, a "put onto
+// the battlefield" effect, a blink out of exile, and a token copy, which is
+// CR 614.12's own worked example for this very card. `announceCast` rejects a
+// `chosenModeId` for a card that declares this, so the choice is raised once
+// and only once.
 export const voiceOfAll: CardDefinition = {
     id: "75f37536-db3d-4726-9e45-b9108247d0e6", // PLS 19
     name: "Voice of All",
@@ -841,6 +841,9 @@ export const voiceOfAll: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["flying"],
+    // CR 614.12a — the colour is chosen as the creature ENTERS, on every entry
+    // path; the answer lands on `chosenModeId` (`applyAsEntersAnswer`).
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: PLS_WHITE_COLORS.map((color) => ({
         id: color,
         label: PLS_WHITE_COLOR_NAMES[color],

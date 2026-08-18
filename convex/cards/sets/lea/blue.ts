@@ -569,8 +569,11 @@ export const phantasmalForces: CardDefinition = {
 
 // Phantasmal Terrain — "Enchant land. As this enters, choose a basic land
 // type. Enchanted land is the chosen type." (CR 305.7 subtype replacement,
-// CR 303.4 aura). Modal choice at cast time selects which basic land type
-// the host becomes. Each mode applies a subtype-set with a single subtype.
+// CR 303.4 aura). CR 614.1c / 614.12a (issue #2019) — the basic land type is
+// chosen AS the Aura enters, a replacement effect, so the pick is declared on
+// `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
+// chokepoint on every entry path rather than at cast announcement. Each mode
+// applies a subtype-set with a single subtype.
 export const phantasmalTerrain: CardDefinition = {
     id: "1c371aa1-1619-41e3-8364-7bc9b8cf5d14",
     rarity: "common",
@@ -581,6 +584,7 @@ export const phantasmalTerrain: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: [
         {
             id: "plains",

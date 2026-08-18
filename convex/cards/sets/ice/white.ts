@@ -520,7 +520,11 @@ export const callToArms: CardDefinition = {
         "As this enchantment enters, choose a color and an opponent.\nWhite creatures get +1/+1 as long as the chosen color is the most common color among nontoken permanents the chosen player controls but isn't tied for most common.\nWhen the chosen color isn't the most common color among nontoken permanents the chosen player controls or is tied for most common, sacrifice this enchantment.",
     manaCost: { X: 1, W: 1 },
     types: ["Enchantment"],
-    // CR 700.2 — the colour is chosen as the enchantment enters (modal pick).
+    // CR 614.1c / 614.12a (issue #2019) — the colour is chosen AS the
+    // enchantment enters, a replacement effect, so the pick is declared on
+    // `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
+    // chokepoint on every entry path rather than at cast announcement.
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: CALL_TO_ARMS_COLORS.map((color) => ({
         id: color,
         label: SCARAB_COLOR_NAMES[color],
@@ -1807,8 +1811,8 @@ export const orderOfTheWhiteShield: CardDefinition = {
 };
 // Prismatic Ward — {1}{W} Aura. "As this Aura enters, choose a color. Prevent
 // all damage that would be dealt to enchanted creature by sources of the chosen
-// color." (CR 700.2c the colour is a modal pick stored as `chosenModeId`; CR
-// 615 continuous, source-colour-filtered, ALL-damage prevention on the Aura's
+// color." (CR 614.12a the colour is an as-enters pick stored as `chosenModeId`;
+// CR 615 continuous, source-colour-filtered, ALL-damage prevention on the Aura's
 // HOST.) The shield is a `replacementEffects[]` entry with `eventKind:
 // "damage"` on the Aura — the replacement pipeline is the single seam that runs
 // at EVERY damage site (combat and non-combat) and already carries
@@ -1827,8 +1831,15 @@ export const prismaticWard: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
-    // CR 700.2c — the warded colour is chosen as the Aura enters, stored as
-    // `chosenModeId` ("W"/"U"/"B"/"R"/"G") on the instance.
+    // CR 614.1c / 614.12a (issue #2019) — the warded colour is chosen as the
+    // Aura ENTERS, not at cast announcement, so the pick is declared on
+    // `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
+    // chokepoint on every entry path — a reanimated or blinked Prismatic Ward
+    // gets the same choice a cast one does. The answer lands on `chosenModeId`
+    // ("W"/"U"/"B"/"R"/"G") on the instance, which the shield below reads.
+    // On a non-cast entry the Aura additionally owes the CR 303.4f host pick;
+    // the two ride the same staged-entry owed list.
+    entersWith: { asEnters: [{ kind: "mode" }] },
     modes: WARD_COLORS.map((color) => ({
         id: color,
         label: COLOR_NAMES[color],

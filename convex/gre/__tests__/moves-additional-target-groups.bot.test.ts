@@ -254,22 +254,38 @@ function prismaticWardBoard(): GameState {
 }
 
 describe("bot enumeration — a mode with no requirement falls back to the CARD's (Prismatic Ward, issue #1953)", () => {
-    it("gives every colour mode the card-level creature target, never zero targets", () => {
+    it("carries the card-level creature target, never zero targets", () => {
         const moves = castMoves(prismaticWardBoard(), "ward-1");
-        // One move per colour mode (five), each carrying the Aura's target.
         expect(moves.length).toBeGreaterThan(0);
-        expect(new Set(moves.map((m) => m.chosenModeId)).size).toBe(
-            prismaticWard.modes!.length
-        );
         for (const m of moves) {
             expect(m.targets.map((t) => t.id)).toEqual(["bears-1"]);
         }
+    });
+
+    it("CR 614.12a (issue #2019) — announces NO mode: the colour is an as-enters pick", () => {
+        // Prismatic Ward's five `modes` are its "As this Aura enters, choose a
+        // color" clause, a CR 614.1c replacement, so the pick is answered at
+        // the CR 614 entry chokepoint and `announceCast` REJECTS one sent at
+        // announcement. Enumerating a Move per mode would generate five moves
+        // the mutation throws on — a Bot stalling on its own move, the exact
+        // failure shape this file exists for.
+        const moves = castMoves(prismaticWardBoard(), "ward-1");
+        expect(moves).toHaveLength(1);
+        expect(moves[0].chosenModeId).toBeUndefined();
     });
 });
 
 describe("bot execution — the enumerated multi-group move is executable end to end (issue #1953)", () => {
     it("replays mode `both` through the real mutations without stranding a target group", async () => {
         const state = hullBreachBoard();
+        const allModes = new Set(
+            castMoves(state, "breach-1").map((m) => m.chosenModeId)
+        );
+        // CR 700.2c (the must-NOT row for issue #2019) — an ordinary modal
+        // SPELL is still enumerated one Move per mode; only a card whose modes
+        // ARE its as-enters clause stops announcing at cast time.
+        expect(allModes.size).toBeGreaterThan(1);
+        expect(allModes.has(undefined)).toBe(false);
         const move = castMoves(state, "breach-1").find(
             (m) => m.chosenModeId === "both"
         )!;
@@ -343,7 +359,9 @@ describe("bot execution — the enumerated multi-group move is executable end to
     it("replays a mode-with-no-requirement cast (Prismatic Ward) through the real mutations", async () => {
         const state = prismaticWardBoard();
         const move = castMoves(state, "ward-1")[0];
-        expect(move.chosenModeId).toBeDefined();
+        // CR 614.12a (issue #2019) — no mode is announced; the colour pick is
+        // raised as the Aura ENTERS, on every entry path.
+        expect(move.chosenModeId).toBeUndefined();
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
         const base = {
             gameId: "game-1" as Id<"games">,
@@ -402,6 +420,48 @@ describe("bot execution — the enumerated multi-group move is executable end to
         const item = after.stack.find((s) => s.card.id === prismaticWard.id)!;
         expect(item).toBeDefined();
         expect((item.targets ?? []).map((t) => t.id)).toEqual(["bears-1"]);
-        expect(item.chosenModeId).toBe(move.chosenModeId);
+        expect(item.chosenModeId).toBeUndefined();
+    });
+
+    it("CR 614.12a — announceCast REJECTS a chosenModeId for an as-enters card (fail-closed)", async () => {
+        // The discriminator is the card's own declaration, not "is it a
+        // permanent": a stale client that still sends the announcement-time
+        // pick is rejected rather than silently double-picking.
+        const state = prismaticWardBoard();
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await expect(
+            runMutation(
+                announceCast as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                harness.ctx,
+                {
+                    gameId: "game-1" as Id<"games">,
+                    playerId: "p1",
+                    cardInstanceId: "ward-1",
+                    chosenModeId: "W",
+                }
+            )
+        ).rejects.toThrow(/as it enters/i);
+    });
+
+    it("CR 700.2c — an ordinary modal spell still REQUIRES a mode at announcement (the must-NOT row)", async () => {
+        const state = hullBreachBoard();
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await expect(
+            runMutation(
+                announceCast as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                harness.ctx,
+                {
+                    gameId: "game-1" as Id<"games">,
+                    playerId: "p1",
+                    cardInstanceId: "breach-1",
+                }
+            )
+        ).rejects.toThrow(/must choose a mode at announcement/i);
     });
 });

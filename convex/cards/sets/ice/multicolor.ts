@@ -246,8 +246,13 @@ export const chromaticArmor: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
-    // CR 700.2c — the initial warded colour is chosen as the Aura enters,
-    // stored as `chosenModeId` ("W"/"U"/"B"/"R"/"G") on the instance.
+    // CR 614.1c / 614.12a (issue #2019) — the INITIAL warded colour is chosen
+    // AS the Aura enters, a replacement effect, so the pick is declared on
+    // `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
+    // chokepoint on every entry path rather than at cast announcement. It is
+    // stored as `chosenModeId` ("W"/"U"/"B"/"R"/"G") on the instance; the {X}
+    // ability below RE-chooses it post-ETB via `setChosenMode`, which is a
+    // different writer of the same field and is untouched by this.
     modes: CHROMATIC_ARMOR_COLORS.map((color) => ({
         id: color,
         label: CHROMATIC_ARMOR_COLOR_NAMES[color],
@@ -255,8 +260,12 @@ export const chromaticArmor: CardDefinition = {
         oracleText: `Prevent all damage dealt to enchanted creature by ${CHROMATIC_ARMOR_COLOR_NAMES[color]} sources.`,
     })),
     // CR 122.1 — "This Aura enters with a sleight counter on it." Seeds the
-    // {X} re-choose cost at 1 (X = sleight-counter count).
-    entersWith: { counters: [{ type: "sleight", count: 1 }] },
+    // {X} re-choose cost at 1 (X = sleight-counter count). CR 614.12a — the
+    // as-enters colour pick rides the same `entersWith` declaration.
+    entersWith: {
+        counters: [{ type: "sleight", count: 1 }],
+        asEnters: [{ kind: "mode" }],
+    },
     // CR 615 — the SAME colour-filtered ALL-damage prevention shield as
     // Prismatic Ward (`ice/white.ts`): a `replacementEffects[]` entry with
     // `eventKind: "damage"` that consumes any damage to the Aura's host

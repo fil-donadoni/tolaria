@@ -64,9 +64,12 @@ function declaredAsEnters(
  *  `copy` left it in #2451 (Clone, Copy Artifact, Vesuvan Doppelganger,
  *  Phyrexian Metamorph, Phantasmal Image): its prompt reuses the shipped
  *  `choose-permanents` shape, `chooseResolution` has a `copy` arm that picks a
- *  real source rather than declining, and both branches are covered. */
+ *  real source rather than declining, and both branches are covered.
+ *  `mode` left it in #2019 (ADR 0100 slice 2): its prompt reuses the shipped
+ *  `option-pick` shape, which `chooseResolution` already realises, and the
+ *  cast-time modal piggyback is retired for exactly the cards that declare it
+ *  (`declaresAsEntersMode`, `gre/constants.ts`) so the pick is raised once. */
 const UNWIRED_KINDS = [
-    "mode",
     "name",
     "subtypes",
     "body",
@@ -85,13 +88,13 @@ describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)",
         expect(wired.map((w) => w.where)).toEqual([]);
     });
 
-    it("the wired legs are exactly the ones a slice has landed (discard, #2389)", () => {
+    it("the wired legs are exactly the ones a slice has landed (discard #2389, copy #2451, mode #2019)", () => {
         const kinds = new Set(
             getAllCards()
                 .flatMap(declaredAsEnters)
                 .flatMap((w) => w.choices.map((c) => c.kind))
         );
-        expect([...kinds].sort()).toEqual(["copy", "discard"]);
+        expect([...kinds].sort()).toEqual(["copy", "discard", "mode"]);
     });
 
     it("the guard is not vacuous — the sweep does find a declaration when one exists", () => {

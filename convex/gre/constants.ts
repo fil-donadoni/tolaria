@@ -455,6 +455,35 @@ export function hasInstantSpeed(card: CardInstanceState): boolean {
     );
 }
 
+/** CR 614.12a — true when the card declares its modal pick as an AS-ENTERS
+ *  choice (`entersWith.asEnters` carrying `{ kind: "mode" }`, ADR 0100 D3).
+ *
+ *  THE boundary between the two things `chosenModeId` means. The field has
+ *  several writers and only one of them is an entry choice:
+ *   - a CR 700.2c modal SPELL locks its mode at announcement (`castSpell`,
+ *     `convex/game.ts`) and the mode drives targeting and resolution;
+ *   - a modal ACTIVATED ability (`resolveActivationMode`) and a modal
+ *     TRIGGERED ability (CR 603.3c, `raiseTriggerModeAnnouncement`) each carry
+ *     their own, on their own stack item;
+ *   - `SpellContext.setChosenMode` REWRITES it on a permanent already on the
+ *     battlefield (Chromatic Armor, the Prismatic Ward shield) — a re-choice,
+ *     not an entry choice;
+ *   - and this one: "As this permanent enters, choose a colour" (CR 614.1c),
+ *     which is a REPLACEMENT effect and must therefore be answered on EVERY
+ *     entry path — cast, reanimation, put-onto-battlefield, blink from exile,
+ *     token copy (CR 614.12's own worked example is a token copy of Voice of
+ *     All) — not only when the permanent happens to have been cast.
+ *
+ *  Only the last one returns true here, and only the last one is retired from
+ *  the announcement-time pick: every cast-announcement producer of
+ *  `chosenModeId` gates on this predicate so the choice is raised exactly once,
+ *  at the CR 614 chokepoint (issue #2019). */
+export function declaresAsEntersMode(
+    def: Pick<CardDefinition, "entersWith"> | undefined
+): boolean {
+    return def?.entersWith?.asEnters?.some((c) => c.kind === "mode") === true;
+}
+
 /** True if the card has the "Aura" subtype (CR 303.4). Auras ETB attached
  *  to an object via `attachedTo` and are subject to SBA 704.5m. */
 export function isAura(card: {

@@ -39,6 +39,7 @@ import {
 } from "../../../../gre/state";
 import type { Color } from "../../../types";
 import { resolveActivated, resolveTrigger } from "./helpers";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 
 describe("Army of Allah (attacking creatures +2/+0, CR 611.2)", () => {
     it("pumps only attacking creatures", () => {
@@ -498,7 +499,7 @@ describe("Jihad (#188) — white anthem while chosen player controls the chosen 
         expect(getEffectiveToughness(projected, slim)).toBe(3);
     });
 
-    it("resolves from the stack carrying the chosen mode onto the battlefield (cast→resolve)", () => {
+    it("CR 614.12a — a CAST Jihad is asked for its colour AS IT ENTERS, not at announcement (cast→resolve)", () => {
         const whiteCreature = makeInstance(repentantBlacksmith.id, {
             id: "white-creature",
             controllerId: "p1",
@@ -513,7 +514,10 @@ describe("Jihad (#188) — white anthem while chosen player controls the chosen 
                 makePlayer("p2", { battlefield: [redPermanent] }),
             ],
         });
-        // Announce Jihad with the chosen colour locked (CR 700.2c).
+        // Announced with NO mode: "As Jihad enters, choose a color" is a
+        // CR 614.1c replacement, so `announceCast` rejects a `chosenModeId`
+        // and the pick is raised at the CR 614 entry chokepoint instead
+        // (ADR 0100 slice 2, issue #2019).
         state.stack.push({
             ...makeInstance(jihad.id, {
                 id: "jihad",
@@ -522,14 +526,31 @@ describe("Jihad (#188) — white anthem while chosen player controls the chosen 
                 zone: "stack",
             }),
             castById: "p1",
-            chosenModeId: "R",
             targets: [],
         });
         resolveTopOfStack(state);
+
+        // Parked off every zone until the colour is chosen (CR 614.12a).
+        expect(state.players[0].battlefield.some((c) => c.id === "jihad")).toBe(
+            false
+        );
+        const choice = state.pendingChoices![0];
+        expect(choice.asEntersCardId).toBe("jihad");
+        expect(choice.asEntersKind).toBe("mode");
+        applyPendingChoiceSubmit(state, {
+            playerId: choice.playerId,
+            stackItemId: choice.stackItemId,
+            step: choice.step,
+            choiceId: choice.choiceId,
+            cardInstanceIds: ["R"],
+        });
+
         const onBattlefield = state.players[0].battlefield.find(
             (c) => c.id === "jihad"
         );
         expect(onBattlefield?.chosenModeId).toBe("R");
+        // Asked exactly ONCE — nothing is still owed.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
         // The anthem is live now that Jihad is in play and p2 controls red.
         expect(getEffectivePower(state, whiteCreature)).toBe(3);
     });
