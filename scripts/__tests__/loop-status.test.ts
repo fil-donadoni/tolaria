@@ -12,10 +12,14 @@ import {
     readRecentPasses,
     readDriverState,
     renderLoopStatusText,
+    renderClaimsLines,
+    renderQueueDepthLines,
+    gatherSection,
     summarizeReceipts,
     INTERESTING_RECEIPTS_CAP,
     type LoopStatusInput,
     type DriverState,
+    type ClaimRow,
 } from "../lib/loop-status";
 import { type ClaimedIssue } from "../loop-doctor";
 import type { Receipt } from "../lib/receipt";
@@ -523,5 +527,119 @@ describe("loop-status — renderLoopStatusText", () => {
         expect(renderLoopStatusText(status)).toContain(
             "Claimed issues (0)\n  none"
         );
+    });
+});
+
+/**
+ * #2519 round 3, finding 5 — a failed `gh` read must render as UNAVAILABLE,
+ * never as an empty/zeroed section indistinguishable from a healthy read
+ * that genuinely found nothing. Observed live at 0/5000 GraphQL quota:
+ * `claims: 0`, `queueDepth: {total: 0}` — the loop's own documented STOP
+ * CONDITION, reported with total confidence at the exact moment GitHub was
+ * unreachable.
+ */
+describe("loop-status — gatherSection (fail-closed section wrapper)", () => {
+    it("wraps a successful read as {status:'ok', data}", () => {
+        const section = gatherSection(() => [1, 2, 3], "widgets");
+        expect(section).toEqual({ status: "ok", data: [1, 2, 3] });
+    });
+
+    it("wraps a THROWING read as {status:'error'} — never as an empty result", () => {
+        const section = gatherSection(() => {
+            throw new Error("GraphQL: API rate limit already exceeded");
+        }, "claimed issues");
+        expect(section.status).toBe("error");
+        // The discriminated union makes `data` structurally absent on the
+        // error branch — this assertion is the proof: a version of
+        // `gatherSection` that swallowed the throw and returned `{status:
+        // "ok", data: []}` (the exact historical bug) fails RIGHT HERE.
+        expect("data" in section).toBe(false);
+        if (section.status === "error") {
+            expect(section.error).toBe(
+                "claimed issues: GraphQL: API rate limit already exceeded"
+            );
+        }
+    });
+
+    it("prefixes the message with the caller-supplied label, not just the raw error", () => {
+        const section = gatherSection(() => {
+            throw new Error("exit 1");
+        }, "ready-for-agent queue");
+        expect(section.status === "error" && section.error).toBe(
+            "ready-for-agent queue: exit 1"
+        );
+    });
+});
+
+function claimRow(overrides: Partial<ClaimRow> = {}): ClaimRow {
+    return {
+        issue: 42,
+        title: "widget fix",
+        stage: "branch pushed",
+        verdict: { state: "live", reason: "branch pushed" },
+        priority: null,
+        ageHours: 3,
+        ...overrides,
+    };
+}
+
+describe("loop-status — renderClaimsLines (unavailable vs. zero)", () => {
+    it("renders a real, non-empty claims list when there is no error", () => {
+        const lines = renderClaimsLines([claimRow()], null).join("\n");
+        expect(lines).toContain("Claimed issues (1)");
+        expect(lines).toContain("#42");
+        expect(lines).toContain("widget fix");
+    });
+
+    it("renders UNAVAILABLE — not 'Claimed issues (0)' / 'none' — when the read failed", () => {
+        const lines = renderClaimsLines(
+            null,
+            "claimed issues: GraphQL: API rate limit already exceeded"
+        ).join("\n");
+        expect(lines).toContain("UNAVAILABLE");
+        expect(lines).toContain("rate limit");
+        // This is the assertion that would have caught the shipped bug: a
+        // regression that fell back to rendering `claims ?? []` here would
+        // print exactly this string.
+        expect(lines).not.toContain("Claimed issues (0)");
+        expect(lines).not.toContain("none");
+    });
+});
+
+describe("loop-status — renderQueueDepthLines (unavailable vs. zero)", () => {
+    it("renders real counts when there is no error", () => {
+        const lines = renderQueueDepthLines(
+            { P0: 1, P1: 2, P2: 0, unprioritized: 3, total: 6 },
+            null
+        ).join("\n");
+        expect(lines).toContain("total: 6");
+    });
+
+    it("renders UNAVAILABLE — not 'total: 0' — when the read failed", () => {
+        const lines = renderQueueDepthLines(
+            null,
+            "ready-for-agent queue: GraphQL: API rate limit already exceeded"
+        ).join("\n");
+        expect(lines).toContain("UNAVAILABLE");
+        expect(lines).toContain("rate limit");
+        // The literal string a zeroed, "healthy but empty" queue would have
+        // printed — proves this path never falls back to it.
+        expect(lines).not.toContain("total: 0");
+    });
+
+    it("one section erroring does not touch the OTHER, healthy section's real values", () => {
+        // Mirrors what `renderGatheredLoopStatusText` composes in
+        // `scripts/loop-status.ts`: claims unavailable, queue depth fine.
+        const claimsLines = renderClaimsLines(
+            null,
+            "claimed issues: boom"
+        ).join("\n");
+        const queueLines = renderQueueDepthLines(
+            { P0: 0, P1: 1, P2: 0, unprioritized: 0, total: 1 },
+            null
+        ).join("\n");
+        expect(claimsLines).toContain("UNAVAILABLE");
+        expect(queueLines).toContain("total: 1");
+        expect(queueLines).not.toContain("UNAVAILABLE");
     });
 });

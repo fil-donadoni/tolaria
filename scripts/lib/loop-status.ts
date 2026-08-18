@@ -407,77 +407,162 @@ export function buildLoopStatus(input: LoopStatusInput): LoopStatus {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Fail-closed section wrapper (#2519 round 3, finding 5).
+//
+// `gatherLoopStatus` shells out to `gh` for several independent facts —
+// claimed issues, the unclaimed ready-for-agent queue, open-PR/branch state.
+// The historical `sh` helper both those and `fetchBoardPriority` used to
+// call rendered a failed read as `""`/`[]` — indistinguishable from "the
+// call succeeded and there is genuinely nothing there". Observed live with
+// the account's GraphQL quota at 0/5000: `claims: 0`, `queueDepth: {total:
+// 0}`, reads exactly like an idle loop with an empty queue — the loop's own
+// documented STOP CONDITION — at the exact moment GitHub was unreachable.
+//
+// `priorityWarning` already had the right shape (a `string | null` set by
+// `onError`, never folded into the data it describes). `Section<T>` is that
+// same idiom generalized to a value that itself must never default to
+// "empty" — a discriminated union makes `{status:"error", data: []}`
+// unrepresentable, not just discouraged.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type Section<T> =
+    | { status: "ok"; data: T }
+    | { status: "error"; error: string };
+
+/** Runs `fn`, wrapping a thrown error into `Section`'s `error` branch rather
+ *  than letting it propagate — the seam a fixture test injects a
+ *  throwing/succeeding `fn` into (no live `gh` call needed), and the seam
+ *  `gatherLoopStatus` calls with the real, throwing `gh`/`git` runners
+ *  (`shChecked` in `loop-doctor.ts`). `label` prefixes the message so a CLI
+ *  or dashboard reader knows WHICH read failed without inspecting the call
+ *  site. */
+export function gatherSection<T>(fn: () => T, label: string): Section<T> {
+    try {
+        return { status: "ok", data: fn() };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { status: "error", error: `${label}: ${message}` };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Render — terminal text. `--json` bypasses this and prints `LoopStatus`
-// itself; this is the human-readable side of the same aggregate.
+// (or, for the CLI/dashboard, the section-aware `GatheredLoopStatus` in
+// `scripts/loop-status.ts`) directly; this is the human-readable side.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function verdictMark(state: ClaimVerdict["state"]): string {
     return state === "orphan" ? "×" : state === "suspect" ? "?" : "·";
 }
 
-export function renderLoopStatusText(status: LoopStatus): string {
+export function renderDriverLines(driver: DriverState): string[] {
     const lines: string[] = [];
-
     lines.push("Driver");
     lines.push(
-        `  armed:      ${status.driver.armed ? "yes" : "no — end-of-pass handoff will not fire"}`
+        `  armed:      ${driver.armed ? "yes" : "no — end-of-pass handoff will not fire"}`
     );
     lines.push(
         `  pid:        ${
-            status.driver.pid === null
+            driver.pid === null
                 ? "no pid file"
-                : status.driver.pidAlive
-                  ? `running (pid ${status.driver.pid})`
-                  : `NOT running (stale pid file, pid ${status.driver.pid})`
+                : driver.pidAlive
+                  ? `running (pid ${driver.pid})`
+                  : `NOT running (stale pid file, pid ${driver.pid})`
         }`
     );
     lines.push(
-        `  stop-file:  ${status.driver.stopFilePresent ? "PRESENT — nothing will start until it is removed" : "absent"}`
+        `  stop-file:  ${driver.stopFilePresent ? "PRESENT — nothing will start until it is removed" : "absent"}`
     );
-    if (status.driver.recentPasses.length === 0) {
+    if (driver.recentPasses.length === 0) {
         lines.push("  recent passes: none recorded");
     } else {
         lines.push("  recent passes:");
-        for (const p of status.driver.recentPasses) {
+        for (const p of driver.recentPasses) {
             lines.push(
                 `    pass ${p.pass}  exit=${p.claudeExit}  pct=${p.pct}  queue ${p.queueBefore}→${p.queueAfter}  ${p.reason}`
             );
         }
     }
+    return lines;
+}
 
-    lines.push("");
-    lines.push(`Claimed issues (${status.claims.length})`);
-    if (status.claims.length === 0) {
+/**
+ * `claims === null` / `error !== null` means the read failed — rendered as
+ * an explicit UNAVAILABLE banner, never as `Claimed issues (0)` /
+ * `none`, which is what a healthy empty read looks like and is exactly the
+ * confusion finding 5 is about.
+ */
+export function renderClaimsLines(
+    claims: ClaimRow[] | null,
+    error: string | null
+): string[] {
+    const lines: string[] = [];
+    if (error !== null) {
+        lines.push("Claimed issues: UNAVAILABLE");
+        lines.push(`  ${error}`);
+        lines.push(
+            '  cannot tell whether anything is claimed — do NOT read this as "0 claimed"'
+        );
+        return lines;
+    }
+    const list = claims ?? [];
+    lines.push(`Claimed issues (${list.length})`);
+    if (list.length === 0) {
         lines.push("  none");
     } else {
-        for (const c of status.claims) {
+        for (const c of list) {
             lines.push(
                 `  ${verdictMark(c.verdict.state)} #${c.issue}  [${c.priority ?? "—"}]  ${c.stage.padEnd(13)}  ${c.ageHours.toFixed(1)}h  ${c.title.slice(0, 48)}`
             );
         }
     }
+    return lines;
+}
 
-    lines.push("");
+/** See `renderClaimsLines` — same UNAVAILABLE-not-zero contract for the
+ *  queue depth section. */
+export function renderQueueDepthLines(
+    queueDepth: QueueDepth | null,
+    error: string | null
+): string[] {
+    const lines: string[] = [];
     lines.push("Queue depth (ready-for-agent, unclaimed)");
+    if (error !== null) {
+        lines.push(`  UNAVAILABLE — ${error}`);
+        lines.push(
+            '  cannot tell how deep the queue is — do NOT read this as "queue empty"'
+        );
+        return lines;
+    }
+    const qd = queueDepth ?? {
+        P0: 0,
+        P1: 0,
+        P2: 0,
+        unprioritized: 0,
+        total: 0,
+    };
     lines.push(
-        `  P0: ${status.queueDepth.P0}  P1: ${status.queueDepth.P1}  P2: ${status.queueDepth.P2}  ` +
-            `unprioritized: ${status.queueDepth.unprioritized}  total: ${status.queueDepth.total}`
+        `  P0: ${qd.P0}  P1: ${qd.P1}  P2: ${qd.P2}  ` +
+            `unprioritized: ${qd.unprioritized}  total: ${qd.total}`
     );
+    return lines;
+}
 
-    lines.push("");
-    lines.push(`Newest batch receipts (${status.receiptsSummary.total})`);
-    if (status.receiptsSummary.total === 0) {
+export function renderReceiptsLines(summary: ReceiptsSummary): string[] {
+    const lines: string[] = [];
+    lines.push(`Newest batch receipts (${summary.total})`);
+    if (summary.total === 0) {
         lines.push("  none");
     } else {
         // Counts first — cheap, complete, no cap. `approve`/`pr-open`/
         // `missing` receipts are noise as individual rows once their count
         // is visible, so only the rows that need attention print below.
-        for (const c of status.receiptsSummary.counts) {
+        for (const c of summary.counts) {
             lines.push(`  ${c.role} ${c.outcome}: ${c.count}`);
         }
-        if (status.receiptsSummary.interesting.length > 0) {
+        if (summary.interesting.length > 0) {
             lines.push("  needs attention:");
-            for (const r of status.receiptsSummary.interesting) {
+            for (const r of summary.interesting) {
                 // `interesting` only ever holds wip/failed/blocking/collision
                 // rows, none of which is the `missing` role — but the union
                 // type still requires the branch to satisfy TypeScript.
@@ -487,6 +572,19 @@ export function renderLoopStatusText(status: LoopStatus): string {
             }
         }
     }
+    return lines;
+}
 
-    return lines.join("\n") + "\n";
+export function renderLoopStatusText(status: LoopStatus): string {
+    return (
+        [
+            ...renderDriverLines(status.driver),
+            "",
+            ...renderClaimsLines(status.claims, null),
+            "",
+            ...renderQueueDepthLines(status.queueDepth, null),
+            "",
+            ...renderReceiptsLines(status.receiptsSummary),
+        ].join("\n") + "\n"
+    );
 }

@@ -40,15 +40,24 @@ import {
     fetchAllBranchNames,
     fetchClaimedIssues,
     fetchOpenPrBranches,
+    shChecked,
+    type ShRunner,
 } from "./loop-doctor";
 import {
     approvedReviewIssues,
     buildLoopStatus,
+    gatherSection,
     readDriverState,
-    renderLoopStatusText,
+    renderClaimsLines,
+    renderDriverLines,
+    renderQueueDepthLines,
+    renderReceiptsLines,
     worktreeIssueNumbers,
-    type LoopStatus,
+    type ClaimRow,
+    type DriverState,
+    type QueueDepth,
     type ReadyQueueIssue,
+    type ReceiptsSummary,
 } from "./lib/loop-status";
 
 // Same trap as every other script that shells `gh`: bun auto-loads
@@ -66,6 +75,26 @@ function sh(cmd: string, args: string[], cwd: string): string {
 
 function gh(args: string[]): string {
     return sh("gh", args, process.cwd());
+}
+
+/** Fail-CLOSED counterpart of `gh` — throws (carrying stderr) on a non-zero
+ *  exit instead of returning `""`. See `shChecked` in `loop-doctor.ts`: `""`
+ *  is indistinguishable from "gh succeeded and printed nothing", which is
+ *  exactly the shape of #2519 round 3 finding 5 (a rate-limited
+ *  `gh issue list --label ready-for-agent` rendering as "queue empty"). Used
+ *  for every read whose failure must surface as UNAVAILABLE, never as zero. */
+function ghChecked(args: string[]): string {
+    const r = spawnSync("gh", args, {
+        encoding: "utf8",
+        env: NET_ENV,
+        cwd: process.cwd(),
+    });
+    if (r.status !== 0) {
+        throw new Error(
+            `gh ${args.join(" ")} failed: ${(r.stderr || r.error?.message || "").trim() || `exit ${r.status}`}`
+        );
+    }
+    return r.stdout.trim();
 }
 
 const PROJECT_OWNER = process.env.TOLARIA_PROJECT_OWNER ?? "fil-donadoni";
@@ -116,10 +145,16 @@ export function fetchPriorityGracefully(noPriority: boolean): GracefulPriority {
     return { priority, warning };
 }
 
-/** Ready-for-agent issues with no `in-progress` label — the unclaimed queue. */
-function fetchUnclaimedReadyQueue(): ReadyQueueIssue[] {
+/** Ready-for-agent issues with no `in-progress` label — the unclaimed queue.
+ *  `runner` defaults to the swallow-on-failure `gh` (kept for anything that
+ *  still wants the old degrade-to-empty behaviour); `gatherLoopStatus` below
+ *  passes `ghChecked` so a failed read throws instead of reading as an empty
+ *  queue. */
+export function fetchUnclaimedReadyQueue(
+    runner: (args: string[]) => string = gh
+): ReadyQueueIssue[] {
     const raw = JSON.parse(
-        gh([
+        runner([
             "issue",
             "list",
             "--label",
@@ -149,9 +184,39 @@ export interface GatherLoopStatusOptions {
      * explicit `--no-priority` always wins over a stale override.
      */
     priorityOverride?: GracefulPriority;
+    /**
+     * Test seam (#2519 round 3, finding 5) — the runner behind the claimed-
+     * issue / open-PR / branch-list reads. Defaults to the real, fail-closed
+     * `shChecked`. A test injects a throwing (or canned-JSON) fixture here
+     * so `gatherLoopStatus`'s claims-unavailable branch is provable without
+     * a live `gh`/`git` call — never used by production code, which always
+     * takes the default.
+     */
+    claimsRunner?: ShRunner;
+    /** Test seam for the ready-for-agent queue read. Defaults to the real
+     *  `ghChecked`. See `claimsRunner`. */
+    queueRunner?: (args: string[]) => string;
 }
 
-export interface GatheredLoopStatus extends LoopStatus {
+/**
+ * The CLI/dashboard-facing shape (#2519 round 3, finding 5) — `claims` and
+ * `queueDepth` are `null` when their underlying `gh`/`git` read failed,
+ * paired with a sibling `*Error` message, mirroring the `priorityWarning`
+ * idiom that already existed for the board read. `null` (not `[]` / a
+ * zeroed `QueueDepth`) makes "the read failed" structurally impossible to
+ * confuse with "the read succeeded and found nothing" — the exact
+ * confusion that shipped: with the account's GraphQL quota at 0/5000, this
+ * payload rendered `claims: 0` and `queueDepth: {total: 0}`, indistinguishable
+ * from an idle loop with an empty queue (the loop's own documented STOP
+ * CONDITION) at the exact moment GitHub was unreachable.
+ */
+export interface GatheredLoopStatus {
+    driver: DriverState;
+    claims: ClaimRow[] | null;
+    claimsError: string | null;
+    queueDepth: QueueDepth | null;
+    queueDepthError: string | null;
+    receiptsSummary: ReceiptsSummary;
     batch: string | null;
     priorityWarning: string | null;
     receiptErrors: ReceiptFileError[];
@@ -162,6 +227,11 @@ export interface GatheredLoopStatus extends LoopStatus {
  * `.claude/telemetry` + `.claude/receipts`), then `buildLoopStatus`. The one
  * function both the CLI (`main`, below) and `telemetry-serve.ts`'s
  * `/api/loop-status` route call — the join happens exactly once.
+ *
+ * The claimed-issue/PR/branch reads and the ready-queue read each go through
+ * `gatherSection` with the fail-CLOSED `shChecked`/`ghChecked` runners
+ * (`loop-doctor.ts`), so a failed `gh` call surfaces as an explicit error
+ * rather than the historical swallow-to-`""`/`[]` — see `GatheredLoopStatus`.
  */
 export function gatherLoopStatus(
     opts: GatherLoopStatusOptions = {}
@@ -170,10 +240,29 @@ export function gatherLoopStatus(
     const telemetryDir = path.join(primary, ".claude", "telemetry");
     const receiptsRoot = path.join(primary, RECEIPTS_ROOT);
 
-    const claimedIssues = fetchClaimedIssues();
-    const prBranches = fetchOpenPrBranches();
-    const allBranches = fetchAllBranchNames();
+    // Bundled as ONE section: `buildClaimFacts` needs all three to classify
+    // a claim correctly (hasBranch/hasOpenPr), so a failure in any one of
+    // them makes the whole claims computation unreliable, not just one
+    // field of it — reporting the other two as if they were trustworthy
+    // would be a narrower version of the same fail-open bug.
+    const claimsRunner = opts.claimsRunner ?? shChecked;
+    const claimsInputs = gatherSection(() => {
+        const claimedIssues = fetchClaimedIssues(claimsRunner);
+        const prBranches = fetchOpenPrBranches(claimsRunner);
+        const allBranches = fetchAllBranchNames(claimsRunner);
+        return { claimedIssues, prBranches, allBranches };
+    }, "claimed issues / open PRs / branch list");
 
+    const queueRunner = opts.queueRunner ?? ghChecked;
+    const readyQueueSection = gatherSection(
+        () => fetchUnclaimedReadyQueue(queueRunner),
+        "ready-for-agent queue"
+    );
+
+    // `git worktree list` is a LOCAL read (no network, no `gh`) — outside
+    // this finding's scope (a GitHub outage cannot cause it to fail) and
+    // its only effect on failure is a coarser `stage` (falls back to
+    // "claimed" instead of "worktree"), never a fabricated zero.
     const worktreePorcelain = sh(
         "git",
         ["worktree", "list", "--porcelain"],
@@ -181,7 +270,6 @@ export function gatherLoopStatus(
     );
     const worktrees = parseWorktreeList(worktreePorcelain);
 
-    const readyQueueIssues = fetchUnclaimedReadyQueue();
     const { priority, warning } =
         opts.priorityOverride && !opts.noPriority
             ? opts.priorityOverride
@@ -195,23 +283,58 @@ export function gatherLoopStatus(
     const driver = readDriverState({ telemetryDir });
 
     const status = buildLoopStatus({
-        claimedIssues,
-        prBranches,
-        allBranches,
+        claimedIssues:
+            claimsInputs.status === "ok" ? claimsInputs.data.claimedIssues : [],
+        prBranches:
+            claimsInputs.status === "ok"
+                ? claimsInputs.data.prBranches
+                : new Set(),
+        allBranches:
+            claimsInputs.status === "ok" ? claimsInputs.data.allBranches : [],
         worktreeIssueNumbers: worktreeIssueNumbers(worktrees),
         approvedReviewIssues: approvedReviewIssues(receipts),
         priority,
-        readyQueueIssues,
+        readyQueueIssues:
+            readyQueueSection.status === "ok" ? readyQueueSection.data : [],
         receipts,
         driver,
     });
 
     return {
-        ...status,
+        driver: status.driver,
+        claims: claimsInputs.status === "ok" ? status.claims : null,
+        claimsError: claimsInputs.status === "ok" ? null : claimsInputs.error,
+        queueDepth:
+            readyQueueSection.status === "ok" ? status.queueDepth : null,
+        queueDepthError:
+            readyQueueSection.status === "ok" ? null : readyQueueSection.error,
+        receiptsSummary: status.receiptsSummary,
         batch: batch ?? null,
         priorityWarning: warning,
         receiptErrors: errors,
     };
+}
+
+/** The section-aware sibling of `lib/loop-status.ts`'s `renderLoopStatusText`
+ *  — same line-builders, but claims/queueDepth render an UNAVAILABLE banner
+ *  instead of a zeroed section when their read failed. */
+export function renderGatheredLoopStatusText(
+    gathered: GatheredLoopStatus
+): string {
+    return (
+        [
+            ...renderDriverLines(gathered.driver),
+            "",
+            ...renderClaimsLines(gathered.claims, gathered.claimsError),
+            "",
+            ...renderQueueDepthLines(
+                gathered.queueDepth,
+                gathered.queueDepthError
+            ),
+            "",
+            ...renderReceiptsLines(gathered.receiptsSummary),
+        ].join("\n") + "\n"
+    );
 }
 
 function main(): void {
@@ -220,6 +343,17 @@ function main(): void {
 
     const gathered = gatherLoopStatus({ noPriority });
 
+    // A partial read is a genuinely different exit than a clean one — a
+    // caller scripting off this CLI (cron, a watchdog) must be able to tell
+    // "the loop is idle" from "the reads failed and I don't actually know",
+    // which is exactly the distinction the JSON `claims`/`queueDepth: null`
+    // shape exists to preserve. `priorityWarning` stays cosmetic-only (its
+    // own long-standing contract, unchanged here) — only a section that can
+    // render as a false "0"/"empty" moves the exit code.
+    if (gathered.claimsError || gathered.queueDepthError) {
+        process.exitCode = 1;
+    }
+
     if (asJson) {
         console.log(JSON.stringify(gathered, null, 2));
         return;
@@ -227,7 +361,7 @@ function main(): void {
 
     if (gathered.priorityWarning)
         console.error(`⚠ ${gathered.priorityWarning}`);
-    console.log(renderLoopStatusText(gathered));
+    console.log(renderGatheredLoopStatusText(gathered));
     console.log(`batch: ${gathered.batch ?? "(none)"}`);
     if (gathered.receiptErrors.length > 0) {
         console.log(

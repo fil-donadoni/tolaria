@@ -78,10 +78,48 @@ const NET_ENV: NodeJS.ProcessEnv = (() => {
     return env;
 })();
 
-function sh(cmd: string, args: string[]): string {
+function spawnRaw(
+    cmd: string,
+    args: string[]
+): { status: number | null; stdout: string; stderr: string } {
     const r = spawnSync(cmd, args, { encoding: "utf8", env: NET_ENV });
-    return r.status === 0 ? r.stdout.trim() : "";
+    return {
+        status: r.status,
+        stdout: r.stdout ?? "",
+        stderr: r.stderr || r.error?.message || "",
+    };
 }
+
+/** A pluggable command runner — the seam `loop:status` (#2519 round 3,
+ *  finding 5) injects a fixture into for testing, and swaps for
+ *  `shChecked` in production to turn a failed `gh`/`git` call into a
+ *  thrown error instead of a silently-empty string. */
+export type ShRunner = (cmd: string, args: string[]) => string;
+
+/** Historical behaviour: a non-zero exit renders as `""`. Fine for
+ *  `loop:doctor`'s own CLI, where a failed read degrading to "nothing to
+ *  report" is an acceptable (if imperfect) default — NOT fine for a
+ *  caller that must distinguish "the read failed" from "the read
+ *  legitimately returned nothing", because both look identical here. */
+const sh: ShRunner = (cmd, args) => {
+    const r = spawnRaw(cmd, args);
+    return r.status === 0 ? r.stdout.trim() : "";
+};
+
+/** The fail-CLOSED counterpart: throws, carrying the process's stderr,
+ *  instead of returning `""` on a non-zero exit. `""` is indistinguishable
+ *  from "the command succeeded and printed nothing" — the exact shape of
+ *  the bug in #2519 round 3 finding 5, where a rate-limited `gh issue list`
+ *  rendered as "0 claimed issues" rather than "unavailable". */
+export const shChecked: ShRunner = (cmd, args) => {
+    const r = spawnRaw(cmd, args);
+    if (r.status !== 0) {
+        throw new Error(
+            `${cmd} ${args.join(" ")} failed: ${r.stderr.trim() || `exit ${r.status}`}`
+        );
+    }
+    return r.stdout.trim();
+};
 
 /** Raw shape of one row of `gh issue list --json number,title,updatedAt`. */
 export type ClaimedIssue = { number: number; title: string; updatedAt: string };
@@ -92,10 +130,14 @@ export type ClaimedIssue = { number: number; title: string; updatedAt: string };
  * Exported (#2519) so `loop:status` builds its "who is claimed" view from the
  * SAME query `loop:doctor` uses to find orphans, rather than a second,
  * independently-drifting definition of "claimed".
+ *
+ * `runner` defaults to the swallow-on-failure `sh` — unchanged behaviour for
+ * `loop:doctor`'s own CLI below. `loop:status` passes `shChecked` explicitly
+ * so a failed read THROWS instead of reading as zero claims.
  */
-export function fetchClaimedIssues(): ClaimedIssue[] {
+export function fetchClaimedIssues(runner: ShRunner = sh): ClaimedIssue[] {
     return JSON.parse(
-        sh("gh", [
+        runner("gh", [
             "issue",
             "list",
             "--search",
@@ -108,12 +150,13 @@ export function fetchClaimedIssues(): ClaimedIssue[] {
     ) as ClaimedIssue[];
 }
 
-/** Head branch names of every currently OPEN pull request. */
-export function fetchOpenPrBranches(): Set<string> {
+/** Head branch names of every currently OPEN pull request. See
+ *  `fetchClaimedIssues` for the `runner` default/override convention. */
+export function fetchOpenPrBranches(runner: ShRunner = sh): Set<string> {
     return new Set(
         (
             JSON.parse(
-                sh("gh", [
+                runner("gh", [
                     "pr",
                     "list",
                     "--state",
@@ -129,13 +172,16 @@ export function fetchOpenPrBranches(): Set<string> {
 }
 
 /** Every local AND remote branch name (local branches unprefixed; remote
- *  `origin/*` refs reduced to their short name via `ls-remote`). */
-export function fetchAllBranchNames(): string[] {
+ *  `origin/*` refs reduced to their short name via `ls-remote`). See
+ *  `fetchClaimedIssues` for the `runner` default/override convention. */
+export function fetchAllBranchNames(runner: ShRunner = sh): string[] {
     return [
-        ...sh("git", ["branch", "--all", "--format=%(refname:short)"]).split(
-            "\n"
-        ),
-        ...sh("git", ["ls-remote", "--heads", "origin"])
+        ...runner("git", [
+            "branch",
+            "--all",
+            "--format=%(refname:short)",
+        ]).split("\n"),
+        ...runner("git", ["ls-remote", "--heads", "origin"])
             .split("\n")
             .map((l) => l.split("\t")[1] ?? ""),
     ];
