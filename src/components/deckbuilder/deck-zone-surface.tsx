@@ -13,6 +13,7 @@ import {
 } from "@convex/deckLayout";
 import type { DeckCardMoveMenuColumn } from "./deck-card-move-menu";
 import { cn } from "~/lib/utils";
+import { useViewportWidth } from "~/hooks/useViewportWidth";
 import type { ZoneCard } from "~/types/game";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import DeckColumnPile, { type DeckPileTile } from "./deck-column-pile";
@@ -25,6 +26,7 @@ import {
     type ZoneFilter,
 } from "./deckZoneFilter";
 import { zoneColumnDropId, zonePaneDropId } from "./deckZoneDrag";
+import CompactChromeDisclosure from "./compact-chrome-disclosure";
 import DeckColumnActions from "./deck-column-actions";
 import ZoneAddColumnControl from "./zone-add-column-control";
 import ZoneColorFilterToggles from "./zone-color-filter-toggles";
@@ -445,6 +447,13 @@ export default function DeckZoneSurface({
         disabled: dropModel !== "pane",
     });
 
+    // Issue #2511: the JS reading of `DeckColumnPile`'s own `hidden md:flex`
+    // (Tailwind's `md` = 768px), used ONLY to stop rendering controls inside a
+    // pile the CSS is hiding. Deliberately NOT `useViewportMode()`: that hook's
+    // `portrait` mode also requires portrait ORIENTATION, so a narrow landscape
+    // window would hide the pile in CSS while JS still filled it with buttons.
+    const narrowWidth = useViewportWidth() < 768;
+
     // The header's count text. The `countSuffix` branch exists because the
     // naive `${visible.length} of ${cards.length}${countSuffix}` reads as
     // `"1 of 2/15"` on the Constructed Sideboard — the `of`-counter runs
@@ -487,48 +496,65 @@ export default function DeckZoneSurface({
                         zoneLabel={title}
                     />
                 )}
-                <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2 self-center">
-                    {filterable && (
-                        <>
-                            <ZoneCreatureFilterSelect
-                                value={filter.creature}
-                                onChange={(creature) =>
-                                    setFilter((f) => ({ ...f, creature }))
-                                }
+                {/* `min-w-0` + `md:shrink-0` (issue #2511): `shrink-0` at every
+                    width pinned this cluster at its max-content size inside a
+                    pane narrower than it, and the pane clips (`overflow-hidden`
+                    with no horizontal scroller), so the tail of the row landed
+                    OUTSIDE the viewport with no scrollable ancestor —
+                    unreachable by any gesture (4 stranded controls at 844x390,
+                    1 at 390x844). Below `md` the cluster may shrink, which lets
+                    its own `flex-wrap` do the wrapping it was always meant to.
+                    Above `md` nothing changes: `shrink-0` still protects the
+                    controls from a long zone title. */}
+                <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2 self-center md:shrink-0">
+                    {/* Issue #2511: two zones x ~98px of control rows is a
+                        fifth of a phone's viewport spent on affordances that
+                        refine a view the player cannot see yet. Folded behind
+                        one toggle per zone on a phone-shaped viewport; rendered
+                        verbatim on a desktop-shaped one. */}
+                    <CompactChromeDisclosure label="View">
+                        {filterable && (
+                            <>
+                                <ZoneCreatureFilterSelect
+                                    value={filter.creature}
+                                    onChange={(creature) =>
+                                        setFilter((f) => ({ ...f, creature }))
+                                    }
+                                    zoneLabel={title}
+                                />
+                                <ZoneColorFilterToggles
+                                    value={filter.colors}
+                                    onToggle={(color: Color) =>
+                                        setFilter((f) =>
+                                            toggleZoneFilterColor(f, color)
+                                        )
+                                    }
+                                    zoneLabel={title}
+                                />
+                            </>
+                        )}
+                        {onGroupingChange && (
+                            <ZoneGroupingSelect
+                                value={layout.grouping}
+                                onChange={onGroupingChange}
                                 zoneLabel={title}
                             />
-                            <ZoneColorFilterToggles
-                                value={filter.colors}
-                                onToggle={(color: Color) =>
-                                    setFilter((f) =>
-                                        toggleZoneFilterColor(f, color)
-                                    )
-                                }
+                        )}
+                        {onOrderingChange && (
+                            <ZoneOrderingSelect
+                                value={layout.ordering}
+                                onChange={onOrderingChange}
                                 zoneLabel={title}
                             />
-                        </>
-                    )}
-                    {onGroupingChange && (
-                        <ZoneGroupingSelect
-                            value={layout.grouping}
-                            onChange={onGroupingChange}
-                            zoneLabel={title}
-                        />
-                    )}
-                    {onOrderingChange && (
-                        <ZoneOrderingSelect
-                            value={layout.ordering}
-                            onChange={onOrderingChange}
-                            zoneLabel={title}
-                        />
-                    )}
-                    {onAddColumn && (
-                        <ZoneAddColumnControl
-                            onAdd={onAddColumn}
-                            zoneLabel={title}
-                        />
-                    )}
-                    {headerRight}
+                        )}
+                        {onAddColumn && (
+                            <ZoneAddColumnControl
+                                onAdd={onAddColumn}
+                                zoneLabel={title}
+                            />
+                        )}
+                        {headerRight}
+                    </CompactChromeDisclosure>
                 </div>
             </div>
             {cards.length === 0 && (
@@ -541,7 +567,27 @@ export default function DeckZoneSurface({
                     No cards match this filter.
                 </div>
             )}
-            <div className="flex flex-1 items-start gap-3 overflow-auto p-3 snap-x snap-mandatory md:snap-none md:gap-6 md:p-4">
+            {/* THE floor (issue #2511). This strip is the scroll container the
+                probe measured at 24-66px around 101-158px card tiles: as a
+                `flex-1` child of a fixed-height column it absorbed every pixel
+                the chrome bands did not leave, and a horizontal scroller cannot
+                recover height a tile needs all at once.
+
+                On a phone-shaped viewport it stops flexing (`flex-none`) and
+                takes a floor of ONE card row: `--card-h` is the per-zone
+                zoomed card height (`zoomVars`, `deck-zones-surface.tsx`), and
+                `3.5rem` is the pile's own chrome around it (label row + gaps +
+                the strip's `p-3`). Deriving the floor from the SAME variable
+                the tiles are drawn from is what keeps the two in step when the
+                player moves the zoom slider — a hard-coded `min-h` would go
+                stale at the first zoom step.
+
+                The floor only holds because nothing above clips it any more:
+                `deck-zones-surface.tsx` and `deck-builder-shell.tsx` stop
+                bounding the pane under `compact-chrome:`, so the shell's one
+                scroll wrapper absorbs the overflow instead of the cards.
+                Above `md` on a desktop-shaped viewport this is unchanged. */}
+            <div className="flex flex-1 items-start gap-3 overflow-auto p-3 snap-x snap-mandatory compact-chrome:min-h-[calc(var(--card-h)+3.5rem)] compact-chrome:flex-none md:snap-none md:gap-6 md:p-4">
                 {rendered.map((column) => (
                     <DeckColumnPile
                         key={column.id}
@@ -558,8 +604,20 @@ export default function DeckZoneSurface({
                             // disabled ones. Renaming is offered for MANUAL
                             // Columns only — a generated Column's label comes
                             // from its Grouping.
+                            //
+                            // …and a Column the pile is CSS-hiding below `md`
+                            // (`hiddenWhenEmpty`, issue #1633) gets none either
+                            // (issue #2511): the controls inside a
+                            // `display: none` pile are unreachable but still in
+                            // the document, which is 9 zero-size buttons on the
+                            // Limited Maindeck at 390x844 — dead tab stops the
+                            // browser probe counts and a reader cannot see.
+                            // `narrowWidth` is the JS twin of the pile's own
+                            // `hidden md:flex`, read from the SAME `md`
+                            // breakpoint number so the two cannot disagree.
                             (onRenameColumn || onDeleteColumn) &&
-                            column.pinNamespace !== null ? (
+                            column.pinNamespace !== null &&
+                            !(column.hiddenWhenEmpty && narrowWidth) ? (
                                 <DeckColumnActions
                                     columnId={column.id}
                                     label={column.label}

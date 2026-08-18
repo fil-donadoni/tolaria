@@ -34,6 +34,33 @@
  * measured cutoff — tune it here, the one place it's defined. */
 @custom-variant short-viewport (@media (max-height: 500px));
 
+/* Phone-shaped viewport (issue #2511). `short-viewport:` above is HEIGHT-only,
+ * so it misses the phone held UPRIGHT — 390x844 is 844px tall and never
+ * matched it, which is why the deckbuilder's chrome kept its full desktop
+ * height there and squeezed the card zones to 24px. This variant is the pair
+ * of queries `useViewportMode()` already discriminates on
+ * (`src/hooks/useViewportMode.ts`): portrait-below-`md` OR landscape-and-short,
+ * i.e. exactly `mode !== "desktop"`.
+ *
+ * Spelled as a BLOCK with two `@slot`s rather than one comma-separated
+ * `@media` argument: `@custom-variant name (a, b)` splits on the comma and
+ * keeps only the first query, so the landscape half silently never generated
+ * (measured — the landscape phone kept the desktop rules and stayed starved).
+ *
+ * KEEP THE TWO IN STEP. A component that CSS-hides a band under
+ * `compact-chrome:` and a component that unmounts the same band on
+ * `useViewportMode() !== "desktop"` must agree, or a control disappears from
+ * the layout while still occupying a tab stop (that mismatch is what the
+ * browser probe counts as a `zero`-size control). */
+@custom-variant compact-chrome {
+    @media (orientation: portrait) and (max-width: 767px) {
+        @slot;
+    }
+    @media (orientation: landscape) and (max-height: 500px) {
+        @slot;
+    }
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
  * Single semantic palette — Antique Bronze (ADR 0007 roles, issue #592).
  *

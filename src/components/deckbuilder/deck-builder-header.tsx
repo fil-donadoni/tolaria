@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
+import CompactChromeDisclosure from "./compact-chrome-disclosure";
 
 export interface DeckBuilderHeaderProps {
     title: string;
@@ -79,10 +80,18 @@ export default function DeckBuilderHeader({
             </h1>
             {actions}
             {foldableActions}
+            {/* Issue #2511: the filter row is the single tallest band on this
+                screen at 390px wide — it wrapped to 287px of the 446px header,
+                on a viewport whose chrome already exceeded 844px. On a
+                phone-shaped viewport it folds behind its own toggle; on a
+                desktop-shaped one `CompactChromeDisclosure` renders the row
+                verbatim, with no toggle and no extra element. */}
             {filters && (
-                <div className="flex basis-full flex-wrap items-center gap-4">
-                    {filters}
-                </div>
+                <CompactChromeDisclosure label="Filters">
+                    <div className="flex basis-full flex-wrap items-center gap-4">
+                        {filters}
+                    </div>
+                </CompactChromeDisclosure>
             )}
         </div>
     );

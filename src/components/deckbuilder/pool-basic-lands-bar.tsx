@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import BasicLandArtPicker from "./basic-land-art-picker";
+import CompactChromeDisclosure from "./compact-chrome-disclosure";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "./basicLands";
 
 interface PoolBasicLandsBarProps {
@@ -68,97 +69,107 @@ export default function PoolBasicLandsBar({
 }: PoolBasicLandsBarProps) {
     return (
         <div className="flex flex-wrap items-center gap-2 short-viewport:gap-1 border-b border-border-subtle/30 bg-surface/60 px-4 py-2 short-viewport:py-0.5 md:px-6">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted compact-chrome:hidden">
                 Add Basic
             </span>
-            {BASIC_LAND_SUBTYPES.map((subtype) => {
-                const cardId = cardIdsBySubtype[subtype];
-                const count = counts[subtype];
-                const addDisabled = disabled || cardId === null;
-                // Removing needs no resolved cardId: the copies are already in
-                // the Maindeck and are identified by subtype (review B1). The
-                // count IS the floor, and the only one.
-                const removeDisabled = disabled || count === 0;
+            {/* Issue #2511: five subtypes x four controls wraps to 199px at
+                390px wide — the second-tallest chrome band on the screen, and
+                one a player only touches while building a mana base. It folds
+                behind its own toggle on a phone-shaped viewport;
+                `CompactChromeDisclosure` renders the steppers verbatim on a
+                desktop-shaped one, so the bar above `md` is unchanged. */}
+            <CompactChromeDisclosure label="Add Basic">
+                {BASIC_LAND_SUBTYPES.map((subtype) => {
+                    const cardId = cardIdsBySubtype[subtype];
+                    const count = counts[subtype];
+                    const addDisabled = disabled || cardId === null;
+                    // Removing needs no resolved cardId: the copies are already in
+                    // the Maindeck and are identified by subtype (review B1). The
+                    // count IS the floor, and the only one.
+                    const removeDisabled = disabled || count === 0;
 
-                const addOne = () => {
-                    if (cardId !== null) onAdd(cardId, subtype, 1);
-                };
-                const addFive = () => {
-                    if (cardId !== null) onAdd(cardId, subtype, 5);
-                };
-                const removeOne = () => {
-                    if (count > 0) onRemove(subtype);
-                };
+                    const addOne = () => {
+                        if (cardId !== null) onAdd(cardId, subtype, 1);
+                    };
+                    const addFive = () => {
+                        if (cardId !== null) onAdd(cardId, subtype, 5);
+                    };
+                    const removeOne = () => {
+                        if (count > 0) onRemove(subtype);
+                    };
 
-                return (
-                    <div
-                        key={subtype}
-                        className="flex items-center gap-1 short-viewport:gap-0.5"
-                    >
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-xs"
-                            aria-label={`Remove one ${subtype}`}
-                            title={`Remove one ${subtype}`}
-                            disabled={removeDisabled}
-                            onClick={removeOne}
+                    return (
+                        <div
+                            key={subtype}
+                            className="flex items-center gap-1 short-viewport:gap-0.5"
                         >
-                            −
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            // short-viewport (issue #2056 defect 3 amplification):
-                            // `size="sm"` alone (px-3 py-1.5) measured this bar at
-                            // ~35px; these overrides shrink the button chrome
-                            // itself (not just the bar's own padding) toward the
-                            // ~28px target.
-                            className="short-viewport:px-1.5 short-viewport:py-0 short-viewport:text-[10px]"
-                            disabled={addDisabled}
-                            title={`Click to add one ${subtype}; shift-click or right-click to remove one`}
-                            onClick={(e) => {
-                                if (e.shiftKey) {
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label={`Remove one ${subtype}`}
+                                title={`Remove one ${subtype}`}
+                                disabled={removeDisabled}
+                                onClick={removeOne}
+                            >
+                                −
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                // short-viewport (issue #2056 defect 3 amplification):
+                                // `size="sm"` alone (px-3 py-1.5) measured this bar at
+                                // ~35px; these overrides shrink the button chrome
+                                // itself (not just the bar's own padding) toward the
+                                // ~28px target.
+                                className="short-viewport:px-1.5 short-viewport:py-0 short-viewport:text-[10px]"
+                                disabled={addDisabled}
+                                title={`Click to add one ${subtype}; shift-click or right-click to remove one`}
+                                onClick={(e) => {
+                                    if (e.shiftKey) {
+                                        removeOne();
+                                        return;
+                                    }
+                                    addOne();
+                                }}
+                                onContextMenu={(e) => {
+                                    e.preventDefault();
                                     removeOne();
-                                    return;
+                                }}
+                            >
+                                + {subtype}
+                            </Button>
+                            <span
+                                className="min-w-[1.5ch] text-center text-xs tabular-nums text-text-muted"
+                                data-testid={`basic-count-${subtype}`}
+                            >
+                                {count}
+                            </span>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                aria-label={`Add five ${subtype}`}
+                                title={`Add five ${subtype}`}
+                                disabled={addDisabled}
+                                onClick={addFive}
+                            >
+                                +5
+                            </Button>
+                            <BasicLandArtPicker
+                                subtype={subtype}
+                                currentPrintId={cardId}
+                                allowedSets={allowedSets}
+                                onSelect={(printId) =>
+                                    onPickArt(subtype, printId)
                                 }
-                                addOne();
-                            }}
-                            onContextMenu={(e) => {
-                                e.preventDefault();
-                                removeOne();
-                            }}
-                        >
-                            + {subtype}
-                        </Button>
-                        <span
-                            className="min-w-[1.5ch] text-center text-xs tabular-nums text-text-muted"
-                            data-testid={`basic-count-${subtype}`}
-                        >
-                            {count}
-                        </span>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="xs"
-                            aria-label={`Add five ${subtype}`}
-                            title={`Add five ${subtype}`}
-                            disabled={addDisabled}
-                            onClick={addFive}
-                        >
-                            +5
-                        </Button>
-                        <BasicLandArtPicker
-                            subtype={subtype}
-                            currentPrintId={cardId}
-                            allowedSets={allowedSets}
-                            onSelect={(printId) => onPickArt(subtype, printId)}
-                            disabled={disabled}
-                        />
-                    </div>
-                );
-            })}
+                                disabled={disabled}
+                            />
+                        </div>
+                    );
+                })}
+            </CompactChromeDisclosure>
         </div>
     );
 }
