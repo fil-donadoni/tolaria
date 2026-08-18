@@ -542,6 +542,40 @@ describe("limitedSeatStore — card payload interning (issue #2507)", () => {
         ]);
     });
 
+    it("expands EVERY queued pack, resolvable and not, pickIds intact", async () => {
+        // `packQueue` is the array that is easiest to leave unexpanded and
+        // worst to leave unexpanded. A queued pack is dequeued into
+        // `currentPack`, and `applyPick` (`convex/limited/draftEngine.ts`)
+        // copies the trio card-for-card into `pool` — so an unexpanded entry
+        // lands in the Pool carrying `cardId: undefined`, and
+        // `poolFromLimitedPoolCards` (`convex/limited/poolResolution.ts`)
+        // dedups the Pool multiset BY `cardId`: every card in the seat would
+        // collapse onto that one key. Two packs, so the nesting is exercised,
+        // and one card the registry cannot resolve, so the producers' own
+        // fallback identity is asserted through the queue too.
+        const { ctx, event } = emptyEventFixture();
+        const ids = realScryfallIds(2);
+        const missing = "no-such-scryfall-id";
+        expect(resolveCardMeta(missing)).toBeNull();
+        const queue = [
+            [
+                producerPackCard(ids[0], "r1-p0-c0"),
+                producerPackCard(missing, "r1-p0-c1"),
+            ],
+            [producerPackCard(ids[1], "r2-p0-c0")],
+        ];
+        // Guards the guard: a fixture whose "real" ids resolved to nothing
+        // would assert only the fallback branch, where `cardName` is the id.
+        expect(queue[0][0].cardName).not.toBe(ids[0]);
+        expect(queue[1][0].cardName).not.toBe(ids[1]);
+
+        await saveSeats(ctx, EVENT_ID, [
+            { seatIndex: 0, userId: "alice", packQueue: queue },
+        ]);
+        const [seat] = await hydrateSeats(ctx, event());
+        expect(seat.packQueue).toEqual(queue);
+    });
+
     it("hydrates a real Scryfall id back to its resolved cardId and name", async () => {
         const { ctx, event } = emptyEventFixture();
         const [id] = realScryfallIds(1);
@@ -714,6 +748,33 @@ describe("limitedSeatStore — intern backfill (issue #2507)", () => {
         expect(await runPass()).toBe(0);
         expect(writes.length).toBe(writesAfterFirst);
         expect(seatRows()[0]).toEqual(afterFirst);
+    });
+
+    it("saveSeatPayload interns the patch AND the keys it left alone", async () => {
+        // The single-seat write path merges its patch over the row's EXPANDED
+        // payload, then interns the whole thing. Both halves matter: the patch
+        // arrives in the hydrated (`LimitedEventSeat`) shape, so a raw merge
+        // would store its fat cards verbatim, and the keys the patch does not
+        // mention would stay fat forever on a legacy row — the one write path
+        // that never read-repairs.
+        const { ctx, event, seatRows, pack } = legacyFixture();
+        const patched = realPoolCards(2);
+        expect(patched[0].cardName).not.toBe(patched[0].scryfallId);
+
+        await saveSeatPayload(ctx, event(), 0, { pool: patched });
+
+        const after = seatRows()[0];
+        expect(after.pool).toEqual(
+            patched.map((c) => ({ scryfallId: c.scryfallId }))
+        );
+        expect(after.currentPack).toEqual([
+            { scryfallId: pack[0].scryfallId, pickId: pack[0].pickId },
+        ]);
+        expect(
+            seatRowNeedsInterning(
+                seatRows()[0] as unknown as Doc<"limitedSeats">
+            )
+        ).toBe(false);
     });
 
     it("read-repairs a legacy row on the next ordinary save", async () => {
