@@ -170,7 +170,17 @@ esac
 # co-occur in ONE segment.
 # ─────────────────────────────────────────────────────────────────────────────
 
-segments=$(printf '%s' "$cmd" | sed -e 's/&&/\
+# A backslash-continued line is still ONE pipeline (`bun run test \` +
+# newline + `  | tail -20` runs as a single command), but the newline-based
+# split below would otherwise treat the continuation as a separator and see
+# two harmless-looking halves — exactly the shape of the incident that
+# started this file (`docs:ship 2>&1 | tail -25`), just wrapped across a
+# line break instead of typed on one line. Join `\<newline>` into a space
+# BEFORE splitting into segments, so the pipe and the pager end up back in
+# the same segment.
+_cmd_joined=$(printf '%s' "$cmd" | sed -e :a -e '/\\$/N; s/\\\n/ /; ta')
+
+segments=$(printf '%s' "$_cmd_joined" | sed -e 's/&&/\
 /g' -e 's/||/\
 /g' -e 's/;/\
 /g')
@@ -263,9 +273,15 @@ fi
 # **The informational allowlist, seeded against `package.json` (verify with
 # `bun run <name>` before adding another):** `cr`, `cr:check`, `findings`,
 # `queue:plan`, `queue:train`, `loop:scorecard`, `usage:window`,
-# `telemetry:dash`, `telemetry:ingest`. Nothing else — in particular `lint`,
-# `format:check`, `check:ts`, `check:index` and `check:stubs` stay DENIED:
-# piping any of those hides a real failure exactly like piping the gate does.
+# `telemetry:dash`, `format`. Nothing else — in particular `lint`,
+# `format:check`, `check:ts`, `check:index`, `check:stubs` and
+# `telemetry:ingest` stay DENIED: piping any of those hides a real failure
+# exactly like piping the gate does (`telemetry:ingest` WRITES `telemetry.db`
+# and its exit code plausibly matters, so it defaults fail-closed like any
+# other writer — it is not "purely informational" the way a read-only report
+# is). `format` (`prettier --write`, thousands of lines on a real run, `|
+# tail -5` a daily reflex) is informational: a parse error is loud in the
+# output regardless of what piped it.
 #
 # **Still scoped to a single segment, never to every test run.** Telemetry
 # over 24 days: 2,819 of 3,981 full-gate invocations were piped into a pager,
@@ -277,7 +293,7 @@ fi
 # run …` stays allowed piped — only `bun run <script>` (any script, unless
 # allowlisted above) and a bare `scripts/gate.ts` are in scope.
 # ─────────────────────────────────────────────────────────────────────────────
-GATE_INFORMATIONAL_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|loop:scorecard|usage:window|telemetry:dash|telemetry:ingest)$'
+GATE_INFORMATIONAL_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|loop:scorecard|usage:window|telemetry:dash|format)$'
 
 _gate_piped=0
 _old_ifs=$IFS
@@ -289,8 +305,12 @@ for _seg in $segments; do
     *'|'*) ;;
     *) continue ;;
     esac
+    # `|&` is zsh's (and bash's) shorthand for `2>&1 |` — a live pipe, not a
+    # background job marker in this position — and is the exact shape of the
+    # incident that started this file. The pattern below matches a bare `|`
+    # or a `|&` ahead of the pager name.
     printf '%s\n' "$_seg" |
-        grep -Eq '\|[[:space:]]*(tail|head|less|more)([[:space:]]|$)' || continue
+        grep -Eq '\|&?[[:space:]]*(tail|head|less|more)([[:space:]]|$)' || continue
 
     # A bare `scripts/gate.ts` invocation is always the gate itself — no
     # script-name allowlist applies to it.
@@ -299,15 +319,23 @@ for _seg in $segments; do
         break
     fi
 
-    _gate_script=$(printf '%s\n' "$_seg" |
-        sed -nE 's/.*bun[[:space:]]+run[[:space:]]+([^[:space:]]+).*/\1/p')
-    [ -n "$_gate_script" ] || continue
+    # EVERY `bun run <script>` occurrence in the segment must be checked, not
+    # just one: a single greedy extraction (`.*bun run …`) picks up the LAST
+    # occurrence in a chained pipeline (`bun run test | bun run cr | tail`),
+    # so an allowlisted name at the tail launders every non-allowlisted
+    # invocation ahead of it in the same segment.
+    _gate_scripts=$(printf '%s\n' "$_seg" |
+        grep -oE 'bun[[:space:]]+run[[:space:]]+[^[:space:]]+' |
+        sed -E 's/^bun[[:space:]]+run[[:space:]]+//')
+    [ -n "$_gate_scripts" ] || continue
 
-    if printf '%s\n' "$_gate_script" | grep -Eq "$GATE_INFORMATIONAL_SCRIPT_RE"; then
-        continue
-    fi
-    _gate_piped=1
-    break
+    for _gate_script in $_gate_scripts; do
+        if ! printf '%s\n' "$_gate_script" | grep -Eq "$GATE_INFORMATIONAL_SCRIPT_RE"; then
+            _gate_piped=1
+            break
+        fi
+    done
+    [ "$_gate_piped" = 1 ] && break
 done
 set +f
 IFS=$_old_ifs

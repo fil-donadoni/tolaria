@@ -495,6 +495,86 @@ describe("writeReceipt refuses to create a new batch dir that misroutes an issue
         const [receipt] = readReceipts(tmp, "sess-1").receipts as WorkReceipt[];
         expect(receipt.issue).toBe(2182);
     });
+
+    // #2527 BLOCKER: the remediation text used to say "write into <sibling>
+    // instead" — the opposite of correct, since `queue:train` only ever reads
+    // the ONE batch dir it was told about (the new one), so following that
+    // advice makes the receipt invisible to the running train. It also left no
+    // escape hatch for a genuine re-attempt, unlike every other guard in this
+    // repo (TOLARIA_ALLOW_MAIN_EDIT, TOLARIA_ALLOW_FULL_SUITE).
+    it("never tells the caller to write into the sibling — that would misroute the receipt again", () => {
+        writeReceipt(tmp, "sess-1", workReceipt({ issue: 2182 }));
+        let error: unknown;
+        try {
+            writeReceipt(tmp, "sess-2-typo", workReceipt({ issue: 2182 }));
+        } catch (e) {
+            error = e;
+        }
+        const message = (error as Error).message;
+        expect(message).not.toMatch(/write into .* instead of/);
+        expect(message).toContain("TOLARIA_ALLOW_RECEIPT_REBATCH");
+    });
+
+    it("still throws WITHOUT the escape hatch set — the default stays fail-loud", () => {
+        delete process.env.TOLARIA_ALLOW_RECEIPT_REBATCH;
+        writeReceipt(tmp, "sess-1", workReceipt({ issue: 2182 }));
+        expect(() =>
+            writeReceipt(tmp, "sess-2-typo", workReceipt({ issue: 2182 }))
+        ).toThrow(/already has receipt/);
+        // The misrouted write must never have reached disk.
+        expect(fs.existsSync(receiptDir(tmp, "sess-2-typo"))).toBe(false);
+    });
+
+    it("proceeds and writes when TOLARIA_ALLOW_RECEIPT_REBATCH=1 — a genuine re-attempt in a new batch", () => {
+        writeReceipt(tmp, "sess-1", workReceipt({ issue: 2182 }));
+        process.env.TOLARIA_ALLOW_RECEIPT_REBATCH = "1";
+        try {
+            expect(() =>
+                writeReceipt(
+                    tmp,
+                    "sess-2-rebatch",
+                    workReceipt({ issue: 2182, role: "fixup" })
+                )
+            ).not.toThrow();
+            const [receipt] = readReceipts(tmp, "sess-2-rebatch")
+                .receipts as WorkReceipt[];
+            expect(receipt.issue).toBe(2182);
+            expect(receipt.role).toBe("fixup");
+        } finally {
+            delete process.env.TOLARIA_ALLOW_RECEIPT_REBATCH;
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #2527 F5: several sessions share `.claude/receipts` and nothing prunes it —
+// a sibling batch directory can vanish, or become unreadable, between
+// `findSiblingBatchWithIssue`'s `readdirSync(root)` and its later
+// `readdirSync(siblingDir)` of one specific entry (a concurrent prune is the
+// live shape; an unreadable directory reproduces the same failure class
+// deterministically, since genuinely racing two synchronous fs calls in one
+// process cannot be done without mocking a module whose "import *" binding
+// vitest cannot patch). Either way, `writeReceipt` must not crash on it; it
+// should just skip that sibling and carry on.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("writeReceipt survives an unreadable sibling batch directory mid-scan", () => {
+    it("skips a sibling directory readdirSync cannot read, instead of throwing out of writeReceipt", () => {
+        const root = path.join(tmp, ".claude", "receipts");
+        const ghostDir = path.join(root, "ghost-batch");
+        fs.mkdirSync(ghostDir, { recursive: true });
+        fs.chmodSync(ghostDir, 0o000);
+
+        try {
+            expect(() =>
+                writeReceipt(tmp, "sess-new", workReceipt({ issue: 2182 }))
+            ).not.toThrow();
+            const [receipt] = readReceipts(tmp, "sess-new")
+                .receipts as WorkReceipt[];
+            expect(receipt.issue).toBe(2182);
+        } finally {
+            fs.chmodSync(ghostDir, 0o700);
+        }
+    });
 });
 
 describe("readReceipts detects tampering outside the sanctioned write path", () => {

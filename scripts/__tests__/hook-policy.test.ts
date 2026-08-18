@@ -301,6 +301,67 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
     });
+
+    // #2527 F1: three ways to pipe a gate past this rule, found on review.
+    // `|&` is the live one — it is exactly the shape of the incident that
+    // started this file (`docs:ship 2>&1 | tail -25`), just spelled with
+    // zsh's shorthand for `2>&1 |` instead of the two separate tokens.
+    it("denies `bun run test |& tail -20` — `|&` is zsh's `2>&1 |`, not a separate operator the old pattern could ignore", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run test |& tail -20", issueWorktree)
+        );
+        expect(denied(r), `expected DENY for: bun run test |& tail -20`).toBe(
+            true
+        );
+    });
+
+    it("denies a backslash-continued gate pipeline — one pipeline split across two lines is still one pipeline", () => {
+        const cmd = "bun run test \\\n  | tail -20";
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+        expect(denied(r), `expected DENY for: ${JSON.stringify(cmd)}`).toBe(
+            true
+        );
+    });
+
+    it("denies a non-allowlisted `bun run` even when a LATER allowlisted one shares the pipeline", () => {
+        // The old extraction was a single greedy regex match, which picks up
+        // the LAST `bun run` in the segment — an allowlisted name at the tail
+        // (`cr`) laundered the non-allowlisted one ahead of it (`test`).
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run test | bun run cr | tail", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("still allows an all-informational multi-`bun run` pipeline piped into a pager", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run cr 605.1a | bun run findings | tail", issueWorktree)
+        );
+        expect(r.code).toBe(0);
+    });
+
+    // #2527 F2: `format` (prettier --write) is a daily-reflex pipe into a
+    // pager and a parse error is loud regardless; `telemetry:ingest` WRITES
+    // telemetry.db and its exit code plausibly matters, so it defaults
+    // fail-closed like any other writer.
+    it("allows `bun run format` piped into a pager — informational, thousands of lines is the normal case", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run format | tail -5", issueWorktree)
+        );
+        expect(r.code).toBe(0);
+    });
+
+    it("denies `bun run telemetry:ingest` piped into a pager — it writes telemetry.db, exit code matters", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run telemetry:ingest | tail -5", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
 });
 
 describe("deny-guard — no discarding git operations in the shared main checkout", () => {

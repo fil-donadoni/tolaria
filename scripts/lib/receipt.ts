@@ -519,20 +519,6 @@ export function receiptFilename(receipt: Receipt): string {
 }
 
 /**
- * Validate, then write **only if the target does not already exist**. Returns
- * the path written.
- *
- * Validation happens BEFORE the write so a malformed receipt never reaches
- * disk to be read back three steps later as an `undefined` field.
- *
- * The existence check is what makes a receipt append-only: nothing today
- * legitimately re-writes one (each role writes once, and a repeat round gets
- * its own filename via `round`), so a collision here is either a caller that
- * forgot to bump `round` or a caller trying to rewrite a verdict it does not
- * own — both are bugs the throw is supposed to surface, not silently resolve
- * by picking a winner.
- */
-/**
  * Look for another batch directory under `root` (excluding `batchId` itself)
  * that already holds a receipt for `issue` — a filename starting `<issue>-`.
  * `undefined` when no sibling has one, which is the common case and lets a
@@ -548,14 +534,40 @@ function findSiblingBatchWithIssue(
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
         if (!entry.isDirectory() || entry.name === batchId) continue;
         const siblingDir = path.join(root, entry.name);
-        const hasIssueReceipt = fs
-            .readdirSync(siblingDir)
-            .some((f) => f.startsWith(prefix) && f.endsWith(".json"));
+        let siblingFiles: string[];
+        try {
+            siblingFiles = fs.readdirSync(siblingDir);
+        } catch {
+            // Several sessions share this root and nothing prunes it (#2527:
+            // 134 batch dirs, 8176 files) — a sibling can be removed or
+            // otherwise become unreadable between the `readdirSync(root)`
+            // above and this call (a concurrent prune or cleanup). That is
+            // not evidence of a misroute, so skip this sibling rather than
+            // let writeReceipt throw on an unrelated race.
+            continue;
+        }
+        const hasIssueReceipt = siblingFiles.some(
+            (f) => f.startsWith(prefix) && f.endsWith(".json")
+        );
         if (hasIssueReceipt) return siblingDir;
     }
     return undefined;
 }
 
+/**
+ * Validate, then write **only if the target does not already exist**. Returns
+ * the path written.
+ *
+ * Validation happens BEFORE the write so a malformed receipt never reaches
+ * disk to be read back three steps later as an `undefined` field.
+ *
+ * The existence check is what makes a receipt append-only: nothing today
+ * legitimately re-writes one (each role writes once, and a repeat round gets
+ * its own filename via `round`), so a collision here is either a caller that
+ * forgot to bump `round` or a caller trying to rewrite a verdict it does not
+ * own — both are bugs the throw is supposed to surface, not silently resolve
+ * by picking a winner.
+ */
 export function writeReceipt(
     projectRoot: string,
     batchId: string,
@@ -576,22 +588,37 @@ export function writeReceipt(
     // live in a DIFFERENT batch directory, and we are about to create a new
     // one. A subagent can never learn its own session id (it only ever
     // arrives via a hook payload on stdin), so the id has to stay a caller
-    // parameter — this makes a WRONG one loud instead of silent. Only runs
-    // before the directory is created: once a batch dir exists, writing a
-    // second (issue, role) into it is the normal course of a multi-issue
-    // batch and must not be second-guessed here.
+    // parameter — this makes a WRONG one loud instead of silent.
+    //
+    // **Narrower than it reads — it only ever inspects the FIRST receipt
+    // written into a batch**, because the check is gated on `!fs.existsSync(dir)`.
+    // It does NOT catch: a typo landing on a stale-but-real batch id (that
+    // directory already exists, so the check is skipped entirely); or a
+    // misroute where the repeated issue's receipt is written SECOND into a
+    // dir some other (issue, role) already created. And in the real loop the
+    // batch dir usually exists before any numbered receipt reaches it at all
+    // — `.claude/hooks/receipt-guard.sh` does `mkdir -p "$dir"` on every
+    // `SubagentStop`, which in the 08-18 batch ran a full hour before the
+    // first receipt was written — so this guard fires far less often than a
+    // reader would assume from its name. Do not treat it as a general
+    // invariant; it catches one specific shape (a genuinely fresh batch id
+    // whose very first write collides with a sibling), nothing more.
     if (!fs.existsSync(dir) && receipt.role !== "missing") {
         const root = path.join(projectRoot, RECEIPTS_ROOT);
         const sibling = findSiblingBatchWithIssue(root, batchId, receipt.issue);
-        if (sibling) {
+        if (sibling && process.env.TOLARIA_ALLOW_RECEIPT_REBATCH !== "1") {
             throw new Error(
                 `writeReceipt: refusing to create batch directory ${dir} for ` +
                     `issue ${receipt.issue} — issue ${receipt.issue} already has ` +
                     `receipt(s) in ${sibling}, a different batch. This is the shape ` +
                     `of a caller handed the wrong batch id (a typo'd session id ` +
                     `mints a new, empty-looking directory that "queue:train" never ` +
-                    `reads). If this really is a fresh re-attempt of issue ` +
-                    `${receipt.issue}, write into ${sibling} instead of ${dir}.`
+                    `reads, since it only ever reads the ONE batch dir it was told ` +
+                    `about — the new one). Writing into ${sibling} instead would make ` +
+                    `the receipt invisible to the CURRENT train, which is the same ` +
+                    `misroute again. Re-run with the correct batch id, or — if this ` +
+                    `genuinely is a fresh re-attempt of issue ${receipt.issue} in a ` +
+                    `new batch — set TOLARIA_ALLOW_RECEIPT_REBATCH=1 and re-run.`
             );
         }
     }
