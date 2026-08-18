@@ -1515,30 +1515,85 @@ describe("Meddling Mage — the chosen name dies with the object (CR 400.7 / 614
         ).toBeUndefined();
     });
 
-    it("does NOT carry the old name onto a REANIMATED Mage — the new object has no name and locks nothing", () => {
+    // CR 614.12a (#2467's regression target) — a REANIMATED Mage used to get
+    // NO name choice at all (the choice was raised only from the creature
+    // spell's own `resolveSteps`), so it came back as a vanilla 2/2 with an
+    // inert restriction. `entersWith.asEnters`'s `name` kind now raises the
+    // SAME choice on this non-cast entry path.
+    it("a REANIMATED Mage raises a FRESH name choice — CR 400.7 new-object, not the old name carried over", () => {
         const { state, mage } = mageOnBattlefield(lightningBolt.name);
         // Dies: the graveyard card is LKI-shaped and may still carry the name.
         removePermanentTo(state, mage.id, "graveyard");
         const inYard = state.players[0].graveyard.find(
             (c) => c.id === "mage-1"
         )!;
-        // Reanimated by a non-cast path — no creature spell, so no CR 614.12
-        // choice is ever raised for the new object.
+        expect(inYard.chosenName).toBe(lightningBolt.name);
+        state.players[0].graveyard = state.players[0].graveyard.filter(
+            (c) => c.id !== "mage-1"
+        );
+
+        putReanimatedSetOnBattlefield(state, [
+            { card: inYard, controllerId: "p1" },
+        ]);
+
+        // Held off every zone until the FRESH name is chosen — the stale
+        // `chosenName` from the object that died is gone (CR 400.7), not
+        // carried onto the reborn permanent.
+        expect(state.stagedEntries).toHaveLength(1);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "mage-1")
+        ).toBe(false);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("name-card");
+        expect(head.stackItemId).toBe("");
+        expect(head.asEntersKind).toBe("name");
+
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: grizzlyBears.name,
+        });
+
+        const reborn = state.players[0].battlefield.find(
+            (c) => c.id === "mage-1"
+        )!;
+        expect(reborn.chosenName).toBe(grizzlyBears.name);
+        // The restriction now bites the NEWLY chosen name, not the old one.
+        expect(
+            castProhibitionReason("p2", boltInHand() as never, state)
+        ).toBeUndefined();
+        const bearsInHand = makeInstance(grizzlyBears.id, {
+            id: "bears-2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        expect(castProhibitionReason("p2", bearsInHand as never, state)).toBe(
+            "Spells with the chosen name can't be cast."
+        );
+    });
+
+    // CR 614.1c "choose a NONLAND card name" — enforced by the `name` kind's
+    // `filter: { excludeType: "Land" }` at submit, fail-closed
+    // (`applyNameCardSubmit`). A land name is rejected on this entry path the
+    // same as it is on the cast path.
+    it("rejects a land name on the reanimated entry path too", () => {
+        const { state, mage } = mageOnBattlefield(lightningBolt.name);
+        removePermanentTo(state, mage.id, "graveyard");
+        const inYard = state.players[0].graveyard.find(
+            (c) => c.id === "mage-1"
+        )!;
         state.players[0].graveyard = state.players[0].graveyard.filter(
             (c) => c.id !== "mage-1"
         );
         putReanimatedSetOnBattlefield(state, [
             { card: inYard, controllerId: "p1" },
         ]);
-        const reborn = state.players[0].battlefield.find(
-            (c) => c.id === "mage-1"
-        )!;
-        expect(reborn.chosenName).toBeUndefined();
-        // ...and therefore nothing is locked (the restriction reads
-        // `source.chosenName !== undefined`).
-        expect(
-            castProhibitionReason("p2", boltInHand() as never, state)
-        ).toBeUndefined();
+
+        expect(() =>
+            applyNameCardSubmit(state, { playerId: "p1", cardName: "Forest" })
+        ).toThrow(/legal card name/i);
+        // Still staged — the rejected submission committed nothing.
+        expect(state.stagedEntries).toHaveLength(1);
     });
 });
 

@@ -391,11 +391,16 @@ export const murkDwellers: CardDefinition = {
 // permanents your opponents control plus the total number of white cards in
 // their graveyards.\nNameless Race's power and toughness are each equal to the
 // life paid as it entered." (CR 702.19 trample; CR 614.12 "as it enters" pay-
-// life choice capped by an opponent-board count; CR 604.3 the CDA reading the
-// paid amount, stored as a named counter so it survives the wire projection.)
-// The cap and the paid amount are computed in a `resolveSteps` body; the chosen
-// amount is written as "life-paid" counters and the base P/T is set from it via
-// `setSelfBody`.
+// life choice capped by an opponent-board count; CR 604.3 the CDA pinning P/T
+// to the life paid as it entered.)
+//
+// ADR 0100 D3 — NOT a special case: `payLife` (cap: an `opponentBoardCount`
+// read fresh off the opponents' board as the choice is offered, #2467) COMPOSES
+// with `body` (the entering permanent's P/T). `applyAsEntersAnswer`'s `payLife`
+// arm derives the queued `body`'s single option from the life just paid, so
+// the declared `options: []` below is never actually offered in that shape —
+// "two kinds composing beats one more bespoke kind" over inventing a
+// pay-then-set-CDA kind for this one card.
 export const namelessRace: CardDefinition = {
     id: "348a467a-4661-4fdb-af1d-9171a1a930d9",
     rarity: "rare",
@@ -407,47 +412,20 @@ export const namelessRace: CardDefinition = {
     power: 0,
     toughness: 0,
     staticAbilities: ["trample"],
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            // CR 614.12 — compute the cap: white nontoken permanents opponents
-            // control + white cards in their graveyards.
-            let cap = 0;
-            for (const pid of ctx.allPlayerIds) {
-                if (pid === ctx.controller) continue;
-                cap += ctx.getBattlefieldIds(pid, {
-                    colors: "W",
-                    isToken: false,
-                }).length;
-                cap += ctx
-                    .getGraveyardCards(pid)
-                    .filter((c) => c.colors.includes("W")).length;
-            }
-            // The player also can't pay more life than they have (CR 118.4 —
-            // can't pay life you don't have).
-            const maxPayable = Math.min(cap, ctx.getLife(ctx.controller));
-            if (maxPayable <= 0) {
-                // Enters as a 0/0; the lethal-toughness SBA puts it in the
-                // graveyard immediately (CR 704.5f). Nothing to choose.
-                ctx.setSelfBody({ power: 0, toughness: 0 });
-                return;
-            }
-            const options = Array.from({ length: maxPayable + 1 }, (_, n) => ({
-                id: String(n),
-                label: `Pay ${n} life`,
-            }));
-            const choice = ctx.requestOptionChoice({
-                playerId: ctx.controller,
-                choiceId: `nameless-race-life-${ctx.sourceInstanceId}`,
-                options,
-                prompt: "Pay any amount of life (caps Nameless Race's P/T).",
-            });
-            if (choice === undefined) return; // suspended
-            const paid = Number(choice);
-            if (paid > 0) ctx.loseLife(ctx.controller, paid);
-            // CR 604.3 — base P/T set from the life paid as it entered.
-            ctx.setSelfBody({ power: paid, toughness: paid });
-        },
-    ],
+    entersWith: {
+        asEnters: [
+            {
+                kind: "payLife",
+                cap: {
+                    opponentBoardCount: {
+                        permanents: { colors: "W", isToken: false },
+                        graveyardCards: { color: "W" },
+                    },
+                },
+            },
+            { kind: "body", options: [] },
+        ],
+    },
 };
 
 // Rag Man — "{B}{B}{B}, {T}: Target opponent reveals their hand and discards a

@@ -152,4 +152,53 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
         expect(land.subtypes).toEqual(["Swamp"]);
         expect(getBasicLandMana(land)).toBe("B");
     });
+
+    // Regression (#727 QA, relocated here by #2467). `setChosenSubtypes`
+    // (`convex/gre/state.ts`) does two things: it writes `chosenSubtypes`, and
+    // it then RE-MATERIALISES the source's continuous statics
+    // (`applySourceStaticEffects`). The second half is load-bearing because
+    // the `subtype-set` static was already materialised when the land entered
+    // — with no type chosen yet, `subtypesFor` returned null, a no-op — and
+    // NOTHING runs between the submission and the next board read.
+    //
+    // Illusionary Terrain (`ice/blue.ts`) used to be the only guard on that
+    // line; #2467 moved it to a CR 614.12a as-enters choice made BEFORE the
+    // permanent enters, which structurally removes the race for that card.
+    // Multiversal Passage is still a POST-entry `enteredTrigger`, so it is now
+    // the only card the re-materialisation is load-bearing for.
+    //
+    // Deliberately does NOT call `applySourceStaticEffects` itself: that call
+    // is what the cases above use, and it is exactly what masks the bug.
+    it("the chosen type is live on the board immediately after the submission, with no extra materialisation pass (CR 611.2c)", () => {
+        const passage = makeInstance(multiversalPassage.id, {
+            id: "passage-1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, hand: [passage] }),
+                makePlayer("p2"),
+            ],
+        });
+        const player = getPlayer(state, "p1");
+        applyPlayLand(state, player, "passage-1");
+        applyLandEntrySubmit(state, { playerId: "p1", accept: true });
+
+        const land = player.battlefield.find((c) => c.id === "passage-1")!;
+        // Entered with the static already materialised over an empty choice.
+        expect(land.subtypes).toEqual([]);
+
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head!.stackItemId,
+            step: head!.step,
+            choiceId: head!.choiceId,
+            cardInstanceIds: ["Island"],
+        });
+
+        expect(land.subtypes).toEqual(["Island"]);
+        expect(getBasicLandMana(land)).toBe("U");
+    });
 });

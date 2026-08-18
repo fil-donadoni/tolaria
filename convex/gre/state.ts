@@ -11077,7 +11077,7 @@ function asEntersCopyCandidates(
  *  exactly one legal answer is not a choice, and OFFERING it would park the
  *  permanent behind a prompt whose only legal submission is the empty one. This
  *  is the project's standing auto-resolve rule (auto-resolve when there is no
- *  real option; keep the prompt for a tactical zero-branch), applied to the two
+ *  real option; keep the prompt for a tactical zero-branch), applied to those
  *  members of the union that can be unanswerable: an optional `discard` with no
  *  matching card in hand, and an optional `copy` with nothing on the
  *  battlefield to copy (CR 707.5 — a Clone cast into an empty board), which can
@@ -11087,7 +11087,21 @@ function asEntersCopyCandidates(
  *  A DECLINE (`[]`) is a real answer, not a skip: `applyAsEntersAnswer` still
  *  runs. For `discard` it aborts the entry, so the permanent never touches the
  *  battlefield; for `copy` it applies no copy effect and the permanent enters
- *  as its printed self (CR 704.5f then bins a 0/0 — correct, not a freeze). */
+ *  as its printed self (CR 704.5f then bins a 0/0 — correct, not a freeze).
+ *
+ *  A further member is `body` reduced to exactly one option — the Nameless
+ *  Race `payLife` → `body` composition (#2467): `applyAsEntersAnswer`'s
+ *  `payLife` arm has already overwritten the queued `body`'s `options` with
+ *  the single option matching the life just paid, so by the time this runs
+ *  the "choice" is which body a creature already committed a specific amount
+ *  of life for — not a real one, same rule as the zero-candidate `discard`.
+ *
+ *  The third is a `payLife` whose live maximum is 0 — an empty opponent board
+ *  under Nameless Race's `opponentBoardCount` cap, or a chooser at 0 life
+ *  (CR 119.4b: "players can always pay 0 life"). The only submittable answer
+ *  is "pay 0", which is what `main`'s `resolveSteps` short-circuited to
+ *  without a prompt; offering a one-button "Pay 0 life" dialog would be a
+ *  UX regression, not a tactical zero-branch. */
 function forcedAsEntersAnswer(
     state: GameState,
     entry: StagedEntry,
@@ -11096,6 +11110,14 @@ function forcedAsEntersAnswer(
     if (choice?.kind === "copy") {
         return asEntersCopyCandidates(state, entry.card, choice).length === 0
             ? []
+            : undefined;
+    }
+    if (choice?.kind === "body") {
+        return choice.options.length === 1 ? [choice.options[0].id] : undefined;
+    }
+    if (choice?.kind === "payLife") {
+        return asEntersPayLifeMax(state, entry, choice.cap) === 0
+            ? ["0"]
             : undefined;
     }
     if (choice?.kind !== "discard") return undefined;
@@ -11118,20 +11140,71 @@ function offerOrAutoAnswerAsEnters(state: GameState, entry: StagedEntry): void {
     enqueueAsEntersChoice(state, entry);
 }
 
+/** CR 614.12 (Nameless Race, #2467) — resolves a `payLife.cap`'s
+ *  `opponentBoardCount` leg: permanents matching `permanents` on any
+ *  OPPONENT's battlefield, plus graveyard cards matching `graveyardCards` in
+ *  any opponent's graveyard. Reuses the shared `PermanentFilter` /
+ *  `EffectCardFilter` matchers the `copy` and `discard` legs already use
+ *  (`matchesPermanentFilter`, `handCardMatchesFilter`) rather than a
+ *  card-specific count — the generalization ADR 0100 D3 asks for instead of a
+ *  bespoke kind. Scoped to opponents by iterating players other than
+ *  `entry.controllerId` directly, so neither filter needs a
+ *  `controllerRelation` clause of its own. */
+function asEntersOpponentBoardCount(
+    state: GameState,
+    entry: StagedEntry,
+    spec: {
+        permanents?: PermanentFilter;
+        graveyardCards?: EffectCardFilter;
+    }
+): number {
+    let count = 0;
+    for (const p of state.players) {
+        if (p.id === entry.controllerId) continue;
+        if (spec.permanents) {
+            for (const c of p.battlefield) {
+                if (
+                    matchesPermanentFilter(
+                        effectivePermanentView(state, c),
+                        spec.permanents
+                    )
+                ) {
+                    count++;
+                }
+            }
+        }
+        if (spec.graveyardCards) {
+            for (const c of p.graveyard) {
+                if (handCardMatchesFilter(c, spec.graveyardCards)) count++;
+            }
+        }
+    }
+    return count;
+}
+
 /** CR 119.4 — "a player can pay an amount of life greater than 0 only if their
  *  life total is at least as great as the amount of the payment", so the offer
  *  is capped at the LIVE life total. That live read is also what implements
  *  CR 614.12b for this kind: an as-enters life payment is made the moment the
  *  choice is answered, so a sibling staged entry's commitment has already come
  *  off the total by the time the sibling's own offer is re-narrowed
- *  (`renarrowSiblingCostChoices`). */
+ *  (`renarrowSiblingCostChoices`). `cap: { opponentBoardCount }` (Nameless
+ *  Race, #2467) is resolved to a live number via
+ *  `asEntersOpponentBoardCount` before the `Math.min` — the SAME shape a
+ *  fixed number goes through, so a board-derived cap and an authored ceiling
+ *  behave identically past this point. */
 function asEntersPayLifeMax(
     state: GameState,
     entry: StagedEntry,
-    cap: number | "life"
+    cap: Extract<AsEntersChoice, { kind: "payLife" }>["cap"]
 ): number {
     const affordable = Math.max(0, getPlayer(state, entry.controllerId).life);
-    return cap === "life" ? affordable : Math.max(0, Math.min(cap, affordable));
+    if (cap === "life") return affordable;
+    const numericCap =
+        typeof cap === "number"
+            ? cap
+            : asEntersOpponentBoardCount(state, entry, cap.opponentBoardCount);
+    return Math.max(0, Math.min(numericCap, affordable));
 }
 
 /** Compile-time exhaustiveness over {@link AsEntersChoice} — a new `kind`
@@ -11173,10 +11246,41 @@ function applyAsEntersAnswer(
             return {};
         }
         case "payLife": {
-            // CR 119.4 — paying life is a COST, not life loss: no
-            // "whenever you lose life" trigger sees it.
+            // CR 119.4 — "If a player pays life, the payment is subtracted
+            // from their life total; in other words, the player loses that
+            // much life." So an as-enters payment is life LOSS: it runs the
+            // CR 614 lifeloss replacement chain and emits LIFE_LOST (CR 119.3)
+            // for every "whenever you lose life" listener (Oath of Lim-Dûl),
+            // exactly like the `mayPay` cost choke point does. Routed through
+            // the shared `loseLifeEmitting` rather than a raw subtraction.
             const paid = Math.max(0, Number(selected[0] ?? "0"));
-            getPlayer(state, entry.controllerId).life -= paid;
+            loseLifeEmitting(state, entry.controllerId, paid);
+            // CR 604.3 (Nameless Race, #2467) — a `body` immediately queued
+            // after this `payLife` is the composition ADR 0100 D3 names: the
+            // body the permanent enters with is DERIVED from the life just
+            // paid, not chosen independently. `entry.owed[1]` is still the
+            // element the STATIC `CardDefinition` declared (`owed`'s spread at
+            // `stageAsEntersEntry` copies the array, not its elements), so a
+            // fresh object is written rather than mutating the shared
+            // declaration in place — replacing whatever `options` the card
+            // authored with the single option matching the payment.
+            // `forcedAsEntersAnswer` then auto-answers this one-option `body`,
+            // so the player sees exactly one prompt, matching the pre-#2467
+            // `resolveSteps` UX.
+            const nextChoice = entry.owed[1];
+            if (nextChoice?.kind === "body") {
+                entry.owed[1] = {
+                    ...nextChoice,
+                    options: [
+                        {
+                            id: String(paid),
+                            label: `${paid}/${paid}`,
+                            power: paid,
+                            toughness: paid,
+                        },
+                    ],
+                };
+            }
             return {};
         }
         case "copy": {

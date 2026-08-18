@@ -41,6 +41,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { emitBlockersConfirmedEvents } from "../../../../gre/phases";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { applyDamageReplacements } from "../../../../gre/replacements";
 import {
     assertLegalAction,
@@ -55,6 +56,7 @@ import {
     type StackItem,
     canLandEnterBattlefield,
     landPlayLockActive,
+    putReanimatedSetOnBattlefield,
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
@@ -490,10 +492,73 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
         expect(head?.options?.map((o) => o.id)).toEqual(["0", "1", "2"]);
     });
 
+    // Both halves of `asEntersOpponentBoardCount` (`convex/gre/state.ts`) —
+    // the graveyard leg and the OPPONENTS-only scoping — under one fixture.
+    // The case above exercises neither: it has no graveyard cards at all, and
+    // no white permanent under the chooser's own control, so deleting either
+    // half of the counter leaves it green.
+    it("counts white cards in opponents' graveyards and never the chooser's own white permanents", () => {
+        const white = (id: string, owner: string, zone?: "graveyard") =>
+            makeInstance(getCardByName("Savannah Lions").id, {
+                id,
+                controllerId: owner,
+                ownerId: owner,
+                ...(zone ? { zone } : {}),
+            });
+        const state = makeState({
+            players: [
+                // The CHOOSER's own white permanents and white graveyard cards
+                // are outside the count — "white nontoken permanents your
+                // OPPONENTS control plus white cards in THEIR graveyards".
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [white("own-w0", "p1"), white("own-w1", "p1")],
+                    graveyard: [white("own-grave-w", "p1", "graveyard")],
+                }),
+                makePlayer("p2", {
+                    battlefield: [white("opp-w0", "p2")],
+                    graveyard: [white("opp-grave-w", "p2", "graveyard")],
+                }),
+            ],
+        });
+        const item = pushSpell(state, namelessRace.id, "p1");
+        item.chosenX = 1;
+        resolveTopOfStack(state);
+
+        // cap = 1 opponent permanent + 1 opponent graveyard card = 2.
+        // Drop the graveyard leg → ["0", "1"]; count the chooser's own three
+        // white objects too → ["0" … "5"].
+        expect(state.pendingChoices?.[0]?.options?.map((o) => o.id)).toEqual([
+            "0",
+            "1",
+            "2",
+        ]);
+    });
+
+    // CR 614.1c / 614.12a (ADR 0100 D3, #2467) — the choice is now the
+    // stackless as-enters `payLife` route (`stackItemId: ""`), never the
+    // resolveSteps-era stack-item suspend `answerChoice` drives. `payLife`'s
+    // answer COMPOSES with the following `body` leg (`applyAsEntersAnswer`,
+    // `convex/gre/state.ts`): the queued `body` is narrowed to the single
+    // option matching the life paid and auto-answered, so ONE submission
+    // (the life amount) is the whole interaction — no second prompt.
+    function payLife(state: GameState, amount: number): void {
+        const head = state.pendingChoices![0];
+        expect(head.stackItemId).toBe("");
+        expect(head.asEntersKind).toBe("payLife");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [String(amount)],
+        });
+    }
+
     it("pays the chosen life and sets P/T to the amount paid", () => {
         const { state } = setup(3);
         resolveTopOfStack(state);
-        answerChoice(state, ["2"]); // pay 2 life
+        payLife(state, 2);
         const race = state.players[0].battlefield.find(
             (c) => c.card.id === namelessRace.id
         )!;
@@ -502,16 +567,161 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
         expect(getEffectiveToughness(state, race)).toBe(2);
     });
 
+    // CR 119.4 — "If a player pays life, the payment is subtracted from their
+    // life total; in other words, the player loses that much life." The
+    // as-enters `payLife` arm must therefore route through the shared
+    // `loseLifeEmitting` choke point, not subtract from `player.life` raw:
+    // Oath of Lim-Dûl (`ice/black.ts`) is a shipped "whenever you lose life"
+    // listener and stops seeing the payment otherwise. `main`'s pre-#2467
+    // `resolveSteps` shape called `ctx.loseLife`, so a raw subtraction here is
+    // a live regression of a shipped card, not a new gap.
+    it("the life payment is life LOSS: it emits LIFE_LOST and fires a 'whenever you lose life' trigger (CR 119.4)", () => {
+        const oath = makeInstance(getCardByName("Oath of Lim-Dûl").id, {
+            id: "oath",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppBattlefield = Array.from({ length: 3 }, (_, i) =>
+            makeInstance(getCardByName("Savannah Lions").id, {
+                id: `w${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [oath] }),
+                makePlayer("p2", { battlefield: oppBattlefield }),
+            ],
+        });
+        const item = pushSpell(state, namelessRace.id, "p1");
+        item.chosenX = 1;
+        resolveTopOfStack(state);
+        payLife(state, 2);
+
+        expect(state.players[0].life).toBe(18);
+        // The seam the event exists for, asserted END-TO-END: the entry tail
+        // (`finalizeSpellResolution`) drains `pendingEvents` through the
+        // trigger scan in the same call, so the proof that LIFE_LOST was
+        // emitted is Oath's ability sitting on the stack carrying amount 2.
+        const trig = state.stack.find(
+            (s) => s.triggeredAbilityId === "oath-of-lim-dul-life-loss"
+        );
+        expect(trig).toBeDefined();
+        expect(trig!.triggerEvent).toMatchObject({
+            type: "LIFE_LOST",
+            playerId: "p1",
+            amount: 2,
+            fromDamage: false,
+        });
+    });
+
     it("the CDA P/T survives the wire projection (mandatory)", () => {
         const { state } = setup(3);
         resolveTopOfStack(state);
-        answerChoice(state, ["2"]);
+        payLife(state, 2);
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.card.id === namelessRace.id
         )!;
         expect(getEffectivePower(projected, slim)).toBe(2);
         expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+
+    // CR 614.12a — the choice is raised on EVERY entry path, not only a cast
+    // (#2467's regression target: three of the five as-enters cards died to
+    // SBA on a non-cast entry before this issue, Nameless Race among them).
+    it("reanimation (non-cast entry) raises the SAME payLife choice and sizes the body from what's paid", () => {
+        const oppBattlefield = [
+            makeInstance(getCardByName("Savannah Lions").id, {
+                id: "w0",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+        ];
+        const grave = makeInstance(namelessRace.id, {
+            id: "graveyard-race",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, graveyard: [grave] }),
+                makePlayer("p2", { battlefield: oppBattlefield }),
+            ],
+        });
+
+        // `putReanimatedSetOnBattlefield` expects the caller to have already
+        // pulled the card out of its origin zone (the `reanimateAll` pattern,
+        // `convex/gre/__tests__/asEnters.test.ts`).
+        state.players[0].graveyard = [];
+        putReanimatedSetOnBattlefield(state, [
+            { card: grave, controllerId: "p1" },
+        ]);
+
+        // Held off every zone until the life payment is answered — CR
+        // 614.12a, not a vanilla 0/0 that dies to SBA before anyone chooses.
+        expect(state.stagedEntries).toHaveLength(1);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "graveyard-race")
+        ).toBe(false);
+        payLife(state, 1); // cap is 1 (one white nontoken permanent)
+
+        const race = state.players[0].battlefield.find(
+            (c) => c.id === "graveyard-race"
+        )!;
+        expect(state.players[0].life).toBe(19);
+        expect(getEffectivePower(state, race)).toBe(1);
+        expect(getEffectiveToughness(state, race)).toBe(1);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "graveyard-race"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
+        expect(getEffectiveToughness(projected, slim)).toBe(1);
+    });
+
+    // Auto-resolve (ADR 0003, #2467 review F5): a cap of 0 leaves "pay 0 life"
+    // as the ONLY submittable answer (CR 119.4b — players can always pay 0),
+    // so no prompt is offered at all — `forcedAsEntersAnswer` answers it, the
+    // derived one-option `body` is auto-answered behind it, and the 0/0 enters
+    // in the same call. `main`'s `resolveSteps` short-circuited identically
+    // (`if (maxPayable <= 0) { setSelfBody(0, 0); return; }`); offering a
+    // one-button "Pay 0 life" dialog would be a UX regression, not a tactical
+    // zero-branch.
+    it("reanimation — a cap of 0 needs no prompt: it enters as a 0/0 and dies to the lethal-toughness SBA (CR 704.5f)", () => {
+        const grave = makeInstance(namelessRace.id, {
+            id: "graveyard-race",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, graveyard: [grave] }),
+                makePlayer("p2"), // no white permanents/graveyard cards — cap 0
+            ],
+        });
+
+        state.players[0].graveyard = [];
+        putReanimatedSetOnBattlefield(state, [
+            { card: grave, controllerId: "p1" },
+        ]);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stagedEntries).toBeUndefined();
+        expect(state.players[0].life).toBe(20);
+        // Nothing answered the choice, so nothing ran the finalize's SBA pass
+        // (`finalizeAsEnters`) — the caller's own SBA round is what kills it.
+        checkStateBasedActions(state);
+
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "graveyard-race")
+        ).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "graveyard-race")
+        ).toBe(true);
     });
 });
 

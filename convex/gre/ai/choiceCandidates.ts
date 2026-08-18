@@ -89,6 +89,13 @@ export type ChoiceCandidateGenerator = (
  *  count is 2–4, so K is a safety ceiling, not the usual binding constraint. */
 export const CHOICE_TOP_K = 8;
 
+/** Enumeration ceiling for a MULTI-pick `option-pick` (issue #2467). A choice
+ *  taking `n` of `N` options has `C(N, n)` legal answers; the tree only ever
+ *  opens `CHOICE_TOP_K` of them, so enumerating the whole lattice before
+ *  scoring is pure waste. Set to 4x `CHOICE_TOP_K` so the prior seam still has
+ *  a real field to rank (Illusionary Terrain's C(5, 2) = 10 fits entirely). */
+export const OPTION_PICK_COMBO_CAP = CHOICE_TOP_K * 4;
+
 // ---------------------------------------------------------------------------
 // Stable identity
 // ---------------------------------------------------------------------------
@@ -367,28 +374,69 @@ const randomRevealAckCandidates: ChoiceCandidateGenerator = (
  *  `requestOptionChoice` (the `optionChoice` Op, issue #849) built the list,
  *  and the submit-time allow-list check
  *  (`applyPendingChoiceSubmit`/`pendingChoiceSubmit.ts`) is the single source
- *  of truth for that. A modal spell's natural mode count (2–5) already sits
- *  well under `CHOICE_TOP_K`, so bounding here would only ever be a no-op.
- *  Each option's `id` is the mode's author-supplied semantic id (or, when
- *  omitted, its position as a string) — fixed by the card's DEFINITION, so it
- *  is already a STABLE key across determinizations with no extra derivation
- *  needed (unlike `may-pay`'s victim sets, which must be re-keyed off card
- *  identity because the raw ids are per-world instances). */
+ *  of truth for that. Each option's `id` is the mode's author-supplied
+ *  semantic id (or, when omitted, its position as a string) — fixed by the
+ *  card's DEFINITION, so it is already a STABLE key across determinizations
+ *  with no extra derivation needed (unlike `may-pay`'s victim sets, which must
+ *  be re-keyed off card identity because the raw ids are per-world instances).
+ *
+ *  CARDINALITY (issue #2467). The generator emits SUBMITTABLE answers, so it
+ *  reads `count` rather than assuming 1: `applyPendingChoiceSubmit` rejects
+ *  anything shorter than `getPendingChoiceMin` outright. Illusionary Terrain's
+ *  as-enters `{ kind: "subtypes", count: 2 }` is the first `option-pick` in the
+ *  engine with min > 1, and one-id-per-option made EVERY move the search
+ *  enumerated at that node illegal — `applyMoveInSearch` throws uncaught in
+ *  both rollout and tree descent. For min ≤ 1 (every modal spell, every
+ *  as-enters `body`/`mode`/`payLife`) the emitted set is unchanged: one
+ *  candidate per option.
+ *
+ *  BOUNDING. A modal spell's natural mode count (2–5) sits under
+ *  `CHOICE_TOP_K`, but an as-enters `payLife` offers `life + 1` options (21 at
+ *  20 life) and a min-2 pick over N options is C(N, 2) — so the claim that
+ *  bounding here is a no-op is no longer true. `choiceCandidates` truncates to
+ *  `CHOICE_TOP_K` after scoring, which keeps the TREE bounded; this generator
+ *  additionally caps its own combination ENUMERATION at
+ *  {@link OPTION_PICK_COMBO_CAP} so the multi-pick branch can never blow up
+ *  the pre-scoring pass on a wide option list. */
 const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
     const options = choice.options ?? [];
-    return options.map((option) => ({
+    if (options.length === 0) return [];
+    const min = Math.max(0, getPendingChoiceMin(choice.count));
+    const max = Math.min(getPendingChoiceMax(choice.count), options.length);
+    if (max < 1) return [];
+    // The SMALLEST legal answer: picking beyond `min` is never forced, and the
+    // subset lattice above it is exactly the explosion `search-library` avoids.
+    const pick = Math.min(Math.max(min, 1), max);
+    const toCandidate = (ids: string[]) => ({
         // Keyed by KIND as well as option id (issue #2461) — the same generator
         // now serves the announce-time `trigger-mode` choice (CR 603.3c), and
         // two kinds sharing an option id must not collide on one key.
-        key: `${choice.kind}:${option.id}`,
+        key: `${choice.kind}:${ids.join("+")}`,
         move: {
-            kind: "resolution-choice",
+            kind: "resolution-choice" as const,
             stackItemId: choice.stackItemId,
             step: choice.step,
             choiceId: choice.choiceId,
-            cardInstanceIds: [option.id],
+            cardInstanceIds: ids,
         },
-    }));
+    });
+    if (pick === 1) return options.map((option) => toCandidate([option.id]));
+    const out: ReturnType<typeof toCandidate>[] = [];
+    const walk = (start: number, acc: string[]): void => {
+        if (out.length >= OPTION_PICK_COMBO_CAP) return;
+        if (acc.length === pick) {
+            out.push(toCandidate([...acc]));
+            return;
+        }
+        for (let i = start; i < options.length; i++) {
+            acc.push(options[i].id);
+            walk(i + 1, acc);
+            acc.pop();
+            if (out.length >= OPTION_PICK_COMBO_CAP) return;
+        }
+    };
+    walk(0, []);
+    return out;
 };
 
 // ---------------------------------------------------------------------------

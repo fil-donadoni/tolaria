@@ -80,6 +80,7 @@ import {
     restrictionAllowsSpell,
     restrictionAllowsAbility,
     isManaCostCovered,
+    putReanimatedSetOnBattlefield,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -1905,28 +1906,33 @@ function withTerrain(
 }
 
 describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 0050)", () => {
-    it("stores the ordered pair on entry via two sequential option picks (CR 603.6b)", () => {
-        const terrain = makeInstance(illusionaryTerrain.id, {
-            id: "terr-1",
-            controllerId: "p1",
-        });
+    // CR 614.1c / 614.12a (ADR 0100 D3, #2467) — the pair is a self-replacement
+    // choice, raised BEFORE the permanent enters (`entersWith.asEnters`'s
+    // `subtypes` kind, `count: 2`), not a `PERMANENT_ENTERED` trigger that
+    // fires after it has already entered (the shape this card shipped with
+    // before #2467). One `option-pick` submission carries BOTH ids, in the
+    // ORDER submitted — `applyAsEntersAnswer`'s `subtypes` arm writes
+    // `chosenSubtypes` verbatim, which is what lets "first chosen type" /
+    // "second chosen type" below read the array positionally.
+    it("stores the ordered pair on entry via one two-item option-pick answer (CR 614.12a)", () => {
         const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [terrain] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2")],
         });
-        state.activePlayerId = "p1";
-        resolveTrigger(state, terrain, "illusionary-terrain-choose-types", {
-            type: "PERMANENT_ENTERED",
-            instanceId: "terr-1",
-            controllerId: "p1",
-            types: ["Enchantment"],
-        } as unknown as StackItem["triggerEvent"]);
-        submitChoice(state, ["Forest"]);
-        submitChoice(state, ["Island"]);
+        pushSpell(state, illusionaryTerrain.id, "p1");
+        resolveTopOfStack(state);
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.stackItemId).toBe("");
+        expect(head.asEntersKind).toBe("subtypes");
+        expect(head.count).toBe(2);
+        expect(head.options?.map((o) => o.id)).toContain("Forest");
+        expect(head.options?.map((o) => o.id)).toContain("Island");
+
+        submitChoice(state, ["Forest", "Island"]);
+
         const after = state.players[0].battlefield.find(
-            (c) => c.id === "terr-1"
+            (c) => c.card.id === illusionaryTerrain.id
         )!;
         expect(after.chosenSubtypes).toEqual(["Forest", "Island"]);
     });
@@ -2010,13 +2016,19 @@ describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 00
         expect(getBasicLandMana(land)).toBe("B");
     });
 
-    // Regression (#727 QA): the REAL runtime order is ETB-statics-first,
-    // choice-second. The terrain's statics are materialised when it enters
-    // (chosenSubtypes still empty → no swap), THEN the ETB choose-types trigger
-    // resolves and sets the pair. If the setter doesn't re-materialise the
-    // static, the land never swaps on the actual board. The other cases here
-    // set chosenSubtypes BEFORE applying statics, so they mask this ordering.
-    it("swaps a land already on the board when the pair is chosen AFTER entry (real order)", () => {
+    // Regression (#727 QA, superseded by #2467): the OLD trigger-based shape
+    // let the terrain's statics materialise with NO pair chosen (the permanent
+    // entered first, and the ETB trigger picked the pair only afterwards) —
+    // this test used to prove the setter re-materialises the static so a land
+    // already on the board still swaps. CR 614.12a structurally removes that
+    // race: the pair is now a self-replacement choice made BEFORE the
+    // permanent enters at all, so there is never a window where Terrain is on
+    // the battlefield with an empty pair. Re-proves the same OUTCOME (a land
+    // already on the board swaps once Terrain finishes entering) through a
+    // non-cast entry (reanimation) — #2467's own regression target, since
+    // Illusionary Terrain used to raise NO choice at all on this path and its
+    // swap stayed permanently inert.
+    it("reanimation (non-cast entry) raises the SAME subtypes choice and swaps a land already on the board", () => {
         const state = makeState();
         state.activePlayerId = "p1";
         const land = makeInstance(forest.id, {
@@ -2024,30 +2036,42 @@ describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 00
             controllerId: "p1",
             zone: "battlefield",
         });
-        state.players[0].battlefield.push(land);
-        const terrain = makeInstance(illusionaryTerrain.id, {
+        const grave = makeInstance(illusionaryTerrain.id, {
             id: "terr-1",
             controllerId: "p1",
-            zone: "battlefield",
+            ownerId: "p1",
+            zone: "graveyard",
         });
-        state.players[0].battlefield.push(terrain);
-        // Terrain enters: statics materialise with no pair chosen yet → no swap.
-        applySourceStaticEffects(state, terrain);
+        state.players[0].battlefield.push(land);
+        state.players[0].graveyard.push(grave);
+
+        state.players[0].graveyard = [];
+        putReanimatedSetOnBattlefield(state, [
+            { card: grave, controllerId: "p1" },
+        ]);
+
+        // Held off every zone until the pair is chosen — CR 614.12a. The land
+        // is untouched while Terrain is parked: its statics haven't
+        // materialised yet because it isn't on the battlefield yet.
+        expect(state.stagedEntries).toHaveLength(1);
         expect(land.subtypes).toEqual(["Forest"]);
-        // ETB choose-types trigger resolves and picks the pair.
-        resolveTrigger(state, terrain, "illusionary-terrain-choose-types", {
-            type: "PERMANENT_ENTERED",
-            instanceId: "terr-1",
-            controllerId: "p1",
-            types: ["Enchantment"],
-        } as unknown as StackItem["triggerEvent"]);
-        submitChoice(state, ["Forest"]);
-        submitChoice(state, ["Island"]);
+        const head = state.pendingChoices![0];
+        expect(head.stackItemId).toBe("");
+        expect(head.asEntersKind).toBe("subtypes");
+
+        submitChoice(state, ["Forest", "Island"]);
+
         const swapped = state.players[0].battlefield.find(
             (c) => c.id === "land-1"
         )!;
         expect(swapped.subtypes).toEqual(["Island"]);
         expect(getBasicLandMana(swapped)).toBe("U");
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLand = projected.players[0].battlefield.find(
+            (c) => c.id === "land-1"
+        )!;
+        expect(slimLand.subtypes).toEqual(["Island"]);
     });
 
     // Wire format (MANDATORY for staticEffects): the swapped subtype and the
