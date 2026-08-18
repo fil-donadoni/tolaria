@@ -12,6 +12,7 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { advancePhase } from "../../../../gre/phases";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 
 export function activatePump(
     state: GameState,
@@ -76,32 +77,56 @@ export const SERRA = serraAngel.id;
 
 export const BEARS = grizzlyBears.id;
 
-/** Drives a suspended resolve-step copy choice (may-pay → choose-permanents)
- *  by writing collectedChoices directly, mirroring the engine's resume path.
- *  `recipientItem` is the stack item carrying the resolve. */
+/** Answers whatever as-enters prompt is at the head of the queue through the
+ *  real submit mutation (ADR 0100 D5 — stackless, `stackItemId: ""`). `[]` is
+ *  the decline of an optional choice. */
+export function driveCopyChoiceAnswer(
+    state: GameState,
+    cardInstanceIds: string[]
+): void {
+    const head = state.pendingChoices![0];
+    expect(head.asEntersCardId).toBeDefined();
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
+}
+
+/** Drives the CAST leg of an as-enters `copy` choice (CR 614.12a / 707.5, ADR
+ *  0100, issue #2451) through the REAL submit path: resolve the permanent
+ *  spell, which parks the entry off every zone and raises one stackless
+ *  `choose-permanents` prompt, then answer it with `applyPendingChoiceSubmit`.
+ *
+ *  Pre-#2451 this drove a `resolveSteps` may-pay → choose-permanents pair by
+ *  writing `collectedChoices` directly; that protocol is gone — the choice is
+ *  now a declaration on `entersWith.asEnters` and is raised on EVERY entry
+ *  path, not only a cast.
+ *
+ *  `targetInstanceId` of `null` is the DECLINE (the printed "you may"): an
+ *  empty submission, after which the permanent enters as its printed self. */
 export function driveCopyChoice(
     state: GameState,
     recipientItem: StackItem,
-    targetInstanceId: string
+    targetInstanceId: string | null
 ): void {
-    // step: optional "may have it become a copy"
-    expect(resolveTopOfStack(state)).toBeNull();
-    let head = state.pendingChoices![0];
-    expect(head.kind).toBe("may-pay");
-    recipientItem.collectedChoices = {
-        ...(recipientItem.collectedChoices ?? {}),
-        [`${head.step}:${head.choiceId}`]: ["yes"],
-    };
-    state.pendingChoices = undefined;
-    // step: choose the creature/artifact to copy
-    expect(resolveTopOfStack(state)).toBeNull();
-    head = state.pendingChoices![0];
-    expect(head.kind).toBe("choose-permanents");
-    expect(head.allControllers).toBe(true);
-    recipientItem.collectedChoices = {
-        ...(recipientItem.collectedChoices ?? {}),
-        [`${head.step}:${head.choiceId}`]: [targetInstanceId],
-    };
-    state.pendingChoices = undefined;
+    // The spell resolution pops the item and parks the entry (census row A).
     resolveTopOfStack(state);
+    const head = state.pendingChoices![0];
+    expect(head.kind).toBe("choose-permanents");
+    expect(head.asEntersCardId).toBe(recipientItem.id);
+    expect(head.asEntersKind).toBe("copy");
+    expect(head.allControllers).toBe(true);
+    // Stackless (ADR 0100 D5) — the answer is committed onto the staged
+    // permanent, never into a stack item's `collectedChoices`.
+    expect(head.stackItemId).toBe("");
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: targetInstanceId === null ? [] : [targetInstanceId],
+    });
 }

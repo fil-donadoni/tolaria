@@ -191,36 +191,22 @@ export const clone: CardDefinition = {
     // Bot-only cast prune (#938): copies a creature on ETB — a wasted cast
     // (enters a 0/0 that dies to SBA) when no creature is in play.
     copySourceFilter: { types: "Creature" },
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            let candidates = 0;
-            for (const pid of ctx.allPlayerIds) {
-                candidates += ctx.getBattlefieldIds(pid, {
-                    types: "Creature",
-                }).length;
-            }
-            if (candidates === 0) return; // enters as a 0/0
-            const accept = ctx.requestMayPay({
-                playerId: ctx.controller,
-                choiceId: "clone-may-copy",
-                prompt: "Have Clone enter as a copy of a creature?",
-            });
-            if (accept === undefined) return; // suspended
-            if (!accept) return;
-            const picks = ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: "clone-copy-target",
-                kind: "choose-permanents",
-                zone: "battlefield",
-                allControllers: true,
-                filter: { types: "Creature" },
-                count: 1,
-                prompt: "Choose a creature for Clone to copy.",
-            });
-            if (picks === undefined) return; // suspended
-            if (picks.length === 1) ctx.becomeCopyOf(picks[0]);
-        },
-    ],
+    // aiValue (PRD #1423) — a printed 0/0 whose real body is whatever it copies.
+    // Without the override the bot values it as a 0/0 vanilla and never casts
+    // it. Same representative figure Phantasmal Image uses (`m12/blue.ts`): an
+    // average 2/2 body at this card's own mana value, deliberately average
+    // rather than bomb-sized because the copied body is unknowable at cast
+    // time. Entered the catalogue when #2451 retired this card's `resolveSteps`
+    // and with it its `AI_EFFECTS_ALLOWLIST` row.
+    aiValue: 151,
+    // CR 614.1c / 614.12a / 707.5 (ADR 0100 D3, issue #2451) — "enter as a
+    // copy" is a REPLACEMENT effect, declared as data so the choice is raised
+    // on EVERY entry path, not only a cast: reanimation, blink and any other
+    // put-onto-the-battlefield effect all reach the CR 614 chokepoint. The
+    // pre-#2451 `resolveSteps` shape ran only while a permanent SPELL was on
+    // the stack, so a reanimated Clone entered as its printed 0/0 and the next
+    // sweep binned it (CR 704.5f).
+    entersWith: { asEnters: [{ kind: "copy", filter: { types: "Creature" } }] },
 };
 
 // Control Magic — "Enchant creature. You control enchanted creature."
@@ -259,40 +245,27 @@ export const copyArtifact: CardDefinition = {
     // Bot-only cast prune (#938): copies an artifact on ETB — a wasted cast
     // (enters a blank enchantment) when no artifact is in play.
     copySourceFilter: { types: "Artifact" },
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            let candidates = 0;
-            for (const pid of ctx.allPlayerIds) {
-                candidates += ctx.getBattlefieldIds(pid, {
-                    types: "Artifact",
-                }).length;
-            }
-            if (candidates === 0) return;
-            const accept = ctx.requestMayPay({
-                playerId: ctx.controller,
-                choiceId: "copy-artifact-may-copy",
-                prompt: "Have Copy Artifact enter as a copy of an artifact?",
-            });
-            if (accept === undefined) return;
-            if (!accept) return;
-            const picks = ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: "copy-artifact-target",
-                kind: "choose-permanents",
-                zone: "battlefield",
-                allControllers: true,
+    // aiValue (PRD #1423) — a blank enchantment on paper whose real worth is
+    // the artifact it copies. The non-creature fallback (`base + MV`) would
+    // score it as a do-nothing 2-drop; the override stands in for a
+    // representative mid-cost artifact instead (the same figure that fallback
+    // gives a mana-value-4 permanent). Deliberately modest for the same reason
+    // Phantasmal Image's is: the copied object is unknowable at cast time.
+    // Entered the catalogue with #2451, which retired this card's
+    // `resolveSteps` and its `AI_EFFECTS_ALLOWLIST` row.
+    aiValue: 48,
+    // CR 614.1c / 707.5 (ADR 0100 D3, issue #2451) — declarative as-enters copy,
+    // raised on every entry path. CR 707.2's "except" clause rides as
+    // `CopyEffectOptions.additionalTypes`, unchanged from the pre-#2451 shape.
+    entersWith: {
+        asEnters: [
+            {
+                kind: "copy",
                 filter: { types: "Artifact" },
-                count: 1,
-                prompt: "Choose an artifact for Copy Artifact to copy.",
-            });
-            if (picks === undefined) return;
-            if (picks.length === 1) {
-                ctx.becomeCopyOf(picks[0], {
-                    additionalTypes: ["Enchantment"],
-                });
-            }
-        },
-    ],
+                opts: { additionalTypes: ["Enchantment"] },
+            },
+        ],
+    },
 };
 
 // Counterspell — "Counter target spell." (CR 701.6a)
@@ -1387,41 +1360,29 @@ export const vesuvanDoppelganger: CardDefinition = {
     // Bot-only cast prune (#938): copies a creature on ETB — a wasted cast
     // (enters a 0/0 that dies to SBA) when no creature is in play.
     copySourceFilter: { types: "Creature" },
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            let candidates = 0;
-            for (const pid of ctx.allPlayerIds) {
-                candidates += ctx.getBattlefieldIds(pid, {
-                    types: "Creature",
-                }).length;
-            }
-            if (candidates === 0) return;
-            const accept = ctx.requestMayPay({
-                playerId: ctx.controller,
-                choiceId: "vesuvan-may-copy",
-                prompt: "Have Vesuvan Doppelganger enter as a copy of a creature?",
-            });
-            if (accept === undefined) return;
-            if (!accept) return;
-            const picks = ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: "vesuvan-copy-target",
-                kind: "choose-permanents",
-                zone: "battlefield",
-                allControllers: true,
+    // aiValue (PRD #1423) — same rationale as Clone above: a printed 0/0 whose
+    // body is whatever it copies, scored as a representative 2/2 at this card's
+    // own mana value. The upkeep re-copy is genuine upside the figure does not
+    // price in — deliberately, matching Phantasmal Image's "average, not bomb"
+    // stance. Entered the catalogue with #2451.
+    aiValue: 156,
+    // CR 614.1c / 707.5 (ADR 0100 D3, issue #2451) — declarative as-enters copy,
+    // raised on every entry path. Only the ENTRY copy moves here: the upkeep
+    // re-copy below is a triggered ability (CR 603.3d, a real target chosen as
+    // it goes on the stack), not an "as this enters" replacement, so it keeps
+    // its `becomeCopyOf` resolve path untouched.
+    entersWith: {
+        asEnters: [
+            {
+                kind: "copy",
                 filter: { types: "Creature" },
-                count: 1,
-                prompt: "Choose a creature for Vesuvan Doppelganger to copy.",
-            });
-            if (picks === undefined) return;
-            if (picks.length === 1) {
-                ctx.becomeCopyOf(picks[0], {
+                opts: {
                     copyColor: false,
                     ownColors: VESUVAN_OWN_COLORS,
-                });
-            }
-        },
-    ],
+                },
+            },
+        ],
+    },
     triggeredAbilities: [
         {
             ...phaseTrigger({

@@ -378,9 +378,12 @@ async function driveBotToStable(state: GameState, max = 12): Promise<string[]> {
 }
 
 describe("bot resolution-choice full path — remaining kinds (ADR 0016, #165)", () => {
-    it("choose-permanents: resolves a chain (may-pay → pick a creature) without freezing", async () => {
-        // A creature exists for Clone to copy, so the engine offers the
-        // cost-less "enter as a copy?" may-pay, then a choose-permanents pick.
+    it("choose-permanents: resolves Clone's as-enters copy pick without freezing", async () => {
+        // A creature exists for Clone to copy, so the CR 614 entry chokepoint
+        // parks the entry and offers ONE stackless `choose-permanents` pick
+        // (ADR 0100 D2, #2451). Pre-#2451 this was a two-prompt `resolveSteps`
+        // chain (a cost-less may-pay, then the pick); the "you may" is now the
+        // pick's own `min: 0` rather than a separate prompt.
         const victim = makeInstance(BEARS, {
             id: "victim",
             controllerId: HUMAN,
@@ -398,13 +401,14 @@ describe("bot resolution-choice full path — remaining kinds (ADR 0016, #165)",
         });
         pushSpell(state, CLONE, BOT);
         resolveTopOfStack(state);
-        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        expect(state.pendingChoices?.[0]?.kind).toBe("choose-permanents");
+        expect(state.pendingChoices?.[0]?.asEntersKind).toBe("copy");
 
         const kinds = await driveBotToStable(state);
 
-        // The chain completed: accepted the cost-less may-pay, then made a legal
-        // choose-permanents pick — and the queue drained (no freeze).
-        expect(kinds).toEqual(["may-pay", "resolution-choice"]);
+        // The pick completed: a legal choose-permanents submission, and the
+        // queue drained (no freeze).
+        expect(kinds).toEqual(["resolution-choice"]);
         expect(state.pendingChoices).toBeUndefined();
         // Clone became a copy of the only legal creature candidate (2/2 Bears).
         const clone = state.players

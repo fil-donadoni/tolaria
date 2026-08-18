@@ -47,10 +47,10 @@ export const gitaxianProbe: CardDefinition = {
 
 // Phyrexian Metamorph — "You may have this creature enter as a copy of any
 // artifact or creature on the battlefield, except it's an artifact in addition
-// to its other types." A copy-on-ETB Clone variant (CR 707.2 copy effect,
-// 614.12 as-enters replacement) — the copy choice runs in a resolve step while
-// the spell is still on the stack; `becomeCopyOf` overwrites its copiable
-// characteristics before it enters, `additionalTypes: ["Artifact"]` keeps the
+// to its other types." A copy-on-entry Clone variant (CR 707.2 copy effect,
+// CR 614.12 as-enters replacement) — the copy choice is DECLARED on
+// `entersWith.asEnters` (ADR 0100 D3, #2451) and answered before the permanent
+// enters on every entry path; `additionalTypes: ["Artifact"]` keeps the
 // Artifact type (CR 707.9d). Declining (or no artifact/creature present) leaves
 // it a 0/0 artifact creature that dies to SBA (CR 704.5f). Mana cost carries a
 // Phyrexian pip `{U/P}` (pay {U} or 2 life).
@@ -68,40 +68,25 @@ export const phyrexianMetamorph: CardDefinition = {
     // Bot-only cast prune (#938): copies an artifact or creature on ETB — a
     // wasted cast (enters a 0/0 that dies to SBA) when neither is in play.
     copySourceFilter: { types: ["Artifact", "Creature"] },
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            let candidates = 0;
-            for (const pid of ctx.allPlayerIds) {
-                candidates += ctx.getBattlefieldIds(pid, {
-                    types: ["Artifact", "Creature"],
-                }).length;
-            }
-            if (candidates === 0) return; // enters as a 0/0 artifact creature
-            const accept = ctx.requestMayPay({
-                playerId: ctx.controller,
-                choiceId: "phyrexian-metamorph-may-copy",
-                prompt: "Have Phyrexian Metamorph enter as a copy of an artifact or creature?",
-            });
-            if (accept === undefined) return; // suspended
-            if (!accept) return;
-            const picks = ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: "phyrexian-metamorph-target",
-                kind: "choose-permanents",
-                zone: "battlefield",
-                allControllers: true,
+    // aiValue (PRD #1423) — a printed 0/0 whose real body is whatever it
+    // copies; the same representative "average 2/2 at this card's mana value"
+    // figure Clone (`lea/blue.ts`) and Phantasmal Image (`m12/blue.ts`) use.
+    // Without it the bot scores a 0/0 vanilla and never casts the card.
+    // Entered the catalogue when #2451 retired this card's `resolveSteps` and
+    // with it its `AI_EFFECTS_ALLOWLIST` row.
+    aiValue: 151,
+    // CR 614.1c / 707.5 (ADR 0100 D3, issue #2451) — declarative as-enters copy,
+    // raised on every entry path. CR 707.2's "except it's an artifact in
+    // addition to its other types" rides as `CopyEffectOptions.additionalTypes`.
+    entersWith: {
+        asEnters: [
+            {
+                kind: "copy",
                 filter: { types: ["Artifact", "Creature"] },
-                count: 1,
-                prompt: "Choose an artifact or creature for Phyrexian Metamorph to copy.",
-            });
-            if (picks === undefined) return; // suspended
-            if (picks.length === 1) {
-                ctx.becomeCopyOf(picks[0], {
-                    additionalTypes: ["Artifact"],
-                });
-            }
-        },
-    ],
+                opts: { additionalTypes: ["Artifact"] },
+            },
+        ],
+    },
 };
 
 // Deceiver Exarch — {2}{U} Creature — Phyrexian Cleric, 1/4. Flash. ETB is a

@@ -10850,29 +10850,25 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             break;
         }
         case "copy": {
-            const candidateIds: string[] = [];
-            for (const p of state.players) {
-                for (const c of p.battlefield) {
-                    if (c.id === card.id) continue;
-                    if (
-                        choice.filter &&
-                        !matchesPermanentFilter(
-                            effectivePermanentView(state, c),
-                            choice.filter
-                        )
-                    ) {
-                        continue;
-                    }
-                    candidateIds.push(c.id);
-                }
-            }
+            const candidateIds = asEntersCopyCandidates(state, card, choice);
             pending = {
                 ...base,
                 kind: "choose-permanents",
                 zone: "battlefield",
                 allControllers: true,
                 candidateIds,
-                count: 1,
+                // OPTIONAL by construction (#2451). Every printed
+                // enter-as-a-copy clause in this catalogue is a "you MAY have
+                // this enter as a copy" (Clone, Copy Artifact, Vesuvan
+                // Doppelganger, Phyrexian Metamorph, Phantasmal Image), and
+                // CR 614.1a makes a replacement effect's "may" a real decline
+                // rather than a forced pick. An empty submission is that
+                // decline: `applyAsEntersAnswer` finds no source, applies no
+                // copy, and the permanent enters as its printed self — a 0/0
+                // that dies to the CR 704.5f sweep, which is CORRECT and not
+                // the #2451 bug. `{ min: 0, max: 1 }` is the same optional
+                // shape the as-enters `discard` leg uses.
+                count: { min: 0, max: 1 },
                 prompt: `Choose what ${subject} enters as a copy of.`,
             };
             break;
@@ -11002,23 +10998,65 @@ function asEntersDiscardCandidates(
         .map((c) => c.id);
 }
 
+/** CR 707.5 / 614.12a — the permanents this staged entry may enter as a copy
+ *  of, read LIVE as the choice is OFFERED rather than carried on the
+ *  declaration (the `asEntersDiscardCandidates` reason: a simultaneous CR 400.7
+ *  batch changes the board between park and answer). The staged card's own id
+ *  is excluded — it is in no zone, but a re-copy on the SECOND lap of a
+ *  CR 707.6 chain would otherwise see it once it has entered.
+ *
+ *  Read by `enqueueAsEntersChoice` (the prompt's authoritative allow-list) and
+ *  by `forcedAsEntersAnswer` (auto-decline when the set is empty) — one
+ *  derivation, so the offer and the auto-answer can never disagree. */
+function asEntersCopyCandidates(
+    state: GameState,
+    card: CardInstanceState,
+    choice: Extract<AsEntersChoice, { kind: "copy" }>
+): string[] {
+    const candidateIds: string[] = [];
+    for (const p of state.players) {
+        for (const c of p.battlefield) {
+            if (c.id === card.id) continue;
+            if (
+                choice.filter &&
+                !matchesPermanentFilter(
+                    effectivePermanentView(state, c),
+                    choice.filter
+                )
+            ) {
+                continue;
+            }
+            candidateIds.push(c.id);
+        }
+    }
+    return candidateIds;
+}
+
 /** CR 614.12a puts an as-enters choice before the entry — but a "choice" with
  *  exactly one legal answer is not a choice, and OFFERING it would park the
  *  permanent behind a prompt whose only legal submission is the empty one. This
  *  is the project's standing auto-resolve rule (auto-resolve when there is no
- *  real option; keep the prompt for a tactical zero-branch), applied to the one
- *  member of the union that can be unanswerable: an optional `discard` with no
- *  matching card in hand can only be declined.
+ *  real option; keep the prompt for a tactical zero-branch), applied to the two
+ *  members of the union that can be unanswerable: an optional `discard` with no
+ *  matching card in hand, and an optional `copy` with nothing on the
+ *  battlefield to copy (CR 707.5 — a Clone cast into an empty board), which can
+ *  each only be declined.
  *
  *  Returns the forced answer, or `undefined` when the choice must be offered.
  *  A DECLINE (`[]`) is a real answer, not a skip: `applyAsEntersAnswer` still
- *  runs and still aborts the entry to the owner's graveyard, so the permanent
- *  never touches the battlefield on this branch either. */
+ *  runs. For `discard` it aborts the entry, so the permanent never touches the
+ *  battlefield; for `copy` it applies no copy effect and the permanent enters
+ *  as its printed self (CR 704.5f then bins a 0/0 — correct, not a freeze). */
 function forcedAsEntersAnswer(
     state: GameState,
     entry: StagedEntry,
     choice: AsEntersChoice | undefined
 ): string[] | undefined {
+    if (choice?.kind === "copy") {
+        return asEntersCopyCandidates(state, entry.card, choice).length === 0
+            ? []
+            : undefined;
+    }
     if (choice?.kind !== "discard") return undefined;
     const candidates = asEntersDiscardCandidates(state, entry, choice.filter);
     return candidates.length === 0 ? [] : undefined;
@@ -11233,6 +11271,58 @@ function refreshOwedAsEnters(entry: StagedEntry): void {
     if (discovered && discovered.length > 0) entry.owed.push(...discovered);
 }
 
+/** The half of a `copy` answer that the census-row-B entry reset destroys, and
+ *  the reason the `copy` leg needs a carry of its own (CR 707.5 / 400.7, issue
+ *  #2451).
+ *
+ *  `applyAsEntersAnswer` runs `applyCopy` BEFORE the permanent enters, as CR
+ *  707.5 requires ("it doesn't enter the battlefield, and then become a copy").
+ *  The effect-origin tail then re-enters `stageReanimatedOnBattlefield`, whose
+ *  `resetBattlefieldTransientState` deletes `colorOverride` (CR 707.9d — Vesuvan
+ *  Doppelganger's "except it doesn't copy that creature's color") and
+ *  `grantedTriggeredAbilities` (CR 707.2's "except it has '…sacrifice it'" —
+ *  Phantasmal Image). Both are right for the object that LEFT and wrong for the
+ *  copy that is entering right now, exactly like `attachedTo` / `chosenName` /
+ *  `chosenSubtypes` beside them: the copy is part of HOW this permanent enters.
+ *
+ *  Scoped to the two fields the reset actually clears, and gated on
+ *  `copiedFrom` so a permanent that answered no copy carries nothing. The rest
+ *  of the copiable set (`card.id`, `copiedFrom`, the rebuilt
+ *  types/subtypes/P/T/abilities, `manaCostOverride`, `imagePrintId`) survives
+ *  the reset untouched — `asEntersCopy.test.ts` asserts each of them on the far
+ *  side, so a future widening of the reset surfaces there. */
+function copyAnswerCarry(card: CardInstanceState): {
+    colorOverride?: readonly Color[];
+    grantedTriggeredAbilities?: CardInstanceState["grantedTriggeredAbilities"];
+} {
+    if (card.copiedFrom === undefined) return {};
+    return {
+        ...(card.colorOverride
+            ? { colorOverride: [...card.colorOverride] }
+            : {}),
+        ...(card.grantedTriggeredAbilities
+            ? {
+                  grantedTriggeredAbilities: card.grantedTriggeredAbilities.map(
+                      (g) => ({ ...g })
+                  ),
+              }
+            : {}),
+    };
+}
+
+/** Re-applies {@link copyAnswerCarry}'s snapshot on the far side of the entry
+ *  reset, before the CR 603.6a entry announcement — so an ETB trigger reads the
+ *  permanent with the copy it actually entered with. */
+function restoreCopyAnswer(
+    card: CardInstanceState,
+    carry: ReturnType<typeof copyAnswerCarry>
+): void {
+    if (carry.colorOverride) card.colorOverride = [...carry.colorOverride];
+    if (carry.grantedTriggeredAbilities) {
+        card.grantedTriggeredAbilities = carry.grantedTriggeredAbilities;
+    }
+}
+
 /** Runs the deferred entry tail for a staged permanent whose owed list is
  *  finally empty. `origin` selects WHICH tail (ADR 0100 D2): each entry site is
  *  RE-ENTERED with `asEntersResolved`, so the few lines that ran before the
@@ -11260,10 +11350,11 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
             // the entry-side reset clears: `attachedTo` (`aura-host`),
             // `chosenName` (`name`, deleted by
             // `resetBattlefieldTransientState` per CR 614.12 / issue #1953) and
-            // `chosenSubtypes` (`subtypes`, CR 603.6b). The other kinds write
-            // fields that reset does not touch (`mode` → `chosenModeId`,
-            // `body`/`anchor` → the printed characteristics, `copy` → the whole
-            // copiable set, `payLife` → the player's life).
+            // `chosenSubtypes` (`subtypes`, CR 603.6b). `mode` →
+            // `chosenModeId`, `body`/`anchor` → the printed characteristics and
+            // `payLife` → the player's life are untouched by the reset; `copy`
+            // needs its OWN carry (`copyAnswerCarry`) because two of the fields
+            // `applyCopy` writes ARE cleared there.
             //
             // Reading the value straight off the instance is sound ONLY because
             // `stageAsEntersEntry` cleared these same three slots when it parked
@@ -11276,6 +11367,7 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                 chosenName: entry.card.chosenName,
                 chosenSubtypes: entry.card.chosenSubtypes,
             };
+            const copied = copyAnswerCarry(entry.card);
             if (
                 stageReanimatedOnBattlefield(
                     state,
@@ -11293,6 +11385,7 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                 if (answered.chosenSubtypes !== undefined) {
                     entry.card.chosenSubtypes = [...answered.chosenSubtypes];
                 }
+                restoreCopyAnswer(entry.card, copied);
                 // CR 613.1b — an Aura additionally applies its control-changing
                 // static effect once its host is set (Control Magic).
                 if (isAura(entry.card)) finishAuraEntry(state, entry.card);

@@ -924,6 +924,21 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // so everything lands in pile B — a weak-but-legal choice; smart
         // partitioning is deferred.
         case "choose-permanents":
+            // CR 707.5 (#2451) — an as-enters `copy` is an OPTIONAL choice
+            // (`min` is 0, every printed clause is a "you may"), so the shared
+            // "submit `min`" default below would decline it every time, and
+            // declining is what leaves a Clone / Phantasmal Image / Phyrexian
+            // Metamorph as a printed 0/0 the next sweep bins (CR 704.5f). The
+            // exact `discard` shape at #2389, so it gets the same treatment:
+            // its own policy, best-first by projected value. Copying the best
+            // body on the board is a strictly better body than 0/0 in every
+            // position, so there is no decline branch to weigh.
+            if (choice.asEntersKind === "copy") {
+                return bestFirst(candidates)
+                    .slice(0, Math.max(min, Math.min(1, max)))
+                    .map((c) => c.id);
+            }
+            return candidates.slice(0, min).map((c) => c.id);
         case "pick-source":
         case "choose-hand-card":
         case "partition":
