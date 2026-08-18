@@ -293,6 +293,13 @@ lane — `bun run wt:docs <slug>` → write → `bun run docs:ship` (`check:docs
 seconds, no lock). Anything else: own worktree + full gate. Rationale and
 measurements: `docs/agents/quality-gates.md` § Worktree isolation.
 
+**Merging goes through `bun run land <PR#>`, from anywhere** (#2537). The gate
+mutex serialises gating; `land` extends it across rebase → gate → push → merge,
+so the tree that lands is the tree that was gated. `deny-guard.sh` § 1 denies a
+hand-typed `gh pr merge` in every directory; if only the MERGE failed, retry
+`bun scripts/pr-merge.ts <PR#>` — never a second `land`, which re-pays the whole
+gate. Per-command hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`.
+
 **Fresh worktrees need `bun run worktree:init`.** The tell for a missing
 bootstrap: **`216 files failed, 0 tests failed`** (import errors, not a red
 baseline).

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { spawnSync } from "child_process";
 import {
     isDocPath,
     classifyChanges,
@@ -8,6 +9,7 @@ import {
     slugify,
     DOC_GATE_TESTS,
     DOC_GATE_TESTS_EXCLUDED,
+    buildShipMergeCommand,
 } from "../docs-lane";
 
 /**
@@ -154,5 +156,70 @@ describe("docs-lane — the doc gate covers every guard that reads prose", () =>
         expect(inner).not.toMatch(
             /bun run (test|test:app|test:bot|check:all)\b/
         );
+    });
+});
+
+describe("docs-lane — the landing runs under the merge lock (#2537)", () => {
+    const cmd = buildShipMergeCommand({
+        branch: "docs/adr-0101",
+        pr: 2537,
+        primary: "/repo",
+        cwd: "/repo-docs",
+    });
+
+    it("re-gates the REBASED tree inside the lock, before pushing", () => {
+        // `main` can move between the pre-PR push and acquiring the lock, so
+        // the rebase, the doc gate and the force-push all belong in here — the
+        // tree that lands is the tree that was checked.
+        const at = (needle: string) => {
+            const i = cmd.indexOf(needle);
+            expect(i, `missing "${needle}" in: ${cmd}`).toBeGreaterThan(-1);
+            return i;
+        };
+        expect(at("git rebase origin/main")).toBeGreaterThan(
+            at("git fetch origin main")
+        );
+        expect(at("bun run check:docs")).toBeGreaterThan(
+            at("git rebase origin/main")
+        );
+        expect(at("git push --force-with-lease")).toBeGreaterThan(
+            at("bun run check:docs")
+        );
+    });
+
+    it("keeps the lane cheap — the heavy suite is still not part of it", () => {
+        expect(cmd).not.toMatch(/bun run (test|test:app|test:bot|check:all)\b/);
+    });
+
+    it("merges through pr-merge.ts, which survives the post-force-push settle", () => {
+        // The lane force-pushes immediately before merging, so it had the
+        // identical race land had (#2536).
+        expect(cmd).toMatch(/bun '[^']*pr-merge\.ts' 2537/);
+        expect(cmd).not.toContain("--delete-branch");
+        const mergeIdx = cmd.indexOf("pr-merge.ts");
+        expect(cmd.indexOf("git push --force-with-lease")).toBeLessThan(
+            mergeIdx
+        );
+    });
+
+    it("wraps ref cleanup and teardown so they cannot fail a landed merge", () => {
+        expect(cmd).toContain(
+            "(git push origin --delete 'docs/adr-0101' || true)"
+        );
+        expect(cmd).toContain(
+            "(git -C '/repo' worktree remove --force '/repo-docs' || true)"
+        );
+        expect(cmd).toContain(
+            "(git -C '/repo' branch -D 'docs/adr-0101' || true)"
+        );
+        const mergeIdx = cmd.indexOf("pr-merge.ts");
+        expect(cmd.indexOf("git push origin --delete")).toBeGreaterThan(
+            mergeIdx
+        );
+    });
+
+    it("is syntactically valid shell", () => {
+        const r = spawnSync("sh", ["-n", "-c", cmd], { encoding: "utf8" });
+        expect(r.status, r.stderr).toBe(0);
     });
 });

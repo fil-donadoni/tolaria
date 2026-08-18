@@ -13,8 +13,12 @@
 # blocks without redirecting just produces a retry loop.
 #
 # Deliberately hermetic — every decision comes from the payload (`.cwd`,
-# `.tool_input.command`) plus git's own worktree metadata, never from an
-# environment variable a caller could forge.
+# `.tool_input.command`) plus git's own worktree metadata, never from ambient
+# state. The ESCAPE HATCHES are the deliberate exception and are meant to be
+# forgeable: they exist so a human can opt out visibly, in the session
+# (`TOLARIA_ALLOW_MAIN_EDIT=1 claude`, § 0) or in the command itself
+# (`TOLARIA_ALLOW_REPLAN=1`, § 5; `TOLARIA_ALLOW_MANUAL_MERGE=1`, § 1). A
+# guard with no way out gets switched off wholesale, which is worse.
 
 set -u
 
@@ -202,7 +206,20 @@ esac
 # suspenders — command bytes are untrusted, and a wide-character conversion
 # routine invoked under a UTF-8 locale is exactly the kind of thing that can
 # throw on an invalid byte sequence instead of degrading gracefully.
+#
+# **Heredoc bodies come off FIRST** (issue #2537). A command carries text it
+# does not run — a commit message, a PR body, a `python3 - <<'PY'` patch
+# script — and to a substring scanner that text is indistinguishable from a
+# command. Segment-splitting closed the three false denials in the header
+# above; heredoc bodies are the shape that survived it, and widening §1 to the
+# whole machine made it bite: a patch script that MENTIONED the merge (this
+# repo's own hook tests do) was denied while it edited a test file. Stripping
+# runs on PHYSICAL lines, before the joiner, because a body line can itself end
+# in `\` or `|` and would otherwise be glued onto a real command.
+# `lib/strip-heredoc-bodies.awk` documents exactly which introducer shapes it
+# recognises and why the detection is deliberately narrow.
 _cmd_joined=$(printf '%s' "$cmd" |
+    LC_ALL=C awk -f "$(dirname -- "$0")/lib/strip-heredoc-bodies.awk" |
     LC_ALL=C awk -f "$(dirname -- "$0")/lib/join-continued-lines.awk")
 
 segments=$(printf '%s' "$_cmd_joined" | sed -e 's/&&/\
@@ -221,25 +238,59 @@ seg_has() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. A subagent may not merge a PR.
+# 1. A merge to `main` goes through `bun run land`. Nothing else merges.
 #
 # Merging is the orchestrator's job, behind the serial merge lock: the train
 # rebases onto the current tip and re-gates the tree that actually lands. A
-# merge fired from inside an issue worktree skips both, so a PR can land on a
-# base its gate never saw — silent red on main, which is the one invariant the
-# whole loop exists to protect.
+# merge that skips it can land a PR on a base its gate never saw — silent red
+# on main, the one invariant the whole loop exists to protect.
+#
+# WIDENED FROM "issue worktree" TO EVERYWHERE (issue #2537). `scripts/gate.ts`
+# holds a machine-wide mutex over GATING; `land` extends it to cover the merge
+# (#2517). A merge made any other way — a hand-typed `gh pr merge` from the
+# main checkout, the GitHub web UI — takes no lock at all, so `main` moves
+# under a session that is mid-gate and that session's gated tree stops being
+# the tree that lands. The old rule keyed on `$cwd` matching `*-issue-N*`,
+# which is precisely why the three such merges on 2026-08-18 went uncaught:
+# two of them were typed from the main checkout as recovery after `land`
+# failed. `land` converges now (#2536), and its own merge is `pr-merge.ts`,
+# which retries the transient case instead of dropping the caller into
+# hand-merging — so the recovery path this rule used to leave open is no
+# longer the only one.
+#
+# `land`'s own merge is untouched by construction: this hook inspects Bash
+# TOOL calls, never the child processes a script spawns, so the merge inside
+# `land`'s locked command is invisible here BY DESIGN. Do not weaken the hook
+# to accommodate it (`scripts/land.ts` header says the same).
+#
+# The web UI cannot be reached from here at all — no hook sees it. That gap is
+# documented in `docs/agents/quality-gates.md`, not closable in this file.
+#
+# Escape hatch, explicit and per-command, in the same style as §5's replan
+# opt-in — because a real recovery must stay possible without editing a hook:
+#   TOLARIA_ALLOW_MANUAL_MERGE=1 gh pr merge <PR#> --squash
+# It has to sit in the SAME segment as the merge, so it names the one command
+# it is authorising rather than blanket-disabling the rule for a session.
 # ─────────────────────────────────────────────────────────────────────────────
-case "$cwd" in
-*-issue-[0-9]*)
-    if seg_has '(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'; then
-        deny "BLOCKED: \`gh pr merge\` from an issue worktree ($cwd).
-Merging belongs to the orchestrator's merge-train, which rebases onto the
-current main tip and re-gates the tree that actually lands. Merging here skips
-both. Push the branch, open/leave the PR, and return your receipt — the
-orchestrator merges."
-    fi
-    ;;
-esac
+MERGE_INVOKE='(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'
+if seg_has "$MERGE_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_MERGE=1' "$MERGE_INVOKE"; then
+    deny "BLOCKED: \`gh pr merge\` — merging goes through \`land\`, from anywhere.
+
+\`scripts/gate.ts\` locks GATING machine-wide; \`bun run land <PR#>\` extends that
+lock across rebase → gate → push → merge, so the tree that lands is the tree
+that was gated. A merge typed by hand takes no lock: \`main\` moves under whoever
+is mid-gate, and their verified tree is no longer the one landing.
+
+  bun run land <PR#>        # from that PR's own worktree
+
+If \`land\` already gated and pushed and only the MERGE failed, retry just the
+merge — it never re-runs the suite:
+
+  bun scripts/pr-merge.ts <PR#>
+
+Genuinely need to merge by hand? Say so in the command itself:
+  TOLARIA_ALLOW_MANUAL_MERGE=1 gh pr merge <PR#> --squash"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. Nothing force-pushes the default branch.
