@@ -4507,7 +4507,8 @@ export function sourcePreventionShieldApplies(
         // CR 615.12 — damage that can't be prevented ignores every PREVENTION
         // shield in this list, but NOT the CR 510.1c assignment restriction
         // that shares it ("assigns no combat damage" — Farrel's Mantle,
-        // Farrel's Zealot, Delif's Cone/Cube, Orcish Squatters, Heroism): a
+        // Farrel's Zealot, Delif's Cone/Cube, Orcish Squatters,
+        // Cloak of Confusion, Gaze of Pain): a
         // creature that assigns no combat damage produces no damage event for
         // CR 615.12 to protect. The `assignsNone` discriminator is what tells
         // the two apart; entries that omit it are CR 615 shields.
@@ -15382,11 +15383,11 @@ export function buildSpellContext(
         },
 
         markAssignsNoCombatDamage(target: TargetSelection): void {
-            // CR 510.1c — the target assigns no combat damage this turn
-            // (Farrel's Mantle, Farrel's Zealot; and the same-outcome CR 615
-            // spelling "prevent all combat damage that would be dealt by
-            // target attacking creature this turn", Warning / Restrain).
-            // Recorded as a combat-only, id-scoped entry on the ONE
+            // CR 510.1c — the target assigns no combat damage this turn.
+            // Only cards whose Oracle text actually says "assigns no combat
+            // damage" belong here: Farrel's Mantle, Farrel's Zealot, Delif's
+            // Cone, Delif's Cube, Cloak of Confusion, Gaze of Pain, Orcish
+            // Squatters. Recorded as a combat-only, id-scoped entry on the ONE
             // source-scoped shield list. Idempotent; cleared at CLEANUP.
             // No-op for non-permanent targets.
             if (target.type !== "permanent") return;
@@ -15397,7 +15398,9 @@ export function buildSpellContext(
                 // it survives a source-side "combat damage can't be prevented"
                 // effect (CR 615.12) — a creature that assigns no combat damage
                 // never produces a damage event to protect. The CR 615 spelling
-                // of the same outcome (Warning / Restrain) goes through
+                // of the same outcome — any card whose text says "prevent all
+                // combat damage that would be dealt by ~" (Warning, Restrain,
+                // Heroism, Loafing Giant) — goes through
                 // `preventAllDamageFromSources` instead and is overridden.
                 assignsNone: true,
             });
