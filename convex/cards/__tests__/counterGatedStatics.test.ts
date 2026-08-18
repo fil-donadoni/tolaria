@@ -86,6 +86,7 @@ const KIND_MATERIALIZATION: Record<
     "permanent-guard": "recomputed",
     "player-guard": "recomputed",
     "combat-damage-prevention": "recomputed",
+    "combat-damage-unpreventable": "recomputed",
     "cast-restriction": "recomputed",
     "cast-timing-lock": "recomputed",
     // --- materialized by applySourceStaticEffects -----------------------

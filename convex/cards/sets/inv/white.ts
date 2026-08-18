@@ -5,7 +5,7 @@
 // Free tranche (issue #1069, parent PRD #1063): 25 of the 41 candidate free
 // White cards ship as active `CardDefinition`s below, all 25 as DSL Effect
 // Scripts (ADR 0045). (Restrain migrated resolve()->effects[] via the
-// `markAssignsNoCombatDamage` Op, CR 510.1c. Liberate migrated resolve()
+// `preventDamage` Op's source-scoped mode, CR 615. Liberate migrated resolve()
 // ->effects[] via the exile(bind)+delayedTrigger "blink" idiom, issue
 // #1401/#1403.) Holy Day is NOT a new card here —
 // it was first printed in Legends and already ships from `leg/white.ts`; no
@@ -595,9 +595,16 @@ export const razorfootGriffin: CardDefinition = {
 };
 
 // Restrain — "Prevent all combat damage that would be dealt by target
-// attacking creature this turn. Draw a card." (CR 510.1c) — source-side
-// "assigns no combat damage" mark + a cantrip, via the `markAssignsNoCombatDamage`
-// Op (ADR 0045).
+// attacking creature this turn. Draw a card." (CR 615) — a genuine
+// source-scoped combat-damage PREVENTION shield + a cantrip, via the
+// `preventDamage` Op's `"all-from-source"` mode (ADR 0045).
+//
+// It used to ride `markAssignsNoCombatDamage` (CR 510.1c) as a same-outcome
+// shorthand. The two stopped being the same outcome when source-side
+// unpreventable damage shipped (CR 615.12, Questing Beast): a PREVENTION
+// shield is overridden by it, an ASSIGNMENT restriction is not, because a
+// creature that assigns no combat damage never produces a damage event to
+// protect. Restrain says "prevent", so it is the shield.
 export const restrain: CardDefinition = {
     id: "f6b5c765-619c-4db9-b509-91892fb65e8f",
     rarity: "common",
@@ -611,10 +618,15 @@ export const restrain: CardDefinition = {
         count: 1,
         combatRoleFilter: "attacking",
     },
-    // CR 510.1c — source-side "assigns no combat damage this turn" mark, then a
-    // cantrip draw (ADR 0045).
+    // CR 615 — source-scoped combat-damage prevention shield, then a cantrip
+    // draw (ADR 0045).
     effects: [
-        { op: "markAssignsNoCombatDamage", target: { target: 0 } },
+        {
+            op: "preventDamage",
+            mode: "all-from-source",
+            source: { target: 0 },
+            combatOnly: true,
+        },
         { op: "draw", player: "controller", count: 1 },
     ],
 };

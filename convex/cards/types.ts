@@ -2499,6 +2499,25 @@ export interface SourceDamagePreventionShield {
     };
     /** true → only combat damage is prevented (CR 510). */
     combatOnly?: boolean;
+    /** true → this entry is NOT a CR 615 prevention effect at all: it is the
+     *  CR 510.1c combat-damage ASSIGNMENT restriction ("target creature
+     *  assigns no combat damage this turn" — Farrel's Mantle, Farrel's
+     *  Zealot), which happens to have the same outcome and rides the same
+     *  list.
+     *
+     *  The distinction is invisible until a source-side "combat damage can't
+     *  be prevented" effect exists (CR 615.12, Questing Beast). Unpreventable
+     *  damage overrides every PREVENTION shield in this list (Falling Timber,
+     *  Guard Dogs, Radiant Kavu, Rith's Charm, and the CR 615 spelling of
+     *  "assigns no combat damage" that Warning / Restrain use) — but it does
+     *  NOT override an assignment restriction: a creature that assigns no
+     *  combat damage never produces a damage event for CR 615.12 to protect.
+     *
+     *  Deliberately fail-OPEN toward prevention: an entry that omits the flag
+     *  is treated as a CR 615 shield, which is what every other producer of
+     *  this list creates. `markAssignsNoCombatDamage` — the single CR 510.1c
+     *  producer — sets it explicitly. */
+    assignsNone?: boolean;
 }
 
 // --- Spell resolution context ---
@@ -7166,6 +7185,57 @@ export interface StaticCombatDamagePrevention {
     oracleText: string;
 }
 
+/** Battlefield-scanned, SOURCE-side unpreventable-combat-damage static
+ *  (CR 615.12 — "Some effects state that damage 'can't be prevented'. If
+ *  unpreventable damage would be dealt, any applicable prevention effects are
+ *  still applied to it. Those effects won't prevent any damage... Existing
+ *  damage prevention shields won't be reduced by damage that can't be
+ *  prevented").
+ *
+ *  The MIRROR IMAGE of {@link StaticCombatDamagePrevention}, and the reason it
+ *  is a separate kind rather than a flag on it. That kind is TARGET-side: it
+ *  is carried by the creature taking the damage, so the engine can find it by
+ *  reading that one creature's own definition. This kind is carried by a
+ *  permanent that is neither the source of the damage nor its recipient, and
+ *  it speaks about a WHOLE CLASS of sources ("creatures you control"), so it
+ *  can only be found by scanning every battlefield — the same live-query scan
+ *  `StaticGlobalAttackRestriction` / `StaticPermanentGuard` use.
+ *
+ *  Consumed by `isCombatDamageUnpreventable` (`gre/combatDamagePrevention.ts`),
+ *  the SINGLE predicate every combat-damage prevention chokepoint consults;
+ *  the resulting boolean is threaded into the ALREADY-EXISTING `unpreventable`
+ *  parameter that `SpellContext.dealDamage` / `runDamageReplacement` use for
+ *  Urza's Rage's kicked mode, so source-side immunity has exactly one
+ *  vocabulary in the engine rather than two.
+ *
+ *  Questing Beast (ELD) — "Combat damage that would be dealt by creatures you
+ *  control can't be prevented": `self` is Questing Beast, `damageSource` any
+ *  creature, and the predicate is "the source is a creature controlled by
+ *  `self`'s controller". The immunity is Questing Beast's, so it ends the
+ *  instant Questing Beast leaves the battlefield (CR 611.2 — this is a live
+ *  query, never a state entry with a duration). */
+export interface StaticCombatDamageUnpreventable {
+    kind: "combat-damage-unpreventable";
+    /** Stable id (for debugging / oracle tracing). */
+    id: string;
+    /** Returns `true` when COMBAT damage dealt BY `damageSource` can't be
+     *  prevented (CR 615.12). Scoped to combat damage by the caller — the
+     *  predicate never sees a noncombat damage event, so a source's
+     *  activated-ability ping stays preventable as normal.
+     *  `self` = the permanent carrying this effect (Questing Beast).
+     *  `damageSource` = the permanent about to deal the combat damage.
+     *  `state` = live board + block graph.
+     *  `ctx` = static-effect helpers (colors, types, subtypes, ...). */
+    unpreventable: (
+        self: PermanentView,
+        damageSource: PermanentView,
+        state: CombatPreventionStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Oracle text, surfaced for debugging / UI tooltips. */
+    oracleText: string;
+}
+
 /** Battlefield-scanned, PLAYER-scoped casting restriction (CR 601.3a / 601.2 —
  *  a continuous effect that forbids a player from CASTING a class of spell).
  *  Unlike every other `StaticEffect`, this kind does NOT mutate any permanent —
@@ -7297,6 +7367,7 @@ export type StaticEffect = (
     | StaticPermanentGuard
     | StaticPlayerGuard
     | StaticCombatDamagePrevention
+    | StaticCombatDamageUnpreventable
     | StaticKeywordRemove
     | StaticAbilityLoss
     | StaticCastRestriction

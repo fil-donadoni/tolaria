@@ -24,6 +24,10 @@
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { isCombatDamageImmune, sourcePreventionShieldApplies } from "./state";
+import {
+    anyCombatDamageUnpreventableStatic,
+    isCombatDamageUnpreventable,
+} from "./combatDamagePrevention";
 import { lethalDamageThreshold } from "./lethalDamage";
 import {
     getEffectivePower,
@@ -696,10 +700,17 @@ function declaredFaceDamage(
     ) {
         return null;
     }
-    // CR 615 — a resolved Fog. `applyAllCombatDamage` returns immediately on
-    // this flag (phases.ts), so NO combat damage happens at all this turn and
-    // there is nothing lethal on the table.
-    if (state.preventAllCombatDamageThisTurn) return null;
+    // CR 615 / 615.12 — a resolved Fog. `applyAllCombatDamage` returns
+    // immediately on this flag UNLESS a source-side unpreventable-combat-damage
+    // static is on the board (Questing Beast), in which case its controller's
+    // creatures still connect. Mirrors `phases.ts`'s own guard so the bot does
+    // not write off a lethal swing the engine will actually apply.
+    if (
+        state.preventAllCombatDamageThisTurn &&
+        !anyCombatDamageUnpreventableStatic(state)
+    ) {
+        return null;
+    }
     const attackerId = state.activePlayerId; // CR 508.1 — active player attacks.
     const attacker = state.players.find((p) => p.id === attackerId);
     const defender = state.players.find((p) => p.id !== attackerId);
@@ -721,14 +732,19 @@ function declaredFaceDamage(
         if ((byAttacker.get(atkId) ?? []).length > 0) continue;
         const atk = attacker.battlefield.find((c) => c.id === atkId);
         if (!atk) continue;
+        // CR 615.12 — this attacker's combat damage can't be prevented
+        // (Questing Beast), so every shield below is a no-op against it.
+        // Mirrors `applyOneCombatDamage`'s own per-source computation.
+        const unpreventable = isCombatDamageUnpreventable(state, atk);
         // CR 510.1c / 615 — a SOURCE-scoped prevention shield (Farrel's
         // Mantle's "assigns no combat damage"; Falling Timber / Guard Dogs /
         // Radiant Kavu's "prevent all combat damage <X> would deal"). Source-
         // only; the damage step skips it outright.
-        if (sourcePreventionShieldApplies(state, atk.id, true)) continue;
+        if (sourcePreventionShieldApplies(state, atk.id, true, unpreventable))
+            continue;
         // CR 615 — Ebony Horse's shield prevents all combat damage BY the
         // shielded creature as well as to it.
-        if (isCombatDamageImmune(state, atk.id)) continue;
+        if (!unpreventable && isCombatDamageImmune(state, atk.id)) continue;
         damage += Math.max(0, getEffectivePower(state, atk));
     }
     return { defender, attacker, damage };

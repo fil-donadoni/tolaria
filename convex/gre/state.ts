@@ -4482,7 +4482,8 @@ export interface SourcePreventionStateView {
 export function sourcePreventionShieldApplies(
     state: SourcePreventionStateView,
     sourceInstanceId: string,
-    isCombat: boolean
+    isCombat: boolean,
+    unpreventable: boolean = false
 ): boolean {
     const shields = state.sourcePreventionShields;
     if (!shields || shields.length === 0) return false;
@@ -4503,6 +4504,14 @@ export function sourcePreventionShieldApplies(
     for (const shield of shields) {
         // CR 510 — a combat-only shield ignores non-combat damage entirely.
         if (shield.combatOnly && !isCombat) continue;
+        // CR 615.12 — damage that can't be prevented ignores every PREVENTION
+        // shield in this list, but NOT the CR 510.1c assignment restriction
+        // that shares it ("assigns no combat damage" — Farrel's Mantle,
+        // Farrel's Zealot, Delif's Cone/Cube, Orcish Squatters, Heroism): a
+        // creature that assigns no combat damage produces no damage event for
+        // CR 615.12 to protect. The `assignsNone` discriminator is what tells
+        // the two apart; entries that omit it are CR 615 shields.
+        if (unpreventable && !shield.assignsNone) continue;
         if (shield.sourceIds?.includes(sourceInstanceId)) return true;
         const match = shield.match;
         if (!match) continue;
@@ -4534,7 +4543,12 @@ export function addSourcePreventionShield(
                 JSON.stringify(shield.sourceIds ?? null) &&
             JSON.stringify(s.match ?? null) ===
                 JSON.stringify(shield.match ?? null) &&
-            (s.combatOnly ?? false) === (shield.combatOnly ?? false)
+            (s.combatOnly ?? false) === (shield.combatOnly ?? false) &&
+            // CR 510.1c vs CR 615 — an assignment restriction and a prevention
+            // shield on the SAME creature are different entries (they diverge
+            // under CR 615.12 unpreventable damage), so they must not collapse
+            // into one another here.
+            (s.assignsNone ?? false) === (shield.assignsNone ?? false)
     );
     if (duplicate) return;
     list.push(shield);
@@ -8064,9 +8078,11 @@ export function bumpArtifactDamageToPlayer(
  *  consulted at all.
  *
  *  `unpreventable` (Urza's Rage's kicked mode: "the damage can't be
- *  prevented") skips the CR 615 gate only — CR 614 replacement effects are a
- *  distinct rule and still apply, exactly as at the sinks' own
- *  `unpreventable` handling. */
+ *  prevented"; Questing Beast's source-side static, CR 615.12) skips the
+ *  CR 615 gate only — CR 614 replacement effects are a distinct rule and still
+ *  apply, exactly as at the sinks' own `unpreventable` handling, and the
+ *  CR 510.1c "assigns no combat damage" entries that share the shield list are
+ *  likewise untouched (`SourceDamagePreventionShield.assignsNone`). */
 export function runDamageReplacement(
     state: GameState,
     sourceInstanceId: string,
@@ -8077,8 +8093,12 @@ export function runDamageReplacement(
     unpreventable: boolean = false
 ): { target: TargetSelection; amount: number } | null {
     if (
-        !unpreventable &&
-        sourcePreventionShieldApplies(state, sourceInstanceId, isCombat)
+        sourcePreventionShieldApplies(
+            state,
+            sourceInstanceId,
+            isCombat,
+            unpreventable
+        )
     ) {
         return null;
     }
@@ -15373,6 +15393,13 @@ export function buildSpellContext(
             addSourcePreventionShield(state, {
                 sourceIds: [target.id],
                 combatOnly: true,
+                // CR 510.1c, NOT CR 615: this is an ASSIGNMENT restriction, so
+                // it survives a source-side "combat damage can't be prevented"
+                // effect (CR 615.12) — a creature that assigns no combat damage
+                // never produces a damage event to protect. The CR 615 spelling
+                // of the same outcome (Warning / Restrain) goes through
+                // `preventAllDamageFromSources` instead and is overridden.
+                assignsNone: true,
             });
         },
 
