@@ -120,10 +120,32 @@ export default function DebugPanel({
         }
     };
 
+    // The deck the one-click restarts clone: the first seat's, whose card
+    // entries left the `games` row in issue #2506 and now come from
+    // `getSeatDeck`. That query is gated on SEAT ownership, so it resolves in
+    // solo / vs-AI (both handles are this user's) and for a 2-player host;
+    // a 2-player JOINER gets null and the restart buttons no-op rather than
+    // cloning the opponent's list.
+    const sourceSeat = game?.players[0];
+    const sourceCards = useQuery(
+        api.game.getSeatDeck,
+        isOpen && pageVisible && sourceSeat
+            ? { gameId, playerId: sourceSeat.id }
+            : "skip"
+    );
+    const sourceDeck =
+        sourceSeat && sourceCards
+            ? {
+                  id: sourceSeat.deck.id,
+                  name: sourceSeat.deck.name,
+                  format: sourceSeat.deck.format,
+                  cards: sourceCards.cards,
+              }
+            : undefined;
+
     const handleNewSolo = async () => {
         // Reuse the deck of the first player in the current game so the user
         // doesn't have to round-trip through the lobby just to restart.
-        const sourceDeck = game?.players[0]?.deck;
         if (!sourceDeck) return;
         if (!user) return;
         const p1Id = `${user._id}-p1`;
@@ -138,7 +160,6 @@ export default function DebugPanel({
     const handleNewVsAi = async () => {
         // One-click vs-AI game reusing the current first player's deck (ADR 0001,
         // issue #109). The human plays the `-p1` seat; the bot drives `-p2`.
-        const sourceDeck = game?.players[0]?.deck;
         if (!sourceDeck) return;
         if (!user) return;
         const p1Id = `${user._id}-p1`;

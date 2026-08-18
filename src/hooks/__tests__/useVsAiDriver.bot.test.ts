@@ -86,6 +86,7 @@ vi.mock("@convex/_generated/api", () => ({
             getPublicState: "getPublicState",
             getGameTick: "getGameTick",
             getGame: "getGame",
+            getSeatDeck: "getSeatDeck",
             playCard: "playCard",
             summonCompanion: "summonCompanion",
             announceCast: "announceCast",
@@ -131,11 +132,12 @@ vi.mock("convex/react", () => ({
     useQuery: (ref: unknown, args: unknown) => {
         if (args !== "skip") queryMounts.push({ ref, args });
         if (args === "skip") return undefined;
-        // issue #1509 — the driver now also queries `getGame` to source the
-        // bot's own decklist (ownDeck). These tests don't exercise ownDeck,
-        // so return undefined for it: ownDeck stays undefined and the driver
-        // behaves exactly as pre-#1509 (placeholder library path).
-        if (ref === "getGame") return undefined;
+        // issue #1509 — the driver also queries the bot's own decklist
+        // (ownDeck), which since issue #2506 is `getSeatDeck` on the split
+        // `gameDecks` row. These tests don't exercise ownDeck, so return
+        // undefined for it: ownDeck stays undefined and the driver behaves
+        // exactly as pre-#1509 (placeholder library path).
+        if (ref === "getGame" || ref === "getSeatDeck") return undefined;
         if (ref === "getGameTick") {
             if (forceNullTick) return null;
             if (currentState === undefined) return undefined;

@@ -63,6 +63,7 @@ vi.mock("@convex/_generated/api", () => {
         "getPublicState",
         "getGameTick",
         "getGame",
+        "getSeatDeck",
         "playCard",
         "summonCompanion",
         "announceCast",
@@ -113,7 +114,7 @@ vi.mock("@convex/_generated/api", () => {
 vi.mock("convex/react", () => ({
     useQuery: (ref: unknown, args: unknown) => {
         if (args === "skip") return undefined;
-        if (ref === "getGame") return undefined;
+        if (ref === "getGame" || ref === "getSeatDeck") return undefined;
         if (ref === "getGameTick") {
             if (currentState === undefined) return undefined;
             const s = currentState as {

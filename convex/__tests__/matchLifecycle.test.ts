@@ -18,10 +18,17 @@ import {
     recordGameResult,
     snapshotDeck,
     toNextGamePlayers,
+    viewerOwnedSeatIds,
     type MatchCore,
     type MatchDeck,
     type MatchPlayer,
 } from "../matches";
+import {
+    hydrateMatchPlayers,
+    loadMatchSeatDecks,
+    saveMatchSeatDeck,
+} from "../deckStore";
+import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
 
 // The Match orchestration (ADR 0029 / PRD #387). The project has no convex-test
 // harness, so — like gameLifecycle.test.ts — these tests drive the SAME pure
@@ -46,7 +53,13 @@ function player(id: string, score = 0, ready = false): MatchPlayer {
     };
 }
 
-function match(bestOf: 1 | 3, players: MatchPlayer[]): MatchCore {
+/** A Match whose seats are HYDRATED (issue #2506): the pure transitions are
+ *  generic in the seat shape and preserve whatever they are handed, so the
+ *  in-memory scenarios below keep working against full deck copies while
+ *  production hands the same functions the row's slim seats. */
+type TestMatch = Omit<MatchCore, "players"> & { players: MatchPlayer[] };
+
+function match(bestOf: 1 | 3, players: MatchPlayer[]): TestMatch {
     return {
         bestOf,
         status: "playing",
@@ -272,9 +285,65 @@ function matchDoc(overrides: Partial<Doc<"matches">> = {}): Doc<"matches"> {
     } as Doc<"matches">;
 }
 
+/** A hydrated in-memory Match as a `matches` document — the fixtures above
+ *  model the row's mutable fields only. */
+function asMatchDoc(m: TestMatch): Doc<"matches"> {
+    return {
+        _id: "match_1" as Id<"matches">,
+        _creationTime: 0,
+        createdAt: 0,
+        updatedAt: 0,
+        ...m,
+    } as unknown as Doc<"matches">;
+}
+
+/** Splits a hydrated fixture doc into the shape the #2506 migration leaves
+ *  behind: slim seats on the `matches` row, one `matchDecks` row per seat.
+ *  Every projection assertion below runs through this rather than the legacy
+ *  inline copy, so it exercises the real child-table read. */
+function splitMatch(doc: Doc<"matches">): {
+    row: InMemoryRow;
+    deckRows: InMemoryRow[];
+} {
+    const deckRows: InMemoryRow[] = doc.players.map((p, i) => ({
+        _id: `matchDecks-${i}`,
+        matchId: doc._id,
+        playerId: p.id,
+        maindeck: structuredClone(p.deck.maindeck ?? []),
+        sideboard: structuredClone(p.deck.sideboard ?? []),
+    }));
+    const row = structuredClone({
+        ...doc,
+        players: doc.players.map((p) => ({
+            ...p,
+            deck: { id: p.deck.id, name: p.deck.name, format: p.deck.format },
+        })),
+    }) as unknown as InMemoryRow;
+    return { row, deckRows };
+}
+
+/** The real `getMatch` read path (issue #2506): decide which seats the viewer
+ *  may see, load ONLY those `matchDecks` rows, project. Returns the read log
+ *  too, because "the opponent's decklist never left the database" is a
+ *  property of what was READ, not of what the projection remembered to drop. */
+async function project(doc: Doc<"matches">, viewerId: string) {
+    const { row, deckRows } = splitMatch(doc);
+    const { ctx, reads } = makeInMemoryDb({
+        matches: [row],
+        matchDecks: deckRows,
+    });
+    const stored = row as unknown as Doc<"matches">;
+    const decks = await loadMatchSeatDecks(
+        ctx,
+        stored,
+        viewerOwnedSeatIds(stored, viewerId)
+    );
+    return { proj: projectMatch(stored, decks), reads };
+}
+
 describe("projectMatch (wire format, PRD #387)", () => {
-    it("exposes public meta to both players (score, status, format)", () => {
-        const proj = projectMatch(
+    it("exposes public meta to both players (score, status, format)", async () => {
+        const { proj } = await project(
             matchDoc({
                 bestOf: 1,
                 status: "finished",
@@ -289,8 +358,8 @@ describe("projectMatch (wire format, PRD #387)", () => {
         expect(proj.players.map((p) => p.score)).toEqual([1, 0]);
     });
 
-    it("strips the opponent's deck copy in a 2-player Match", () => {
-        const proj = projectMatch(matchDoc(), "p1");
+    it("strips the opponent's deck copy in a 2-player Match", async () => {
+        const { proj, reads } = await project(matchDoc(), "p1");
         const me = proj.players.find((p) => p.id === "p1")!;
         const opp = proj.players.find((p) => p.id === "p2")!;
         expect(me.deck).toBeDefined();
@@ -299,25 +368,31 @@ describe("projectMatch (wire format, PRD #387)", () => {
         expect(opp.deck).toBeUndefined();
         // ready-state is still visible so the UI can show "waiting on opponent"
         expect(opp.ready).toBe(false);
+        // …and since #2506 the secrecy is a property of the READ SET: the
+        // opponent's `matchDecks` row was never fetched, so it is neither
+        // billed nor in this subscription's invalidation path.
+        const deckReads = reads.filter((r) => r.table === "matchDecks");
+        expect(deckReads.map((r) => r.key[1])).toEqual(["p1"]);
     });
 
     // The event binding MUST survive the projection: the client decides where
     // "Back to Lobby" lands from it (`lobbyHrefForMatch`), so a dropped field
     // sends an event player back to the general lobby.
-    it("carries limitedEventId to the wire for an event Match", () => {
-        const proj = projectMatch(
+    it("carries limitedEventId to the wire for an event Match", async () => {
+        const { proj } = await project(
             matchDoc({ limitedEventId: "event_1" }),
             "p1"
         );
         expect(proj.limitedEventId).toBe("event_1");
     });
 
-    it("leaves limitedEventId undefined for an ordinary Match", () => {
-        expect(projectMatch(matchDoc(), "p1").limitedEventId).toBeUndefined();
+    it("leaves limitedEventId undefined for an ordinary Match", async () => {
+        const { proj } = await project(matchDoc(), "p1");
+        expect(proj.limitedEventId).toBeUndefined();
     });
 
-    it("Solo reveals both seats' deck copies", () => {
-        const proj = projectMatch(
+    it("Solo reveals both seats' deck copies", async () => {
+        const { proj } = await project(
             matchDoc({
                 solo: true,
                 players: [player("u-p1"), player("u-p2")],
@@ -480,7 +555,7 @@ describe("botIsChooser / isBotSeat (#394 — vs-AI auto-play)", () => {
 
 /** Applies a `recordGameResult` patch onto a mutable Match, mirroring how the
  *  `finalizeGameOver` mutation patches the `matches` row. */
-function applyResult(m: MatchCore, winnerId: string): MatchCore {
+function applyResult(m: TestMatch, winnerId: string): TestMatch {
     const patch = recordGameResult(m, winnerId);
     if (!patch) return m;
     return { ...m, ...patch };
@@ -491,10 +566,10 @@ function applyResult(m: MatchCore, winnerId: string): MatchCore {
  *  from the current maindeck, and the chooser's play/draw `choice` resolves the
  *  turn-1 active player (#394). `playDrawChooserId` is consumed (cleared). */
 function continueToNextGame(
-    m: MatchCore,
+    m: TestMatch,
     choice: "play" | "draw" = "play"
 ): {
-    match: MatchCore;
+    match: TestMatch;
     seatIds: string[];
     activePlayerId: string | undefined;
 } {
@@ -599,7 +674,7 @@ describe("Bo3 Match plays to two wins (PRD #387 — integration)", () => {
     });
 
     it("vs-AI: when the bot is the chooser it auto-chooses play", () => {
-        let m: MatchCore = {
+        let m: TestMatch = {
             ...match(3, [player("u1-p1"), player("u1-p2")]),
             vsAi: true,
         };
@@ -744,25 +819,56 @@ describe("allSeatsReady / botSeatId (ready gate, issue #395)", () => {
 // the next Game is built from the POST-SWAP Maindeck. Asserts the next Game's
 // library (`buildNextGameSeats` → `deck.cards`) reflects the new Maindeck.
 
-/** Mirror `submitSideboard`: validate + persist the seat's new deck copy. */
-function submit(
-    m: MatchCore,
+/** Mirror `submitSideboard` — through the REAL #2506 seam, not an inline map.
+ *
+ *  Sideboarding is the one path that edits deck CONTENT between Games, so it is
+ *  the highest-risk case of the split: the store must read the seat's
+ *  `matchDecks` row, apply the swap, write the row back, and leave the OTHER
+ *  seat untouched. Driving `loadMatchSeatDecks` → `applySideboard` →
+ *  `saveMatchSeatDeck` against an in-memory db is what makes the assertions
+ *  below (a swapped card reaching the next Game's library) evidence about the
+ *  shipped path rather than about a re-implementation of it. */
+async function submit(
+    m: TestMatch,
     seatId: string,
     next: {
         maindeck: { cardId: string; cardName: string }[];
         sideboard: { cardId: string; cardName: string }[];
     }
-): MatchCore {
-    const players = m.players.map((p) =>
-        p.id === seatId ? { ...p, deck: applySideboard(p.deck, next) } : p
+): Promise<TestMatch> {
+    const { row, deckRows } = splitMatch(asMatchDoc(m));
+    const { ctx, tables } = makeInMemoryDb({
+        matches: [row],
+        matchDecks: deckRows,
+    });
+    const stored = tables.matches[0] as unknown as Doc<"matches">;
+    const current = (await loadMatchSeatDecks(ctx, stored, [seatId])).get(
+        seatId
     );
-    return { ...m, players };
+    expect(current).toBeDefined();
+    await saveMatchSeatDeck(
+        ctx,
+        stored,
+        seatId,
+        applySideboard(current!, next)
+    );
+    const fresh = tables.matches[0] as unknown as Doc<"matches">;
+    // The seat's stored shape is now slim — the row it replaced holds the cards.
+    expect(
+        (
+            fresh.players.find((p) => p.id === seatId)!.deck as Record<
+                string,
+                unknown
+            >
+        ).maindeck
+    ).toBeUndefined();
+    return { ...m, players: await hydrateMatchPlayers(ctx, fresh) };
 }
 
 /** Mirror `setReady`: ready a seat (auto-ready the bot in vs-AI). */
-function ready(m: MatchCore, seatId: string): MatchCore {
+function ready(m: TestMatch, seatId: string): TestMatch {
     const bot = botSeatId(m);
-    const players = m.players.map((p) => {
+    const players: MatchPlayer[] = m.players.map((p) => {
         if (p.id === seatId) return { ...p, ready: true };
         if (bot && p.id === bot) return { ...p, ready: true };
         return p;
@@ -771,7 +877,7 @@ function ready(m: MatchCore, seatId: string): MatchCore {
 }
 
 describe("Sideboarding integration: next Game library reflects the swap (#395)", () => {
-    it("a swapped-in Sideboard card appears in the next Game's library", () => {
+    it("a swapped-in Sideboard card appears in the next Game's library", async () => {
         // Game 1: A wins → Match routes to sideboarding, both ready reset.
         let m = match(3, [
             { ...player("a"), deck: deck([C("a1"), C("a2")], [C("aS")]) },
@@ -782,12 +888,12 @@ describe("Sideboarding integration: next Game library reflects the swap (#395)",
         expect(m.players.every((p) => p.ready === false)).toBe(true);
 
         // B (the loser/chooser) swaps b2 OUT and brings bS IN (size stays 2).
-        m = submit(m, "b", {
+        m = await submit(m, "b", {
             maindeck: [C("b1"), C("bS")],
             sideboard: [C("b2")],
         });
         // A leaves their deck unchanged but must still ready.
-        m = submit(m, "a", {
+        m = await submit(m, "a", {
             maindeck: [C("a1"), C("a2")],
             sideboard: [C("aS")],
         });
@@ -812,8 +918,8 @@ describe("Sideboarding integration: next Game library reflects the swap (#395)",
         ]);
     });
 
-    it("vs-AI: the human readies once and the bot auto-readies → gate opens", () => {
-        let m: MatchCore = {
+    it("vs-AI: the human readies once and the bot auto-readies → gate opens", async () => {
+        let m: TestMatch = {
             ...match(3, [
                 {
                     ...player("u-p1"),
@@ -827,7 +933,7 @@ describe("Sideboarding integration: next Game library reflects the swap (#395)",
         expect(m.status).toBe("sideboarding");
 
         // The human swaps; the bot makes no swaps.
-        m = submit(m, "u-p1", {
+        m = await submit(m, "u-p1", {
             maindeck: [C("h1"), C("hS")],
             sideboard: [C("h2")],
         });
@@ -902,7 +1008,7 @@ describe("2-player ready barrier (issue #397)", () => {
 });
 
 describe("projectMatch — 2-player sideboarding secrecy (issue #397)", () => {
-    it("hides the opponent's deck + swaps but keeps their ready-state public", () => {
+    it("hides the opponent's deck + swaps but keeps their ready-state public", async () => {
         // Mid-sideboarding: the opponent (p2) has swapped a Sideboard card in and
         // readied. The viewer (p1) must see p2's ready flag but NONE of p2's
         // maindeck / sideboard / swaps.
@@ -933,7 +1039,7 @@ describe("projectMatch — 2-player sideboarding secrecy (issue #397)", () => {
                 },
             ],
         });
-        const proj = projectMatch(doc, "p1");
+        const { proj } = await project(doc, "p1");
         const me = proj.players.find((p) => p.id === "p1")!;
         const opp = proj.players.find((p) => p.id === "p2")!;
 
@@ -953,13 +1059,13 @@ describe("projectMatch — 2-player sideboarding secrecy (issue #397)", () => {
         expect(proj.bestOf).toBe(1); // matchDoc default; meta still crosses
     });
 
-    it("Solo sees BOTH seats' deck copies during sideboarding", () => {
+    it("Solo sees BOTH seats' deck copies during sideboarding", async () => {
         const doc = matchDoc({
             status: "sideboarding",
             solo: true,
             players: [player("u-p1"), player("u-p2", 1, true)],
         });
-        const proj = projectMatch(doc, "u");
+        const { proj } = await project(doc, "u");
         expect(proj.players.every((p) => p.deck !== undefined)).toBe(true);
         // ready-states still public in Solo too.
         expect(proj.players.find((p) => p.id === "u-p2")!.ready).toBe(true);

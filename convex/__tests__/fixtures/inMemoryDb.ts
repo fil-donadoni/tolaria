@@ -38,6 +38,12 @@ export interface InMemoryDb {
      *  invisible to every result-shaped assertion and shows up only as
      *  someone else's board re-rendering, or as a bill. */
     reads: { table: string; key: unknown[] }[];
+    /** Every `ctx.db.get(id)`, in order — the read-set tracker for a POINT
+     *  lookup, which `reads` cannot see (it records executed queries). Same
+     *  purpose: a handler that fetches a document it does not need returns the
+     *  right answer, is billed for the whole document, and joins that
+     *  document's invalidation path. */
+    gets: string[];
 }
 
 export interface InMemoryDbOptions {
@@ -61,9 +67,11 @@ export function makeInMemoryDb(
     let nextId = 1000;
     const writes: { table: string; id: string }[] = [];
     const reads: { table: string; key: unknown[] }[] = [];
+    const gets: string[] = [];
 
     const db = {
         get: async (id: string) => {
+            gets.push(id);
             for (const rows of Object.values(tables)) {
                 const found = rows.find((r) => r._id === id);
                 if (found) return structuredClone(found);
@@ -191,5 +199,6 @@ export function makeInMemoryDb(
         tables,
         writes,
         reads,
+        gets,
     };
 }

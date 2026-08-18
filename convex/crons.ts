@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { deleteMatchCascade } from "./matches";
 import { deleteSeats } from "./limitedSeatStore";
+import { deleteGameDecks } from "./deckStore";
 
 const FINISHED_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -45,6 +46,8 @@ export const sweepFinishedGames = internalMutation({
                 .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
                 .collect();
             for (const t of ticks) await ctx.db.delete(t._id);
+            // Decklist companion (issue #2506) — same orphan risk.
+            await deleteGameDecks(ctx, game._id);
             await ctx.db.delete(game._id);
         }
     },

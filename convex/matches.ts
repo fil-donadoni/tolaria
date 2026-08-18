@@ -4,6 +4,11 @@ import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { auth } from "./auth";
 import { query } from "./_generated/server";
 import { seatBelongsToUser } from "./gameLifecycle";
+import {
+    deleteGameDecks,
+    deleteMatchDecks,
+    loadMatchSeatDecks,
+} from "./deckStore";
 
 // ---------------------------------------------------------------------------
 // Match orchestration (ADR 0029 / PRD #387). A Match is a best-of-N set of
@@ -22,17 +27,42 @@ import { seatBelongsToUser } from "./gameLifecycle";
 /** A card entry in a deck (maindeck or sideboard). */
 export type DeckCard = { cardId: string; cardName: string };
 
-/** The mutable Match-scoped deck copy. Sideboarding edits this; `userDecks`
- *  is read-only for the Match's duration. Each Game's library is built from
- *  `maindeck` as of that Game's start. */
-export type MatchDeck = {
+/** Deck IDENTITY — the part of the Match deck copy that stays inline on the
+ *  `matches` row (issue #2506). Everything a reader that isn't playing cards
+ *  needs. */
+export type MatchDeckMeta = {
     id: string;
     name: string;
     format: string;
+};
+
+/** The mutable Match-scoped deck copy, HYDRATED. Sideboarding edits this;
+ *  `userDecks` is read-only for the Match's duration. Each Game's library is
+ *  built from `maindeck` as of that Game's start. The card arrays live in
+ *  `matchDecks` (issue #2506) — `convex/deckStore.ts` folds them back in. */
+export type MatchDeck = MatchDeckMeta & {
     maindeck: DeckCard[];
     sideboard: DeckCard[];
 };
 
+/** A Match seat as it is STORED: deck identity inline, card arrays optional
+ *  (present only on rows written before the #2506 split). The pure transitions
+ *  below operate on this shape — none of them reads a card — so they can be
+ *  handed a `Doc<"matches">` directly and their output patched straight back. */
+export type StoredMatchPlayer = {
+    id: string;
+    name: string;
+    bgColor: string;
+    deck: MatchDeckMeta & {
+        maindeck?: DeckCard[];
+        sideboard?: DeckCard[];
+    };
+    score: number;
+    ready: boolean;
+};
+
+/** A Match seat with its deck copy hydrated — what the game-building paths
+ *  consume (`buildNextGameSeats`). */
 export type MatchPlayer = {
     id: string;
     name: string;
@@ -67,7 +97,7 @@ export function pickCoinTossWinner(
 export type MatchCore = {
     bestOf: 1 | 3;
     status: MatchStatus;
-    players: MatchPlayer[];
+    players: StoredMatchPlayer[];
     currentGameNumber: number;
     currentGameId?: Id<"games">;
     playDrawChooserId?: string;
@@ -111,11 +141,17 @@ export function snapshotDeck(input: {
  * - Otherwise (Bo3 mid-match) → `status: "sideboarding"`, reset both `ready`
  *   flags, set `playDrawChooserId` to the Game's loser. (Sideboarding/next-Game
  *   build is a later slice; the Bo1 spine never reaches this branch.)
+ *
+ * Generic in the seat shape (issue #2506): this transition — like
+ * {@link forfeitMatch} — reads no card, so it PRESERVES whatever shape it was
+ * handed. Given a `Doc<"matches">` the returned seats are the row's own slim
+ * ones and the patch goes straight back without re-fattening it; given a
+ * hydrated array they stay hydrated for the in-memory tests.
  */
-export function recordGameResult(
-    match: MatchCore,
+export function recordGameResult<P extends StoredMatchPlayer>(
+    match: Omit<MatchCore, "players"> & { players: P[] },
     winnerId: string
-): Partial<MatchCore> | null {
+): (Partial<Omit<MatchCore, "players">> & { players?: P[] }) | null {
     const winnerIdx = match.players.findIndex((p) => p.id === winnerId);
     if (winnerIdx === -1) return null;
 
@@ -156,10 +192,10 @@ export function recordGameResult(
  * to exactly the games-to-win threshold so the recorded Match score is
  * internally consistent (e.g. 2–0 / 2–1 in a Bo3) rather than left mid-flight.
  */
-export function forfeitMatch(
-    match: MatchCore,
+export function forfeitMatch<P extends StoredMatchPlayer>(
+    match: Omit<MatchCore, "players"> & { players: P[] },
     forfeiterId: string
-): Partial<MatchCore> | null {
+): (Partial<Omit<MatchCore, "players">> & { players?: P[] }) | null {
     const forfeiterIdx = match.players.findIndex((p) => p.id === forfeiterId);
     if (forfeiterIdx === -1) return null;
     const opponent = match.players.find((p) => p.id !== forfeiterId);
@@ -533,12 +569,36 @@ export type PublicMatch = {
     players: PublicMatchPlayer[];
 };
 
-/** Projects a Match for a viewer. `viewerId` is the user's id; solo mode passes
- *  `solo: true` to reveal both seats. The opponent's deck contents are stripped
- *  during a 2-player Match. */
+/** Seats of `match` whose deck copy this viewer may see: their own, or every
+ *  seat in solo (consistent with Solo seeing both hands). The single authority
+ *  on that question — `getMatch` uses it to decide which `matchDecks` rows to
+ *  read at all, and `projectMatch` uses it to decide what to publish, so the
+ *  two can never disagree (issue #2506). */
+export function viewerOwnedSeatIds(
+    match: { players: { id: string }[]; solo?: boolean },
+    viewerId: string
+): string[] {
+    const solo = match.solo === true;
+    return match.players
+        .filter(
+            (p) => solo || p.id === viewerId || p.id.startsWith(`${viewerId}-`)
+        )
+        .map((p) => p.id);
+}
+
+/** Projects a Match for a viewer. The opponent's deck contents are stripped
+ *  during a 2-player Match; solo reveals both seats.
+ *
+ *  Since issue #2506 the per-viewer secrecy decision is made BEFORE this, by
+ *  `viewerOwnedSeatIds`: `decks` carries the hydrated deck copies the caller
+ *  loaded, keyed by seat id and only for the seats that helper allowed, so the
+ *  opponent's `matchDecks` row is never even read. A seat missing from the map
+ *  is published without a deck, exactly as a stripped opponent seat always was
+ *  — which makes "the opponent's list is not on the wire" a property of what
+ *  was READ, not of a projection remembering to drop it. */
 export function projectMatch(
     match: Doc<"matches">,
-    viewerId: string
+    decks: ReadonlyMap<string, MatchDeck>
 ): PublicMatch {
     const solo = match.solo === true;
     return {
@@ -553,15 +613,14 @@ export function projectMatch(
         vsAi: match.vsAi === true,
         limitedEventId: match.limitedEventId,
         players: match.players.map((p) => {
-            const own =
-                solo || p.id === viewerId || p.id.startsWith(`${viewerId}-`);
+            const deck = decks.get(p.id);
             return {
                 id: p.id,
                 name: p.name,
                 bgColor: p.bgColor,
                 score: p.score,
                 ready: p.ready,
-                ...(own ? { deck: p.deck } : {}),
+                ...(deck ? { deck } : {}),
             };
         }),
     };
@@ -593,8 +652,11 @@ export async function deleteMatchCascade(
             .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
             .collect();
         for (const t of ticks) await ctx.db.delete(t._id);
+        // Decklist companion (issue #2506) — same orphan risk as `gameStates`.
+        await deleteGameDecks(ctx, game._id);
         await ctx.db.delete(game._id);
     }
+    await deleteMatchDecks(ctx, matchId);
     await ctx.db.delete(matchId);
 }
 
@@ -611,7 +673,16 @@ export const getMatch = query({
         const userId = await auth.getUserId(ctx);
         const match = await ctx.db.get(args.matchId);
         if (!match) return null;
-        return projectMatch(match, userId ?? "");
+        const viewer = userId ?? "";
+        // Only the seats this viewer may see (issue #2506): the opponent's
+        // `matchDecks` row is never read, so a 2-player board subscription
+        // pays for one decklist instead of the row's former two.
+        const decks = await loadMatchSeatDecks(
+            ctx,
+            match,
+            viewerOwnedSeatIds(match, viewer)
+        );
+        return projectMatch(match, decks);
     },
 });
 

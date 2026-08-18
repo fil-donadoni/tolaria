@@ -418,6 +418,7 @@ import {
     assertCallerOwnsSeat,
     assertSeatOwnership,
     gameBelongsToUser,
+    seatBelongsToUser,
 } from "./gameLifecycle";
 import {
     activeGameOpponentName,
@@ -438,6 +439,19 @@ import {
     type MatchPlayer,
     type PlayDrawChoice,
 } from "./matches";
+import {
+    appendMatchSeat,
+    deleteGameDecks,
+    deleteMatchDecks,
+    hydrateGameSeats,
+    hydrateMatchPlayers,
+    insertGameWithDecks,
+    insertMatchWithDecks,
+    loadGameSeatCards,
+    loadMatchSeatDecks,
+    patchGameSeats,
+    saveMatchSeatDeck,
+} from "./deckStore";
 
 export const STARTING_HAND_SIZE = 7;
 
@@ -753,7 +767,7 @@ async function saveGameTick(
  *  `string` where the schema stores a branded `Id<"matches">` — the same
  *  type-level reconciliation `limitedEvents.ts`'s `asDbRounds` performs, for
  *  the two writes this module makes. Every `matchId` written here originates
- *  from a real `ctx.db.insert("matches", …)`, never from client input. */
+ *  from a real `insertMatchWithDecks` (`deckStore.ts`), never from client input. */
 function asDbRounds(
     rounds: LimitedRound[]
 ): NonNullable<Doc<"limitedEvents">["rounds"]> {
@@ -3694,13 +3708,47 @@ export const getFullState = query({
     },
 });
 
-/** Returns the game record (status, players). */
+/** Returns the game record (status, players). Since issue #2506 the decklists
+ *  are NOT on it — `players[].deck` carries identity only, `cardIds` carries
+ *  the art-preload manifest, and a client that needs real card entries asks
+ *  `getSeatDeck` for its OWN seat. */
 export const getGame = query({
     args: {
         gameId: v.id("games"),
     },
     handler: async (ctx, args) => {
         return await ctx.db.get(args.gameId);
+    },
+});
+
+/** ONE seat's decklist (issue #2506) — the client-side read that replaces the
+ *  card entries `getGame` used to carry. Two callers, both of which need real
+ *  card identities rather than the id manifest: the vs-AI driver, which wires
+ *  the BOT's own deck into the search adapter so fetch/tutor subtrees search
+ *  real cards (issue #1509), and the Debug panel's "clone this deck into a new
+ *  solo game".
+ *
+ *  A seat's own decklist is public knowledge to its owner (only the ORDER is
+ *  hidden), so this is gated on SEAT ownership, not mere presence in the game:
+ *  in solo / vs-AI both handles belong to the one user, while in a 2-player
+ *  game a client can no longer read the opponent's list at all — which
+ *  `getGame` incidentally allowed before the split.
+ *
+ *  Deliberately NOT a subscription on the `games` row: the point lookup in
+ *  `loadGameSeatCards` reads only the (immutable) decklist row, so this query
+ *  does not re-execute on the `games` patches that fire several times a turn. */
+export const getSeatDeck = query({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const userId = await auth.getUserId(ctx);
+        if (!userId) return null;
+        if (!seatBelongsToUser(args.playerId, userId)) return null;
+        const cards = await loadGameSeatCards(ctx, args.gameId, args.playerId);
+        if (!cards) return null;
+        return { playerId: args.playerId, cards };
     },
 });
 
@@ -3958,7 +4006,7 @@ export const createGame = mutation({
 
         // The Match opens "waiting" for an opponent; joinGame completes it and
         // builds Game 1. The waiting game row carries the matchId up front.
-        const matchId = await ctx.db.insert("matches", {
+        const matchId = await insertMatchWithDecks(ctx, {
             bestOf: args.bestOf ?? 1,
             status: "waiting",
             players: buildMatchPlayers([player]),
@@ -3967,7 +4015,7 @@ export const createGame = mutation({
             updatedAt: now,
         });
 
-        const gameId = await ctx.db.insert("games", {
+        const gameId = await insertGameWithDecks(ctx, {
             name: args.name,
             matchId,
             gameNumber: 1,
@@ -4062,7 +4110,7 @@ export const challengeLimitedSeat = mutation({
             challengedSeatIndex: challenged.seatIndex,
         };
 
-        const matchId = await ctx.db.insert("matches", {
+        const matchId = await insertMatchWithDecks(ctx, {
             // Bo1 — a Limited challenge has no sideboarding flow (out of scope).
             bestOf: 1,
             status: "waiting",
@@ -4074,7 +4122,7 @@ export const challengeLimitedSeat = mutation({
             limitedChallenge,
         });
 
-        const gameId = await ctx.db.insert("games", {
+        const gameId = await insertGameWithDecks(ctx, {
             name: args.name ?? `${user.nickname} vs ${challengedLabel}`,
             matchId,
             gameNumber: 1,
@@ -4239,7 +4287,7 @@ export const startPairingMatch = mutation({
             };
             const allPlayers = [player1, player2];
             const matchPlayers = buildMatchPlayers(allPlayers);
-            matchId = await ctx.db.insert("matches", {
+            matchId = await insertMatchWithDecks(ctx, {
                 bestOf,
                 status: "pregame",
                 players: matchPlayers,
@@ -4255,7 +4303,7 @@ export const startPairingMatch = mutation({
                 createdAt: now,
                 updatedAt: now,
             });
-            gameId = await ctx.db.insert("games", {
+            gameId = await insertGameWithDecks(ctx, {
                 name,
                 matchId,
                 gameNumber: 1,
@@ -4287,7 +4335,7 @@ export const startPairingMatch = mutation({
                 bgColor: args.bgColor ?? PLAYER_COLORS[0],
                 deck: args.deck,
             };
-            matchId = await ctx.db.insert("matches", {
+            matchId = await insertMatchWithDecks(ctx, {
                 bestOf,
                 status: "waiting",
                 players: buildMatchPlayers([player]),
@@ -4298,7 +4346,7 @@ export const startPairingMatch = mutation({
                 limitedChallenge,
                 limitedPairing,
             });
-            gameId = await ctx.db.insert("games", {
+            gameId = await insertGameWithDecks(ctx, {
                 name,
                 matchId,
                 gameNumber: 1,
@@ -4435,7 +4483,7 @@ export const createSoloGame = mutation({
         // builds Game 1 with the resolved active player. Bo1 by default.
         const matchPlayers = buildMatchPlayers(allPlayers);
         const tossWinnerId = pickCoinTossWinner(matchPlayers, Math.random());
-        const matchId = await ctx.db.insert("matches", {
+        const matchId = await insertMatchWithDecks(ctx, {
             bestOf: args.bestOf ?? 1,
             status: "pregame",
             players: matchPlayers,
@@ -4448,7 +4496,7 @@ export const createSoloGame = mutation({
             updatedAt: now,
         });
 
-        const gameId = await ctx.db.insert("games", {
+        const gameId = await insertGameWithDecks(ctx, {
             name: args.name,
             matchId,
             gameNumber: 1,
@@ -4525,7 +4573,7 @@ export const createManualSoloGame = mutation({
 
         // Manual games skip the pregame/coin-toss gate — start immediately.
         const matchPlayers = buildMatchPlayers(allPlayers);
-        const matchId = await ctx.db.insert("matches", {
+        const matchId = await insertMatchWithDecks(ctx, {
             bestOf: args.bestOf ?? 1,
             status: "playing",
             players: matchPlayers,
@@ -4535,7 +4583,7 @@ export const createManualSoloGame = mutation({
             updatedAt: now,
         });
 
-        const gameId = await ctx.db.insert("games", {
+        const gameId = await insertGameWithDecks(ctx, {
             name: args.name,
             matchId,
             gameNumber: 1,
@@ -4600,7 +4648,7 @@ export const createManualGame = mutation({
             deck: args.deck,
         };
 
-        const matchId = await ctx.db.insert("matches", {
+        const matchId = await insertMatchWithDecks(ctx, {
             bestOf: args.bestOf ?? 1,
             status: "waiting",
             players: buildMatchPlayers([player]),
@@ -4609,7 +4657,7 @@ export const createManualGame = mutation({
             updatedAt: now,
         });
 
-        const gameId = await ctx.db.insert("games", {
+        const gameId = await insertGameWithDecks(ctx, {
             name: args.name,
             matchId,
             gameNumber: 1,
@@ -4664,7 +4712,12 @@ export const joinManualGame = mutation({
             bgColor: args.bgColor ?? PLAYER_COLORS[1],
             deck: args.deck,
         };
-        const allPlayers = [...game.players, player];
+        // The host's decklist lives in `gameDecks` now (issue #2506) — hydrate
+        // it, because the seats written back must carry BOTH decks.
+        const allPlayers = [
+            ...(await hydrateGameSeats(ctx, game)),
+            ...toGamePlayers([player]),
+        ];
         const now = Date.now();
 
         // No coin toss, no pregame gate: the table is live the moment the
@@ -4673,17 +4726,20 @@ export const joinManualGame = mutation({
         if (game.matchId) {
             const match = await ctx.db.get(game.matchId);
             if (match) {
-                await ctx.db.patch(game.matchId, {
-                    status: "playing",
-                    players: [...match.players, ...buildMatchPlayers([player])],
-                    updatedAt: now,
-                });
+                await appendMatchSeat(
+                    ctx,
+                    match,
+                    buildMatchPlayers([player])[0],
+                    {
+                        status: "playing",
+                        updatedAt: now,
+                    }
+                );
             }
         }
 
-        await ctx.db.patch(args.gameId, {
+        await patchGameSeats(ctx, args.gameId, allPlayers, {
             status: "playing",
-            players: toGamePlayers(allPlayers),
             updatedAt: now,
         });
 
@@ -4736,7 +4792,11 @@ export const chooseFirstPlayer = mutation({
         if (!gameId) throw new Error("Match has no pregame Game to build");
 
         const now = Date.now();
-        const seats = buildNextGameSeats(match);
+        // The Match deck copies live in `matchDecks` now (issue #2506) — the
+        // next Game's library is built from them, so this path hydrates.
+        const seats = buildNextGameSeats({
+            players: await hydrateMatchPlayers(ctx, match),
+        });
         // The toss winner (`playDrawChooserId`) chooses; a bot chooser is forced
         // to "play" server-side with no human prompt (CR 103.4, #394).
         const resolvedChoice: PlayDrawChoice = botIsChooser(match)
@@ -4851,7 +4911,12 @@ export const joinGame = mutation({
             bgColor: args.bgColor ?? PLAYER_COLORS[1],
             deck: args.deck,
         };
-        const allPlayers = [...game.players, player];
+        // The host's decklist lives in `gameDecks` now (issue #2506) — hydrate
+        // it, because the seats written back must carry BOTH decks.
+        const allPlayers = [
+            ...(await hydrateGameSeats(ctx, game)),
+            ...toGamePlayers([player]),
+        ];
         const now = Date.now();
 
         // Complete the owning Match and open the G1 coin-toss gate (CR
@@ -4861,17 +4926,13 @@ export const joinGame = mutation({
         if (game.matchId) {
             const match = await ctx.db.get(game.matchId);
             if (match) {
-                const matchPlayers = [
-                    ...match.players,
-                    ...buildMatchPlayers([player]),
-                ];
+                const joiner = buildMatchPlayers([player])[0];
                 const tossWinnerId = pickCoinTossWinner(
-                    matchPlayers,
+                    [...match.players, joiner],
                     Math.random()
                 );
-                await ctx.db.patch(game.matchId, {
+                await appendMatchSeat(ctx, match, joiner, {
                     status: "pregame",
-                    players: matchPlayers,
                     playDrawChooserId: tossWinnerId,
                     updatedAt: now,
                 });
@@ -4879,9 +4940,8 @@ export const joinGame = mutation({
         }
 
         // Update game record (no gameStates row until the toss is resolved).
-        await ctx.db.patch(args.gameId, {
+        await patchGameSeats(ctx, args.gameId, allPlayers, {
             status: "pregame",
-            players: toGamePlayers(allPlayers),
             updatedAt: now,
         });
     },
@@ -4947,6 +5007,8 @@ export const leaveGame = mutation({
             .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
             .collect();
         for (const t of ticks) await ctx.db.delete(t._id);
+        // Decklist companion (issue #2506) — same orphan risk as `gameStates`.
+        await deleteGameDecks(ctx, args.gameId);
         await ctx.db.delete(args.gameId);
         if (game.matchId) {
             const match = await ctx.db.get(game.matchId);
@@ -4954,6 +5016,7 @@ export const leaveGame = mutation({
                 match &&
                 (match.status === "waiting" || match.status === "pregame")
             ) {
+                await deleteMatchDecks(ctx, game.matchId);
                 await ctx.db.delete(game.matchId);
                 // A round pairing Match abandoned before it started (issue
                 // #1645): release the pairing so the seat can start it again,
@@ -5023,7 +5086,11 @@ async function buildNextGameForMatch(
     choice?: PlayDrawChoice
 ): Promise<{ gameId: Id<"games">; gameNumber: number }> {
     const now = Date.now();
-    const seats = buildNextGameSeats(match);
+    // The Match deck copies live in `matchDecks` now (issue #2506) — the
+    // next Game's library is built from them, so this path hydrates.
+    const seats = buildNextGameSeats({
+        players: await hydrateMatchPlayers(ctx, match),
+    });
     const nextGameNumber = match.currentGameNumber + 1;
 
     const resolvedChoice: PlayDrawChoice = botIsChooser(match)
@@ -5037,7 +5104,7 @@ async function buildNextGameForMatch(
     // immutable maindeck snapshot, mirroring `toGamePlayers` (PRD #387).
     const gamePlayers = toNextGamePlayers(seats);
 
-    const gameId = await ctx.db.insert("games", {
+    const gameId = await insertGameWithDecks(ctx, {
         name: match.solo ? `${nickname}'s solo game` : `${nickname}'s game`,
         matchId: match._id,
         gameNumber: nextGameNumber,
@@ -5125,17 +5192,24 @@ export const submitSideboard = mutation({
         if (!callerOwnsSeat(match, seat, user._id))
             throw new Error("You cannot sideboard for that seat");
 
+        // The deck copy this re-partitions lives in `matchDecks` (issue #2506)
+        // — the ONE path that edits deck CONTENT between Games. Read only this
+        // seat's row; the opponent's is untouched and unread.
+        const current = (await loadMatchSeatDecks(ctx, match, [seat.id])).get(
+            seat.id
+        );
+        if (!current) throw new Error("Seat has no deck copy in this match");
+
         // Pure validation + apply (size-lock + pool preservation). Throws on an
         // illegal swap, rolling the mutation back atomically.
-        const nextDeck = applySideboard(seat.deck, {
+        const nextDeck = applySideboard(current, {
             maindeck: args.maindeck,
             sideboard: args.sideboard,
         });
 
-        const players = match.players.map((p, i) =>
-            i === seatIdx ? { ...p, deck: nextDeck } : p
-        );
-        await ctx.db.patch(args.matchId, { players, updatedAt: Date.now() });
+        await saveMatchSeatDeck(ctx, match, seat.id, nextDeck, {
+            updatedAt: Date.now(),
+        });
     },
 });
 
@@ -14664,7 +14738,10 @@ export const debugResetGame = mutation({
         const existing = await getLatestGameState(ctx, args.gameId);
 
         const idCounter: { nextInstanceId?: number } = {};
-        const playersState = game.players.map((p) =>
+        // Decklists live in `gameDecks` (issue #2506) — a reset rebuilds the
+        // libraries, so this is one of the paths that must hydrate in full.
+        const seats = await hydrateGameSeats(ctx, game);
+        const playersState = seats.map((p) =>
             buildPlayerState(p as PlayerInput, idCounter)
         );
         // CR 500.1: starting player begins their first turn at game start.
@@ -15073,10 +15150,10 @@ async function manualVerbHandler(
 
     const state = existing.state as ManualGameState;
     // Self-repair for games started before cards carried their name (see
-    // `backfillManualCardNames`): the decklists are on the game row this
-    // handler already loaded, so this is a map build, not a read.
+    // `backfillManualCardNames`): the decklists moved to `gameDecks` (issue
+    // #2506), so this is now one point lookup per seat rather than free.
     const nameByPrintId = new Map<string, string>();
-    for (const player of game.players) {
+    for (const player of await hydrateGameSeats(ctx, game)) {
         for (const card of player.deck.cards) {
             if (!nameByPrintId.has(card.cardId))
                 nameByPrintId.set(card.cardId, card.cardName);
@@ -15542,8 +15619,12 @@ export const continueManualMatch = mutation({
         const gameNumber = (match.currentGameNumber ?? 1) + 1;
 
         // Build the next game's inputs from the Match's stored decks.
-        const seats = buildNextGameSeats(match);
-        const gameId = await ctx.db.insert("games", {
+        // The Match deck copies live in `matchDecks` now (issue #2506) — the
+        // next Game's library is built from them, so this path hydrates.
+        const seats = buildNextGameSeats({
+            players: await hydrateMatchPlayers(ctx, match),
+        });
+        const gameId = await insertGameWithDecks(ctx, {
             name: `Tabletop game ${gameNumber}`,
             matchId: args.matchId,
             gameNumber,

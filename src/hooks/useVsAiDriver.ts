@@ -182,16 +182,24 @@ export function useVsAiDriver(
     // Own-deck content is public knowledge to its owner (only the ORDER is
     // hidden — `determinize` reshuffles it), so reading it here is legitimate;
     // in a vs-AI game both seats belong to the same user regardless.
-    const game = useQuery(api.game.getGame, { gameId });
+    // The decklists left the `games` row in issue #2506, so this is a point
+    // lookup on the bot's (immutable) `gameDecks` row rather than the former
+    // `getGame` subscription — it no longer re-executes on the `games` patches
+    // that fire several times a turn.
+    const botDeck = useQuery(
+        api.game.getSeatDeck,
+        botId ? { gameId, playerId: botId } : "skip"
+    );
     const ownDeck = useMemo(() => {
-        if (!botId || !game) return undefined;
-        const seat = game.players.find((p) => p.id === botId);
-        if (!seat) return undefined;
+        // `null` when the seat has no decklist row (or the caller does not own
+        // the seat) — ownDeck stays undefined and the search falls back to the
+        // placeholder library, exactly as it did before issue #1509.
+        if (!botId || !botDeck?.cards) return undefined;
         return {
             playerId: botId,
-            cardIds: seat.deck.cards.map((c) => c.cardId),
+            cardIds: botDeck.cards.map((c) => c.cardId),
         };
-    }, [game, botId]);
+    }, [botDeck, botId]);
     const [thinking, setThinking] = useState(false);
     // Rung 5's banner, stored WITH the state version it belongs to so the
     // exposed value can be DERIVED (below) rather than cleared from an effect:

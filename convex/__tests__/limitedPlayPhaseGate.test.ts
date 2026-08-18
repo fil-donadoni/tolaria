@@ -144,6 +144,15 @@ function makeStubCtx(event: TwoHumanEvent, callerUserId: string) {
             patch: async (id: string, patch: Record<string, unknown>) => {
                 docs.set(id, { ...docs.get(id), ...patch });
             },
+            // `replace`, not just `patch`: the #2506 deck store rewrites a
+            // whole `gameDecks`/`matchDecks` row rather than merging into it.
+            replace: async (id: string, doc: Record<string, unknown>) => {
+                docs.set(id, {
+                    ...doc,
+                    _id: id,
+                    __table: docs.get(id)?.__table,
+                });
+            },
             insert: async (
                 table: string,
                 doc: Record<string, unknown>
