@@ -17271,6 +17271,16 @@ export function buildSpellContext(
             if (pool.length === 0) return undefined;
             return pool[randomInt(state, pool.length)];
         },
+        // Uniform random pick from a caller-supplied list, drawn from the
+        // game's seeded PRNG (`randomInt` — the SAME source
+        // `discardCardsAtRandom` and `pickRandomCardExiledWith` draw from), so
+        // a replay reproduces the pick. Zone- and filter-agnostic on purpose:
+        // the caller enumerates the pool, this draws the random bit. Empty
+        // list => undefined, and the caller no-ops (CR 608.2b).
+        pickAtRandom(ids: readonly string[]): string | undefined {
+            if (ids.length === 0) return undefined;
+            return ids[randomInt(state, ids.length)];
+        },
         // Revolt (CR 702.RV): true when a permanent the given player controlled
         // left the battlefield this turn. Set by removePermanentTo, reset at
         // turn start (advanceTurn).

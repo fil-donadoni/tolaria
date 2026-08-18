@@ -460,6 +460,7 @@ export const VINTAGE_CUBE_NAMES: readonly string[] = [
     "Leovold, Emissary of Trest",
     "Omnath, Locus of Creation",
     "Atraxa, Grand Unifier",
+    "Sin, Spira's Punishment",
     "Niv-Mizzet Reborn",
     "Celestial Colonnade",
     "Flooded Strand",

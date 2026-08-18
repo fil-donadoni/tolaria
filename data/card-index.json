@@ -12288,6 +12288,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Sin, Spira's Punishment",
+        "scryfallId": "659be746-bd31-4a70-8cec-7798da78b0b5",
+        "oracleId": "3bcc378c-4470-4757-a0d5-025a32c918ea",
+        "firstSet": "fin",
+        "firstPrintId": "659be746-bd31-4a70-8cec-7798da78b0b5",
+        "firstPrintSet": "fin"
+    },
+    {
         "name": "Singe",
         "scryfallId": "32323277-db9a-48a7-b9a4-8e6914386e26",
         "oracleId": "e7fbdebf-2275-4bf6-b364-6a1849765f94",

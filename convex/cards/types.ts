@@ -5179,6 +5179,23 @@ export interface SpellContext {
         sourceInstanceId: string
     ) => { id: string; ownerId: string } | undefined;
 
+    /** Uniform random pick of ONE id from a caller-supplied list, drawn from
+     *  the game's seeded PRNG — the SAME source `discardAtRandom`,
+     *  `revealRandomHandCard` and {@link pickRandomCardExiledWith} draw from,
+     *  so a replay reproduces the pick. Deliberately zone-agnostic and
+     *  filter-agnostic: the CALLER enumerates and filters (`getGraveyardCards`
+     *  + `PERMANENT_TYPES`, `getExileCards`, `getCardsExiledWith`, …) and this
+     *  supplies only the random bit, which is the one capability no other
+     *  primitive exposes on its own. Every pre-existing "at random" primitive
+     *  hard-codes BOTH the pool and the destination
+     *  (`pickRandomCardExiledWith` reads one linked exile pile;
+     *  `discardAtRandom` reads a hand and discards) — composing this with the
+     *  existing zone readers and `moveCardById` covers "at random" over any
+     *  public zone with any filter without another card-shaped primitive.
+     *  Returns undefined for an empty list, so the caller no-ops
+     *  (CR 608.2b). */
+    pickAtRandom: (ids: readonly string[]) => string | undefined;
+
     /** Revolt (CR 702.RV): true when a permanent the given player controlled
      *  left the battlefield this turn. Read by cards with the Revolt ability
      *  word (Fatal Push). */

@@ -7,6 +7,9 @@ import {
     shuffleWithRng,
 } from "../rng";
 import type { GameState } from "../state";
+import { buildSpellContext } from "../state";
+import { grizzlyBears } from "../../cards/sets/lea/green";
+import { makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
 
 function state(seed: number): GameState {
     return {
@@ -148,5 +151,53 @@ describe("coin flip determinism (CR 705, replay)", () => {
         const results = Array.from({ length: 40 }, () => flip(s));
         expect(results).toContain(true);
         expect(results).toContain(false);
+    });
+});
+
+// `SpellContext.pickAtRandom` (issue #2382) — the general "draw one id at
+// random from a caller-supplied pool" primitive. Every other "at random"
+// primitive hard-codes both its pool and its destination
+// (`pickRandomCardExiledWith` reads one linked exile pile, `discardAtRandom`
+// reads a hand and discards); this one supplies only the random bit, so a card
+// composes it with any zone reader and any filter. It draws from the SAME
+// seeded PRNG as the rest of this file, so a replay reproduces the pick.
+describe("SpellContext.pickAtRandom (seeded, pool-agnostic)", () => {
+    function ctx(seed: number) {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            rngSeed: seed,
+        });
+        const item = pushSpell(state, grizzlyBears.id, "p1");
+        return buildSpellContext(state, item);
+    }
+
+    it("returns undefined for an empty pool (CR 608.2b — the caller no-ops)", () => {
+        expect(ctx(1).pickAtRandom([])).toBeUndefined();
+    });
+
+    it("returns the only member of a one-element pool", () => {
+        expect(ctx(1).pickAtRandom(["only"])).toBe("only");
+    });
+
+    it("stays inside the pool and reaches every member over many draws", () => {
+        const c = ctx(12345);
+        const pool = ["a", "b", "c"];
+        const seen = new Set<string>();
+        for (let i = 0; i < 200; i++) {
+            const picked = c.pickAtRandom(pool)!;
+            expect(pool).toContain(picked);
+            seen.add(picked);
+        }
+        expect([...seen].sort()).toEqual(pool);
+    });
+
+    it("is deterministic for a given seed (replay reproduces the pick)", () => {
+        const pool = ["a", "b", "c", "d", "e", "f", "g", "h"];
+        const draw = (seed: number) => {
+            const c = ctx(seed);
+            return Array.from({ length: 12 }, () => c.pickAtRandom(pool));
+        };
+        expect(draw(99)).toEqual(draw(99));
+        expect(draw(99)).not.toEqual(draw(4242));
     });
 });
