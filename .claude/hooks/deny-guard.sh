@@ -170,7 +170,42 @@ esac
 # co-occur in ONE segment.
 # ─────────────────────────────────────────────────────────────────────────────
 
-segments=$(printf '%s' "$cmd" | sed -e 's/&&/\
+# A backslash-continued line is still ONE pipeline (`bun run test \` +
+# newline + `  | tail -20` runs as a single command), and a line ending in a
+# bare shell operator (`|`/`||`/`&&`/`&`) is the same shape one step over
+# (`bun run test |` + newline + `tail -20`) — but the newline-based split
+# below would otherwise treat either continuation as a separator and see
+# two harmless-looking halves. That is exactly the shape of the incident
+# that started this file (`docs:ship 2>&1 | tail -25`), just wrapped across
+# a line break instead of typed on one line. Join both shapes into a space
+# BEFORE splitting into segments, so the pipe and the pager end up back in
+# the same segment. Both joins live in ONE shared, single-pass script —
+# `.claude/hooks/lib/join-continued-lines.awk` — so the hook and its test
+# suite (`scripts/__tests__/hook-policy.test.ts`) run the exact same code,
+# never two implementations of the same rule.
+#
+# **Not sed.** The original `sed -e :a -e '/\\$/N; s/\\\n/ /; ta'` is a
+# fail-OPEN hole on this machine's `sed` (BSD): `N` on the LAST line, with no
+# next line to append, quits WITHOUT printing the pattern space — so a
+# command whose final physical line ends in `\` (a live, working shell
+# command: a trailing `\` before EOF is just a literal backslash argument)
+# collapses `_cmd_joined` to empty, which empties `segments`, which makes
+# every rule below (§1 `gh pr merge`, §2 force-push main, §3 the pager gate,
+# §4 discarding git, §5 MAX_PASSES) match nothing. One trailing backslash
+# turned a fail-closed guard fully fail-open — the exact bug class this file
+# exists to close, reintroduced by its own fix. `awk`, one line per record,
+# has no such last-line special case — see the script's own header for the
+# full shape inventory (backslash parity, CRLF, the four operators, and the
+# byte-identity guarantee for a line with neither).
+# LC_ALL=C: the joiner's own comparisons are all substr/length, never a
+# locale-aware regex, but pinning the locale here too is a free belt-and-
+# suspenders — command bytes are untrusted, and a wide-character conversion
+# routine invoked under a UTF-8 locale is exactly the kind of thing that can
+# throw on an invalid byte sequence instead of degrading gracefully.
+_cmd_joined=$(printf '%s' "$cmd" |
+    LC_ALL=C awk -f "$(dirname -- "$0")/lib/join-continued-lines.awk")
+
+segments=$(printf '%s' "$_cmd_joined" | sed -e 's/&&/\
 /g' -e 's/||/\
 /g' -e 's/;/\
 /g')
@@ -235,28 +270,151 @@ FEATURE branch (allowed) — never main."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. A GATE may not be piped into a pager.
+# 3. A GATE may not be piped into a pager — FAIL CLOSED.
 #
 # `bun run test | tail -20` reports the exit status of `tail`, which is always
 # 0. A red suite therefore reports success, and the gate's verdict — the only
 # done/not-done signal in the workflow — becomes meaningless exactly when it
 # matters. Redirect to a file and grep it instead.
 #
-# **Scoped to the GATE, not to every test run.** Telemetry over 24 days: 2,819
-# of 3,981 full-gate invocations were piped into a pager, and so were 2,295 of
-# 4,189 targeted `vitest run` calls. Denying both would make the rule a
-# workflow change rather than a safety net — it would add a second round-trip
-# to more than half of all test invocations. A targeted run's verdict is not
-# load-bearing (its failures are read out of the output, and a false green on
-# it is caught by the gate afterwards), so only the commands whose exit code
-# IS the done/not-done signal are denied.
+# **Inverted, on purpose, after this held a stale hand-maintained allowlist of
+# gate command NAMES.** That list was already wrong the moment `bun run land`
+# shipped: `land` (→ `scripts/land.ts`, spawns `gate.ts heavy`), `docs:ship`
+# (→ `scripts/docs-lane.ts`, runs `check:docs`, itself a `gate.ts light`
+# wrapper), `check:docs`, `ladder` (`scripts/ladder.ts:102` runs the same
+# heavy gate) and `wt:docs` all reach `scripts/gate.ts` and none of them was
+# in the list — `bun run land 2524 | tail -80` and
+# `bun run docs:ship 2>&1 | tail -25` both sailed straight through it.
+# Patching the list with those five names would only reload the same gun for
+# the next gate wrapper. So the rule is now: deny `bun run <script>` piped
+# into a pager BY DEFAULT, and carry an explicit allowlist of the scripts
+# whose output is purely informational and whose exit code nobody branches
+# on. A new gate command is covered from the day it is written; a new
+# informational command is merely inconvenient until it earns a line below —
+# which is the failure direction actually wanted here. A bare
+# `scripts/gate.ts` invocation (bypassing `bun run` entirely) is always the
+# gate itself and stays unconditionally denied when piped.
+#
+# **Known tradeoff, taken deliberately — and mislocated in an earlier
+# revision of this comment.** This rule matches SEGMENTS, never parsed
+# shell, so it cannot tell live pipeline text from the same characters
+# sitting inside a quoted string. Measured across three review rounds: MOST
+# of this false-denial class predates the joiner above entirely and has
+# nothing to do with backslashes — it is this section's own segment
+# matching reading a QUOTED pattern as if it were a live pipeline (3 of 5
+# observed shapes). The trigger is any command that **quotes the pager
+# pattern AND pipes its OWN output** — not specifically a heredoc, though a
+# heredoc is the commonest carrier: a `grep -E 'tail|head'` in a findings
+# file's body, piped through something else entirely for formatting, reads
+# as "gate piped into a pager" even though the quoted text never runs. This
+# bit an ordinary diagnostic command as readily as a heredoc, which is why
+# "redirect to a file and grep it" (this rule's own advice, below) does not
+# help here: the pattern IS the payload, there is no gate output to
+# redirect.
+#
+# The genuinely NEW shape, introduced by the backslash joiner itself: a
+# Markdown **hard line break** — a trailing `\` at end-of-line, welding two
+# otherwise-benign lines into one segment — which matters more than it
+# might look, because every findings/ADR write in this repo goes through a
+# heredoc, and hard line breaks are ordinary Markdown. Heredoc-awareness
+# (telling quoted body text apart from a live pipeline) is out of scope for
+# the same reason the file's own header gives: parsing shell far enough to
+# know the difference is how a guard starts denying legitimate work at
+# random. This false-denial shape — mostly pre-existing, sharpened slightly
+# by the joiner — is accepted on purpose, not overlooked.
+#
+# **The informational allowlist, seeded against `package.json` (verify with
+# `bun run <name>` before adding another):** `cr`, `cr:check`, `findings`,
+# `queue:plan`, `queue:train`, `loop:scorecard`, `usage:window`,
+# `telemetry:dash`, `format`. Nothing else — in particular `lint`,
+# `format:check`, `check:ts`, `check:index`, `check:stubs` and
+# `telemetry:ingest` stay DENIED: piping any of those hides a real failure
+# exactly like piping the gate does. The rule sorting these is NOT "writers
+# fail closed, readers are informational" — `format` below is a writer too
+# (`prettier --write`) and it stays allowlisted. The rule is **whether
+# anything downstream independently verifies the result or branches on the
+# exit code**: `telemetry:ingest` WRITES `telemetry.db` and nothing re-checks
+# that write afterward, so its own exit code is the only signal that it
+# happened correctly — piping it away is the same blind spot as piping the
+# gate. `format` (`prettier --write`, thousands of lines on a real run, `|
+# tail -5` a daily reflex) is safe to pipe for a different reason: nobody
+# branches on ITS exit code either way, and `check:all` re-verifies
+# formatting independently regardless of how this run went — the write is a
+# convenience, not the thing anyone is trusting. (Not "a parse error is loud
+# in the output anyway" — that claim is false the moment the pipe is `|&`,
+# which redirects stderr into the same stream this rule now matches on
+# purpose.)
+#
+# **Still scoped to a single segment, never to every test run.** Telemetry
+# over 24 days: 2,819 of 3,981 full-gate invocations were piped into a pager,
+# and so were 2,295 of 4,189 targeted `vitest run` calls. Denying both would
+# make the rule a workflow change rather than a safety net — it would add a
+# second round-trip to more than half of all test invocations. A targeted
+# run's verdict is not load-bearing (its failures are read out of the output,
+# and a false green on it is caught by the gate afterwards), so `bunx vitest
+# run …` stays allowed piped — only `bun run <script>` (any script, unless
+# allowlisted above) and a bare `scripts/gate.ts` are in scope.
 # ─────────────────────────────────────────────────────────────────────────────
-if seg_has '(bun[[:space:]]+run[[:space:]]+(test|test:app|test:bot|check:all|check:pr|check:guards)([[:space:]]|$)|scripts/gate\.ts)' \
-    '\|[[:space:]]*(tail|head|less|more)([[:space:]]|$)'; then
-    deny "BLOCKED: gate command piped into a pager.
+GATE_INFORMATIONAL_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|loop:scorecard|usage:window|telemetry:dash|format)$'
+
+_gate_piped=0
+_old_ifs=$IFS
+IFS='
+'
+set -f
+for _seg in $segments; do
+    case "$_seg" in
+    *'|'*) ;;
+    *) continue ;;
+    esac
+    # `|&` is zsh's (and bash's) shorthand for `2>&1 |` — a live pipe, not a
+    # background job marker in this position — and is the exact shape of the
+    # incident that started this file. The pattern below matches a bare `|`
+    # or a `|&` ahead of the pager name.
+    printf '%s\n' "$_seg" |
+        grep -Eq '\|&?[[:space:]]*(tail|head|less|more)([[:space:]]|$)' || continue
+
+    # A bare `scripts/gate.ts` invocation is always the gate itself — no
+    # script-name allowlist applies to it.
+    if printf '%s\n' "$_seg" | grep -Eq 'scripts/gate\.ts'; then
+        _gate_piped=1
+        break
+    fi
+
+    # EVERY `bun run <script>` occurrence in the segment must be checked, not
+    # just one: a single greedy extraction (`.*bun run …`) picks up the LAST
+    # occurrence in a chained pipeline (`bun run test | bun run cr | tail`),
+    # so an allowlisted name at the tail launders every non-allowlisted
+    # invocation ahead of it in the same segment.
+    _gate_scripts=$(printf '%s\n' "$_seg" |
+        grep -oE 'bun[[:space:]]+run[[:space:]]+[^[:space:]]+' |
+        sed -E 's/^bun[[:space:]]+run[[:space:]]+//')
+    [ -n "$_gate_scripts" ] || continue
+
+    for _gate_script in $_gate_scripts; do
+        if ! printf '%s\n' "$_gate_script" | grep -Eq "$GATE_INFORMATIONAL_SCRIPT_RE"; then
+            _gate_piped=1
+            break
+        fi
+    done
+    [ "$_gate_piped" = 1 ] && break
+done
+set +f
+IFS=$_old_ifs
+
+if [ "$_gate_piped" = 1 ]; then
+    deny "BLOCKED: \`bun run\` command piped into a pager.
 The pipeline's exit code becomes the pager's, which is always 0 — a red suite
-would report success. Redirect to a file and read that instead:
-  bun run test >/tmp/gate.log 2>&1; echo \"exit=\$?\"; grep -E 'Tests|FAIL' /tmp/gate.log"
+would report success, and this guard denies BY DEFAULT rather than trusting a
+hand-maintained list of which scripts are gates (that list was already stale:
+\`land\`, \`docs:ship\`, \`check:docs\`, \`ladder\` and \`wt:docs\` all reach
+scripts/gate.ts and none of them was covered). Redirect to a file and read
+that instead:
+  bun run test >/tmp/gate.log 2>&1; echo \"exit=\$?\"; grep -E 'Tests|FAIL' /tmp/gate.log
+
+If this really is a purely informational script whose exit code nobody
+branches on, add its name to GATE_INFORMATIONAL_SCRIPT_RE in
+.claude/hooks/deny-guard.sh § 3 — not before checking what it actually does."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

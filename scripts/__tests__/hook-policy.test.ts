@@ -27,6 +27,7 @@ const HOOKS = path.join(REPO_ROOT, ".claude", "hooks");
 const DENY_GUARD = path.join(HOOKS, "deny-guard.sh");
 const CLAIM_LEDGER = path.join(HOOKS, "claim-ledger.sh");
 const CLAIM_SWEEP = path.join(HOOKS, "claim-sweep.sh");
+const JOIN_AWK = path.join(HOOKS, "lib", "join-continued-lines.awk");
 
 type HookResult = { code: number; stderr: string };
 
@@ -55,6 +56,30 @@ function bash(command: string, cwd: string, session = "sess-1") {
 }
 
 const denied = (r: HookResult) => r.code === 2;
+
+/**
+ * Runs the joiner exactly the way deny-guard.sh does — `cmd=$(cat)` mirrors
+ * the `$()` capture the hook's own jq extraction already went through
+ * before the joiner ever sees `cmd`; the second capture mirrors
+ * `_cmd_joined=$(printf '%s' "$cmd" | awk -f join-continued-lines.awk)`
+ * line-for-line. This is the SAME code the hook runs (`.claude/hooks/lib/
+ * join-continued-lines.awk`, loaded via `awk -f`, not a reimplementation),
+ * and the SAME two capture boundaries, so a byte-identity assertion here is
+ * an assertion about the hook's real behavior. Operates on raw Buffers,
+ * encoding left unset, so an invalid-UTF-8 payload round-trips as bytes
+ * instead of getting mangled at a JS string boundary.
+ */
+function runJoinerAsHookWould(input: Buffer): Buffer {
+    const result = spawnSync(
+        "sh",
+        [
+            "-c",
+            'cmd=$(cat); _j=$(printf "%s" "$cmd" | LC_ALL=C awk -f "$JOIN_AWK"); printf "%s" "$_j"',
+        ],
+        { input, env: { ...process.env, JOIN_AWK } }
+    );
+    return result.stdout as Buffer;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A real git repo + linked worktree. Rule 4 keys off git's own main-vs-linked
@@ -263,6 +288,363 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
+    });
+
+    // The regression that started this rewrite: § 3 used to deny by matching a
+    // hardcoded allowlist of gate command NAMES. That list was already stale —
+    // `land` and `docs:ship` both reach `scripts/gate.ts` (via `scripts/land.ts`
+    // and `scripts/docs-lane.ts` → `check:docs`) and neither name was in it, so
+    // both of these were run for real against the old guard and sailed through.
+    it("denies `bun run land` and `bun run docs:ship` piped into a pager — both reach scripts/gate.ts and neither was on the old name-list", () => {
+        for (const cmd of [
+            "bun run land 2524 | tail -80",
+            "bun run docs:ship 2>&1 | tail -25",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+        }
+    });
+
+    // The test that makes the enumerate-the-gates class extinct: a script name
+    // nobody has written yet must still be denied when piped, because the rule
+    // is now "deny by default", not "deny if it matches a known gate name". If
+    // someone reintroduces a hardcoded gate-name allowlist, this goes red.
+    it("fails CLOSED on an invented, non-existent script piped into a pager", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run some:future:gate | tail -5", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("honours the informational allowlist — these scripts' exit codes are never load-bearing", () => {
+        for (const cmd of [
+            "bun run cr 605.1a | head -20",
+            "bun run findings | head",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
+        }
+    });
+
+    // #2527 F1: three ways to pipe a gate past this rule, found on review.
+    // `|&` is the live one — it is exactly the shape of the incident that
+    // started this file (`docs:ship 2>&1 | tail -25`), just spelled with
+    // zsh's shorthand for `2>&1 |` instead of the two separate tokens.
+    it("denies `bun run test |& tail -20` — `|&` is zsh's `2>&1 |`, not a separate operator the old pattern could ignore", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run test |& tail -20", issueWorktree)
+        );
+        expect(denied(r), `expected DENY for: bun run test |& tail -20`).toBe(
+            true
+        );
+    });
+
+    it("denies a backslash-continued gate pipeline — one pipeline split across two lines is still one pipeline", () => {
+        const cmd = "bun run test \\\n  | tail -20";
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+        expect(denied(r), `expected DENY for: ${JSON.stringify(cmd)}`).toBe(
+            true
+        );
+    });
+
+    it("denies a non-allowlisted `bun run` even when a LATER allowlisted one shares the pipeline", () => {
+        // The old extraction was a single greedy regex match, which picks up
+        // the LAST `bun run` in the segment — an allowlisted name at the tail
+        // (`cr`) laundered the non-allowlisted one ahead of it (`test`).
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run test | bun run cr | tail", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("still allows an all-informational multi-`bun run` pipeline piped into a pager", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run cr 605.1a | bun run findings | tail", issueWorktree)
+        );
+        expect(r.code).toBe(0);
+    });
+
+    // #2527 F2: `format` (prettier --write) is a daily-reflex pipe into a
+    // pager and a parse error is loud regardless; `telemetry:ingest` WRITES
+    // telemetry.db and its exit code plausibly matters, so it defaults
+    // fail-closed like any other writer.
+    it("allows `bun run format` piped into a pager — informational, thousands of lines is the normal case", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run format | tail -5", issueWorktree)
+        );
+        expect(r.code).toBe(0);
+    });
+
+    it("denies `bun run telemetry:ingest` piped into a pager — it writes telemetry.db, exit code matters", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run telemetry:ingest | tail -5", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+});
+
+// PR #2527 round 2: the FIX for the backslash-join (the `sed -e :a -e
+// '/\\$/N; s/\\\n/ /; ta'` above) was itself a fail-open regression on this
+// machine's `sed` (BSD): `N` on the LAST line, with nothing to append, quits
+// WITHOUT printing the pattern space — so a command whose FINAL physical line
+// ends in `\` (a normal, working shell command: an unpaired trailing `\`
+// before EOF is just a literal backslash argument) collapsed `_cmd_joined`
+// to empty, which emptied `segments`, which made every rule below it —
+// §1 `gh pr merge`, §2 force-push main, §3 this pager gate, §4 discarding
+// git, §5 MAX_PASSES — match nothing. One trailing backslash turned a
+// fail-closed guard fully fail-open. Replaced with `awk`, which has no
+// last-record special case.
+describe("deny-guard — the backslash-continuation joiner (awk, not sed)", () => {
+    it("denies `bun run test | tail -20; : \\` — final line ends in a bare backslash with nothing after it", () => {
+        // This exact payload ALLOWED (code 0) against the sed joiner: proven
+        // by re-running it through the pre-fix script (`git show HEAD:` of
+        // this file) with the SAME harness — 0 before, 2 after.
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run test | tail -20; : \\", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("denies `gh pr merge 123 --squash; echo \\` — same shape, through §1 instead of §3", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("gh pr merge 123 --squash; echo \\", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/merge-train/);
+    });
+
+    it("still denies force-push-main past an unrelated mid-line backslash — the joiner does not corrupt segments it should leave alone", () => {
+        // Retitled (round 3 review): this asserts a DENY, not byte
+        // identity — it never compares the joined command to the input.
+        // Mid-line backslashes (a Windows path in an echoed string) sit
+        // nowhere near a line boundary; the joiner must leave them alone and
+        // the underlying force-push-main detection must still fire on the
+        // real trailing violation. The actual byte-identity property — a
+        // command with no trailing continuation of either shape survives
+        // the joiner unchanged — is asserted directly, corpus-wide, in
+        // "the joiner is byte-identity for anything it doesn't join" below.
+        const cmd =
+            "echo 'building C:\\\\Users\\\\test' && git push --force origin main";
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/force-push/);
+    });
+
+    it("joins `\\<CR><LF>` exactly like `\\<LF>` — a wrapped gate pipeline saved with CRLF line endings is still one pipeline", () => {
+        // F1-b from round-2 review: the sed joiner's `/\\$/` never matches
+        // with a trailing \r in the way, so a CRLF-saved continuation sailed
+        // through unjoined. Re-run against the pre-fix script: ALLOWED.
+        const cmd = "bun run test \\\r\n  | tail -20";
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+        expect(denied(r), `expected DENY for: ${JSON.stringify(cmd)}`).toBe(
+            true
+        );
+    });
+
+    it("does NOT join an escaped (even-count) trailing backslash — split pieces that are each safe alone must stay split", () => {
+        // F1-c: `origin\\` ends in TWO literal backslash characters (one
+        // escaped backslash, not a continuation marker). Naively joining on
+        // "ends in \" regardless of parity welds this into
+        // `git push --force origin\ main`, a false force-push-to-main deny —
+        // confirmed against the pre-fix script: DENIED. Neither physical
+        // line is dangerous on its own: line 1 never names `main`/`master`,
+        // line 2 is just the bareword `main`.
+        const cmd = "git push --force origin\\\\\nmain";
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        expect(r.code, `expected ALLOW for: ${JSON.stringify(cmd)}`).toBe(0);
+    });
+
+    it("still joins the genuine odd-count case of the same shape — one backslash, not two, IS a continuation", () => {
+        // Paired with the previous test, differing only in backslash count:
+        // proves the parity check cuts both ways, not just fail-safe-by-
+        // never-joining.
+        const cmd = "git push --force origin\\\nmain";
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        expect(denied(r), `expected DENY for: ${JSON.stringify(cmd)}`).toBe(
+            true
+        );
+    });
+});
+
+// Round 3 review, #2527 §1: the joiner's own header comment asserts "a
+// command with none of the above [backslash continuation / trailing
+// operator] passes through unchanged" — nothing checked that claim, and the
+// test whose TITLE claimed to ("passes an ordinary command through
+// unchanged…", above) asserts a DENY and never compares a single byte. This
+// is the real assertion: feed a corpus of ordinary commands through the
+// SAME joiner the hook runs (`runJoinerAsHookWould`, `awk -f` on
+// `join-continued-lines.awk`) and assert output === input, byte for byte.
+describe("deny-guard — the joiner is byte-identity for anything it doesn't join", () => {
+    const IDENTITY_CORPUS: Record<string, Buffer> = {
+        "plain single-line command": Buffer.from("echo hello world", "utf8"),
+        "ordinary multi-line command, no continuation of either shape":
+            Buffer.from("echo one\necho two\necho three", "utf8"),
+        "embedded quotes, dollar-sign and backticks": Buffer.from(
+            "echo 'it'\\''s a test' \"quoted $VAR\" `date`",
+            "utf8"
+        ),
+        globs: Buffer.from("ls *.ts src/**/*.tsx", "utf8"),
+        "accented unicode": Buffer.from("echo café résumé", "utf8"),
+        "CJK unicode": Buffer.from("echo 日本語のテスト", "utf8"),
+        "emoji unicode": Buffer.from("echo 🎉🔥🚀", "utf8"),
+        "a CR mid-line, not at any line boundary": Buffer.from(
+            "echo foo\rbar baz",
+            "utf8"
+        ),
+        "a lone CR at the very end of input, with no trailing LF at all":
+            Buffer.from("echo hi\r", "utf8"),
+        "a full CRLF document, every line, no final trailing newline":
+            Buffer.from("echo one\r\necho two\r\necho three", "utf8"),
+        "interior blank lines": Buffer.from("echo one\n\n\necho two", "utf8"),
+        "tabs and trailing spaces, none of it at a line-ending operator":
+            Buffer.from("echo\thello\t  ", "utf8"),
+        "mid-line backslashes, nowhere near end-of-line": Buffer.from(
+            "echo 'C:\\Users\\test' && echo done",
+            "utf8"
+        ),
+        "even-count trailing backslash run (escaped, not a continuation)":
+            Buffer.from("echo foo\\\\", "utf8"),
+        "jq brace soup": Buffer.from(
+            "cat data.json | jq -r '.[] | {a: .b, c: [1,2,3]} | tostring'",
+            "utf8"
+        ),
+        "invalid UTF-8 bytes": Buffer.concat([
+            Buffer.from("echo ", "utf8"),
+            Buffer.from([0xff, 0xfe, 0x80, 0x81, 0xc3, 0x28]),
+            Buffer.from(" done", "utf8"),
+        ]),
+        "a 200k-character single line": Buffer.from(
+            "echo " + "x".repeat(200_000),
+            "utf8"
+        ),
+        "a 5,000-line heredoc": Buffer.from(
+            "cat <<'EOF'\n" +
+                Array.from({ length: 5000 }, (_, i) => `line ${i}`).join("\n") +
+                "\nEOF",
+            "utf8"
+        ),
+    };
+
+    for (const [label, input] of Object.entries(IDENTITY_CORPUS)) {
+        it(`round-trips unchanged: ${label}`, () => {
+            const output = runJoinerAsHookWould(input);
+            expect(
+                Buffer.compare(output, input),
+                `expected byte-identical output for ${label} ` +
+                    `(input ${input.length}B, output ${output.length}B)`
+            ).toBe(0);
+        });
+    }
+
+    // The negative control — proves the corpus above is actually
+    // discriminating and not vacuously identical for every input. Anything
+    // ending in a bona fide continuation MUST change.
+    it("does NOT pass through a genuine continuation unchanged — the corpus above is not vacuous", () => {
+        for (const input of [
+            Buffer.from("bun run test \\\n  | tail -20", "utf8"),
+            Buffer.from("bun run test |\ntail -20", "utf8"),
+        ]) {
+            const output = runJoinerAsHookWould(input);
+            expect(Buffer.compare(output, input)).not.toBe(0);
+        }
+    });
+});
+
+// Round 3 review, #2527 §2: "same evasion class as the `\` hole this PR
+// closed, one shape over." A line ending in a shell operator (`|`, `||`,
+// `&&`, `&`) is a continuation exactly as `\` is — real bash waits for the
+// next line to complete the pipeline — but the segment splitter used to
+// treat the bare newline as a separator regardless, so a gate and its pager
+// landed in different segments whenever the wrap used an operator instead
+// of a backslash.
+describe("deny-guard — a trailing shell operator is a continuation too (§2)", () => {
+    it("denies `bun run test |` wrapped onto the next line — the pipe is what actually matters", () => {
+        // This is the shape that matters: joining is what puts the pager
+        // back in the SAME segment as the gate feeding it. Before this fix,
+        // this payload allowed (code 0) for exactly the reason the
+        // backslash hole did: the bare newline split it into two segments,
+        // neither of which contained both the gate and the `|`.
+        const cmd = "bun run test |\ntail -20";
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+        expect(denied(r), `expected DENY for: ${JSON.stringify(cmd)}`).toBe(
+            true
+        );
+    });
+
+    it("still ALLOWS `bun run test &&` wrapped onto the next line — joining `&&` is a deliberate no-op for this rule", () => {
+        // `&&` (and `||`) never hides a red suite as green the way `|`
+        // does: if `bun run test` fails, the chain's own exit code is
+        // test's failure code and `tail -20` never even runs — nothing
+        // about a pager's always-0 exit is in play. The segment splitter
+        // re-splits on a literal `&&` substring regardless of whether this
+        // joiner glued the physical lines back together first (it looks for
+        // `&&` in the joined text, not at a former newline boundary), so
+        // there is no `|` in either resulting segment and §3 correctly
+        // does not fire. Joining `&&` still happens (uniform rule, cheaper
+        // to state than "three of the four operators"), it is simply inert
+        // here — proven by asserting ALLOW, not just "did not crash".
+        const cmd = "bun run test &&\ntail -20";
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+        expect(r.code, `expected ALLOW for: ${JSON.stringify(cmd)}`).toBe(0);
+    });
+
+    it("a benign trailing-operator wrap of a NON-gate command does not blow up", () => {
+        for (const cmd of [
+            "git log --oneline |\nhead -20",
+            "gh issue list |\ntail -20",
+            "echo one &&\necho two",
+            "echo one ||\necho two",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(r.code, `expected ALLOW for: ${JSON.stringify(cmd)}`).toBe(
+                0
+            );
+        }
+    });
+
+    it("does NOT join a trailing `;` — it genuinely terminates a command, unlike the four operators above", () => {
+        const cmd = "echo hi;\necho bye";
+        const output = runJoinerAsHookWould(Buffer.from(cmd, "utf8"));
+        // Identity, not merely "still two lines": proves the raw newline
+        // survives untouched, the same guarantee the byte-identity corpus
+        // above makes for every other non-continuation shape.
+        expect(output.toString("utf8")).toBe(cmd);
+
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run test;\ntail -20", issueWorktree)
+        );
+        expect(r.code, "`;` must not join a gate into a pager segment").toBe(0);
+    });
+
+    it("a trailing bare `&` (backgrounding) can only ever produce a false DENY, never a false ALLOW", () => {
+        // Documented tradeoff (§2 review): `&` is not really a line
+        // continuation in real shell semantics, but joining it can only
+        // ADD matchable surface to a segment, never remove any — so a
+        // benign background job ahead of an unrelated benign command still
+        // allows...
+        const benign = runHook(
+            DENY_GUARD,
+            bash("sleep 1 &\necho done", issueWorktree)
+        );
+        expect(benign.code, "benign background wrap must still ALLOW").toBe(0);
+
+        // ...while a background job ahead of a genuine violation still
+        // denies (merging can only strengthen a match, matching the
+        // documented one-directional risk).
+        const dangerous = runHook(
+            DENY_GUARD,
+            bash("sleep 1 &\ngit push --force origin main", mainCheckout)
+        );
+        expect(denied(dangerous)).toBe(true);
     });
 });
 
