@@ -736,6 +736,15 @@ function declaredFaceDamage(
         // (Questing Beast), so every shield below is a no-op against it.
         // Mirrors `applyOneCombatDamage`'s own per-source computation.
         const unpreventable = isCombatDamageUnpreventable(state, atk);
+        // CR 615 — the Fog, re-applied PER ATTACKER exactly as the engine does
+        // (`applyOneCombatDamage`, phases.ts). The blanket early return above
+        // is skipped whenever ANY battlefield carries an unpreventable-combat-
+        // damage static — `anyCombatDamageUnpreventableStatic` is board-wide,
+        // so the OPPONENT's Questing Beast disables it too. Without this line
+        // every unblocked attacker's power is summed as face damage while the
+        // engine prevents all of it: a false lethal-on-the-table (WIN_SCORE)
+        // in the bot's most decision-critical term.
+        if (state.preventAllCombatDamageThisTurn && !unpreventable) continue;
         // CR 510.1c / 615 — a SOURCE-scoped prevention shield (Farrel's
         // Mantle's "assigns no combat damage"; Falling Timber / Guard Dogs /
         // Radiant Kavu's "prevent all combat damage <X> would deal"). Source-

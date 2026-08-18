@@ -2109,9 +2109,18 @@ export const swordsToPlowsharesIce: CardPrint = {
     rarity: "uncommon",
 };
 // Warning — "Prevent all combat damage that would be dealt by target attacking
-// creature this turn." (CR 615.1, 510.1c). Implemented via the source-only
-// "assigns no combat damage" mark — the attacker deals 0 combat damage in every
-// damage step this turn but can still be dealt damage and die.
+// creature this turn." (CR 615) — a genuine source-scoped combat-damage
+// PREVENTION shield, via the `preventDamage` Op's `"all-from-source"` mode
+// (ADR 0045). The attacker deals 0 combat damage in every damage step this
+// turn but can still be dealt damage and die.
+//
+// It used to ride `markAssignsNoCombatDamage` (CR 510.1c) as a same-outcome
+// shorthand, exactly as its Oracle twin Restrain (inv/white.ts) did. The two
+// stopped being the same outcome when source-side unpreventable damage shipped
+// (CR 615.12, Questing Beast, issue #2395): a PREVENTION shield is overridden
+// by it, an ASSIGNMENT restriction is not, because a creature that assigns no
+// combat damage never produces a damage event to protect. Warning says
+// "prevent" (CR 615.1a), so it is the shield.
 export const warning: CardDefinition = {
     id: "cca5b4a7-df11-4635-a147-df12cd13a67c",
     name: "Warning",
@@ -2125,8 +2134,15 @@ export const warning: CardDefinition = {
         count: 1,
         combatRoleFilter: "attacking",
     },
-    // CR 510.1c — source-side "assigns no combat damage this turn" mark (ADR 0045).
-    effects: [{ op: "markAssignsNoCombatDamage", target: { target: 0 } }],
+    // CR 615 — source-scoped combat-damage prevention shield (ADR 0045).
+    effects: [
+        {
+            op: "preventDamage",
+            mode: "all-from-source",
+            source: { target: 0 },
+            combatOnly: true,
+        },
+    ],
 };
 export const whiteScarab: CardDefinition = makeScarab({
     id: "c57726b5-dfdd-4e47-bc52-ebf6eedbf3bd",

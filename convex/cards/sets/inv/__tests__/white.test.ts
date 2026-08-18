@@ -4,7 +4,8 @@
 // `validateEffectScript` static sweep + the auto-generated canned-scenario
 // smoke test cover it). This file covers the cards the "Card testing
 // convention" table (.claude/rules/gre-development.md) still mandates a
-// hand-written test for: `resolve()` cards (Restrain, Liberate) and
+// hand-written test for: `resolve()` cards (Liberate), the CR 615 vs CR 510.1c
+// prevention/assignment split Restrain sits on (issue #2395), and
 // `staticEffects[]` P/T CDAs (Crusading Knight, Ruham Djinn), plus a few
 // closures (cost-modifier, replacement redirect/clamp, keyword-grant) that
 // the catalogue smoke sweep can't meaningfully exercise on its own.
@@ -71,7 +72,11 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { fireDelayedTriggers } from "../../../../gre/phases";
+import {
+    applyAllCombatDamage,
+    fireDelayedTriggers,
+} from "../../../../gre/phases";
+import { questingBeast } from "../../eld/green";
 import { projectPublicState } from "../../../../gameProjections";
 
 // ---------------------------------------------------------------------------
@@ -534,11 +539,18 @@ describe("Shackles (CR 502.1 does-not-untap Aura + return-to-hand ability)", () 
 });
 
 // ---------------------------------------------------------------------------
-// Restrain — resolve() protocol card (precedent: Warning, ice/white.ts)
+// Restrain — a CR 615 source-scoped combat-damage PREVENTION shield + cantrip
+// (`preventDamage` mode "all-from-source"), NOT the CR 510.1c assigns-no-
+// combat-damage restriction it used to ride. Per CR 615.1a a card that says
+// "prevent" is a prevention effect, and prevention is what CR 615.12's
+// source-side unpreventable statics override — so the two primitives, once
+// interchangeable, now give opposite answers against Questing Beast. The
+// second test below is the one that tells them apart: it is green only while
+// Restrain is on the shield primitive.
 // ---------------------------------------------------------------------------
 
-describe("Restrain (CR 510.1c assigns-no-combat-damage + draw)", () => {
-    it("marks the attacker and draws a card", () => {
+describe("Restrain (CR 615 source-scoped prevention shield + draw)", () => {
+    it("shields the attacker and draws a card", () => {
         const attacker = makeInstance(balduvianBears.id, {
             id: "atk",
             controllerId: "p2",
@@ -565,6 +577,48 @@ describe("Restrain (CR 510.1c assigns-no-combat-damage + draw)", () => {
         resolveTopOfStack(state);
         expect(sourcePreventionShieldApplies(state, "atk", true)).toBe(true);
         expect(state.players[0].hand.map((c) => c.id)).toContain("lib-top");
+    });
+
+    it("is OVERRIDDEN by source-side unpreventable combat damage (CR 615.12)", () => {
+        // A Questing Beast attacking: "combat damage that would be dealt by
+        // creatures you control can't be prevented". Restrain resolves, its
+        // shield is registered — and the Beast connects anyway, because a
+        // shield is a CR 615 prevention effect. A CR 510.1c assigns-none mark
+        // would NOT be overridden, so this assertion is the discriminator
+        // between the two primitives: it goes red the moment Restrain is moved
+        // back onto `markAssignsNoCombatDamage`.
+        const beast = makeInstance(questingBeast.id, {
+            id: "qb",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { library: [] }),
+                makePlayer("p2", { battlefield: [beast] }),
+            ],
+            combat: {
+                attackerIds: ["qb"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+        pushSpell(state, restrain.id, "p1", [{ type: "permanent", id: "qb" }]);
+        resolveTopOfStack(state);
+        // The shield IS on the list (it is registered like any other)...
+        expect(sourcePreventionShieldApplies(state, "qb", true)).toBe(true);
+        // ...and is bypassed by unpreventable damage rather than spent
+        // (CR 615.12: "existing damage prevention shields won't be reduced").
+        expect(sourcePreventionShieldApplies(state, "qb", true, true)).toBe(
+            false
+        );
+        expect(state.sourcePreventionShields?.[0].assignsNone).toBeFalsy();
+        // End-to-end through the real damage step: 4 damage lands on p1.
+        applyAllCombatDamage(state, {});
+        expect(state.players[0].life).toBe(16);
     });
 });
 
