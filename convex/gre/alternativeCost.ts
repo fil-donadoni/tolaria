@@ -51,6 +51,7 @@ import { manaCostsEqual } from "./constants";
 import { liveSupertypesOf } from "./snow";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { getDefinition, tryGetDefinition } from "../cards";
+import { resolveZoneCharacteristics } from "./zoneCharacteristics";
 import type {
     SacrificeRequirement,
     SacrificeSelection,
@@ -135,22 +136,29 @@ export function handCardMatchesFilter(
     const cardId = card.card.id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return false;
+    // CR 113.6c — a static ability that functions outside the battlefield
+    // overrides the printed type line for a card sitting in hand (Grist, the
+    // Hunger Tide is a creature card there, so it pays a "discard a creature
+    // card" cost). `null` for every card declaring none, i.e. almost all.
+    const zc = resolveZoneCharacteristics(def, "hand");
+    const defTypes = zc?.types ?? def.types;
+    const defSubtypes = zc?.subtypes ?? def.subtypes ?? [];
     const asArray = <T>(v: T | T[] | undefined): T[] | undefined =>
         v === undefined ? undefined : Array.isArray(v) ? v : [v];
     if (filter.name !== undefined && def.name !== filter.name) return false;
     const types = asArray(filter.type);
-    if (types !== undefined && !types.some((t) => def.types.includes(t)))
+    if (types !== undefined && !types.some((t) => defTypes.includes(t)))
         return false;
     const excludeTypes = asArray(filter.excludeType);
     if (
         excludeTypes !== undefined &&
-        excludeTypes.some((t) => def.types.includes(t))
+        excludeTypes.some((t) => defTypes.includes(t))
     )
         return false;
     const subtypes = asArray(filter.subtype);
     if (
         subtypes !== undefined &&
-        !subtypes.some((s) => (def.subtypes ?? []).includes(s))
+        !subtypes.some((s) => defSubtypes.includes(s))
     )
         return false;
     if (

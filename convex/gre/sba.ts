@@ -12,6 +12,7 @@ import {
     unapplySourceStaticEffects,
 } from "./state";
 import { isAura, isCreature, isPlaneswalker } from "./constants";
+import { applyZoneCharacteristics } from "./zoneCharacteristics";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -757,7 +758,36 @@ export function checkWorldRuleSBA(state: GameState): boolean {
     return true;
 }
 
+/** CR 113.6c (issue #2391) — re-derives the off-battlefield characteristics of
+ *  every card in a non-battlefield zone. A no-op for every card whose
+ *  definition declares none (`applyZoneCharacteristics` returns immediately),
+ *  which today is all but one card in the catalogue.
+ *
+ *  This is the SAFETY NET, not the primary hook: the two zone funnels
+ *  (`moveCard` and `removePermanentTo`, `gre/state.ts`) apply it at the moment
+ *  a card changes zones, so a mid-resolution read is already correct. What
+ *  this sweep adds is TOTALITY — it re-derives from the printed definition
+ *  rather than reacting to a transition, so the paths that bypass both funnels
+ *  (the opening library built by `gre/setup.ts` / `game.ts`, debug scenarios
+ *  built by `gre/scenarioBuilder.ts`, `stageReanimatedOnBattlefield`'s direct
+ *  `zone` writes) are covered without each of them having to know, and a zone
+ *  path added later cannot silently fail open. Idempotent, so it does not gate
+ *  the CR 704.4 fixpoint. */
+function refreshOffBattlefieldCharacteristics(state: GameState): void {
+    for (const player of state.players) {
+        for (const card of player.hand) applyZoneCharacteristics(card);
+        for (const card of player.library) applyZoneCharacteristics(card);
+        for (const card of player.graveyard) applyZoneCharacteristics(card);
+        for (const card of player.exile) applyZoneCharacteristics(card);
+    }
+}
+
 export function checkStateBasedActions(state: GameState): void {
+    // CR 113.6c — same "canonical recompute point" placement as the two
+    // refreshes inside the loop below, but hoisted OUT of the fixpoint: it
+    // depends only on where cards are, never on what an SBA iteration did to
+    // the battlefield, so once per entry is enough.
+    refreshOffBattlefieldCharacteristics(state);
     // CR 704.4 — SBAs are performed repeatedly until none applies. A single
     // sweep routinely CREATES the condition for another: a creature dying frees
     // an Aura enchanting it (CR 704.5m), an Aura leaving drops a P/T buff that

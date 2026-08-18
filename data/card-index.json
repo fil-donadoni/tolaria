@@ -5840,6 +5840,14 @@
         "firstPrintSet": "avr"
     },
     {
+        "name": "Grist, the Hunger Tide",
+        "scryfallId": "69af2825-18c2-4463-b6ba-42eaa070ccc1",
+        "oracleId": "0efb0d7e-dea0-4817-a243-15066e9ef333",
+        "firstSet": "mh2",
+        "firstPrintId": "69af2825-18c2-4463-b6ba-42eaa070ccc1",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Grizzled Wolverine",
         "scryfallId": "95bb17b9-55c4-4cc1-83f6-75490b9a97d0",
         "oracleId": "da4ed552-a85a-47e1-ab67-5c93a9a20048",

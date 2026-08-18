@@ -1,5 +1,12 @@
 // mh2 — multicolor cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import type {
+    CardDefinition,
+    SpellContext,
+    TargetSelection,
+    TokenSpec,
+} from "../../types";
+import { INSECT_TOKEN } from "../../sharedTokens";
+import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // Master of Death — {1}{U}{B} Creature — Zombie Wizard, 3/1. "When this
 // creature enters, surveil 2.\nAt the beginning of your upkeep, if this card
@@ -72,6 +79,206 @@ export const masterOfDeath: CardDefinition = {
                             to: "hand",
                         },
                     ],
+                },
+            ],
+        },
+    ],
+};
+
+// Grist, the Hunger Tide — {1}{B}{G} Legendary Planeswalker — Grist, loyalty 3.
+// Oracle (Scryfall, 2026-08-18):
+//   "As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in
+//    addition to its other types.
+//    +1: Create a 1/1 black and green Insect creature token, then mill a card.
+//        If an Insect card was milled this way, put a loyalty counter on Grist
+//        and repeat this process.
+//    −2: You may sacrifice a creature. When you do, destroy target creature or
+//        planeswalker.
+//    −5: Each opponent loses life equal to the number of creature cards in your
+//        graveyard."
+//
+// FIRST CLAUSE — an OFF-BATTLEFIELD static, not a CDA. The issue called it a
+// characteristic-defining ability, but CR 604.3a(5) excludes an ability that
+// "does not set the values of such characteristics only if certain conditions
+// are met" — Grist's clause is conditional on the zone, so it is an ordinary
+// static ability. It nevertheless functions in hand, library, graveyard, exile
+// and on the stack under CR 113.6c ("an ability that states which zones it
+// doesn't function in functions everywhere except for the specified zones").
+// Declared as `offBattlefieldCharacteristics` and applied by the shared
+// zone-characteristics path (`gre/zoneCharacteristics.ts`) — see that module
+// for the consumer census. The self-referential case matters: Grist milled
+// into ITS OWN controller's graveyard is an Insect card (so the +1 repeats)
+// and a creature card (so the −5 counts it).
+//
+// LOYALTY ABILITIES — ordinary `activatedAbilities` gated by `cost.loyalty`
+// (CR 606.2; there is no separate planeswalker-ability type). The engine
+// derives the CR 606.3 timing lock, the once-per-turn lock and the CR 606.6
+// "can't go below 0" rule from the signed cost alone.
+const GRIST_ID = "69af2825-18c2-4463-b6ba-42eaa070ccc1";
+
+/** Grist's Insect token, with the art of Grist's OWN MH2 printing's token
+ *  (CLAUDE.md § Card definition checklist art-match rule). Resolved from the
+ *  reverse-linked lockfile rather than pinned, but read HERE rather than left
+ *  to `createToken`'s fallback because `tokenPrintLookup.test.ts` only sees
+ *  DSL `createToken` Ops — a `resolve()`-created token is invisible to it.
+ *
+ *  Restated as a `TokenSpec` (the imperative `SpellContext.createToken` shape)
+ *  rather than spread from the `EffectTokenSpec` constant, because the two
+ *  spec types diverge on their ability arrays; the characteristics still come
+ *  from the one shared constant, field by field. */
+const gristInsectToken: TokenSpec = {
+    name: INSECT_TOKEN.name,
+    types: INSECT_TOKEN.types,
+    subtypes: INSECT_TOKEN.subtypes,
+    power: INSECT_TOKEN.power,
+    toughness: INSECT_TOKEN.toughness,
+    colors: INSECT_TOKEN.colors,
+    imagePrintId: tokenPrintIdFor(GRIST_ID, "Insect"),
+};
+
+export const gristTheHungerTide: CardDefinition = {
+    id: GRIST_ID,
+    name: "Grist, the Hunger Tide",
+    rarity: "mythic",
+    oracleText:
+        "As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.\n+1: Create a 1/1 black and green Insect creature token, then mill a card. If an Insect card was milled this way, put a loyalty counter on Grist and repeat this process.\n−2: You may sacrifice a creature. When you do, destroy target creature or planeswalker.\n−5: Each opponent loses life equal to the number of creature cards in your graveyard.",
+    manaCost: { X: 1, B: 1, G: 1 },
+    types: ["Planeswalker"],
+    supertypes: ["Legendary"],
+    subtypes: ["Grist"],
+    loyalty: 3,
+    // CR 113.6c — functions in every zone EXCEPT the battlefield.
+    offBattlefieldCharacteristics: {
+        addTypes: ["Creature"],
+        addSubtypes: ["Insect"],
+        power: 1,
+        toughness: 1,
+    },
+    activatedAbilities: [
+        {
+            id: "grist-the-hunger-tide-plus1",
+            oracleText:
+                "+1: Create a 1/1 black and green Insect creature token, then mill a card. If an Insect card was milled this way, put a loyalty counter on Grist and repeat this process.",
+            cost: { loyalty: 1 },
+            useStack: true,
+            // protocol card: an UNBOUNDED conditional repeat. "…and repeat this
+            // process" re-runs the whole create/mill/check sequence an
+            // unpredictable number of times, terminated only by the first
+            // non-Insect mill or by an empty library (CR 701.17b). The Effect
+            // Script DSL deliberately freezes exactly four structural
+            // constructs — bind / ref / if / forEach (ADR 0045/0046) — none of
+            // which is a loop, and `forEach` iterates a KNOWN collection, so no
+            // composition of them expresses "repeat until a runtime condition
+            // fails". Adding a fifth construct is a user-level architecture
+            // decision, not an implementer's; every individual STEP here
+            // already exists as an Op (`createToken`, `mill` + `bind`,
+            // `boundMatchesFilter`, `addCounter`), so this is the loop and
+            // nothing else. `aiEffects` below gives the bot one iteration's
+            // worth of the same script to valuate.
+            aiEffects: [
+                {
+                    op: "createToken",
+                    token: INSECT_TOKEN,
+                    controller: "controller",
+                },
+                { op: "mill", player: "controller", count: 1 },
+            ],
+            resolve: (ctx: SpellContext) => {
+                const self: TargetSelection = {
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                };
+                // Each pass mills at least one card or stops, so the finite
+                // library bounds the loop (CR 701.17b — a player can't mill
+                // more cards than their library holds).
+                for (;;) {
+                    ctx.createToken(gristInsectToken, ctx.controller);
+                    // CR 701.17a — `millCards` returns only the cards that
+                    // genuinely reached the graveyard, so a CR 614 redirect to
+                    // exile (or an empty library) reads as "no card was milled"
+                    // and ends the process.
+                    const milled = ctx.millCards(ctx.controller, 1);
+                    const milledId = milled[0];
+                    if (milledId === undefined) return;
+                    // CR 701.17c — a milled card is found in the public zone it
+                    // moved to. The graveyard snapshot carries the zone-aware
+                    // subtypes, so a milled Grist counts as an Insect card.
+                    const milledCard = ctx
+                        .getGraveyardCards(ctx.controller)
+                        .find((c) => c.id === milledId);
+                    if (!milledCard?.subtypes.includes("Insect")) return;
+                    // CR 122.1 — the extra loyalty counter is on top of the +1
+                    // cost already paid at activation. A no-op if Grist has
+                    // left the battlefield (CR 608.2b); the loop repeats either
+                    // way, since the oracle gates the repeat on the MILL, not
+                    // on the counter.
+                    ctx.addCounter(self, "loyalty", 1);
+                }
+            },
+        },
+        {
+            id: "grist-the-hunger-tide-minus2",
+            oracleText:
+                "−2: You may sacrifice a creature. When you do, destroy target creature or planeswalker.",
+            cost: { loyalty: -2 },
+            useStack: true,
+            // "When you do" is a CR 603.12 reflexive triggered ability: a
+            // SEPARATE stack object whose target is announced only after the
+            // sacrifice happened (distinct from "if you do", which stays in the
+            // same resolution). The Minsc & Boo shape (`clb/multicolor.ts`),
+            // here with an OPTIONAL `count: { min: 0, max: 1 }` because Grist
+            // says "you MAY sacrifice" (the Gut, True Soul Zealot shape,
+            // `clb/red.ts`).
+            effects: [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                    count: { min: 0, max: 1 },
+                    prompt: "You may sacrifice a creature (Grist, the Hunger Tide).",
+                    bind: "$sacPick",
+                },
+                { op: "sacrifice", permanents: { ref: "$sacPick" } },
+                {
+                    op: "if",
+                    predicate: { picksNonEmpty: { ref: "$sacPick" } },
+                    then: [
+                        {
+                            op: "reflexiveTrigger",
+                            oracleText:
+                                "When you do, destroy target creature or planeswalker.",
+                            targetRequirement: {
+                                type: ["Creature", "Planeswalker"],
+                                count: 1,
+                            },
+                            effects: [{ op: "destroy", target: { target: 0 } }],
+                        },
+                    ],
+                },
+            ],
+        },
+        {
+            id: "grist-the-hunger-tide-minus5",
+            oracleText:
+                "−5: Each opponent loses life equal to the number of creature cards in your graveyard.",
+            cost: { loyalty: -5 },
+            useStack: true,
+            // CR 118.2 life loss driven by an `EffectCountSpec` over the
+            // controller's graveyard. A Grist in that graveyard counts itself:
+            // CR 113.6c makes it a creature card there.
+            effects: [
+                {
+                    op: "loseLife",
+                    player: "opponent",
+                    amount: {
+                        count: {
+                            zone: "graveyard",
+                            controller: "controller",
+                            filter: { type: "Creature" },
+                        },
+                    },
                 },
             ],
         },

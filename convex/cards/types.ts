@@ -1846,6 +1846,28 @@ export type TokenStaticEffectKey =
     | "cant-be-enchanted-self"
     | "pt-cda-artifacts-you-control";
 
+/** Characteristics a card takes on in every zone OTHER than the battlefield
+ *  (CR 113.6c — "an ability that states which zones it doesn't function in
+ *  functions everywhere except for the specified zones, even outside the game
+ *  and before the game begins"). Declared by
+ *  {@link CardDefinition.offBattlefieldCharacteristics}; read through the
+ *  single shared accessor in `gre/zoneCharacteristics.ts`.
+ *
+ *  Types and subtypes are ADDITIVE — the oracle template is "it's a 1/1 Insect
+ *  creature IN ADDITION TO its other types" (CR 205.1b) — while power and
+ *  toughness REPLACE, since the cards carrying this ability are non-creature
+ *  cards with no printed P/T to add to. */
+export interface OffBattlefieldCharacteristics {
+    /** Card types added on top of the printed ones (CR 205.1b). */
+    addTypes?: CardType[];
+    /** Subtypes added on top of the printed ones (CR 205.3). */
+    addSubtypes?: string[];
+    /** Power the card has outside the battlefield (CR 208.2). */
+    power?: number;
+    /** Toughness the card has outside the battlefield (CR 208.2). */
+    toughness?: number;
+}
+
 /** Structural definition of a token permanent created at resolution time
  *  (CR 707.1 — a token is created in the form described by the effect that
  *  creates it). All fields are static for the token's lifetime; tokens
@@ -13708,6 +13730,23 @@ export interface CardDefinition {
      *  `CardInstanceState.counters` map (same shape as Age/Fade/charge). Only
      *  meaningful on a card whose `types` include "Planeswalker". */
     loyalty?: number;
+    /** CR 113.6c — a static ability that names the zone it does NOT function
+     *  in functions in every OTHER zone: hand, library, graveyard, exile and
+     *  the stack. "As long as this card isn't on the battlefield, it's a 1/1
+     *  Insect creature in addition to its other types" (Grist, the Hunger
+     *  Tide, `sets/mh2/multicolor.ts`) is the shape this field declares.
+     *
+     *  NOT a characteristic-defining ability: CR 604.3a(5) excludes an ability
+     *  that sets characteristics "only if certain conditions are met", and the
+     *  zone IS such a condition. The distinction is not academic — a real CDA
+     *  applies on the battlefield too, this one is switched off there.
+     *
+     *  ADDITIVE for types and subtypes ("in addition to its other types",
+     *  CR 205.1b), REPLACING for power/toughness — a planeswalker card has no
+     *  printed P/T, so there is nothing to add to. Applied by the single
+     *  shared reader in `gre/zoneCharacteristics.ts`; see that module's header
+     *  for the consumer census it feeds. */
+    offBattlefieldCharacteristics?: OffBattlefieldCharacteristics;
     /** CR 702.122b — "This creature crews Vehicles as though its power were N
      *  greater" (Shorikai's Pilot token, the Pilot/Vehicle cycle). A static
      *  characteristic of the CREW-ING creature, not of the Vehicle: it is added
