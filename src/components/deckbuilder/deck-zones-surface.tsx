@@ -139,7 +139,16 @@ export default function DeckZonesSurface({
     return (
         <div
             ref={splitContainerRef}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row"
+            /* `compact-chrome:` (issue #2511): on a phone-shaped viewport this
+               pair stops being a fixed-height box that clips. `flex-none` +
+               `basis-auto` make it as tall as its two zones actually are, and
+               `overflow-visible` stops it cutting the floor the zones' own
+               card strips now claim (`deck-zone-surface.tsx`). The shortfall
+               then lands in the shell's ONE scroll wrapper — which is what the
+               issue asks for: the chrome scrolls, the card list does not
+               shrink. Above `md` on a desktop-shaped viewport this is the
+               same fixed-height `--split-main` row it always was. */
+            className="flex min-h-0 flex-1 flex-col overflow-hidden compact-chrome:flex-none compact-chrome:basis-auto compact-chrome:overflow-visible md:flex-row"
             style={
                 {
                     "--split-main": `${splitRatio * 100}%`,
@@ -147,7 +156,16 @@ export default function DeckZonesSurface({
             }
         >
             <div
-                className="min-h-0 min-w-0 flex-1 overflow-hidden md:flex-none md:shrink-0 md:grow-0 md:basis-[var(--split-main)]"
+                /* `max-md:` for the flex terms, `compact-chrome:` for the clip
+                   (issue #2511). The two halves are deliberately keyed
+                   differently: below `md` the pair stacks in a COLUMN, so
+                   `flex-none`/`basis-auto` is what gives this zone its content
+                   height — while at `md` and up (a landscape phone is 844px
+                   WIDE) the pair is a row and the same classes would collapse
+                   the zone's WIDTH and fight `md:basis-[var(--split-main)]`.
+                   Un-clipping is direction-free, so it takes the full
+                   phone-shaped predicate. */
+                className="min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible md:flex-none md:shrink-0 md:grow-0 md:basis-[var(--split-main)]"
                 style={zoomVars(cardBase, mainZoom.value)}
             >
                 <DeckZoneSurface
@@ -181,7 +199,8 @@ export default function DeckZonesSurface({
             </div>
             <PoolSplitDivider {...splitDividerProps} />
             <div
-                className="min-h-0 min-w-0 flex-1 overflow-hidden"
+                /* Same split as the Maindeck wrapper above (issue #2511). */
+                className="min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible"
                 style={zoomVars(cardBase, sideZoom.value)}
             >
                 <DeckZoneSurface

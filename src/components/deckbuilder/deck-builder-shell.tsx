@@ -146,7 +146,17 @@ export default function DeckBuilderShell({
                     )}
 
                     <div
-                        className="flex min-h-0 flex-1 basis-0 flex-col overflow-hidden"
+                        // `compact-chrome:` (issue #2511): on a phone-shaped
+                        // viewport this pane stops rationing a fixed budget
+                        // among bands that cannot all fit. `flex-none` +
+                        // `basis-auto` size it to the zones inside, and
+                        // `overflow-visible` stops it clipping their card
+                        // floor; the wrapper directly above — the ONE
+                        // scrollable ancestor everything on this screen sits
+                        // in — absorbs the overflow, so no control is ever
+                        // stranded outside a scroller. Above `md` on a
+                        // desktop-shaped viewport nothing here changes.
+                        className="flex min-h-0 flex-1 basis-0 flex-col overflow-hidden compact-chrome:flex-none compact-chrome:basis-auto compact-chrome:overflow-visible"
                         style={
                             {
                                 "--card-base": view.cardBase,
