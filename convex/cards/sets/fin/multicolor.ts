@@ -4,10 +4,13 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type {
     CardDefinition,
+    CardType,
     GameEvent,
     ManaCost,
     PermanentView,
+    SpellContext,
 } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 
 // Vivi Ornitier — {1}{U}{R} Legendary Creature — Wizard. "{0}: Add X mana in
 // any combination of {U} and/or {R}, where X is Vivi Ornitier's power.
@@ -106,6 +109,132 @@ export const viviOrnitier: CardDefinition = {
                 // the single opponent (ADR — 3+ player multiplayer is out of
                 // scope).
                 { op: "dealDamage", amount: 1, to: { player: "opponent" } },
+            ],
+        },
+    ],
+};
+
+const SIN_SPIRAS_PUNISHMENT_ID = "659be746-bd31-4a70-8cec-7798da78b0b5";
+
+// CR 110.4a — a "permanent card" is an artifact, battle, creature,
+// enchantment, land, or planeswalker card. Instant and sorcery cards are never
+// eligible, which is the whole discriminator Sin's random pick needs.
+const PERMANENT_CARD_TYPES: ReadonlySet<CardType> = new Set(PERMANENT_TYPES);
+
+// Sin, Spira's Punishment — {4}{B}{G}{U} Legendary Creature — Leviathan Avatar
+// 7/7. "Flying / Whenever Sin enters or attacks, exile a permanent card from
+// your graveyard at random, then create a tapped token that's a copy of that
+// card. If the exiled card is a land card, repeat this process."
+//
+// protocol card: the trailing clause is a CONDITIONAL REPEAT — "if the exiled
+// card is a land card, repeat this process" — whose iteration count is decided
+// by the card each pass draws. None of the DSL's four frozen constructs
+// expresses it: `forEach` is bounded over a pre-enumerated collection and `if`
+// does not loop, so a repeat-until-non-land would need a fifth construct
+// (rejected: one card does not earn a new frozen construct) or an unrolled
+// copy of the body per graveyard card (a card-shaped hack). The body itself is
+// pure primitive composition — see `sinExileRandomPermanentAndCopy` — so the
+// closure buys the loop and nothing else.
+//
+// CR 701.13a — exile the picked card (graveyard -> exile) BEFORE creating the
+// copy, exactly in the Oracle's order: the token is a copy of the card as it
+// now sits in exile.
+//
+// CR 707.2 — the copiable values of a card are the values derived from the
+// text PRINTED on it. They do not depend on the card ever having been a
+// permanent on the battlefield, so a card picked out of a graveyard copies
+// exactly like a battlefield source; `createTokenCopyOf`'s
+// `lastKnownFromGraveyardOrExile` opt-in is the documented channel for a
+// non-battlefield source (CR 400.2 — only the two PUBLIC zones are searched).
+//
+// CR 701.7a — "create a tapped token that's a copy of that card": the token
+// enters tapped, which `createTokenCopyOf` applies to the placeholder BEFORE
+// `applyCopy` stamps the copied characteristics on.
+//
+// Termination (three distinct stop conditions, one test each): an EMPTY
+// graveyard and a graveyard holding NO permanent card both leave the eligible
+// pool empty, so the very first pick returns undefined and the loop stops
+// without creating anything; otherwise the loop repeats only while the card it
+// just exiled was a Land. Every iteration removes one card from the graveyard,
+// so the pool strictly shrinks — but this runs inside a Convex mutation, where
+// a spin is a server hang, so `exiledThisResolution` is an explicit belt: a
+// card that somehow failed to leave the graveyard is never picked twice.
+function sinExileRandomPermanentAndCopy(ctx: SpellContext): void {
+    const controller = ctx.controller;
+    const exiledThisResolution = new Set<string>();
+    for (;;) {
+        const eligible = ctx
+            .getGraveyardCards(controller)
+            .filter(
+                (c) =>
+                    !exiledThisResolution.has(c.id) &&
+                    c.types.some((t) => PERMANENT_CARD_TYPES.has(t))
+            );
+        const pickedId = ctx.pickAtRandom(eligible.map((c) => c.id));
+        if (pickedId === undefined) return;
+        const picked = eligible.find((c) => c.id === pickedId);
+        if (picked === undefined) return;
+        exiledThisResolution.add(pickedId);
+        // CR 701.13a — "to exile an object, move it to the exile zone from
+        // wherever it is". A card in your graveyard is owned by you
+        // (CR 404.2), so the controller is also the zone owner here.
+        ctx.moveCardById(controller, pickedId, "graveyard", "exile");
+        ctx.createTokenCopyOf(pickedId, controller, ctx.sourceInstanceId, {
+            entersTapped: true,
+            lastKnownFromGraveyardOrExile: true,
+        });
+        if (!picked.types.includes("Land")) return;
+    }
+}
+
+export const sinSpirasPunishment: CardDefinition = {
+    id: SIN_SPIRAS_PUNISHMENT_ID,
+    name: "Sin, Spira's Punishment",
+    rarity: "rare",
+    oracleText:
+        "Flying\nWhenever Sin enters or attacks, exile a permanent card from your graveyard at random, then create a tapped token that's a copy of that card. If the exiled card is a land card, repeat this process.",
+    manaCost: { X: 4, B: 1, G: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Leviathan", "Avatar"],
+    supertypes: ["Legendary"],
+    power: 7,
+    toughness: 7,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "sin-spira-exile-copy-loop",
+            oracleText:
+                "Whenever Sin enters or attacks, exile a permanent card from your graveyard at random, then create a tapped token that's a copy of that card. If the exiled card is a land card, repeat this process.",
+            // CR 603.2 — ONE Oracle line spanning two engine events, so ONE
+            // ability with an array `event` (the Loafing Giant shape,
+            // `inv/red.ts`); two abilities would render twice on the stack.
+            event: ["PERMANENT_ENTERED", "ATTACKERS_DECLARED"],
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                (event.type === "PERMANENT_ENTERED" &&
+                    event.instanceId === self.id) ||
+                (event.type === "ATTACKERS_DECLARED" &&
+                    event.attackerIds.includes(self.id)),
+            resolve: sinExileRandomPermanentAndCopy,
+            // aiEffects (PRD #1423, issue #1519) — a bare `resolve()` body is
+            // invisible to the bot's Effect Script value model, which would
+            // valuate this trigger as neutral and make Sin read as a vanilla
+            // 7/7 flier. The real body creates at least one token copy of an
+            // unknowable graveyard card, so a representative 2/2 stands in —
+            // the SAME "representative 2/2 for an unknowable body" convention
+            // `createTokenCopy`'s own valuer documents in `gre/ai/opValuers.ts`
+            // and Urza's Construct uses (`mh1/blue.ts`).
+            aiEffects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Copy",
+                        types: ["Creature"],
+                        power: 2,
+                        toughness: 2,
+                        entersTapped: true,
+                    },
+                    controller: "controller",
+                },
             ],
         },
     ],

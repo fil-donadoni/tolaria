@@ -1681,9 +1681,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         //
         // Net across both: total 481->471, Op-blocked 150->140; FREE unchanged
         // at 316, AFK-ready at 307, X-only at 15. Partition: 316+15+140=471.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(471);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(316);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(307);
+        //
+        // Sin, Spira's Punishment (issue #2382) adds ONE closure: 471->472,
+        // FREE 316->317, AFK-ready 307->308 (it ships with its own per-card
+        // test). Partition: 317+15+140=472. The classifier reads which
+        // uncovered PRIMITIVES a closure calls, and Sin calls none — but its
+        // body is a conditional repeat-until-land loop, which no frozen DSL
+        // construct expresses, so the FREE bucket overstates it. That is a
+        // known limit of the heuristic, not a regression; see
+        // `docs/findings/2382-migration-classifier-blind-to-control-flow.md`.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(472);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(317);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(308);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });
