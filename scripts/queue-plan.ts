@@ -27,13 +27,18 @@ import {
     mkdirSync,
     readdirSync,
     readFileSync,
+    renameSync,
     statSync,
     unlinkSync,
     writeFileSync,
-} from "fs";
-import { join } from "path";
+} from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { gh } from "./lib/gh";
-import { fetchBoardPriority as fetchBoardPriorityShared } from "./lib/board-priority";
+import {
+    fetchBoardPriority as fetchBoardPriorityShared,
+    NO_PRIORITY_WARNING,
+    VALID_PRIORITIES,
+} from "./lib/board-priority";
 import {
     buildPlanRecord,
     planBatch,
@@ -44,6 +49,12 @@ import {
     type QueueIssue,
     type QueuePort,
 } from "./lib/queue-plan";
+
+// Computed the same way scripts/__tests__/land.test.ts computes it (from a
+// FILE's own directory, not from `import.meta.dir`, which is bun-only and
+// would throw when this module is imported under vitest for its pure
+// functions).
+const REPO_ROOT = resolve(__dirname, "..");
 
 const DEFAULTS = {
     cap: 4,
@@ -89,23 +100,6 @@ function arg(name: string, fallback: number): number {
     return value;
 }
 
-const limit = arg("limit", DEFAULTS.limit);
-
-const issues = JSON.parse(
-    gh([
-        "issue",
-        "list",
-        "--label",
-        "ready-for-agent",
-        "--state",
-        "open",
-        "--json",
-        "number,title,labels,parent,assignees,updatedAt",
-        "--limit",
-        String(limit),
-    ])
-) as QueueIssue[];
-
 /** Issues with an open PR — the liveness signal that keeps a long-running claim
  *  from being swept. Derived from the head branch name, because that branch is
  *  the loop's atomic ownership claim (`feat/issue-N` / `fix/issue-N`). */
@@ -139,70 +133,321 @@ function issuesWithOpenPr(): number[] {
 // Reading it is ONE call for the whole board, which is why `QueuePort.priority`
 // is a map rather than a lookup — a per-issue call would invent the round-trip
 // the two-stage design exists to avoid.
+//
+// It is also a GraphQL call over a 400+-item board, and `gh` has a SEPARATE,
+// much tighter GraphQL budget than REST (issue #2520: GraphQL sat at 29/5000
+// remaining while REST sat at 4994/5000). With several sessions draining the
+// queue in parallel, that budget is gone within the hour — so the read is
+// CACHED to a shared file (§ below) and, on a rate-limit failure with a usable
+// cached snapshot, the plan degrades to it rather than stopping. Only when
+// there is no usable snapshot at all does the hard stop remain correct: a
+// batch silently ordered on stale DEFAULTS (not a stale snapshot — the
+// absence of the maintainer's override entirely) looks completely normal and
+// nothing goes red.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PROJECT_OWNER = process.env.TOLARIA_PROJECT_OWNER ?? "fil-donadoni";
 const PROJECT_NUMBER = process.env.TOLARIA_PROJECT_NUMBER ?? "2";
 const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
 
-/** Deep enough for the whole board with room to grow, because `gh project
- *  item-list` DEFAULTS TO 30 and returns the newest first. At the default the
- *  planner would see 30 of 265 items and read every older P0 as unprioritized —
- *  the same silent-truncation class that hid 126 issues from `gh issue list`
- *  (see the `limit` note above). The count is cross-checked below regardless:
- *  a limit is a guess, `totalCount` is the answer. */
-const PROJECT_ITEM_LIMIT = 2000;
+/** Used ONLY when the board's own `totalCount` cannot be read (CLI shape
+ *  drift) — the read is normally sized to `computeItemLimit`'s first
+ *  argument, never to a static guess. Kept deep enough for the whole board
+ *  with room to grow, matching the historical default. */
+const PROJECT_ITEM_LIMIT_FALLBACK = 2000;
 
 function die(message: string): never {
     console.error(`✗ ${message}`);
     process.exit(2);
 }
 
+/** The GitHub CLI's own wording for an exhausted GraphQL budget
+ *  (`GraphQL: API rate limit exceeded for user ID …`). Matched loosely on
+ *  purpose — the id and phrasing around it are not contractual, "rate limit"
+ *  is. */
+export function isRateLimitError(message: string): boolean {
+    return /rate limit/i.test(message);
+}
+
+/** A cached snapshot is fresh enough to REUSE (skip the fetch, make no
+ *  GraphQL call at all) only inside the TTL. This is the ONLY thing the TTL
+ *  governs — see `resolveBoardPriority`: a snapshot past it is still usable
+ *  as a rate-limit fallback, just not as a silent stand-in for a live read. */
+export function isCacheFresh(
+    now: string,
+    fetchedAt: string,
+    ttlMs: number
+): boolean {
+    const age = Date.parse(now) - Date.parse(fetchedAt);
+    return Number.isFinite(age) && age >= 0 && age <= ttlMs;
+}
+
+/** Human-readable snapshot age for the degraded-read announcement
+ *  (`… snapshot from 3m ago`). Minutes below an hour, `${h}h${m}m` above. */
+export function formatSnapshotAge(now: string, fetchedAt: string): string {
+    const ms = Math.max(0, Date.parse(now) - Date.parse(fetchedAt));
+    if (ms < 60000) return "<1m";
+    const minutes = Math.round(ms / 60000);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const rem = minutes % 60;
+    return rem === 0 ? `${hours}h` : `${hours}h${rem}m`;
+}
+
+/** Derived from the shared reader's own wording so the two cannot drift: this
+ *  script handles `--no-priority` before the reader is ever called (the
+ *  documented escape hatch must touch neither the cache nor the network), but
+ *  an operator must see the same sentence either way. */
+export const NO_PRIORITY_MESSAGE = `⚠ ${NO_PRIORITY_WARNING}`;
+
+export function rateLimitFallbackMessage(ageLabel: string): string {
+    return `⚠ board unread (GraphQL rate limit); using the priority snapshot from ${ageLabel} ago`;
+}
+
+export interface BoardPrioritySnapshot {
+    fetchedAt: string;
+    priority: Record<number, BoardPriority>;
+}
+
+export interface BoardPriorityDeps {
+    /** ISO timestamp — injected so cache-age decisions are deterministic. */
+    now: string;
+    ttlMs: number;
+    readCache: () => BoardPrioritySnapshot | undefined;
+    /** May throw (EACCES, ENOSPC, a concurrent writer) — `resolveBoardPriority`
+     *  treats that as best-effort and never lets it turn a successful live
+     *  read into a failure. */
+    writeCache: (snapshot: BoardPrioritySnapshot) => void;
+    /** Throws on any read failure (rate limit or otherwise) — the caller
+     *  classifies what to do about it. */
+    fetchLive: () => Record<number, BoardPriority>;
+}
+
+export type BoardPriorityResult =
+    | { priority: Record<number, BoardPriority>; source: "cache-fresh" }
+    | { priority: Record<number, BoardPriority>; source: "live" }
+    | {
+          priority: Record<number, BoardPriority>;
+          source: "cache-stale-fallback";
+          ageLabel: string;
+      };
+
 /**
- * Read the board's `Priority` column.
+ * The three-outcome contract (issue #2520): fresh cache (reuse, no live call),
+ * stale-but-present cache used ONLY after a live read fails (announced with
+ * its age), and — when the live read fails with nothing cached at all — the
+ * failure propagates so the caller can hard-stop exactly as before.
  *
- * FAIL-LOUD on every degraded read. Producing a plan without the priorities is
- * strictly worse than producing no plan: the batch looks completely normal, the
- * loop implements four issues in the wrong order, and nothing anywhere is red.
- * A stopped loop is a five-second fix; a silently mis-ordered one is invisible.
- * `--no-priority` is the explicit escape, and it announces itself.
+ * A non-rate-limit failure (auth, CLI shape drift) is NEVER papered over by a
+ * cache, however fresh: only a rate-limit-shaped error degrades.
  *
- * The read itself — and its degrade-vs-fail-loud policy — now live in
- * `lib/board-priority.ts`, shared with `loop:status` (#2519). This wrapper
- * supplies `queue:plan`'s OWN policy (`die`), so its behaviour is unchanged
- * by that extraction; only the messages moved.
+ * The cache WRITE is deliberately outside the try/catch that classifies
+ * `fetchLive` failures: a write failure (EACCES, ENOSPC, a concurrent writer
+ * on the shared cache file) is not rate-limit shaped, so it used to rethrow
+ * and turn a live read that had ALREADY SUCCEEDED — priorities in hand — into
+ * a hard stop caused entirely by the caching layer meant to prevent hard
+ * stops. It is now best-effort: a failed write only costs the next pass's
+ * cache-fresh skip, never this one's result.
  */
-function fetchBoardPriority(): Record<number, BoardPriority> {
-    return fetchBoardPriorityShared({
+export function resolveBoardPriority(
+    deps: BoardPriorityDeps
+): BoardPriorityResult {
+    const cached = deps.readCache();
+
+    if (cached && isCacheFresh(deps.now, cached.fetchedAt, deps.ttlMs)) {
+        return { priority: cached.priority, source: "cache-fresh" };
+    }
+
+    let priority: Record<number, BoardPriority>;
+    try {
+        priority = deps.fetchLive();
+    } catch (err) {
+        if (cached && isRateLimitError((err as Error).message)) {
+            return {
+                priority: cached.priority,
+                source: "cache-stale-fallback",
+                ageLabel: formatSnapshotAge(deps.now, cached.fetchedAt),
+            };
+        }
+        throw err;
+    }
+
+    try {
+        deps.writeCache({ fetchedAt: deps.now, priority });
+    } catch {
+        // Best-effort — see the function comment above. The live read already
+        // succeeded; a write failure must not be reported to the caller.
+    }
+    return { priority, source: "live" };
+}
+
+/** Adds the `--no-priority` escape (unchanged behaviour: announces itself,
+ *  makes no cache/live call at all) around `resolveBoardPriority`, and turns
+ *  its result into the one message the caller prints, if any. Pure aside from
+ *  the injected `deps` — the whole decision is testable with fakes. */
+export function boardPriorityForArgv(
+    argv: string[],
+    deps: BoardPriorityDeps
+): { priority: Record<number, BoardPriority>; message?: string } {
+    if (argv.includes("--no-priority")) {
+        return { priority: {}, message: NO_PRIORITY_MESSAGE };
+    }
+    const result = resolveBoardPriority(deps);
+    if (result.source === "cache-stale-fallback") {
+        return {
+            priority: result.priority,
+            message: rateLimitFallbackMessage(result.ageLabel),
+        };
+    }
+    return { priority: result.priority };
+}
+
+const BOARD_PRIORITY_CACHE_REL = join(
+    ".claude",
+    "telemetry",
+    "board-priority.json"
+);
+// A few minutes: short enough that a maintainer's board edit is visible to
+// the next pass or two, long enough that five sessions draining the queue in
+// the same window pay for one board read instead of five.
+const BOARD_PRIORITY_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Exported for direct testing — the validation here is load-bearing: an
+ * unparseable `fetchedAt` would still qualify as a usable fallback and print
+ * "snapshot from NaNhNaNm ago", and a cached priority outside
+ * `VALID_PRIORITIES` would reach `PRIORITY_RANK` as `undefined` and make the
+ * sort comparator return `NaN` — neither defect the live path allows (the
+ * shared reader reports both, and this script's `onError` turns that into a
+ * `die()`).
+ */
+export function readBoardPriorityCache(
+    cachePath: string
+): BoardPrioritySnapshot | undefined {
+    try {
+        const raw = readFileSync(cachePath, "utf8");
+        const parsed = JSON.parse(raw) as Partial<BoardPrioritySnapshot>;
+        if (
+            typeof parsed.fetchedAt !== "string" ||
+            typeof parsed.priority !== "object" ||
+            parsed.priority === null ||
+            Number.isNaN(Date.parse(parsed.fetchedAt))
+        ) {
+            return undefined;
+        }
+        const priority = parsed.priority as Record<string, unknown>;
+        for (const value of Object.values(priority)) {
+            if (
+                typeof value !== "string" ||
+                !VALID_PRIORITIES.includes(value as BoardPriority)
+            ) {
+                return undefined;
+            }
+        }
+        return {
+            fetchedAt: parsed.fetchedAt,
+            priority: priority as Record<number, BoardPriority>,
+        };
+    } catch {
+        // Missing file, corrupt JSON, wrong shape — all read the same as "no
+        // usable snapshot" to the caller, which is exactly the distinction
+        // the hard-stop path needs to keep making correctly.
+        return undefined;
+    }
+}
+
+/** Exported for direct testing. Several loops share this cache file
+ *  concurrently; a bare `writeFileSync` (open O_TRUNC then write) lets a
+ *  concurrent reader observe a truncated/zero-filled snapshot mid-write.
+ *  Write to a sibling temp file and `renameSync` over the target — rename is
+ *  atomic on the same filesystem, so a reader always sees either the old
+ *  snapshot or the fully-written new one, never a partial one. */
+export function writeBoardPriorityCache(
+    cachePath: string,
+    snapshot: BoardPrioritySnapshot
+): void {
+    mkdirSync(dirname(cachePath), { recursive: true });
+    const tmpPath = `${cachePath}.tmp.${process.pid}`;
+    writeFileSync(tmpPath, JSON.stringify(snapshot, null, 2) + "\n");
+    renameSync(tmpPath, cachePath);
+}
+
+/** Every degraded read the SHARED reader reports (`lib/board-priority.ts`)
+ *  arrives here as a throw rather than a `die()`, because this caller has one
+ *  more decision to make first: a rate-limit-shaped failure may degrade to a
+ *  cached snapshot (issue #2520), and only what survives that classification
+ *  becomes a hard stop. The reader's own `onError` messages already carry the
+ *  operator guidance, so they are re-emitted verbatim. */
+class BoardReadError extends Error {}
+
+/**
+ * Read the board's `Priority` column over the network, through the reader
+ * shared with `loop:status` (#2519). Throws verbatim on any failure — `gh`
+ * itself failing (including a rate limit), a CLI shape change, a truncated
+ * list, an unranked `Priority` value — because the caller
+ * (`resolveBoardPriority`) is what decides whether that is recoverable.
+ *
+ * `read` is a test seam only — the real reader is the default.
+ */
+export function liveFetchBoardPriority(
+    read: typeof fetchBoardPriorityShared = fetchBoardPriorityShared
+): Record<number, BoardPriority> {
+    return read({
         owner: PROJECT_OWNER,
         projectNumber: PROJECT_NUMBER,
         repo: PROJECT_REPO,
-        itemLimit: PROJECT_ITEM_LIMIT,
-        skip: process.argv.includes("--no-priority"),
-        onError: die,
+        // The FALLBACK only: the reader sizes the window to the board's own
+        // `totalCount` (`computeItemLimit`) and proves it wasn't truncated
+        // (`isPossiblyTruncated`) — both properties of the read itself, so
+        // both live with it.
+        itemLimit: PROJECT_ITEM_LIMIT_FALLBACK,
+        // `--no-priority` never reaches here: `boardPriorityForArgv` returns
+        // before the cache or the network is touched, so `skip` would be dead
+        // weight — and routing the escape hatch through a throwing `onError`
+        // is exactly the shape PR #2545's review found deletes it.
+        onError: (message) => {
+            throw new BoardReadError(message);
+        },
     });
 }
 
-const detailCache = new Map<number, IssueDetail>();
-
-const port: QueuePort = {
-    issuesWithOpenPr: issuesWithOpenPr(),
-    priority: fetchBoardPriority(),
-    issueDetail(number: number): IssueDetail {
-        const cached = detailCache.get(number);
-        if (cached) return cached;
-        const raw = JSON.parse(
-            gh(["issue", "view", String(number), "--json", "state,labels,body"])
-        ) as { state: string; labels: { name: string }[]; body: string };
-        const detail: IssueDetail = {
-            state: raw.state === "CLOSED" ? "CLOSED" : "OPEN",
-            labels: raw.labels.map((l) => l.name),
-            body: raw.body ?? "",
-        };
-        detailCache.set(number, detail);
-        return detail;
-    },
-};
+/**
+ * FAIL-LOUD on every degraded read with no usable fallback. Producing a plan
+ * without the priorities is strictly worse than producing no plan: the batch
+ * looks completely normal, the loop implements four issues in the wrong
+ * order, and nothing anywhere is red. A stopped loop is a five-second fix; a
+ * silently mis-ordered one is invisible. `--no-priority` is the explicit
+ * escape, and it announces itself.
+ */
+function fetchBoardPriority(): Record<number, BoardPriority> {
+    const cachePath = join(REPO_ROOT, BOARD_PRIORITY_CACHE_REL);
+    try {
+        const { priority, message } = boardPriorityForArgv(process.argv, {
+            now: new Date().toISOString(),
+            ttlMs: BOARD_PRIORITY_CACHE_TTL_MS,
+            readCache: () => readBoardPriorityCache(cachePath),
+            writeCache: (snapshot) =>
+                writeBoardPriorityCache(cachePath, snapshot),
+            fetchLive: liveFetchBoardPriority,
+        });
+        if (message) console.error(message);
+        return priority;
+    } catch (err) {
+        // A `BoardReadError` is the shared reader's own operator-facing
+        // message (access, truncation, an unranked value) — it already says
+        // what to do, so re-emit it verbatim rather than burying it under a
+        // wrapper that names only the access case. Anything else reaching
+        // here is unexpected (a malformed `gh` payload, say), and the wrapper
+        // is what gives it context.
+        if (err instanceof BoardReadError) die(err.message);
+        die(
+            `cannot read project ${PROJECT_OWNER}/${PROJECT_NUMBER}: ${(err as Error).message}\n` +
+                `  The board carries the Priority field the queue sorts on, so this plan would be\n` +
+                `  silently mis-ordered. Fix the access — \`gh auth refresh -s read:project\` — or\n` +
+                `  re-run with --no-priority to plan on the default order deliberately.`
+        );
+    }
+}
 
 function inferredTargetFiles(): Record<number, string[]> | undefined {
     const i = process.argv.indexOf("--inferred");
@@ -222,14 +467,6 @@ function inferredTargetFiles(): Record<number, string[]> | undefined {
         process.exit(2);
     }
 }
-
-const config: PlanConfig = {
-    batchCap: arg("cap", DEFAULTS.cap),
-    staleClaimHours: arg("stale-hours", DEFAULTS.staleClaimHours),
-    defaultImplModel: DEFAULTS.defaultImplModel,
-    now: new Date().toISOString(),
-    inferredTargetFiles: inferredTargetFiles(),
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan artefact (issue #2518) — durable record of what THIS run produced, so
@@ -275,16 +512,23 @@ function pruneOldPlans(dir: string): void {
  * Write the durable plan artefact. Best-effort and never fatal: the plan
  * this process prints to stdout is the contract every caller relies on, and
  * a telemetry write failing must not take that down with it.
+ *
+ * `now` is passed in rather than read here so the artefact carries the SAME
+ * timestamp the plan was computed with (`PlanConfig.now`), which is what
+ * `claim-ledger.sh` sorts filenames by.
  */
-function writePlanArtefact(plan: ReturnType<typeof planBatch>): void {
+function writePlanArtefact(
+    plan: ReturnType<typeof planBatch>,
+    now: string
+): void {
     try {
         const dir = join(process.cwd(), ".claude/telemetry/plans");
         mkdirSync(dir, { recursive: true });
         pruneOldPlans(dir);
         const session = process.env.CLAUDE_CODE_SESSION_ID ?? "";
         const noPriority = process.argv.includes("--no-priority");
-        const record = buildPlanRecord(plan, session, config.now, noPriority);
-        const file = join(dir, planFilename(session, config.now));
+        const record = buildPlanRecord(plan, session, now, noPriority);
+        const file = join(dir, planFilename(session, now));
         writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
     } catch (err) {
         console.error(
@@ -293,10 +537,69 @@ function writePlanArtefact(plan: ReturnType<typeof planBatch>): void {
     }
 }
 
-const plan = planBatch(issues, config, port);
+function main(): void {
+    const limit = arg("limit", DEFAULTS.limit);
 
-writePlanArtefact(plan);
+    const issues = JSON.parse(
+        gh([
+            "issue",
+            "list",
+            "--label",
+            "ready-for-agent",
+            "--state",
+            "open",
+            "--json",
+            "number,title,labels,parent,assignees,updatedAt",
+            "--limit",
+            String(limit),
+        ])
+    ) as QueueIssue[];
 
-process.stdout.write(
-    JSON.stringify(plan, null, process.argv.includes("--pretty") ? 2 : 0) + "\n"
-);
+    const detailCache = new Map<number, IssueDetail>();
+
+    const port: QueuePort = {
+        issuesWithOpenPr: issuesWithOpenPr(),
+        priority: fetchBoardPriority(),
+        issueDetail(number: number): IssueDetail {
+            const cached = detailCache.get(number);
+            if (cached) return cached;
+            const raw = JSON.parse(
+                gh([
+                    "issue",
+                    "view",
+                    String(number),
+                    "--json",
+                    "state,labels,body",
+                ])
+            ) as { state: string; labels: { name: string }[]; body: string };
+            const detail: IssueDetail = {
+                state: raw.state === "CLOSED" ? "CLOSED" : "OPEN",
+                labels: raw.labels.map((l) => l.name),
+                body: raw.body ?? "",
+            };
+            detailCache.set(number, detail);
+            return detail;
+        },
+    };
+
+    const config: PlanConfig = {
+        batchCap: arg("cap", DEFAULTS.cap),
+        staleClaimHours: arg("stale-hours", DEFAULTS.staleClaimHours),
+        defaultImplModel: DEFAULTS.defaultImplModel,
+        now: new Date().toISOString(),
+        inferredTargetFiles: inferredTargetFiles(),
+    };
+
+    const plan = planBatch(issues, config, port);
+
+    writePlanArtefact(plan, config.now);
+
+    process.stdout.write(
+        JSON.stringify(plan, null, process.argv.includes("--pretty") ? 2 : 0) +
+            "\n"
+    );
+}
+
+if (import.meta.main) {
+    main();
+}

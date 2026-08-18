@@ -26,6 +26,13 @@
 // `onError` — the caller's failure policy (fail-loud `die`, or a degrading
 // collector) never sees it and cannot abort on it.
 
+// The READ is here; the CACHE is not (issue #2520). Sizing the window and
+// proving it wasn't truncated are properties of the read itself, so they live
+// here and every caller gets them. Whether a failed read may degrade to a
+// stale snapshot is a failure POLICY — same class as `onError` — so it lives
+// in the caller: `queue:plan` wraps this function in its own file-backed
+// cache, `loop:status` caches the value it gets in its own server route.
+
 import { gh } from "./gh";
 import type { BoardPriority } from "./queue-plan";
 
@@ -45,9 +52,13 @@ export interface BoardPriorityOptions {
     projectNumber: string;
     /** `owner/repo` — issue numbers are unique per repo, not per board. */
     repo: string;
-    /** `gh project item-list` defaults to 30 and returns newest-first; this
-     *  must be deep enough to see the WHOLE board (same silent-truncation
-     *  trap `queue-plan.ts` documents for `gh issue list`). */
+    /** FALLBACK limit, used only when the board's own `totalCount` cannot be
+     *  read (issue #2520). The read is normally sized by `computeItemLimit`
+     *  from that count, because `--limit 2000` on a 411-item board pages far
+     *  past the end and every page is a GraphQL round trip. Keep it deep
+     *  enough to see the WHOLE board anyway — `gh project item-list` defaults
+     *  to 30 and returns newest-first (the same silent-truncation trap
+     *  `queue-plan.ts` documents for `gh issue list`). */
     itemLimit: number;
     /** Skip the read entirely (`queue:plan`'s `--no-priority` escape hatch). */
     skip?: boolean;
@@ -75,6 +86,66 @@ interface ProjectItem {
     priority?: string;
 }
 
+/**
+ * Headroom added on top of the board's own `totalCount` when sizing
+ * `item-list --limit` (issue #2520). `gh project item-list --limit N` returns
+ * the N NEWEST items, not the first N — so a limit sized to EXACTLY
+ * `totalCount` silently drops the OLDEST items (which can carry a P0) the
+ * moment the board grows in the gap between the `project view` (totalCount)
+ * call and the `item-list` call. Headroom absorbs ordinary growth in that
+ * gap; `isPossiblyTruncated` still catches growth that outpaces it.
+ */
+export const ITEM_LIMIT_HEADROOM = 50;
+
+/**
+ * Size the `item-list --limit` to the board's own `totalCount` (plus
+ * `ITEM_LIMIT_HEADROOM`) instead of a static guess — `--limit 2000` on a
+ * 411-item board pages far past the end, and every page is a GraphQL round
+ * trip, on a budget several sessions share (issue #2520). Falls back only
+ * when `totalCount` itself could not be read (unknown/non-numeric shape).
+ *
+ * The headroom exists because `totalCount` is read a moment BEFORE
+ * `item-list` runs: sizing the limit to exactly `totalCount` means a board
+ * that grows in that gap gets its OLDEST items silently dropped by `gh`
+ * (which returns the newest `limit` items, not the first `limit`). See
+ * `isPossiblyTruncated` for the guard that still fires when growth outpaces
+ * the headroom.
+ */
+export function computeItemLimit(
+    totalCount: number | undefined,
+    fallback: number
+): number {
+    if (
+        typeof totalCount !== "number" ||
+        !Number.isFinite(totalCount) ||
+        totalCount <= 0
+    ) {
+        return fallback;
+    }
+    return totalCount + ITEM_LIMIT_HEADROOM;
+}
+
+/**
+ * Whether an `item-list --limit N` read may have been truncated.
+ *
+ * `gh project item-list --limit N` returns the N NEWEST items when the board
+ * has more than N — never the first N. That means the only safe signal is
+ * whether the response FILLED the requested window: `itemsLength >= limit`
+ * means the read cannot prove the oldest items weren't cut, while a response
+ * strictly under the limit proves it saw everything the board had. Gate on
+ * the window, never on comparing back to the `totalCount` read a moment
+ * earlier — `totalCount` itself can be stale by the time `item-list` runs, so
+ * a `< totalCount` check fires in the harmless direction (board shrank) and
+ * is structurally unable to fire in the harmful one (board grew): the exact
+ * inversion issue #2520 found and fixed.
+ */
+export function isPossiblyTruncated(
+    itemsLength: number,
+    limit: number
+): boolean {
+    return itemsLength >= limit;
+}
+
 export function fetchBoardPriority(
     opts: BoardPriorityOptions
 ): Record<number, BoardPriority> {
@@ -89,38 +160,10 @@ export function fetchBoardPriority(
         return {};
     }
 
-    let raw: string;
-    try {
-        raw = run([
-            "project",
-            "item-list",
-            opts.projectNumber,
-            "--owner",
-            opts.owner,
-            "--format",
-            "json",
-            "--limit",
-            String(opts.itemLimit),
-        ]);
-    } catch (err) {
-        opts.onError(
-            `cannot read project ${opts.owner}/${opts.projectNumber}: ${(err as Error).message}\n` +
-                `  The board carries the Priority field the queue sorts on. Fix the access — \n` +
-                `  \`gh auth refresh -s read:project\` — or re-run with --no-priority to plan on\n` +
-                `  the default order deliberately.`
-        );
-        return {};
-    }
-
-    const items = (JSON.parse(raw) as { items?: ProjectItem[] }).items;
-    if (!Array.isArray(items)) {
-        opts.onError(
-            "project item-list returned no `items` array — the CLI shape changed"
-        );
-        return {};
-    }
-
-    // A limit is a guess; `totalCount` is the answer.
+    // A static limit is a guess; the board's own `totalCount` is the answer —
+    // and it is read FIRST, because it is what sizes the item-list window
+    // (issue #2520). `opts.itemLimit` survives only as the fallback for a
+    // count that cannot be read.
     let total: { items?: { totalCount?: number } };
     try {
         total = JSON.parse(
@@ -141,10 +184,49 @@ export function fetchBoardPriority(
         return {};
     }
     const expected = total.items?.totalCount;
-    if (typeof expected === "number" && items.length < expected) {
+    const limit = computeItemLimit(expected, opts.itemLimit);
+
+    let raw: string;
+    try {
+        raw = run([
+            "project",
+            "item-list",
+            opts.projectNumber,
+            "--owner",
+            opts.owner,
+            "--format",
+            "json",
+            "--limit",
+            String(limit),
+        ]);
+    } catch (err) {
         opts.onError(
-            `project item-list returned ${items.length} of ${expected} items — truncated.\n` +
-                `  Raise the itemLimit passed to fetchBoardPriority.`
+            `cannot read project ${opts.owner}/${opts.projectNumber}: ${(err as Error).message}\n` +
+                `  The board carries the Priority field the queue sorts on. Fix the access — \n` +
+                `  \`gh auth refresh -s read:project\` — or re-run with --no-priority to plan on\n` +
+                `  the default order deliberately.`
+        );
+        return {};
+    }
+
+    const items = (JSON.parse(raw) as { items?: ProjectItem[] }).items;
+    if (!Array.isArray(items)) {
+        opts.onError(
+            "project item-list returned no `items` array — the CLI shape changed"
+        );
+        return {};
+    }
+
+    // `gh` returns the NEWEST `limit` items when the board has more than
+    // `limit` — never the first `limit` — so hitting the ceiling exactly is
+    // the only signal that the read may have silently dropped the OLDEST
+    // items (issue #2520: a `< expected` check here fires only in the
+    // harmless direction and can never catch the harmful one).
+    if (isPossiblyTruncated(items.length, limit)) {
+        opts.onError(
+            `project item-list returned ${items.length} items — at or above the sized limit (${limit}),\n` +
+                `  so the read cannot prove nothing was truncated. The board likely grew past the\n` +
+                `  ${typeof expected === "number" ? `${expected}-item` : "expected"} count taken a moment earlier — re-run the read.`
         );
         return {};
     }
