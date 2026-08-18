@@ -1,9 +1,19 @@
 ---
 title: gatherLoopStatus's sequential gh calls can take ~20-25s, longer than the /api/loop-status cache TTL
 discoveredBy: 2519
-status: draft
+status: declined
 confidence: medium
 ---
+
+**Resolved directly, not filed.** The PR #2545 review (finding 2) re-framed
+this against the panel's poll interval rather than as an abstract latency
+number: with a 10s cache TTL and a gather that takes longer than 10s, NO poll
+is ever served from cache, which is a defect, not a product decision to defer.
+Fixed in the #2545 round-2 fixup — `scripts/lib/board-priority.ts`'s read now
+has its own 5-minute cache (`getPriorityCached` in `telemetry-serve.ts`),
+decoupled from the rest of the gather, which keeps the 30s outer TTL below.
+Declining rather than promoting to `triaged`/an issue: there is no remaining
+gap to track.
 
 **What is wrong.** `gatherLoopStatus` (`scripts/loop-status.ts`) makes roughly
 seven sequential shells: `fetchClaimedIssues`, `fetchOpenPrBranches`,
