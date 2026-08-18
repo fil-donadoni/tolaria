@@ -183,3 +183,47 @@ A dry run never lands anything (`claude` isn't actually invoked to do the
 work), so the TOTAL open count and green-sha never move — the no-progress
 guard is doing exactly its job. This is not a bug to fix; don't read it as
 one.
+
+## Dead passes — a pass that ends its turn waiting on a background job
+
+Under `claude -p` the end of the turn IS the end of the process. There is no
+later notification, so a pass that starts a gate in the background and closes
+its turn saying it will resume when notified never resumes: the process exits
+with the batch claimed and nothing released.
+
+Observed 2026-08-17, four consecutive passes, whole transcripts of a few
+hundred bytes each:
+
+```
+"Waiting on background push + full test baseline; both will notify when done."
+"Push gate still running… Waiting for completion notification before claiming."
+"Batch claimed (#2445, #1969, #1851, #1852)… waiting for that background job"
+```
+
+The queue read 200 → 196 across six passes and the driver stopped on
+`no-progress`, which described the symptom and hid the cause.
+
+**The tell is the size of the pass log.** A pass that did real work leaves
+kilobytes — a receipt naming issues, PRs and gate counts. A few hundred bytes
+means it died on its feet:
+
+```bash
+ls -la .claude/telemetry/loop-drain/
+```
+
+**The residue** is claims and worktrees nothing will release:
+
+```bash
+bun run loop:doctor        # claims with no branch and no PR; --release drops them
+bun run wt:gc              # worktrees left behind; --yes removes the finished ones
+```
+
+`loop:doctor` holds a claim younger than two hours as `suspect` rather than
+releasing it: no branch and no PR is also exactly what a HEALTHY pass looks
+like between claiming its batch and pushing the first branch, and the sessions
+share one GitHub account, so a wrong release unclaims live work.
+
+**The rule this produced** is in the frame (§ Running unattended): in a headless
+pass nothing waits on a background job. Redirect a gate to a file and read the
+file — `deny-guard.sh` § 3 already forbids piping it into a pager, because the
+pipeline's exit code would be the pager's.
