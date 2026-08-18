@@ -20,10 +20,20 @@ import {
     ensureSeatsMigrated,
     eventHasInlinePayload,
     hydrateSeats,
+    internSeatRow,
     saveSeatPayload,
     saveSeats,
     saveSelection,
+    seatRowNeedsInterning,
 } from "../limitedSeatStore";
+import { resolveCardMeta } from "../limitedCardMeta";
+import { getAllCards, getPrintsForCard } from "../cards/catalogue";
+import { startDraft } from "../limited/draftEngine";
+import {
+    buildCubePool,
+    CUBE_PACK_SIZE,
+    CUBE_SOURCE_KEY,
+} from "../limited/cube";
 
 // --- In-memory db ------------------------------------------------------------
 
@@ -45,11 +55,22 @@ function makeDb(initial: Record<string, Row[]>) {
 
 // --- Fixtures ----------------------------------------------------------------
 
+/** `sf-N` resolves to NOTHING in the card registry, and that is deliberate:
+ *  since the card payload is interned (issue #2507) a stored card is only its
+ *  `scryfallId`, so what a seat hydrates back to is whatever
+ *  `convex/limitedCardMeta.ts` resolves — and for an unresolvable id that is
+ *  the producers' own fallback, `cardId === cardName === scryfallId`
+ *  (`meta?.cardId ?? drawn.scryfallId` in `generateSealedPools` /
+ *  `generateRoundPacks`). Writing the fixture in that shape keeps every
+ *  round-trip assertion below an exact identity AND makes the whole file
+ *  exercise the fail-closed path. Resolution of a REAL registry id, and the
+ *  legacy rows that still store their own pair, get their own block at the
+ *  bottom of this file. */
 function card(n: number): LimitedPoolCard {
     return {
         scryfallId: `sf-${n}`,
-        cardId: `card-${n}`,
-        cardName: `Card ${n}`,
+        cardId: `sf-${n}`,
+        cardName: `sf-${n}`,
     };
 }
 
@@ -96,14 +117,31 @@ function makeFixture({ inline = false }: { inline?: boolean } = {}) {
                   } as unknown as Row;
               }),
     };
+    // Child rows carry the INTERNED shape (issue #2507) — `scryfallId` only,
+    // plus `pickId` on a pack card. That is what the store writes, so a
+    // fixture in the pre-intern shape would make every dirty-check assertion
+    // below measure the backfill's read-repair instead of the dirty check.
     const seatRows: Row[] = inline
         ? []
         : seats.map((seat, i) => ({
               _id: `limitedSeats-${i}`,
               eventId: "event-1",
               seatIndex: seat.seatIndex,
-              ...(seat.pool ? { pool: seat.pool } : {}),
-              ...(seat.currentPack ? { currentPack: seat.currentPack } : {}),
+              ...(seat.pool
+                  ? {
+                        pool: seat.pool.map((c) => ({
+                            scryfallId: c.scryfallId,
+                        })),
+                    }
+                  : {}),
+              ...(seat.currentPack
+                  ? {
+                        currentPack: seat.currentPack.map((c) => ({
+                            scryfallId: c.scryfallId,
+                            pickId: c.pickId,
+                        })),
+                    }
+                  : {}),
           }));
     const db = makeDb({
         limitedEvents: [eventRow],
@@ -401,5 +439,362 @@ describe("limitedSeatStore — projection agreement", () => {
         expect(projected.seats[1].poolCount).toBe(2);
         // The privacy strip is unchanged: another seat's cards are still null.
         expect(projected.seats[1].pool).toBeNull();
+    });
+});
+
+// --- Card payload interning (issue #2507) ------------------------------------
+
+/** `count` real registry ids, as PRINT ids where the definition has one — the
+ *  shape a Booster actually draws (`generateBooster` yields printings, and
+ *  `printById` aliases each into the registry so `resolveCardMeta` maps it
+ *  back to the canonical `cardId`). Taken from the live catalogue rather than
+ *  hard-coded so this cannot rot against a card being renamed or re-set. */
+function realScryfallIds(count: number): string[] {
+    const ids: string[] = [];
+    for (const def of getAllCards()) {
+        if (ids.length >= count) break;
+        ids.push(getPrintsForCard(def.id)[0] ?? def.id);
+    }
+    if (ids.length < count) {
+        throw new Error(`catalogue has fewer than ${count} cards`);
+    }
+    return ids;
+}
+
+/** `count` Pool cards in the shape `generateSealedPools` writes them. */
+function realPoolCards(count: number): LimitedPoolCard[] {
+    return realScryfallIds(count).map((id) => {
+        const { pickId, ...rest } = producerPackCard(id, "unused");
+        void pickId;
+        return rest;
+    });
+}
+
+/** A pack card exactly as the three producers write one — `generateRoundPacks`
+ *  / `generateCubeRoundPacks` (`convex/limited/draftEngine.ts`) and, minus the
+ *  `pickId`, `generateSealedPools` (`convex/limited/eventLogic.ts`). Spelled
+ *  out here rather than imported so these tests are written from the producer
+ *  census, not from the seam's own expansion. */
+function producerPackCard(scryfallId: string, pickId: string) {
+    const meta = resolveCardMeta(scryfallId);
+    return {
+        scryfallId,
+        cardId: meta?.cardId ?? scryfallId,
+        cardName: meta?.cardName ?? scryfallId,
+        pickId,
+    };
+}
+
+function emptyEventFixture() {
+    const eventRow: Row = {
+        _id: "event-1",
+        createdBy: "alice",
+        type: "draft",
+        status: "started",
+        seatCount: 1,
+        packSlots: ["lea"],
+        createdAt: 1,
+        updatedAt: 1,
+        seats: [{ seatIndex: 0, userId: "alice" }],
+    };
+    return makeDb({
+        limitedEvents: [eventRow],
+        limitedSeats: [],
+        limitedSelections: [],
+    });
+}
+
+describe("limitedSeatStore — card payload interning (issue #2507)", () => {
+    it("stores only scryfallId (+ pickId), never the derived pair", async () => {
+        const { ctx, seatRows } = emptyEventFixture();
+        const ids = realScryfallIds(3);
+        await saveSeats(ctx, EVENT_ID, [
+            {
+                seatIndex: 0,
+                userId: "alice",
+                pool: [producerPackCard(ids[0], "x")].map(
+                    ({ pickId, ...rest }) => {
+                        void pickId;
+                        return rest;
+                    }
+                ),
+                currentPack: [producerPackCard(ids[1], "r0-p0-c0")],
+                packQueue: [[producerPackCard(ids[2], "r0-p1-c0")]],
+            },
+        ]);
+
+        const stored = seatRows()[0];
+        const cards = [
+            ...(stored.pool as object[]),
+            ...(stored.currentPack as object[]),
+            ...(stored.packQueue as object[][]).flat(),
+        ];
+        for (const c of cards) {
+            expect(Object.keys(c).sort()).not.toContain("cardId");
+            expect(Object.keys(c).sort()).not.toContain("cardName");
+        }
+        expect(stored.pool).toEqual([{ scryfallId: ids[0] }]);
+        expect(stored.currentPack).toEqual([
+            { scryfallId: ids[1], pickId: "r0-p0-c0" },
+        ]);
+        expect(stored.packQueue).toEqual([
+            [{ scryfallId: ids[2], pickId: "r0-p1-c0" }],
+        ]);
+    });
+
+    it("expands EVERY queued pack, resolvable and not, pickIds intact", async () => {
+        // `packQueue` is the array that is easiest to leave unexpanded and
+        // worst to leave unexpanded. A queued pack is dequeued into
+        // `currentPack`, and `applyPick` (`convex/limited/draftEngine.ts`)
+        // copies the trio card-for-card into `pool` — so an unexpanded entry
+        // lands in the Pool carrying `cardId: undefined`, and
+        // `poolFromLimitedPoolCards` (`convex/limited/poolResolution.ts`)
+        // dedups the Pool multiset BY `cardId`: every card in the seat would
+        // collapse onto that one key. Two packs, so the nesting is exercised,
+        // and one card the registry cannot resolve, so the producers' own
+        // fallback identity is asserted through the queue too.
+        const { ctx, event } = emptyEventFixture();
+        const ids = realScryfallIds(2);
+        const missing = "no-such-scryfall-id";
+        expect(resolveCardMeta(missing)).toBeNull();
+        const queue = [
+            [
+                producerPackCard(ids[0], "r1-p0-c0"),
+                producerPackCard(missing, "r1-p0-c1"),
+            ],
+            [producerPackCard(ids[1], "r2-p0-c0")],
+        ];
+        // Guards the guard: a fixture whose "real" ids resolved to nothing
+        // would assert only the fallback branch, where `cardName` is the id.
+        expect(queue[0][0].cardName).not.toBe(ids[0]);
+        expect(queue[1][0].cardName).not.toBe(ids[1]);
+
+        await saveSeats(ctx, EVENT_ID, [
+            { seatIndex: 0, userId: "alice", packQueue: queue },
+        ]);
+        const [seat] = await hydrateSeats(ctx, event());
+        expect(seat.packQueue).toEqual(queue);
+    });
+
+    it("hydrates a real Scryfall id back to its resolved cardId and name", async () => {
+        const { ctx, event } = emptyEventFixture();
+        const [id] = realScryfallIds(1);
+        const expected = producerPackCard(id, "r0-p0-c0");
+        // Guards the guard: a fixture id that resolved to NOTHING would make
+        // this test pass vacuously against the fallback branch, where
+        // `cardName` is the id itself. (`cardId` is not the tell — a card's
+        // home printing legitimately has `printId === definitionId`.)
+        expect(expected.cardName).not.toBe(id);
+        expect(expected.cardName.length).toBeGreaterThan(0);
+
+        await saveSeats(ctx, EVENT_ID, [
+            { seatIndex: 0, userId: "alice", currentPack: [expected] },
+        ]);
+        const [seat] = await hydrateSeats(ctx, event());
+        expect(seat.currentPack).toEqual([expected]);
+    });
+
+    it("keeps an UNRESOLVABLE card, with the producer's own fallback identity", async () => {
+        // The failure this exists to prevent: an id the registry cannot
+        // resolve must not drop out of the Pool, become null, or acquire a
+        // sentinel. `poolFromLimitedPoolCards` dedups the Pool multiset by
+        // `cardId`, so a card whose id changed between write and read would
+        // corrupt the pool rather than merely look wrong.
+        const { ctx, event } = emptyEventFixture();
+        const missing = "no-such-scryfall-id";
+        expect(resolveCardMeta(missing)).toBeNull();
+        const asProducerWroteIt = {
+            scryfallId: missing,
+            cardId: missing,
+            cardName: missing,
+        };
+
+        await saveSeats(ctx, EVENT_ID, [
+            {
+                seatIndex: 0,
+                userId: "alice",
+                pool: [asProducerWroteIt, ...realPoolCards(1)],
+            },
+        ]);
+        const [seat] = await hydrateSeats(ctx, event());
+        expect(seat.pool).toHaveLength(2);
+        expect(seat.pool?.[0]).toEqual(asProducerWroteIt);
+    });
+
+    it("round-trips a REAL dealt cube round byte-identically", async () => {
+        // The determinism guarantee (ADR 0062) at the persistence layer: what
+        // the engine dealt is what a later hydration reads, card for card,
+        // field for field. Driven through the real `startDraft` and the real
+        // `resolveCardMeta`, so nothing here is a transcription of the seam's
+        // own expansion — the pack cards come from the same code path a live
+        // draft's do.
+        const { ctx, event } = emptyEventFixture();
+        const dealt = startDraft(
+            [{ seatIndex: 0, userId: "alice" }],
+            [CUBE_SOURCE_KEY],
+            4242,
+            () => null,
+            resolveCardMeta,
+            undefined,
+            buildCubePool()
+        );
+        const pack = dealt.seats[0].currentPack;
+        const before = structuredClone(pack);
+        expect(before).toHaveLength(CUBE_PACK_SIZE);
+
+        await saveSeats(ctx, EVENT_ID, [
+            { seatIndex: 0, userId: "alice", currentPack: pack },
+        ]);
+        const [seat] = await hydrateSeats(ctx, event());
+        expect(seat.currentPack).toEqual(before);
+    });
+});
+
+describe("limitedSeatStore — intern backfill (issue #2507)", () => {
+    /** One seat row in the PRE-intern shape: cards carrying the derived pair
+     *  the intern removed. */
+    function legacyFixture() {
+        const pack = [producerPackCard(realScryfallIds(2)[1], "r0-p0-c0")];
+        const poolCards = realPoolCards(1);
+        const eventRow: Row = {
+            _id: "event-1",
+            createdBy: "alice",
+            type: "draft",
+            status: "started",
+            seatCount: 1,
+            packSlots: ["lea"],
+            createdAt: 1,
+            updatedAt: 1,
+            seats: [{ seatIndex: 0, userId: "alice", poolCount: 1 }],
+        };
+        const db = makeDb({
+            limitedEvents: [eventRow],
+            limitedSeats: [
+                {
+                    _id: "limitedSeats-0",
+                    eventId: "event-1",
+                    seatIndex: 0,
+                    pool: structuredClone(poolCards),
+                    currentPack: structuredClone(pack),
+                    poolArrangement: [{ poolIndex: 0, sideboard: true }],
+                },
+            ],
+            limitedSelections: [],
+        });
+        return { ...db, pack, poolCards };
+    }
+
+    it("reads a legacy row's OWN cardId/cardName in preference to a resolve", async () => {
+        const { ctx, event, tables } = legacyFixture();
+        // Rewrite the stored pair to something the registry would never
+        // produce: if the seam re-resolved instead of trusting the row, an
+        // in-flight draft's card identities would shift under it.
+        (
+            tables.limitedSeats[0].pool as {
+                cardId: string;
+                cardName: string;
+            }[]
+        )[0].cardId = "legacy-id";
+        (
+            tables.limitedSeats[0].pool as {
+                cardId: string;
+                cardName: string;
+            }[]
+        )[0].cardName = "Legacy Name";
+
+        const [seat] = await hydrateSeats(ctx, event());
+        expect(seat.pool?.[0].cardId).toBe("legacy-id");
+        expect(seat.pool?.[0].cardName).toBe("Legacy Name");
+    });
+
+    it("interns a legacy row and leaves everything else untouched", async () => {
+        const { ctx, seatRows, pack, poolCards } = legacyFixture();
+        const row = seatRows()[0] as unknown as Doc<"limitedSeats">;
+        expect(seatRowNeedsInterning(row)).toBe(true);
+
+        await internSeatRow(ctx, row);
+
+        const after = seatRows()[0];
+        expect(after.pool).toEqual([{ scryfallId: poolCards[0].scryfallId }]);
+        expect(after.currentPack).toEqual([
+            { scryfallId: pack[0].scryfallId, pickId: pack[0].pickId },
+        ]);
+        // Pool Arrangement keys on `poolIndex`, never on card identity — it
+        // must survive the intern verbatim.
+        expect(after.poolArrangement).toEqual([
+            { poolIndex: 0, sideboard: true },
+        ]);
+    });
+
+    it("is idempotent: a second pass selects nothing and writes nothing", async () => {
+        // `migrateSeatCardPayload` (`convex/limitedEvents.ts`) is exactly this
+        // loop over `ctx.db.query("limitedSeats").take(n)`.
+        const { ctx, seatRows, writes } = legacyFixture();
+        const runPass = async () => {
+            let migrated = 0;
+            for (const row of seatRows()) {
+                const doc = row as unknown as Doc<"limitedSeats">;
+                if (!seatRowNeedsInterning(doc)) continue;
+                await internSeatRow(ctx, doc);
+                migrated++;
+            }
+            return migrated;
+        };
+
+        expect(await runPass()).toBe(1);
+        const afterFirst = structuredClone(seatRows()[0]);
+        const writesAfterFirst = writes.length;
+
+        expect(await runPass()).toBe(0);
+        expect(writes.length).toBe(writesAfterFirst);
+        expect(seatRows()[0]).toEqual(afterFirst);
+    });
+
+    it("saveSeatPayload interns the patch AND the keys it left alone", async () => {
+        // The single-seat write path merges its patch over the row's EXPANDED
+        // payload, then interns the whole thing. Both halves matter: the patch
+        // arrives in the hydrated (`LimitedEventSeat`) shape, so a raw merge
+        // would store its fat cards verbatim, and the keys the patch does not
+        // mention would stay fat forever on a legacy row — the one write path
+        // that never read-repairs.
+        const { ctx, event, seatRows, pack } = legacyFixture();
+        const patched = realPoolCards(2);
+        expect(patched[0].cardName).not.toBe(patched[0].scryfallId);
+
+        await saveSeatPayload(ctx, event(), 0, { pool: patched });
+
+        const after = seatRows()[0];
+        expect(after.pool).toEqual(
+            patched.map((c) => ({ scryfallId: c.scryfallId }))
+        );
+        expect(after.currentPack).toEqual([
+            { scryfallId: pack[0].scryfallId, pickId: pack[0].pickId },
+        ]);
+        expect(
+            seatRowNeedsInterning(
+                seatRows()[0] as unknown as Doc<"limitedSeats">
+            )
+        ).toBe(false);
+    });
+
+    it("read-repairs a legacy row on the next ordinary save", async () => {
+        // The lazy half of the backfill: any event still being written to
+        // slims itself, and then stops rewriting (the dirty check holds).
+        const { ctx, event, seatRows, writes } = legacyFixture();
+        const hydrated = await hydrateSeats(ctx, event());
+
+        await saveSeats(ctx, EVENT_ID, hydrated);
+        expect(
+            seatRowNeedsInterning(
+                seatRows()[0] as unknown as Doc<"limitedSeats">
+            )
+        ).toBe(false);
+        const seatWrites = writes.filter((w) => w.table === "limitedSeats");
+        expect(seatWrites).toHaveLength(1);
+
+        await saveSeats(ctx, EVENT_ID, await hydrateSeats(ctx, event()));
+        expect(writes.filter((w) => w.table === "limitedSeats")).toHaveLength(
+            1
+        );
     });
 });

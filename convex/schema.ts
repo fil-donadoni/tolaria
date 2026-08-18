@@ -743,13 +743,25 @@ export default defineSchema({
         eventId: v.id("limitedEvents"),
         seatIndex: v.number(),
         // Same shapes as the legacy inline fields they replace — see
-        // `convex/limited/eventTypes.ts` for the domain doc comments.
+        // `convex/limited/eventTypes.ts` for the domain doc comments — with
+        // the card payload INTERNED (issue #2507): `scryfallId` is the only
+        // card identity stored, and `cardId`/`cardName` are resolved back at
+        // the seam (`convex/limitedSeatStore.ts`) by the same
+        // `convex/limitedCardMeta.ts` lookup that produced them. They were
+        // ~3.8 KB of a 6.3 KB average row, on the table `submitPick` reads all
+        // 8 seats of per pick.
+        //
+        // Both derived fields stay DECLARED and optional so rows written
+        // before the intern keep validating and keep their own values (the
+        // seam prefers a stored one over a fresh resolve). Nothing writes
+        // them any more; `limitedEvents:migrateSeatCardPayload` drains the
+        // legacy rows, after which a cleanup can drop the fields.
         pool: v.optional(
             v.array(
                 v.object({
                     scryfallId: v.string(),
-                    cardId: v.string(),
-                    cardName: v.string(),
+                    cardId: v.optional(v.string()),
+                    cardName: v.optional(v.string()),
                 })
             )
         ),
@@ -757,8 +769,8 @@ export default defineSchema({
             v.array(
                 v.object({
                     scryfallId: v.string(),
-                    cardId: v.string(),
-                    cardName: v.string(),
+                    cardId: v.optional(v.string()),
+                    cardName: v.optional(v.string()),
                     pickId: v.string(),
                 })
             )
@@ -768,8 +780,8 @@ export default defineSchema({
                 v.array(
                     v.object({
                         scryfallId: v.string(),
-                        cardId: v.string(),
-                        cardName: v.string(),
+                        cardId: v.optional(v.string()),
+                        cardName: v.optional(v.string()),
                         pickId: v.string(),
                     })
                 )

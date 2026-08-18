@@ -27,10 +27,13 @@ import {
     eventHasInlinePayload,
     hydrateSeat,
     hydrateSeats,
+    internSeatRow,
     saveSeatPayload,
     saveSeats,
     saveSelection,
+    seatRowNeedsInterning,
 } from "./limitedSeatStore";
+import { resolveCardMeta } from "./limitedCardMeta";
 import {
     getCardByName,
     getPrintingsForCard,
@@ -89,7 +92,6 @@ import {
     MIN_SEATS,
     randomizeSeatOrder,
     releaseSeat,
-    type ResolveCardMeta,
 } from "./limited/eventLogic";
 import { evaluateDeckStrength, type DeckStrength } from "./limited/matchSim";
 import {
@@ -535,16 +537,11 @@ const draftableSetInfoValidator = v.object({
 // covers every event a user could still be seated in.
 const MY_EVENTS_SCAN_LIMIT = 500;
 
-/** Resolves a drawn Booster card's Scryfall id to the canonical Card ID +
- *  display name a Pool entry carries (the `ResolveCardMeta` injection
- *  `generateSealedPools` needs) — the only place this module touches the card
- *  registry directly. */
-const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
-    const def = tryGetDefinition(scryfallId);
-    if (!def) return null;
-    const meta = resolveDeckCardMeta(scryfallId);
-    return meta ? { cardId: meta.cardId, cardName: def.name } : null;
-};
+// `resolveCardMeta` used to live here. It moved to `convex/limitedCardMeta.ts`
+// (issue #2507) so `convex/limitedSeatStore.ts` can run the IDENTICAL
+// resolution when it expands a stored `scryfallId` back into the
+// `cardId`/`cardName` pair the pure engine expects — one definition, so the
+// seam can never drift from the producer that wrote the row.
 
 /** Resolves a drawn card's Scryfall id to the printed characteristics the Bot
  *  Drafter's Pick Heuristic scores on (issue #1113, PRD #1107 story 29) — the
@@ -2155,6 +2152,50 @@ export const migrateSeatPayload = internalMutation({
                 continue;
             }
             await ensureSeatsMigrated(ctx, event);
+            migrated++;
+        }
+        return { migrated, remaining };
+    },
+});
+
+/** Bound on the full-table scan the intern backfill does — `limitedSeats` has
+ *  no "is legacy" field to index, so it walks the table under an explicit cap
+ *  exactly as `migrateSeatPayload` walks `limitedEvents`. Eight rows per
+ *  event, so this covers the same order of events as `MY_EVENTS_SCAN_LIMIT`. */
+const SEAT_ROW_SCAN_LIMIT = 4000;
+
+/** One-shot backfill for the card-payload intern (`convex/schema.ts`, issue
+ *  #2507): rewrites every `limitedSeats` row that still stores `cardId` /
+ *  `cardName` beside the `scryfallId` they are derived from.
+ *
+ *  Not required for correctness — the seam reads a legacy row's own values in
+ *  preference to a fresh resolve, and `saveSeats` read-repairs any row it
+ *  writes to — but a finished event's rows are never written to again, and
+ *  those are precisely the rows that sit in the table costing read bytes.
+ *
+ *      bunx convex run --prod limitedEvents:migrateSeatCardPayload '{}'
+ *
+ *  Idempotent: an already-interned row fails `seatRowNeedsInterning` and is
+ *  skipped without a write, so a second run reports `migrated: 0` and writes
+ *  nothing. `limit` bounds one invocation's transaction; the returned
+ *  `remaining` says whether to run it again. */
+export const migrateSeatCardPayload = internalMutation({
+    args: { limit: v.optional(v.number()) },
+    returns: v.object({ migrated: v.number(), remaining: v.number() }),
+    handler: async (ctx, args) => {
+        const limit = args.limit ?? 200;
+        const rows = await ctx.db
+            .query("limitedSeats")
+            .take(SEAT_ROW_SCAN_LIMIT);
+        let migrated = 0;
+        let remaining = 0;
+        for (const row of rows) {
+            if (!seatRowNeedsInterning(row)) continue;
+            if (migrated >= limit) {
+                remaining++;
+                continue;
+            }
+            await internSeatRow(ctx, row);
             migrated++;
         }
         return { migrated, remaining };
