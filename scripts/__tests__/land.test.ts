@@ -103,16 +103,21 @@ describe("land.ts — the locked command", () => {
         expect(cmd).toContain("bun run check:all");
         expect(cmd).toContain("bun run test");
         expect(cmd).toContain("git push --force-with-lease origin");
-        expect(cmd).toContain("gh pr merge 2517 --squash");
+        // The merge is `pr-merge.ts` since #2536 (settle-aware retry), but
+        // what this test guards is unchanged: it is textually inside the ONE
+        // string the heavy lock wraps.
+        expect(cmd).toMatch(/bun '[^']*pr-merge\.ts' 2517/);
     });
 
-    it("never passes --delete-branch to gh pr merge (review round 2, B2)", () => {
+    it("never passes --delete-branch (review round 2, B2)", () => {
         // `gh --delete-branch` switches the LOCAL repo to the default branch
         // before deleting, and `main` is checked out in the primary
         // worktree — `land` runs from a linked worktree — so that step dies
         // with `fatal: 'main' is already used by worktree at …` AFTER the
         // API merge has already landed. Ref cleanup is done explicitly
-        // instead (see the two tests below).
+        // instead (see the two tests below). The flag's absence from the
+        // merge ARGV is asserted in pr-merge.test.ts (`mergeArgs`); this test
+        // covers the shell string `land` builds around it.
         const cmd = buildLockedCommand(base);
         expect(cmd).not.toContain("--delete-branch");
     });
@@ -165,7 +170,7 @@ describe("land.ts — the locked command", () => {
         expect(at("git push --force-with-lease")).toBeGreaterThan(
             at("bun run test")
         );
-        expect(at("gh pr merge")).toBeGreaterThan(
+        expect(at("pr-merge.ts")).toBeGreaterThan(
             at("git push --force-with-lease")
         );
     });
@@ -175,16 +180,24 @@ describe("land.ts — the locked command", () => {
         expect(cmd).toContain("bun run check:all");
         expect(cmd).toContain("bun run test");
         expect(cmd).toContain("git push --force-with-lease");
-        expect(cmd).not.toContain("gh pr merge");
+        expect(cmd).not.toContain("pr-merge.ts");
         expect(cmd).not.toContain("worktree remove");
         expect(cmd).not.toContain("green-sha");
     });
 
     it("--keep merges but skips worktree teardown", () => {
         const cmd = buildLockedCommand({ ...base, teardown: false });
-        expect(cmd).toContain("gh pr merge 2517");
+        expect(cmd).toMatch(/bun '[^']*pr-merge\.ts' 2517/);
         expect(cmd).toContain("green-sha");
         expect(cmd).not.toContain("worktree remove");
+    });
+
+    it("--keep leaves the REMOTE branch alone too, not just the worktree (#2536)", () => {
+        // `--keep` exists so the worktree survives the landing; deleting its
+        // upstream leaves that worktree with no remote to push to. Teardown
+        // is ONE decision and `--keep` opts out of all of it.
+        const cmd = buildLockedCommand({ ...base, teardown: false });
+        expect(cmd).not.toContain("git push origin --delete");
     });
 
     it("writes green-sha under the PRIMARY checkout, never the worktree", () => {
@@ -197,7 +210,7 @@ describe("land.ts — the locked command", () => {
 
     it("re-fetches origin/main AFTER the merge, before reading the tip for green-sha", () => {
         const cmd = buildLockedCommand(base);
-        const mergeIdx = cmd.indexOf("gh pr merge");
+        const mergeIdx = cmd.indexOf("pr-merge.ts");
         const refetchIdx = cmd.indexOf("git fetch origin main -q");
         const revParseIdx = cmd.indexOf("git rev-parse origin/main >");
         expect(refetchIdx).toBeGreaterThan(mergeIdx);
@@ -211,7 +224,7 @@ describe("land.ts — the locked command", () => {
         // trusts the tip enough to record it as verified-green.
         const cmd = buildLockedCommand(base);
         const oldTipIdx = cmd.indexOf("OLD_TIP=$(git rev-parse origin/main)");
-        const mergeIdx = cmd.indexOf("gh pr merge");
+        const mergeIdx = cmd.indexOf("pr-merge.ts");
         const refetchIdx = cmd.indexOf("git fetch origin main -q");
         const verifyIdx = cmd.indexOf('$OLD_TIP..origin/main" | wc -l');
         const revParseIdx = cmd.indexOf("git rev-parse origin/main >");
@@ -231,7 +244,7 @@ describe("land.ts — the locked command", () => {
         const cmd = buildLockedCommand(base);
         expect(cmd.split(" && ")[0]).toBe("unset GITHUB_TOKEN");
         expect(cmd.indexOf("unset GITHUB_TOKEN")).toBeLessThan(
-            cmd.indexOf("gh pr merge")
+            cmd.indexOf("pr-merge.ts")
         );
     });
 
@@ -241,7 +254,7 @@ describe("land.ts — the locked command", () => {
         // and bun auto-loads `.env.local` from ITS OWN cwd back into its own
         // process.env (the worktree carries the server-side bug-report PAT),
         // which gate.ts then spreads onto the `sh -c` child that runs the
-        // embedded `gh pr merge`. `sh` never reads `.env.local`, so `unset`
+        // embedded merge (`pr-merge.ts`). `sh` never reads `.env.local`, so `unset`
         // baked into the emitted command string is the one point left that
         // can remove a re-injected token. Extract the EXACT first step
         // `buildLockedCommand` produces (not a hand-written stand-in) and run
@@ -268,7 +281,7 @@ describe("land.ts — the locked command", () => {
         // without touching real git/gh: stand `rebaseStep()` in for a no-op
         // (it would otherwise hit the real network) and force the next step
         // to fail — everything after must then be skipped by `&&`
-        // short-circuit, `gh pr merge` and the rest included.
+        // short-circuit, the merge step and the rest included.
         const cmd = buildLockedCommand(base)
             .replace(rebaseStep(), "true")
             .replace("bun run check:all", "false");
@@ -291,8 +304,12 @@ describe("land.ts — the locked command", () => {
 
     // Proof-of-failure: changed `if (opts.merge)` to `if (true)` (so
     // `--no-merge` no longer omitted the merge step) — "--no-merge gates and
-    // pushes but omits the merge" went red (cmd still contained
-    // "gh pr merge"). Reverted.
+    // pushes but omits the merge" went red (cmd still contained the merge
+    // step). Reverted.
+    //
+    // Proof-of-failure (#2536): moved the remote-ref delete back OUTSIDE the
+    // `if (opts.teardown)` block — "--keep leaves the REMOTE branch alone
+    // too" went red. Reverted.
 });
 
 describe("land.ts — lockedEnv (review round 2, B1)", () => {

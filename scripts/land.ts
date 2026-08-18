@@ -2,8 +2,8 @@
 /**
  * `bun run land <PR#>` — land a merge-train PR inside ONE `gate.ts heavy`
  * invocation: fetch → rebase origin/main → check:all → test →
- * push --force-with-lease → gh pr merge --squash → write green-sha → tear
- * down the worktree.
+ * push --force-with-lease → `pr-merge.ts` (settle-aware squash merge) →
+ * write green-sha → tear down the worktree.
  *
  * WHY ONE LOCK (issue #2517). The merge-train (process-gh-issues §4 step 4,
  * Lane B) used to rebase, gate, then merge as three separate steps. Nothing
@@ -54,7 +54,10 @@
  * `GITHUB_TOKEN` as the FIRST thing the locked shell string does — the one
  * point in the pipeline `.env.local` cannot re-populate. Without EITHER
  * layer the embedded merge 403s AFTER `check:all` + `test` have already run
- * inside the lock.
+ * inside the lock. The merge is now `bun scripts/pr-merge.ts` (#2536), which
+ * is a THIRD bun process reading `.env.local` from the worktree cwd — it goes
+ * through `lib/gh`'s `gh()`, whose `netEnv()` strips the PAT for the `gh`
+ * child, so the same rule holds one level deeper.
  *
  * MERGE VERIFICATION + REF CLEANUP. `gh pr merge` runs WITHOUT
  * `--delete-branch`: `gh` switches the local repo to the default branch
@@ -79,6 +82,9 @@
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
+
+// Computed from this FILE's directory for the same reason `GATE` is, below.
+const PR_MERGE = resolve(__dirname, "pr-merge.ts");
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -248,7 +254,14 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // to the end, past the green-sha write, each step wrapped so it
         // cannot gate `land`'s exit status.
         steps.push("OLD_TIP=$(git rev-parse origin/main)");
-        steps.push(`gh pr merge ${opts.pr} --squash`);
+        // NOT a bare `gh pr merge`: the force-push above invalidates GitHub's
+        // cached view of the PR, and the merge is refused while that
+        // recomputes — twice on 2026-08-18, on trees that had not changed
+        // (#2536). `pr-merge.ts` polls that window out and retries a
+        // transient refusal WITHOUT re-running the gate; a real conflict
+        // still fails loudly. It stays inside this string, hence inside the
+        // one lock, for the reason the merge was put here at all.
+        steps.push(`bun ${shQuote(PR_MERGE)} ${opts.pr}`);
         // `gh pr merge` lands via the API — it does not update this worktree's
         // local `origin/main`, so re-fetch before reading the new tip.
         steps.push("git fetch origin main -q");
@@ -259,10 +272,15 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
         // (stale remote state, an already-deleted branch, …) can never turn
         // a MERGED PR's landing into a reported failure.
-        steps.push(
-            `(git push origin --delete ${shQuote(opts.branch)} || true)`
-        );
+        //
+        // ALL of it sits behind `--keep`, the remote ref included (#2536):
+        // deleting the upstream of a worktree the user asked to keep leaves
+        // that worktree's branch with no remote to push to — teardown means
+        // teardown, and `--keep` means none of it.
         if (opts.teardown) {
+            steps.push(
+                `(git push origin --delete ${shQuote(opts.branch)} || true)`
+            );
             steps.push(
                 `(git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)} || true)`
             );
