@@ -23,15 +23,23 @@ validation even runs.
 from: [...BASIC_LAND_SUBTYPES], count: 2 }`) — no per-kind override exists to
 admit a repeated id for `subtypes` specifically.
 
-**Why it may not deserve its own issue.** Choosing the same type twice is
-functionally a no-op — "basic lands of Forest are Forest" changes nothing on
-the battlefield — so the player never loses a MEANINGFUL choice, only a
-degenerate one with zero game impact. The duplicate-id rejection is also the
+**What it costs, precisely.** It does NOT strand a prompt: the throw is raised
+before anything is written, the submission rolls back and the pending choice
+persists, so the player simply re-picks. It is a NARROWING OF THE LEGAL CHOICE
+SPACE, not a freeze — and the narrowed-away answer is not always worthless.
+"Basic lands of X are X" is a board no-op, but the null pick is a real tactical
+option whenever every DISTINCT pair would hurt the chooser's own mana base: two
+players on Islands only, Island→Island costs nothing while Island→Mountain
+shuts off the chooser's own blue. `main`'s two sequential `requestOptionChoice`
+picks admitted that answer; the shared as-enters submit path does not.
+
+**Why it may not deserve its own issue.** The duplicate-id rejection is the
 generic seam's own invariant (shared by every `option-pick`-shaped as-enters
 kind, not something this issue's wiring introduced), so relaxing it is a
-seam-wide decision, not a Illusionary-Terrain-specific fix — and it is
+seam-wide decision, not an Illusionary-Terrain-specific fix — and it is
 unclear any OTHER as-enters `subtypes` card (present or future) would ever
-want a repeated pick to be legal. Flagging for triage rather than fixing
-inline, since "generalize, don't special-case" argues against carving a
-per-kind exception into the shared validator for a change with no observable
-game effect.
+want a repeated pick to be legal. The one shipped card affected loses one
+defensive line on a narrow board state, with no other observable regression.
+Flagging for triage rather than fixing inline, since "generalize, don't
+special-case" argues against carving a per-kind exception into the shared
+validator for that payoff without a decision on the seam.

@@ -11094,7 +11094,14 @@ function asEntersCopyCandidates(
  *  `payLife` arm has already overwritten the queued `body`'s `options` with
  *  the single option matching the life just paid, so by the time this runs
  *  the "choice" is which body a creature already committed a specific amount
- *  of life for — not a real one, same rule as the zero-candidate `discard`. */
+ *  of life for — not a real one, same rule as the zero-candidate `discard`.
+ *
+ *  The third is a `payLife` whose live maximum is 0 — an empty opponent board
+ *  under Nameless Race's `opponentBoardCount` cap, or a chooser at 0 life
+ *  (CR 119.4b: "players can always pay 0 life"). The only submittable answer
+ *  is "pay 0", which is what `main`'s `resolveSteps` short-circuited to
+ *  without a prompt; offering a one-button "Pay 0 life" dialog would be a
+ *  UX regression, not a tactical zero-branch. */
 function forcedAsEntersAnswer(
     state: GameState,
     entry: StagedEntry,
@@ -11107,6 +11114,11 @@ function forcedAsEntersAnswer(
     }
     if (choice?.kind === "body") {
         return choice.options.length === 1 ? [choice.options[0].id] : undefined;
+    }
+    if (choice?.kind === "payLife") {
+        return asEntersPayLifeMax(state, entry, choice.cap) === 0
+            ? ["0"]
+            : undefined;
     }
     if (choice?.kind !== "discard") return undefined;
     const candidates = asEntersDiscardCandidates(state, entry, choice.filter);
@@ -11234,10 +11246,15 @@ function applyAsEntersAnswer(
             return {};
         }
         case "payLife": {
-            // CR 119.4 — paying life is a COST, not life loss: no
-            // "whenever you lose life" trigger sees it.
+            // CR 119.4 — "If a player pays life, the payment is subtracted
+            // from their life total; in other words, the player loses that
+            // much life." So an as-enters payment is life LOSS: it runs the
+            // CR 614 lifeloss replacement chain and emits LIFE_LOST (CR 119.3)
+            // for every "whenever you lose life" listener (Oath of Lim-Dûl),
+            // exactly like the `mayPay` cost choke point does. Routed through
+            // the shared `loseLifeEmitting` rather than a raw subtraction.
             const paid = Math.max(0, Number(selected[0] ?? "0"));
-            getPlayer(state, entry.controllerId).life -= paid;
+            loseLifeEmitting(state, entry.controllerId, paid);
             // CR 604.3 (Nameless Race, #2467) — a `body` immediately queued
             // after this `payLife` is the composition ADR 0100 D3 names: the
             // body the permanent enters with is DERIVED from the life just

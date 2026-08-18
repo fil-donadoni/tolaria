@@ -34,6 +34,7 @@ import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import {
     CHOICE_CANDIDATE_GENERATORS,
     CHOICE_TOP_K,
+    OPTION_PICK_COMBO_CAP,
     choiceCandidates,
     hasChoiceCandidateGenerator,
     isSearchableChoiceNode,
@@ -57,6 +58,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup";
 import { crawWurm, grizzlyBears } from "../../cards/sets/lea/green";
+import { illusionaryTerrain } from "../../cards/sets/ice/blue";
 import { forest } from "../../cards/sets/lea/colorless";
 import { lightningBolt } from "../../cards/sets/lea/red";
 import { blackLotus } from "../../cards/sets/lea/colorless";
@@ -1786,5 +1788,130 @@ describe("choice-node candidate generation computed once per node visit (issue #
 
         expect(second).toBe(first); // same array reference — cache hit
         expect(spy).toHaveBeenCalledTimes(first.length);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Multi-pick option-pick (issue #2467)
+// ---------------------------------------------------------------------------
+
+describe("multi-pick `option-pick` choice nodes (CR 614.12a as-enters `subtypes`, issue #2467)", () => {
+    /** Illusionary Terrain parked on its as-enters pair pick — the FIRST
+     *  `option-pick` in the engine with `count > 1` (every other site, the
+     *  `optionChoice` Op included, hardcodes `count: 1`). */
+    function stateWithTerrainPairPick(): GameState {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        pushSpell(state, illusionaryTerrain.id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.count).toBe(2);
+        return state;
+    }
+
+    it("the generator emits SUBMITTABLE answers: every move carries `min` distinct ids", () => {
+        const state = stateWithTerrainPairPick();
+        const moves = enumerateMoves(state, "p1");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(move.kind).toBe("resolution-choice");
+            const ids = (move as Extract<Move, { kind: "resolution-choice" }>)
+                .cardInstanceIds;
+            expect(ids).toHaveLength(2);
+            expect(new Set(ids).size).toBe(2); // no duplicate-id rejection
+        }
+    });
+
+    it("EVERY enumerated move is legal at the real submit boundary (no illegal-only node)", () => {
+        // The bug this guards: one-id-per-option made `applyMoveInSearch`
+        // throw "Select at least 2" on every move the search enumerated, and
+        // `applyMoveInSearch` is called with NO try/catch in either rollout or
+        // tree descent (`search.ts`) — a hard throw out of the search.
+        const moves = enumerateMoves(stateWithTerrainPairPick(), "p1");
+        for (const move of moves) {
+            const fresh = stateWithTerrainPairPick();
+            const head = fresh.pendingChoices![0];
+            applyMoveInSearch(fresh, "p1", {
+                ...(move as Extract<Move, { kind: "resolution-choice" }>),
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+            });
+            const terrain = fresh.players[0].battlefield.find(
+                (c) => c.card.id === illusionaryTerrain.id
+            )!;
+            expect(terrain.chosenSubtypes).toHaveLength(2);
+            expect(fresh.pendingChoices?.length ?? 0).toBe(0);
+        }
+    });
+
+    it("the node is a real decision node the search can descend", () => {
+        const state = stateWithTerrainPairPick();
+        expect(isSearchableChoiceNode(state.pendingChoices![0])).toBe(true);
+        expect(decidingPlayer(state)).toBe("p1");
+    });
+
+    it("combination enumeration stays bounded (generator cap + top-K)", () => {
+        const state = stateWithTerrainPairPick();
+        const choice = state.pendingChoices![0];
+        // Assert against the GENERATOR, not `choiceCandidates`: the latter
+        // slices ANY output to K, so only the raw generator can fail.
+        const raw = CHOICE_CANDIDATE_GENERATORS["option-pick"]!(state, choice);
+        expect(raw.length).toBeLessThanOrEqual(OPTION_PICK_COMBO_CAP);
+        expect(choiceCandidates(state, choice).length).toBeLessThanOrEqual(
+            CHOICE_TOP_K
+        );
+    });
+
+    it("a single-pick option-pick is UNCHANGED: one candidate per option", () => {
+        // The regression risk of the cardinality fix — every modal spell and
+        // every as-enters `body`/`mode`/`payLife` is `count: 1`.
+        const id = registerSpellScript("test-2467-single-pick-unchanged", [
+            {
+                op: "optionChoice",
+                prompt: "Choose one.",
+                modes: [
+                    {
+                        id: "gain",
+                        label: "You gain 5 life",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 5 },
+                        ],
+                    },
+                    {
+                        id: "kill",
+                        label: "Target opponent loses 5 life",
+                        effects: [
+                            { op: "loseLife", player: "opponent", amount: 5 },
+                        ],
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const raw = CHOICE_CANDIDATE_GENERATORS["option-pick"]!(
+            state,
+            state.pendingChoices![0]
+        );
+        expect(raw.map((c) => c.key)).toEqual([
+            "option-pick:gain",
+            "option-pick:kill",
+        ]);
+        for (const c of raw) {
+            expect(
+                (c.move as Extract<Move, { kind: "resolution-choice" }>)
+                    .cardInstanceIds
+            ).toHaveLength(1);
+        }
     });
 });
