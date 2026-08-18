@@ -16,7 +16,8 @@
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { Database } from "bun:sqlite";
-import { gatherLoopStatus } from "./loop-status";
+import { gatherLoopStatus, fetchPriorityGracefully } from "./loop-status";
+import type { GracefulPriority } from "./loop-status";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
@@ -360,16 +361,55 @@ function runsView(url: URL) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /api/loop-status (#2519) — `gatherLoopStatus` shells out to `gh`/`git`
-// (1-2s), so this caches the PROMISE, not just the resolved value: several
-// open tabs (or one tab re-polling every 10s) hitting this route inside the
-// same window must share a single in-flight gather rather than each firing
-// their own round of `gh` calls. A failed gather is NOT cached — the next
-// request retries rather than being stuck replaying a stale error for the
-// rest of the TTL.
+// /api/loop-status (#2519) — `gatherLoopStatus` shells out to `gh`/`git`, so
+// this caches the PROMISE, not just the resolved value: several open tabs
+// (or one tab re-polling every 10s) hitting this route inside the same
+// window must share a single in-flight gather rather than each firing their
+// own round of `gh` calls. A failed gather is NOT cached — the next request
+// retries rather than being stuck replaying a stale error for the rest of
+// the TTL.
+//
+// TWO caches, not one (PR #2545 review, finding 2). Measured on this branch:
+//   first curl  = 200, 41.18s
+//   "cached" curl = 200, 27.60s  (NOT actually a hit — the 10s TTL had
+//                                 already expired mid-gather, so this was a
+//                                 second full gather, just a faster one)
+// With a single 10s TTL, no poll is EVER served from cache, because the
+// gather itself takes far longer than the TTL — an open dashboard tab keeps
+// a `gh project item-list --limit 2000` (+ a `project view` cross-check)
+// permanently in flight, which is exactly the API-rate-limit burn the
+// issue's cache requirement exists to prevent.
+//
+// The board-priority read is what dominates that latency, and it is also
+// the LEAST volatile part of the payload — the `Priority` field on the
+// board does not change every 10 seconds — so it gets its own cache with a
+// much longer TTL, decoupled from claims/queue/receipts, which stay fast and
+// keep the short TTL below. In steady state this means: at most one slow
+// board read every `PRIORITY_TTL_MS`, and every OTHER poll — including the
+// very next one after a cold start — resolves in low single-digit seconds
+// because it only pays for git/gh calls that were never the bottleneck.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LOOP_STATUS_TTL_MS = 10_000;
+const PRIORITY_TTL_MS = 5 * 60_000;
+let priorityCache: {
+    promise: Promise<GracefulPriority>;
+    expiresAt: number;
+} | null = null;
+
+function getPriorityCached(): Promise<GracefulPriority> {
+    const now = Date.now();
+    if (priorityCache && priorityCache.expiresAt > now) {
+        return priorityCache.promise;
+    }
+    const promise = (async () => fetchPriorityGracefully(false))();
+    priorityCache = { promise, expiresAt: now + PRIORITY_TTL_MS };
+    promise.catch(() => {
+        if (priorityCache?.promise === promise) priorityCache = null;
+    });
+    return promise;
+}
+
+const LOOP_STATUS_TTL_MS = 30_000;
 let loopStatusCache: { promise: Promise<unknown>; expiresAt: number } | null =
     null;
 
@@ -378,7 +418,10 @@ function getLoopStatusCached(): Promise<unknown> {
     if (loopStatusCache && loopStatusCache.expiresAt > now) {
         return loopStatusCache.promise;
     }
-    const promise = (async () => gatherLoopStatus())();
+    const promise = (async () => {
+        const priorityOverride = await getPriorityCached();
+        return gatherLoopStatus({ priorityOverride });
+    })();
     loopStatusCache = { promise, expiresAt: now + LOOP_STATUS_TTL_MS };
     promise.catch(() => {
         // Only clear if nothing newer has already replaced this entry.

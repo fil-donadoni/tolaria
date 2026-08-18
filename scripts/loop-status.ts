@@ -24,7 +24,11 @@
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import { primaryCheckout } from "./lib/primary-checkout";
-import { fetchBoardPriority, type BoardPriority } from "./lib/board-priority";
+import {
+    fetchBoardPriority,
+    NO_PRIORITY_WARNING,
+    type BoardPriority,
+} from "./lib/board-priority";
 import {
     newestBatchDir,
     readReceiptsFromDir,
@@ -69,24 +73,42 @@ const PROJECT_NUMBER = process.env.TOLARIA_PROJECT_NUMBER ?? "2";
 const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
 const PROJECT_ITEM_LIMIT = 2000;
 
+/** What `fetchPriorityGracefully` returns — also the shape of the long-lived
+ *  cache `telemetry-serve.ts` keeps for it (PR #2545 review, finding 2). */
+export interface GracefulPriority {
+    priority: Record<number, BoardPriority>;
+    warning: string | null;
+}
+
 /**
  * `loop:status` is READ-ONLY observability, not a scheduling decision — a
  * missing `read:project` scope here must not crash the whole view the way
  * `queue:plan`'s `die()` deliberately does (there, a wrong sort silently
  * mis-orders real work; here, a missing priority column is cosmetic).
  * Degrade gracefully: priorities render as unknown, print ONE warning line.
+ *
+ * EXPORTED so `telemetry-serve.ts` can call it directly for its own
+ * board-priority cache (finding 2, below) rather than going through
+ * `gatherLoopStatus` every poll — the board read (`gh project item-list
+ * --limit 2000` + a `project view` cross-check) is what dominates the
+ * route's latency (measured 41s cold, 27.6s on a "cached" hit whose 10s TTL
+ * had already expired mid-gather) and is also the least volatile part of the
+ * payload, so it gets its OWN, much longer TTL, decoupled from the rest.
  */
-function fetchPriorityGracefully(noPriority: boolean): {
-    priority: Record<number, BoardPriority>;
-    warning: string | null;
-} {
+export function fetchPriorityGracefully(noPriority: boolean): GracefulPriority {
+    if (noPriority) {
+        // `fetchBoardPriority`'s skip branch deliberately never calls
+        // `onError` (PR #2545 review, finding 1) — it warns on its own and
+        // makes no `gh` call. Mirror the same message here, via the shared
+        // constant, without paying for a call we already know will skip.
+        return { priority: {}, warning: NO_PRIORITY_WARNING };
+    }
     let warning: string | null = null;
     const priority = fetchBoardPriority({
         owner: PROJECT_OWNER,
         projectNumber: PROJECT_NUMBER,
         repo: PROJECT_REPO,
         itemLimit: PROJECT_ITEM_LIMIT,
-        skip: noPriority,
         onError: (message) => {
             warning ??= message.split("\n")[0]!;
         },
@@ -117,6 +139,16 @@ function fetchUnclaimedReadyQueue(): ReadyQueueIssue[] {
 
 export interface GatherLoopStatusOptions {
     noPriority?: boolean;
+    /**
+     * A pre-fetched board priority — when provided, `gatherLoopStatus` skips
+     * `fetchPriorityGracefully` (and therefore the `gh` board read) entirely
+     * and uses this instead. This is what lets `telemetry-serve.ts` keep the
+     * board read on its own long-lived cache (PR #2545 review, finding 2)
+     * while every other fact in the gather is re-fetched on the route's
+     * normal, shorter TTL. Ignored when `noPriority` is also set — an
+     * explicit `--no-priority` always wins over a stale override.
+     */
+    priorityOverride?: GracefulPriority;
 }
 
 export interface GatheredLoopStatus extends LoopStatus {
@@ -150,9 +182,10 @@ export function gatherLoopStatus(
     const worktrees = parseWorktreeList(worktreePorcelain);
 
     const readyQueueIssues = fetchUnclaimedReadyQueue();
-    const { priority, warning } = fetchPriorityGracefully(
-        opts.noPriority ?? false
-    );
+    const { priority, warning } =
+        opts.priorityOverride && !opts.noPriority
+            ? opts.priorityOverride
+            : fetchPriorityGracefully(opts.noPriority ?? false);
 
     const batch = newestBatchDir(receiptsRoot);
     const { receipts, errors } = batch

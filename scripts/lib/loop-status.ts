@@ -288,11 +288,71 @@ export interface LoopStatusInput {
     minAgeHours?: number;
 }
 
+/** One (role, outcome) bucket's count — the aggregate `receiptsSummary`
+ *  reduces the full receipt list to, so a display surface never has to
+ *  iterate the whole batch just to say how many of what there were. */
+export interface ReceiptCount {
+    role: string;
+    outcome: string;
+    count: number;
+}
+
+/**
+ * `receipts`, reduced (PR #2545 review, finding 3). A live batch measured at
+ * 232 receipts, nearly all `missing session=…` markers — rendering the raw
+ * list blew the CLI to 165 lines and the dashboard panel to 3000-8000px,
+ * pushing everything below it off-screen on a phone. The issue asks for "one
+ * screen", so every surface (CLI, API payload, dashboard panel) renders this
+ * summary instead of the raw array: counts by (role, outcome) — cheap,
+ * complete, no cap needed — plus the individual rows an operator actually
+ * needs to act on (`wip` / `failed` / `blocking` / `collision`), capped.
+ * `approve` / `pr-open` / `missing` receipts are noise in aggregate once
+ * their COUNT is visible, so they never appear as individual rows here.
+ */
+export interface ReceiptsSummary {
+    /** `receipts.length` — the true total, even though `interesting` is capped. */
+    total: number;
+    counts: ReceiptCount[];
+    /** Rows that need a human's attention, newest-batch-order, capped at
+     *  `INTERESTING_RECEIPTS_CAP`. */
+    interesting: Receipt[];
+}
+
+/** An outcome worth surfacing as an individual row rather than folding into
+ *  `counts` — the ones that mean something is NOT simply done. */
+const INTERESTING_OUTCOMES: ReadonlySet<string> = new Set([
+    "wip",
+    "failed",
+    "blocking",
+    "collision",
+]);
+
+/** However bad a pass, this is still "one screen" of individual rows. */
+export const INTERESTING_RECEIPTS_CAP = 20;
+
+export function summarizeReceipts(receipts: Receipt[]): ReceiptsSummary {
+    const counts = new Map<string, number>();
+    for (const r of receipts) {
+        const key = `${r.role} ${r.outcome}`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return {
+        total: receipts.length,
+        counts: [...counts.entries()].map(([key, count]) => {
+            const [role, outcome] = key.split(" ");
+            return { role: role!, outcome: outcome!, count };
+        }),
+        interesting: receipts
+            .filter((r) => INTERESTING_OUTCOMES.has(r.outcome))
+            .slice(0, INTERESTING_RECEIPTS_CAP),
+    };
+}
+
 export interface LoopStatus {
     driver: DriverState;
     claims: ClaimRow[];
     queueDepth: QueueDepth;
-    receipts: Receipt[];
+    receiptsSummary: ReceiptsSummary;
 }
 
 const PRIORITY_RANK: Record<BoardPriority, number> = { P0: 0, P1: 1, P2: 2 };
@@ -342,7 +402,7 @@ export function buildLoopStatus(input: LoopStatusInput): LoopStatus {
             input.readyQueueIssues,
             input.priority
         ),
-        receipts: input.receipts,
+        receiptsSummary: summarizeReceipts(input.receipts),
     };
 }
 
@@ -405,16 +465,25 @@ export function renderLoopStatusText(status: LoopStatus): string {
     );
 
     lines.push("");
-    lines.push(`Newest batch receipts (${status.receipts.length})`);
-    if (status.receipts.length === 0) {
+    lines.push(`Newest batch receipts (${status.receiptsSummary.total})`);
+    if (status.receiptsSummary.total === 0) {
         lines.push("  none");
     } else {
-        for (const r of status.receipts) {
-            if (r.role === "missing") {
-                lines.push(`  missing  session=${r.session}`);
-            } else {
+        // Counts first — cheap, complete, no cap. `approve`/`pr-open`/
+        // `missing` receipts are noise as individual rows once their count
+        // is visible, so only the rows that need attention print below.
+        for (const c of status.receiptsSummary.counts) {
+            lines.push(`  ${c.role} ${c.outcome}: ${c.count}`);
+        }
+        if (status.receiptsSummary.interesting.length > 0) {
+            lines.push("  needs attention:");
+            for (const r of status.receiptsSummary.interesting) {
+                // `interesting` only ever holds wip/failed/blocking/collision
+                // rows, none of which is the `missing` role — but the union
+                // type still requires the branch to satisfy TypeScript.
+                if (r.role === "missing") continue;
                 const pr = "pr" in r && r.pr ? `  PR #${r.pr}` : "";
-                lines.push(`  #${r.issue}  ${r.role}  ${r.outcome}${pr}`);
+                lines.push(`    #${r.issue}  ${r.role}  ${r.outcome}${pr}`);
             }
         }
     }

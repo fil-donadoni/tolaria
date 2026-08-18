@@ -12,6 +12,8 @@ import {
     readRecentPasses,
     readDriverState,
     renderLoopStatusText,
+    summarizeReceipts,
+    INTERESTING_RECEIPTS_CAP,
     type LoopStatusInput,
     type DriverState,
 } from "../lib/loop-status";
@@ -361,7 +363,7 @@ describe("loop-status — buildLoopStatus", () => {
         expect(status.claims.map((c) => c.issue)).toEqual([2, 1]);
     });
 
-    it("passes the queue depth and receipts through unchanged", () => {
+    it("passes the queue depth through unchanged and summarizes the receipts (PR #2545 review, finding 3)", () => {
         const receipts: Receipt[] = [
             {
                 version: 1,
@@ -389,7 +391,102 @@ describe("loop-status — buildLoopStatus", () => {
             unprioritized: 1,
             total: 2,
         });
-        expect(status.receipts).toBe(receipts);
+        expect(status.receiptsSummary).toEqual({
+            total: 1,
+            counts: [{ role: "implement", outcome: "pr-open", count: 1 }],
+            interesting: [],
+        });
+    });
+});
+
+describe("loop-status — summarizeReceipts", () => {
+    const missing = (session: string): Receipt => ({
+        version: 1,
+        role: "missing",
+        outcome: "missing",
+        session,
+        transcript: null,
+        agentId: null,
+        agentType: null,
+        agentTranscript: null,
+    });
+
+    const work = (over: Partial<Receipt> & { issue: number }): Receipt =>
+        ({
+            version: 1,
+            role: "implement",
+            outcome: "pr-open",
+            branch: "feat/issue-1",
+            worktree: "/x",
+            targetFiles: ["a.ts"],
+            proofOfFailure: [],
+            ...over,
+        }) as Receipt;
+
+    it("collapses a large batch to counts, without capping the counts themselves", () => {
+        const receipts: Receipt[] = [
+            ...Array.from({ length: 200 }, (_, i) => missing(`sess-${i}`)),
+            work({ issue: 1, outcome: "pr-open" }),
+            work({ issue: 2, outcome: "pr-open" }),
+        ];
+        const summary = summarizeReceipts(receipts);
+        expect(summary.total).toBe(202);
+        expect(summary.counts).toEqual(
+            expect.arrayContaining([
+                { role: "missing", outcome: "missing", count: 200 },
+                { role: "implement", outcome: "pr-open", count: 2 },
+            ])
+        );
+        // A count row exists per DISTINCT (role, outcome) pair, never per
+        // receipt — this is the part of the fix that must not itself grow
+        // unboundedly on a batch with many distinct pairs.
+        expect(summary.counts).toHaveLength(2);
+    });
+
+    it("surfaces wip/failed/blocking/collision rows individually — the ones an operator must act on", () => {
+        const receipts: Receipt[] = [
+            work({ issue: 1, outcome: "wip", reason: "still red" }),
+            work({ issue: 2, outcome: "failed", reason: "gate red" }),
+            {
+                version: 1,
+                role: "review",
+                issue: 3,
+                outcome: "blocking",
+                pr: 300,
+                findings: ["x"],
+            },
+            work({ issue: 4, outcome: "collision", reason: "branch owned" }),
+        ];
+        const summary = summarizeReceipts(receipts);
+        expect(summary.interesting.map((r) => r.issue)).toEqual([1, 2, 3, 4]);
+    });
+
+    it("does NOT surface approve/pr-open/missing rows individually — noise once the count is visible", () => {
+        const receipts: Receipt[] = [
+            work({ issue: 1, outcome: "pr-open" }),
+            missing("sess-1"),
+            {
+                version: 1,
+                role: "review",
+                issue: 2,
+                outcome: "approve",
+                pr: 200,
+                findings: [],
+            },
+        ];
+        expect(summarizeReceipts(receipts).interesting).toEqual([]);
+    });
+
+    it("caps the interesting list at INTERESTING_RECEIPTS_CAP, keeping the true total honest", () => {
+        const receipts: Receipt[] = Array.from({ length: 50 }, (_, i) =>
+            work({ issue: i, outcome: "failed", reason: "gate red" })
+        );
+        const summary = summarizeReceipts(receipts);
+        expect(summary.total).toBe(50);
+        expect(summary.interesting).toHaveLength(INTERESTING_RECEIPTS_CAP);
+        expect(summary.counts).toEqual([
+            { role: "implement", outcome: "failed", count: 50 },
+        ]);
     });
 });
 

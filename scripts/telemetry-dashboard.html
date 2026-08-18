@@ -1164,22 +1164,44 @@
                     `<div class="ls-driver">P0 <b>${qd.P0}</b> · P1 <b>${qd.P1}</b> · P2 <b>${qd.P2}</b> · ` +
                     `unprioritized <b>${qd.unprioritized}</b> · total <b>${qd.total}</b></div>`;
 
-                const receipts = data.receipts ?? [];
-                const receiptsHtml = receipts.length
-                    ? receipts
+                // Receipts render from `receiptsSummary`, not a raw list
+                // (PR #2545 review, finding 3) — a live batch measured 232
+                // receipts, almost all `missing session=…` markers, which
+                // blew this panel to 3000-8000px tall on a phone (it is
+                // deliberately the FIRST card, so that pushed the rest of
+                // the dashboard ~8 screens below the fold). Counts by
+                // (role, outcome) are cheap and complete — no cap needed;
+                // only `wip`/`failed`/`blocking`/`collision` rows print
+                // individually, capped server-side.
+                const summary = data.receiptsSummary ?? {
+                    total: 0,
+                    counts: [],
+                    interesting: [],
+                };
+                const countsHtml = summary.counts.length
+                    ? summary.counts
+                          .map(
+                              (c) =>
+                                  `<div class="ls-pass">${esc(c.role)} ${esc(c.outcome)}: <b>${c.count}</b></div>`
+                          )
+                          .join("")
+                    : `<div class="ls-empty">no receipts in this batch</div>`;
+                const interestingHtml = summary.interesting.length
+                    ? summary.interesting
                           .map((r) =>
                               r.role === "missing"
                                   ? `<div class="ls-pass">missing · session ${esc(r.session)}</div>`
                                   : `<div class="ls-pass">#${r.issue} · ${esc(r.role)} · ${esc(r.outcome)}${r.pr ? ` · PR #${r.pr}` : ""}</div>`
                           )
                           .join("")
-                    : `<div class="ls-empty">no receipts in this batch</div>`;
+                    : "";
+                const receiptsHtml = countsHtml + interestingHtml;
 
                 body.innerHTML =
                     `<div class="ls-grid">` +
                     `<div><b>Driver</b>${passesHtml}</div>` +
                     `<div><b>Queue depth</b>${queueHtml}</div>` +
-                    `<div><b>Batch ${esc(data.batch ?? "(none)")}</b>${receiptsHtml}</div>` +
+                    `<div><b>Batch ${esc(data.batch ?? "(none)")} (${summary.total})</b>${receiptsHtml}</div>` +
                     `</div>` +
                     `<div style="margin-top:12px"><b>Claimed issues (${claims.length})</b>${claimsHtml}</div>`;
             }

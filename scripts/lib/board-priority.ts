@@ -33,6 +33,13 @@ export type { BoardPriority };
 
 export const VALID_PRIORITIES: readonly BoardPriority[] = ["P0", "P1", "P2"];
 
+/** The `--no-priority` skip's own message — exported so a caller that wants
+ *  to report the same warning WITHOUT making the (skipped) call at all, e.g.
+ *  `loop:status`'s `fetchPriorityGracefully`, doesn't have to duplicate the
+ *  string. */
+export const NO_PRIORITY_WARNING =
+    "--no-priority: board priorities NOT applied; this plan uses the default order only";
+
 export interface BoardPriorityOptions {
     owner: string;
     projectNumber: string;
@@ -78,9 +85,7 @@ export function fetchBoardPriority(
         // priority` is the documented escape hatch, not a failure, so it must
         // warn and return regardless of the caller's error policy (`die` for
         // `queue:plan` would otherwise exit(2) on its own escape hatch).
-        console.warn(
-            "⚠ --no-priority: board priorities NOT applied; this plan uses the default order only"
-        );
+        console.warn(`⚠ ${NO_PRIORITY_WARNING}`);
         return {};
     }
 
