@@ -451,6 +451,52 @@ describe("a receipt round has its own canonical name — round 1 keeps the old o
     });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// A subagent can never learn its own session id — it only ever arrives via a
+// hook payload on stdin — so the batch id passed to `writeReceipt` has to stay
+// a caller-supplied parameter. That means a typo'd or stale id is possible,
+// and it is silent: the directory it names looks like a fresh, empty batch,
+// `writeReceipt` happily creates it, and `queue:train` — which only reads the
+// ONE batch directory it was told about — never sees the receipt at all. The
+// real incident: a reviewer's verdict landed in a batch dir nobody read back,
+// caught only by eye.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("writeReceipt refuses to create a new batch dir that misroutes an issue already tracked elsewhere", () => {
+    it("throws, naming both directories, when a second batch dir would take the same issue", () => {
+        writeReceipt(tmp, "sess-1", workReceipt({ issue: 2182 }));
+        let error: unknown;
+        try {
+            writeReceipt(tmp, "sess-2-typo", workReceipt({ issue: 2182 }));
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(Error);
+        const message = (error as Error).message;
+        expect(message).toContain(receiptDir(tmp, "sess-1"));
+        expect(message).toContain(receiptDir(tmp, "sess-2-typo"));
+        expect(message).toContain("2182");
+        // The misrouted write must never have reached disk.
+        expect(fs.existsSync(receiptDir(tmp, "sess-2-typo"))).toBe(false);
+    });
+
+    it("still succeeds when a fresh batch dir takes a DIFFERENT issue", () => {
+        writeReceipt(tmp, "sess-1", workReceipt({ issue: 2182 }));
+        expect(() =>
+            writeReceipt(tmp, "sess-2", workReceipt({ issue: 3001 }))
+        ).not.toThrow();
+        const [receipt] = readReceipts(tmp, "sess-2").receipts as WorkReceipt[];
+        expect(receipt.issue).toBe(3001);
+    });
+
+    it("still succeeds for the first receipt of a genuinely new batch — no sibling exists yet", () => {
+        expect(() =>
+            writeReceipt(tmp, "sess-1", workReceipt({ issue: 2182 }))
+        ).not.toThrow();
+        const [receipt] = readReceipts(tmp, "sess-1").receipts as WorkReceipt[];
+        expect(receipt.issue).toBe(2182);
+    });
+});
+
 describe("readReceipts detects tampering outside the sanctioned write path", () => {
     it("flags a live file whose name disagrees with its own contents", () => {
         const dir = receiptDir(tmp, "sess-1");

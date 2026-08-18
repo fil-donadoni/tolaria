@@ -235,28 +235,96 @@ FEATURE branch (allowed) — never main."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. A GATE may not be piped into a pager.
+# 3. A GATE may not be piped into a pager — FAIL CLOSED.
 #
 # `bun run test | tail -20` reports the exit status of `tail`, which is always
 # 0. A red suite therefore reports success, and the gate's verdict — the only
 # done/not-done signal in the workflow — becomes meaningless exactly when it
 # matters. Redirect to a file and grep it instead.
 #
-# **Scoped to the GATE, not to every test run.** Telemetry over 24 days: 2,819
-# of 3,981 full-gate invocations were piped into a pager, and so were 2,295 of
-# 4,189 targeted `vitest run` calls. Denying both would make the rule a
-# workflow change rather than a safety net — it would add a second round-trip
-# to more than half of all test invocations. A targeted run's verdict is not
-# load-bearing (its failures are read out of the output, and a false green on
-# it is caught by the gate afterwards), so only the commands whose exit code
-# IS the done/not-done signal are denied.
+# **Inverted, on purpose, after this held a stale hand-maintained allowlist of
+# gate command NAMES.** That list was already wrong the moment `bun run land`
+# shipped: `land` (→ `scripts/land.ts`, spawns `gate.ts heavy`), `docs:ship`
+# (→ `scripts/docs-lane.ts`, runs `check:docs`, itself a `gate.ts light`
+# wrapper), `check:docs`, `ladder` (`scripts/ladder.ts:102` runs the same
+# heavy gate) and `wt:docs` all reach `scripts/gate.ts` and none of them was
+# in the list — `bun run land 2524 | tail -80` and
+# `bun run docs:ship 2>&1 | tail -25` both sailed straight through it.
+# Patching the list with those five names would only reload the same gun for
+# the next gate wrapper. So the rule is now: deny `bun run <script>` piped
+# into a pager BY DEFAULT, and carry an explicit allowlist of the scripts
+# whose output is purely informational and whose exit code nobody branches
+# on. A new gate command is covered from the day it is written; a new
+# informational command is merely inconvenient until it earns a line below —
+# which is the failure direction actually wanted here. A bare
+# `scripts/gate.ts` invocation (bypassing `bun run` entirely) is always the
+# gate itself and stays unconditionally denied when piped.
+#
+# **The informational allowlist, seeded against `package.json` (verify with
+# `bun run <name>` before adding another):** `cr`, `cr:check`, `findings`,
+# `queue:plan`, `queue:train`, `loop:scorecard`, `usage:window`,
+# `telemetry:dash`, `telemetry:ingest`. Nothing else — in particular `lint`,
+# `format:check`, `check:ts`, `check:index` and `check:stubs` stay DENIED:
+# piping any of those hides a real failure exactly like piping the gate does.
+#
+# **Still scoped to a single segment, never to every test run.** Telemetry
+# over 24 days: 2,819 of 3,981 full-gate invocations were piped into a pager,
+# and so were 2,295 of 4,189 targeted `vitest run` calls. Denying both would
+# make the rule a workflow change rather than a safety net — it would add a
+# second round-trip to more than half of all test invocations. A targeted
+# run's verdict is not load-bearing (its failures are read out of the output,
+# and a false green on it is caught by the gate afterwards), so `bunx vitest
+# run …` stays allowed piped — only `bun run <script>` (any script, unless
+# allowlisted above) and a bare `scripts/gate.ts` are in scope.
 # ─────────────────────────────────────────────────────────────────────────────
-if seg_has '(bun[[:space:]]+run[[:space:]]+(test|test:app|test:bot|check:all|check:pr|check:guards)([[:space:]]|$)|scripts/gate\.ts)' \
-    '\|[[:space:]]*(tail|head|less|more)([[:space:]]|$)'; then
-    deny "BLOCKED: gate command piped into a pager.
+GATE_INFORMATIONAL_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|loop:scorecard|usage:window|telemetry:dash|telemetry:ingest)$'
+
+_gate_piped=0
+_old_ifs=$IFS
+IFS='
+'
+set -f
+for _seg in $segments; do
+    case "$_seg" in
+    *'|'*) ;;
+    *) continue ;;
+    esac
+    printf '%s\n' "$_seg" |
+        grep -Eq '\|[[:space:]]*(tail|head|less|more)([[:space:]]|$)' || continue
+
+    # A bare `scripts/gate.ts` invocation is always the gate itself — no
+    # script-name allowlist applies to it.
+    if printf '%s\n' "$_seg" | grep -Eq 'scripts/gate\.ts'; then
+        _gate_piped=1
+        break
+    fi
+
+    _gate_script=$(printf '%s\n' "$_seg" |
+        sed -nE 's/.*bun[[:space:]]+run[[:space:]]+([^[:space:]]+).*/\1/p')
+    [ -n "$_gate_script" ] || continue
+
+    if printf '%s\n' "$_gate_script" | grep -Eq "$GATE_INFORMATIONAL_SCRIPT_RE"; then
+        continue
+    fi
+    _gate_piped=1
+    break
+done
+set +f
+IFS=$_old_ifs
+
+if [ "$_gate_piped" = 1 ]; then
+    deny "BLOCKED: \`bun run\` command piped into a pager.
 The pipeline's exit code becomes the pager's, which is always 0 — a red suite
-would report success. Redirect to a file and read that instead:
-  bun run test >/tmp/gate.log 2>&1; echo \"exit=\$?\"; grep -E 'Tests|FAIL' /tmp/gate.log"
+would report success, and this guard denies BY DEFAULT rather than trusting a
+hand-maintained list of which scripts are gates (that list was already stale:
+\`land\`, \`docs:ship\`, \`check:docs\`, \`ladder\` and \`wt:docs\` all reach
+scripts/gate.ts and none of them was covered). Redirect to a file and read
+that instead:
+  bun run test >/tmp/gate.log 2>&1; echo \"exit=\$?\"; grep -E 'Tests|FAIL' /tmp/gate.log
+
+If this really is a purely informational script whose exit code nobody
+branches on, add its name to GATE_INFORMATIONAL_SCRIPT_RE in
+.claude/hooks/deny-guard.sh § 3 — not before checking what it actually does."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

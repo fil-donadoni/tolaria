@@ -264,6 +264,43 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
     });
+
+    // The regression that started this rewrite: § 3 used to deny by matching a
+    // hardcoded allowlist of gate command NAMES. That list was already stale —
+    // `land` and `docs:ship` both reach `scripts/gate.ts` (via `scripts/land.ts`
+    // and `scripts/docs-lane.ts` → `check:docs`) and neither name was in it, so
+    // both of these were run for real against the old guard and sailed through.
+    it("denies `bun run land` and `bun run docs:ship` piped into a pager — both reach scripts/gate.ts and neither was on the old name-list", () => {
+        for (const cmd of [
+            "bun run land 2524 | tail -80",
+            "bun run docs:ship 2>&1 | tail -25",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+        }
+    });
+
+    // The test that makes the enumerate-the-gates class extinct: a script name
+    // nobody has written yet must still be denied when piped, because the rule
+    // is now "deny by default", not "deny if it matches a known gate name". If
+    // someone reintroduces a hardcoded gate-name allowlist, this goes red.
+    it("fails CLOSED on an invented, non-existent script piped into a pager", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run some:future:gate | tail -5", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("honours the informational allowlist — these scripts' exit codes are never load-bearing", () => {
+        for (const cmd of [
+            "bun run cr 605.1a | head -20",
+            "bun run findings | head",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
+        }
+    });
 });
 
 describe("deny-guard — no discarding git operations in the shared main checkout", () => {

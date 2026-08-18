@@ -532,6 +532,30 @@ export function receiptFilename(receipt: Receipt): string {
  * own — both are bugs the throw is supposed to surface, not silently resolve
  * by picking a winner.
  */
+/**
+ * Look for another batch directory under `root` (excluding `batchId` itself)
+ * that already holds a receipt for `issue` — a filename starting `<issue>-`.
+ * `undefined` when no sibling has one, which is the common case and lets a
+ * genuinely new batch write its first receipt untouched.
+ */
+function findSiblingBatchWithIssue(
+    root: string,
+    batchId: string,
+    issue: number
+): string | undefined {
+    if (!fs.existsSync(root)) return undefined;
+    const prefix = `${issue}-`;
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name === batchId) continue;
+        const siblingDir = path.join(root, entry.name);
+        const hasIssueReceipt = fs
+            .readdirSync(siblingDir)
+            .some((f) => f.startsWith(prefix) && f.endsWith(".json"));
+        if (hasIssueReceipt) return siblingDir;
+    }
+    return undefined;
+}
+
 export function writeReceipt(
     projectRoot: string,
     batchId: string,
@@ -543,6 +567,35 @@ export function writeReceipt(
             : value
     );
     const dir = receiptDir(projectRoot, batchId);
+
+    // Misrouted-batch guard: a subagent handed the WRONG batch id (a typo'd
+    // session id, e.g.) writes into a directory that looks empty and is
+    // therefore silently invisible to `queue:train` — the exact failure this
+    // exists to catch (a reviewer's verdict landed in a batch dir nobody read
+    // back). The signal is cheap and specific: this issue's receipts already
+    // live in a DIFFERENT batch directory, and we are about to create a new
+    // one. A subagent can never learn its own session id (it only ever
+    // arrives via a hook payload on stdin), so the id has to stay a caller
+    // parameter — this makes a WRONG one loud instead of silent. Only runs
+    // before the directory is created: once a batch dir exists, writing a
+    // second (issue, role) into it is the normal course of a multi-issue
+    // batch and must not be second-guessed here.
+    if (!fs.existsSync(dir) && receipt.role !== "missing") {
+        const root = path.join(projectRoot, RECEIPTS_ROOT);
+        const sibling = findSiblingBatchWithIssue(root, batchId, receipt.issue);
+        if (sibling) {
+            throw new Error(
+                `writeReceipt: refusing to create batch directory ${dir} for ` +
+                    `issue ${receipt.issue} — issue ${receipt.issue} already has ` +
+                    `receipt(s) in ${sibling}, a different batch. This is the shape ` +
+                    `of a caller handed the wrong batch id (a typo'd session id ` +
+                    `mints a new, empty-looking directory that "queue:train" never ` +
+                    `reads). If this really is a fresh re-attempt of issue ` +
+                    `${receipt.issue}, write into ${sibling} instead of ${dir}.`
+            );
+        }
+    }
+
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, receiptFilename(receipt));
     if (fs.existsSync(file)) {
