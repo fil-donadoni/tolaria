@@ -20,6 +20,7 @@
 // must keep working untouched.
 import { describe, expect, it } from "vitest";
 import {
+    applySourceStaticEffects,
     buildSpellContext,
     putReanimatedSetOnBattlefield,
     resolveTopOfStack,
@@ -353,9 +354,13 @@ describe("CR 614.12a — SpellContext.getCardModes stops offering the pick", () 
 // --- Anthem sanity: the reader side still works ---------------------------
 
 describe("CR 611/613 — the readers of chosenModeId are untouched", () => {
-    it("a hand-set chosenModeId on a battlefield permanent still drives its statics", () => {
+    it("a hand-set chosenModeId materializes the matching protection keyword and no other", () => {
         // The re-choice writer (`SpellContext.setChosenMode`) writes exactly
         // this shape post-ETB; nothing in this slice changes how it is read.
+        // Voice of All's five `keyword-grant` statics are each gated on
+        // `condition: source.chosenModeId === color`, and CR 611.2 materializes
+        // the winning one into `staticAbilities` — so the assertion is on the
+        // colour the field NAMES, plus the must-NOT rows for the other four.
         const voice = makeInstance(voiceOfAll.id, {
             id: "voice",
             controllerId: "p1",
@@ -364,6 +369,14 @@ describe("CR 611/613 — the readers of chosenModeId are untouched", () => {
         const state = makeState({
             players: [makePlayer("p1", { battlefield: [voice] })],
         });
+        applySourceStaticEffects(state, voice);
+        expect(voice.staticAbilities).toContain("protection from red");
+        for (const other of ["white", "blue", "black", "green"]) {
+            expect(voice.staticAbilities).not.toContain(
+                `protection from ${other}`
+            );
+        }
+        // The printed 2/2 is unchanged — no mode touches P/T (CR 613 layer 7).
         expect(getEffectivePower(state, voice)).toBe(2);
     });
 });

@@ -824,11 +824,27 @@ export const surpriseDeployment: CardDefinition = {
 // effect and CR 614.12a puts the choice before the permanent enters, so it is
 // declared as data on `entersWith.asEnters` (ADR 0100 D3, issue #2019) rather
 // than taken at cast announcement: the pick rides the single CR 614 chokepoint
-// and is therefore raised on EVERY entry path — cast, reanimation, a "put onto
-// the battlefield" effect, a blink out of exile, and a token copy, which is
-// CR 614.12's own worked example for this very card. `announceCast` rejects a
-// `chosenModeId` for a card that declares this, so the choice is raised once
-// and only once.
+// and is therefore raised on every entry path that goes THROUGH a card — a
+// cast, reanimation, a "put onto the battlefield" effect, a blink out of
+// exile. `announceCast` rejects a `chosenModeId` for a card that declares
+// this, so the choice is raised once and only once.
+//
+// DIVERGENCE (tracked-by: #2043): a TOKEN COPY of this creature still gets no
+// colour choice, which is exactly CR 614.12's own worked example ("An effect
+// creates a token that's a copy of Voice of All. As that token is created, the
+// token's controller chooses a color for it."). `SpellContext
+// .createTokenCopyOf` (`convex/gre/state.ts:14411`) mints the token from a
+// minimal placeholder spec and only afterwards overwrites its copiable
+// characteristics via `applyCopy`; the CR 614 chokepoint runs inside
+// `createTokenPermanents` BEFORE that, and is handed the placeholder's
+// (absent) `entersWith` plus a card object carrying no definition — so neither
+// the declared nor the presented-definition branch can see this clause. The
+// gap is the shared `modes`/`chosenModeId` idiom's, not this card's: all ten
+// cards wired in #2019 carry it identically (Prismatic Ward `ice/white.ts`,
+// Quirion Elves `mir/green.ts`, …). The sibling `copy`-leg slice (#2451 /
+// PR #2546) reached the same conclusion and also deferred it, so it is a live
+// gap under PRD #2043 and NOT closed by any shipped slice. Write-up:
+// `docs/findings/2019-token-copy-misses-as-enters-mode.md`.
 export const voiceOfAll: CardDefinition = {
     id: "75f37536-db3d-4726-9e45-b9108247d0e6", // PLS 19
     name: "Voice of All",

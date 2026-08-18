@@ -34,9 +34,15 @@ never fires, Quirion Elves' second mana ability produces nothing.
 **Why it may not deserve its own issue.** ADR 0100's slicing table already
 assigns the `copy` leg to **#2451** (slice 4), and D6 explicitly scopes token
 copies in ("Census row C is already a chokepoint caller… CR 614.12's own worked
-example is a token copy of Voice of All — the exact card #2019 is about"). If
-#2451 routes `createTokenCopyOf` through the `copy` kind rather than through
-`applyCopy` directly, this closes for free and a separate ticket is noise. It is
-worth a comment on #2451 rather than a ticket — unless #2451 lands without
-touching `createTokenCopyOf`, in which case it is a real standing gap with ten
-cards behind it.
+example is a token copy of Voice of All — the exact card #2019 is about"), so
+the gap is squarely inside the umbrella PRD **#2043** and a separate ticket may
+just be noise on top of it.
+
+**Update (2026-08-18, #2019 review round 2).** #2451's PR (**#2546**) landed the
+`copy` leg **without** routing `createTokenCopyOf` through the `copy` as-enters
+kind — it independently reached the same conclusion and also deferred token
+copies. So nothing shipped closes this: it is a live standing gap with ten cards
+behind it, and the in-code marker on `voiceOfAll` (`convex/cards/sets/pls/
+white.ts`) now carries `tracked-by: #2043` rather than pointing at a slice that
+does not fix it. Triage is whether #2043 gets a dedicated slice for
+`createTokenCopyOf`, not whether the gap exists.
