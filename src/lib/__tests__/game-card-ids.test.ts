@@ -1,6 +1,8 @@
 // The board's art manifest (`gameArtCardIds`, issue #2506). The end-to-end
 // path — creation → `games` row → manifest — is guarded in
-// `convex/__tests__/gameArtManifest.test.ts`; what is left here is the LEGACY
+// `src/lib/__tests__/game-art-manifest.test.ts` (deliberately client-side; see
+// its own header for why it does not live under `convex/`); what is left here
+// is the LEGACY
 // branch, which that test cannot reach because every row it creates is already
 // split. A game started before the migration still carries its decklists
 // inline and no `cardIds`, and dropping the fallback would leave those boards

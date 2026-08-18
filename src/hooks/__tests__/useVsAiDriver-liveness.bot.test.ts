@@ -114,6 +114,13 @@ vi.mock("@convex/_generated/api", () => {
 vi.mock("convex/react", () => ({
     useQuery: (ref: unknown, args: unknown) => {
         if (args === "skip") return undefined;
+        // `getSeatDeck` (issue #2506) stays unanswered here ON PURPOSE: this
+        // suite's subject is the escalation ladder, and `ownDeck` only changes
+        // what the search sees inside a library, never whether the driver
+        // escalates. The #1509 wiring it stubs away has its own coverage in
+        // `useVsAiDriver.bot.test.ts` ("feeds the bot's own getSeatDeck cards
+        // into the search adapter" / "falls back to a placeholder library"),
+        // which is where a widened stub would otherwise have left it unproven.
         if (ref === "getGame" || ref === "getSeatDeck") return undefined;
         if (ref === "getGameTick") {
             if (currentState === undefined) return undefined;
