@@ -3,18 +3,19 @@
 //
 // `draftEngine.ts`/`botDrafter.ts` are deliberately decoupled from the card
 // registry — they take `ResolveCardMeta`/`GetCardEvalMeta` as INJECTED
-// dependencies so the pure engine never touches it directly. The server's
-// real instances are private closures inside `convex/limitedEvents.ts`
-// (`resolveCardMeta`, `getCardEvalMeta`) built from the exact same primitives
-// re-exported here: `tryGetDefinition`/`resolveDeckCardMeta`
-// (`convex/cards/index.ts`), `getCardColorIdentity` (`convex/cards/colors.ts`)
-// and `manaValue` (`convex/gre/constants.ts`) — all pure, synchronous,
-// in-memory lookups with no Convex `ctx`, so they run identically in the
-// browser. This file is the Lab's OWN copy of those two six-line adapters
-// (the server's are not exported) — not a reimplementation of pack
-// generation, passing, or scoring, which stay entirely inside the shared
-// `draftEngine.ts`/`botDrafter.ts` modules this file's exports are injected
-// into.
+// dependencies so the pure engine never touches it directly. Both adapters
+// are built from the same pure primitives — `tryGetDefinition` /
+// `resolveDeckCardMeta` (`convex/cards/index.ts`), `getCardColorIdentity`
+// (`convex/cards/colors.ts`), `manaValue` (`convex/gre/constants.ts`) — all
+// synchronous, in-memory, no Convex `ctx`, so they run identically in the
+// browser.
+//
+// `resolveCardMeta` is now SHARED outright (`convex/limitedCardMeta.ts`,
+// issue #2507) rather than copied; `getCardEvalMeta` is still a private
+// closure in `convex/limitedEvents.ts` and therefore still mirrored below.
+// Neither is a reimplementation of pack generation, passing, or scoring —
+// those stay entirely inside the shared `draftEngine.ts`/`botDrafter.ts`
+// modules this file's exports are injected into.
 import { tryGetDefinition } from "@convex/cards";
 import { resolveDeckCardMeta } from "@convex/cards/catalogue";
 import {
@@ -25,18 +26,19 @@ import {
     getDefinitionProducibleColors,
     manaValue,
 } from "@convex/gre/constants";
-import type { ResolveCardMeta } from "@convex/limited/eventLogic";
 import type { GetCardEvalMeta } from "@convex/limited/botDrafter";
 
-/** Mirrors `convex/limitedEvents.ts`'s private `resolveCardMeta` — resolves a
- *  drawn Booster/Cube card's Scryfall id to the canonical Card ID + display
- *  name a Pool entry carries. */
-export const draftLabResolveCardMeta: ResolveCardMeta = (scryfallId) => {
-    const def = tryGetDefinition(scryfallId);
-    if (!def) return null;
-    const meta = resolveDeckCardMeta(scryfallId);
-    return meta ? { cardId: meta.cardId, cardName: def.name } : null;
-};
+/** The server's `resolveCardMeta`, re-exported under the Lab's name.
+ *
+ *  It used to be a hand-copied twin of a private closure in
+ *  `convex/limitedEvents.ts`. It stopped being safe to copy in issue #2507:
+ *  the same lookup now also decides what a STORED `limitedSeats` card means
+ *  (`convex/limitedSeatStore.ts` resolves `cardId`/`cardName` from the
+ *  persisted `scryfallId`), so a divergence between the two copies would no
+ *  longer be a Lab-only cosmetic drift. `convex/limitedCardMeta.ts` is pure
+ *  and Convex-`ctx`-free, so the browser runs the identical function (ADR
+ *  0074 — shared module, no shared authority). */
+export { resolveCardMeta as draftLabResolveCardMeta } from "@convex/limitedCardMeta";
 
 /** Mirrors `convex/limitedEvents.ts`'s private `getCardEvalMeta` — resolves a
  *  drawn card's Scryfall id to the printed characteristics the Pick Heuristic

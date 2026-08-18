@@ -621,13 +621,10 @@ describe("autoPickSeatTimeout no-ops once the event has concluded (issue #2357 A
         const seatRow = (db.tables.limitedSeats ?? []).find(
             (r) => r.seatIndex === 0
         );
-        expect(seatRow?.pool).toEqual([
-            {
-                scryfallId: "test-card",
-                cardId: "test-card",
-                cardName: "Test Card",
-            },
-        ]);
+        // Stored INTERNED (issue #2507): `scryfallId` is the only card
+        // identity `limitedSeats` persists — `cardId`/`cardName` are resolved
+        // back at the seam (`convex/limitedSeatStore.ts`).
+        expect(seatRow?.pool).toEqual([{ scryfallId: "test-card" }]);
         expect(seatRow?.currentPack).toBeUndefined();
     });
 
