@@ -178,7 +178,61 @@ esac
 # line break instead of typed on one line. Join `\<newline>` into a space
 # BEFORE splitting into segments, so the pipe and the pager end up back in
 # the same segment.
-_cmd_joined=$(printf '%s' "$cmd" | sed -e :a -e '/\\$/N; s/\\\n/ /; ta')
+#
+# **Not sed.** The original `sed -e :a -e '/\\$/N; s/\\\n/ /; ta'` is a
+# fail-OPEN hole on this machine's `sed` (BSD): `N` on the LAST line, with no
+# next line to append, quits WITHOUT printing the pattern space — so a
+# command whose final physical line ends in `\` (a live, working shell
+# command: a trailing `\` before EOF is just a literal backslash argument)
+# collapses `_cmd_joined` to empty, which empties `segments`, which makes
+# every rule below (§1 `gh pr merge`, §2 force-push main, §3 the pager gate,
+# §4 discarding git, §5 MAX_PASSES) match nothing. One trailing backslash
+# turned a fail-closed guard fully fail-open — the exact bug class this file
+# exists to close, reintroduced by its own fix. `awk`, one line per record,
+# has no such last-line special case.
+#
+# The join has to get three shapes right, all with no hand-rolled coverage
+# before this fix:
+#   * odd/even parity on the trailing backslash run — `echo foo\\` (an
+#     ESCAPED backslash, even count) must NOT join with the next line, only
+#     a genuine odd-count continuation does;
+#   * `\<CR><LF>` (a line saved with CRLF endings) joins exactly like
+#     `\<LF>`, not just the Unix ending;
+#   * a continuation on the truly last line of input, with nothing to join
+#     to, must still surface its content (minus the marker backslash) rather
+#     than vanish — that is the bug above, and the fix has to prove the
+#     content survives even when there is no next line at all.
+# A command with none of the above passes through unchanged: `_cmd_joined`
+# is captured via `$(...)`, which already strips trailing newlines from both
+# the input (`cmd` was captured the same way) and awk's output, so the one
+# newline `printf "%s\n"` adds after the final non-continued line never
+# survives to make this non-identical.
+_cmd_joined=$(printf '%s' "$cmd" | awk '
+{
+    line = $0
+    hadCR = 0
+    L = length(line)
+    if (L > 0 && substr(line, L, 1) == "\r") {
+        hadCR = 1
+        line = substr(line, 1, L - 1)
+        L = L - 1
+    }
+    # Count the trailing backslash RUN — parity decides continuation vs.
+    # literal: `\` (1, odd) continues the line; `\\` (2, even) is one
+    # escaped, literal backslash and does NOT continue it.
+    n = 0
+    while (n < L && substr(line, L - n, 1) == "\\") n++
+    if (n % 2 == 1) {
+        # Odd: genuine continuation. Drop the one marker backslash, join
+        # with a space (never a newline), keep any escaped pairs before it.
+        printf "%s ", substr(line, 1, L - 1)
+    } else if (hadCR) {
+        printf "%s\r\n", line
+    } else {
+        printf "%s\n", line
+    }
+}
+')
 
 segments=$(printf '%s' "$_cmd_joined" | sed -e 's/&&/\
 /g' -e 's/||/\
@@ -270,6 +324,15 @@ fi
 # `scripts/gate.ts` invocation (bypassing `bun run` entirely) is always the
 # gate itself and stays unconditionally denied when piped.
 #
+# **Known tradeoff, taken deliberately:** the backslash-continuation joiner
+# above cannot tell a live pipeline from a wrapped gate command merely
+# QUOTED inside a heredoc (a findings file, a commit body), so writing one
+# can now DENY where it used to pass — heredoc-awareness is out of scope for
+# the same reason the file's own header gives (parsing shell far enough to
+# know the difference is how a guard starts denying legitimate work at
+# random), and this specific false-denial shape is accepted on purpose, not
+# overlooked.
+#
 # **The informational allowlist, seeded against `package.json` (verify with
 # `bun run <name>` before adding another):** `cr`, `cr:check`, `findings`,
 # `queue:plan`, `queue:train`, `loop:scorecard`, `usage:window`,
@@ -280,8 +343,13 @@ fi
 # and its exit code plausibly matters, so it defaults fail-closed like any
 # other writer — it is not "purely informational" the way a read-only report
 # is). `format` (`prettier --write`, thousands of lines on a real run, `|
-# tail -5` a daily reflex) is informational: a parse error is loud in the
-# output regardless of what piped it.
+# tail -5` a daily reflex) is informational for a different reason: nobody
+# branches on ITS exit code either way, and `check:all` re-verifies
+# formatting independently regardless of how this run went — the write is a
+# convenience, not the thing anyone is trusting. (Not "a parse error is loud
+# in the output anyway" — that claim is false the moment the pipe is `|&`,
+# which redirects stderr into the same stream this rule now matches on
+# purpose.)
 #
 # **Still scoped to a single segment, never to every test run.** Telemetry
 # over 24 days: 2,819 of 3,981 full-gate invocations were piped into a pager,

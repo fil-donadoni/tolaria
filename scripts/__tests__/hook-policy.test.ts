@@ -364,6 +364,86 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
     });
 });
 
+// PR #2527 round 2: the FIX for the backslash-join (the `sed -e :a -e
+// '/\\$/N; s/\\\n/ /; ta'` above) was itself a fail-open regression on this
+// machine's `sed` (BSD): `N` on the LAST line, with nothing to append, quits
+// WITHOUT printing the pattern space — so a command whose FINAL physical line
+// ends in `\` (a normal, working shell command: an unpaired trailing `\`
+// before EOF is just a literal backslash argument) collapsed `_cmd_joined`
+// to empty, which emptied `segments`, which made every rule below it —
+// §1 `gh pr merge`, §2 force-push main, §3 this pager gate, §4 discarding
+// git, §5 MAX_PASSES — match nothing. One trailing backslash turned a
+// fail-closed guard fully fail-open. Replaced with `awk`, which has no
+// last-record special case.
+describe("deny-guard — the backslash-continuation joiner (awk, not sed)", () => {
+    it("denies `bun run test | tail -20; : \\` — final line ends in a bare backslash with nothing after it", () => {
+        // This exact payload ALLOWED (code 0) against the sed joiner: proven
+        // by re-running it through the pre-fix script (`git show HEAD:` of
+        // this file) with the SAME harness — 0 before, 2 after.
+        const r = runHook(
+            DENY_GUARD,
+            bash("bun run test | tail -20; : \\", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("denies `gh pr merge 123 --squash; echo \\` — same shape, through §1 instead of §3", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("gh pr merge 123 --squash; echo \\", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/merge-train/);
+    });
+
+    it("passes an ordinary command through unchanged — backslashes NOT at end-of-line are none of the joiner's business", () => {
+        // Mid-line backslashes (a Windows path in an echoed string) sit
+        // nowhere near a line boundary; the joiner must leave them alone and
+        // the underlying force-push-main detection must still fire on the
+        // real trailing violation.
+        const cmd =
+            "echo 'building C:\\\\Users\\\\test' && git push --force origin main";
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/force-push/);
+    });
+
+    it("joins `\\<CR><LF>` exactly like `\\<LF>` — a wrapped gate pipeline saved with CRLF line endings is still one pipeline", () => {
+        // F1-b from round-2 review: the sed joiner's `/\\$/` never matches
+        // with a trailing \r in the way, so a CRLF-saved continuation sailed
+        // through unjoined. Re-run against the pre-fix script: ALLOWED.
+        const cmd = "bun run test \\\r\n  | tail -20";
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+        expect(denied(r), `expected DENY for: ${JSON.stringify(cmd)}`).toBe(
+            true
+        );
+    });
+
+    it("does NOT join an escaped (even-count) trailing backslash — split pieces that are each safe alone must stay split", () => {
+        // F1-c: `origin\\` ends in TWO literal backslash characters (one
+        // escaped backslash, not a continuation marker). Naively joining on
+        // "ends in \" regardless of parity welds this into
+        // `git push --force origin\ main`, a false force-push-to-main deny —
+        // confirmed against the pre-fix script: DENIED. Neither physical
+        // line is dangerous on its own: line 1 never names `main`/`master`,
+        // line 2 is just the bareword `main`.
+        const cmd = "git push --force origin\\\\\nmain";
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        expect(r.code, `expected ALLOW for: ${JSON.stringify(cmd)}`).toBe(0);
+    });
+
+    it("still joins the genuine odd-count case of the same shape — one backslash, not two, IS a continuation", () => {
+        // Paired with the previous test, differing only in backslash count:
+        // proves the parity check cuts both ways, not just fail-safe-by-
+        // never-joining.
+        const cmd = "git push --force origin\\\nmain";
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        expect(denied(r), `expected DENY for: ${JSON.stringify(cmd)}`).toBe(
+            true
+        );
+    });
+});
+
 describe("deny-guard — no discarding git operations in the shared main checkout", () => {
     const DISCARDING = [
         "git checkout -- src/foo.ts",
