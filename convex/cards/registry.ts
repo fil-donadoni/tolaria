@@ -94,6 +94,32 @@ export const getDefinition = (cardId: string): CardDefinition => {
     return expandDefinition(card);
 };
 
+/** Every definition the runtime registry currently holds, in hydration order,
+ *  yielded lazily and routed through the same `expandDefinition` memo
+ *  `getDefinition` uses — so a keyword card arrives EXPANDED (ADR 0054) and is
+ *  the SAME object `getDefinition(def.id)` returns.
+ *
+ *  The map keys BOTH definition ids and print-id aliases onto one object
+ *  (`registerPrintAlias`), so reprints are dropped by keeping only the entry
+ *  whose key IS the definition's own id. Insertion order therefore reproduces
+ *  catalogue load order, which is what makes a "first match wins" consumer
+ *  deterministic.
+ *
+ *  Lazy on purpose. This is the registry-side sibling of `catalogue.ts`'s
+ *  `getAllCards()`, which eagerly expands all ~1900 definitions and — being
+ *  catalogue-scoped — is deliberately absent from the client entry
+ *  (`client.ts`). A consumer that stops at the first hit should not have to
+ *  pull the catalogue in to get one name.
+ *
+ *  Hydration is the caller's problem, exactly as it is for `getDefinition`:
+ *  a Convex isolate hydrates at module load; the client hydrates through
+ *  `src/main.tsx`'s catalogue side-effect import. */
+export function* registeredDefinitions(): Generator<CardDefinition> {
+    for (const [id, def] of registry) {
+        if (id === def.id) yield expandDefinition(def);
+    }
+}
+
 /** Non-throwing variant. Returns null when the id isn't in the registry — used
  *  by subsystems that operate best-effort (layer system, test fixtures). */
 export const tryGetDefinition = (cardId: string): CardDefinition | null => {
