@@ -46,6 +46,36 @@ landing, since every `land` run force-pushes immediately before merging.
 from a genuine `DIRTY`/conflict, which must still fail loudly. Note the retry
 must not re-run the gate — the tree is unchanged and already verified.
 
+**Second occurrence, different message, same window (2026-08-18, PR #2527).**
+`land` gated green on the rebased tree (`check:all` 0, 15629 + 1413 + 40), force-pushed,
+and the merge failed with `GraphQL: Base branch was modified. Review and try the
+merge again.` It had not been: `git log $(git merge-base HEAD origin/main)..origin/main`
+was **empty** — the branch was already rebased onto the tip, and the tip had not moved.
+Polling the PR seconds later read `mergeable: true, mergeable_state: clean`, and a
+plain retry merged it, producing a tree hash identical to the gated one
+(`37c6a5db2963eb9bd975f98bd4239224e1c72e7b`). So the fix is not specific to the
+`mergeable` field: **GitHub's whole view of a PR settles asynchronously after a
+force-push**, and at least two distinct refusals live in that window. A bounded
+poll-then-retry should therefore key on "the merge refused for a reason that is
+transient", not on `mergeable` alone, and should re-check `gh pr view --json state`
+first in case the merge actually landed.
+
+**The larger gap this exposed: nothing forces a merge to go through `land`.**
+The mutex in `scripts/gate.ts` is machine-wide over _gating_; `land` extends it
+to cover the merge. But a merge performed any other way — `gh pr merge` from the
+main checkout, the GitHub web UI, `docs:ship` — never takes the lock at all, so
+`main` can still move under a session that is mid-gate. That happened three times
+today: #2524 and #2526 were merged by hand (because `land` had just failed), and
+each moved `main` while other work was in flight. `deny-guard.sh` §1 blocks a
+hand-typed `gh pr merge` only from an _issue worktree_, which is why none of
+these were caught.
+
+Closing it would mean denying `gh pr merge` everywhere except from inside
+`land` — a real tightening with a real cost, since the two hand-merges above were
+recovery actions taken precisely _because_ `land` had failed. Denying them without
+first making `land` converge would leave no way to land anything. Sequence matters:
+fix the retry above first, then consider the guard.
+
 **Why it may not deserve its own issue.** It is a defect in code that shipped
 hours earlier rather than an independent gap, so it could equally be folded into
 whatever follow-up #2517 spawns. Two other round-2/round-3 residuals were left
