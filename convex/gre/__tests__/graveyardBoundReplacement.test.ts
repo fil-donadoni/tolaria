@@ -520,29 +520,94 @@ describe("graveyard-bound self-referential replacement — applies from any zone
         expect(p1.library.filter((c) => c.id === "self1")).toHaveLength(1);
     });
 
-    it("does not leak the redirect onto a different (bystander) card milled in the same batch", () => {
-        // The bystander sits ON TOP (milled first, genuinely, to the
-        // graveyard) and the self-redirecting card sits BELOW it (milled
-        // second) — deliberately so the redirected card's own re-shuffle
-        // lands after every OTHER card in this batch has already been
-        // processed, keeping the assertions deterministic regardless of the
-        // seeded RNG's draw (a redirect-then-reshuffle that happened while
-        // more cards were still queued in the same library would leave which
-        // card mills next up to the shuffle).
+    it("does not leak the redirect onto bystander cards milled in the same batch, with the redirected card in the MIDDLE of the batch (review round 1, issue #2106)", () => {
+        // The redirect card sits in the MIDDLE of a 3-card mill window
+        // (c1, self1, c2), with a 4th card (c3) sitting just OUTSIDE that
+        // window. Before the fix, `millCards` shuffled the library
+        // mid-loop the instant self1's redirect landed it back in the
+        // library — re-randomizing what "the live top" meant for every
+        // later iteration in the SAME call, so c3 (never part of the top-3
+        // window) could get swept into the graveyard instead of c2, and
+        // self1 could get re-picked and re-shuffled a second time. Deferring
+        // the shuffle to once, after the whole 3-card batch is resolved,
+        // keeps the receding-top semantics correct for c2 and leaves c3
+        // untouched.
         const library = [
             bystanderCard("c1", "p1", "library"),
             selfAnyZoneCard("self1", "p1", "library"),
+            bystanderCard("c2", "p1", "library"),
+            bystanderCard("c3", "p1", "library"),
         ];
         const state = makeState({
             players: [makePlayer("p1", { library }), makePlayer("p2")],
         });
         const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
         const ctx = buildSpellContext(state, stackItem);
-        ctx.millCards("p1", 2);
+        const milled = ctx.millCards("p1", 3);
         const p1 = state.players[0];
+
+        // Exactly the two genuine bystanders in the 3-card window reached
+        // the graveyard, in mill order — self1 was redirected, not milled.
+        expect(milled).toEqual(["c1", "c2"]);
+        expect(p1.graveyard.map((c) => c.id)).toEqual(["c1", "c2"]);
+        // self1 landed back in the library (shuffled once, not repeatedly)
+        // and c3 — never part of the 3-card mill window — is untouched by
+        // the mill and still present.
+        expect(p1.library).toHaveLength(2);
         expect(p1.library.some((c) => c.id === "self1")).toBe(true);
-        expect(p1.graveyard.some((c) => c.id === "c1")).toBe(true);
+        expect(p1.library.some((c) => c.id === "c3")).toBe(true);
+        const events = flushPendingEvents(state);
+        const milledEvents = events.filter((e) => e.type === "CARD_MILLED");
+        expect(milledEvents).toHaveLength(2);
+        expect(
+            milledEvents.some(
+                (e) => e.type === "CARD_MILLED" && e.cardInstanceId === "self1"
+            )
+        ).toBe(false);
+    });
+
+    it("surveil-to-graveyard (orderTop) redirects mid-batch without corrupting the kept-on-top card, redirect in the MIDDLE of the graveyard leg (review round 1, issue #2106)", () => {
+        // k1 is the KEPT card (must stay on top per CR 701.25); the
+        // graveyard-bound leg is [b1, self1, b2] — the redirect sits in the
+        // MIDDLE. Before the fix, self1's redirect shuffled the WHOLE
+        // library mid-loop (while k1 was still physically sitting in it),
+        // so the later "the kept cards are exactly the top storedTop.length
+        // of the library" assumption broke and orderTop threw
+        // "Card k1 not in kept top of library".
+        const library = [
+            bystanderCard("k1", "p1", "library"),
+            bystanderCard("b1", "p1", "library"),
+            selfAnyZoneCard("self1", "p1", "library"),
+            bystanderCard("b2", "p1", "library"),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+        });
+        const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
+        const ctx1 = buildSpellContext(state, stackItem);
+        expect(ctx1.orderTop("p1", 4, { destination: "graveyard" })).toBe(
+            false
+        );
+        const choice = state.pendingChoices![0];
+        stackItem.collectedChoices = {
+            [`${choice.step}:${choice.choiceId}`]: ["k1"],
+            [`${choice.step}:${choice.choiceId}:second`]: ["b1", "self1", "b2"],
+        };
+        expect(() => {
+            const ctx2 = buildSpellContext(state, stackItem);
+            expect(ctx2.orderTop("p1", 4, { destination: "graveyard" })).toBe(
+                true
+            );
+        }).not.toThrow();
+
+        const p1 = state.players[0];
+        // k1 stays on top, exactly as CR 701.25 requires — Blightsteel's own
+        // redirect shuffled the REST of the library, never the kept card.
+        expect(p1.library[0]?.id).toBe("k1");
+        expect(p1.graveyard.map((c) => c.id).sort()).toEqual(["b1", "b2"]);
         expect(p1.graveyard.some((c) => c.id === "self1")).toBe(false);
+        expect(p1.library.some((c) => c.id === "self1")).toBe(true);
+        expect(p1.library).toHaveLength(2);
     });
 });
 

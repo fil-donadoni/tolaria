@@ -13690,6 +13690,18 @@ export function buildSpellContext(
                 fromZone: "library";
                 ownerId: string;
             }[] = [];
+            // (Review round 1, issue #2106) — a graveyard-bound redirect that
+            // lands a milled card back in the library (Blightsteel Colossus)
+            // must NOT shuffle immediately: this loop re-reads the LIVE
+            // `library[0]` each pass, so an in-loop shuffle re-randomizes
+            // which card is "next" for every remaining iteration — the
+            // redirected card can be re-picked and re-shuffled repeatedly
+            // within one `millCards` call, and CR 701.17a's "top `amount`
+            // cards" stops meaning anything fixed. Accumulate instead and
+            // shuffle ONCE after the whole batch's cards have already been
+            // identified and moved (by then nothing else reads library
+            // position for this call).
+            let needsLibraryShuffle = false;
             for (let i = 0; i < amount; i++) {
                 const top = player.library[0];
                 if (!top) break; // library empty — mill fewer (CR 701.17a)
@@ -13712,8 +13724,8 @@ export function buildSpellContext(
                     // The card left library[0] and was re-pushed at the
                     // bottom by the generic `moveCard`; the oracle text is
                     // "shuffle it into its owner's library", not "put on
-                    // the bottom", so randomize.
-                    shuffleAfterGraveyardBoundLibraryRedirect(state, player);
+                    // the bottom" — randomize once the whole batch is done.
+                    needsLibraryShuffle = true;
                 } else if (destination === "exile") {
                     applyGraveyardRedirectCounters(top, tagCounters);
                 }
@@ -13735,6 +13747,9 @@ export function buildSpellContext(
                         ownerId: top.ownerId,
                     });
                 }
+            }
+            if (needsLibraryShuffle) {
+                shuffleAfterGraveyardBoundLibraryRedirect(state, player);
             }
             emitCardsExiled(state, exiledEntries);
             return milledIds;
@@ -16919,6 +16934,21 @@ export function buildSpellContext(
             // Resume — `storedTop` is the kept order (topmost first), the un-kept
             // cards live under the sibling `:second` key (submit-time split).
             const second = item.collectedChoices?.[`${key}:second`] ?? [];
+            // (Review round 1, issue #2106) — a graveyard-bound redirect that
+            // lands a `second`-list card back in the library (Blightsteel
+            // Colossus) must NOT shuffle immediately: the kept-cards reorder
+            // block below (`storedTop`) assumes the kept cards are still
+            // sitting at exactly `library[0..m)` after this loop, and an
+            // in-loop shuffle scrambles that prefix along with everything
+            // else, throwing "Card <id> not in kept top of library" (or,
+            // worse, silently reordering the kept cards). Accumulate instead,
+            // and shuffle ONCE — after the kept cards have been extracted out
+            // of the array (so the shuffle only touches the non-kept
+            // remainder) but before they're placed back on top, so the CR
+            // 701.25 "kept cards return to the top in the chosen order"
+            // guarantee holds even though Blightsteel's own redirect also
+            // shuffled the rest of the library.
+            let needsLibraryShuffle = false;
             if (opts.destination === "graveyard") {
                 // CR 614 (issue #1145) — Surveil's "put into graveyard" leg is
                 // itself a card-entering-a-graveyard event; a graveyard-bound
@@ -16932,10 +16962,7 @@ export function buildSpellContext(
                         graveyardDestinationFor(state, id, ownerId, "library");
                     const moved = moveCard(player, id, "library", destination);
                     if (destination === "library") {
-                        shuffleAfterGraveyardBoundLibraryRedirect(
-                            state,
-                            player
-                        );
+                        needsLibraryShuffle = true;
                     } else if (destination === "exile") {
                         applyGraveyardRedirectCounters(moved, tagCounters);
                     }
@@ -16962,7 +16989,14 @@ export function buildSpellContext(
             // `storedTop.length` of the library — reorder them to the chosen order.
             const m = storedTop.length;
             if (m > 0) {
+                // Extract the kept cards BEFORE the deferred shuffle so the
+                // shuffle (if any) only scrambles the non-kept remainder —
+                // see the `needsLibraryShuffle` comment above.
                 const topCards = player.library.splice(0, m);
+                if (needsLibraryShuffle) {
+                    shuffleAfterGraveyardBoundLibraryRedirect(state, player);
+                    needsLibraryShuffle = false;
+                }
                 const reordered = storedTop.map((id) => {
                     const card = topCards.find((c) => c.id === id);
                     if (!card) {
@@ -16979,6 +17013,10 @@ export function buildSpellContext(
                 // the graveyard is public anyway. For fateseal the chooser
                 // (Jace's controller) knows the OWNER's kept-on-top card.
                 grantKnowledge(state, playerId, storedTop, chooserId);
+            } else if (needsLibraryShuffle) {
+                // No kept cards to protect (e.g. every looked-at card was
+                // surveiled away) — shuffle whatever's left directly.
+                shuffleAfterGraveyardBoundLibraryRedirect(state, player);
             }
             return true;
         },

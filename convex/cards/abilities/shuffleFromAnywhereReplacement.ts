@@ -33,11 +33,21 @@
 //
 // The "reveal" clause (CR 701.20a) on Blightsteel Colossus's own wording is
 // NOT separately modeled: nothing in the card pool inspects whether this
-// SPECIFIC card was revealed at this moment, and every zone this replacement
-// can fire from (hand/library/battlefield/stack) is either already public or
-// about to become so via the same redirect, so there is no
-// externally-observable difference — an intentional simplification, not a
-// deferred capability.
+// SPECIFIC card was revealed at this moment. This IS a real, observable
+// simplification for the hand/library origins — both are hidden zones and
+// the redirect's destination (the owner's library, shuffled) stays hidden
+// too, so a genuine reveal would hand the opponent information (this exact
+// card is in that hand/library) that skipping it withholds. It is harmless
+// only for the battlefield/stack origins, which are already public. Deferred
+// rather than fixed here because the engine's reveal primitive
+// (`SpellContext.notifyReveal`, `gre/state.ts`) is scoped to a resolving
+// STACK ITEM (`RevealNotification.id` is `` `${item.id}:...` ``), and two of
+// the five graveyard-bound-redirect chokepoints this replacement fires from
+// (`removePermanentTo`, called from stack-item-less SBA sweeps;
+// `moveCardWithGraveyardReplacement`/`discardToGraveyard`, called from many
+// non-stack-item contexts) have no stack item to key a notification against
+// — genuine new engine plumbing (a stack-item-independent reveal
+// addressing scheme), not a one-line addition. tracked-by: #2557.
 import type { ReplacementEffect } from "../types";
 
 export function shuffleFromAnywhereReplacement(args: {
