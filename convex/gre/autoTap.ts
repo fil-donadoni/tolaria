@@ -407,6 +407,42 @@ export const AUTO_TAP_PLAN_CAP = 512;
  *  eval's source-quality term, keeping the dual-purpose / color-flex wins. */
 export const W_PRESERVED_DEMAND = 1000;
 
+/** Weight of one unit of SURPLUS mana inside the unified auto-tap position
+ *  score (issue #2247) — mana a plan produces beyond what `cost` actually
+ *  consumes, which CR 500.5 empties at the end of the current step, i.e. real
+ *  waste, not latent value carried forward. Chosen to sit strictly BELOW a
+ *  single preserved Demand (`W_PRESERVED_DEMAND` = 1000, via `SURPLUS_CAP`
+ *  below — a concrete future play always outranks avoiding waste) and
+ *  strictly ABOVE every per-plan swing `evalScore` (`scorePlan`) can produce
+ *  from tapping one source instead of an equal-tap-count alternative.
+ *
+ *  Two separate swings make up that per-plan delta. The source-quality one is
+ *  bounded in the tens (`W_SOURCE_DUAL_PURPOSE` = 20, `W_SOURCE_BREADTH` = 4 ×
+ *  ≤4 extra colors = 16, `FLEX_CARD_CAP` × `W_FLEX` = 3×6 = 18). The other is
+ *  NOT bounded: the Brain's coarse `evaluate.ts` mana proxy (`availableManaFor`)
+ *  counts an UNTAPPED source as exactly one unit but counts FLOATING mana per
+ *  unit, so a plan that taps the over-producing source and floats the surplus
+ *  scores an extra `W_MANA * surplus` (12 × surplus, uncapped) in `evaluate()`'s
+ *  own `mana` term on top of the tens-scale quality swing. This term's cap
+ *  (`SURPLUS_CAP * W_SURPLUS` = 800, see below) is only guaranteed to dominate
+ *  that reward while `12 * surplus <= 800`, i.e. surplus <= 66 — at surplus
+ *  >= 67 the uncapped mana-term reward exceeds the capped penalty and the
+ *  original ranking bug (preferring to tap the over-producing source) can
+ *  reassert itself. No source on a currently modeled board taps for 67+ mana
+ *  in one activation, so this is unreached in practice, not a live bug — but
+ *  it is a real, quantified edge of the fix, not a "tens" swing like the
+ *  quality term. This term is a LOCAL correction that reads `floatingAfterPlan`'s
+ *  exact leftover pool directly (never the coarse proxy), so its correctness
+ *  does not depend on `evaluate.ts` being fixed — see the divergence note on
+ *  `availableManaFor` (evaluate.ts) for why the proxy itself is left as-is. */
+export const W_SURPLUS = 100;
+
+/** Caps the counted surplus units so the total penalty can never itself
+ *  outrank a single preserved Demand, however much a source over-produces
+ *  (a board-derived source scaling to many mana): `SURPLUS_CAP * W_SURPLUS`
+ *  (800) stays strictly below `W_PRESERVED_DEMAND` (1000). */
+export const SURPLUS_CAP = 8;
+
 /** Smallest number of taps that covers `cost`, or `null` if uncoverable.
  *  Iterative deepening, identical contract to `solveAutoTap`'s budget loop. */
 function minimalTapCount(
@@ -546,6 +582,42 @@ export function floatingAfterPlan(
     return remaining;
 }
 
+/**
+ * Surplus mana a plan produces beyond what `cost` actually consumes (issue
+ * #2247, CR 500.5 — floating mana empties at the end of the current step, so
+ * this is true waste rather than latent value the player still has). Sums
+ * `floatingAfterPlan`'s exact leftover pool, which already nets the payment
+ * out of every tapped source's contribution — a plan whose cost consumes all
+ * of a source's mana (e.g. a {2} cost tapping a {C}{C} rock) scores 0 here,
+ * not "over-production", because nothing is left over.
+ *
+ * Reads the SAME per-source amounts (`AutoTapSource.options[].mana`) the real
+ * payment path adds — `buildAutoTapSources` resolves board-derived output
+ * (Nykthos, storage counters, etc.) through `getManaTapOptionsDetailed` before
+ * the solver ever sees a source, so a board-derived source is priced by what
+ * it produces RIGHT NOW, not a static declared amount. Capped at
+ * `SURPLUS_CAP` (see its doc) so the penalty can never itself outrank a
+ * single preserved Demand.
+ */
+export function planSurplus(
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[],
+    sources: AutoTapSource[],
+    plan: AutoTapPlan
+): number {
+    const leftover = floatingAfterPlan(
+        pool,
+        cost,
+        substitutions,
+        sources,
+        plan
+    );
+    let units = 0;
+    for (const color of MANA_COLORS) units += leftover[color] ?? 0;
+    return Math.min(units, SURPLUS_CAP);
+}
+
 /** True if `demand.cost` is payable from `pool` + `sources` (CR 601.2g). Reuses
  *  the minimal-tap solver as a pure feasibility check. */
 function isDemandAffordable(
@@ -649,14 +721,20 @@ export type PlanPositionScorer = (plan: AutoTapPlan) => number;
  * paying player, so dual-purpose permanents (Mishra's Factory) and
  * color-critical sources are left untapped whenever an equal-tap-count plan can
  * pay without them. Plans are ranked by the deterministic order:
- *   (0) highest UNIFIED position score = `scorePlan` (post-payment position value)
- *       + W_PRESERVED_DEMAND × preserved-Demand count — a single scalar in which a
- *       color-critical demand dominates any source-quality breadth/dual bonus, yet
- *       demand-tied plans still rank on the eval's source quality (issue #794 fix),
+ *   (0) highest UNIFIED position score =
+ *       `scorePlan` (post-payment position value, includes source quality)
+ *       + W_PRESERVED_DEMAND × preserved-Demand count
+ *       − W_SURPLUS × surplus units (issue #2247, capped at SURPLUS_CAP) —
+ *       a single scalar in which a color-critical demand dominates surplus
+ *       avoidance, which in turn dominates any source-quality breadth/dual
+ *       bonus or mana-proxy noise `scorePlan` contributes, yet demand-tied,
+ *       surplus-tied plans still rank on the eval's source quality (issue
+ *       #794 fix),
  *   (1) most remaining-source flexibility (colorless/basics spent first),
  *   (2) lexicographic by tapped cardId.
  * With no `scorePlan` the eval term is 0 across plans, so the unified score reduces
- * to the preserved-Demand count — the legacy demand→flex→lex order exactly.
+ * to the preserved-Demand count minus surplus — the legacy demand→flex→lex order,
+ * now also preferring the lower-surplus plan among demand ties.
  *
  * Preserves the minimal-tap-count invariant: it only ever enumerates plans at
  * the smallest covering tap count, so it never taps more sources than
@@ -746,23 +824,40 @@ function solveSmartAutoTapCore(
         isDemandAffordable(d, pool, substitutions, sources)
     );
 
-    // Unified position score (issue #794 + review fix): a SINGLE scalar combining
-    // the post-payment Evaluation (`scorePlan`) with the preserved-Demand count as
-    // a heavily-weighted term. `evaluateAutoTapPosition` (evaluate.ts) is demand-
-    // BLIND — it only prices raw source breadth / dual-purpose quality of the
-    // sources a plan spares. Ranking the eval as the strict PRIMARY key regressed
-    // demand preservation: a plan sparing a higher-breadth-but-UNNEEDED source
-    // (Tropical Island) could outrank one sparing a lower-breadth source a still-
-    // castable HELD SPELL actually needs (Plains, held {W}) — the eval's +breadth
-    // bonus taps the Plains and strands the {W}. Folding demand preservation in as
-    // a term of the SAME scalar (weighted by W_PRESERVED_DEMAND, which dwarfs the
-    // source-quality bonuses of ~tens) makes a concrete color-critical demand
-    // dominate any breadth/dual bonus, while plans that TIE on demand still fall to
-    // the eval's source-quality term — so the dual-purpose / color-flex
-    // improvements are retained. With no scorer the eval term is a constant (0)
-    // across plans, so the legacy demand→flex→lex order is recovered exactly.
-    // Flexibility then lexicographic remain the lower tie-breaks. CR-neutral
-    // (601.2g — auto-tap never dictates *which* legal sources are tapped).
+    // Unified position score (issue #794 + review fix; surplus term issue
+    // #2247): a SINGLE scalar combining the post-payment Evaluation
+    // (`scorePlan`) with the preserved-Demand count and surplus avoidance as
+    // heavily-weighted terms. `evaluateAutoTapPosition` (evaluate.ts) is
+    // demand-BLIND — it only prices raw source breadth / dual-purpose quality
+    // of the sources a plan spares — and its `mana` term is SURPLUS-BLIND:
+    // the coarse proxy counts an untapped source as exactly one unit
+    // regardless of output, so tapping a multi-mana source and floating the
+    // rest reads as a NET GAIN over leaving it untapped (issue #2247's
+    // reported bug). Ranking the eval as the strict PRIMARY key regressed
+    // demand preservation the same way it inverted surplus: a plan sparing a
+    // higher-breadth-but-UNNEEDED source (Tropical Island) could outrank one
+    // sparing a lower-breadth source a still-castable HELD SPELL actually
+    // needs (Plains, held {W}) — the eval's +breadth bonus taps the Plains
+    // and strands the {W}. Folding demand preservation and surplus avoidance
+    // in as terms of the SAME scalar — demand weighted by
+    // `W_PRESERVED_DEMAND` (1000, dwarfs everything below it), surplus by
+    // `W_SURPLUS` (100, capped at `SURPLUS_CAP` so it never itself reaches
+    // `W_PRESERVED_DEMAND`, and large enough to dominate the eval's
+    // source-quality/mana-proxy noise of ~tens per swapped source) — makes a
+    // concrete color-critical demand dominate surplus avoidance, which in
+    // turn dominates any breadth/dual bonus or proxy inversion `scorePlan`
+    // contributes for this decision, while plans that TIE on both demand and
+    // surplus still fall to the eval's source-quality term — so the
+    // dual-purpose / color-flex improvements are retained. Surplus is read
+    // directly from `floatingAfterPlan` (`planSurplus`), never from the
+    // coarse proxy, so this ranking's correctness does not depend on
+    // `evaluate.ts`'s proxy being fixed (see the divergence note on
+    // `availableManaFor` there). With no scorer the eval term is a constant
+    // (0) across plans, so the unified score reduces to demand minus surplus
+    // — the legacy demand→flex→lex order, now also preferring lower surplus
+    // among demand ties. Flexibility then lexicographic remain the lower
+    // tie-breaks. CR-neutral (601.2g — auto-tap never dictates *which* legal
+    // sources are tapped).
     let best: AutoTapPlan | null = null;
     let bestPosition = -Infinity;
     let bestFlex = -1;
@@ -777,7 +872,9 @@ function solveSmartAutoTapCore(
             plan,
             liveDemands
         );
-        const position = evalScore + W_PRESERVED_DEMAND * demandScore;
+        const surplus = planSurplus(pool, cost, substitutions, sources, plan);
+        const position =
+            evalScore + W_PRESERVED_DEMAND * demandScore - W_SURPLUS * surplus;
         const flex = remainingFlexibility(sources, plan);
         const lex = planLexKey(plan);
         // Lexicographic on (position desc, flex desc, lex asc).

@@ -223,7 +223,26 @@ function hasInstantTiming(card: CardInstanceState): boolean {
 
 /** Untapped mana sources + floating mana available to `player` this turn — the
  *  color-blind coarse proxy the `mana` term and the flexibility / castability
- *  gates all share (CR 601 colored requirements are not modelled). */
+ *  gates all share (CR 601 colored requirements are not modelled).
+ *
+ *  Known asymmetry (issue #2247): an untapped source counts exactly 1
+ *  regardless of its real output, while floating mana in the pool counts per
+ *  unit — so tapping a multi-mana source (Sol Ring) and floating the surplus
+ *  reads as a gain over leaving it untapped. `evaluateAutoTapPosition`'s
+ *  smart-auto-tap ranking does NOT rely on this function for that decision:
+ *  #2247 adds a dedicated surplus-avoidance term to `solveSmartAutoTapCore`
+ *  (`autoTap.ts`, `planSurplus`, reading `floatingAfterPlan`'s exact leftover
+ *  pool directly) sized to dominate this proxy's noise for the ranking, so
+ *  the auto-tap bug is fixed without correcting the proxy itself here.
+ *
+ *  Out of scope for #2247: correcting this function (and its duplicate,
+ *  `heldInteraction.ts`'s `availableManaFor`) to count a source's real output
+ *  would move the `mana`/flexibility terms on every ISMCTS leaf and the
+ *  castability gates bot-wide, for every board with a multi-mana untapped
+ *  source — a change disproportionate to, and independently verifiable from,
+ *  the ranking fix above. Left as a deliberate simplification pending its own
+ *  slice if a symptom traces back to this proxy specifically (rather than to
+ *  the auto-tap ranking, which #2247 already covers). */
 function availableManaFor(player: PlayerState): number {
     let n = 0;
     for (const perm of player.battlefield) {
