@@ -33,6 +33,7 @@ import {
 } from "fs";
 import { join } from "path";
 import { gh } from "./lib/gh";
+import { fetchBoardPriority as fetchBoardPriorityShared } from "./lib/board-priority";
 import {
     buildPlanRecord,
     planBatch,
@@ -152,13 +153,6 @@ const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
  *  a limit is a guess, `totalCount` is the answer. */
 const PROJECT_ITEM_LIMIT = 2000;
 
-const VALID_PRIORITIES: readonly string[] = ["P0", "P1", "P2"];
-
-interface ProjectItem {
-    content?: { type?: string; number?: number; repository?: string };
-    priority?: string;
-}
-
 function die(message: string): never {
     console.error(`✗ ${message}`);
     process.exit(2);
@@ -172,86 +166,21 @@ function die(message: string): never {
  * loop implements four issues in the wrong order, and nothing anywhere is red.
  * A stopped loop is a five-second fix; a silently mis-ordered one is invisible.
  * `--no-priority` is the explicit escape, and it announces itself.
+ *
+ * The read itself — and its degrade-vs-fail-loud policy — now live in
+ * `lib/board-priority.ts`, shared with `loop:status` (#2519). This wrapper
+ * supplies `queue:plan`'s OWN policy (`die`), so its behaviour is unchanged
+ * by that extraction; only the messages moved.
  */
 function fetchBoardPriority(): Record<number, BoardPriority> {
-    if (process.argv.includes("--no-priority")) {
-        console.error(
-            "⚠ --no-priority: board priorities NOT applied; this plan uses the default order only"
-        );
-        return {};
-    }
-
-    let raw: string;
-    try {
-        raw = gh([
-            "project",
-            "item-list",
-            PROJECT_NUMBER,
-            "--owner",
-            PROJECT_OWNER,
-            "--format",
-            "json",
-            "--limit",
-            String(PROJECT_ITEM_LIMIT),
-        ]);
-    } catch (err) {
-        die(
-            `cannot read project ${PROJECT_OWNER}/${PROJECT_NUMBER}: ${(err as Error).message}\n` +
-                `  The board carries the Priority field the queue sorts on, so this plan would be\n` +
-                `  silently mis-ordered. Fix the access — \`gh auth refresh -s read:project\` — or\n` +
-                `  re-run with --no-priority to plan on the default order deliberately.`
-        );
-    }
-
-    const items = (JSON.parse(raw) as { items?: ProjectItem[] }).items;
-    if (!Array.isArray(items)) {
-        die(
-            "project item-list returned no `items` array — the CLI shape changed"
-        );
-    }
-
-    // A limit is a guess; `totalCount` is the answer. If the board has grown
-    // past the limit, say so rather than plan on the newest slice of it.
-    const total = JSON.parse(
-        gh([
-            "project",
-            "view",
-            PROJECT_NUMBER,
-            "--owner",
-            PROJECT_OWNER,
-            "--format",
-            "json",
-        ])
-    ) as { items?: { totalCount?: number } };
-    const expected = total.items?.totalCount;
-    if (typeof expected === "number" && items.length < expected) {
-        die(
-            `project item-list returned ${items.length} of ${expected} items — truncated.\n` +
-                `  Raise PROJECT_ITEM_LIMIT in scripts/queue-plan.ts.`
-        );
-    }
-
-    const priority: Record<number, BoardPriority> = {};
-    for (const item of items) {
-        if (item.priority === undefined) continue;
-        if (item.content?.type !== "Issue") continue;
-        // Issue numbers are unique per REPO, not per board. A board that ever
-        // gains a second repo would otherwise map #42 of one onto #42 of the
-        // other — wrong, and silent.
-        if (item.content.repository !== PROJECT_REPO) continue;
-        const number = item.content.number;
-        if (typeof number !== "number") continue;
-        if (!VALID_PRIORITIES.includes(item.priority)) {
-            die(
-                `issue #${number} has Priority "${item.priority}", which the planner does not rank.\n` +
-                    `  Known values: ${VALID_PRIORITIES.join(", ")}. Treating an unknown value as\n` +
-                    `  "unprioritized" would DEMOTE the issue someone deliberately flagged, so add the\n` +
-                    `  value to VALID_PRIORITIES and PRIORITY_RANK, or fix it on the board.`
-            );
-        }
-        priority[number] = item.priority as BoardPriority;
-    }
-    return priority;
+    return fetchBoardPriorityShared({
+        owner: PROJECT_OWNER,
+        projectNumber: PROJECT_NUMBER,
+        repo: PROJECT_REPO,
+        itemLimit: PROJECT_ITEM_LIMIT,
+        skip: process.argv.includes("--no-priority"),
+        onError: die,
+    });
 }
 
 const detailCache = new Map<number, IssueDetail>();

@@ -792,3 +792,45 @@ export function readReceiptsFromDir(dir: string): ReadReceiptsResult {
 function nowSeconds(): number {
     return Math.floor(Date.now() / 1000);
 }
+
+/**
+ * The newest batch directory directly under `receiptsRoot`, by mtime — "the
+ * current batch's receipts" that `loop:status` (#2519) surfaces. Nothing
+ * indexes batches by recency elsewhere; the closest precedent
+ * (`loop-scorecard.ts`) reads every batch dir for a window, which is the
+ * wrong shape here (a scorecard aggregates history, `loop:status` wants only
+ * what is happening right now).
+ *
+ * Tolerant like every other reader in this module: an unreadable or
+ * concurrently-removed entry is skipped rather than thrown — several
+ * sessions share this root and nothing prunes it (#2527: 134 batch dirs,
+ * 8176 files at the time that comment was written elsewhere in this file).
+ * `undefined` when the root is missing or empty, which is the honest answer
+ * for "no batch has ever run here", not an error.
+ *
+ * **Exact mtime tie**: the comparison below is a strict `>`, so the FIRST
+ * entry `fs.readdirSync` visits keeps the win and every later entry with the
+ * same mtime is skipped. That is deliberately arbitrary (there is no
+ * documented rule for "which of two batches created in the same
+ * millisecond is newer") rather than non-deterministic — the same directory
+ * contents produce the same answer on a given platform, it is just not a
+ * meaningful tie-break, so nothing should read significance into it beyond
+ * "some batch with the max mtime".
+ */
+export function newestBatchDir(receiptsRoot: string): string | undefined {
+    if (!fs.existsSync(receiptsRoot)) return undefined;
+    let newest: { name: string; mtimeMs: number } | undefined;
+    for (const entry of fs.readdirSync(receiptsRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        let mtimeMs: number;
+        try {
+            mtimeMs = fs.statSync(path.join(receiptsRoot, entry.name)).mtimeMs;
+        } catch {
+            continue;
+        }
+        if (!newest || mtimeMs > newest.mtimeMs) {
+            newest = { name: entry.name, mtimeMs };
+        }
+    }
+    return newest?.name;
+}

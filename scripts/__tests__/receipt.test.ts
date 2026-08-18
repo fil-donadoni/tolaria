@@ -7,6 +7,7 @@ import * as path from "path";
 import {
     RECEIPT_VERSION,
     ReceiptError,
+    newestBatchDir,
     parseReceipt,
     readReceipts,
     receiptDir,
@@ -878,5 +879,59 @@ describe("SubagentStop hook — a missing receipt is recorded as missing", () =>
             env: { ...process.env, CLAUDE_PROJECT_DIR: tmp },
         });
         expect(result.status).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// newestBatchDir (PR #2545 review, finding 4) — `loop:status` (#2519) uses
+// this to decide which batch's receipts the whole view describes, so a wrong
+// answer here silently points the dashboard/CLI at a stale batch. No test
+// existed despite that.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function touch(dir: string, mtimeMs: number): void {
+    fs.mkdirSync(dir, { recursive: true });
+    const t = mtimeMs / 1000;
+    fs.utimesSync(dir, t, t);
+}
+
+describe("newestBatchDir", () => {
+    it("returns undefined when the root does not exist", () => {
+        expect(
+            newestBatchDir(path.join(tmp, "does-not-exist"))
+        ).toBeUndefined();
+    });
+
+    it("returns undefined for an existing but empty root (zero batch dirs)", () => {
+        expect(newestBatchDir(tmp)).toBeUndefined();
+    });
+
+    it("picks the directory with the newest mtime, not the lexicographically last name", () => {
+        const now = Date.now();
+        touch(path.join(tmp, "sess-b-newer-name"), now - 10_000); // older mtime
+        touch(path.join(tmp, "sess-a-older-name"), now); // newer mtime
+        expect(newestBatchDir(tmp)).toBe("sess-a-older-name");
+    });
+
+    it("ignores plain files sitting next to the batch directories", () => {
+        touch(path.join(tmp, "sess-1"), Date.now() - 5_000);
+        fs.writeFileSync(path.join(tmp, "stray-file.txt"), "not a batch");
+        // A stray file must never win just because fs.statSync happily
+        // returns an mtime for it too.
+        expect(newestBatchDir(tmp)).toBe("sess-1");
+    });
+
+    it("breaks an exact mtime tie by keeping whichever entry readdirSync visits first — arbitrary, but deterministic per platform readdir order, not random", () => {
+        // `newestBatchDir` only updates `newest` on a STRICT `>` comparison,
+        // so on a tie the FIRST entry `fs.readdirSync` returns keeps it and
+        // every later tied entry is skipped. This is deliberately not
+        // "latest name wins" or any other tie-break — it is whatever order
+        // the filesystem's directory listing returns, which is stable for a
+        // given directory's contents but not a documented ordering contract.
+        const tie = Date.now();
+        touch(path.join(tmp, "sess-x"), tie);
+        touch(path.join(tmp, "sess-y"), tie);
+        const winner = newestBatchDir(tmp);
+        expect(fs.readdirSync(tmp)[0]).toBe(winner);
     });
 });

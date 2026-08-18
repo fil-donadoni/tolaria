@@ -78,16 +78,66 @@ const NET_ENV: NodeJS.ProcessEnv = (() => {
     return env;
 })();
 
-function sh(cmd: string, args: string[]): string {
+function spawnRaw(
+    cmd: string,
+    args: string[]
+): { status: number | null; stdout: string; stderr: string } {
     const r = spawnSync(cmd, args, { encoding: "utf8", env: NET_ENV });
-    return r.status === 0 ? r.stdout.trim() : "";
+    return {
+        status: r.status,
+        stdout: r.stdout ?? "",
+        stderr: r.stderr || r.error?.message || "",
+    };
 }
 
-if (import.meta.main) {
-    const release = process.argv.includes("--release");
+/** A pluggable command runner — the seam `loop:status` (#2519 round 3,
+ *  finding 5) injects a fixture into for testing, and swaps for
+ *  `shChecked` in production to turn a failed `gh`/`git` call into a
+ *  thrown error instead of a silently-empty string. */
+export type ShRunner = (cmd: string, args: string[]) => string;
 
-    const issues = JSON.parse(
-        sh("gh", [
+/** Historical behaviour: a non-zero exit renders as `""`. Fine for
+ *  `loop:doctor`'s own CLI, where a failed read degrading to "nothing to
+ *  report" is an acceptable (if imperfect) default — NOT fine for a
+ *  caller that must distinguish "the read failed" from "the read
+ *  legitimately returned nothing", because both look identical here. */
+const sh: ShRunner = (cmd, args) => {
+    const r = spawnRaw(cmd, args);
+    return r.status === 0 ? r.stdout.trim() : "";
+};
+
+/** The fail-CLOSED counterpart: throws, carrying the process's stderr,
+ *  instead of returning `""` on a non-zero exit. `""` is indistinguishable
+ *  from "the command succeeded and printed nothing" — the exact shape of
+ *  the bug in #2519 round 3 finding 5, where a rate-limited `gh issue list`
+ *  rendered as "0 claimed issues" rather than "unavailable". */
+export const shChecked: ShRunner = (cmd, args) => {
+    const r = spawnRaw(cmd, args);
+    if (r.status !== 0) {
+        throw new Error(
+            `${cmd} ${args.join(" ")} failed: ${r.stderr.trim() || `exit ${r.status}`}`
+        );
+    }
+    return r.stdout.trim();
+};
+
+/** Raw shape of one row of `gh issue list --json number,title,updatedAt`. */
+export type ClaimedIssue = { number: number; title: string; updatedAt: string };
+
+/**
+ * Every issue currently claimed (`is:open is:issue label:in-progress`).
+ *
+ * Exported (#2519) so `loop:status` builds its "who is claimed" view from the
+ * SAME query `loop:doctor` uses to find orphans, rather than a second,
+ * independently-drifting definition of "claimed".
+ *
+ * `runner` defaults to the swallow-on-failure `sh` — unchanged behaviour for
+ * `loop:doctor`'s own CLI below. `loop:status` passes `shChecked` explicitly
+ * so a failed read THROWS instead of reading as zero claims.
+ */
+export function fetchClaimedIssues(runner: ShRunner = sh): ClaimedIssue[] {
+    return JSON.parse(
+        runner("gh", [
             "issue",
             "list",
             "--search",
@@ -97,17 +147,16 @@ if (import.meta.main) {
             "--limit",
             "200",
         ]) || "[]"
-    ) as { number: number; title: string; updatedAt: string }[];
+    ) as ClaimedIssue[];
+}
 
-    if (issues.length === 0) {
-        console.log("loop:doctor — no claimed issues. Nothing to check.");
-        process.exit(0);
-    }
-
-    const prBranches = new Set(
+/** Head branch names of every currently OPEN pull request. See
+ *  `fetchClaimedIssues` for the `runner` default/override convention. */
+export function fetchOpenPrBranches(runner: ShRunner = sh): Set<string> {
+    return new Set(
         (
             JSON.parse(
-                sh("gh", [
+                runner("gh", [
                     "pr",
                     "list",
                     "--state",
@@ -120,29 +169,64 @@ if (import.meta.main) {
             ) as { headRefName: string }[]
         ).map((p) => p.headRefName)
     );
-    const allBranches = [
-        ...sh("git", ["branch", "--all", "--format=%(refname:short)"]).split(
-            "\n"
-        ),
-        ...sh("git", ["ls-remote", "--heads", "origin"])
+}
+
+/** Every local AND remote branch name (local branches unprefixed; remote
+ *  `origin/*` refs reduced to their short name via `ls-remote`). See
+ *  `fetchClaimedIssues` for the `runner` default/override convention. */
+export function fetchAllBranchNames(runner: ShRunner = sh): string[] {
+    return [
+        ...runner("git", [
+            "branch",
+            "--all",
+            "--format=%(refname:short)",
+        ]).split("\n"),
+        ...runner("git", ["ls-remote", "--heads", "origin"])
             .split("\n")
             .map((l) => l.split("\t")[1] ?? ""),
     ];
+}
+
+/**
+ * Turn one claimed issue plus the two branch/PR scans into the `ClaimFacts`
+ * `classifyClaim` consumes. Pure — the scans themselves are the only I/O.
+ */
+export function buildClaimFacts(
+    issue: ClaimedIssue,
+    prBranches: Set<string>,
+    allBranches: string[],
+    now: number = Date.now()
+): ClaimFacts {
+    const suffix = new RegExp(`(^|/)issue-${issue.number}$`);
+    return {
+        issue: issue.number,
+        title: issue.title,
+        hasBranch: allBranches.some((b) =>
+            suffix.test(b.replace(/^refs\/heads\//, ""))
+        ),
+        hasOpenPr: [...prBranches].some((b) => suffix.test(b)),
+        ageHours:
+            (now - new Date(issue.updatedAt).getTime()) / (1000 * 60 * 60),
+    };
+}
+
+if (import.meta.main) {
+    const release = process.argv.includes("--release");
+
+    const issues = fetchClaimedIssues();
+
+    if (issues.length === 0) {
+        console.log("loop:doctor — no claimed issues. Nothing to check.");
+        process.exit(0);
+    }
+
+    const prBranches = fetchOpenPrBranches();
+    const allBranches = fetchAllBranchNames();
 
     const now = Date.now();
     const orphans: number[] = [];
     for (const issue of issues) {
-        const suffix = new RegExp(`(^|/)issue-${issue.number}$`);
-        const facts: ClaimFacts = {
-            issue: issue.number,
-            title: issue.title,
-            hasBranch: allBranches.some((b) =>
-                suffix.test(b.replace(/^refs\/heads\//, ""))
-            ),
-            hasOpenPr: [...prBranches].some((b) => suffix.test(b)),
-            ageHours:
-                (now - new Date(issue.updatedAt).getTime()) / (1000 * 60 * 60),
-        };
+        const facts = buildClaimFacts(issue, prBranches, allBranches, now);
         const v = classifyClaim(facts);
         const mark =
             v.state === "orphan" ? "×" : v.state === "suspect" ? "?" : "·";

@@ -276,6 +276,57 @@
                 overflow: auto;
             }
 
+            /* Loop status panel (#2519). */
+            .ls-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 16px;
+            }
+            .ls-driver {
+                font-size: 12px;
+                color: var(--text-secondary);
+                line-height: 1.6;
+            }
+            .ls-driver b {
+                color: var(--text-primary);
+            }
+            .ls-pass {
+                font-size: 11px;
+                color: var(--muted);
+            }
+            .ls-mark {
+                display: inline-block;
+                width: 14px;
+                text-align: center;
+            }
+            .ls-mark.orphan {
+                color: var(--series-2);
+            }
+            .ls-mark.suspect {
+                color: var(--series-4);
+            }
+            .ls-mark.live {
+                color: var(--series-3);
+            }
+            .ls-stage {
+                display: inline-block;
+                padding: 1px 7px;
+                border-radius: 999px;
+                background: var(--plane);
+                border: 1px solid var(--border);
+                font-size: 11px;
+                color: var(--text-secondary);
+                white-space: nowrap;
+            }
+            .ls-empty {
+                color: var(--muted);
+                font-size: 12px;
+            }
+            .ls-unavailable {
+                color: var(--series-2);
+                font-size: 12px;
+            }
+
             #tip {
                 position: fixed;
                 pointer-events: none;
@@ -353,6 +404,12 @@
 
             <div class="filters" id="filters"></div>
             <div class="tiles" id="tiles"></div>
+
+            <section class="card" id="loop-status-card">
+                <h2>Loop status</h2>
+                <div class="h-sub" id="loop-status-sub">loading…</div>
+                <div id="loop-status-body"></div>
+            </section>
 
             <section class="card">
                 <h2>Issues</h2>
@@ -1044,6 +1101,154 @@
                             '"': "&quot;",
                         })[c]
                 );
+
+            // ── Loop status panel (#2519) — polls GET /api/loop-status, which
+            // reads no DB, so it must render whether or not telemetry.db
+            // exists. Inserted first among the panels: operational state, not
+            // an analytics slice. ──────────────────────────────────────────
+            function renderLoopStatus(data) {
+                const sub = document.getElementById("loop-status-sub");
+                const body = document.getElementById("loop-status-body");
+                const d = data.driver ?? {};
+                sub.textContent =
+                    `${d.armed ? "armed" : "not armed"} · ` +
+                    `${
+                        d.pid === null || d.pid === undefined
+                            ? "no driver pid"
+                            : d.pidAlive
+                              ? `pid ${d.pid} running`
+                              : `pid ${d.pid} NOT running`
+                    } · ` +
+                    `${d.stopFilePresent ? "STOP-FILE PRESENT" : "no stop-file"}` +
+                    (data.priorityWarning
+                        ? ` · ⚠ ${esc(data.priorityWarning)}`
+                        : "");
+
+                const passesHtml = (d.recentPasses ?? []).length
+                    ? d.recentPasses
+                          .map(
+                              (p) =>
+                                  `<div class="ls-pass">pass ${p.pass} · exit ${p.claudeExit} · pct ${esc(p.pct)} · queue ${p.queueBefore}→${p.queueAfter} · ${esc(p.reason)}</div>`
+                          )
+                          .join("")
+                    : `<div class="ls-empty">no passes recorded</div>`;
+
+                // `claims`/`queueDepth` are `null` (with a sibling
+                // `claimsError`/`queueDepthError`) when the underlying `gh`
+                // read failed (#2519 round 3, finding 5) — rendered as an
+                // explicit UNAVAILABLE banner, never as an empty/zeroed
+                // section, which is indistinguishable from a healthy read
+                // that genuinely found nothing (the exact bug: at 0/5000
+                // GraphQL quota this panel used to say "no claimed issues"
+                // and "total: 0", reading as an idle, drained loop).
+                const claims = data.claims;
+                const claimsHeaderCount =
+                    claims === null ? "UNAVAILABLE" : claims.length;
+                const claimsHtml =
+                    data.claimsError != null
+                        ? `<div class="ls-unavailable">⚠ ${esc(data.claimsError)}<br>cannot tell whether anything is claimed — not the same as "no claimed issues"</div>`
+                        : claims && claims.length
+                          ? `<div class="tbl-wrap"><table><thead><tr><th></th><th>issue</th><th>pri</th><th>stage</th><th>age</th><th>title</th></tr></thead><tbody>` +
+                            claims
+                                .map((c) => {
+                                    const verdictState =
+                                        c.verdict?.state ?? "live";
+                                    const reason = esc(
+                                        c.verdict?.reason ?? ""
+                                    );
+                                    const mark =
+                                        verdictState === "orphan"
+                                            ? `<span class="ls-mark orphan" title="${reason}">×</span>`
+                                            : verdictState === "suspect"
+                                              ? `<span class="ls-mark suspect" title="${reason}">?</span>`
+                                              : `<span class="ls-mark live" title="${reason}">·</span>`;
+                                    return (
+                                        `<tr><td>${mark}</td><td>#${c.issue}</td><td>${esc(c.priority ?? "—")}</td>` +
+                                        `<td><span class="ls-stage">${esc(c.stage)}</span></td>` +
+                                        `<td>${Number(c.ageHours ?? 0).toFixed(1)}h</td>` +
+                                        `<td>${esc(c.title)}</td></tr>`
+                                    );
+                                })
+                                .join("") +
+                            `</tbody></table></div>`
+                          : `<div class="ls-empty">no claimed issues</div>`;
+
+                const qd = data.queueDepth;
+                const queueHtml =
+                    data.queueDepthError != null
+                        ? `<div class="ls-unavailable">⚠ ${esc(data.queueDepthError)}<br>cannot tell how deep the queue is — not the same as "queue empty"</div>`
+                        : `<div class="ls-driver">P0 <b>${qd.P0}</b> · P1 <b>${qd.P1}</b> · P2 <b>${qd.P2}</b> · ` +
+                          `unprioritized <b>${qd.unprioritized}</b> · total <b>${qd.total}</b></div>`;
+
+                // Receipts render from `receiptsSummary`, not a raw list
+                // (PR #2545 review, finding 3) — a live batch measured 232
+                // receipts, almost all `missing session=…` markers, which
+                // blew this panel to 3000-8000px tall on a phone (it is
+                // deliberately the FIRST card, so that pushed the rest of
+                // the dashboard ~8 screens below the fold). Counts by
+                // (role, outcome) are cheap and complete — no cap needed;
+                // only `wip`/`failed`/`blocking`/`collision` rows print
+                // individually, capped server-side.
+                const summary = data.receiptsSummary ?? {
+                    total: 0,
+                    counts: [],
+                    interesting: [],
+                };
+                const countsHtml = summary.counts.length
+                    ? summary.counts
+                          .map(
+                              (c) =>
+                                  `<div class="ls-pass">${esc(c.role)} ${esc(c.outcome)}: <b>${c.count}</b></div>`
+                          )
+                          .join("")
+                    : `<div class="ls-empty">no receipts in this batch</div>`;
+                const interestingHtml = summary.interesting.length
+                    ? summary.interesting
+                          .map((r) =>
+                              r.role === "missing"
+                                  ? `<div class="ls-pass">missing · session ${esc(r.session)}</div>`
+                                  : `<div class="ls-pass">#${r.issue} · ${esc(r.role)} · ${esc(r.outcome)}${r.pr ? ` · PR #${r.pr}` : ""}</div>`
+                          )
+                          .join("")
+                    : "";
+                const receiptsHtml = countsHtml + interestingHtml;
+
+                body.innerHTML =
+                    `<div class="ls-grid">` +
+                    `<div><b>Driver</b>${passesHtml}</div>` +
+                    `<div><b>Queue depth</b>${queueHtml}</div>` +
+                    `<div><b>Batch ${esc(data.batch ?? "(none)")} (${summary.total})</b>${receiptsHtml}</div>` +
+                    `</div>` +
+                    `<div style="margin-top:12px"><b>Claimed issues (${claimsHeaderCount})</b>${claimsHtml}</div>`;
+            }
+
+            async function refreshLoopStatus() {
+                try {
+                    const res = await fetch("/api/loop-status");
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                    renderLoopStatus(data);
+                } catch (e) {
+                    document.getElementById("loop-status-sub").textContent =
+                        `error: ${e.message}`;
+                }
+            }
+
+            const LOOP_STATUS_POLL_MS = 10_000;
+            let loopStatusTimer = null;
+            function startLoopStatusPolling() {
+                refreshLoopStatus();
+                if (loopStatusTimer) clearInterval(loopStatusTimer);
+                loopStatusTimer = setInterval(() => {
+                    // A forgotten background tab must not poll `gh` forever.
+                    if (document.visibilityState === "visible")
+                        refreshLoopStatus();
+                }, LOOP_STATUS_POLL_MS);
+            }
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible") refreshLoopStatus();
+            });
+
             const tier = (m) =>
                 m ? m.replace(/^claude-/, "").replace(/-\d.*$/, "") : "—";
             const mc = (min, cost) =>
@@ -1526,23 +1731,39 @@
             if (themeParam === "light" || themeParam === "dark")
                 document.documentElement.setAttribute("data-theme", themeParam);
 
-            META = await (await fetch("/api/meta")).json();
-            state.from = META.range?.min_day ?? "";
-            state.to = META.range?.max_day ?? "";
-            // Applied after the defaults so an explicit param always wins, and
-            // validated against META so a stale link can't wedge the page.
-            for (const k of ["table", "metric", "split", "from", "to"]) {
-                const v = params.get(k);
-                if (v) state[k] = v;
+            // The loop-status panel reads no DB and must come up regardless of
+            // whether telemetry.db exists (#2519) — started BEFORE the
+            // DB-backed block below, which can throw and abort the rest of
+            // this module script when the store is absent or stale.
+            startLoopStatusPolling();
+
+            try {
+                META = await (await fetch("/api/meta")).json();
+                if (META.error) throw new Error(META.error);
+                state.from = META.range?.min_day ?? "";
+                state.to = META.range?.max_day ?? "";
+                // Applied after the defaults so an explicit param always wins,
+                // and validated against META so a stale link can't wedge the
+                // page.
+                for (const k of ["table", "metric", "split", "from", "to"]) {
+                    const v = params.get(k);
+                    if (v) state[k] = v;
+                }
+                if (!META.dimensions[state.table]) state.table = "agent_runs";
+                document.getElementById("meta-line").textContent =
+                    `${META.counts.spans.toLocaleString()} spans · ${META.counts.llm.toLocaleString()} messages · ` +
+                    `${META.counts.agent_runs.toLocaleString()} agent runs · ` +
+                    `${META.range.min_day} → ${META.range.max_day} · ` +
+                    `ingested ${new Date(Number(META.lastIngest)).toLocaleString()}`;
+                renderFilters();
+                refresh();
+            } catch (e) {
+                // No telemetry.db (absent or stale — #2519 acceptance
+                // criterion): the analytics panels below stay empty rather
+                // than taking the loop-status panel above down with them.
+                document.getElementById("meta-line").textContent =
+                    `no telemetry store: ${e.message} — run "bun run telemetry:ingest"`;
             }
-            if (!META.dimensions[state.table]) state.table = "agent_runs";
-            document.getElementById("meta-line").textContent =
-                `${META.counts.spans.toLocaleString()} spans · ${META.counts.llm.toLocaleString()} messages · ` +
-                `${META.counts.agent_runs.toLocaleString()} agent runs · ` +
-                `${META.range.min_day} → ${META.range.max_day} · ` +
-                `ingested ${new Date(Number(META.lastIngest)).toLocaleString()}`;
-            renderFilters();
-            refresh();
         </script>
     </body>
 </html>
