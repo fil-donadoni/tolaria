@@ -2199,10 +2199,12 @@ export interface TokenTriggeredAbility {
  *  (`applyAsEntersAnswer`, `convex/gre/state.ts`) is exhaustive over this union
  *  via `assertNever`, so a `kind` cannot be added without a writer.
  *
- *  SLICE 1 (#2492) declares the whole union and wires NO card to it — the
- *  catalogue-wide guard `convex/cards/__tests__/asEntersUnion.test.ts` asserts
- *  that. The card wiring arrives in #2019 (`mode`), #2467 (`name` / `subtypes`
- *  / `body` / `payLife`), #2451 (`copy`) and #1980 (`pay`). */
+ *  SLICE 1 (#2492) declared the whole union and wired NO card to it. The
+ *  catalogue-wide guard `convex/cards/__tests__/asEntersUnion.test.ts` still
+ *  asserts that leg by leg, narrowed to the legs still unwired: `discard` is
+ *  wired (Mox Diamond, #2389), the rest arrive in #2019 (`mode`), #2467
+ *  (`name` / `subtypes` / `body` / `payLife`), #2451 (`copy`) and #1980
+ *  (`pay`). */
 export type AsEntersChoice =
     /** CR 614.12 — "as this enters, choose a colour/creature type/…" expressed
      *  as one of the card's own `modes`; the answer is written to
@@ -2273,6 +2275,32 @@ export type AsEntersChoice =
      *  Declared here so the family is whole; the shipped `land-entry-tapped`
      *  provisional park keeps its own shape until #1980 reconciles the two. */
     | { kind: "pay"; cost: ManaCost }
+    /** CR 614.1a + CR 701.9 — "if this permanent would enter, you may discard a
+     *  card matching `filter` instead. If you do, put it onto the battlefield.
+     *  If you don't, put it into `ifDeclined`" (Mox Diamond, #2389).
+     *
+     *  The one DECLINABLE member of this union: every other kind narrows HOW the
+     *  permanent enters, this one decides WHETHER it enters at all. Declining —
+     *  or being unable to pay, which CR 614.1a makes the same thing since the
+     *  "instead" is never applied — aborts the staged entry, and
+     *  `applyAsEntersAnswer` puts the object in `ifDeclined` itself rather than
+     *  running the entry tail (the `aura-host` CR 303.4g shape). The permanent
+     *  therefore never touches the battlefield on that branch: no ETB trigger,
+     *  no LKI, no "dies" event — a permanent SPELL goes stack → graveyard as a
+     *  card (CR 608.3).
+     *
+     *  COST-BEARING, so it participates in the CR 614.12b constraint when two
+     *  permanents are staged simultaneously; the candidate set is recomputed as
+     *  the choice is OFFERED (`enqueueAsEntersChoice`), which is what keeps a
+     *  sibling's already-committed discard out of it.
+     *
+     *  `ifDeclined` is data rather than a convention because "you may X instead,
+     *  or it goes to Y" is the general shape and Y is the card's to say; today
+     *  only the graveyard leg is printed. `filter` is matched with the shared
+     *  `handCardMatchesFilter`, the same matcher the alt-cost hand leg and the
+     *  as-enters `name` filter use — so it reads 9 of `EffectCardFilter`'s
+     *  fields and treats the rest as "matches". */
+    | { kind: "discard"; filter?: EffectCardFilter; ifDeclined: "graveyard" }
     /** CR 614.12c — "some replacement effects cause a permanent to enter the
      *  battlefield with its controller's choice of one of two abilities, each
      *  marked with an anchor word". No shipped card uses anchor words; the kind
