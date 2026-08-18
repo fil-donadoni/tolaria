@@ -1,6 +1,19 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import * as fs from "fs";
+import * as nodeFs from "node:fs";
+import * as os from "os";
 import * as path from "path";
+
+// `writeBoardPriorityCache` (issue #2520 round 2) imports from the "node:fs"
+// specifier — the SAME specifier must be mocked here, or the module namespace
+// stays non-configurable and `vi.spyOn` throws ("Module namespace is not
+// configurable in ESM"). Every export defaults to the real implementation;
+// only `renameSync` is wrapped so a single test can simulate a crash between
+// the temp-file write and the rename.
+vi.mock("node:fs", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("node:fs")>();
+    return { ...actual, renameSync: vi.fn(actual.renameSync) };
+});
 import {
     planBatch,
     pathsOverlap,
@@ -16,6 +29,20 @@ import {
     type QueueIssue,
     type QueuePort,
 } from "../lib/queue-plan";
+import {
+    isRateLimitError,
+    isCacheFresh,
+    liveFetchBoardPriority,
+    formatSnapshotAge,
+    resolveBoardPriority,
+    boardPriorityForArgv,
+    rateLimitFallbackMessage,
+    readBoardPriorityCache,
+    writeBoardPriorityCache,
+    NO_PRIORITY_MESSAGE,
+    type BoardPriorityDeps,
+    type BoardPrioritySnapshot,
+} from "../queue-plan";
 
 /**
  * Queue planner — the loop's scheduling contract (issue #2181, PRD #2180).
@@ -992,5 +1019,454 @@ describe("plan artefact (issue #2518)", () => {
             const name = planFilename("", "2026-08-18T00:00:00.000Z");
             expect(name.startsWith("unknown-")).toBe(true);
         });
+    });
+});
+
+/**
+ * Board-priority cache + rate-limit fallback (issue #2520).
+ *
+ * `gh project item-list` is a GraphQL call over a 400+-item board, run once
+ * per pass, per session — the shared GraphQL budget was gone within the hour
+ * with several sessions draining the queue, and the planner's ONLY response
+ * to that was a hard stop (`GraphQL: API rate limit exceeded …`).
+ *
+ * Three distinct outcomes, kept distinct on purpose: fresh cache (reuse, no
+ * live call at all), stale-but-present cache used ONLY when the live read
+ * fails (announced with its age), and no snapshot at all (the hard stop is
+ * unchanged, byte for byte). Conflating "stale" with "absent", or silently
+ * using a stale snapshot as if it were fresh, is the failure mode these tests
+ * guard against — so every test below asserts the SOURCE tag
+ * (`cache-fresh` / `live` / `cache-stale-fallback`), never just the returned
+ * priority map, which looks identical across all three.
+ */
+describe("board priority — isRateLimitError (issue #2520)", () => {
+    it("matches the gh CLI's actual GraphQL rate-limit wording", () => {
+        expect(
+            isRateLimitError(
+                "GraphQL: API rate limit exceeded for user ID 117459688."
+            )
+        ).toBe(true);
+    });
+
+    it("does not match an unrelated gh failure — a permission error must still hard-stop", () => {
+        expect(
+            isRateLimitError(
+                "GraphQL: Resource not accessible by personal access token (user.projectV2)"
+            )
+        ).toBe(false);
+    });
+});
+
+describe("board priority — isCacheFresh (issue #2520)", () => {
+    const NOW = "2026-08-18T12:00:00Z";
+    const TTL = 5 * 60 * 1000; // 5 minutes
+
+    it("is fresh inside the TTL", () => {
+        expect(isCacheFresh(NOW, "2026-08-18T11:58:00Z", TTL)).toBe(true);
+    });
+
+    it("is stale just past the TTL", () => {
+        expect(isCacheFresh(NOW, "2026-08-18T11:54:00Z", TTL)).toBe(false);
+    });
+
+    it("treats a snapshot from the future (clock skew) as not fresh", () => {
+        expect(isCacheFresh(NOW, "2026-08-18T12:05:00Z", TTL)).toBe(false);
+    });
+});
+
+describe("board priority — formatSnapshotAge (issue #2520)", () => {
+    it('matches the exact wording the issue specifies ("3m ago")', () => {
+        expect(
+            formatSnapshotAge("2026-08-18T12:03:00Z", "2026-08-18T12:00:00Z")
+        ).toBe("3m");
+    });
+
+    it("floors sub-minute age to a readable label", () => {
+        expect(
+            formatSnapshotAge("2026-08-18T12:00:30Z", "2026-08-18T12:00:00Z")
+        ).toBe("<1m");
+    });
+
+    it("switches to hours past 60 minutes", () => {
+        expect(
+            formatSnapshotAge("2026-08-18T13:05:00Z", "2026-08-18T12:00:00Z")
+        ).toBe("1h5m");
+        expect(
+            formatSnapshotAge("2026-08-18T14:00:00Z", "2026-08-18T12:00:00Z")
+        ).toBe("2h");
+    });
+});
+
+describe("board priority — resolveBoardPriority (issue #2520)", () => {
+    const NOW = "2026-08-18T12:05:00Z";
+    const TTL = 5 * 60 * 1000;
+
+    function deps(
+        overrides: Partial<BoardPriorityDeps> & {
+            cache?: BoardPrioritySnapshot;
+        }
+    ): BoardPriorityDeps & {
+        fetchLiveCalls: number;
+        writeCalls: BoardPrioritySnapshot[];
+    } {
+        const writeCalls: BoardPrioritySnapshot[] = [];
+        let fetchLiveCalls = 0;
+        return {
+            now: NOW,
+            ttlMs: TTL,
+            readCache: () => overrides.cache,
+            writeCache: (snapshot) => {
+                writeCalls.push(snapshot);
+                if (overrides.writeCache) overrides.writeCache(snapshot);
+            },
+            fetchLive: () => {
+                fetchLiveCalls++;
+                if (overrides.fetchLive) return overrides.fetchLive();
+                return { 10: "P0" };
+            },
+            get fetchLiveCalls() {
+                return fetchLiveCalls;
+            },
+            writeCalls,
+        } as BoardPriorityDeps & {
+            fetchLiveCalls: number;
+            writeCalls: BoardPrioritySnapshot[];
+        };
+    }
+
+    it("reuses a fresh cache and makes NO live call at all", () => {
+        const d = deps({
+            cache: {
+                fetchedAt: "2026-08-18T12:02:00Z",
+                priority: { 20: "P1" },
+            },
+        });
+        const result = resolveBoardPriority(d);
+        expect(result).toEqual({
+            priority: { 20: "P1" },
+            source: "cache-fresh",
+        });
+        expect(d.fetchLiveCalls).toBe(0);
+    });
+
+    it("re-fetches live when the cache is stale, and writes the new snapshot", () => {
+        const d = deps({
+            cache: {
+                fetchedAt: "2026-08-18T11:00:00Z",
+                priority: { 20: "P1" },
+            },
+        });
+        const result = resolveBoardPriority(d);
+        expect(result).toEqual({ priority: { 10: "P0" }, source: "live" });
+        expect(d.fetchLiveCalls).toBe(1);
+        expect(d.writeCalls).toEqual([
+            { fetchedAt: NOW, priority: { 10: "P0" } },
+        ]);
+    });
+
+    it("fetches live when there is no cache at all", () => {
+        const d = deps({});
+        const result = resolveBoardPriority(d);
+        expect(result).toEqual({ priority: { 10: "P0" }, source: "live" });
+    });
+
+    it("falls back to a STALE cache on a rate-limit failure, announcing its age", () => {
+        // The cache here is well past the TTL — the point of this test is
+        // that the TTL governs the SKIP-FETCH decision, not usability as a
+        // fallback: a stale snapshot is still enormously better than a stop.
+        const d = deps({
+            cache: {
+                fetchedAt: "2026-08-18T11:00:00Z",
+                priority: { 30: "P2" },
+            },
+            fetchLive: () => {
+                throw new Error(
+                    "GraphQL: API rate limit exceeded for user ID 117459688."
+                );
+            },
+        });
+        const result = resolveBoardPriority(d);
+        expect(result).toEqual({
+            priority: { 30: "P2" },
+            source: "cache-stale-fallback",
+            ageLabel: "1h5m",
+        });
+    });
+
+    it("does NOT fall back on a rate-limit failure with no cache — the hard stop survives", () => {
+        const d = deps({
+            fetchLive: () => {
+                throw new Error(
+                    "GraphQL: API rate limit exceeded for user ID 117459688."
+                );
+            },
+        });
+        expect(() => resolveBoardPriority(d)).toThrow(/rate limit/i);
+    });
+
+    it("does NOT fall back on a NON-rate-limit failure even with a cache present", () => {
+        // A permission error is not a rate limit, and a cache is never a
+        // substitute for correct access — conflating the two would silently
+        // paper over a broken `gh auth` with a snapshot that may be hours old
+        // for the wrong reason.
+        const d = deps({
+            cache: {
+                fetchedAt: "2026-08-18T11:00:00Z",
+                priority: { 30: "P2" },
+            },
+            fetchLive: () => {
+                throw new Error(
+                    "GraphQL: Resource not accessible by personal access token (user.projectV2)"
+                );
+            },
+        });
+        expect(() => resolveBoardPriority(d)).toThrow(/not accessible/i);
+    });
+
+    it("a cache-write failure does NOT turn a successful live read into a thrown error (issue #2520 round 2)", () => {
+        // `deps.writeCache` used to sit inside the same try as `fetchLive`, so
+        // an EACCES/ENOSPC from the write — not rate-limit shaped — rethrew
+        // and killed a live read that had ALREADY succeeded, with priorities
+        // in hand. The caching layer added to prevent hard stops must not
+        // itself become a new one.
+        const d = deps({
+            writeCache: () => {
+                throw new Error("EACCES: permission denied");
+            },
+        });
+        const result = resolveBoardPriority(d);
+        expect(result).toEqual({ priority: { 10: "P0" }, source: "live" });
+    });
+});
+
+describe("board priority — readBoardPriorityCache / writeBoardPriorityCache (issue #2520 round 2)", () => {
+    function tmpCachePath(): string {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "queue-plan-cache-"));
+        return path.join(dir, "board-priority.json");
+    }
+
+    it("round-trips a valid snapshot", () => {
+        const cachePath = tmpCachePath();
+        const snapshot: BoardPrioritySnapshot = {
+            fetchedAt: "2026-08-18T12:00:00Z",
+            priority: { 10: "P0", 20: "P1" },
+        };
+        writeBoardPriorityCache(cachePath, snapshot);
+        expect(readBoardPriorityCache(cachePath)).toEqual(snapshot);
+    });
+
+    it("writes to a temp file and leaves no sibling behind on success", () => {
+        const cachePath = tmpCachePath();
+        writeBoardPriorityCache(cachePath, {
+            fetchedAt: "2026-08-18T12:00:00Z",
+            priority: { 10: "P0" },
+        });
+        const dirEntries = fs.readdirSync(path.dirname(cachePath));
+        expect(dirEntries).toEqual(["board-priority.json"]);
+    });
+
+    it("a crash between the temp write and the rename leaves the PREVIOUS snapshot intact, not a truncated one", () => {
+        // The property the atomic-write fix protects: several loops share this
+        // cache file. A bare `writeFileSync` (open O_TRUNC then write) lets a
+        // concurrent reader observe a truncated/zero-filled file mid-write —
+        // this is fail-safe (a torn file fails JSON.parse and is treated as
+        // "no usable snapshot"), but it needlessly turns a recoverable
+        // situation into a hard stop. Simulate the crash by making the rename
+        // itself throw AFTER the temp file is fully written, and assert the
+        // ORIGINAL target file is untouched — proof the write went to a side
+        // file the whole time and never opened the target for truncation.
+        const cachePath = tmpCachePath();
+        const original: BoardPrioritySnapshot = {
+            fetchedAt: "2026-08-18T11:00:00Z",
+            priority: { 5: "P2" },
+        };
+        writeBoardPriorityCache(cachePath, original);
+
+        const renameSpy = vi
+            .spyOn(nodeFs, "renameSync")
+            .mockImplementation(() => {
+                throw new Error("simulated crash between write and rename");
+            });
+        try {
+            expect(() =>
+                writeBoardPriorityCache(cachePath, {
+                    fetchedAt: "2026-08-18T12:00:00Z",
+                    priority: { 10: "P0" },
+                })
+            ).toThrow(/simulated crash/);
+        } finally {
+            renameSpy.mockRestore();
+        }
+
+        // The target file was never touched by the failed write — a BARE
+        // `writeFileSync(cachePath, ...)` would have already truncated it by
+        // this point, before any "crash" could occur.
+        expect(readBoardPriorityCache(cachePath)).toEqual(original);
+    });
+
+    it("rejects a snapshot whose fetchedAt does not parse — not just that it is a string", () => {
+        const cachePath = tmpCachePath();
+        fs.writeFileSync(
+            cachePath,
+            JSON.stringify({
+                fetchedAt: "not-a-date",
+                priority: { 10: "P0" },
+            })
+        );
+        // Proof-of-failure: before this guard, an unparseable `fetchedAt`
+        // still qualified as a usable snapshot and `formatSnapshotAge` printed
+        // "NaNhNaNm ago" for it. Reject the snapshot outright instead.
+        expect(readBoardPriorityCache(cachePath)).toBeUndefined();
+    });
+
+    it("rejects a snapshot carrying a priority value outside VALID_PRIORITIES", () => {
+        const cachePath = tmpCachePath();
+        fs.writeFileSync(
+            cachePath,
+            JSON.stringify({
+                fetchedAt: "2026-08-18T12:00:00Z",
+                priority: { 10: "P0", 20: "P9" },
+            })
+        );
+        // Proof-of-failure: before this guard, an unranked cached value
+        // reached `PRIORITY_RANK[p]` as `undefined` and made the sort
+        // comparator return `NaN` — the live path already refuses this via
+        // `die()`; the cached path silently let it through.
+        expect(readBoardPriorityCache(cachePath)).toBeUndefined();
+    });
+
+    it("still returns undefined for a missing file", () => {
+        expect(
+            readBoardPriorityCache("/nonexistent/path/board-priority.json")
+        ).toBeUndefined();
+    });
+});
+
+describe("board priority — boardPriorityForArgv (issue #2520)", () => {
+    const NOW = "2026-08-18T12:05:00Z";
+    const TTL = 5 * 60 * 1000;
+
+    function deps(
+        overrides: Partial<BoardPriorityDeps> & {
+            cache?: BoardPrioritySnapshot;
+        }
+    ): BoardPriorityDeps {
+        return {
+            now: NOW,
+            ttlMs: TTL,
+            readCache: () => overrides.cache,
+            writeCache: () => {},
+            fetchLive: overrides.fetchLive ?? (() => ({ 10: "P0" })),
+        };
+    }
+
+    it("--no-priority announces itself, touches neither cache nor live, and returns no priorities", () => {
+        const readCache = vi.fn(() => undefined);
+        const fetchLive = vi.fn(
+            () => ({ 10: "P0" }) as Record<number, BoardPriority>
+        );
+        const result = boardPriorityForArgv(["--no-priority"], {
+            now: NOW,
+            ttlMs: TTL,
+            readCache,
+            writeCache: () => {},
+            fetchLive,
+        });
+        expect(result).toEqual({ priority: {}, message: NO_PRIORITY_MESSAGE });
+        expect(readCache).not.toHaveBeenCalled();
+        expect(fetchLive).not.toHaveBeenCalled();
+    });
+
+    it("a normal live/fresh-cache read carries no message", () => {
+        const result = boardPriorityForArgv(
+            [],
+            deps({ cache: { fetchedAt: NOW, priority: { 20: "P1" } } })
+        );
+        expect(result).toEqual({ priority: { 20: "P1" } });
+        expect(result.message).toBeUndefined();
+    });
+
+    it("a rate-limit fallback carries the exact degraded-read announcement", () => {
+        // Cache is past the 5-minute TTL, so the fresh-reuse path is not the
+        // one under test here — this exercises the OTHER route to the same
+        // cache: a live attempt that fails with a rate limit.
+        const result = boardPriorityForArgv(
+            [],
+            deps({
+                cache: {
+                    fetchedAt: "2026-08-18T11:57:00Z", // 8 minutes before NOW
+                    priority: { 30: "P2" },
+                },
+                fetchLive: () => {
+                    throw new Error(
+                        "GraphQL: API rate limit exceeded for user ID 117459688."
+                    );
+                },
+            })
+        );
+        expect(result.priority).toEqual({ 30: "P2" });
+        expect(result.message).toBe(rateLimitFallbackMessage("8m"));
+        expect(result.message).toBe(
+            "⚠ board unread (GraphQL rate limit); using the priority snapshot from 8m ago"
+        );
+    });
+});
+
+describe("board priority — liveFetchBoardPriority (issue #2520)", () => {
+    // The seam the rebase onto #2519 created: the READ now lives in
+    // `lib/board-priority.ts` and reports every degraded read through
+    // `onError`, while the DEGRADE POLICY (fall back to a cached snapshot on a
+    // rate limit) still lives here. Wiring `onError: die` straight through —
+    // the shape `queue-plan.ts` had before this issue — would exit(2) inside
+    // the reader and delete the whole fallback, silently: every test above
+    // passes, because they inject `fetchLive` directly and never reach this
+    // function.
+
+    it("turns a reader failure into a THROW, so resolveBoardPriority can classify it", () => {
+        expect(() =>
+            liveFetchBoardPriority((opts) => {
+                opts.onError(
+                    "cannot read project fil-donadoni/2: GraphQL: API rate limit exceeded for user ID 117459688."
+                );
+                return {};
+            })
+        ).toThrow(/rate limit/i);
+
+        // …and the thrown message is one `isRateLimitError` recognizes — the
+        // single predicate that decides degrade-vs-hard-stop.
+        try {
+            liveFetchBoardPriority((opts) => {
+                opts.onError(
+                    "cannot read project fil-donadoni/2: GraphQL: API rate limit exceeded for user ID 117459688."
+                );
+                return {};
+            });
+            expect.unreachable("liveFetchBoardPriority must not return here");
+        } catch (err) {
+            expect(isRateLimitError((err as Error).message)).toBe(true);
+        }
+    });
+
+    it("never asks the reader to handle --no-priority — that escape hatch is decided before the read", () => {
+        // `boardPriorityForArgv` returns before the cache or the network is
+        // touched. Passing `skip` here as well would route the deliberate skip
+        // through the throwing `onError` above, which is exactly the shape PR
+        // #2545's review found deletes the escape hatch.
+        let seen: { skip?: boolean } | undefined;
+        liveFetchBoardPriority((opts) => {
+            seen = opts;
+            return { 10: "P0" };
+        });
+        expect(seen?.skip).toBeFalsy();
+    });
+
+    it("passes a static limit only as the FALLBACK — the reader sizes the window itself", () => {
+        let seen: { itemLimit?: number } | undefined;
+        const priority = liveFetchBoardPriority((opts) => {
+            seen = opts;
+            return { 10: "P0" };
+        });
+        expect(priority).toEqual({ 10: "P0" });
+        expect(seen?.itemLimit).toBe(2000);
     });
 });
