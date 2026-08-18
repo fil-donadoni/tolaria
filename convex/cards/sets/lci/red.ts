@@ -143,12 +143,19 @@ export const intiSeneschalOfTheSun: CardDefinition = {
             // closure (impulse-draw off the controller's own library, the
             // Ragavan/Robber of the Rich PROTOCOL, no Op skin), so the bot's
             // value model has nothing to walk without a shadow script.
-            // `digToHand` is this codebase's own precedent for valuing
+            // `lookDistribute` is this codebase's own precedent for valuing
             // "look at N, keep 1" impulse draw (`CARD_SELECTION_VALUE`,
             // `gre/ai/opValuers.ts`), standing in for the exile-and-may-cast
             // upside even though the real effect casts from exile rather
             // than hand.
-            aiEffects: [{ op: "digToHand", player: "controller", look: 1 }],
+            aiEffects: [
+                {
+                    op: "lookDistribute",
+                    keepTo: "hand",
+                    player: "controller",
+                    look: 1,
+                },
+            ],
         },
     ],
 };

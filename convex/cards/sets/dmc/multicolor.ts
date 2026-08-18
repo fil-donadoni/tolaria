@@ -15,7 +15,7 @@ const TORSTEN_FOUNDER_ID = "0783b426-a527-42c1-9271-be28b229e1c6";
 // your hand and the rest on the bottom of your library in a random order.
 // When Torsten dies, create seven 1/1 white Soldier creature tokens."
 //
-// ETB (CR 603.6a self-ETB): the `digToHand` Op (issue #984, extended #1101)
+// ETB (CR 603.6a self-ETB): the `lookDistribute` Op (issue #984, extended #1101)
 // already models "look N, take up to K matching, bottom the rest randomly"
 // in one suspend — `look: 7`, `take: 7` + `optional: true` ("any number" =
 // min 0, max 7, clamped to however many looked-at cards actually match),
@@ -51,7 +51,8 @@ export const torstenFounderOfBenalia: CardDefinition = {
             scope: "self",
             effects: [
                 {
-                    op: "digToHand",
+                    op: "lookDistribute",
+                    keepTo: "hand",
                     player: "controller",
                     look: 7,
                     take: 7,

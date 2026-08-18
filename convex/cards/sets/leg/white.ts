@@ -960,7 +960,7 @@ export const visions: CardDefinition = {
     // NOT DSL-migratable (ADR 0045): "look at the top five" marks them known
     // to the CASTER only, WITHOUT moving or reordering them — no Op covers a
     // pure look. `libraryLook` only implements `action: "shuffle"`;
-    // `digToHand` / `digMatchingToHand` / `scryReorder` all move or reorder
+    // `lookDistribute` / `digMatchingToHand` / `scryReorder` all move or reorder
     // the looked-at cards, which Visions' first clause must NOT do. Blocked
     // on: a plain "look, mark known, leave in place" Op (the classifier's
     // stale `scryReorder` backlog note calls this same gap out for

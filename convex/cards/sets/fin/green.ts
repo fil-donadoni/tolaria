@@ -8,10 +8,10 @@
 // straight into the graveyard as a keyword action. Re-audited under the
 // #1305 residue tranche (parent PRD #620, 2026-07-18): `mill` has since
 // shipped (issue #885) and the "mill 4, may put a land to hand" half is now
-// a clean `digToHand` call, but the card's THIRD clause — "If you put a
+// a clean `lookDistribute` call, but the card's THIRD clause — "If you put a
 // Town card into your hand this way, you gain 2 life" — needs a predicate
 // that tests a bound object's SUBTYPE (`EffectPredicate` has no
-// filter-match member; a `forEach`/`digToHand` `bind` can't be re-checked
+// filter-match member; a `forEach`/`lookDistribute` `bind` can't be re-checked
 // against `EffectCardFilter`). Never ship a silent partial (CLAUDE.md) —
 // the whole card stays a stub. Stop-and-issue per gre-development.md;
 // tracked-by: #1363.

@@ -285,6 +285,16 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a player's Domain — the canned generator does not seed basic lands to size it`;
         return;
     }
+    // devotion (CR 700.5, issue #2070): the amount reads a PLAYER's devotion
+    // to a colour (mana symbols of that colour among controlled permanents'
+    // costs). The canned generator's filler board has no colour-costed
+    // permanents the predictor can size a declared outcome against;
+    // skip-with-reason — the value member's own interpreter test is the
+    // behavioural guarantor (per DSL-first authoring, new-construct regime).
+    if ("devotion" in value) {
+        req.skip ??= `amount reads a player's devotion to a colour — the canned generator does not seed costed permanents to size it`;
+        return;
+    }
     // escaped (CR 702.138b, issue #695): a 0/1 read of whether a permanent
     // escaped. The canned generator casts spells from hand, never via escape, so
     // it can't set an escaped=1 outcome; skip-with-reason — the value member's
@@ -712,16 +722,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // the Op's own interpreter tests.
             req.skip ??= `Op "randomExileToHand" picks a random card from a source-linked exile pile — the canned generator does not provision the pile; covered by the Op's interpreter tests`;
             return;
-        case "digToHand":
-            // A `digToHand` Op suspends resolution for a live look-distribute
+        case "lookDistribute":
+            // A `lookDistribute` Op suspends resolution for a live look-distribute
             // pick (issue #984) — a canned scenario cannot submit the
             // hand/bottom choice, so the script is reported as an explicit skip;
             // execution coverage comes from the Op's own interpreter tests and
             // the migrated cards' suspension/resume tests (per-Op regime).
-            req.skip ??= `Op "digToHand" suspends for a look-distribute pick — covered by the Op's interpreter tests`;
+            req.skip ??= `Op "lookDistribute" suspends for a look-distribute pick — covered by the Op's interpreter tests`;
             return;
         case "hideaway":
-            // CR 702.75a (issue #783) — same shape as `digToHand`: the Op
+            // CR 702.75a (issue #783) — same shape as `lookDistribute`: the Op
             // suspends on a live look-distribute pick that a canned scenario
             // cannot submit, and its outcome (a FACE-DOWN exile whose identity
             // is per-viewer) is not a state delta the generator asserts.
@@ -730,7 +740,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "hideaway" suspends for a look-distribute pick and exiles face down — covered by the Op's interpreter tests`;
             return;
         case "revealAndCategorize":
-            // Same shape as `digToHand` (issue #1364): the Op suspends on a
+            // Same shape as `lookDistribute` (issue #1364): the Op suspends on a
             // live categorized look-distribute pick, which a canned scenario
             // cannot submit. Explicit skip; execution coverage is the Op's own
             // interpreter tests plus the categorizedPick matching unit tests.
@@ -1203,7 +1213,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // top-placement, checkpoint (an earlier Op never re-runs on
             // resume) and wire-format assertions are covered by the Op's own
             // interpreter tests (per-Op regime; mirrors the suspending
-            // `choice` / `scryReorder` / `digToHand` skips).
+            // `choice` / `scryReorder` / `lookDistribute` skips).
             req.skip ??= `Op "putBack" suspends for a live hand pick (CR 401.4) — covered by the Op's interpreter tests`;
             return;
         case "nameCard":
@@ -1427,6 +1437,7 @@ function predictAmount(value: EffectValue): number | null {
     if ("ref" in value) return null; // skipped earlier — defensive
     if ("counters" in value) return null; // skipped earlier — defensive
     if ("domain" in value) return null; // skipped earlier — defensive
+    if ("devotion" in value) return null; // skipped earlier — defensive
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
     if ("difference" in value) return null; // skipped earlier — defensive
     if ("scaled" in value) return null; // skipped earlier — defensive
@@ -2117,12 +2128,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     randomExileToHand() {
         return null;
     },
-    // `digToHand` (CR 401.4, issue #984) — never reached: `analyseOp` skips
-    // every script with a digToHand Op (it suspends on a live look-distribute
+    // `lookDistribute` (CR 401.4, issue #984) — never reached: `analyseOp` skips
+    // every script with a lookDistribute Op (it suspends on a live look-distribute
     // pick, so there is no deterministic same-resolution outcome the canned
     // scenario can assert). Kept for the 1:1 coverage guard; the look / keep /
     // bottom is covered by the Op's own interpreter tests.
-    digToHand() {
+    lookDistribute() {
         return null;
     },
     // `hideaway` (CR 702.75a, issue #783) — never reached: `analyseOp` skips

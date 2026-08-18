@@ -3666,7 +3666,7 @@ describe("hideaway Op + linked-exile / library-count vocabulary (CR 702.75, issu
         ).toEqual([]);
     });
 
-    it("rejects a hideaway Op carrying digToHand vocabulary the keyword does not offer", () => {
+    it("rejects a hideaway Op carrying lookDistribute vocabulary the keyword does not offer", () => {
         const errors = validateEffectScript(
             host({
                 effects: [

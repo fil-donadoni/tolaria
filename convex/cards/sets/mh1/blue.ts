@@ -302,7 +302,7 @@ export const urzaLordHighArtificer: CardDefinition = {
             },
             // aiEffects (PRD #1423, issue #1431/#1519) — bare `resolve()`
             // (see the header comment: no Op skin for an unconditional
-            // top-of-library exile). `digToHand` is this codebase's own
+            // top-of-library exile). `lookDistribute` is this codebase's own
             // precedent for standing in for a "look at N, keep 1" impulse
             // upside (`CARD_SELECTION_VALUE`, `gre/ai/opValuers.ts`) —
             // Ragavan, Nimble Pilferer's own exile-and-may-cast clause uses
@@ -310,7 +310,14 @@ export const urzaLordHighArtificer: CardDefinition = {
             // effect casts from exile without paying mana cost rather than
             // drawing to hand; the shuffle itself carries no separate
             // valuation (a shuffle of a fair library is value-neutral).
-            aiEffects: [{ op: "digToHand", player: "controller", look: 1 }],
+            aiEffects: [
+                {
+                    op: "lookDistribute",
+                    keepTo: "hand",
+                    player: "controller",
+                    look: 1,
+                },
+            ],
         },
     ],
 };

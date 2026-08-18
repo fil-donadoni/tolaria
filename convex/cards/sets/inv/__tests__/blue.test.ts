@@ -724,7 +724,7 @@ describe("Empress Galina ({U}{U},{T}: gain control of target legendary permanent
 // Domain cluster (parent PRD #1063, issue #1066). Collective Restraint's
 // dynamic `costPerAttacker` earns the mandatory combat integration test
 // (issue #1066 acceptance criteria); Worldly Counsel reuses the already
-// per-Op-tested `digToHand` + `{ domain: { of } }` combination (a light
+// per-Op-tested `lookDistribute` + `{ domain: { of } }` combination (a light
 // sanity check, not a mandated hand-written test).
 // ---------------------------------------------------------------------------
 

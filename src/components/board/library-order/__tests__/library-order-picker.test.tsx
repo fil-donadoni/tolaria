@@ -166,7 +166,26 @@ describe("LibraryOrderPicker", () => {
         expect(getByText("Your hand")).toBeTruthy();
     });
 
-    // issue #1101 (Reviving Vapors) — `digToHand`'s `destination: "graveyard"`
+    // issue #2070 (Thassa's Oracle) — `keepTo: "library-top"` reads the keep
+    // (right) zone as "Top of library" instead of "Your hand"; the left/bottom
+    // zone is unaffected.
+    it("renders TOP OF LIBRARY/BOTTOM chrome in distribute mode with keepTo library-top", () => {
+        const { getByText, queryByText } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="library-bottom"
+                prompt="Thassa's Oracle"
+                submitting={false}
+                distribute={{ keep: 1, keepTo: "library-top" }}
+                onConfirm={vi.fn()}
+            />
+        );
+        expect(getByText("Bottom of library")).toBeTruthy();
+        expect(getByText("Top of library")).toBeTruthy();
+        expect(queryByText("Your hand")).toBeNull();
+    });
+
+    // issue #1101 (Reviving Vapors) — `lookDistribute`'s `destination: "graveyard"`
     // reuses distribute mode but the un-kept pile is the GRAVEYARD, not the
     // library bottom. The chrome must follow `destination` here too (it used
     // to be hardcoded to "BOTTOM" regardless of the prop).

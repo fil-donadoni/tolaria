@@ -8,8 +8,8 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // issue #1305, parent PRD #620). "When this creature enters, reveal the top
 // four cards of your library. You may put a land card from among them into
 // your hand. Put the rest into your graveyard." UNBLOCKED since the earlier
-// #679 stub note (which predates the `digToHand` Op, issue #984/#1101):
-// `digToHand` is a fixed top-N reveal window with a type filter and a
+// #679 stub note (which predates the `lookDistribute` Op, issue #984/#1101):
+// `lookDistribute` is a fixed top-N reveal window with a type filter and a
 // graveyard destination for the non-kept cards — exactly this shape (`look:
 // 4, take: 1, optional: true` — "you MAY put A land card", `filter: { type:
 // "Land" }`, `destination: "graveyard"`). Both the reveal-window suspend and
@@ -35,7 +35,8 @@ export const satyrWayfinder: CardDefinition = {
             scope: "self",
             effects: [
                 {
-                    op: "digToHand",
+                    op: "lookDistribute",
+                    keepTo: "hand",
                     player: "controller",
                     look: 4,
                     take: 1,

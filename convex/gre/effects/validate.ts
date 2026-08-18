@@ -553,6 +553,11 @@ const TOKEN_COLORS = new Set(["W", "U", "B", "R", "G", "C"]);
  *  (issue #1955) — WUBRG only (CR 105.1). */
 const SHIELD_MATCH_COLORS = new Set(["W", "U", "B", "R", "G"]);
 
+/** Valid `{ devotion: { color } }` colours (CR 700.5, issue #2070) — WUBRG
+ *  only, mirroring `SHIELD_MATCH_COLORS`: devotion is a per-CR-105.1a-colour
+ *  count and colourless is not one. */
+const DEVOTION_COLORS = new Set(["W", "U", "B", "R", "G"]);
+
 /** Valid `grantGraveyardPlay.zones` members (issue #1149) — which card kinds
  *  a graveyard-cast permission grant covers. */
 const GRAVEYARD_PLAY_ZONES = new Set(["land", "spell"]);
@@ -1115,6 +1120,28 @@ function isDomainValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** `{ devotion: { of, color } }` — SHAPE of the Devotion value construct (CR
+ *  700.5, issue #2070, tenth `EffectValue` member). `of` is a PLAYER selector
+ *  exactly like Domain's; `color` is a required WUBRG literal (no ref grammar
+ *  — devotion always names a fixed colour, no shipped card reads a computed
+ *  one). No `times` — unlike Domain, no shipped devotion card scales it, so
+ *  the field isn't added until one needs it (primitive-reuse discipline). */
+function isDevotionValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "devotion") return false;
+    const spec = (value as { devotion: unknown }).devotion;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of" || k === "color")) {
+        return false;
+    }
+    if (typeof s.color !== "string" || !DEVOTION_COLORS.has(s.color)) {
+        return false;
+    }
+    return isPlayerRef(s.of);
+}
+
 /** `{ escaped: { of } }` — SHAPE of the escaped value construct (CR 702.138b,
  *  issue #695). `of` is an object selector (an announced target slot, `$source`,
  *  or a permanents-set forEach `$each`) — family-checked as an OBJECT position
@@ -1283,6 +1310,7 @@ function isEffectValue(value: unknown): boolean {
         isKickerPaidValue(value) ||
         isManaValueValue(value) ||
         isDomainValue(value) ||
+        isDevotionValue(value) ||
         isEscapedValue(value) ||
         isAbilityResolutionCountValue(value) ||
         isLifeGainedThisTurnValue(value) ||
@@ -1503,13 +1531,22 @@ function isRangedTopdeckPool(value: unknown): boolean {
     return value === "drawn-this-turn";
 }
 
-/** The `reveal` scope of a `digToHand` Op (CR 701.20a) — makes the look a
+/** The `reveal` scope of a `lookDistribute` Op (CR 701.20a) — makes the look a
  *  PUBLIC reveal: `"window"` reveals the whole looked-at window before the
  *  keep/order choice ("Reveal the top N"), `"kept"` reveals only the cards put
  *  into hand after the pick ("Look at the top N ... you may reveal a card").
  *  Omitted for a purely private look (CR 401.4). */
 function isRevealScope(value: unknown): boolean {
     return value === "window" || value === "kept";
+}
+
+/** The REQUIRED `keepTo` of a `lookDistribute` Op (issue #2070) — where the
+ *  KEPT cards land: `"hand"` (every card shipped before #2070) or
+ *  `"library-top"` (Thassa's Oracle). No default — the field is required
+ *  precisely so a schema-valid card can never silently fall back to the old
+ *  hard-coded hand behaviour. */
+function isLookDistributeKeepTo(value: unknown): boolean {
+    return value === "hand" || value === "library-top";
 }
 
 /** The `categories` list of a `revealAndCategorize` Op (issue #1364, Atraxa):
@@ -3713,22 +3750,28 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             count: isEffectValue,
         },
     },
-    // CR 401.4 (issue #984, extended #1101) — dig to hand: look at the top
-    // `look` cards, put `take` (default 1) into hand, the rest to
-    // `destination` (library bottom by default, graveyard — Reviving Vapors —
-    // when set). Suspends on a `look-top` choice over the looked-at ids.
-    // `player` names whose library; `look` is how many top cards to look at;
-    // `take` (optional, default 1) is how many to keep; `prompt` is an
-    // optional choice header. `bind` (issue #1101) snapshot-binds the FIRST
-    // kept card for a later Op's `manaValue`-of read (Reviving Vapors'
-    // "gain life equal to that card's mana value").
-    digToHand: {
+    // CR 401.4 (issue #984, extended #1101, `keepTo` #2070) — look at the top
+    // `look` cards, put `take` (default 1) to `keepTo` (hand, or the library
+    // top — Thassa's Oracle), the rest to `destination` (library bottom by
+    // default, graveyard — Reviving Vapors — when set). Suspends on a
+    // `look-top` choice over the looked-at ids. `player` names whose
+    // library; `look` is how many top cards to look at; `take` (optional,
+    // default 1) is how many to keep; `prompt` is an optional choice header.
+    // `bind` (issue #1101) snapshot-binds the FIRST kept card for a later
+    // Op's `manaValue`-of read (Reviving Vapors' "gain life equal to that
+    // card's mana value").
+    lookDistribute: {
         required: {
             player: isPlayerRef,
             look: isEffectValue,
+            // Issue #2070 — REQUIRED, no default: a rename that let `keepTo`
+            // stay optional would resurrect the old hard-coded "always hand"
+            // behaviour as a silent default the moment a second destination
+            // existed.
+            keepTo: isLookDistributeKeepTo,
         },
-        // `filter` restricts the hand-eligible subset (Narset's "noncreature,
-        // nonland card"); `optional` makes the hand pick a "may" (min 0);
+        // `filter` restricts the keep-eligible subset (Narset's "noncreature,
+        // nonland card"); `optional` makes the keep a "may" (min 0);
         // `destination` (issue #1101) is where the un-kept cards go
         // (`library-bottom` default / `graveyard`, mirrors `scryReorder`);
         // `randomBottom` bottoms the rest unordered + unknown (issue #1266,
@@ -3749,7 +3792,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     },
     // CR 702.75a (issue #783) — HIDEAWAY: look at the top `look` cards, exile
     // exactly ONE face down (linked to the source, CR 607), bottom the rest in a
-    // random order. `digToHand`'s vocabulary minus every choice the keyword does
+    // random order. `lookDistribute`'s vocabulary minus every choice the keyword does
     // not offer: no `take` (always exactly one), no `filter` (any of the looked-at
     // cards is eligible), no `optional` (not a "may"), no `destination` (always
     // the library bottom), no `randomBottom` (always random), no `reveal` (the
@@ -3769,7 +3812,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // keep at most ONE card per category out of that shared window, bottom the
     // rest. Atraxa, Grand Unifier. `categories` is a non-empty ordered list of
     // `{ label, filter }` pairs (the label is what the picker shows); the rest
-    // of the vocabulary is `digToHand`'s, with identical semantics.
+    // of the vocabulary is `lookDistribute`'s, with identical semantics.
     revealAndCategorize: {
         required: {
             player: isPlayerRef,
@@ -4322,11 +4365,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         optional: { excludeBasicLand: isBoolean },
     },
     // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic sibling
-    // of `digToHand`: PUBLICLY reveal the top `look` cards to every player
+    // of `lookDistribute`: PUBLICLY reveal the top `look` cards to every player
     // (transient dialog + persistent known-to-all), put every FILTER-matching
     // card into hand with no player choice, and send the rest to
     // `destination`. `filter` is REQUIRED but MAY be the match-all `{}` — a
-    // public reveal-and-keep-all (Dark Confidant) that `digToHand`'s PRIVATE
+    // public reveal-and-keep-all (Dark Confidant) that `lookDistribute`'s PRIVATE
     // keep-all (`take` = `look`) cannot express, so the two are NOT redundant.
     // `bind` (optional) snapshots the first card put into hand.
     digMatchingToHand: {
@@ -4538,6 +4581,19 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         keyHint === "domain" &&
         keys.includes("of") &&
         keys.every((k) => k === "of" || k === "times")
+    ) {
+        collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // devotion — { devotion: { of, color } } (CR 700.5, issue #2070): `of` is
+    // a PLAYER position, same reasoning as `domain`'s. `color` is a plain
+    // WUBRG literal with no ref grammar (the generic fallback below would
+    // recurse into it too, but a bare string immediately no-ops there — this
+    // early return exists only to route `of` correctly).
+    if (
+        keyHint === "devotion" &&
+        keys.includes("of") &&
+        keys.every((k) => k === "of" || k === "color")
     ) {
         collectRefUses(obj.of, "player", out);
         return;

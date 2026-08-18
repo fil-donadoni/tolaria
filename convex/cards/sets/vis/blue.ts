@@ -11,7 +11,7 @@ import { BASIC_LAND_SUBTYPES } from "../../types";
 
 // Impulse — {1}{U} Instant. "Look at the top four cards of your library. Put one
 // of them into your hand and the rest on the bottom of your library in any
-// order." (CR 401.4 look.) A single already-censused `digToHand` Op (issue #984)
+// order." (CR 401.4 look.) A single already-censused `lookDistribute` Op (issue #984)
 // with look 4 / take 1: it reveals the top four, drives the unified HAND/BOTTOM
 // pick of one to keep (moved library→hand), bottoms the remaining three in the
 // player's chosen order, and marks those bottomed cards known to the controller
@@ -32,7 +32,15 @@ export const impulse: CardDefinition = {
         "Look at the top four cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.",
     manaCost: { X: 1, U: 1 },
     types: ["Instant"],
-    effects: [{ op: "digToHand", player: "controller", look: 4, take: 1 }],
+    effects: [
+        {
+            op: "lookDistribute",
+            keepTo: "hand",
+            player: "controller",
+            look: 4,
+            take: 1,
+        },
+    ],
 };
 
 // Vision Charm — {U} instant, a three-mode "Choose one —" charm (CR 700.2).

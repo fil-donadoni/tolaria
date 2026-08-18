@@ -1,6 +1,6 @@
 // JUD (Judgment) — blue behavior tests (ADR 0043 colour split).
 //
-// Flash of Insight ({X}{1}{U} Instant) uses the already-censused `digToHand` Op
+// Flash of Insight ({X}{1}{U} Instant) uses the already-censused `lookDistribute` Op
 // (CR 401.4, issue #984) with `look: { X: true }` for its main effect — the Op
 // itself is exercised by the interpreter suite, so these tests focus on what is
 // NEW: the FLASHBACK-only additional cost "Exile X blue cards from your
@@ -209,7 +209,7 @@ describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
             const { state } = flashbackState(["blue1", "blue2"]);
             tryAutoCommitPendingCast(state, "p1");
 
-            // Resolve the flashback cast: digToHand suspends on the
+            // Resolve the flashback cast: lookDistribute suspends on the
             // look-distribute pick.
             expect(resolveTopOfStack(state)).toBeNull();
             const head = state.pendingChoices![0];

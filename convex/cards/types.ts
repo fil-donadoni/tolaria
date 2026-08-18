@@ -781,7 +781,7 @@ export type CounterDestination = "graveyard" | "exile" | "hand" | "library-top";
 export interface TargetSelection {
     /** "permanent" = battlefield card, "player" = player, "spell" = stack
      *  item, "graveyard-card" = card in a player's graveyard (CR 400.7),
-     *  "hand-card" = card in a player's hand (issue #1101 — `digToHand`'s
+     *  "hand-card" = card in a player's hand (issue #1101 — `lookDistribute`'s
      *  `bind` snapshots the KEPT card right after it moves library → hand;
      *  it never becomes a permanent, so a later `manaValue`-of read resolves
      *  it here instead of through the battlefield). */
@@ -2487,7 +2487,7 @@ export interface SpellContext {
      *  (CR 601.2c) in practice — `selectTarget` / `getLegalTargets` /
      *  `enumerateTargetTuples` never produce the "hand-card" member of
      *  `TargetSelection.type` (issue #1101 — that kind only arises from a
-     *  `digToHand` `bind`'s internal object resolution, `resolveObjectRef`'s
+     *  `lookDistribute` `bind`'s internal object resolution, `resolveObjectRef`'s
      *  hand-card fallback), so this stays the broader `TargetSelection[]`
      *  rather than forking a second announced-only type across the whole
      *  targeting plumbing. */
@@ -3394,7 +3394,7 @@ export interface SpellContext {
      *  Reanimate's "lose life equal to that card's mana value"), looks the
      *  card up in its owner's graveyard and returns its printed mana value.
      *  For a hand-card target (issue #1101 — Reviving Vapors' "gain life
-     *  equal to that card's mana value", the card `digToHand` just kept),
+     *  equal to that card's mana value", the card `lookDistribute` just kept),
      *  looks the card up in its owner's hand the same way. Returns 0 for
      *  player / unknown targets. Used by Spell Blast ("counter target spell
      *  with mana value X"). */
@@ -3439,6 +3439,16 @@ export interface SpellContext {
      *  closures (Kavu Scout, Wayfaring Giant, Exotic Curse, Strength of
      *  Unity) via the shared `countDomain` helper directly. */
     getDomain: (playerId: string) => number;
+    /** Devotion (CR 700.5, issue #2070) — `playerId`'s devotion to `color`:
+     *  the number of mana symbols of that colour among the mana costs of
+     *  permanents `playerId` controls (coloured pips + Phyrexian pips of
+     *  `color` + hybrid pips containing `color`, CR 700.5/105.2). Read live
+     *  at call time (CR 700.5a) via `countDevotion` (`gre/layers.ts`), the
+     *  SAME `getInstanceManaCost` single authority the layer-5 colour system
+     *  and mana-value reads share — so a copy effect / mana-cost override is
+     *  honoured identically. Used by the tenth `EffectValue` grammar member
+     *  (`{ devotion: { of, color } }`, Thassa's Oracle). */
+    getDevotion: (playerId: string, color: Color) => number;
     /** CR 119.3 (issue #1457) — the total life `playerId` has GAINED so far
      *  this turn, 0 when none. Reads back `GameState.lifeGainedThisTurn`, the
      *  tally `gainLifeEmitting` maintains at the single life-gain choke point
@@ -4370,11 +4380,11 @@ export interface SpellContext {
          *  gates clickability on it. */
         candidateIds?: string[];
         /** `kind: "look-distribute"` only (issue #1266, Narset) — the subset of
-         *  the looked-at `candidateIds` that may go to HAND. The whole
-         *  `candidateIds` window is shown face-up ("look at the top four"), but a
-         *  card outside `eligibleIds` can only be placed on the BOTTOM (Narset's
-         *  "noncreature, nonland" filter). Omit = every looked-at card is
-         *  hand-eligible (Impulse, Stock Up). */
+         *  the looked-at `candidateIds` that may be KEPT (to `keepTo`). The
+         *  whole `candidateIds` window is shown face-up ("look at the top
+         *  four"), but a card outside `eligibleIds` can only be placed on the
+         *  BOTTOM (Narset's "noncreature, nonland" filter). Omit = every
+         *  looked-at card is keep-eligible (Impulse, Stock Up). */
         eligibleIds?: string[];
         /** The player ids the chooser may pick as a target (CR 115.1a).
          *  Two consumers:
@@ -4391,11 +4401,21 @@ export interface SpellContext {
          *  order-only). Prefer the higher-level {@link SpellContext.orderTop},
          *  which raises this choice and applies the split for you. */
         destination?: LibraryDestination;
+        /** `kind: "look-distribute"` only (issue #2070) — where the KEPT cards
+         *  land: `"hand"` (every card shipped before #2070 — Impulse, Stock
+         *  Up, Narset) or `"library-top"` (Thassa's Oracle). Orthogonal to
+         *  `destination` above (the UN-kept cards' target). Client-routing +
+         *  labelling hint (the picker's keep-pile reads "Hand" or "Top of
+         *  library"); the GRE applies the actual move via the `lookDistribute`
+         *  Op's own `keepTo`, not by reading this back off the choice. Always
+         *  set at the one raise site (`lookDistribute`) — never left to an
+         *  implicit default. */
+        keepTo?: "hand" | "library-top";
         /** `look-distribute` only — the un-kept cards go to `destination` in a
          *  RANDOM order, so the submitted second-zone order is discarded
          *  server-side. The client mounts the simple grid pick (nothing to
          *  order) instead of the two-zone drag picker. Raised by the
-         *  `digToHand` Op when `randomBottom` is set (Narset). */
+         *  `lookDistribute` Op when `randomBottom` is set (Narset). */
         randomizeRest?: boolean;
         /** `look-distribute` (issue #1364, Atraxa) / `choose-categorized`
          *  (issue #1945) — a CATEGORIZED pick: each entry names a category
@@ -4915,7 +4935,7 @@ export interface SpellContext {
      *  submitted, stored under the `${step}:${choiceId}:second` key). Returns an
      *  empty array when the choice carried no second list (e.g. a bot/auto path
      *  that submitted only the primary picks). Pair with `requestChoice` for the
-     *  primary list: `digToHand` reads the hand picks via `requestChoice` and
+     *  primary list: `lookDistribute` reads the hand picks via `requestChoice` and
      *  the ordered-bottom cards via this. */
     readOrderedSecond: (choiceId: string) => string[];
 
@@ -8081,7 +8101,7 @@ export interface CardMilledEvent {
  *  | any other general move into a graveyard    | **this event**             |
  *
  *  That last row is exactly the gap it closes: "reveal the top four cards …
- *  put the rest into your graveyard" (Malevolent Rumble's `digToHand` with
+ *  put the rest into your graveyard" (Malevolent Rumble's `lookDistribute` with
  *  `destination: "graveyard"`) is NOT a mill (CR 701.17a), so it emitted
  *  nothing and a "put into a graveyard from anywhere" trigger — Worldspine
  *  Wurm's shuffle-back, Blightsteel Colossus's — silently failed to fire.
@@ -10003,6 +10023,26 @@ export type EffectDomainValue = {
     domain: { of: EffectPlayerRef; times?: number };
 };
 
+/** Devotion (CR 700.5, issue #2070) — a player's devotion to a color: the
+ *  number of mana symbols of that color among the mana costs of permanents
+ *  that player controls. Mirrors {@link EffectDomainValue} exactly: a
+ *  player-scoped scalar, NOT an Op, backed by a thin `SpellContext.getDevotion`
+ *  skin (CR 700.5a — computed live from the structured `ManaCost`, so a
+ *  permanent that left the battlefield in response no longer contributes).
+ *  `of` is a PLAYER selector like Domain's, unlike `counters`/`manaValue`'s
+ *  object `of`. `color` names WHICH color's devotion is read — a coloured pip
+ *  of that colour counts, a `phyrexian[color]` pip counts (CR 105.2 — still a
+ *  coloured mana symbol), and every `hybrid` pair CONTAINING `color` counts
+ *  ONE (a `[U,R]` pair counts toward devotion to blue AND to red). Generic,
+ *  `{X}`/`xFactor`, and a permanent with no mana cost (a token, a land)
+ *  contribute 0. Single-colour only for now (CR 700.5's two-colour devotion
+ *  sentence — "devotion to [color 1] and [color 2]" — is deferred to the
+ *  first card that needs it, per the extract-on-second rule) — no `times`
+ *  multiplier either, since no shipped card scales it. */
+export type EffectDevotionValue = {
+    devotion: { of: EffectPlayerRef; color: Color };
+};
+
 /** One operand of a `difference` value (issue #2006). Deliberately a TERMINAL,
  *  never a full `EffectValue`: a literal integer or a single `count`. Making
  *  the operand type non-recursive is the whole defence — an expression TREE
@@ -10026,7 +10066,7 @@ export type EffectDifferenceOperand = number | EffectCount;
  *
  *  What this deliberately is NOT, and must not become:
  *  - NOT a fifth STRUCTURAL construct. The frozen set stays bind/ref/if/
- *    forEach (ADR 0045); this is a thirteenth `EffectValue` MEMBER, the same
+ *    forEach (ADR 0045); this is a fourteenth `EffectValue` MEMBER, the same
  *    kind of addition as `X` (#852), `counters` (#1015), `domain` (#1066) and
  *    `lifeGainedThisTurn` (#1457), none of which reopened the ADR.
  *  - NOT an expression grammar. There is exactly ONE operator (subtraction),
@@ -10181,6 +10221,7 @@ export type EffectValue =
     | EffectKickerPaidValue
     | EffectManaValueValue
     | EffectDomainValue
+    | EffectDevotionValue
     | EffectEscapedValue
     | EffectAbilityResolutionCountValue
     | EffectLifeGainedThisTurnValue
@@ -10190,7 +10231,7 @@ export type EffectValue =
 
 /** lifeGainedThisTurn — the total life a PLAYER has gained so far this turn
  *  (CR 119.3, issue #1457), a thin JSON-pure skin over
- *  `SpellContext.getLifeGainedThisTurn`. A TWELFTH `EffectValue` grammar
+ *  `SpellContext.getLifeGainedThisTurn`. A THIRTEENTH `EffectValue` grammar
  *  member; like `domain` (issue #1066) and `abilityResolutionCount` (issue
  *  #1189) it is NOT an Op and NOT a new STRUCTURAL construct — it does not
  *  reopen ADR 0045.
@@ -11718,13 +11759,13 @@ export type EffectOp =
      *  Wisdom). A thin declarative skin over primitives that already exist, one
      *  execution path (ADR 0045): `peekLibraryTop` names the window,
      *  `markKnownToAll` + `notifyReveal` make it public (the same pair
-     *  `digToHand`'s reveal leg uses), and each card is routed with
+     *  `lookDistribute`'s reveal leg uses), and each card is routed with
      *  `putFromLibraryOntoBattlefield` (battlefield) or
      *  `moveCardById(player, id, "library", …)` (every other zone) — the exact
      *  two primitives `moveZone`'s `cards` shape already dispatches between.
      *  No new SpellContext primitive.
      *
-     *  DETERMINISTIC — no player choice, so unlike `digToHand` / `scryReorder` /
+     *  DETERMINISTIC — no player choice, so unlike `lookDistribute` / `scryReorder` /
      *  `revealAndCategorize` it never suspends. That is precisely the gap it
      *  fills: those three all end in a player PICKING from a revealed window,
      *  whereas this Op's destination is dictated by the card's own
@@ -11752,46 +11793,45 @@ export type EffectOp =
           }[];
           fallback: RevealRouteDestination;
       }
-    /** CR 401.4 look (issue #984, extended #1101) — dig to hand: look at the
-     *  top `look` cards of a library, put `take` of them (default 1) into
-     *  that player's hand, and put the rest on `destination` (the library
-     *  BOTTOM by default, or the GRAVEYARD — Reviving Vapors, issue #1101).
-     *  A thin declarative skin composed of existing SpellContext primitives,
-     *  one execution path (ADR 0045): `peekLibraryTop(look)` reveals the top
-     *  cards, a single suspending `look-top` `requestChoice` over exactly
-     *  those looked-at ids drives the kept-card pick (the projection exposes
-     *  ONLY those cards face-up as `libraryPeek`, not the whole library — the
-     *  same shared top-N look path as Stock Up), the kept cards move
-     *  library→hand via `moveCardById`, and the remaining looked-at cards are
-     *  either bottomed via `reorderLibraryTop` (mirrors `scryReorder`'s
-     *  `library-bottom` leg) or moved to the graveyard one at a time via
-     *  `moveCardById` (mirrors `scryReorder`'s `graveyard` leg — the un-kept
-     *  cards run through the SAME graveyard-bound-redirect replacement path,
-     *  CR 614). Like `choice` / `scryReorder` this Op SUSPENDS: the first
-     *  execution raises the `look-top` PendingChoice, the resumed execution
-     *  reads the picks back and finishes the moves. For `destination:
-     *  "library-bottom"` (the default) the un-kept order is auto-resolved in
-     *  look order — Impulse's "in any order" is a formality with no strategic
-     *  value (the cards go face-down into the library, unknown; CR 401.4 lets
-     *  the owner arrange them but the arrangement is unobservable); a
-     *  graveyard destination has no such ordering stake (the graveyard is
-     *  already public) so the pick order there is cosmetic only. `player`
-     *  names whose library (the resolving controller, an announced target
-     *  slot, or a forEach `$each`); `look` is how many top cards to look at;
-     *  `take` is how many to put into hand (default 1, clamped to the number
-     *  looked at). */
+    /** CR 401.4 (issue #984, extended #1101, renamed + `keepTo` #2070) — look
+     *  at the top `look` cards of a library, put `take` of them (default 1)
+     *  to `keepTo` (hand, or the library top — Thassa's Oracle), and put the
+     *  rest on `destination` (the library BOTTOM by default, or the
+     *  GRAVEYARD — Reviving Vapors, issue #1101). A thin declarative skin
+     *  composed of existing SpellContext primitives, one execution path
+     *  (ADR 0045); SUSPENDS on a single `look-distribute` `requestChoice`,
+     *  same shape as `choice` / `scryReorder`. `player` names whose library;
+     *  `look` is how many top cards to look at; `take` is how many to keep
+     *  (default 1, clamped to the number looked at). See the individual
+     *  field docs below (`keepTo`, `filter`, `optional`, `destination`,
+     *  `randomBottom`, `bind`, `reveal`) for the full grammar — kept there,
+     *  not duplicated here, so there is exactly one place each field's
+     *  contract is written down. */
     | {
-          op: "digToHand";
+          op: "lookDistribute";
           player: EffectPlayerRef;
           look: EffectValue;
           take?: EffectValue;
-          /** Restricts which of the looked-at cards may be put into HAND — the
-           *  bottomed/graveyarded remainder is unfiltered (Narset, Parter of
-           *  Veils: "you MAY reveal a NONCREATURE, NONLAND card ... put the
-           *  rest on the bottom", `excludeType: ["Creature","Land"]`). When
-           *  present, the choice's hand-eligible set is the looked-at cards
-           *  matching this filter; a non-matching looked-at card is never a
-           *  legal hand pick and always goes to `destination` (issue #1266). */
+          /** Where the KEPT looked-at cards go (issue #2070) — REQUIRED, no
+           *  default: the Op used to hard-code "to hand," and a silent
+           *  default would resurrect that hidden assumption for every
+           *  existing card the moment a second destination existed.
+           *  `"hand"` is every card shipped before issue #2070 (Impulse,
+           *  Stock Up, Narset, Reviving Vapors). `"library-top"` (Thassa's
+           *  Oracle: "put up to one of them on top of your library") routes
+           *  the kept card(s) through `putLibraryCardsOnTop` instead of
+           *  `moveCardById`'s library→hand leg — `picks[0]` ends up the very
+           *  top when more than one is kept. Orthogonal to `destination`
+           *  (the UN-kept cards' target) — the two never interact. */
+          keepTo: "hand" | "library-top";
+          /** Restricts which of the looked-at cards may be KEPT (put to
+           *  `keepTo`) — the bottomed/graveyarded remainder is unfiltered
+           *  (Narset, Parter of Veils: "you MAY reveal a NONCREATURE,
+           *  NONLAND card ... put the rest on the bottom",
+           *  `excludeType: ["Creature","Land"]`). When present, the choice's
+           *  keep-eligible set is the looked-at cards matching this filter;
+           *  a non-matching looked-at card is never a legal keep and always
+           *  goes to `destination` (issue #1266). */
           filter?: EffectCardFilter;
           /** "You MAY" — the hand pick is optional (min 0, up to `take`), so a
            *  player who wants nothing (or has no filter match) keeps their hand
@@ -11839,8 +11879,12 @@ export type EffectOp =
            *  never becomes a permanent, unlike `destroy`/`exile`'s targets.
            *  When `take` keeps more than one card, only the FIRST is bound
            *  (mirrors the existing "last one wins" multi-pick bind caveat on
-           *  other Ops — no shipped multi-keep digToHand card reads its
-           *  bind today). */
+           *  other Ops — no shipped multi-keep lookDistribute card reads its
+           *  bind today). SCOPE (issue #2070): only exercised with
+           *  `keepTo: "hand"` — no shipped `keepTo: "library-top"` card binds
+           *  yet, so the executor's bind snapshot assumes the hand shape;
+           *  a future library-top card that needs `bind` earns its own
+           *  `"library-card"`-shaped snapshot then. */
           bind?: string;
           /** Makes the look a PUBLIC reveal (CR 701.20a) rather than the
            *  default PRIVATE look (CR 401.4). Two scopes, matching the two
@@ -11867,22 +11911,22 @@ export type EffectOp =
      *  A thin declarative composition over primitives that already exist — no
      *  new SpellContext primitive (ADR 0045 "generalize, don't add"):
      *  `peekLibraryTop(look)` names the window, ONE suspending `look-distribute`
-     *  `requestChoice` (exactly `digToHand`'s picker, so the client mounts the
+     *  `requestChoice` (exactly `lookDistribute`'s picker, so the client mounts the
      *  same simple grid — `randomizeRest` means there is no bottom-ordering
      *  drag) drives the exile pick, `exileFaceDown` moves the pick to its
      *  owner's exile granting `knownTo` to the controller ALONE (CR 406.3 — the
      *  identity stays hidden from every other player, and the projection
      *  re-derives the per-viewer gate purely from `knownTo`),
      *  `linkExileToSource` stamps the CR 607 link, and the un-picked window is
-     *  bottomed through the SAME `bottomLookedAtCards` tail `digToHand` uses,
+     *  bottomed through the SAME `bottomLookedAtCards` tail `lookDistribute` uses,
      *  with `randomBottom` (CR 401.4's random order is unobservable for
      *  face-down library cards, so no ordering pick and no knowledge grant).
      *
-     *  Structurally `digToHand` with the kept card routed to FACE-DOWN,
-     *  SOURCE-LINKED EXILE instead of to hand — precisely what `digToHand`
+     *  Structurally `lookDistribute` with the kept card routed to FACE-DOWN,
+     *  SOURCE-LINKED EXILE instead of to hand — precisely what `lookDistribute`
      *  cannot express (its kept cards always go to `player`'s hand, known to
      *  that player, with no exile link). SUSPENDS like `choice` / `scryReorder`
-     *  / `digToHand`. Every miss is a CR 608.2b no-op: a gone player, a
+     *  / `lookDistribute`. Every miss is a CR 608.2b no-op: a gone player, a
      *  non-positive `look`, or an empty library skips the Op and never suspends.
      *
      *  `look` is the keyword's N (`hideaway 4` → 4). Exactly ONE card is exiled
@@ -11903,7 +11947,7 @@ export type EffectOp =
      *  cards into your hand. Put the rest on the bottom of your library in a
      *  random order."
      *
-     *  The CATEGORIZED half is what `digToHand` cannot express: `digToHand`
+     *  The CATEGORIZED half is what `lookDistribute` cannot express: `lookDistribute`
      *  has ONE `filter` and ONE `take`, and calling it several times in
      *  sequence does not share a window (each call re-peeks the CURRENT
      *  library top, which has already moved). Here the window is peeked once
@@ -11915,7 +11959,7 @@ export type EffectOp =
      *  `gre/categorizedPick.ts` (the same code gates the client's clicks and
      *  validates the submit, so the two can never disagree).
      *
-     *  Everything else is deliberately `digToHand`'s vocabulary, same
+     *  Everything else is deliberately `lookDistribute`'s vocabulary, same
      *  semantics, so the two Ops read as siblings: `reveal` (CR 701.20a public
      *  reveal vs. a private CR 401.4 look), `optional` ("you MAY"),
      *  `destination`, `randomBottom`, `prompt`. It SUSPENDS on a single
@@ -11937,12 +11981,12 @@ export type EffectOp =
            *  permits. Atraxa is `true`. */
           optional?: boolean;
           /** Where the unkept revealed cards go — `"library-bottom"` (default,
-           *  Atraxa) or `"graveyard"`. Identical to `digToHand`'s field. */
+           *  Atraxa) or `"graveyard"`. Identical to `lookDistribute`'s field. */
           destination?: LibraryDestination;
           /** "…on the bottom of your library in a RANDOM order" (Atraxa) — no
            *  player ordering pick, no `markKnown` (CR 401.4's random order is
            *  unobservable for face-down library cards, so no knowledge is
-           *  granted). Identical to `digToHand`'s field. */
+           *  granted). Identical to `lookDistribute`'s field. */
           randomBottom?: boolean;
           /** CR 701.20a — `"window"` publicly reveals the whole looked-at
            *  window (Atraxa's "reveal the top ten cards"); `"kept"` reveals
@@ -12057,7 +12101,7 @@ export type EffectOp =
      *  to the library top. `moveHandCardToLibraryTop` unshifts, so the LAST
      *  picked card lands literally on top — the player's pick order IS the
      *  resulting top-to-bottom order (CR 401 "in any order" = the player
-     *  controls the sequence). Like `choice` / `scryReorder` / `digToHand`
+     *  controls the sequence). Like `choice` / `scryReorder` / `lookDistribute`
      *  this Op SUSPENDS: the first execution enqueues the choice and reports
      *  "suspend" (the item stays on the stack, checkpointed at this Op's own
      *  position — CR 608.3, so an EARLIER Op in the same script, e.g. `draw`,
@@ -12606,23 +12650,23 @@ export type EffectOp =
           excludeBasicLand?: boolean;
       }
     /** CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic
-     *  sibling of `digToHand`: reveals the top `look` cards of a library to
-     *  EVERY player (unlike `digToHand`'s private per-chooser look), puts
+     *  sibling of `lookDistribute`: reveals the top `look` cards of a library to
+     *  EVERY player (unlike `lookDistribute`'s private per-chooser look), puts
      *  EVERY looked-at card matching `filter` into hand with NO player
      *  choice (the filter alone decides — CR 608.2b, zero matches is a no-op
      *  for the hand leg), and sends every NON-matching looked-at card to
      *  `destination`. Mirrors the `mill`/`scryReorder` split (a deterministic
      *  Op is a SEPARATE Op from its choice-driven cousin, never a mode flag
-     *  bolted on — ADR 0045 "one execution path" per Op): `digToHand` is the
+     *  bolted on — ADR 0045 "one execution path" per Op): `lookDistribute` is the
      *  "you choose which to keep" mechanic; this is the "the filter chooses"
      *  mechanic, so there is no suspending Pending Choice at all — the whole
      *  looked-at window is revealed and split in one synchronous step.
      *  `player` names whose library; `look` is how many top cards to reveal;
      *  `filter` is REQUIRED (a filter-less "look N, keep all" dig is already
-     *  `digToHand`'s job with `take` = `look`); `destination` is where the
+     *  `lookDistribute`'s job with `take` = `look`); `destination` is where the
      *  non-matching cards go (`"exile"` — Desperate Research's "Exile the
      *  rest"; `"graveyard"` — a Surveil-shaped future card); `bind` (optional)
-     *  snapshots the FIRST card put into hand, mirrors `digToHand`'s own
+     *  snapshots the FIRST card put into hand, mirrors `lookDistribute`'s own
      *  `bind` (resolves as a `"hand-card"` TargetSelection). */
     | {
           op: "digMatchingToHand";
@@ -12908,7 +12952,7 @@ export type EffectOp =
            *  refs. On the `permanents` picks form it snapshots the FIRST
            *  picked permanent (the "sacrifice A creature" shape; a multi-pick
            *  mass sacrifice has no single "that creature" to name anyway),
-           *  mirroring `digToHand`'s first-kept-card bind. Never captured when
+           *  mirroring `lookDistribute`'s first-kept-card bind. Never captured when
            *  nothing was sacrificed (CR 608.2b — a later `ref` then reads
            *  undefined and its Op skips). */
           bind?: string;

@@ -18,7 +18,7 @@ import type { CardDefinition } from "../../types";
 // `chosenAltCost.mana ?? {}` collapses the cast to genuinely free) gated on
 // `{ kind: "first-spell-this-game" }`, which reads the caster's OWN lifetime
 // `PlayerState.spellsCastThisGame` tally, never reset. The on-resolution
-// effect reuses `digToHand` verbatim — the same Op Narset, Parter of Veils
+// effect reuses `lookDistribute` verbatim — the same Op Narset, Parter of Veils
 // uses for an identical "look N, may keep 1 matching, rest to random bottom"
 // shape — so this card introduces no new Op and needs no hand-written GRE/
 // wire test beyond the catalogue-wide static sweep + auto-generated smoke
@@ -40,7 +40,8 @@ export const onceUponATime: CardDefinition = {
     ],
     effects: [
         {
-            op: "digToHand",
+            op: "lookDistribute",
+            keepTo: "hand",
             player: "controller",
             look: 5,
             take: 1,

@@ -253,7 +253,7 @@ export const ragavanNimblePilferer: CardDefinition = {
             // `cardValueById`/`latentValue` value model has nothing to walk
             // without a shadow script. Sketch: a Treasure token
             // (`createToken`, valued flat via `NONCREATURE_TOKEN_VALUE`) plus
-            // an impulse-drawn card — `digToHand`/`digMatchingToHand` is this
+            // an impulse-drawn card — `lookDistribute`/`digMatchingToHand` is this
             // codebase's own precedent for valuing "look at N, keep 1"
             // impulse draw (`CARD_SELECTION_VALUE`, `gre/ai/opValuers.ts`),
             // standing in for the exile-and-may-cast upside even though the
@@ -268,7 +268,12 @@ export const ragavanNimblePilferer: CardDefinition = {
                     },
                     controller: "controller",
                 },
-                { op: "digToHand", player: "controller", look: 1 },
+                {
+                    op: "lookDistribute",
+                    keepTo: "hand",
+                    player: "controller",
+                    look: 1,
+                },
             ],
         },
         dashTrigger("Ragavan, Nimble Pilferer"),

@@ -651,7 +651,7 @@ export const collectiveRestraint: CardDefinition = {
 // your library, where X is the number of basic land types among lands you
 // control. Put one of those cards into your hand and the rest on the bottom
 // of your library in any order." (CR 401.4 look, CR 702 preamble Domain
-// ability word, issue #1066.) DSL-first: the `digToHand` Op (issue #984)
+// ability word, issue #1066.) DSL-first: the `lookDistribute` Op (issue #984)
 // already composes "look at top N, keep one, bottom the rest in look order"
 // — `look` is the ninth EffectValue grammar member `{ domain: { of } }`
 // (issue #1066) instead of a literal/`{X}`; `take` defaults to 1.
@@ -665,7 +665,8 @@ export const worldlyCounsel: CardDefinition = {
     types: ["Instant"],
     effects: [
         {
-            op: "digToHand",
+            op: "lookDistribute",
+            keepTo: "hand",
             player: "controller",
             look: { domain: { of: "controller" } },
         },

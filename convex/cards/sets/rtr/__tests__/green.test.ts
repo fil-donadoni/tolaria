@@ -144,7 +144,7 @@ describe("Worldspine Wurm (CR 702.19 trample, CR 603.2 dies-trigger, CR 400.7/70
     // way just sat in the graveyard and "from anywhere" quietly meant "from
     // three specific places". Driven through the REAL card end to end (cast →
     // resolve → answer the dig pick) rather than by hand-emitting an event, so
-    // the whole chain is under test: `digToHand` → `bottomLookedAtCards` →
+    // the whole chain is under test: `lookDistribute` → `bottomLookedAtCards` →
     // `moveCardById` → the event → the graveyard trigger scan.
     it("binned by a 'put the rest into your graveyard' dig: shuffles itself back (CR 603.6)", () => {
         const wurm = makeInstance(worldspineWurm.id, {

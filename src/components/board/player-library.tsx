@@ -352,11 +352,17 @@ export default function PlayerLibrary({
         }
     };
 
-    // `look-distribute` (Impulse / Stock Up / Narset) mounts the picker in
-    // HAND/BOTTOM mode. `keep` is the hand cap (count MAX); `min` is the floor
-    // (count MIN) — equal for the mandatory dig, 0 for Narset's optional "you
-    // may". `eligibleIds` restricts which looked-at cards may enter the hand
-    // (Narset's "noncreature, nonland"); undefined = every card eligible.
+    // `look-distribute` (Impulse / Stock Up / Narset / Thassa's Oracle)
+    // mounts the picker in KEEP/BOTTOM mode. `keep` is the keep-pile cap
+    // (count MAX); `min` is the floor (count MIN) — equal for the mandatory
+    // dig, 0 for Narset's optional "you may". `eligibleIds` restricts which
+    // looked-at cards may be kept (Narset's "noncreature, nonland");
+    // undefined = every card eligible. `keepTo` (issue #2070) — `"hand"`
+    // (every card before #2070) or `"library-top"` (Thassa's Oracle) —
+    // decides whether the picker's keep zone reads "Your hand" or "Top of
+    // library"; a `lookDistribute`-sourced choice ALWAYS sets it (the one
+    // raise site never omits it), so the `?? "hand"` fallback here only
+    // covers a malformed/legacy choice, never a real gap.
     const distribute =
         head?.kind === "look-distribute"
             ? {
@@ -369,6 +375,7 @@ export default function PlayerLibrary({
                           ? head.count
                           : head.count.min,
                   eligibleIds: head.eligibleIds,
+                  keepTo: head.keepTo ?? "hand",
                   // Categorized keep (Atraxa, #1364) — only set for a
                   // `revealAndCategorize` choice; the ordinary dig leaves it
                   // undefined and the picker behaves exactly as before.
@@ -386,7 +393,9 @@ export default function PlayerLibrary({
             prompt={
                 head!.prompt ??
                 (distribute
-                    ? "Take cards to your hand, then order the rest on the bottom"
+                    ? distribute.keepTo === "library-top"
+                        ? "Choose cards to keep on top of your library, then order the rest on the bottom"
+                        : "Take cards to your hand, then order the rest on the bottom"
                     : "Order the top of your library")
             }
             submitting={orderSubmitting}

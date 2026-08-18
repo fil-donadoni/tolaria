@@ -1000,15 +1000,18 @@ export function applyPendingChoiceSubmit(
             if (head.candidateIds && !head.candidateIds.includes(id)) {
                 throw new Error("Card is not an eligible choice");
             }
-            // look-distribute HAND-pile gate (issue #1266, Narset): a
-            // looked-at card outside `eligibleIds` (the "noncreature, nonland"
-            // subset) may only be bottomed — never taken to hand.
+            // look-distribute KEEP-pile gate (issue #1266, Narset; keepTo
+            // #2070 — this gate is destination-agnostic, gating which cards
+            // may be KEPT regardless of whether `keepTo` sends them to hand
+            // or the library top): a looked-at card outside `eligibleIds`
+            // (the "noncreature, nonland" subset) may only be bottomed —
+            // never kept.
             if (
                 head.kind === "look-distribute" &&
                 head.eligibleIds &&
                 !head.eligibleIds.includes(id)
             ) {
-                throw new Error("Card is not eligible to put into your hand");
+                throw new Error("Card is not eligible to be kept");
             }
         }
         // Categorized keep (issue #1364, Atraxa): at most one card per
@@ -1052,7 +1055,7 @@ export function applyPendingChoiceSubmit(
             // the two lists must partition `candidateIds` exactly. `look-
             // distribute` (CR 401.4 — Impulse, Stock Up) partitions too WHEN the
             // picker supplies the ordered bottom list, but a bot/auto path may
-            // submit only the hand picks and let the rest auto-bottom in look
+            // submit only the keep picks and let the rest auto-bottom in look
             // order — so the full-cover check applies to `order-top` always, and
             // to `look-distribute` only when a second list is present.
             const requireFullCover =
@@ -1176,7 +1179,7 @@ export function applyPendingChoiceSubmit(
         ...(stackItem.collectedChoices ?? {}),
         [key]: args.cardInstanceIds,
         // `order-top` / `look-distribute` carry a SECOND ordered list under a
-        // sibling key; `SpellContext.orderTop` / `digToHand` read it back on
+        // sibling key; `SpellContext.orderTop` / `lookDistribute` read it back on
         // resume to apply the destination split.
         ...(head.kind === "order-top" || head.kind === "look-distribute"
             ? { [`${key}:second`]: args.secondZoneIds ?? [] }
