@@ -5812,14 +5812,35 @@ export interface StaticEffectStateView {
  *  frontend-safe (a client-side "will this enter tapped?" hint reads the
  *  identical shape the server evaluates). `turn` is `GameState.turn`, the
  *  global per-player-turn counter (turn 1 = player one's first turn, turn 2 =
- *  player two's first turn, …) — Starting Town's "first, second, or third
- *  turn of the game" reads it directly. */
+ *  player two's first turn, …), kept for predicates that only care about the
+ *  raw sequence number.
+ *
+ *  `activePlayerId` and each player's `turnsTaken` (issue #1871) exist so a
+ *  predicate needing the CONTROLLER'S OWN turn ordinal (CR 500.1 — "your
+ *  first, second, or third turn") never has to reconstruct it from `turn`
+ *  plus a fixed-seat-rotation assumption: that reconstruction breaks
+ *  permanently the first time either player takes an extra turn (CR 500.7,
+ *  Time Walk/Time Warp) or has a turn skipped (CR 614.10), both of which
+ *  desynchronize `turn` from a strict per-seat alternation. `turnsTaken` is
+ *  already exact across both (`advanceTurn`, `gre/phases.ts`) — read it
+ *  directly instead. Both fields are OPTIONAL, the same "read best-effort"
+ *  shape as `hand`/`turn` above, since not every literal constructor of this
+ *  view has a full `GameState` on hand; a predicate reading either MUST treat
+ *  `undefined` as "unknown" and resolve conservatively (Starting Town: no
+ *  `activePlayerId` match ⇒ treat as off-turn ⇒ enters tapped). */
 export interface LandEntryStateView {
     players: ReadonlyArray<{
         id: string;
         battlefield: ReadonlyArray<PermanentView>;
+        /** Count of turns this player has taken so far in the game (CR
+         *  500.1), mirroring `PlayerState.turnsTaken` — see the interface
+         *  doc comment above. */
+        turnsTaken?: number;
     }>;
     turn: number;
+    /** Id of the player whose turn it currently is (`GameState.activePlayerId`,
+     *  CR 500) — see the interface doc comment above. */
+    activePlayerId?: string;
 }
 
 export interface StaticEffectContext {
