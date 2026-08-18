@@ -29,6 +29,7 @@
 // for a searchable choice, `useVsAiDriver` falls back to it rather than stall.
 
 import type { PendingChoiceKind } from "@convex/gre";
+import type { AsEntersChoice } from "@convex/cards/types";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import type { OwedInput } from "./owed-input";
 import type { OwedPayment, ParkKind } from "@convex/gre/owedPayment";
@@ -316,6 +317,21 @@ export type OwedChoice = {
      *  heuristic can protect scarce lands and rank spells by castability
      *  (issue #242). Undefined for every other choice kind. */
     manaSituation?: ManaSituation;
+    /** ADR 0100 D3 — which `AsEntersChoice` leg a CR 614.1c as-enters prompt is
+     *  answering, verbatim off `PendingChoice.asEntersKind`. Undefined for every
+     *  ordinary mid-resolution choice.
+     *
+     *  Every as-enters prompt REUSES an existing `PendingChoiceKind` shape, so
+     *  `kind` alone cannot tell one apart — and for `discard` the difference is
+     *  not cosmetic but a sign flip: an ordinary `discard-hand` submission is
+     *  the price of something already happening (CR 514.1 cleanup, Mind Warp),
+     *  and its `min` is what the bot owes. An as-enters `discard` is an OPTIONAL
+     *  COST with `min: 0`, so the shared "submit `min` worst-first" default
+     *  silently declines it — and declining is what puts Mox Diamond in the
+     *  graveyard. This field is the explicit discriminator that branch needs;
+     *  deriving it from `min === 0` instead would fail open on the next
+     *  zero-floor `discard-hand` producer. */
+    asEntersKind?: AsEntersChoice["kind"];
     /** `name-card` only (CR 202.3 / 201.3 / 614.1c): the bot's legal default
      *  card name to submit through `submitNameCard`. `buildOwedChoice` picks it
      *  through `isLegalNamedCard` — the SAME authority `applyNameCardSubmit`
@@ -798,6 +814,39 @@ function discardOrder(
     );
 }
 
+/** CR 614.1a — whether to PAY an as-enters optional discard cost (Mox Diamond),
+ *  and with which card. `[]` declines, which puts the entering permanent in its
+ *  owner's graveyard; a one-id answer pays and lets it enter.
+ *
+ *  The pitch is only worth making out of SURPLUS, and for the one printed card
+ *  in this family the surplus is lands (its `filter` admits nothing else). Two
+ *  ways to have a spare land, reusing the same `LAND_LIGHT_LANDS_IN_PLAY` band
+ *  the #242 discard heuristic already draws:
+ *   - two or more lands in hand — one covers this turn's land drop (CR 305.2
+ *     caps it at one), the second is surplus;
+ *   - one land in hand on a mana-developed board (>= the band) — the extra land
+ *     is surplus there too, which is the land-flood case the Mox is for.
+ *  Otherwise the land IS the mana development and the bot keeps it, taking the
+ *  graveyard branch — the same "don't auto-discard the constraining resource"
+ *  judgement, applied to a cost instead of a levy.
+ *
+ *  `candidates` arrives already ordered by shed priority and already filtered to
+ *  the legal payments (the engine's `candidateIds`), so paying is "take the
+ *  first". With no `manaSituation` the policy declines rather than guessing —
+ *  declining is always legal, and `buildBotView` always supplies one for a
+ *  `discard-hand` head. */
+function asEntersDiscardAnswer(
+    candidates: ChoiceCandidate[],
+    mana: ManaSituation | undefined
+): string[] {
+    const pitch = candidates[0];
+    if (!pitch || !mana) return [];
+    const surplus =
+        mana.landsInHand >= 2 ||
+        (mana.landsInHand >= 1 && mana.landsInPlay >= LAND_LIGHT_LANDS_IN_PLAY);
+    return surplus ? [pitch.id] : [];
+}
+
 /** The bot's weak-but-legal default for a mid-resolution zone-pick choice
  *  (ADR 0016). Returns the card-instance ids to submit through
  *  `submitResolutionChoice`. Pure and deterministic. The switch is EXHAUSTIVE
@@ -837,6 +886,13 @@ export function chooseResolution(choice: OwedChoice): string[] {
             const order = choice.manaSituation
                 ? discardOrder(candidates, choice.manaSituation)
                 : worstFirst(candidates);
+            // CR 614.1a (Mox Diamond, #2389) — an as-enters `discard` is an
+            // OPTIONAL COST, not a levy: `min` is 0, so the shared "submit
+            // `min`" default below would always decline it, and declining is
+            // what bins the permanent. Answered by its own policy instead.
+            if (choice.asEntersKind === "discard") {
+                return asEntersDiscardAnswer(order, choice.manaSituation);
+            }
             return order.slice(0, min).map((c) => c.id);
         }
 

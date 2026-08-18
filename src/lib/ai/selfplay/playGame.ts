@@ -294,6 +294,10 @@ function resolvePending(state: GameState): boolean {
                 head.kind === "discard-hand"
                     ? manaSituationFor(state, head.playerId)
                     : undefined,
+            // ADR 0100 D3 (#2389) — the as-enters leg, so the self-play driver
+            // answers a CR 614.1a optional discard cost exactly as the live
+            // Brain does rather than always declining it.
+            asEntersKind: head.asEntersKind,
         };
         ids = chooseResolution(owed);
     }

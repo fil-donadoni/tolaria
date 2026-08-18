@@ -10766,7 +10766,7 @@ export function stageAsEntersEntry(
         ...(extra?.tokenEntry ? { tokenEntry: extra.tokenEntry } : {}),
     };
     state.stagedEntries = [...(state.stagedEntries ?? []), entry];
-    enqueueAsEntersChoice(state, entry);
+    offerOrAutoAnswerAsEnters(state, entry);
 }
 
 /** Reads the PendingChoice shape for `entry.owed[0]` and queues it. Every
@@ -10926,6 +10926,33 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             };
             break;
         }
+        case "discard": {
+            // CR 614.1a / 701.9 (Mox Diamond, #2389) — "you may discard a land
+            // card instead". REUSES the shipped `discard-hand` shape (ADR 0045
+            // "generalize an existing shape before adding a new one"): the same
+            // in-hand toggle + Done banner the CR 514.1 cleanup discard renders,
+            // and the same `chooseResolution` arm the bot already dispatches on.
+            // `count: { min: 0, max: 1 }` is what makes it OPTIONAL — an empty
+            // submission is the decline, exactly the tactical zero-branch shape
+            // `untap-pick` uses under Winter Orb.
+            //
+            // The candidate set is computed HERE, as the choice is offered, not
+            // carried on the declaration: CR 614.12b requires a sibling staged
+            // entry's already-committed discard to be gone from it.
+            pending = {
+                ...base,
+                kind: "discard-hand",
+                zone: "hand",
+                candidateIds: asEntersDiscardCandidates(
+                    state,
+                    entry,
+                    choice.filter
+                ),
+                count: { min: 0, max: 1 },
+                prompt: `You may discard a card as ${subject} enters. If you don't, it's put into its owner's graveyard instead.`,
+            };
+            break;
+        }
         case "pay": {
             // ADR 0100 D6 / #1980 — the shipped `entersTappedUnlessPay` park
             // (ADR 0051) still owns this leg; unifying the two parks is that
@@ -10939,6 +10966,65 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
     }
     state.pendingChoices = [...(state.pendingChoices ?? []), pending];
     state.priorityPlayerId = entry.controllerId;
+}
+
+/** CR 701.9 / 614.1a — the cards in the chooser's hand that can pay an
+ *  as-enters `discard` cost, read LIVE (never carried on the declaration) so a
+ *  sibling staged entry's already-committed discard is gone from the set
+ *  (CR 614.12b, the `payLife` reason restated for a card cost).
+ *
+ *  `handCardMatchesFilter` is the shared registry-definition matcher the
+ *  alt-cost hand leg and the as-enters `name` filter already use — one matcher,
+ *  not a third copy. It reads 9 of `EffectCardFilter`'s fields and returns true
+ *  for the rest, so a filter declaring only `excludeSupertype` /
+ *  `excludeColor` / `manaValueEquals` / `hasAbility` is inert here rather than
+ *  restrictive; Mox Diamond's `{ type: "Land" }` is squarely inside the read
+ *  subset. */
+function asEntersDiscardCandidates(
+    state: GameState,
+    entry: StagedEntry,
+    filter: EffectCardFilter | undefined
+): string[] {
+    return getPlayer(state, entry.controllerId)
+        .hand.filter((c) => !filter || handCardMatchesFilter(c, filter))
+        .map((c) => c.id);
+}
+
+/** CR 614.12a puts an as-enters choice before the entry — but a "choice" with
+ *  exactly one legal answer is not a choice, and OFFERING it would park the
+ *  permanent behind a prompt whose only legal submission is the empty one. This
+ *  is the project's standing auto-resolve rule (auto-resolve when there is no
+ *  real option; keep the prompt for a tactical zero-branch), applied to the one
+ *  member of the union that can be unanswerable: an optional `discard` with no
+ *  matching card in hand can only be declined.
+ *
+ *  Returns the forced answer, or `undefined` when the choice must be offered.
+ *  A DECLINE (`[]`) is a real answer, not a skip: `applyAsEntersAnswer` still
+ *  runs and still aborts the entry to the owner's graveyard, so the permanent
+ *  never touches the battlefield on this branch either. */
+function forcedAsEntersAnswer(
+    state: GameState,
+    entry: StagedEntry,
+    choice: AsEntersChoice | undefined
+): string[] | undefined {
+    if (choice?.kind !== "discard") return undefined;
+    const candidates = asEntersDiscardCandidates(state, entry, choice.filter);
+    return candidates.length === 0 ? [] : undefined;
+}
+
+/** Offers the head of `entry.owed`, or answers it on the chooser's behalf when
+ *  it admits no real choice ({@link forcedAsEntersAnswer}). The single door
+ *  between "an entry owes a choice" and "a prompt exists": every caller of
+ *  `enqueueAsEntersChoice` goes through here, so no path can queue an
+ *  unanswerable prompt. Recursion is bounded — the auto-answer branch shortens
+ *  `entry.owed` before it re-enters. */
+function offerOrAutoAnswerAsEnters(state: GameState, entry: StagedEntry): void {
+    const forced = forcedAsEntersAnswer(state, entry, entry.owed[0]);
+    if (forced !== undefined) {
+        advanceStagedEntry(state, entry, forced);
+        return;
+    }
+    enqueueAsEntersChoice(state, entry);
 }
 
 /** CR 119.4 — "a player can pay an amount of life greater than 0 only if their
@@ -10989,8 +11075,7 @@ function applyAsEntersAnswer(
                 // originates in the graveyard, so "remains in its current zone"
                 // and "its owner's graveyard" name the same destination.
                 card.attachedTo = undefined;
-                card.zone = "graveyard";
-                getPlayer(state, card.ownerId).graveyard.push(card);
+                abortStagedEntryTo(state, entry, "graveyard");
                 return { aborted: true };
             }
             card.attachedTo = resolvedHost.id;
@@ -11050,6 +11135,32 @@ function applyAsEntersAnswer(
             }
             return {};
         }
+        case "discard": {
+            // CR 614.1a (Mox Diamond, #2389) — the discard is the "instead".
+            // Re-derived here against the LIVE hand rather than trusted off the
+            // prompt: the submission validator only checks the prompt's own
+            // `candidateIds`, and this is the one as-enters kind whose answer
+            // spends a resource, so the payment gate is fail-closed — an id
+            // that is no longer a legal payment DECLINES (the permanent never
+            // enters) instead of entering for free.
+            const candidates = asEntersDiscardCandidates(
+                state,
+                entry,
+                choice.filter
+            );
+            const discardId = selected[0];
+            if (discardId !== undefined && candidates.includes(discardId)) {
+                // CR 701.9 — routed through the single discard chokepoint so
+                // discard replacements (Library of Leng) and CARD_DISCARDED
+                // triggers (Necropotence) see it like every other discard.
+                discardToGraveyard(state, entry.controllerId, discardId);
+                return {};
+            }
+            // CR 614.1a — declined: the "instead" is never applied, so the
+            // permanent never enters and goes to `ifDeclined` instead.
+            abortStagedEntryTo(state, entry, choice.ifDeclined);
+            return { aborted: true };
+        }
         case "pay":
             throw new Error(
                 "as-enters 'pay' is not wired yet (tracked-by: #1980)"
@@ -11057,6 +11168,38 @@ function applyAsEntersAnswer(
         default:
             return assertNeverAsEnters(choice);
     }
+}
+
+/** CR 614.1a — a staged entry whose answer means the permanent NEVER enters:
+ *  the parked object goes to `destination` and the entry tail must not run.
+ *
+ *  Origin-dependent, because a parked object is off every zone and the three
+ *  census rows park three different KINDS of object (ADR 0100 D2):
+ *   - `spell` — the parked object IS the resolving permanent spell's stack
+ *     item, so it takes the ordinary stack → graveyard transition
+ *     (`sendStackItemToGraveyard`, CR 608.3, the Worms of the Earth path):
+ *     graveyard-bound replacements (Yawgmoth's Will / Dauthi Voidwalker) still
+ *     apply and the stack-only transient state is reset. It arrives as a CARD
+ *     from the stack, never as a permanent that died — no `CREATURE_DIED`, no
+ *     battlefield LKI, nothing that "dies" triggers can see (CR 700.4).
+ *   - `effect` — a put-onto-the-battlefield effect lifted the card out of a
+ *     graveyard / hand / library / exile and it never arrived; it goes to its
+ *     owner's graveyard (the shipped CR 303.4g Aura-host shape).
+ *   - `token` — CR 111.7: a token that never enters simply ceases to exist,
+ *     and it was never in a zone array, so there is nothing to move. */
+function abortStagedEntryTo(
+    state: GameState,
+    entry: StagedEntry,
+    destination: "graveyard"
+): void {
+    if (entry.origin === "token") return;
+    if (entry.origin === "spell") {
+        sendStackItemToGraveyard(state, entry.card as StackItem);
+        return;
+    }
+    const card = entry.card;
+    card.zone = destination;
+    getPlayer(state, card.ownerId)[destination].push(card);
 }
 
 /** CR 707.6 / ADR 0100 D4 — the owed list is DISCOVERED, not fixed. An answer
@@ -11174,7 +11317,7 @@ export function advanceStagedEntry(
     renarrowSiblingCostChoices(state, entry);
     if (!outcome.aborted) refreshOwedAsEnters(entry);
     if (!outcome.aborted && entry.owed.length > 0) {
-        enqueueAsEntersChoice(state, entry);
+        offerOrAutoAnswerAsEnters(state, entry);
         return;
     }
     const remaining = (state.stagedEntries ?? []).filter((e) => e !== entry);

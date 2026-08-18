@@ -821,6 +821,12 @@ function buildOwedChoice(
             head.kind === "discard-hand"
                 ? buildManaSituation(state, botId)
                 : undefined,
+        // ADR 0100 D3 (#2389) — the as-enters leg, verbatim. Every as-enters
+        // prompt reuses an existing `PendingChoiceKind` shape, so this is the
+        // only thing that tells `chooseResolution` an optional CR 614.1a
+        // discard cost (Mox Diamond) apart from an ordinary `discard-hand`
+        // levy whose `min` it owes.
+        asEntersKind: head.asEntersKind,
         // CR 202.3 — name-a-card default. Name the chooser's own top library
         // card when the bot can see it (the bot is the chooser; Petra Sphinx
         // names to dig the top into hand), else a guaranteed-registered

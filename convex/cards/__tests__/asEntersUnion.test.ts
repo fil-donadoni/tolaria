@@ -57,10 +57,38 @@ function declaredAsEnters(
     return found;
 }
 
+/** The legs whose bot arm and UI affordance have NOT shipped yet. `discard`
+ *  left this set in #2389 (Mox Diamond): its prompt reuses the shipped
+ *  `discard-hand` shape, `chooseResolution` answers it, and both branches are
+ *  covered end to end — so a card wiring it is no longer half-implemented. */
+const UNWIRED_KINDS = [
+    "mode",
+    "name",
+    "subtypes",
+    "body",
+    "payLife",
+    "copy",
+    "aura-host",
+    "pay",
+    "anchor",
+] as const;
+
 describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)", () => {
-    it("no shipped CardDefinition populates entersWith.asEnters", () => {
-        const wired = getAllCards().flatMap(declaredAsEnters);
+    it("no shipped CardDefinition populates an UNWIRED entersWith.asEnters leg", () => {
+        const unwired = new Set<string>(UNWIRED_KINDS);
+        const wired = getAllCards()
+            .flatMap(declaredAsEnters)
+            .filter((w) => w.choices.some((c) => unwired.has(c.kind)));
         expect(wired.map((w) => w.where)).toEqual([]);
+    });
+
+    it("the wired legs are exactly the ones a slice has landed (discard, #2389)", () => {
+        const kinds = new Set(
+            getAllCards()
+                .flatMap(declaredAsEnters)
+                .flatMap((w) => w.choices.map((c) => c.kind))
+        );
+        expect([...kinds].sort()).toEqual(["discard"]);
     });
 
     it("the guard is not vacuous — the sweep does find a declaration when one exists", () => {

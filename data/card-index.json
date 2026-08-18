@@ -9112,6 +9112,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Mox Diamond",
+        "scryfallId": "28028830-83ed-45e2-b495-3b9ad9d3e988",
+        "oracleId": "f3c5978a-70fa-431f-933b-b954bd0db0ea",
+        "firstSet": "sth",
+        "firstPrintId": "28028830-83ed-45e2-b495-3b9ad9d3e988",
+        "firstPrintSet": "sth"
+    },
+    {
         "name": "Mox Emerald",
         "scryfallId": "b0e1427c-05cd-465b-be59-97ed6e39f7ba",
         "oracleId": "376ee366-e082-402f-b4db-6592fcfcacd2",
