@@ -15,7 +15,10 @@ import type {
     TriggeredAbility,
 } from "./types";
 import { resolveTokenStaticEffects } from "./tokenStaticEffects";
-import { resolveTokenTriggeredAbilities } from "./tokenTriggeredAbilities";
+import {
+    isTokenTriggeredEventKind,
+    resolveTokenTriggeredAbilities,
+} from "./tokenTriggeredAbilities";
 // CR 114 (issue #1221) — side-effect import so the emblem registry
 // (`convex/cards/emblems.ts`) is populated whenever the card catalogue loads.
 import "./emblems";
@@ -527,10 +530,13 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
                       effects?: EffectOp[];
                   }[]
               ).map((d) => {
+                  // `isTokenTriggeredEventKind` (not a hand-written `||`
+                  // chain) so a new `TokenTriggeredEventKind` cannot silently
+                  // skip the rebuild here and degrade to the never-firing stub
+                  // on a cold decode (issue #2399).
                   if (
                       d.effects !== undefined &&
-                      (d.event === "PERMANENT_ENTERED" ||
-                          d.event === "CREATURE_DIED")
+                      isTokenTriggeredEventKind(d.event)
                   ) {
                       const [rebuilt] = resolveTokenTriggeredAbilities([
                           {

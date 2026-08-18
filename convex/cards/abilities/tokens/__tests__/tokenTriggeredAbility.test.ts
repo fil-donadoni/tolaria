@@ -22,6 +22,7 @@ import {
     tokenDefinitionId,
 } from "../../../index";
 import { resolveTokenTriggeredAbilities } from "../../../tokenTriggeredAbilities";
+import { emitAttackersDeclaredEvents } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     makeInstance,
@@ -197,6 +198,64 @@ describe("Token-carried triggered abilities (CR 707.2, issue #2364)", () => {
 
         removePermanentTo(state, token.id, "graveyard", "destroy");
         processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(coldAbilityId);
+        resolveTopOfStack(state);
+
+        expect(getPlayer(state, "p1").life).toBe(lifeBefore + 1);
+    });
+
+    // CR 508.1m / 707.2 (issue #2399) — the SAME cold-decode path for the
+    // `ATTACKERS_DECLARED` kind. `maybeSynthesizeToken`'s rebuild used to gate
+    // on a hand-written `d.event === "PERMANENT_ENTERED" || d.event ===
+    // "CREATURE_DIED"` chain no compiler checked, so a newly added kind would
+    // silently degrade to the never-firing `matches: () => false` stub on every
+    // client decode while passing every server-side test. The gate is now the
+    // type-derived `isTokenTriggeredEventKind`; this is the assertion that the
+    // NEW kind genuinely fires after a cold decode.
+    it("an ATTACKERS_DECLARED token trigger fires for REAL after a genuinely cold decode", () => {
+        const coldAbilityId = "cold-shaman-attacks";
+        const coldId = tokenDefinitionId({
+            name: "Cold Goblin Shaman",
+            types: ["Creature"],
+            subtypes: ["Goblin", "Shaman"],
+            power: 2,
+            toughness: 2,
+            triggeredAbilities: resolveTokenTriggeredAbilities([
+                {
+                    id: coldAbilityId,
+                    oracleText: "Whenever this token attacks, you gain 1 life.",
+                    event: "ATTACKERS_DECLARED",
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 1 },
+                    ],
+                },
+            ]),
+        });
+
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            activePlayerId: "p1",
+        });
+        // First sighting of `coldId` in this isolate — the lazy
+        // `maybeSynthesizeToken` decode, not a registry write.
+        const token = makeInstance(coldId, {
+            id: "cold-shaman-token",
+            controllerId: "p1",
+            ownerId: "p1",
+            isToken: true,
+        });
+        state.players[0].battlefield.push(token);
+        const lifeBefore = getPlayer(state, "p1").life;
+
+        state.phase = "DECLARE_ATTACKERS";
+        state.combat = {
+            attackerIds: [token.id],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        emitAttackersDeclaredEvents(state);
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].triggeredAbilityId).toBe(coldAbilityId);
         resolveTopOfStack(state);

@@ -64,7 +64,16 @@ export function applyCopy(
         // +1/+1 counters) still stack on top, replayed by the rebuild below.
         power: opts.basePower ?? def.power,
         toughness: opts.baseToughness ?? def.toughness,
-        staticAbilities: [...(def.staticAbilities ?? [])],
+        // CR 707.2 "except it has haste" (Fable of the Mirror-Breaker's back
+        // face, issue #2399) — appended to the COPIABLE keyword set, the same
+        // shape `additionalSubtypes` uses above, so the keyword survives a
+        // copy-of-the-copy instead of being a layer-6 grant on this instance
+        // alone. Recomputed on every application, so a Vesuvan-style re-copy
+        // without the option drops it.
+        staticAbilities: [
+            ...(def.staticAbilities ?? []),
+            ...(opts.additionalStaticAbilities ?? []),
+        ],
     });
 
     // CR 707.2 "except it's black" (Eternalize) / "except it's white" (Embalm)

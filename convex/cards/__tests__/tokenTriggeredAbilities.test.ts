@@ -6,8 +6,11 @@
 // file isolates the pure synthesis step.
 
 import { describe, it, expect } from "vitest";
-import { resolveTokenTriggeredAbilities } from "../tokenTriggeredAbilities";
-import type { PermanentView } from "../types";
+import {
+    TOKEN_TRIGGERED_EVENT_KINDS,
+    resolveTokenTriggeredAbilities,
+} from "../tokenTriggeredAbilities";
+import type { PermanentView, TokenTriggeredEventKind } from "../types";
 
 function selfView(overrides: Partial<PermanentView> = {}): PermanentView {
     return {
@@ -109,6 +112,61 @@ describe("resolveTokenTriggeredAbilities (CR 707.2, issue #2364)", () => {
                 self
             )
         ).toBe(false);
+    });
+
+    it("ATTACKERS_DECLARED descriptor synthesizes a self-scoped attacksTrigger (issue #2399)", () => {
+        const [ability] = resolveTokenTriggeredAbilities([
+            {
+                id: "test-attacks",
+                oracleText:
+                    "Whenever this token attacks, create a Treasure token.",
+                event: "ATTACKERS_DECLARED",
+                effects: [],
+            },
+        ]);
+        expect(ability.id).toBe("test-attacks");
+        expect(ability.event).toBe("ATTACKERS_DECLARED");
+        const self = selfView();
+        // CR 508.1m — one batch event carries every attacker, so self-scope is
+        // a membership test: fires when the token is among them...
+        expect(
+            ability.matches(
+                {
+                    type: "ATTACKERS_DECLARED",
+                    attackingPlayerId: "p1",
+                    attackerIds: ["other", "self"],
+                },
+                self
+            )
+        ).toBe(true);
+        // ...and NOT when only a sibling attacks (CR 109.2 — "this token").
+        expect(
+            ability.matches(
+                {
+                    type: "ATTACKERS_DECLARED",
+                    attackingPlayerId: "p1",
+                    attackerIds: ["other"],
+                },
+                self
+            )
+        ).toBe(false);
+    });
+
+    it("every TokenTriggeredEventKind has a factory — no kind falls through to the drop", () => {
+        // The runtime mirror of the switch's compile-time exhaustiveness
+        // guard: a kind added to the type AND to the switch, but wired to
+        // nothing, would still return [] here.
+        const kinds = Object.keys(
+            TOKEN_TRIGGERED_EVENT_KINDS
+        ) as TokenTriggeredEventKind[];
+        for (const event of kinds) {
+            const [ability] = resolveTokenTriggeredAbilities([
+                { id: `k-${event}`, oracleText: "o", event, effects: [] },
+            ]);
+            expect(ability, `no factory for ${event}`).toBeDefined();
+            expect(ability.event).toBe(event);
+        }
+        expect(kinds).toHaveLength(3);
     });
 
     it("multiple descriptors resolve independently, in order", () => {

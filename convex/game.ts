@@ -224,6 +224,7 @@ import {
     genericManaShortfall,
     flashSurchargeRequired,
     foldFlashSurchargeCost,
+    applySelfExclusion,
 } from "./gre/rules";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
@@ -13071,7 +13072,7 @@ export function activateAbilityOnState(
     // color-word changes (Sleight of Mind on a Circle of Protection
     // retargets its "<color> source of your choice"). The substituted
     // filter flows into both getLegalTargets and the stored pendingTarget.
-    const effectiveTargetReq =
+    const colorSubstitutedTargetReq =
         baseTargetReq && baseTargetReq.colorFilter !== undefined
             ? {
                   ...baseTargetReq,
@@ -13081,6 +13082,17 @@ export function activateAbilityOnState(
                   ),
               }
             : baseTargetReq;
+    // Reflexive self-EXCLUDE (issue #2399) — "ANOTHER target nonlegendary
+    // creature you control" (Reflection of Kiki-Jiki). An activated ability's
+    // source is always the on-battlefield `card` itself (unlike a triggered
+    // ability's separately-tracked `triggerSourceId`), so the same merge
+    // `triggerTargetLegality` does for triggers applies here, through the SAME
+    // shared helper. The merge lands on `effectiveTargetReq`, which flows into
+    // BOTH `getLegalTargets` below and the stored `pendingTarget` filters that
+    // `applyOneTargetSelection` re-validates every pick against.
+    const effectiveTargetReq = colorSubstitutedTargetReq
+        ? applySelfExclusion(colorSubstitutedTargetReq, card.id)
+        : colorSubstitutedTargetReq;
     if (effectiveTargetReq) {
         if (state.pendingTarget) {
             throw new Error("Target selection is in progress");
