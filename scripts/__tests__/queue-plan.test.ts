@@ -7,6 +7,8 @@ import {
     normalizePath,
     isAppendOnlyPath,
     EVERYTHING,
+    buildPlanRecord,
+    planFilename,
     type BatchPlan,
     type BoardPriority,
     type IssueDetail,
@@ -872,5 +874,123 @@ describe("normal paths keep their existing behaviour", () => {
         expect(
             pathsOverlap("convex/gre/state.ts", "convex/gre/stateAdapter.ts")
         ).toBe(false);
+    });
+});
+
+describe("plan artefact (issue #2518)", () => {
+    // A hand-picked batch was indistinguishable from a planned one, after the
+    // fact — nothing recorded which plan a claim came from. These tests pin
+    // the artefact's shape, since `claim-ledger.sh` (a shell script, outside
+    // vitest's reach) parses it with `jq` against exactly this contract:
+    // `record.session`, `record.noPriority` and `record.plan.batch[].number`.
+    // A silent rename of any of those fields would not fail here — it would
+    // fail SILENTLY in the hook, which is the whole failure mode this issue
+    // exists to close.
+
+    const SAMPLE_PLAN: BatchPlan = {
+        version: 1,
+        batch: [
+            {
+                number: 2511,
+                title: "fix the P0",
+                type: "fix",
+                model: "sonnet",
+                hitl: false,
+                priority: "P0",
+                targetFiles: ["convex/gre/state.ts"],
+                blastRadius: "declared",
+                reason: "admitted — declared target files, disjoint from the rest of the batch",
+            },
+        ],
+        deferred: [
+            {
+                number: 1852,
+                reason: "claimed by another session",
+                conflictsWith: null,
+            },
+        ],
+        skipped: [],
+        staleClaims: [],
+    };
+
+    describe("buildPlanRecord", () => {
+        it("names the session, the plan, and whether priority was applied", () => {
+            const record = buildPlanRecord(
+                SAMPLE_PLAN,
+                "sess-A",
+                "2026-08-18T00:00:00Z",
+                false
+            );
+            expect(record).toEqual({
+                version: 1,
+                session: "sess-A",
+                ts: "2026-08-18T00:00:00Z",
+                noPriority: false,
+                plan: SAMPLE_PLAN,
+            });
+        });
+
+        it("records --no-priority so a default-order plan cannot read back as prioritised", () => {
+            const record = buildPlanRecord(
+                SAMPLE_PLAN,
+                "sess-A",
+                "2026-08-18T00:00:00Z",
+                true
+            );
+            expect(record.noPriority).toBe(true);
+        });
+
+        it("preserves the priority read for each admitted issue", () => {
+            // The load-bearing field for the guard: a claim's plan lookup is
+            // only as good as the admitted batch it can compare against.
+            const record = buildPlanRecord(
+                SAMPLE_PLAN,
+                "sess-A",
+                "2026-08-18T00:00:00Z",
+                false
+            );
+            expect(record.plan.batch.map((p) => p.number)).toEqual([2511]);
+            expect(record.plan.batch[0].priority).toBe("P0");
+        });
+
+        it("does not invent a session id — an absent one stays the empty string", () => {
+            // A manual, non-Claude-Code invocation carries no session. Guessing
+            // one would let a claim falsely join to some OTHER session's plan;
+            // recording the absence is what lets a later reader tell the two
+            // apart.
+            const record = buildPlanRecord(
+                SAMPLE_PLAN,
+                "",
+                "2026-08-18T00:00:00Z",
+                false
+            );
+            expect(record.session).toBe("");
+        });
+    });
+
+    describe("planFilename", () => {
+        it("joins session and a sortable timestamp", () => {
+            const name = planFilename("sess-A", "2026-08-18T00:00:00.000Z");
+            expect(name).toBe(
+                `sess-A-${Date.parse("2026-08-18T00:00:00.000Z")}.json`
+            );
+        });
+
+        it("orders chronologically under a plain lexicographic sort", () => {
+            // `claim-ledger.sh` finds "the latest plan for this session" with
+            // `ls | sort | tail -1` — no JSON parsing. That only works if two
+            // filenames for the same session sort the same way their
+            // timestamps do.
+            const earlier = planFilename("sess-A", "2026-08-18T00:00:00.000Z");
+            const later = planFilename("sess-A", "2026-08-18T00:05:00.000Z");
+            expect([later, earlier].sort()).toEqual([earlier, later]);
+        });
+
+        it("falls back to `unknown` for an empty session, never a bare leading dash", () => {
+            // A bare `-<ts>.json` would glob-match `<anything>-*.json` equally
+            // for every session's lookup and defeat the join entirely.
+            const name = planFilename("", "2026-08-18T00:00:00.000Z");
+            expect(name.startsWith("unknown-")).toBe(true);
+        });
     });
 });

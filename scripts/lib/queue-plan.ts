@@ -209,6 +209,76 @@ export interface BatchPlan {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Plan artefact — the durable record `queue:plan` writes to
+// `.claude/telemetry/plans/` (issue #2518).
+//
+// Nothing checked that the batch a pass CLAIMED was the batch the planner
+// PRODUCED, and nothing recorded which plan a claim came from — a
+// hand-picked batch was indistinguishable from a planned one, after the
+// fact. This record is what `claim-ledger.sh` joins a claim row against: it
+// names the session, so the join key is exactly the session id the hook
+// already reads off its own payload, and it carries the admitted batch (with
+// the priority read for each issue, already on `PlannedIssue.priority`) so a
+// later reader can tell whether a claimed issue was actually in it.
+//
+// `buildPlanRecord` is pure — same discipline as `planBatch` itself. The
+// actual filesystem write, the session id and the wall clock are the
+// wrapper's job (`scripts/queue-plan.ts`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PlanRecord {
+    version: 1;
+    /** The orchestrator's Claude Code session id. Empty string when the
+     *  environment carries none — never guessed or invented, so an absent
+     *  session reads as exactly that on a later audit, not as a fabricated
+     *  join key that happens to never match. */
+    session: string;
+    /** Injected, never read from the clock — same discipline as
+     *  `PlanConfig.now`, and in fact the SAME value: the record describes
+     *  the plan built at that instant. */
+    ts: string;
+    /** True when this plan was built with `--no-priority`: the batch order
+     *  is the queue's default order, not the board's, and a later reader
+     *  must not mistake it for a prioritised plan. */
+    noPriority: boolean;
+    plan: BatchPlan;
+}
+
+/**
+ * Build the durable plan artefact for one `queue:plan` run.
+ *
+ * Pure: given the plan already produced, the session id and clock reading the
+ * wrapper resolved, and whether `--no-priority` was passed, this only shapes
+ * the record — it performs no I/O and makes no decision `planBatch` did not
+ * already make.
+ */
+export function buildPlanRecord(
+    plan: BatchPlan,
+    session: string,
+    now: string,
+    noPriority: boolean
+): PlanRecord {
+    return { version: 1, session, ts: now, noPriority, plan };
+}
+
+/**
+ * Filename for the plan artefact: `<session>-<epoch-ms>.json`.
+ *
+ * Sortable and joinable by session in one shot — `claim-ledger.sh` globs
+ * `<session>-*.json` and a lexicographic sort of same-width epoch
+ * milliseconds is a chronological sort too, so "the latest plan for this
+ * session" is `sort | tail -1` with no JSON parsing required to find it.
+ *
+ * `session` empty (no session in the environment) falls back to `"unknown"`
+ * rather than producing a bare `-<ts>.json`, which would glob-match every
+ * session's lookup equally and defeat the join.
+ */
+export function planFilename(session: string, nowIso: string): string {
+    const safeSession = session.trim() === "" ? "unknown" : session.trim();
+    return `${safeSession}-${Date.parse(nowIso)}.json`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Defaults
 // ─────────────────────────────────────────────────────────────────────────────
 

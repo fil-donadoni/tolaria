@@ -23,10 +23,20 @@
 // candidate the planner actually considers (plus one per dependency it has to
 // resolve). Selection cost scales with the batch, not the queue.
 
-import { readFileSync } from "fs";
+import {
+    mkdirSync,
+    readdirSync,
+    readFileSync,
+    statSync,
+    unlinkSync,
+    writeFileSync,
+} from "fs";
+import { join } from "path";
 import { gh } from "./lib/gh";
 import {
+    buildPlanRecord,
     planBatch,
+    planFilename,
     type BoardPriority,
     type IssueDetail,
     type PlanConfig,
@@ -292,7 +302,71 @@ const config: PlanConfig = {
     inferredTargetFiles: inferredTargetFiles(),
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Plan artefact (issue #2518) — durable record of what THIS run produced, so
+// a later audit can tell "planned batch" from "hand-picked claim". Written to
+// `.claude/telemetry/plans/`, gitignored wholesale under `.claude/telemetry/`
+// and pruned like the sibling `pass-markers` directory (deny-guard.sh §5).
+//
+// The session id is the join key `claim-ledger.sh` needs: it reads
+// `.session_id` off its own hook payload for every claim, and that is the
+// SAME id Claude Code exposes to a Bash tool call as `CLAUDE_CODE_SESSION_ID`
+// — confirmed against this very run (the orchestrator's session id IS the
+// `BATCH_ID` every subagent receipt is keyed by, see `scripts/lib/receipt.ts`
+// "Batch-scoped, keyed by the orchestrator's SESSION id"). Falling back to
+// empty string when the env var is absent (a manual, non-Claude-Code
+// invocation) is deliberate — `planFilename` turns that into `"unknown"`
+// rather than a guessed id that would falsely join to some other session's
+// claims.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PLANS_RETENTION_DAYS = 7;
+
+function pruneOldPlans(dir: string): void {
+    const cutoff = Date.now() - PLANS_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    let entries: string[];
+    try {
+        entries = readdirSync(dir);
+    } catch {
+        return;
+    }
+    for (const name of entries) {
+        const full = join(dir, name);
+        try {
+            if (statSync(full).mtimeMs < cutoff) {
+                unlinkSync(full);
+            }
+        } catch {
+            // best-effort — a prune failure must never fail the plan itself
+        }
+    }
+}
+
+/**
+ * Write the durable plan artefact. Best-effort and never fatal: the plan
+ * this process prints to stdout is the contract every caller relies on, and
+ * a telemetry write failing must not take that down with it.
+ */
+function writePlanArtefact(plan: ReturnType<typeof planBatch>): void {
+    try {
+        const dir = join(process.cwd(), ".claude/telemetry/plans");
+        mkdirSync(dir, { recursive: true });
+        pruneOldPlans(dir);
+        const session = process.env.CLAUDE_CODE_SESSION_ID ?? "";
+        const noPriority = process.argv.includes("--no-priority");
+        const record = buildPlanRecord(plan, session, config.now, noPriority);
+        const file = join(dir, planFilename(session, config.now));
+        writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
+    } catch (err) {
+        console.error(
+            `⚠ could not write plan artefact: ${(err as Error).message}`
+        );
+    }
+}
+
 const plan = planBatch(issues, config, port);
+
+writePlanArtefact(plan);
 
 process.stdout.write(
     JSON.stringify(plan, null, process.argv.includes("--pretty") ? 2 : 0) + "\n"
