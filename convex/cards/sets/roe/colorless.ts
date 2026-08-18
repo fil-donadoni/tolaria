@@ -30,7 +30,14 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
  *  mill (CR 701.17a). `PERMANENT_LEFT` is deliberately EXCLUDED: it is emitted
  *  from the same `removePermanentTo` call as `CREATURE_DIED`, so listing both
  *  would fire this trigger twice on every battlefield death. Same shape as
- *  Worldspine Wurm (`rtr/green.ts`) and Blightsteel Colossus (`mbs/colorless.ts`).
+ *  Worldspine Wurm (`rtr/green.ts`) — both are genuine CR 603 "when [this] IS
+ *  put into a graveyard from anywhere" triggers (no "would"/"instead" in
+ *  either card's Oracle text, verified against Scryfall), so the object
+ *  legitimately dies first and other permanents correctly observe that
+ *  departure. Distinct from Blightsteel Colossus (`mbs/colorless.ts`), whose
+ *  Oracle text DOES say "would ... instead" — a true CR 614.1a replacement,
+ *  fixed in issue #2106 to use `shuffleFromAnywhereReplacement` instead of
+ *  this trigger shape.
  *
  *  `zone: "graveyard"` (CR 603.6e) puts this on `collectTriggers`'s graveyard
  *  pass, which matches every card CURRENTLY SITTING in a graveyard against

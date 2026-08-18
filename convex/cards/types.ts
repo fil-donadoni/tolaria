@@ -9154,11 +9154,14 @@ export interface GraveyardBoundReplacementEvent {
     fromZone: Exclude<Zone, "graveyard">;
     /** Mutable: the zone the card actually lands in once the replacement
      *  loop settles. Starts as `"graveyard"`; a matching replacement
-     *  rewrites this to `"exile"` to redirect the card (CR 614.1a). Unlike
-     *  `"destroy"`, this event never fully cancels (`{kind:"consumed"}`) —
-     *  the card always ends up SOMEWHERE, so redirection is expressed as a
-     *  `"modified"` rewrite of `destination`, not a null result. */
-    destination: "graveyard" | "exile";
+     *  rewrites this to `"exile"` to redirect the card (CR 614.1a), or to
+     *  `"library"` for a self-referential "shuffle it into its owner's
+     *  library instead" clause (Blightsteel Colossus, issue #2106) — see
+     *  `ReplacementEffect.appliesFromAnyZone`. Unlike `"destroy"`, this event
+     *  never fully cancels (`{kind:"consumed"}`) — the card always ends up
+     *  SOMEWHERE, so redirection is expressed as a `"modified"` rewrite of
+     *  `destination`, not a null result. */
+    destination: "graveyard" | "exile" | "library";
     /** Counters to stamp on the card once it lands in `destination` (Dauthi
      *  Voidwalker's void counter). Only meaningful when `destination !==
      *  "graveyard"` — a card that lands in the graveyard normally is never
@@ -9442,6 +9445,20 @@ export interface ReplacementEffect {
     id: string;
     oracleText: string;
     eventKind: ReplacementEventKind;
+    /** CR 614.1a self-referential "would be put into a graveyard from
+     *  anywhere ... instead" clauses (Blightsteel Colossus, issue #2106):
+     *  the replacement is intrinsic to the object itself, not to it sitting
+     *  on a battlefield, so it must keep applying while the card is milled
+     *  from a library, discarded from a hand, or resolving off the stack —
+     *  none of which the normal `collectReplacements` battlefield scan can
+     *  see. Set `true` ONLY on an `eventKind: "graveyard-bound"` effect
+     *  whose `appliesTo` matches solely on `event.cardInstanceId === self.id`
+     *  (never a broader scope like "any opponent's card" — that shape stays
+     *  permanent-bound, e.g. Dauthi Voidwalker). Opt-in and defaults to
+     *  `false`/undefined so every other `replacementEffects[]` entry keeps
+     *  its existing battlefield-bound discovery unchanged. See
+     *  `gre/replacements.ts`'s `collectReplacements`. */
+    appliesFromAnyZone?: boolean;
     /** Whether this replacement intercepts the given event. `self` is the
      *  permanent carrying the effect; `state` is a read-only view. */
     appliesTo: (

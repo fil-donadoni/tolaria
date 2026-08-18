@@ -107,6 +107,45 @@ const opponentGraveyardRedirector: CardDefinition = {
     ],
 };
 
+// Self-referential "would be put into a graveyard from anywhere ... shuffle
+// it into its owner's library instead" (Blightsteel Colossus's shape, issue
+// #2106) — `appliesFromAnyZone: true` opts this into the zone-agnostic
+// self-lookup `collectReplacements` runs for graveyard-bound events, in
+// addition to its normal battlefield scan.
+const SELF_ANY_ZONE_REDIRECTOR_ID = "test-graveyard-bound-self-any-zone";
+
+const selfAnyZoneRedirector: CardDefinition = {
+    id: SELF_ANY_ZONE_REDIRECTOR_ID,
+    name: "Test Self Any-Zone Redirector",
+    rarity: "common",
+    types: ["Creature"],
+    subtypes: [],
+    power: 1,
+    toughness: 1,
+    replacementEffects: [
+        {
+            id: "test-self-any-zone-redirect",
+            oracleText:
+                "If this card would be put into a graveyard from anywhere, shuffle it into its owner's library instead.",
+            eventKind: "graveyard-bound",
+            appliesFromAnyZone: true,
+            appliesTo: (event, self) => {
+                if (event.kind !== "graveyard-bound") return false;
+                return event.cardInstanceId === self.id;
+            },
+            replace: (event) => {
+                if (event.kind !== "graveyard-bound") {
+                    throw new Error("unexpected event kind");
+                }
+                return {
+                    kind: "modified",
+                    event: { ...event, destination: "library" },
+                };
+            },
+        },
+    ],
+};
+
 const p1Sorcery: CardDefinition = {
     id: P1_SORCERY_ID,
     name: "Test P1 Sorcery",
@@ -123,6 +162,7 @@ const p2Sorcery: CardDefinition = {
 beforeAll(() => {
     registerTokenDefinition(ownGraveyardRedirector);
     registerTokenDefinition(opponentGraveyardRedirector);
+    registerTokenDefinition(selfAnyZoneRedirector);
     registerTokenDefinition(p1Sorcery);
     registerTokenDefinition(p2Sorcery);
 });
@@ -144,6 +184,29 @@ function redirector(
         controllerId,
         ownerId: controllerId,
         zone: "battlefield",
+        isTapped: false,
+    };
+}
+
+/** Builds a `SELF_ANY_ZONE_REDIRECTOR_ID` instance in an arbitrary zone
+ *  (the self-referential redirect must apply off the battlefield, unlike
+ *  `redirector` above which is always battlefield-bound). */
+function selfAnyZoneCard(
+    id: string,
+    ownerId: string,
+    zone: CardInstanceState["zone"]
+): CardInstanceState {
+    return {
+        id,
+        card: { id: SELF_ANY_ZONE_REDIRECTOR_ID },
+        types: ["Creature"],
+        subtypes: [],
+        power: 1,
+        toughness: 1,
+        staticAbilities: [],
+        controllerId: ownerId,
+        ownerId,
+        zone,
         isTapped: false,
     };
 }
@@ -381,6 +444,105 @@ describe("graveyard-bound replacement (CR 614, issue #1145)", () => {
             expect(p2Slim.exile).toHaveLength(1);
             expect(p2Slim.exile[0].counters).toEqual({ void: 1 });
         }
+    });
+});
+
+// CR 614.1a self-referential "would be put into a graveyard from anywhere
+// ... shuffle it into its owner's library instead" (Blightsteel Colossus's
+// shape, issue #2106). Unlike the two redirectors above, this effect must
+// keep applying while its OWN card is off the battlefield (mid mill/
+// discard/library-move) — `collectReplacements`'s normal battlefield scan
+// cannot see it there, so `ReplacementEffect.appliesFromAnyZone` opts it
+// into a second, zone-agnostic lookup keyed on the event's own
+// `cardInstanceId` (never a battlefield-wide scan, so it cannot leak onto a
+// different card).
+describe("graveyard-bound self-referential replacement — applies from any zone (CR 614.1a, issue #2106)", () => {
+    it("redirects a mill (library -> graveyard) to the owner's library and suppresses CARD_MILLED — the card is NOT on the battlefield", () => {
+        const library = [selfAnyZoneCard("self1", "p1", "library")];
+        const state = makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+        });
+        const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
+        const ctx = buildSpellContext(state, stackItem);
+        ctx.millCards("p1", 1);
+        const p1 = state.players[0];
+        expect(p1.library.some((c) => c.id === "self1")).toBe(true);
+        expect(p1.graveyard).toHaveLength(0);
+        const events = flushPendingEvents(state);
+        expect(events.some((e) => e.type === "CARD_MILLED")).toBe(false);
+    });
+
+    it("redirects a discard (hand -> graveyard) to the owner's library — the card is NOT on the battlefield, CARD_DISCARDED still fires", () => {
+        const hand = [selfAnyZoneCard("self1", "p1", "hand")];
+        const state = makeState({
+            players: [makePlayer("p1", { hand }), makePlayer("p2")],
+        });
+        const moved = discardToGraveyard(state, "p1", "self1");
+        expect(moved).toBe(true);
+        const p1 = state.players[0];
+        expect(p1.library.some((c) => c.id === "self1")).toBe(true);
+        expect(p1.graveyard).toHaveLength(0);
+        const events = flushPendingEvents(state);
+        expect(events.some((e) => e.type === "CARD_DISCARDED")).toBe(true);
+    });
+
+    it("redirects a battlefield death (0 toughness) to the owner's library and suppresses CREATURE_DIED — found via the ordinary battlefield scan (no double-apply)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        selfAnyZoneCard("self1", "p1", "battlefield"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.players[0].battlefield[0].toughness = 0;
+        checkZeroToughnessSBA(state);
+        const p1 = state.players[0];
+        expect(p1.battlefield.some((c) => c.id === "self1")).toBe(false);
+        expect(p1.graveyard).toHaveLength(0);
+        expect(p1.library.filter((c) => c.id === "self1")).toHaveLength(1);
+        const events = flushPendingEvents(state);
+        expect(events.some((e) => e.type === "CREATURE_DIED")).toBe(false);
+    });
+
+    it("redirects a generic moveZone/moveCardById library->graveyard move (self-mill effects) to the library", () => {
+        const library = [selfAnyZoneCard("self1", "p1", "library")];
+        const state = makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+        });
+        const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
+        const ctx = buildSpellContext(state, stackItem);
+        ctx.moveCardById("p1", "self1", "library", "graveyard");
+        const p1 = state.players[0];
+        expect(p1.graveyard).toHaveLength(0);
+        expect(p1.library.filter((c) => c.id === "self1")).toHaveLength(1);
+    });
+
+    it("does not leak the redirect onto a different (bystander) card milled in the same batch", () => {
+        // The bystander sits ON TOP (milled first, genuinely, to the
+        // graveyard) and the self-redirecting card sits BELOW it (milled
+        // second) — deliberately so the redirected card's own re-shuffle
+        // lands after every OTHER card in this batch has already been
+        // processed, keeping the assertions deterministic regardless of the
+        // seeded RNG's draw (a redirect-then-reshuffle that happened while
+        // more cards were still queued in the same library would leave which
+        // card mills next up to the shuffle).
+        const library = [
+            bystanderCard("c1", "p1", "library"),
+            selfAnyZoneCard("self1", "p1", "library"),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+        });
+        const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
+        const ctx = buildSpellContext(state, stackItem);
+        ctx.millCards("p1", 2);
+        const p1 = state.players[0];
+        expect(p1.library.some((c) => c.id === "self1")).toBe(true);
+        expect(p1.graveyard.some((c) => c.id === "c1")).toBe(true);
+        expect(p1.graveyard.some((c) => c.id === "self1")).toBe(false);
     });
 });
 

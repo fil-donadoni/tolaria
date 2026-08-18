@@ -5807,13 +5807,34 @@ function resetStackTransientState(item: StackItem): void {
 // ability-only fields are still safe to include" reasoning, and the
 // `castById`/`reboundFromHand` ordering trap.
 
+/** CR 614.1a — a graveyard-bound replacement redirected a card to its
+ *  owner's library instead of the graveyard (Blightsteel Colossus, issue
+ *  #2106): the oracle text is "... shuffle it into its owner's library
+ *  instead", so the redirect always ends in a shuffle. Reuses the exact same
+ *  seeded primitive an ordinary shuffle uses (ADR 0026 — unwitnessed
+ *  reordering, so ALL knowledge of every card in the library is cleared, not
+ *  just the card that just landed) — the same two-line idiom
+ *  `shuffleIntoLibraryOnResolve` uses elsewhere in this file (Green Sun's
+ *  Zenith). Call ONLY when the resolved `destination` from
+ *  `graveyardDestinationFor` is `"library"` — a directed library landing
+ *  from some OTHER path (a tuck effect's `toZone: "library"`, Surveil's
+ *  library-bottom leg) never routes through this. */
+function shuffleAfterGraveyardBoundLibraryRedirect(
+    state: GameState,
+    owner: PlayerState
+): void {
+    seededShuffle(state, owner.library);
+    clearKnowledge(owner.library, null);
+}
+
 /** Moves a stack item (a spell that failed to resolve/finished resolving as
  *  a non-permanent/was countered) into its owner's graveyard — CR 614
  *  (issue #1145) consulted first so a graveyard-bound replacement
- *  (Yawgmoth's Will / Dauthi Voidwalker) can redirect it to exile instead.
- *  Single chokepoint shared by the target-legality fizzle path, the
- *  land-can't-enter / illegal-aura-host paths, the plain spell-resolves
- *  path, and `SpellContext.counter`'s default destination. */
+ *  (Yawgmoth's Will / Dauthi Voidwalker / Blightsteel Colossus) can redirect
+ *  it to exile or (issue #2106) library instead. Single chokepoint shared by
+ *  the target-legality fizzle path, the land-can't-enter / illegal-aura-host
+ *  paths, the plain spell-resolves path, and `SpellContext.counter`'s
+ *  default destination. */
 function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     const owner = getPlayer(state, item.ownerId);
     const { destination, tagCounters } = graveyardDestinationFor(
@@ -5825,7 +5846,9 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     item.zone = destination;
     resetStackTransientState(item);
     (owner[destination] as CardInstanceState[]).push(item);
-    if (destination !== "graveyard") {
+    if (destination === "library") {
+        shuffleAfterGraveyardBoundLibraryRedirect(state, owner);
+    } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(item, tagCounters);
     }
 }
@@ -8678,7 +8701,13 @@ export function removePermanentTo(
     // Dauthi Voidwalker): "if a card would be put into a graveyard from
     // anywhere, exile it instead." Consulted AFTER `exileOnLeave` (which
     // already forces exile) so an already-redirected card isn't re-checked.
+    // (issue #2106) — the same replacement can also redirect to `"library"`
+    // (Blightsteel Colossus's self-referential "shuffle it into its owner's
+    // library instead"); `redirectedToLibrary` distinguishes THAT from a
+    // caller that requested `toZone: "library"` directly (a tuck effect),
+    // which must NOT be shuffled.
     let graveyardRedirectCounters: Record<string, number> | undefined;
+    let redirectedToLibrary = false;
     if (toZone === "graveyard") {
         const { destination, tagCounters } = graveyardDestinationFor(
             state,
@@ -8688,6 +8717,7 @@ export function removePermanentTo(
         );
         toZone = destination;
         graveyardRedirectCounters = tagCounters;
+        redirectedToLibrary = destination === "library";
     }
     // CR 603.10 last-known-information snapshot for PERMANENT_LEFT. Capture
     // attachedTo here because the aura cleanup below clears it on the
@@ -8840,6 +8870,15 @@ export function removePermanentTo(
     }
     if (toZone === "exile" && graveyardRedirectCounters) {
         applyGraveyardRedirectCounters(creature, graveyardRedirectCounters);
+    }
+    // (issue #2106) — a self-referential graveyard-bound replacement
+    // redirected this departure to the library instead of the graveyard
+    // (Blightsteel Colossus's "shuffle it into its owner's library
+    // instead"). Unlike a plain tuck (`toZone: "library"` requested by the
+    // caller directly, which lands on top with no shuffle), the oracle text
+    // here always ends in a shuffle.
+    if (redirectedToLibrary) {
+        shuffleAfterGraveyardBoundLibraryRedirect(state, owner);
     }
     // CR 700.4 — a creature "dies" when it's put into a graveyard from the
     // battlefield. Queued on `pendingEvents` so the caller can scan for
@@ -13660,7 +13699,8 @@ export function buildSpellContext(
                     : undefined;
                 // CR 614 (issue #1145) — a graveyard-bound replacement
                 // (Yawgmoth's Will / Dauthi Voidwalker) can redirect this
-                // mill to exile instead of the graveyard.
+                // mill to exile instead of the graveyard, or (issue #2106,
+                // Blightsteel Colossus) to the owner's library instead.
                 const { destination, tagCounters } = graveyardDestinationFor(
                     state,
                     top.id,
@@ -13668,19 +13708,26 @@ export function buildSpellContext(
                     "library"
                 );
                 moveCard(player, top.id, "library", destination);
-                if (destination !== "graveyard") {
+                if (destination === "library") {
+                    // The card left library[0] and was re-pushed at the
+                    // bottom by the generic `moveCard`; the oracle text is
+                    // "shuffle it into its owner's library", not "put on
+                    // the bottom", so randomize.
+                    shuffleAfterGraveyardBoundLibraryRedirect(state, player);
+                } else if (destination === "exile") {
                     applyGraveyardRedirectCounters(top, tagCounters);
                 }
                 // Emit AFTER the move so the trigger scan finds the card in its
                 // destination graveyard (CR 603.10 emit-after-move discipline).
                 // Only a genuine "put into graveyard from library" counts as a
-                // mill (CR 701.17a) — a replacement-redirected card was exiled,
-                // not milled, so Gaea's Blessing-style "put into your graveyard
-                // from your library" triggers correctly don't see it.
+                // mill (CR 701.17a) — a replacement-redirected card was exiled
+                // or shuffled back, not milled, so Gaea's Blessing-style "put
+                // into your graveyard from your library" triggers correctly
+                // don't see it.
                 if (destination === "graveyard") {
                     milledIds.push(top.id);
                     emitCardMilled(state, playerId, top.id, cardId, types);
-                } else {
+                } else if (destination === "exile") {
                     exiledEntries.push({
                         cardInstanceId: top.id,
                         cardId,
@@ -16876,14 +16923,20 @@ export function buildSpellContext(
                 // CR 614 (issue #1145) — Surveil's "put into graveyard" leg is
                 // itself a card-entering-a-graveyard event; a graveyard-bound
                 // replacement (Yawgmoth's Will / Dauthi Voidwalker) can
-                // redirect it to exile.
+                // redirect it to exile, or (issue #2106, Blightsteel Colossus)
+                // shuffle it back into the library instead.
                 for (const id of second) {
                     const card = player.library.find((c) => c.id === id);
                     const ownerId = card?.ownerId ?? playerId;
                     const { destination, tagCounters } =
                         graveyardDestinationFor(state, id, ownerId, "library");
                     const moved = moveCard(player, id, "library", destination);
-                    if (destination !== "graveyard") {
+                    if (destination === "library") {
+                        shuffleAfterGraveyardBoundLibraryRedirect(
+                            state,
+                            player
+                        );
+                    } else if (destination === "exile") {
                         applyGraveyardRedirectCounters(moved, tagCounters);
                     }
                 }
@@ -18721,6 +18774,14 @@ function moveCardWithGraveyardReplacement(
     // into a graveyard" filter reads last-known information.
     const movedTypes = sourceCard ? [...sourceCard.types] : undefined;
     const moved = moveCard(player, cardInstanceId, from, destination);
+    if (destination === "library") {
+        // (issue #2106) — a self-referential graveyard-bound replacement
+        // (Blightsteel Colossus) redirected this move to the owner's
+        // library instead: it was never put into a graveyard, so no event,
+        // and the oracle text says "shuffle", not "put on top".
+        shuffleAfterGraveyardBoundLibraryRedirect(state, player);
+        return moved;
+    }
     if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(moved, tagCounters);
         // A CR 614 graveyard-bound replacement redirected the card to exile: it
@@ -19063,6 +19124,13 @@ export function discardToGraveyard(
     const moved = moveCard(player, repl.cardInstanceId, "hand", destination);
     if (madnessRoute) {
         markMadnessExiled(moved);
+    } else if (destination === "library") {
+        // (issue #2106) — a self-referential graveyard-bound replacement
+        // (Blightsteel Colossus) redirected this discard to the owner's
+        // library instead. CARD_DISCARDED still fires below (the card WAS
+        // discarded — only its landing zone changed, CR 614.1a), but the
+        // oracle text ends the redirect with a shuffle.
+        shuffleAfterGraveyardBoundLibraryRedirect(state, player);
     } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(moved, tagCounters);
     }
