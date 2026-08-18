@@ -537,4 +537,52 @@ describe("PlayerLibrary", () => {
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         expect(pileProps.forceOpen).toBeFalsy();
     });
+
+    it('routes an ORDERED look-distribute with keepTo:"library-top" (issue #2070) to the TOP-OF-LIBRARY keep chrome, never hand', () => {
+        // Review finding (issue #2070, round 2) — `player-library.tsx`'s
+        // `distribute.keepTo = head.keepTo ?? "hand"` is the ONLY place the
+        // projected pending-choice's `keepTo` crosses into the picker; every
+        // other look-distribute test in this file either omits `keepTo`
+        // (defaulting to "hand", matching the mutation's hard-coded value —
+        // no sibling test could tell the difference) or routes to the GRID
+        // pick instead (graveyard / randomizeRest), which never reads
+        // `distribute` at all. This is the first look-distribute fixture in
+        // this file with `keepTo: "library-top"` set AND an ordered
+        // (non-randomized, non-graveyard) destination, so it's the first to
+        // actually traverse that line. Hard-coding it back to `"hand"` must
+        // turn the keep-zone label from "Top of library" to "Your hand" —
+        // proven by mutation (receipt).
+        cardsPileSpy.mockClear();
+        const peek = [makeCard("d1"), makeCard("d2"), makeCard("d3")];
+        const player = makePlayer({ count: 20 }, {
+            libraryPeek: peek,
+        } as Partial<Player>);
+        const { getByText, queryByText } = renderWithContext(
+            <PlayerLibrary player={player} />,
+            "me",
+            {
+                pendingChoices: [
+                    {
+                        stackItemId: "stk",
+                        step: 0,
+                        choiceId: "dig-to-top",
+                        playerId: "me",
+                        kind: "look-distribute",
+                        zone: "library",
+                        destination: "library-bottom",
+                        keepTo: "library-top",
+                        count: 1,
+                        candidateIds: peek.map((c) => c.id),
+                        prompt: "Choose which card(s) to put on top of your library, then order the rest on the bottom of your library.",
+                    },
+                ],
+            }
+        );
+        // The keep (right) zone reads TOP OF LIBRARY — never "Your hand".
+        expect(getByText("Top of library")).toBeTruthy();
+        expect(queryByText("Your hand")).toBeNull();
+        expect(getByText("Bottom of library")).toBeTruthy();
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.forceOpen).toBeFalsy();
+    });
 });

@@ -18130,6 +18130,54 @@ describe("Effect Script Op: lookDistribute (CR 401.4, issue #984)", () => {
         );
     });
 
+    // Review finding (issue #2070, round 2) — the take:1 test above doesn't
+    // discriminate: with a single kept card, `bottomLookedAtCards`'s "every
+    // looked-at card not un-kept" landing set contains only "b" regardless of
+    // whether `putLibraryCardsOnTop` actually moved it there — no-op'ing that
+    // call (`ctx.putLibraryCardsOnTop(playerId, picks)` → nothing) left this
+    // suite green (767 passed). A `take: 2` pick submitted in an order that
+    // DIFFERS from the cards' original library position discriminates:
+    // `putLibraryCardsOnTop`'s contract is `picks[0]` ends up the very top,
+    // so only a REAL move reproduces the PICK order at the top — a no-op
+    // reproduces the cards' ORIGINAL library order instead.
+    it("keepTo library-top with take 2: the kept cards land in PICK order, not original library order", () => {
+        const id = registerScript("test-op-dig-library-top-take2", [
+            {
+                op: "lookDistribute",
+                keepTo: "library-top",
+                player: "controller",
+                look: 4,
+                take: 2,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d", "e"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["a", "b", "c", "d"]);
+
+        // Keep "c" and "a" — REVERSED from their original library position
+        // ("a" sat above "c") — so only a working `putLibraryCardsOnTop`
+        // move reproduces this exact order at the top.
+        submitKeep(state, ["c", "a"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).not.toContain("c");
+        expect(state.players[0].hand.map((c) => c.id)).not.toContain("a");
+        expect(state.players[0].library[0].id).toBe("c");
+        expect(state.players[0].library[1].id).toBe("a");
+        expect(state.players[0].library.map((c) => c.id)).toHaveLength(5);
+        expect(new Set(state.players[0].library.map((c) => c.id))).toEqual(
+            new Set(["a", "b", "c", "d", "e"])
+        );
+    });
+
     it("mills nothing to the graveyard — the rest go to the library bottom, not away", () => {
         const id = registerScript("test-op-dig-bottom", [
             {
