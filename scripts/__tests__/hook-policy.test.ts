@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { execFileSync, spawnSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
@@ -20,7 +20,18 @@ import * as path from "path";
  * possible to the denied one (force-push a feature branch vs. main; `git stash
  * list` vs `git stash`; `gh pr merge` from the main checkout vs. an issue
  * worktree).
+ *
+ * **Why the raised timeout.** Every assertion here spawns `sh` on a real hook
+ * script, and several `it`s loop over a whole command table — 1.0-1.5s each on
+ * an IDLE machine, measured 2026-08-18. The default 5s leaves only 3-5x
+ * headroom, which the FULL suite eats: at `ncpu - 1` workers, with a second
+ * session holding the heavy gate, two of these timed out inside
+ * `bun run land` and went green immediately when re-run alone. A spawn-bound
+ * test that fails on machine load is noise in the one gate this repo has, and
+ * it reds the merge-train for whoever is landing next. Same treatment, and the
+ * same reason, as `loop-drain.test.ts` / `loop-handoff.test.ts`.
  */
+vi.setConfig({ testTimeout: 30_000 });
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const HOOKS = path.join(REPO_ROOT, ".claude", "hooks");
