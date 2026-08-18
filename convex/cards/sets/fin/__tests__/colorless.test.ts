@@ -37,23 +37,64 @@ describe("Starting Town (CR 614.1c turn-gated tapped-entry + two {T} mana abilit
         ]);
     });
 
-    it.each([1, 2, 3])(
-        "the entersTappedUnless predicate is satisfied on turn %i (your first/second/third turn of the game)",
+    // CR 103.1 — turn order begins with the starting player and proceeds
+    // clockwise: `players[0]` is p1, `players[1]` is p2, so global turn 1 =
+    // p1's 1st turn, turn 2 = p2's 1st turn, turn 3 = p1's 2nd turn, turn 4 =
+    // p2's 2nd turn, turn 5 = p1's 3rd turn, turn 6 = p2's 3rd turn (issue
+    // #1871 — this is the exact mapping the old `view.turn <= 3` predicate
+    // got wrong for p2 from their 2nd turn on, and for p1 from their 3rd
+    // turn on).
+    const twoSeatView = {
+        players: [
+            { id: "p1", battlefield: [] },
+            { id: "p2", battlefield: [] },
+        ],
+    };
+
+    it.each([1, 3])(
+        "p1: entersTappedUnless is satisfied on global turn %i (their 1st/2nd turn)",
         (turn) => {
             expect(
-                startingTown.entersTappedUnless!({ players: [], turn }, "p1")
+                startingTown.entersTappedUnless!({ ...twoSeatView, turn }, "p1")
             ).toBe(true);
         }
     );
 
-    it.each([4, 5, 10])(
-        "the entersTappedUnless predicate is NOT satisfied from turn %i onward",
+    it("p1: entersTappedUnless is satisfied on global turn 5 (their 3rd turn) — regression for issue #1871", () => {
+        expect(
+            startingTown.entersTappedUnless!({ ...twoSeatView, turn: 5 }, "p1")
+        ).toBe(true);
+    });
+
+    it("p1: entersTappedUnless is NOT satisfied on global turn 7 (their 4th turn)", () => {
+        expect(
+            startingTown.entersTappedUnless!({ ...twoSeatView, turn: 7 }, "p1")
+        ).toBe(false);
+    });
+
+    it.each([2, 4, 6])(
+        "p2: entersTappedUnless is satisfied on global turn %i (their 1st/2nd/3rd turn) — regression for issue #1871",
         (turn) => {
             expect(
-                startingTown.entersTappedUnless!({ players: [], turn }, "p1")
-            ).toBe(false);
+                startingTown.entersTappedUnless!({ ...twoSeatView, turn }, "p2")
+            ).toBe(true);
         }
     );
+
+    it("p2: entersTappedUnless is NOT satisfied on global turn 8 (their 4th turn)", () => {
+        expect(
+            startingTown.entersTappedUnless!({ ...twoSeatView, turn: 8 }, "p2")
+        ).toBe(false);
+    });
+
+    it("a player not in `view.players` (unknown seat) never satisfies the predicate — fail-closed", () => {
+        expect(
+            startingTown.entersTappedUnless!(
+                { ...twoSeatView, turn: 1 },
+                "unseated"
+            )
+        ).toBe(false);
+    });
 
     it("exposes exactly 6 tap options: {C} plus the 5 any-colour choices", () => {
         const town = makeInstance(startingTown.id, { controllerId: "p1" });

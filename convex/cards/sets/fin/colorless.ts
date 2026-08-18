@@ -32,11 +32,40 @@ export const startingTown: CardDefinition = {
         "This land enters tapped unless it's your first, second, or third turn of the game.\n{T}: Add {C}.\n{T}, Pay 1 life: Add one mana of any color.",
     types: ["Land"],
     subtypes: ["Town"],
-    // CR 614.1c self-conditional replacement — turn 1/2/3 of the game (CR
-    // 103.2a numbering: turn 1 = player one's first turn, turn 2 = player
-    // two's first turn, turn 3 = player one's second turn — matches "your
-    // first, second, or third turn" for a 2-player/solo game).
-    entersTappedUnless: (view) => view.turn <= 3,
+    // CR 614.1c self-conditional replacement — "your first, second, or
+    // third turn of the game" is the CONTROLLER's OWN turn ordinal, not the
+    // raw global `GameState.turn` counter (issue #1871). `turn` increments
+    // once per player-turn in a fixed seat rotation (`advanceTurn`,
+    // `gre/phases.ts`; CR 103.1 — "the game's default turn order begins with
+    // the starting player and proceeds clockwise"): turn 1 = players[0]'s
+    // first turn, turn 2 = players[1]'s first turn, turn 3 = players[0]'s
+    // second turn, … — the exact convention `LandEntryStateView.turn`'s own
+    // doc comment (`cards/types.ts`) already spells out. Comparing `view.turn
+    // <= 3` directly conflated that global counter with the controller's own
+    // ordinal: correct only for the player occupying `players[0]`, and even
+    // then wrong from their 3rd turn on (global turn 5).
+    //
+    // `LandEntryStateView` carries no per-player turn count (`turnsTaken`
+    // lives on the full `GameState.players[i]`, not this frontend-safe view)
+    // and no `activePlayerId`, so the controller's ordinal is reconstructed
+    // here from `view.turn` plus the controller's seat index in
+    // `view.players`, under that same fixed-rotation convention — mirroring
+    // how `abandonedAirTemple` (`sets/tla/colorless.ts`) threads
+    // `controllerId` through `view.players.find(...)` for its own
+    // `entersTappedUnless`. Simplification carried over unchanged from the
+    // original code: an extra turn (CR 500.7) is not modeled — the rotation
+    // is assumed strictly alternating by seat.
+    entersTappedUnless: (view, controllerId) => {
+        const seatCount = view.players.length;
+        const seatIndex = view.players.findIndex((p) => p.id === controllerId);
+        if (seatIndex < 0 || seatCount === 0) return false;
+        const seatTurn = seatIndex + 1;
+        if (view.turn < seatTurn) return false;
+        const offsetFromSeatTurn = view.turn - seatTurn;
+        if (offsetFromSeatTurn % seatCount !== 0) return false;
+        const ownTurnOrdinal = offsetFromSeatTurn / seatCount + 1;
+        return ownTurnOrdinal <= 3;
+    },
     activatedAbilities: [
         {
             id: "starting-town-colorless",
