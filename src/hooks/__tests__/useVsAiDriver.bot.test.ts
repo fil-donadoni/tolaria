@@ -19,6 +19,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";
 import { getCardByName } from "@convex/cards";
+import { PLACEHOLDER_CARD_ID } from "@convex/gre";
 import { makeInstance } from "@convex/cards/__tests__/setup";
 import {
     computeExpectedInput,
@@ -56,6 +57,28 @@ function clearPublicStateOverride() {
 // of `currentState` (issue #1778 finding 4: a vs-AI game already in progress
 // when this feature deploys has never had a tick row written for it).
 let forceNullTick = false;
+// What `getSeatDeck` answers (issue #2506). `undefined` = still loading;
+// `null` = the seat has no decklist row, or the caller does not own it.
+let seatDeck:
+    | { playerId: string; cards: { cardId: string; cardName: string }[] }
+    | null
+    | undefined = undefined;
+// Every `projectedToGameState` call the search path makes, with the `ownDeck`
+// it was handed and the bot library it produced — the seam where a real
+// decklist either becomes real card identities or is thrown away for
+// placeholders (issue #1509).
+const adapterCalls: {
+    /** 2 only for the SEARCH rehydration (`handleBrainRequest` passes
+     *  `ownDeck`); the driver's own `shouldThink` gate and `bot-view` call the
+     *  adapter with the state alone, and those calls are not this seam. */
+    argCount: number;
+    ownDeck: unknown;
+    libraries: Record<string, string[]>;
+}[] = [];
+/** The adapter calls made by the SEARCH — see `argCount` above. */
+function searchAdapterCalls() {
+    return adapterCalls.filter((c) => c.argCount === 2);
+}
 // When active, every mutation returns a promise that only settles once
 // `heldMutation.release()` is called (issue #1209).
 let heldMutation: {
@@ -86,6 +109,7 @@ vi.mock("@convex/_generated/api", () => ({
             getPublicState: "getPublicState",
             getGameTick: "getGameTick",
             getGame: "getGame",
+            getSeatDeck: "getSeatDeck",
             playCard: "playCard",
             summonCompanion: "summonCompanion",
             announceCast: "announceCast",
@@ -131,10 +155,16 @@ vi.mock("convex/react", () => ({
     useQuery: (ref: unknown, args: unknown) => {
         if (args !== "skip") queryMounts.push({ ref, args });
         if (args === "skip") return undefined;
-        // issue #1509 — the driver now also queries `getGame` to source the
-        // bot's own decklist (ownDeck). These tests don't exercise ownDeck,
-        // so return undefined for it: ownDeck stays undefined and the driver
-        // behaves exactly as pre-#1509 (placeholder library path).
+        // issue #1509 — the driver also queries the bot's own decklist
+        // (ownDeck), which since issue #2506 is `getSeatDeck` on the split
+        // `gameDecks` row. `seatDeck` is `undefined` by default (loading /
+        // unowned seat → ownDeck stays undefined and the driver behaves exactly
+        // as pre-#1509, the placeholder-library path every other test in this
+        // file assumes). The decklist test below sets it to a real answer:
+        // stubbing it away unconditionally, as this mock first did, left the
+        // ENTIRE #1509 path unproven, and a `getSeatDeck` that returns null
+        // degrades the bot in silence (#2506 review, finding 2).
+        if (ref === "getSeatDeck") return seatDeck;
         if (ref === "getGame") return undefined;
         if (ref === "getGameTick") {
             if (forceNullTick) return null;
@@ -196,6 +226,36 @@ vi.mock("~/lib/ai/realise", async (importOriginal) => {
         realiseBotAction: (
             ...args: Parameters<typeof actual.realiseBotAction>
         ) => (forceUnrealisable ? null : actual.realiseBotAction(...args)),
+    };
+});
+
+// The adapter is the real one — only WRAPPED, so what it was called with and
+// what it produced are both observable. `brain-request` imports it as
+// `./state-adapter`; vitest mocks by resolved path, so this alias hits the same
+// module.
+vi.mock("~/lib/ai/state-adapter", async (importOriginal) => {
+    const actual =
+        await importOriginal<typeof import("~/lib/ai/state-adapter")>();
+    return {
+        ...actual,
+        projectedToGameState: (
+            ...args: Parameters<typeof actual.projectedToGameState>
+        ) => {
+            const out = actual.projectedToGameState(...args);
+            adapterCalls.push({
+                argCount: args.length,
+                ownDeck: args[1],
+                libraries: Object.fromEntries(
+                    out.players.map((p): [string, string[]] => [
+                        p.id,
+                        // `CardInstanceState.card` is a loose record here, so
+                        // the id comes back `unknown` — normalise it.
+                        (p.library ?? []).map((c) => String(c.card.id)),
+                    ])
+                ),
+            });
+            return out;
+        },
     };
 });
 
@@ -279,6 +339,8 @@ describe("useVsAiDriver (issue #110)", () => {
         currentState = undefined;
         clearPublicStateOverride();
         forceNullTick = false;
+        seatDeck = undefined;
+        adapterCalls.length = 0;
         heldMutation = { active: false, release: undefined, fail: undefined };
         rejectMutation = { active: false, message: "" };
         forceUnrealisable = false;
@@ -290,6 +352,84 @@ describe("useVsAiDriver (issue #110)", () => {
     afterEach(() => {
         vi.useRealTimers();
         vi.restoreAllMocks();
+    });
+
+    // ── The bot's OWN decklist reaches the search (issues #1509 / #2506) ────
+    //
+    // The driver reads it from `getSeatDeck` and hands it to the adapter as
+    // `ownDeck`; the adapter rebuilds the bot's library with those identities
+    // so fetch/tutor/draw subtrees search real cards. Every OTHER test in this
+    // file leaves `seatDeck` undefined, so without these two nothing here ever
+    // proved the wiring existed — and its failure mode is silent (the bot just
+    // searches blanks again).
+    //
+    // The window must be a WORTHWHILE one (a land in hand): a trivial pass
+    // short-circuits before `consultBrain`, so the search never rehydrates and
+    // there is no `ownDeck` seam to observe at all.
+    function botStateWithLibrary(count: number) {
+        return botState({
+            priorityPlayerId: BOT,
+            players: [
+                {
+                    ...player(BOT),
+                    hand: [
+                        makeInstance(MOUNTAIN, {
+                            controllerId: BOT,
+                            ownerId: BOT,
+                            id: "land1",
+                            zone: "hand",
+                        }),
+                    ],
+                    library: { count },
+                },
+                player(HUMAN),
+            ],
+        });
+    }
+
+    it("feeds the bot's own getSeatDeck cards into the search adapter", async () => {
+        seatDeck = {
+            playerId: BOT,
+            cards: [
+                { cardId: MOUNTAIN, cardName: "Mountain" },
+                { cardId: MOUNTAIN, cardName: "Mountain" },
+                { cardId: BEARS, cardName: "Grizzly Bears" },
+            ],
+        };
+        // Library count 2, deck 3: one Mountain is in hand, so the rebuilt
+        // library is the deck MINUS what the bot can already see it holds.
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const searched = searchAdapterCalls();
+        expect(searched.length).toBeGreaterThan(0);
+        expect(searched[0].ownDeck).toEqual({
+            playerId: BOT,
+            cardIds: [MOUNTAIN, MOUNTAIN, BEARS],
+        });
+        // …and the adapter actually USED it: the rebuilt library holds real
+        // card identities, not placeholders.
+        expect([...searched[0].libraries[BOT]].sort()).toEqual(
+            [MOUNTAIN, BEARS].sort()
+        );
+    });
+
+    it("falls back to a placeholder library when getSeatDeck answers null", async () => {
+        // The silent-degradation case the widened stub used to hide: an
+        // unowned seat / missing row is not an error anywhere on this path.
+        seatDeck = null;
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const searched = searchAdapterCalls();
+        expect(searched.length).toBeGreaterThan(0);
+        expect(searched[0].ownDeck).toBeUndefined();
+        expect(searched[0].libraries[BOT]).toEqual([
+            PLACEHOLDER_CARD_ID,
+            PLACEHOLDER_CARD_ID,
+        ]);
     });
 
     it("passes on the bot seat when the bot holds priority with no other move", async () => {

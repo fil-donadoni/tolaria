@@ -16,6 +16,9 @@ import DebugSaveScenario, { type EditingScenario } from "./debug-save-scenario";
 
 type DebugPanelProps = {
     gameId: Id<"games">;
+    /** The seat THIS client occupies (the session's `playerId`) — the one whose
+     *  decklist the one-click restarts may read (issue #2506). */
+    playerId: string;
     showAllCards: boolean;
     onToggleShowAllCards: () => void;
     debugAllActions: boolean;
@@ -25,6 +28,7 @@ type DebugPanelProps = {
 
 export default function DebugPanel({
     gameId,
+    playerId,
     showAllCards,
     onToggleShowAllCards,
     debugAllActions,
@@ -120,10 +124,38 @@ export default function DebugPanel({
         }
     };
 
+    // The deck the one-click restarts clone: THIS client's OWN seat, whose card
+    // entries left the `games` row in issue #2506 and now come from
+    // `getSeatDeck`.
+    //
+    // It must be the viewer's seat, not `players[0]`: `getSeatDeck` is gated on
+    // SEAT ownership, so naming the host's seat resolves for a 2-player HOST
+    // and hands a 2-player JOINER `null` — silently no-opping both restart
+    // buttons for one of the two seats (they only ever worked there by cloning
+    // the OPPONENT's list, i.e. through the leak #2506 closed). The session's
+    // `playerId` is that seat by construction — it is the handle every gameplay
+    // mutation on this client already acts as — so no ownership predicate is
+    // restated here, and solo/vs-AI keeps cloning the `-p1` seat it always did.
+    const sourceSeat = game?.players.find((p) => p.id === playerId);
+    const sourceCards = useQuery(
+        api.game.getSeatDeck,
+        isOpen && pageVisible && sourceSeat
+            ? { gameId, playerId: sourceSeat.id }
+            : "skip"
+    );
+    const sourceDeck =
+        sourceSeat && sourceCards
+            ? {
+                  id: sourceSeat.deck.id,
+                  name: sourceSeat.deck.name,
+                  format: sourceSeat.deck.format,
+                  cards: sourceCards.cards,
+              }
+            : undefined;
+
     const handleNewSolo = async () => {
-        // Reuse the deck of the first player in the current game so the user
+        // Reuse this client's own deck from the current game so the user
         // doesn't have to round-trip through the lobby just to restart.
-        const sourceDeck = game?.players[0]?.deck;
         if (!sourceDeck) return;
         if (!user) return;
         const p1Id = `${user._id}-p1`;
@@ -136,9 +168,8 @@ export default function DebugPanel({
     };
 
     const handleNewVsAi = async () => {
-        // One-click vs-AI game reusing the current first player's deck (ADR 0001,
+        // One-click vs-AI game reusing this client's own deck (ADR 0001,
         // issue #109). The human plays the `-p1` seat; the bot drives `-p2`.
-        const sourceDeck = game?.players[0]?.deck;
         if (!sourceDeck) return;
         if (!user) return;
         const p1Id = `${user._id}-p1`;

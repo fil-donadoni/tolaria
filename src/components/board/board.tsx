@@ -27,6 +27,7 @@ import {
     useMinimizedChoiceState,
 } from "~/hooks/useMinimizedChoice";
 import { preloadCardImages } from "~/lib/image-preload";
+import { gameArtCardIds } from "~/lib/game-card-ids";
 import {
     landscapeCardMetrics,
     makeLandscapeHandLayout,
@@ -135,18 +136,13 @@ export default function Board({
     // result. Resolve the matchId from the game doc, then the Match meta.
     const game = useQuery(api.game.getGame, pageVisible ? { gameId } : "skip");
 
-    // Convex bandwidth: the decklists are already inside the `games` doc this
-    // component subscribes to above, so deriving the id set here costs nothing.
-    // A dedicated `getGameCardIds` query was a SECOND subscription re-reading
-    // that same ~9 KB row on every patch — pure duplicated read bandwidth.
-    const gameCardIds = useMemo(() => {
-        if (!game) return undefined;
-        const ids = new Set<string>();
-        for (const p of game.players ?? []) {
-            for (const c of p.deck?.cards ?? []) ids.add(c.cardId);
-        }
-        return Array.from(ids);
-    }, [game]);
+    // Convex bandwidth: the id set is a first-class field on the `games` row
+    // (`cardIds`, issue #2506) — the decklists it summarises moved to
+    // `gameDecks`, and this is the only thing the client ever wanted off them.
+    // Deliberately NOT its own query: a dedicated `getGameCardIds` existed once
+    // and was deleted because it was a SECOND subscription on the same document
+    // `<Board>` already holds — pure duplicated read bandwidth.
+    const gameCardIds = useMemo(() => gameArtCardIds(game), [game]);
 
     const matchId = game?.matchId ?? null;
     const match = useQuery(

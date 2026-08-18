@@ -174,7 +174,7 @@ function asDbSeats(seats: LimitedEventSeat[]): Doc<"limitedEvents">["seats"] {
  *  `LimitedPairing.matchId` is a plain `string` — `convex/limited/**` never
  *  depends on `_generated` — while the schema stores a branded
  *  `Id<"matches">`. Every `matchId` this module writes originates from a real
- *  `ctx.db.insert("matches", …)`, never from client input. */
+ *  `insertMatchWithDecks` (`deckStore.ts`), never from client input. */
 function asDbRounds(
     rounds: LimitedRound[]
 ): NonNullable<Doc<"limitedEvents">["rounds"]> {

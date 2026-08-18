@@ -85,6 +85,15 @@ function makeCtx(userId: string, seeds: Row[]): Stub {
             patch: async (id: string, patch: Row) => {
                 docs.set(id, { ...docs.get(id), ...patch });
             },
+            // `replace`, not just `patch`: the #2506 deck store rewrites a
+            // whole `gameDecks`/`matchDecks` row rather than merging into it.
+            replace: async (id: string, doc: Row) => {
+                docs.set(id, {
+                    ...doc,
+                    _id: id,
+                    __table: docs.get(id)?.__table,
+                });
+            },
             delete: async (id: string) => {
                 docs.delete(id);
             },
@@ -539,8 +548,11 @@ describe("startPairingMatch — human pairing (PRD #1628 stories 8/10, issue #16
         expect(match.bestOf).toBe(3);
         // The pool remainder rides along as the Match sideboard — what the
         // between-games flow re-partitions (ADR 0055 pool-as-sideboard).
-        const players = match.players as { deck: { sideboard: unknown[] } }[];
-        expect(players[0].deck.sideboard.length).toBeGreaterThan(0);
+        // Since issue #2506 it is a `matchDecks` row, not an inline field.
+        const deckRow = stub
+            .rows("matchDecks")
+            .find((r) => r.matchId === match._id && r.playerId === "alice");
+        expect((deckRow?.sideboard as unknown[]).length).toBeGreaterThan(0);
     });
 
     it("the paired opponent accepts it with their own seat's deck", async () => {
@@ -589,6 +601,19 @@ describe("startPairingMatch — human pairing (PRD #1628 stories 8/10, issue #16
     });
 });
 
+/** The bot seat's Match maindeck size, read out of the `matchDecks` child row
+ *  the #2506 split moved it to (`convex/deckStore.ts`). Off the ROW it is now
+ *  absent, which would make a `.length` assertion pass vacuously. */
+function botMaindeck(
+    stub: { rows: (table: string) => Row[] },
+    matchId: string
+): number {
+    const row = stub
+        .rows("matchDecks")
+        .find((r) => r.matchId === matchId && r.playerId === "alice-p2");
+    return (row?.maindeck as unknown[] | undefined)?.length ?? 0;
+}
+
 describe("startPairingMatch — bot pairing (PRD #1628 stories 11-12)", () => {
     it("starts immediately as a vs-AI Match against the bot's SERVER-derived deck", async () => {
         const fx = playingEvent({
@@ -609,14 +634,13 @@ describe("startPairingMatch — bot pairing (PRD #1628 stories 11-12)", () => {
         expect(match.solo).toBe(true);
         expect(match.vsAi).toBe(true);
         expect(match.bestOf).toBe(3);
-        const players = match.players as {
-            id: string;
-            deck: { maindeck: unknown[] };
-        }[];
+        const players = match.players as { id: string }[];
         expect(players.map((p) => p.id)).toEqual(["alice-p1", "alice-p2"]);
         // The bot's Auto-Built deck came from its own drafted Pool, not the
         // client: nothing in the mutation's args names a decklist for seat 1.
-        expect(players[1].deck.maindeck.length).toBeGreaterThan(0);
+        // Since issue #2506 the copy is a `matchDecks` row, not an inline
+        // field — read it there, or this passes on an empty deck.
+        expect(botMaindeck(stub, match._id as string)).toBeGreaterThan(0);
         expect(pairingOf(stub, "event-b").matchId).toBe(match._id);
     });
 
@@ -644,15 +668,11 @@ describe("startPairingMatch — bot pairing (PRD #1628 stories 11-12)", () => {
         const match = stub.doc(stub.doc(gameId).matchId as string);
         expect(match.status).toBe("pregame");
         expect(match.vsAi).toBe(true);
-        const players = match.players as {
-            id: string;
-            deck: { maindeck: unknown[] };
-        }[];
         // The whole acceptance criterion this test guards: a human-vs-bot
         // pairing Match actually starts, with the bot's deck resolved from
         // its HYDRATED Pool — not silently empty/null (which used to throw
         // "Your opponent's deck is not ready yet.").
-        expect(players[1].deck.maindeck.length).toBeGreaterThan(0);
+        expect(botMaindeck(stub, match._id as string)).toBeGreaterThan(0);
         expect(pairingOf(stub, "event-b-split").matchId).toBe(match._id);
     });
 });

@@ -152,6 +152,7 @@ export default function GameRoute() {
                         {game.vsAi === true && <AiDecisionTraceBox />}
                         <DebugPanel
                             gameId={gameId}
+                            playerId={playerId}
                             showAllCards={showAllCards}
                             onToggleShowAllCards={() =>
                                 setShowAllCards((v) => !v)

@@ -253,6 +253,11 @@ export default defineSchema({
     // existing init path. The Match owns the cross-game state: running score,
     // the mutable per-player deck copy (maindeck + sideboard) snapshotted at
     // creation, the sideboarding ready flags, and the play/draw chooser.
+    //
+    // The deck COPY itself no longer lives here — see the `matchDecks` comment
+    // below (issue #2506). `players[].deck` keeps only the identity a reader
+    // needs off the row (`id`/`name`/`format`); `maindeck`/`sideboard` are
+    // optional purely so rows written before the split keep working.
     matches: defineTable({
         bestOf: v.union(v.literal(1), v.literal(3)),
         status: v.union(
@@ -280,17 +285,25 @@ export default defineSchema({
                     id: v.string(),
                     name: v.string(),
                     format: v.string(),
-                    maindeck: v.array(
-                        v.object({
-                            cardId: v.string(),
-                            cardName: v.string(),
-                        })
+                    // LEGACY ONLY (issue #2506) — the live copy is a
+                    // `matchDecks` row. Present on rows written before the
+                    // split; `convex/deckStore.ts` folds it in when no child
+                    // row exists.
+                    maindeck: v.optional(
+                        v.array(
+                            v.object({
+                                cardId: v.string(),
+                                cardName: v.string(),
+                            })
+                        )
                     ),
-                    sideboard: v.array(
-                        v.object({
-                            cardId: v.string(),
-                            cardName: v.string(),
-                        })
+                    sideboard: v.optional(
+                        v.array(
+                            v.object({
+                                cardId: v.string(),
+                                cardName: v.string(),
+                            })
+                        )
                     ),
                 }),
                 /** Games won so far in this Match. */
@@ -364,15 +377,28 @@ export default defineSchema({
                     id: v.string(),
                     name: v.string(),
                     format: v.string(),
-                    cards: v.array(
-                        v.object({
-                            cardId: v.string(),
-                            cardName: v.string(),
-                        })
+                    // LEGACY ONLY (issue #2506) — the live snapshot is a
+                    // `gameDecks` row. See the `gameDecks` comment below.
+                    cards: v.optional(
+                        v.array(
+                            v.object({
+                                cardId: v.string(),
+                                cardName: v.string(),
+                            })
+                        )
                     ),
                 }),
             })
         ),
+        /** Every DISTINCT print id in this Game's two decklists, in first-seen
+         *  order (issue #2506). The art-preload manifest `<Board>` used to
+         *  derive by walking `players[].deck.cards` — the one thing the client
+         *  actually wanted off the fat decklists. Deduped across both seats
+         *  (~30 ids ≈ 1.1 KB) so it costs a fraction of the ~7.1 KB of card
+         *  entries it replaces on the hot row, and no reader needs a second
+         *  read to render the board. Absent on rows written before the split;
+         *  `<Board>` falls back to the inline copy. */
+        cardIds: v.optional(v.array(v.string())),
         /** ID of the winning player (set when status transitions to "finished"). */
         winner: v.optional(v.string()),
         /** Solo (single-user) game: both players belong to the same user. The client
@@ -415,6 +441,61 @@ export default defineSchema({
         .index("by_status", ["status"])
         .index("by_match", ["matchId"])
         .index("by_limited_event", ["limitedEventId"]),
+    // One seat's decklist, split out of `games.players[].deck.cards` (issue
+    // #2506) — the same move `limitedSeats` made out of `limitedEvents.seats[]`
+    // (see that table's comment for the general shape of the argument).
+    //
+    // Why it pays here: Convex bills a read by the bytes of the WHOLE document,
+    // and the two decklists measured 7.33 KB of an 8.3 KB prod `games` row —
+    // 88% of it. Almost nothing reads them. `findActiveGameForUser`
+    // (`gameLifecycle.ts`) `.collect()`s EVERY waiting/playing row on every
+    // create, every join and every `myActiveGame` subscription execution, and
+    // uses exactly one field off each: `players[].id`. `getGame` is a live
+    // board subscription that re-executes on every patch of the row. Neither
+    // needs a card. The seats that DO need the list — game setup, a Tabletop
+    // deck snapshot, a debug reset — read it once, by point lookup.
+    //
+    // The `games` row stays the authority on seat IDENTITY (`id`/`name`/
+    // `bgColor`) and deck identity (`deck.id`/`name`/`format`), so a `gameDecks`
+    // row is pure payload: it is never consulted to decide who sits where. It
+    // is also IMMUTABLE for the Game's life (PRD #387 — sideboarding edits the
+    // MATCH copy and the next Game gets a fresh row). `convex/deckStore.ts` is
+    // the ONLY module that reads or writes this table.
+    gameDecks: defineTable({
+        gameId: v.id("games"),
+        /** The opaque GRE seat handle — `games.players[].id`, NOT a user id. */
+        playerId: v.string(),
+        cards: v.array(v.object({ cardId: v.string(), cardName: v.string() })),
+    })
+        // Both seats of one game (the hydration read); doubles as the point
+        // lookup for a single seat with `eq` on both components.
+        .index("by_game", ["gameId", "playerId"]),
+    // One seat's MUTABLE Match deck copy, split out of
+    // `matches.players[].deck` (issue #2506). The `matches` twin of
+    // `gameDecks`, and the bigger of the two: the same decklists PLUS the
+    // sideboard measured 9.49 KB of a 10.6 KB prod `matches` row — 90%.
+    //
+    // `findActiveMatchForUser` (`matches.ts`) is the `games` scan's twin and
+    // has the identical shape: it `.collect()`s every waiting/pregame/playing/
+    // sideboarding row and reads only `players[].id`. On top of that EVERY
+    // Match write rewrote the whole 10.6 KB document — a score bump, a ready
+    // flag, a status flip — and re-fired every open `getMatch` subscription.
+    //
+    // Unlike `gameDecks` this row is MUTABLE: sideboarding re-partitions the
+    // pool between `maindeck` and `sideboard` (PRD #387 / #395), which is
+    // exactly why it must not be re-derived from anywhere. `convex/
+    // deckStore.ts` is the ONLY module that reads or writes it.
+    matchDecks: defineTable({
+        matchId: v.id("matches"),
+        /** The opaque GRE seat handle — `matches.players[].id`. */
+        playerId: v.string(),
+        maindeck: v.array(
+            v.object({ cardId: v.string(), cardName: v.string() })
+        ),
+        sideboard: v.array(
+            v.object({ cardId: v.string(), cardName: v.string() })
+        ),
+    }).index("by_match", ["matchId", "playerId"]),
     // Format banlists (PRD #1138, ADR 0057, issue #1141) — the full OFFICIAL
     // banlist by oracle name, including cards not yet implemented in the
     // engine (e.g. Parallax Tide for Premodern). Names only — NO cardId is

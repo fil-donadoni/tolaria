@@ -34,6 +34,18 @@ function ctxOver(who: string, docs: Map<string, Doc>): MutationCtx {
             patch: async (id: string, patch: Doc) => {
                 docs.set(id, { ...docs.get(id), ...patch });
             },
+            // `replace`, not just `patch`: the #2506 deck store rewrites a
+            // whole `gameDecks`/`matchDecks` row rather than merging into it.
+            replace: async (id: string, doc: Doc) => {
+                docs.set(id, {
+                    ...doc,
+                    _id: id,
+                    __table: docs.get(id)?.__table,
+                });
+            },
+            delete: async (id: string) => {
+                docs.delete(id);
+            },
             insert: async (table: string, doc: Doc): Promise<string> => {
                 const _id = `${table}-${who}-${nextId++}`;
                 docs.set(_id, { ...doc, _id, __table: table });
@@ -46,13 +58,18 @@ function ctxOver(who: string, docs: Map<string, Doc>): MutationCtx {
                         eq: (field: string, value: unknown) => unknown;
                     }) => unknown
                 ) => {
+                    // EVERY `eq` must be recorded, not just the first: the
+                    // #2506 deck store narrows by `(gameId, playerId)`, and a
+                    // builder that drops the second component would hand a
+                    // seat its OPPONENT's decklist row.
                     const constraints: Array<[string, unknown]> = [];
-                    build?.({
+                    const q: { eq: (f: string, v: unknown) => unknown } = {
                         eq: (field, value) => {
                             constraints.push([field, value]);
-                            return { eq: () => ({}) };
+                            return q;
                         },
-                    });
+                    };
+                    build?.(q);
                     const rows = [...docs.values()].filter(
                         (d) =>
                             d.__table === table &&
