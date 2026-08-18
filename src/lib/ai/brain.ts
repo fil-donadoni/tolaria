@@ -316,11 +316,15 @@ export type OwedChoice = {
      *  heuristic can protect scarce lands and rank spells by castability
      *  (issue #242). Undefined for every other choice kind. */
     manaSituation?: ManaSituation;
-    /** `name-card` only (CR 202.3): the bot's legal default card name to submit
-     *  through `submitNameCard`. The name is validated server-side against the
-     *  registry; `buildOwedChoice` populates it with the chooser's own top
-     *  library card name when visible to the bot, else a guaranteed-registered
-     *  fallback. Undefined for every other choice kind. */
+    /** `name-card` only (CR 202.3 / 201.3 / 614.1c): the bot's legal default
+     *  card name to submit through `submitNameCard`. `buildOwedChoice` picks it
+     *  through `isLegalNamedCard` — the SAME authority `applyNameCardSubmit`
+     *  validates against — so it satisfies this head's own restriction
+     *  (`no-basic-land`) and its as-enters `filter` by construction, not just
+     *  the bare registry-existence check (issue #2497). Undefined for every
+     *  other choice kind, AND for a `name-card` head no registered name can
+     *  answer — never a stand-in the server would reject, because the `choice`
+     *  escalation ladder has no rung below this submission. */
     nameCardDefault?: string;
     /** `look-distribute` (issue #1364, Atraxa) / `choose-categorized` (issue
      *  #1945) — the CATEGORIZED pick's buckets. When present, `max` alone
@@ -1283,13 +1287,20 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
         return { kind: "random-reveal-ack" };
     }
     if (choice.kind === "name-card") {
-        // CR 202.3 — name a card. The default (the bot's own top library
-        // card when visible, else a registered fallback) is computed in
-        // `buildOwedChoice`; submit it through `submitNameCard`.
-        return {
-            kind: "name-card",
-            cardName: choice.nameCardDefault ?? "Plains",
-        };
+        // CR 202.3 / 201.3 / 614.1c — name a card. `buildOwedChoice` picked a
+        // name through `isLegalNamedCard`, the SAME authority
+        // `applyNameCardSubmit` validates the submission with, so this
+        // submission is legal by construction (issue #2497).
+        //
+        // The old `?? "Plains"` fallback that stood here was the illegal-answer
+        // door: a `no-basic-land` head (Desperate Research) rejects that exact
+        // literal, and the `choice` kind has no ladder rung below this one, so
+        // the rejection was a frozen game rather than a retry. `undefined` now
+        // means the registry holds NO legal name for this head; `none` surfaces
+        // that as an unanswered window (rung 5, a user-visible actionable
+        // state) instead of looping on a string the server throws on.
+        if (!choice.nameCardDefault) return NONE;
+        return { kind: "name-card", cardName: choice.nameCardDefault };
     }
     if (choice.kind === "madness-cast") {
         // CR 702.35a — the reflexive Madness cast-choice: the bot's minimal

@@ -11212,9 +11212,14 @@ function renarrowSiblingCostChoices(
     }
 }
 
-/** Finds the staged entry a pending as-enters choice belongs to. */
+/** Finds the staged entry a pending as-enters choice belongs to. Typed on the
+ *  structural slice it actually reads, not on the whole `GameState`, so the
+ *  client-side Brain reaches the SAME entry through its projected
+ *  `PublicGameState` (ADR 0074, issue #2497) — `projectPublicState` carries
+ *  `stagedEntries` verbatim, and the as-enters `name` filter the bot must
+ *  respect lives on `entry.owed`, nowhere else. */
 export function findStagedEntry(
-    state: GameState,
+    state: Pick<GameState, "stagedEntries">,
     cardInstanceId: string | undefined
 ): StagedEntry | undefined {
     if (!cardInstanceId) return undefined;

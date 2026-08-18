@@ -27,13 +27,17 @@ import {
     // answers a raised one, both shared with the search.
     enumerateRaisedTargetMoves,
     pendingTargetOrigin,
+    // issue #2497 — the ONE name-legality authority, shared with
+    // `applyNameCardSubmit` so the bot's `name-card` answer is legal by
+    // construction (the `choice` ladder has no rung below it).
+    isLegalNamedCard,
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { manaValue, parseHybridCostKey } from "@convex/gre/constants";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import { hasControlledSinceTurnStart } from "@convex/gre/controlContinuity";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
-import { tryGetDefinition } from "@convex/cards";
+import { getAllCards, tryGetDefinition } from "@convex/cards";
 import { isExileCostEligible } from "@convex/cards/exileCostEligibility";
 import { getEffectiveColors } from "@convex/cards/effectiveColors";
 import type { Color, PermanentView } from "@convex/cards/types";
@@ -824,15 +828,45 @@ function buildOwedChoice(
     };
 }
 
-/** The bot's default named card for a `name-card` choice (CR 202.3). Prefers
- *  the chooser's own top library card name when it is visible to the bot in the
- *  projection (the bot is the chooser), so a self-targeted Petra Sphinx digs the
- *  top into hand. Falls back to "Plains" (always registered) when the top is
- *  hidden or unknown. */
+/** The bot's default named card for a `name-card` choice (CR 202.3 / 201.3 /
+ *  614.1c). Every candidate is filtered through `isLegalNamedCard` — the SAME
+ *  authority `applyNameCardSubmit` checks the submission with — so the answer
+ *  is legal BY CONSTRUCTION rather than by luck (issue #2497).
+ *
+ *  That matters more here than at any other window. `ESCALATION_POLICY.choice`
+ *  gives this Expected Input kind no rung below the minimal-legal submission
+ *  (CR 608.2 — a mid-resolution choice cannot be declined), so a name the
+ *  server rejects is not a bad play the bot retries out of: the rejected
+ *  mutation leaves the state unchanged, this function is deterministic, and
+ *  the next walk of the ladder — automatic or the human's `resolveStuck`
+ *  click — recomputes the identical rejected string. A frozen game (ADR 0047,
+ *  #2283/#2284). Two shipped rejections reach it: `nameRestriction:
+ *  "no-basic-land"` (Desperate Research, Sarcomancy's sibling in `inv/black`)
+ *  rejects the literal "Plains" fallback outright, and an as-enters
+ *  `{ kind: "name", filter }` head (Meddling Mage, #2467) rejects anything the
+ *  filter excludes.
+ *
+ *  Preference order, all three gated by the same predicate:
+ *   1. the chooser's own top library card when it is visible to the bot in the
+ *      projection (the bot is the chooser), so a self-targeted Petra Sphinx
+ *      digs the top into hand;
+ *   2. "Plains" — the historical always-registered fallback, kept FIRST among
+ *      the fallbacks so an unrestricted head keeps its exact pre-#2497 answer;
+ *   3. the first registered card name that satisfies the head, in catalogue
+ *      load order (deterministic). Correctness only: WHICH name is worth
+ *      naming is a valuation question and belongs to #2467.
+ *
+ *  `undefined` means the registry holds no legal name at all — the caller
+ *  surfaces that as an unanswered window rather than submitting a name the
+ *  server would reject. */
 function nameCardDefaultFor(
     state: PublicGameState,
     head: PendingChoice
-): string {
+): string | undefined {
+    const legal = (name: string | undefined): string | undefined =>
+        name !== undefined && isLegalNamedCard(state, head, name)
+            ? name
+            : undefined;
     const owner = state.players.find((p) => p.id === head.playerId);
     // The projected library is sparse (ADR 0026): `{ count, known }` carrying
     // only cards the viewer knows, each at its top-relative `index`. The top
@@ -844,8 +878,13 @@ function nameCardDefaultFor(
             : undefined;
     // `top` is a slim instance; its DEFINITION id lives at `top.card.id`.
     const defId = top?.card?.id;
-    const def = defId ? tryGetDefinition(defId) : undefined;
-    return def?.name ?? "Plains";
+    const topName = defId ? tryGetDefinition(defId)?.name : undefined;
+    return (
+        legal(topName) ??
+        legal("Plains") ??
+        getAllCards().find((def) => isLegalNamedCard(state, head, def.name))
+            ?.name
+    );
 }
 
 /** Project the bot-viewpoint `PublicGameState` into the gate's decision window.

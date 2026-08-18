@@ -127,6 +127,10 @@ export {
     applyMayPaySubmit,
     applyLandEntrySubmit,
     applyNameCardSubmit,
+    // issue #2497 — the ONE name-legality authority, shared with the
+    // client-side Brain so its rung-2 submission is legal by construction.
+    asEntersNameFilter,
+    isLegalNamedCard,
 } from "./pendingChoiceSubmit";
 export type {
     SubmitChoiceArgs,

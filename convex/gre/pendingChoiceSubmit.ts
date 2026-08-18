@@ -27,6 +27,7 @@ import {
     type PendingChoice,
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
+import type { CardDefinition, EffectCardFilter } from "../cards/types";
 import { finalizeAsEnters } from "./asEnters";
 import {
     isCategorizedCoverLegal,
@@ -352,6 +353,75 @@ export type SubmitNameCardArgs = {
     cardName: string;
 };
 
+/** CR 201.3 — the `no-basic-land` name restriction (Desperate Research's
+ *  "choose a card name other than a basic land card name", issue #1085). A
+ *  basic land CARD, not merely a land with a basic land TYPE — checked against
+ *  the printed characteristics, mirroring every other registry-backed name
+ *  restriction in this pipeline. */
+function violatesNameRestriction(
+    head: PendingChoice,
+    def: CardDefinition
+): boolean {
+    return (
+        head.nameRestriction === "no-basic-land" &&
+        (def.supertypes?.includes("Basic") ?? false) &&
+        def.types.includes("Land")
+    );
+}
+
+/** CR 614.1c — the filter an as-enters `{ kind: "name", filter }` head declares
+ *  (Meddling Mage's "choose a nonland card name"), or `undefined` when the head
+ *  is unfiltered or is an ordinary mid-resolution `name-card`.
+ *
+ *  Read off the STAGED entry's own owed head, so the card definition stays the
+ *  single source and no copy of the filter has to ride the prompt (PR #2496).
+ *  Typed on the structural slice it reads rather than the whole `GameState`, so
+ *  the client-side Brain resolves the identical filter from its projected
+ *  `PublicGameState` (ADR 0074, issue #2497). */
+export function asEntersNameFilter(
+    state: Pick<GameState, "stagedEntries">,
+    head: PendingChoice
+): EffectCardFilter | undefined {
+    if (head.stackItemId !== "" || head.asEntersCardId === undefined) {
+        return undefined;
+    }
+    const owed = findStagedEntry(state, head.asEntersCardId)?.owed[0];
+    return owed?.kind === "name" ? owed.filter : undefined;
+}
+
+/** CR 201.3 / 614.1c — is `name` a LEGAL answer to this `name-card` head?
+ *
+ *  THE single authority on that question: {@link applyNameCardSubmit} rejects
+ *  exactly what this returns `false` for, and the bot's default picker
+ *  (`nameCardDefaultFor`, `src/lib/ai/bot-view.ts`) only ever offers a name
+ *  this returns `true` for. Sharing the predicate is what makes the bot's
+ *  rung-2 submission legal BY CONSTRUCTION rather than by luck — and that
+ *  matters more here than at any other window, because `ESCALATION_POLICY`
+ *  gives the `choice` Expected Input kind no rung BELOW the minimal-legal
+ *  submission (CR 608.2 provides no decline for a mid-resolution choice). A
+ *  second, parallel copy of these rules would let picker and check drift, and
+ *  a drift there is a frozen game, not a bad play (ADR 0047, #2283/#2497).
+ *
+ *  Bounded by what {@link handCardMatchesFilter} enforces: that shared matcher
+ *  reads 9 of `EffectCardFilter`'s fields and returns `true` for the rest, so a
+ *  filter declaring only `excludeSupertype` / `excludeColor` / `manaValueEquals`
+ *  / `hasAbility` is inert on BOTH sides — picker and check stay in agreement
+ *  precisely because they fail open together. */
+export function isLegalNamedCard(
+    state: Pick<GameState, "stagedEntries">,
+    head: PendingChoice,
+    name: string
+): boolean {
+    const def = tryGetCardByName(name.trim());
+    if (!def) return false;
+    if (violatesNameRestriction(head, def)) return false;
+    const filter = asEntersNameFilter(state, head);
+    return (
+        filter === undefined ||
+        handCardMatchesFilter({ card: { id: def.id } }, filter)
+    );
+}
+
 /** Validates and applies a `name-card` submission (CR 202.3 / 701.x "chooses a
  *  card name") against the current head pending choice. The submitted name must
  *  resolve (case-insensitively) to a card in the registry — naming a card that
@@ -386,14 +456,9 @@ export function applyNameCardSubmit(
     // comparison is exact.
     const canonical = def.name;
     // CR 201.3 (issue #1085) — "a card name other than a basic land card
-    // name" (Desperate Research). A basic land CARD, not just a land with a
-    // basic land TYPE — checked against the printed characteristics, mirroring
-    // every other registry-backed name restriction in this pipeline.
-    if (
-        head.nameRestriction === "no-basic-land" &&
-        def.supertypes?.includes("Basic") &&
-        def.types.includes("Land")
-    ) {
+    // name" (Desperate Research). Routed through the shared predicate so the
+    // bot's default picker cannot disagree with this check (#2497).
+    if (violatesNameRestriction(head, def)) {
         throw new Error("Choose a card name other than a basic land card name");
     }
 
@@ -410,26 +475,26 @@ export function applyNameCardSubmit(
     if (head.stackItemId === "" && head.asEntersCardId !== undefined) {
         // CR 614.1c — the as-enters `name` kind may DECLARE a filter narrowing
         // the legal name space (Meddling Mage's "choose a nonland card name").
-        // Read off the staged entry's own owed head, so the card definition
-        // stays the single source and no copy of the filter has to ride the
-        // prompt. A name the filter rejects throws here — beside the
-        // `nameRestriction` check above and before anything is committed — so
-        // the chooser is asked again rather than the filter being ignored.
-        // `handCardMatchesFilter` is the shared registry-definition matcher
-        // (it is typed on the definition id it reads, not on a hand card), so
-        // this is the same matcher the alt-cost hand leg and `discardFilter`
-        // use rather than a third copy — which also bounds what this check
-        // enforces: the matcher reads 9 of `EffectCardFilter`'s fields and
-        // returns `true` for the rest, so a filter declaring only
-        // `excludeSupertype` / `excludeColor` / `manaValueEquals` /
-        // `hasAbility` is inert here. Widening the shared matcher is out of
-        // scope for this seam (it has other callers); #2467, which ships the
-        // first filtered card, is where those fields earn their handling.
-        const owedName = findStagedEntry(state, head.asEntersCardId)?.owed[0];
+        // `asEntersNameFilter` reads it off the staged entry's own owed head,
+        // so the card definition stays the single source and no copy of the
+        // filter has to ride the prompt. A name the filter rejects throws here
+        // — beside the `nameRestriction` check above and before anything is
+        // committed — so the chooser is asked again rather than the filter
+        // being ignored. `handCardMatchesFilter` is the shared
+        // registry-definition matcher (it is typed on the definition id it
+        // reads, not on a hand card), so this is the same matcher the alt-cost
+        // hand leg and `discardFilter` use rather than a third copy — which
+        // also bounds what this check enforces: the matcher reads 9 of
+        // `EffectCardFilter`'s fields and returns `true` for the rest, so a
+        // filter declaring only `excludeSupertype` / `excludeColor` /
+        // `manaValueEquals` / `hasAbility` is inert here. Widening the shared
+        // matcher is out of scope for this seam (it has other callers); #2467,
+        // which ships the first filtered card, is where those fields earn
+        // their handling.
+        const filter = asEntersNameFilter(state, head);
         if (
-            owedName?.kind === "name" &&
-            owedName.filter !== undefined &&
-            !handCardMatchesFilter({ card: { id: def.id } }, owedName.filter)
+            filter !== undefined &&
+            !handCardMatchesFilter({ card: { id: def.id } }, filter)
         ) {
             throw new Error("Not a legal card name for this choice");
         }

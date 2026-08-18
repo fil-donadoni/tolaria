@@ -122,6 +122,19 @@ export const ESCALATION_POLICY = {
     // CR 608.2 — a mid-resolution choice is MADE as part of resolution; the
     // rules provide no way to decline one, so the minimal-legal submission
     // (rung 2) is the exit. Passing is rejected while a choice is pending.
+    //
+    // THE CONTRACT THAT BUYS (issue #2497): because there is nothing below
+    // rung 2 here, rung 2 for `choice` must be legal BY CONSTRUCTION — each
+    // branch of `chooseOwedChoiceAction` computes its answer through the very
+    // engine authority the server re-validates it with, and returns `none`
+    // (dropping the rung) rather than a guess when no legal answer exists. A
+    // server-side check that can reject rung 2 does not make the bot retry; it
+    // freezes the game, because the rejected mutation leaves the state
+    // unchanged and the ladder is deterministic, so the next walk — automatic
+    // or the human's `resolveStuck` click — recomputes the identical rejected
+    // submission. `name-card` is where that bit: its default was picked with a
+    // bare registry-existence check while `applyNameCardSubmit` also enforces
+    // CR 201.3's `no-basic-land` restriction and an as-enters `filter`.
     choice: { decline: null, canPass: false },
     target: { decline: "cancel-target", canPass: false },
     blockers: { decline: "confirm-no-blockers", canPass: false },
