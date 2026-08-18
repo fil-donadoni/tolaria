@@ -1701,13 +1701,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 0045/0046) contain no loop — `forEach` iterates a KNOWN collection,
         // and the iteration count here depends on what each mill turns up.
         //
-        // Both ship with their own per-card test, so both are AFK-ready. Net
-        // across the two: total 471->473, FREE 316->318, AFK-ready 307->309;
-        // X-only unchanged at 15, Op-blocked unchanged at 140. Partition:
-        // 318+15+140=473.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(473);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
+        // Questing Beast (issue #2395, eld/green.ts) adds a THIRD: a `resolve()`
+        // trigger — "it deals THAT MUCH damage", where the amount is the firing
+        // event's `amount` and the DSL has no numeric `$event` value member
+        // (`EVENT_FIELD_REGISTRY` censuses only object/player families). The
+        // clause-mapper sees only `ctx.dealDamage` and so counts it FREE — the
+        // FREE bucket is an UPPER bound, which is exactly what the card's
+        // `NOT DSL-migratable` marker exists to correct: it keeps the card out
+        // of the `--free` worklist so no subagent is dispatched to re-confirm
+        // the skip.
+        //
+        // All three ship with their own per-card test, so all three are
+        // AFK-ready. Net across the three: total 471->474, FREE 316->319,
+        // AFK-ready 307->310; X-only unchanged at 15, Op-blocked unchanged at
+        // 140. Partition: 319+15+140=474.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(474);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(319);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(310);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });

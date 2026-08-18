@@ -143,7 +143,8 @@ export const questingBeast: CardDefinition = {
                 count: 1,
                 controller: "opponent",
             },
-            // protocol card: the amount is "THAT MUCH damage" — the damage
+            // NOT DSL-migratable (ADR 0045) / protocol card: the amount is
+            // "THAT MUCH damage" — the damage
             // amount off the FIRING EVENT. The Effect Script DSL has no way to
             // express it: `EVENT_FIELD_REGISTRY` (ADR 0049) censuses only
             // object- and player-family `$event.<field>` refs, and `EffectValue`
