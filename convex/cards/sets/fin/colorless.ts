@@ -20,10 +20,8 @@ import type { CardDefinition } from "../../types";
 // — no per-manaChoice-conditional-cost primitive needed after all: the free
 // `{T}: Add {C}` and the `{T}, Pay 1 life: Add one mana of any color` are
 // simply two separate `activatedAbilities` entries, each carrying its own
-// cost. `entersTappedUnless` reads `LandEntryStateView.turn` directly — a
-// field whose doc comment (`cards/types.ts`) was already written FOR this
-// exact clause ("Starting Town's 'first, second, or third turn of the game'
-// reads it directly").
+// cost. `entersTappedUnless` reads `LandEntryStateView.activePlayerId` +
+// each player's `turnsTaken` directly — see the field-level fix below.
 export const startingTown: CardDefinition = {
     id: "fc7d1912-7e27-49ef-bd98-375d975a42b0",
     name: "Starting Town",
@@ -33,38 +31,36 @@ export const startingTown: CardDefinition = {
     types: ["Land"],
     subtypes: ["Town"],
     // CR 614.1c self-conditional replacement — "your first, second, or
-    // third turn of the game" is the CONTROLLER's OWN turn ordinal, not the
-    // raw global `GameState.turn` counter (issue #1871). `turn` increments
-    // once per player-turn in a fixed seat rotation (`advanceTurn`,
-    // `gre/phases.ts`; CR 103.1 — "the game's default turn order begins with
-    // the starting player and proceeds clockwise"): turn 1 = players[0]'s
-    // first turn, turn 2 = players[1]'s first turn, turn 3 = players[0]'s
-    // second turn, … — the exact convention `LandEntryStateView.turn`'s own
-    // doc comment (`cards/types.ts`) already spells out. Comparing `view.turn
-    // <= 3` directly conflated that global counter with the controller's own
-    // ordinal: correct only for the player occupying `players[0]`, and even
-    // then wrong from their 3rd turn on (global turn 5).
+    // third turn of the game" is the CONTROLLER's OWN turn ordinal (CR
+    // 500.1), NOT the raw global `GameState.turn` counter. A prior version of
+    // this predicate (issue #1871, first pass) reconstructed the ordinal from
+    // `view.turn` plus the controller's seat index in `view.players`, under a
+    // fixed strictly-alternating-seat assumption. That reconstruction is
+    // inverted PERMANENTLY by the first extra turn either player takes (CR
+    // 500.7 — Time Walk/Time Warp ship in this repo,
+    // `sets/lea/blue.ts`/`sets/tmp/blue.ts`) or any skipped turn (CR
+    // 614.10): both desynchronize `turn` from strict per-seat alternation, so
+    // the seat-parity arithmetic silently starts answering the wrong seat's
+    // question (review finding on issue #1871's first PR).
     //
-    // `LandEntryStateView` carries no per-player turn count (`turnsTaken`
-    // lives on the full `GameState.players[i]`, not this frontend-safe view)
-    // and no `activePlayerId`, so the controller's ordinal is reconstructed
-    // here from `view.turn` plus the controller's seat index in
-    // `view.players`, under that same fixed-rotation convention — mirroring
-    // how `abandonedAirTemple` (`sets/tla/colorless.ts`) threads
-    // `controllerId` through `view.players.find(...)` for its own
-    // `entersTappedUnless`. Simplification carried over unchanged from the
-    // original code: an extra turn (CR 500.7) is not modeled — the rotation
-    // is assumed strictly alternating by seat.
+    // Fixed by reading the controller's own ordinal DIRECTLY instead of
+    // reconstructing it: `PlayerState.turnsTaken` (CR 500.1, maintained by
+    // `advanceTurn`, `gre/phases.ts`) is exact across both extra turns and
+    // skips, and `GameState.activePlayerId` says whose turn it currently is.
+    // `LandEntryStateView` now carries both (`cards/types.ts`) purely as
+    // extra optional fields read off the same `GameState` every call site
+    // already passes (`shouldEnterTapped`, `gre/state.ts`) — no new producer,
+    // no wire projection change (the sole call site hands the full
+    // `GameState` through, never a slimmed client-side view; see that
+    // interface's doc comment for the off-turn / unknown-field fallback
+    // contract). `view.activePlayerId !== controllerId` covers the flash
+    // case (a land entering during an opponent's turn, or any turn that
+    // isn't the controller's) — CR 614.1c fails closed to tapped there, same
+    // as before.
     entersTappedUnless: (view, controllerId) => {
-        const seatCount = view.players.length;
-        const seatIndex = view.players.findIndex((p) => p.id === controllerId);
-        if (seatIndex < 0 || seatCount === 0) return false;
-        const seatTurn = seatIndex + 1;
-        if (view.turn < seatTurn) return false;
-        const offsetFromSeatTurn = view.turn - seatTurn;
-        if (offsetFromSeatTurn % seatCount !== 0) return false;
-        const ownTurnOrdinal = offsetFromSeatTurn / seatCount + 1;
-        return ownTurnOrdinal <= 3;
+        if (view.activePlayerId !== controllerId) return false;
+        const own = view.players.find((p) => p.id === controllerId);
+        return (own?.turnsTaken ?? 0) <= 3;
     },
     activatedAbilities: [
         {
