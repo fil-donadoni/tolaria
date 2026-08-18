@@ -1,5 +1,5 @@
 // Once Upon a Time (ELD, issue #790) — the free-first-spell-this-game
-// alternative cost. `digToHand`'s own resolution shape (look 5, keep a
+// alternative cost. `lookDistribute`'s own resolution shape (look 5, keep a
 // creature/land, bottom the rest in random order) is already covered by the
 // catalogue-wide Effect Script static sweep + auto-generated smoke test (the
 // per-Op regime, `.claude/rules/gre-development.md`), so this file focuses on
@@ -146,7 +146,7 @@ describe("Once Upon a Time — commit + resolution (CR 118.9 / 601.2h, 401.4)", 
         expect(state.players[0].hand.map((c) => c.id)).not.toContain("ouat");
     });
 
-    it("resolves via digToHand: looks at the top 5, keeps the chosen card, bottoms the rest", () => {
+    it("resolves via lookDistribute: looks at the top 5, keeps the chosen card, bottoms the rest", () => {
         const state = freeCastState();
         tryAutoCommitPendingCast(state, "p1");
         expect(resolveTopOfStack(state)).toBeNull();

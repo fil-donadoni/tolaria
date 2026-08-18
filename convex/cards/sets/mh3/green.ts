@@ -86,7 +86,7 @@ export const fanaticOfRhonas: CardDefinition = {
 // from among them into your hand. Put the rest into your graveyard. Create a
 // 0/1 colorless Eldrazi Spawn creature token with 'Sacrifice this token: Add
 // {C}.'" (CR 701.20a reveal, CR 401.4 dig, CR 707.2 token creation.) Fully
-// free — a `digToHand` Op (issue #984/#1101) with `reveal: "window"`
+// free — a `lookDistribute` Op (issue #984/#1101) with `reveal: "window"`
 // (Reviving Vapors precedent) and `filter: { type: PERMANENT_TYPES }` (any of
 // the six permanent card types, CR 300.1) expresses "a permanent card"
 // exactly; `destination: "graveyard"` sends the rest there (Reviving Vapors'
@@ -103,7 +103,8 @@ export const malevolentRumble: CardDefinition = {
     types: ["Sorcery"],
     effects: [
         {
-            op: "digToHand",
+            op: "lookDistribute",
+            keepTo: "hand",
             player: "controller",
             look: 4,
             take: 1,

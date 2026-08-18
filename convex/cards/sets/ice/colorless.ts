@@ -1781,7 +1781,7 @@ export const timeBomb: CardDefinition = {
 // numeric-only; `EffectPicksMatchFilterPredicate`/`EffectCardFilter.name`
 // match a FILTER, not a bound opponent's chosen string). The classifier
 // over-counts this FREE because `peekLibraryTop` is folded into the
-// `digToHand` Op's COVERED-primitives list for an unrelated (choice-driven,
+// `lookDistribute` Op's COVERED-primitives list for an unrelated (choice-driven,
 // multi-card) shape — this card's single-card reveal-and-compare use isn't
 // that shape. Blocked on: a reveal-top-card Op + a name-equality predicate
 // (planned — no issue filed yet).

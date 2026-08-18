@@ -543,10 +543,11 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
         });
     });
 
-    describe("digToHand (CR 401.4) — card selection", () => {
+    describe("lookDistribute (CR 401.4) — card selection", () => {
         it("scores an impulse-style dig by how many cards land in hand", () => {
             const op: EffectOp = {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 3,
                 take: 2,
@@ -558,7 +559,8 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
 
         it("defaults `take` to 1 when omitted", () => {
             const op: EffectOp = {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 4,
             };

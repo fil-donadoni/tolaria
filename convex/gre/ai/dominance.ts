@@ -797,7 +797,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
  *  GRAVEYARD for its flashback cost (CR 601.2a / 118.5). `applyProbeCast`
  *  takes the card out of the HAND, so on that path these are not owed at all
  *  and their presence must not refuse the probe — refusing it is what left
- *  Flash of Insight's provably-empty X = 0 branch (`digToHand look: 0`) in the
+ *  Flash of Insight's provably-empty X = 0 branch (`lookDistribute look: 0`) in the
  *  move list, issue #1888 item 2. Every OTHER member is owed on a plain cast
  *  and `applyProbeCast` pays none of them, so any of them still fails closed. */
 const FLASHBACK_ONLY_ADDITIONAL_COST_KEYS = new Set([

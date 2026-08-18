@@ -279,7 +279,7 @@ export const meteorCrater: CardDefinition = {
 // already use via `peekLibraryTop(..., Number.MAX_SAFE_INTEGER)` — no
 // sentinel/special-case needed (ADR 0045 "generalize, don't add"). `filter:
 // { type: ["Artifact", "Creature"] }` is CR 205's "and/or" read as an OR
-// within the field (Torsten's `digToHand` filter, dmc/multicolor.ts, same
+// within the field (Torsten's `lookDistribute` filter, dmc/multicolor.ts, same
 // idiom). The new `linkToSource: true` flag (issue #1947) parametrizes the
 // EXISTING `moveZone` `cards` shape rather than adding a second new Op: it
 // stamps every exiled card with `exiledBySourceId` via `linkExileToSource`

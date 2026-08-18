@@ -783,8 +783,11 @@ function computeChoiceExposure(
             // order-top (scry/surveil/ponder drag picker, #942) — exposes the
             // looked-at top N (`candidateIds`) so the picker can render them.
             head.kind === "order-top" ||
-            // look-distribute (Impulse / Stock Up) — same top-N peek, rendered
-            // by the unified HAND/BOTTOM drag picker.
+            // look-distribute (Impulse / Stock Up / Thassa's Oracle) — same
+            // top-N peek, rendered by the unified KEEP/BOTTOM drag picker
+            // (KEEP lands in hand or on the library top per
+            // `PendingChoice.keepTo`, issue #2070 — the peek itself doesn't
+            // care which).
             head.kind === "look-distribute" ||
             // divide-piles (Fact or Fiction, ADR 0053) — the DIVIDER separates
             // the revealed cards of the library owner's library into two piles.

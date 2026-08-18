@@ -323,7 +323,7 @@ export async function executeMove(
                 chosenModeId: move.chosenModeId,
             });
             // issue #1101 — `TargetSelection.type` grew a "hand-card" member
-            // for `digToHand`'s internal `bind` resolution, but it is never a
+            // for `lookDistribute`'s internal `bind` resolution, but it is never a
             // real ANNOUNCED target (CR 601.2c): `getLegalTargets` /
             // `enumerateTargetTuples` never produce it, so `move.targets`
             // never actually carries one. Narrow it away here rather than

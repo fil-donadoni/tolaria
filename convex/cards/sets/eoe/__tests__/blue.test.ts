@@ -1,7 +1,7 @@
 // Per-card behavior tests for EOE blue cards (`convex/cards/sets/eoe/blue.ts`).
 // Consult the Star Charts exercises the Kicker capability (CR 702.33) + the
-// `digToHand` Op with a `count` look size (lands you control): put one card into
-// hand, or two when kicked. The digToHand mechanics are proven generically in
+// `lookDistribute` Op with a `count` look size (lands you control): put one card into
+// hand, or two when kicked. The lookDistribute mechanics are proven generically in
 // interpreter.test.ts; here we assert the look size and take count are wired.
 
 import { describe, it, expect } from "vitest";

@@ -105,19 +105,23 @@ export type ZonePickKind =
     // kept cards known to the controller (ADR 0026 — you know your top cards
     // after a scry).
     | "order-top"
-    // "Look at the top N, put K into your HAND and the rest on the BOTTOM in
-    // any order" (CR 401.4 — Impulse, Stock Up). The unified HAND/BOTTOM drag
-    // picker's kind. Like `order-top` the submit carries TWO ordered lists that
-    // PARTITION the looked-at `candidateIds` — the cards taken to hand
-    // (`cardInstanceIds`, exactly `count.min === count.max === keep`) and the
-    // cards ordered onto the bottom (`secondZoneIds`) — but unlike `order-top`
-    // the FIRST list goes to the HAND, not back on top, and
-    // `PendingChoice.destination` is always `library-bottom`. Applied by
-    // `SpellContext.digToHand`, which moves the kept cards to hand, bottoms the
-    // rest in the chosen order, and marks THOSE bottom cards known to the
-    // controller (ADR 0026 — you looked at and placed them, so their position
-    // is certain until a shuffle). Shares `order-top`'s submit validation and
-    // `:second` storage in `applyPendingChoiceSubmit`.
+    // "Look at the top N, put K to `keepTo` and the rest on the BOTTOM in any
+    // order" (CR 401.4 — Impulse, Stock Up; `keepTo`, issue #2070). The
+    // unified KEEP/BOTTOM drag picker's kind. Like `order-top` the submit
+    // carries TWO ordered lists that PARTITION the looked-at `candidateIds` —
+    // the kept cards (`cardInstanceIds`, exactly `count.min === count.max
+    // === keep`) and the cards ordered onto the bottom (`secondZoneIds`) —
+    // but unlike `order-top` the FIRST list goes to `PendingChoice.keepTo`
+    // (`"hand"` — every card shipped before #2070 — or `"library-top"`,
+    // Thassa's Oracle), not always back on top, and `PendingChoice.destination`
+    // (the SECOND list's target) is always `library-bottom`. Applied by the
+    // `lookDistribute` Effect Op (`gre/effects/interpreter.ts`), which moves
+    // the kept cards to `keepTo` (`moveCardById`→hand or
+    // `putLibraryCardsOnTop`→library top), bottoms the rest in the chosen
+    // order, and marks THOSE bottom cards known to the controller (ADR 0026
+    // — you looked at and placed them, so their position is certain until a
+    // shuffle). Shares `order-top`'s submit validation and `:second` storage
+    // in `applyPendingChoiceSubmit`.
     | "look-distribute"
     // Per-category choice from an ALREADY-VISIBLE set (CR 601.2b / 701.9,
     // issue #1945) — the chooser's OWN hand (already known to them; pair

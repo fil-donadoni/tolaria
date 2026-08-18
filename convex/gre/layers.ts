@@ -12,6 +12,7 @@ import { getEffectiveColors } from "../cards/effectiveColors";
 import { hasSupertypeLive } from "./snow";
 import type {
     CardType,
+    Color,
     EmblemInstance,
     PermanentView,
     StaticEffect,
@@ -134,6 +135,48 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         return card.counters?.[type] ?? 0;
     },
 };
+
+/** Devotion (CR 700.5, issue #2070) — the number of mana symbols of `color`
+ *  among the mana costs of permanents `controllerId` controls: coloured pips
+ *  + `phyrexian[color]` pips (CR 105.2 — still a coloured symbol) + ONE per
+ *  `hybrid` pair CONTAINING `color` (a `[U,R]` pair counts toward devotion to
+ *  BOTH blue and red). Generic, `{X}`/`xFactor`, and a permanent with no mana
+ *  cost (token, land) contribute 0. Scanned by CONTROLLER, mirroring
+ *  `countDomain`'s CR 110.4 convention (a stolen permanent counts for its
+ *  controller). Reads each permanent's live mana cost through
+ *  `getInstanceManaCost` (`cards/registry.ts`) — the SAME single authority
+ *  the layer-5 colour system (`getManaValue` above) and every other
+ *  mana-value / cost-derived-colour reader share, so a `manaCostOverride`
+ *  (CR 707.2's "except it has no mana cost", an Eternalize/Embalm token)
+ *  correctly contributes 0 here too. Lives here rather than beside
+ *  `countDomain` (`cards/types.ts`) because it needs the registry lookup
+ *  `countDomain` doesn't — `cards/types.ts` is a deliberately dependency-free
+ *  leaf (ADR-adjacent to the `colors.ts` cycle-avoidance comment above
+ *  `setCardManaCostLookup`), and this module already imports
+ *  `getInstanceManaCost` for exactly this class of scan. Backs the tenth
+ *  `EffectValue` grammar member (`{ devotion: { of, color } }`,
+ *  `SpellContext.getDevotion`, Thassa's Oracle). Single-colour only — CR
+ *  700.5's two-colour devotion sentence ("devotion to [color 1] and
+ *  [color 2]") is unimplemented yet (extract-on-second rule). */
+export function countDevotion(
+    state: StaticEffectStateView,
+    controllerId: string,
+    color: Color
+): number {
+    let total = 0;
+    for (const player of state.players) {
+        for (const permanent of player.battlefield) {
+            if (permanent.controllerId !== controllerId) continue;
+            const cost = getInstanceManaCost(permanent);
+            if (!cost) continue;
+            total += (cost[color] ?? 0) + (cost.phyrexian?.[color] ?? 0);
+            for (const pip of cost.hybrid ?? []) {
+                if (pip.includes(color)) total += 1;
+            }
+        }
+    }
+    return total;
+}
 
 /**
  * Layer 7d static P/T buffs: sum of `pt-buff` static effects applied to

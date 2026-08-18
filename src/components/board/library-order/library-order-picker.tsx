@@ -14,11 +14,12 @@
 // kept cards topmost-first as `cardInstanceIds` and the rest as `secondZoneIds`.
 //
 // `distribute` mode (Impulse / Stock Up, `look-distribute`) reuses the same
-// strip with different chrome: the RIGHT zone is the HAND (labelled HAND,
-// constrained to exactly `keep` cards) and the LEFT zone is the ordered BOTTOM.
-// Cards start in the BOTTOM zone; the player pulls exactly `keep` up to the
-// hand. On confirm the hand cards go out as `cardInstanceIds`, the bottom cards
-// (ordered) as `secondZoneIds`.
+// strip with different chrome: the RIGHT zone is the KEEP pile — labelled
+// HAND or TOP OF LIBRARY per `distribute.keepTo` (issue #2070, Thassa's
+// Oracle) — constrained to exactly `keep` cards, and the LEFT zone is the
+// ordered BOTTOM. Cards start in the BOTTOM zone; the player pulls exactly
+// `keep` up to the keep pile. On confirm the kept cards go out as
+// `cardInstanceIds`, the bottom cards (ordered) as `secondZoneIds`.
 import { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { LibraryDestination } from "@convex/gre/types";
@@ -94,6 +95,16 @@ const META_HAND: ZoneMeta = {
     hint: "cards you keep",
     icon: "hand",
 };
+/** `keepTo: "library-top"` chrome (issue #2070, Thassa's Oracle) — the
+ *  "distribute" mode's keep pile when the kept card(s) go back on top of the
+ *  library instead of to hand. Same icon/family as `META_LIBRARY_TOP` (it
+ *  IS the library's top) but its own hint text: "distribute" mode's keep
+ *  pile is capped at `keep`, unlike the order-top modes' uncapped top zone. */
+const META_LIBRARY_TOP_KEEP: ZoneMeta = {
+    title: "Top of library",
+    hint: "cards you keep",
+    icon: "library",
+};
 const META_HAND_POOL: ZoneMeta = {
     title: "Your hand",
     hint: "source pool",
@@ -163,23 +174,29 @@ export default function LibraryOrderPicker({
     destination: LibraryDestination;
     prompt: string;
     submitting: boolean;
-    /** `look-distribute` mode (Impulse / Stock Up): the RIGHT zone is the HAND
-     *  (up to `keep` cards), the LEFT zone the ordered bottom. Omit for the
-     *  scry/surveil/ponder order-top modes. `min` (default = `keep`) is the
-     *  floor: for an OPTIONAL "you may" dig (Narset, min 0) the player can
-     *  submit with fewer than `keep` in hand. `eligibleIds`, when present,
-     *  restricts which looked-at cards may enter the HAND zone (Narset's
-     *  "noncreature, nonland" filter) — a non-eligible card is bounced back to
-     *  the BOTTOM if dragged onto the hand side. `categories` (issue #1364,
-     *  Atraxa) is the CATEGORIZED keep: at most one card per category and each
-     *  card claimable by only one of them, so a drag onto the hand that would
-     *  leave no injective card → category assignment is bounced back to the
-     *  BOTTOM. Legality runs through the shared `categorizedPick` matching the
+    /** `look-distribute` mode (Impulse / Stock Up / Thassa's Oracle): the
+     *  RIGHT zone is the KEEP pile (up to `keep` cards), the LEFT zone the
+     *  ordered bottom. Omit for the scry/surveil/ponder order-top modes.
+     *  `min` (default = `keep`) is the floor: for an OPTIONAL "you may" dig
+     *  (Narset, min 0) the player can submit with fewer than `keep` kept.
+     *  `eligibleIds`, when present, restricts which looked-at cards may enter
+     *  the KEEP zone (Narset's "noncreature, nonland" filter) — a
+     *  non-eligible card is bounced back to the BOTTOM if dragged onto the
+     *  keep side. `keepTo` (issue #2070) — `"hand"` (default, every card
+     *  before #2070) or `"library-top"` (Thassa's Oracle) — labels the keep
+     *  zone "Your hand" or "Top of library"; purely cosmetic, the submit
+     *  shape is identical either way (the GRE, not the picker, applies the
+     *  actual move). `categories` (issue #1364, Atraxa) is the CATEGORIZED
+     *  keep: at most one card per category and each card claimable by only
+     *  one of them, so a drag onto the keep pile that would leave no
+     *  injective card → category assignment is bounced back to the BOTTOM.
+     *  Legality runs through the shared `categorizedPick` matching the
      *  server validates the submit with, never a re-derived client rule. */
     distribute?: {
         keep: number;
         min?: number;
         eligibleIds?: string[];
+        keepTo?: "hand" | "library-top";
         categories?: PickCategory[];
     };
     /** `putBack` mode (Brainstorm, CR 401.4): the LEFT zone is the HAND (source
@@ -208,14 +225,18 @@ export default function LibraryOrderPicker({
     // Reviving Vapors): `library-bottom` (Impulse / Stock Up / Narset) reads
     // BOTTOM, fused with the library fan like scry's own bottom leg;
     // `graveyard` reads GRAVEYARD and detaches, mirroring Surveil's own
-    // graveyard leg in the non-distribute `chromeFor` branch below.
+    // graveyard leg in the non-distribute `chromeFor` branch below. The RIGHT
+    // (keep) zone reads HAND or TOP OF LIBRARY per `distribute.keepTo` (issue
+    // #2070, Thassa's Oracle) — `keepTo` defaults to `"hand"` (every card
+    // shipped before #2070) when the caller omits it.
+    const keepToHand = (distribute?.keepTo ?? "hand") === "hand";
     const chrome = distribute
         ? {
               leftMeta:
                   destination === "graveyard"
                       ? META_GRAVEYARD
                       : META_LIBRARY_BOTTOM,
-              rightMeta: META_HAND,
+              rightMeta: keepToHand ? META_HAND : META_LIBRARY_TOP_KEEP,
               hasSecond: true,
               detached: destination === "graveyard",
           }
@@ -230,10 +251,13 @@ export default function LibraryOrderPicker({
             }
           : chromeFor(destination);
     const { leftMeta, rightMeta, hasSecond, detached } = chrome;
-    // The distribute HAND (right zone) is DETACHED from the library mock (QA
-    // Narset): a real gap + an accent panel instead of the fused under-deck
-    // tuck, so "drag right = into your hand" never reads as "top of library".
-    const detachRight = distribute !== undefined;
+    // The distribute KEEP zone is DETACHED from the library mock (QA Narset)
+    // only when it reads HAND: a real gap + an accent panel instead of the
+    // fused under-deck tuck, so "drag right = into your hand" never reads as
+    // "top of library". A `keepTo: "library-top"` keep zone (Thassa's Oracle)
+    // stays UN-detached — it fuses with the library mock like the ordinary
+    // order-top modes, because it genuinely IS the library top.
+    const detachRight = distribute !== undefined && keepToHand;
 
     // Both `distribute` and `putBack` are "pool" modes: every card starts in the
     // LEFT (`second`) zone and the player pulls exactly `keep` into the RIGHT

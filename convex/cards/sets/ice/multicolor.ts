@@ -339,11 +339,11 @@ export const diabolicVision: CardDefinition = {
     types: ["Sorcery"],
     // NOT DSL-migratable (ADR 0045): "put ONE into hand, the REST back on
     // top in any order" needs BOTH a hand-bound pick from a peeked window AND
-    // a full reorder of the remainder — `digToHand` sends its un-taken cards
+    // a full reorder of the remainder — `lookDistribute` sends its un-taken cards
     // to the library BOTTOM or graveyard (never a reordered top), and
     // `scryReorder` has no "send some to hand" destination (`LibraryDestination`
     // is `"library-bottom" | "graveyard" | "none"`). No existing Op composes
-    // "N to hand, rest reordered on top". Blocked on: a hand-bound `digToHand`
+    // "N to hand, rest reordered on top". Blocked on: a hand-bound `lookDistribute`
     // rest-destination (or a `scryReorder` hand destination) — stays resolve().
     resolve: (ctx: SpellContext) => {
         const top = ctx.peekLibraryTop(ctx.controller, 5);

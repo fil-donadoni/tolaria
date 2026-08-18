@@ -2511,12 +2511,12 @@ describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issu
 });
 
 // Reviving Vapors — {2}{W}{U} Instant (CR 401.4 look, CR 202.3 mana value,
-// issue #1101). `digToHand`'s `destination`/`bind` extension already has its
+// issue #1101). `lookDistribute`'s `destination`/`bind` extension already has its
 // OWN permanent interpreter coverage (per-Op regime, ADR 0045,
 // `convex/gre/effects/__tests__/interpreter.test.ts`); a hand-written test
 // still lands here because the catalogue's auto-generated canned-scenario
 // smoke sweep (`effectScriptSmoke.test.ts`) explicitly SKIPS every
-// `digToHand` card (it suspends on a live look-distribute pick — the
+// `lookDistribute` card (it suspends on a live look-distribute pick — the
 // generator can't drive that choice), so this is the card-level proof the DSL
 // script is wired correctly end to end.
 const REVIVING_VAPORS_MV4_ID = "test-reviving-vapors-mv4";

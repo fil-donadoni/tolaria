@@ -17,14 +17,14 @@ import type { CardDefinition } from "../../types";
 //   • −2 loyalty ability (CR 606) — "Look at the top four cards of your
 //     library. You MAY reveal a NONCREATURE, NONLAND card from among them and
 //     put it into your hand. Put the rest on the bottom of your library in a
-//     RANDOM order." A `digToHand` (CR 401.4) with the three refinements
+//     RANDOM order." A `lookDistribute` (CR 401.4) with the three refinements
 //     added for this card: `filter: { excludeType: ["Creature","Land"] }`
 //     (only a noncreature/nonland is hand-eligible), `optional: true` (the
 //     "you may"), `randomBottom: true` (the rest bottom unordered + unknown —
 //     CR 401.4 random order is unobservable for face-down cards). Reuses only
 //     already-exercised structural machinery, so its proof obligation is the
 //     catalogue `validateEffectScript` sweep + the auto-generated smoke test;
-//     the NEW digToHand behavior itself earns its dedicated test in
+//     the NEW lookDistribute behavior itself earns its dedicated test in
 //     `convex/gre/effects/__tests__/interpreter.test.ts` (the per-Op regime).
 export const narsetParterOfVeils: CardDefinition = {
     id: "8c39f9b4-02b9-4d44-b8d6-4fd02ebbb0c5",
@@ -58,7 +58,8 @@ export const narsetParterOfVeils: CardDefinition = {
                 "−2: Look at the top four cards of your library. You may reveal a noncreature, nonland card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
             effects: [
                 {
-                    op: "digToHand",
+                    op: "lookDistribute",
+                    keepTo: "hand",
                     player: "controller",
                     look: 4,
                     take: 1,

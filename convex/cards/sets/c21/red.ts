@@ -76,10 +76,17 @@ export const laeliaTheBladeReforged: CardDefinition = {
             // exile-and-grant-cast protocol — see the PROTOCOL note above),
             // so the bot's value model has nothing to walk without a shadow
             // script. Same sketch as Ragavan's combat-damage ability
-            // (mh2/red.ts) minus the Treasure token: `digToHand` is this
+            // (mh2/red.ts) minus the Treasure token: `lookDistribute` is this
             // codebase's precedent for valuing "look at N, keep 1" impulse
             // draw, standing in for the exile-and-may-cast upside.
-            aiEffects: [{ op: "digToHand", player: "controller", look: 1 }],
+            aiEffects: [
+                {
+                    op: "lookDistribute",
+                    keepTo: "hand",
+                    player: "controller",
+                    look: 1,
+                },
+            ],
         },
         cardsExiledTrigger({
             id: "laelia-cards-exiled",

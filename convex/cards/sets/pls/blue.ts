@@ -322,7 +322,7 @@ export const planeswalkersMischief: CardDefinition = {
             // is the closest already-exercised, structurally valid Op for
             // an information-disruption effect against that player's hand —
             // a loose analogue, not a mechanical match, mirroring how Inti's
-            // own shadow (`digToHand`, `lci/red.ts`) stands in for a
+            // own shadow (`lookDistribute`, `lci/red.ts`) stands in for a
             // differently-shaped impulse effect.
             aiEffects: [{ op: "reveal", player: { target: 0 }, zone: "hand" }],
         },

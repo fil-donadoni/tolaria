@@ -12,7 +12,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // (CR 701.20a reveal + CR 202.3 mana value.) DSL-first: the reveal is
 // PUBLIC (both players see the card + it stays visible in the controller's
 // hand), so the op is `digMatchingToHand` — the CR 701.20a reveal sibling of
-// `digToHand` — NOT `digToHand` (whose look is a PRIVATE peek that never marks
+// `lookDistribute` — NOT `lookDistribute` (whose look is a PRIVATE peek that never marks
 // the card known to the opponent nor pops a reveal dialog). `look: 1` reveals
 // the single top card to every player (transient reveal dialog + persistent
 // `markKnownToAll` "eye"), a match-all `filter: {}` keeps it (all revealed

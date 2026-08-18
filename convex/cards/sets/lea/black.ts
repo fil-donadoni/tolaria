@@ -850,7 +850,7 @@ export const netherShadow: CardDefinition = {
             // in the graveyard (`zone: "graveyard"` trigger). The generic
             // `$source` object-ref path (`resolveObjectRef`,
             // gre/effects/interpreter.ts) only resolves a battlefield
-            // permanent or (via the digToHand fallback) a hand card — a
+            // permanent or (via the lookDistribute fallback) a hand card — a
             // graveyard-zone `$source` resolves to neither, so no `moveZone`
             // Op can reach it declaratively.
             // Blocked on: a graveyard-zone `$source` object-ref resolution.

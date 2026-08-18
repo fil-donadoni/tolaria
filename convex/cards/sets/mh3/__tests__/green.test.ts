@@ -1,10 +1,10 @@
 // MH3 — green behavior tests (ADR 0043 colour split).
 //
-// Malevolent Rumble — {1}{G} Sorcery (issue #1531/#1525). Its `digToHand`
+// Malevolent Rumble — {1}{G} Sorcery (issue #1531/#1525). Its `lookDistribute`
 // leg has its OWN permanent interpreter coverage (per-Op regime, ADR 0045,
 // `convex/gre/effects/__tests__/interpreter.test.ts`), but the catalogue's
 // auto-generated canned-scenario smoke sweep (`effectScriptSmoke.test.ts`)
-// explicitly SKIPS every `digToHand` card — it suspends on a live
+// explicitly SKIPS every `lookDistribute` card — it suspends on a live
 // look-distribute pick the generator can't drive — so (per Reviving Vapors'
 // own precedent, `convex/cards/sets/inv/__tests__/multicolor.test.ts`) this
 // is the card-level proof the script is wired correctly end to end: the

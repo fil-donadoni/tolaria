@@ -6,7 +6,7 @@ import type { CardDefinition } from "../../types";
 // library in any order. Flashback—{1}{U}, Exile X blue cards from your
 // graveyard." (Judgment, JUD 40.)
 //
-// The look/hand/bottom effect is the already-censused `digToHand` Op (CR 401.4,
+// The look/hand/bottom effect is the already-censused `lookDistribute` Op (CR 401.4,
 // issue #984) with `look: { X: true }` (the announced X, issue #852) and the
 // default `take: 1`: it reveals the top X, drives a suspending `look-top` pick
 // of one card to keep (moved library → hand), and bottoms the rest. "In any
@@ -32,7 +32,13 @@ export const flashOfInsight: CardDefinition = {
     manaCost: { X: "X", generic: 1, U: 1 },
     types: ["Instant"],
     effects: [
-        { op: "digToHand", player: "controller", look: { X: true }, take: 1 },
+        {
+            op: "lookDistribute",
+            keepTo: "hand",
+            player: "controller",
+            look: { X: true },
+            take: 1,
+        },
     ],
     flashback: { U: 1, generic: 1 },
     additionalCosts: {

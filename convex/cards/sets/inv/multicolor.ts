@@ -552,17 +552,17 @@ export const armoredGuardian: CardDefinition = {
 // counters" for this shape.)
 
 // ─────────────────────────────────────────────────────────────────────────
-// digToHand destination + bind cluster (issue #1101)
+// lookDistribute destination + bind cluster (issue #1101)
 // ─────────────────────────────────────────────────────────────────────────
 
 // Reviving Vapors — {2}{W}{U} Instant. "Reveal the top three cards of your
 // library and put one of them into your hand. You gain life equal to that
 // card's mana value. Put all other cards revealed this way into your
 // graveyard." (CR 401.4 look, CR 202.3 mana value, issue #1101.) Ships as a
-// straight DSL card once `digToHand` grows a `destination` discriminator
+// straight DSL card once `lookDistribute` grows a `destination` discriminator
 // (mirrors `scryReorder`'s own `library-bottom`/`graveyard` split) and a
 // `bind` (mirrors `destroy`/`exile`'s SNAPSHOT-family object bind) for the
-// kept card: `digToHand` looks 3, keeps 1, sends the other 2 straight to the
+// kept card: `lookDistribute` looks 3, keeps 1, sends the other 2 straight to the
 // graveyard (`destination: "graveyard"`), and snapshot-binds the kept card as
 // `$kept`; the trailing `gainLife` reads `manaValue: { of: { ref: "$kept" } }`
 // to size the life gain off that card's mana value (CR 202.3b — an {X} in a
@@ -577,7 +577,8 @@ export const revivingVapors: CardDefinition = {
     types: ["Instant"],
     effects: [
         {
-            op: "digToHand",
+            op: "lookDistribute",
+            keepTo: "hand",
             player: "controller",
             look: 3,
             take: 1,

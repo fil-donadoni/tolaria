@@ -63,7 +63,7 @@ const ATTACH_VALUE = 15; // reconfigure/equip-style self-attach — a small pump
 const MONARCH_VALUE = 70; // CR 720 — a recurring end-step draw, contested
 const DISCARD_VALUE = 40; // a single discarded card — a hair under a drawn card
 const WHOLE_HAND_DISCARD_VALUE = 110; // representative whole-hand discard (~3 cards)
-const CARD_SELECTION_VALUE = 30; // digToHand/digMatchingToHand — an impulse-drawn card
+const CARD_SELECTION_VALUE = 30; // lookDistribute/digMatchingToHand — an impulse-drawn card
 const SCRY_PER_CARD_VALUE = 10; // one card of scry-style selection
 const MILL_PER_CARD_VALUE = 6; // one milled card — a small library-resource shift
 const GRANT_ABILITY_VALUE = 40; // a temporary keyword grant (evasion/utility)
@@ -601,7 +601,12 @@ const hideaway: Valuer<"hideaway"> = () => ({
     tags: ["cardAdvantage"],
 });
 
-const digToHand: Valuer<"digToHand"> = (op, ctx) => {
+// `keepTo` (issue #2070) is not read here — the heuristic values "cards
+// selected out of a look window" the same whether they land in hand or on
+// top of the library (both beat a random topdeck); a card-shaped refinement
+// (e.g. weighing library-top lower once a second `keepTo` consumer exists)
+// is a future bot-slice concern, not this issue's scope.
+const lookDistribute: Valuer<"lookDistribute"> = (op, ctx) => {
     const { amount, scaling } = op.take
         ? ctx.value(op.take)
         : { amount: 1, scaling: false };
@@ -1067,7 +1072,7 @@ export const OP_VALUERS: {
     delayedTrigger,
     reflexiveTrigger,
     digMatchingToHand,
-    digToHand,
+    lookDistribute,
     hideaway,
     revealAndCategorize,
     chooseCategorized,
@@ -1256,7 +1261,7 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // change (the in-place `transform` Op stays unlisted/neutral — its sign is
     // genuinely ambiguous, since a werewolf can be flipped either way).
     exileAndReturnTransformed: "beneficial",
-    digToHand: "beneficial",
+    lookDistribute: "beneficial",
     hideaway: "beneficial",
     digMatchingToHand: "beneficial",
     winGame: "beneficial",

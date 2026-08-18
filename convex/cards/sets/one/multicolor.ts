@@ -10,7 +10,7 @@ import type { CardDefinition, CardType } from "../../types";
 // The ETB was the long-standing engine gap tracked at issue #1364 (the stub
 // this file used to carry): "reveal a fixed top-N window ONCE, then run
 // several INDEPENDENT category-scoped picks against that SAME shared set."
-// `digToHand` cannot express it — one `filter`, one `take`, and repeated calls
+// `lookDistribute` cannot express it — one `filter`, one `take`, and repeated calls
 // do not share a window (each re-peeks the CURRENT library top, which has
 // already moved). It is now the `revealAndCategorize` Op, whose per-category
 // keep is validated as a bipartite matching (`gre/categorizedPick.ts`): a card

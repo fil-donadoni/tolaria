@@ -10,7 +10,7 @@ import type { CardDefinition } from "../../types";
 // library, where X is the number of lands you control. Put one of those cards
 // into your hand. If this spell was kicked, put two of those cards into your
 // hand instead. Put the rest on the bottom of your library in a random order."
-// (CR 702.33 Kicker, CR 401.4 dig.) `digToHand` looks at `look` = the number of
+// (CR 702.33 Kicker, CR 401.4 dig.) `lookDistribute` looks at `look` = the number of
 // lands you control (`count` value) and puts `take` (1, or 2 when kicked) into
 // hand, bottoming the rest — one execution path, no new Op. Vintage Cube Kicker
 // cluster (issue #692, ADR 0041).
@@ -35,7 +35,8 @@ export const consultTheStarCharts: CardDefinition = {
             predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
             then: [
                 {
-                    op: "digToHand",
+                    op: "lookDistribute",
+                    keepTo: "hand",
                     player: "controller",
                     look: {
                         count: {
@@ -49,7 +50,8 @@ export const consultTheStarCharts: CardDefinition = {
             ],
             else: [
                 {
-                    op: "digToHand",
+                    op: "lookDistribute",
+                    keepTo: "hand",
                     player: "controller",
                     look: {
                         count: {

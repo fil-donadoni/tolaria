@@ -984,14 +984,17 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "order-top":
             return bestFirst(candidates).map((c) => c.id);
 
-        // Look-distribute (CR 401.4 — Impulse, Stock Up, Narset): look at the
-        // top N, put up to `max` (= `keep`) into HAND and bottom the rest.
-        // `candidates` is already narrowed to the HAND-eligible subset
+        // Look-distribute (CR 401.4 — Impulse, Stock Up, Narset, Thassa's
+        // Oracle): look at the top N, put up to `max` (= `keep`) to `keepTo`
+        // (hand, or the library top — issue #2070) and bottom the rest.
+        // `candidates` is already narrowed to the KEEP-eligible subset
         // (`eligibleIds`, Narset's "noncreature, nonland") in `buildOwedChoice`.
         // Greedy value-max (ADR 0018) — take the best-valued eligible cards up to
         // `max`; for an OPTIONAL dig (min 0) the bot still digs when a card is
-        // worth taking rather than declining. The bot submits only the hand
-        // picks (empty `secondZoneIds`), so the engine auto-bottoms the rest.
+        // worth taking rather than declining (value-max is destination-agnostic:
+        // the best card is worth keeping whether it lands in hand or on top of
+        // the library). The bot submits only the keep picks (empty
+        // `secondZoneIds`), so the engine auto-bottoms the rest.
         // A CATEGORIZED look-distribute (Atraxa, issue #1364) adds a constraint
         // the count bounds cannot express: at most one card per category, each
         // card claimable by only one of them. `max` is the maximum matching, so

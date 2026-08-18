@@ -155,6 +155,7 @@ import {
     STATIC_EFFECT_CTX,
     getEffectivePower,
     getEffectiveToughness,
+    countDevotion,
 } from "./layers";
 import {
     getMadnessCost,
@@ -1714,7 +1715,7 @@ export type PlayerState = {
 export type StackItem = CardInstanceState & {
     castById: string;
     /** Targets chosen during spell announcement (CR 601.2c). Never a
-     *  `digToHand`-bind-only "hand-card" in practice (issue #1101) — see the
+     *  `lookDistribute`-bind-only "hand-card" in practice (issue #1101) — see the
      *  note on `SpellContext.targets` in `cards/types.ts`. */
     targets?: TargetSelection[];
     /** Value chosen for X at cast-time for spells with X in their cost
@@ -2737,6 +2738,17 @@ export type PendingChoice = {
      *  step (`SpellContext.orderTop`) to apply the split. See
      *  {@link LibraryDestination}. */
     destination?: LibraryDestination;
+    /** `kind: "look-distribute"` only (issue #2070) — where the KEPT cards
+     *  land: `"hand"` (every card shipped before #2070) or `"library-top"`
+     *  (Thassa's Oracle). Orthogonal to `destination` above, which names the
+     *  UN-kept cards' target. Set at the one raise site
+     *  (`SpellContext.requestChoice` from the `lookDistribute` Op) — never
+     *  left to an implicit default (fail-closed: a consumer that forgets to
+     *  branch on it should see `undefined`, not silently assume "hand").
+     *  Read by the frontend picker to label the keep-pile and by the bot's
+     *  look-distribute chooser to decide whether "kept" competes with the
+     *  hand-size / card-advantage heuristics a hand-bound keep implies. */
+    keepTo?: "hand" | "library-top";
     /** Client-routing hint for a `choose-hand-card` pick that puts the chosen
      *  cards on TOP of the chooser's library in chosen order (Brainstorm's
      *  `putBack` Op, CR 401.4). Purely a UI discriminator: the submit path and
@@ -13990,6 +14002,14 @@ export function buildSpellContext(
         getDomain(playerId: string): number {
             return countDomain(state as never, playerId);
         },
+        // CR 700.5 (issue #2070) — `playerId`'s devotion to `color`. `state`
+        // structurally satisfies `StaticEffectStateView` exactly like
+        // `getDomain` above, so this is the SAME cast-through-`never` shape
+        // — `countDevotion` (`gre/layers.ts`) reads the live battlefield
+        // through `getInstanceManaCost`, one execution path.
+        getDevotion(playerId: string, color: Color): number {
+            return countDevotion(state as never, playerId, color);
+        },
         // CR 119.3 (issue #1457) — total life `playerId` has GAINED so far
         // this turn (0 when none). Reads back the `lifeGainedThisTurn` tally
         // maintained by `gainLifeEmitting`, the single gain choke point; the
@@ -14065,7 +14085,7 @@ export function buildSpellContext(
                 return manaValue(def?.manaCost);
             }
             // CR 202.3 (issue #1101) — a hand-card target (Reviving Vapors'
-            // "gain life equal to that card's mana value", `digToHand`'s
+            // "gain life equal to that card's mana value", `lookDistribute`'s
             // `bind` reading its own kept card). Same per-card lookup as the
             // graveyard-card branch above, just scoped to the hand instead.
             if (target.type === "hand-card") {
@@ -15759,6 +15779,7 @@ export function buildSpellContext(
                 entry.candidatePlayerIds = req.candidatePlayerIds;
             }
             if (req.destination) entry.destination = req.destination;
+            if (req.keepTo) entry.keepTo = req.keepTo;
             if (req.randomizeRest) entry.randomizeRest = true;
             if (req.categories) entry.categories = req.categories;
             if (req.categoryRule) entry.categoryRule = req.categoryRule;

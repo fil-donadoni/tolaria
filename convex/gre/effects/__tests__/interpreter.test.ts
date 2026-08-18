@@ -18016,16 +18016,16 @@ describe("Effect Script Op: exileOnDeath (CR 614.1a)", () => {
     });
 });
 
-// --- digToHand Op: look at top N, put one (or K) into hand, rest on the bottom
+// --- lookDistribute Op: look at top N, put one (or K) into hand, rest on the bottom
 // (CR 401.4, issue #984) ---------------------------------------------------------
-// digToHand SUSPENDS on a `look-distribute` choice over exactly the looked-at
+// lookDistribute SUSPENDS on a `look-distribute` choice over exactly the looked-at
 // top N (candidateIds), then moves the kept cards library→hand and bottoms the
 // rest in the player's chosen order (marking them known, ADR 0026). The pick is
 // consumed internally (no `bind`), like `scryReorder`. Impulse is the canonical
 // instance: look 4, take 1. These tests submit only the kept cards (no
 // `secondZoneIds`), so the rest auto-bottom in look order (the bot/auto path).
 
-describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
+describe("Effect Script Op: lookDistribute (CR 401.4, issue #984)", () => {
     const libOf = (owner: "p1" | "p2", ids: string[]) =>
         ids.map((cid) =>
             makeInstance(BEAR_ID, {
@@ -18051,7 +18051,13 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
 
     it("Impulse: looks at the top four, one enters hand, the other three go to the bottom", () => {
         const id = registerScript("test-op-dig-impulse", [
-            { op: "digToHand", player: "controller", look: 4, take: 1 },
+            {
+                op: "lookDistribute",
+                keepTo: "hand",
+                player: "controller",
+                look: 4,
+                take: 1,
+            },
         ]);
         const state = makeState({
             players: [
@@ -18082,9 +18088,57 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
         ]);
     });
 
+    // issue #2070 (Thassa's Oracle) — `keepTo: "library-top"` routes the kept
+    // card(s) to the TRUE top via `putLibraryCardsOnTop` instead of hand.
+    it("keepTo library-top: the kept card returns to the TOP of the library, never hand", () => {
+        const id = registerScript("test-op-dig-library-top", [
+            {
+                op: "lookDistribute",
+                keepTo: "library-top",
+                player: "controller",
+                look: 3,
+                take: 1,
+                optional: true,
+                randomBottom: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        expect(head.keepTo).toBe("library-top");
+        expect(head.candidateIds).toEqual(["a", "b", "c"]);
+
+        submitKeep(state, ["b"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // "b" is back on TOP of the library, never in hand; "d" (never looked
+        // at) stays untouched below it; "a"/"c" (un-kept, randomBottom) sit
+        // somewhere on the bottom.
+        expect(state.players[0].hand.map((c) => c.id)).not.toContain("b");
+        expect(state.players[0].library[0].id).toBe("b");
+        expect(state.players[0].library.map((c) => c.id)).toHaveLength(4);
+        expect(new Set(state.players[0].library.map((c) => c.id))).toEqual(
+            new Set(["a", "b", "c", "d"])
+        );
+    });
+
     it("mills nothing to the graveyard — the rest go to the library bottom, not away", () => {
         const id = registerScript("test-op-dig-bottom", [
-            { op: "digToHand", player: "controller", look: 3, take: 1 },
+            {
+                op: "lookDistribute",
+                keepTo: "hand",
+                player: "controller",
+                look: 3,
+                take: 1,
+            },
         ]);
         const state = makeState({
             players: [
@@ -18103,7 +18157,13 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
 
     it("takes two when take is 2 (the general dig, Stock Up-style)", () => {
         const id = registerScript("test-op-dig-take2", [
-            { op: "digToHand", player: "controller", look: 4, take: 2 },
+            {
+                op: "lookDistribute",
+                keepTo: "hand",
+                player: "controller",
+                look: 4,
+                take: 2,
+            },
         ]);
         const state = makeState({
             players: [
@@ -18130,7 +18190,13 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
 
     it("looks at fewer than requested when the library is short, still keeps one", () => {
         const id = registerScript("test-op-dig-short", [
-            { op: "digToHand", player: "controller", look: 4, take: 1 },
+            {
+                op: "lookDistribute",
+                keepTo: "hand",
+                player: "controller",
+                look: 4,
+                take: 1,
+            },
         ]);
         const state = makeState({
             players: [
@@ -18150,7 +18216,8 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
     it("look via {X} (a value ref): reads the chosen X as the look count", () => {
         const id = registerScript("test-op-dig-x", [
             {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: { X: true },
                 take: 1,
@@ -18181,7 +18248,15 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
     it("digs a target player's library, not the controller's", () => {
         const id = registerScript(
             "test-op-dig-target",
-            [{ op: "digToHand", player: { target: 0 }, look: 3, take: 1 }],
+            [
+                {
+                    op: "lookDistribute",
+                    keepTo: "hand",
+                    player: { target: 0 },
+                    look: 3,
+                    take: 1,
+                },
+            ],
             { targetRequirement: { type: "player", count: 1 } }
         );
         const state = makeState({
@@ -18207,7 +18282,13 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
 
     it("no-ops (never suspends) on an empty library and on look <= 0; a later Op still runs", () => {
         const idEmpty = registerScript("test-op-dig-empty", [
-            { op: "digToHand", player: "controller", look: 4, take: 1 },
+            {
+                op: "lookDistribute",
+                keepTo: "hand",
+                player: "controller",
+                look: 4,
+                take: 1,
+            },
             { op: "gainLife", player: "controller", amount: 3 },
         ]);
         const empty = makeState();
@@ -18217,7 +18298,13 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
         expect(empty.players[0].life).toBe(23); // the trailing Op ran
 
         const idZero = registerScript("test-op-dig-zero", [
-            { op: "digToHand", player: "controller", look: 0, take: 1 },
+            {
+                op: "lookDistribute",
+                keepTo: "hand",
+                player: "controller",
+                look: 0,
+                take: 1,
+            },
         ]);
         const zero = makeState({
             players: [
@@ -18231,10 +18318,16 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
         expect(zero.players[0].library).toHaveLength(2);
     });
 
-    it("an Op before the digToHand never re-runs on resume (CR 608.3 checkpoint)", () => {
+    it("an Op before the lookDistribute never re-runs on resume (CR 608.3 checkpoint)", () => {
         const id = registerScript("test-op-dig-checkpoint", [
             { op: "gainLife", player: "controller", amount: 2 },
-            { op: "digToHand", player: "controller", look: 2, take: 1 },
+            {
+                op: "lookDistribute",
+                keepTo: "hand",
+                player: "controller",
+                look: 2,
+                take: 1,
+            },
         ]);
         const state = makeState({
             players: [
@@ -18253,7 +18346,13 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
 
     it("wire format: the chooser sees exactly the looked-at cards as libraryPeek; the kept card survives projection", () => {
         const id = registerScript("test-op-dig-wire", [
-            { op: "digToHand", player: "controller", look: 3, take: 1 },
+            {
+                op: "lookDistribute",
+                keepTo: "hand",
+                player: "controller",
+                look: 3,
+                take: 1,
+            },
         ]);
         const state = makeState({
             players: [
@@ -18285,14 +18384,14 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
     });
 });
 
-// --- digToHand `reveal` (CR 701.20a): PUBLIC reveal upgrade -----------------
+// --- lookDistribute `reveal` (CR 701.20a): PUBLIC reveal upgrade -----------------
 // "window" reveals the whole looked-at window to every player ("Reveal the top
 // N", Reviving Vapors / Torsten); "kept" reveals only the cards put into hand
 // ("Look at ... you may reveal a card", Narset). The reveal fires exactly ONCE
 // despite the suspend/resume re-entry (the dialog must never double-pop), and
 // only the KEPT cards get the persistent known-to-all "eye" — un-kept cards on
 // a random bottom must stay hidden.
-describe("Effect Script Op: digToHand reveal (CR 701.20a)", () => {
+describe("Effect Script Op: lookDistribute reveal (CR 701.20a)", () => {
     const libOf = (owner: "p1" | "p2", ids: string[]) =>
         ids.map((cid) =>
             makeInstance(BEAR_ID, {
@@ -18316,7 +18415,8 @@ describe("Effect Script Op: digToHand reveal (CR 701.20a)", () => {
     it('reveal "window": the whole window is publicly revealed ONCE, only the kept card stays known-to-all', () => {
         const id = registerScript("test-op-dig-reveal-window", [
             {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 3,
                 take: 1,
@@ -18353,7 +18453,8 @@ describe("Effect Script Op: digToHand reveal (CR 701.20a)", () => {
     it('reveal "window": fires the dialog even when nothing is kept (keep === 0, no suspend)', () => {
         const id = registerScript("test-op-dig-reveal-window-empty", [
             {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 2,
                 take: 1,
@@ -18384,7 +18485,8 @@ describe("Effect Script Op: digToHand reveal (CR 701.20a)", () => {
     it('reveal "kept": only the card put into hand is revealed, not the private window', () => {
         const id = registerScript("test-op-dig-reveal-kept", [
             {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 3,
                 take: 1,
@@ -18416,7 +18518,7 @@ describe("Effect Script Op: digToHand reveal (CR 701.20a)", () => {
     });
 });
 
-// --- digToHand refinements: filter + optional + randomBottom (issue #1266,
+// --- lookDistribute refinements: filter + optional + randomBottom (issue #1266,
 // Narset, Parter of Veils) --------------------------------------------------
 // Narset −2: look at the top four, you MAY put a NONCREATURE, NONLAND card into
 // your hand, and the rest go to the bottom in a RANDOM order. `filter` narrows
@@ -18439,7 +18541,7 @@ registerTokenDefinition({
     subtypes: ["Island"],
 });
 
-describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266, Narset)", () => {
+describe("Effect Script Op: lookDistribute filter/optional/randomBottom (issue #1266, Narset)", () => {
     // A library from a list of [id, cardDefId] pairs (top-first), so a scenario
     // can mix noncreature/creature/land cards in a known top-4 order.
     const mixedLib = (
@@ -18467,7 +18569,8 @@ describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266,
     };
 
     const narsetDig: EffectOp = {
-        op: "digToHand",
+        op: "lookDistribute",
+        keepTo: "hand",
         player: "controller",
         look: 4,
         take: 1,
@@ -18527,7 +18630,7 @@ describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266,
         ]);
     });
 
-    it("the submit validator rejects taking a non-eligible (creature/land) card to hand", () => {
+    it("the submit validator rejects keeping a non-eligible (creature/land) card", () => {
         const id = registerScript("test-op-dig-narset-reject", [narsetDig]);
         const state = makeState({
             players: [
@@ -18544,9 +18647,9 @@ describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266,
         });
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        // "cr1" is a creature — shown in the window but not hand-eligible.
+        // "cr1" is a creature — shown in the window but not keep-eligible.
         expect(() => submitKeep(state, ["cr1"])).toThrow(
-            /not eligible to put into your hand/
+            /not eligible to be kept/
         );
     });
 
@@ -18570,7 +18673,7 @@ describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266,
         submitKeep(state, ["s1"]);
         // The three un-kept looked-at cards are on the bottom, but random order
         // is unobservable — none is marked known to p1 (contrast the default
-        // digToHand path, which marks its ordered bottom known, ADR 0026).
+        // lookDistribute path, which marks its ordered bottom known, ADR 0026).
         for (const cid of ["cr1", "ld1", "s2"]) {
             const card = state.players[0].library.find((c) => c.id === cid)!;
             expect(card.knownTo ?? []).not.toContain("p1");
@@ -18672,7 +18775,7 @@ describe("Effect Script Op: digToHand filter/optional/randomBottom (issue #1266,
     });
 });
 
-// --- digToHand destination + bind (issue #1101, Reviving Vapors) ----------
+// --- lookDistribute destination + bind (issue #1101, Reviving Vapors) ----------
 // `destination` sends the un-kept looked-at cards to the GRAVEYARD instead of
 // the library bottom (mirrors `scryReorder`'s own discriminator); `bind`
 // snapshot-binds the kept card so a later Op reads it back through the
@@ -18695,7 +18798,7 @@ registerTokenDefinition({
     types: ["Instant"],
 });
 
-describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
+describe("Effect Script Op: lookDistribute destination + bind (issue #1101)", () => {
     const mixedLib = (
         owner: "p1" | "p2",
         cards: [string, string][]
@@ -18722,7 +18825,13 @@ describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
 
     it("destination omitted: the default path stays library-bottom (unchanged from issue #984)", () => {
         const id = registerScript("test-op-dig-dest-default", [
-            { op: "digToHand", player: "controller", look: 3, take: 1 },
+            {
+                op: "lookDistribute",
+                keepTo: "hand",
+                player: "controller",
+                look: 3,
+                take: 1,
+            },
         ]);
         const state = makeState({
             players: [
@@ -18758,7 +18867,8 @@ describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
     it("destination: graveyard sends the un-kept looked-at cards to the graveyard, not the library bottom", () => {
         const id = registerScript("test-op-dig-dest-gy", [
             {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 3,
                 take: 1,
@@ -18798,7 +18908,8 @@ describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
     it("destination: graveyard skips markKnown (a graveyard is already public — ADR 0026)", () => {
         const id = registerScript("test-op-dig-dest-gy-known", [
             {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 2,
                 take: 1,
@@ -18826,7 +18937,8 @@ describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
     it("bind snapshots the kept card; a later Op reads it via manaValue: { of: { ref } } (Reviving Vapors' gainLife sizing)", () => {
         const id = registerScript("test-op-dig-bind-manavalue", [
             {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 3,
                 take: 1,
@@ -18854,7 +18966,7 @@ describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
         pushSpell(state, id, "p1");
         resolveTopOfStack(state); // suspends on the dig pick
         submitKeep(state, ["a"]);
-        // The digToHand resume finishes, THEN the trailing gainLife runs in the
+        // The lookDistribute resume finishes, THEN the trailing gainLife runs in the
         // same resolution (no second suspension) — sized off the kept card's
         // mana value (3), not a fixed amount.
         expect(state.players[0].hand.map((c) => c.id)).toContain("a");
@@ -18867,7 +18979,8 @@ describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
     it("bind: unbound when nothing was kept (optional decline) — the later Op's manaValue-of skips (CR 608.2b)", () => {
         const id = registerScript("test-op-dig-bind-unkept", [
             {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 2,
                 take: 1,
@@ -18910,7 +19023,8 @@ describe("Effect Script Op: digToHand destination + bind (issue #1101)", () => {
     it("wire format: destination graveyard + bind survive projectPublicState (kept card in hand, life gained, others in graveyard)", () => {
         const id = registerScript("test-op-dig-wire-rv", [
             {
-                op: "digToHand",
+                op: "lookDistribute",
+                keepTo: "hand",
                 player: "controller",
                 look: 3,
                 take: 1,
@@ -19968,6 +20082,240 @@ registerTokenDefinition({
     rarity: "common",
     types: ["Land"],
     subtypes: ["Mountain", "Forest"],
+});
+
+// Devotion fixtures (CR 700.5, issue #2070) — one permanent per counting rule.
+const DEVOTION_UU_ID = "test-effects-devotion-uu";
+registerTokenDefinition({
+    id: DEVOTION_UU_ID,
+    name: DEVOTION_UU_ID,
+    rarity: "common",
+    manaCost: { U: 2 },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+});
+const DEVOTION_1U_ID = "test-effects-devotion-1u";
+registerTokenDefinition({
+    id: DEVOTION_1U_ID,
+    name: DEVOTION_1U_ID,
+    rarity: "common",
+    manaCost: { generic: 1, U: 1 },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+});
+// CR 105.2 — a Phyrexian pip is still a coloured mana symbol.
+const DEVOTION_PHYREXIAN_U_ID = "test-effects-devotion-phyrexian-u";
+registerTokenDefinition({
+    id: DEVOTION_PHYREXIAN_U_ID,
+    name: DEVOTION_PHYREXIAN_U_ID,
+    rarity: "common",
+    manaCost: { phyrexian: { U: 1 } },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+});
+// A [U,R] guild-hybrid pip counts toward devotion to BOTH blue and red.
+const DEVOTION_UR_HYBRID_ID = "test-effects-devotion-ur-hybrid";
+registerTokenDefinition({
+    id: DEVOTION_UR_HYBRID_ID,
+    name: DEVOTION_UR_HYBRID_ID,
+    rarity: "common",
+    manaCost: { hybrid: [["U", "R"]] },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+});
+// Generic-only / {X}-only mana costs contribute 0 (no coloured pip).
+const DEVOTION_GENERIC_ID = "test-effects-devotion-generic";
+registerTokenDefinition({
+    id: DEVOTION_GENERIC_ID,
+    name: DEVOTION_GENERIC_ID,
+    rarity: "common",
+    manaCost: { generic: 4, X: "X" },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+});
+// A token has no mana cost at all (CR 111) — contributes 0.
+const DEVOTION_TOKEN_ID = "test-effects-devotion-token";
+registerTokenDefinition({
+    id: DEVOTION_TOKEN_ID,
+    name: DEVOTION_TOKEN_ID,
+    rarity: "common",
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+});
+
+describe("Effect Script value: devotion (CR 700.5, issue #2070)", () => {
+    it("sums coloured pips of the requested colour among controlled permanents", () => {
+        const id = registerScript("test-val-devotion-pips", [
+            {
+                op: "dealDamage",
+                amount: { devotion: { of: "controller", color: "U" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        // {U}{U} (2) + {1}{U} (1) = devotion to blue 3.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(DEVOTION_UU_ID, {
+                            id: "dev-uu",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(DEVOTION_1U_ID, {
+                            id: "dev-1u",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // 20 - 3
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(17);
+    });
+
+    it("counts a Phyrexian pip of the colour (CR 105.2)", () => {
+        const id = registerScript("test-val-devotion-phyrexian", [
+            {
+                op: "dealDamage",
+                amount: { devotion: { of: "controller", color: "U" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(DEVOTION_PHYREXIAN_U_ID, {
+                            id: "dev-phy",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19); // 20 - 1
+    });
+
+    it("counts a hybrid pip toward devotion to BOTH colours it names", () => {
+        const idBlue = registerScript("test-val-devotion-hybrid-u", [
+            {
+                op: "dealDamage",
+                amount: { devotion: { of: "controller", color: "U" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const idRed = registerScript("test-val-devotion-hybrid-r", [
+            {
+                op: "dealDamage",
+                amount: { devotion: { of: "controller", color: "R" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const stateBlue = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(DEVOTION_UR_HYBRID_ID, {
+                            id: "dev-hybrid-b",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(stateBlue, idBlue, "p1");
+        resolveTopOfStack(stateBlue);
+        expect(stateBlue.players[1].life).toBe(19); // 20 - 1 (blue)
+
+        const stateRed = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(DEVOTION_UR_HYBRID_ID, {
+                            id: "dev-hybrid-r",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(stateRed, idRed, "p1");
+        resolveTopOfStack(stateRed);
+        expect(stateRed.players[1].life).toBe(19); // 20 - 1 (red)
+    });
+
+    it("excludes generic mana, {X}, and a mana-cost-less permanent (token)", () => {
+        const id = registerScript("test-val-devotion-zero", [
+            {
+                op: "dealDamage",
+                amount: { devotion: { of: "controller", color: "U" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(DEVOTION_GENERIC_ID, {
+                            id: "dev-generic",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(DEVOTION_TOKEN_ID, {
+                            id: "dev-token",
+                            controllerId: "p1",
+                            isToken: true,
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // dealDamage no-ops for amount <= 0 (CR 608.2b) — life stays 20.
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it('reads a NON-controller player\'s devotion via `of: "opponent"`', () => {
+        const id = registerScript("test-val-devotion-opponent", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { devotion: { of: "opponent", color: "U" } },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(DEVOTION_UU_ID, {
+                            id: "dev-opp",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(22); // 20 + 2
+    });
 });
 
 describe("Effect Script value: domain (CR 702 preamble ability word, issue #1066)", () => {
@@ -22147,7 +22495,7 @@ describe("Effect Script Op: nameCard (CR 201.3 / 202.3, issue #1085)", () => {
 
 // --- digMatchingToHand Op: filter-driven reveal-and-split (CR 701.20a /
 // 401.4, issue #1085) ------------------------------------------------------
-// Deterministic sibling of digToHand: reveals the top `look` cards to every
+// Deterministic sibling of lookDistribute: reveals the top `look` cards to every
 // player, puts every FILTER-matching card into hand with NO player choice,
 // and sends every non-matching card to `destination`. One synchronous step —
 // no suspension.
@@ -22242,7 +22590,7 @@ describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)"
                 bind: "$firstMatch",
             },
             // A hand-card snapshot's `.power`/`.toughness` are always zero
-            // (`bindSnapshot`'s non-permanent branch, mirrors `digToHand`'s
+            // (`bindSnapshot`'s non-permanent branch, mirrors `lookDistribute`'s
             // own `bind`); `.manaValue` IS captured pre-move (CR 202.3,
             // issue #1101's Reviving Vapors precedent) — asserting it proves
             // the bind captured the RIGHT instance, not just that a move
@@ -23982,7 +24330,7 @@ describe("Effect Script Op: reflexiveTrigger (CR 603.3c)", () => {
 
 // --- revealAndCategorize Op: reveal a shared top-N window, keep at most one
 // card per category (CR 701.20a + CR 401.4, issue #1364) ---------------------
-// The gap `digToHand` could not close: ONE reveal window, SEVERAL independent
+// The gap `lookDistribute` could not close: ONE reveal window, SEVERAL independent
 // category-scoped picks against it, each card claimable by only one category.
 // Atraxa, Grand Unifier is the canonical instance (look 10, one per card type,
 // optional, random bottom, public reveal).
@@ -25375,7 +25723,7 @@ describe("Effect Script player ref: { opponentOf } (issue #1568)", () => {
 // --- revealTopAndRoute Op: reveal the top of a library, route each card by
 // what it IS (CR 701.20a reveal + CR 400.7 zone change) ----------------------
 // Deterministic: the destination is dictated by the revealed card's own
-// characteristics, so unlike digToHand / scryReorder / revealAndCategorize
+// characteristics, so unlike lookDistribute / scryReorder / revealAndCategorize
 // there is nothing to pick and the Op never suspends. Nadu, Winged Wisdom.
 
 describe("Effect Script Op: revealTopAndRoute (CR 701.20a)", () => {
@@ -25610,8 +25958,8 @@ describe("Effect Script Op: revealTopAndRoute (CR 701.20a)", () => {
 
 // --- hideaway Op: look at top N, exile ONE face down (linked to the source),
 // bottom the rest in a random order (CR 702.75a, issue #783) -----------------
-// Structurally `digToHand` with the kept card routed to FACE-DOWN, source-LINKED
-// exile instead of to hand. The two properties `digToHand` cannot express and
+// Structurally `lookDistribute` with the kept card routed to FACE-DOWN, source-LINKED
+// exile instead of to hand. The two properties `lookDistribute` cannot express and
 // that the whole keyword hangs on:
 //   * PER-VIEWER visibility (CR 406.3) — the exiled card's identity is known to
 //     its controller ALONE, via the `knownTo` grant `exileFaceDown` stamps. The
@@ -25683,7 +26031,7 @@ describe("Effect Script Op: hideaway (CR 702.75a, issue #783)", () => {
             "d",
         ]);
         // CR 401.4 random order is unobservable ⇒ NO knowledge on the bottomed
-        // cards (the `randomBottom` contract `digToHand` shares).
+        // cards (the `randomBottom` contract `lookDistribute` shares).
         for (const cid of ["a", "c", "d"]) {
             const card = state.players[0].library.find((c) => c.id === cid)!;
             expect(card.knownTo ?? []).toEqual([]);
