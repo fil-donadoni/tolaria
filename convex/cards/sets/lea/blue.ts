@@ -191,14 +191,6 @@ export const clone: CardDefinition = {
     // Bot-only cast prune (#938): copies a creature on ETB — a wasted cast
     // (enters a 0/0 that dies to SBA) when no creature is in play.
     copySourceFilter: { types: "Creature" },
-    // aiValue (PRD #1423) — a printed 0/0 whose real body is whatever it copies.
-    // Without the override the bot values it as a 0/0 vanilla and never casts
-    // it. Same representative figure Phantasmal Image uses (`m12/blue.ts`): an
-    // average 2/2 body at this card's own mana value, deliberately average
-    // rather than bomb-sized because the copied body is unknowable at cast
-    // time. Entered the catalogue when #2451 retired this card's `resolveSteps`
-    // and with it its `AI_EFFECTS_ALLOWLIST` row.
-    aiValue: 151,
     // CR 614.1c / 614.12a / 707.5 (ADR 0100 D3, issue #2451) — "enter as a
     // copy" is a REPLACEMENT effect, declared as data so the choice is raised
     // on EVERY entry path, not only a cast: reanimation, blink and any other
@@ -245,15 +237,6 @@ export const copyArtifact: CardDefinition = {
     // Bot-only cast prune (#938): copies an artifact on ETB — a wasted cast
     // (enters a blank enchantment) when no artifact is in play.
     copySourceFilter: { types: "Artifact" },
-    // aiValue (PRD #1423) — a blank enchantment on paper whose real worth is
-    // the artifact it copies. The non-creature fallback (`base + MV`) would
-    // score it as a do-nothing 2-drop; the override stands in for a
-    // representative mid-cost artifact instead (the same figure that fallback
-    // gives a mana-value-4 permanent). Deliberately modest for the same reason
-    // Phantasmal Image's is: the copied object is unknowable at cast time.
-    // Entered the catalogue with #2451, which retired this card's
-    // `resolveSteps` and its `AI_EFFECTS_ALLOWLIST` row.
-    aiValue: 48,
     // CR 614.1c / 707.5 (ADR 0100 D3, issue #2451) — declarative as-enters copy,
     // raised on every entry path. CR 707.2's "except" clause rides as
     // `CopyEffectOptions.additionalTypes`, unchanged from the pre-#2451 shape.
@@ -1360,12 +1343,6 @@ export const vesuvanDoppelganger: CardDefinition = {
     // Bot-only cast prune (#938): copies a creature on ETB — a wasted cast
     // (enters a 0/0 that dies to SBA) when no creature is in play.
     copySourceFilter: { types: "Creature" },
-    // aiValue (PRD #1423) — same rationale as Clone above: a printed 0/0 whose
-    // body is whatever it copies, scored as a representative 2/2 at this card's
-    // own mana value. The upkeep re-copy is genuine upside the figure does not
-    // price in — deliberately, matching Phantasmal Image's "average, not bomb"
-    // stance. Entered the catalogue with #2451.
-    aiValue: 156,
     // CR 614.1c / 707.5 (ADR 0100 D3, issue #2451) — declarative as-enters copy,
     // raised on every entry path. Only the ENTRY copy moves here: the upkeep
     // re-copy below is a triggered ability (CR 603.3d, a real target chosen as

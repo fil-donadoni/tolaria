@@ -10766,6 +10766,28 @@ export function stageAsEntersEntry(
         card.attachedTo = undefined;
         delete card.chosenName;
         delete card.chosenSubtypes;
+        // Same clean, same reason, for the two slots the `copy` answer writes
+        // and `copyAnswerCarry` therefore has to carry across the entry reset
+        // (issue #2451, review round 2). `resetBattlefieldTransientState`
+        // deletes `colorOverride` (CR 707.9d — Vesuvan's "except it doesn't
+        // copy that creature's color") and `grantedTriggeredAbilities` (CR
+        // 707.2's "except it has '…sacrifice it'" — Phantasmal Image), so
+        // clearing them here is a NO-OP against the unparked leg; what it buys
+        // is that anything present when the carry snapshots was necessarily
+        // written by `applyCopy` during THIS entry. Without it a Clone that sat
+        // in the graveyard carrying a stale `colorOverride` from a previous
+        // battlefield existence — or a `grantedTriggeredAbilities` entry from
+        // some OTHER source's grant, neither of which the exit side clears —
+        // would have both resurrected onto the copy, and the stale
+        // `colorOverride` outranks the copied colour in `getEffectiveColors`.
+        //
+        // Cleaning at PARK time rather than filtering inside the carry keeps
+        // one CR 400.7 rule in one place: the carry stays "restore what an
+        // answer wrote", identical in shape to the three slots above, instead
+        // of growing per-field provenance heuristics that a future `applyCopy`
+        // clause would silently outgrow.
+        delete card.colorOverride;
+        delete card.grantedTriggeredAbilities;
     }
     const presented = presentedDefId(card);
     const entry: StagedEntry = {
@@ -10860,9 +10882,10 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
                 // OPTIONAL by construction (#2451). Every printed
                 // enter-as-a-copy clause in this catalogue is a "you MAY have
                 // this enter as a copy" (Clone, Copy Artifact, Vesuvan
-                // Doppelganger, Phyrexian Metamorph, Phantasmal Image), and
-                // CR 614.1a makes a replacement effect's "may" a real decline
-                // rather than a forced pick. An empty submission is that
+                // Doppelganger, Phyrexian Metamorph, Phantasmal Image). CR
+                // 614.1c is what makes "[this permanent] enters as …" a
+                // REPLACEMENT effect at all, so its printed "may" is a real
+                // decline rather than a forced pick. An empty submission is that
                 // decline: `applyAsEntersAnswer` finds no source, applies no
                 // copy, and the permanent enters as its printed self — a 0/0
                 // that dies to the CR 704.5f sweep, which is CORRECT and not
@@ -11286,7 +11309,12 @@ function refreshOwedAsEnters(entry: StagedEntry): void {
  *  `chosenSubtypes` beside them: the copy is part of HOW this permanent enters.
  *
  *  Scoped to the two fields the reset actually clears, and gated on
- *  `copiedFrom` so a permanent that answered no copy carries nothing. The rest
+ *  `copiedFrom` so a permanent that answered no copy carries nothing. Reading
+ *  them straight off the instance is sound ONLY because `stageAsEntersEntry`
+ *  deleted both when it parked this entry (the CR 400.7 clean applied early —
+ *  see there): a value present now was necessarily written by `applyCopy`
+ *  during THIS entry, never carried over from a previous battlefield existence
+ *  (issue #2451, review round 2). The rest
  *  of the copiable set (`card.id`, `copiedFrom`, the rebuilt
  *  types/subtypes/P/T/abilities, `manaCostOverride`, `imagePrintId`) survives
  *  the reset untouched — `asEntersCopy.test.ts` asserts each of them on the far

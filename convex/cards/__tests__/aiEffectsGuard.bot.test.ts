@@ -2932,6 +2932,12 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
+        cardId: "768f3a05-bd06-4a23-b9f2-94f6e618fd9f",
+        name: "Vesuvan Doppelganger",
+        abilityId: "vesuvan-doppelganger-recopy",
+        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
+    },
+    {
         cardId: "0c9ea118-6a19-4e1b-aa5a-9b2729efc096",
         name: "Vexing Arcanix",
         abilityId: "vexing-arcanix-guess",

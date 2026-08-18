@@ -68,13 +68,6 @@ export const phyrexianMetamorph: CardDefinition = {
     // Bot-only cast prune (#938): copies an artifact or creature on ETB — a
     // wasted cast (enters a 0/0 that dies to SBA) when neither is in play.
     copySourceFilter: { types: ["Artifact", "Creature"] },
-    // aiValue (PRD #1423) — a printed 0/0 whose real body is whatever it
-    // copies; the same representative "average 2/2 at this card's mana value"
-    // figure Clone (`lea/blue.ts`) and Phantasmal Image (`m12/blue.ts`) use.
-    // Without it the bot scores a 0/0 vanilla and never casts the card.
-    // Entered the catalogue when #2451 retired this card's `resolveSteps` and
-    // with it its `AI_EFFECTS_ALLOWLIST` row.
-    aiValue: 151,
     // CR 614.1c / 707.5 (ADR 0100 D3, issue #2451) — declarative as-enters copy,
     // raised on every entry path. CR 707.2's "except it's an artifact in
     // addition to its other types" rides as `CopyEffectOptions.additionalTypes`.

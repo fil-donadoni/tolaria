@@ -172,7 +172,7 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
         ).toBe(true);
     });
 
-    it("Phantasmal Image reanimated: the granted trigger actually FIRES on the reanimated copy (CR 603.2b)", () => {
+    it("Phantasmal Image reanimated: the granted trigger actually FIRES on the reanimated copy (CR 603.2)", () => {
         const state = graveyardBoard(phantasmalImage.id, [
             opponentPermanent(serraAngel.id, "serra"),
         ]);
@@ -502,6 +502,48 @@ describe("as-enters copy on a TOKEN entry (census row C, #2451)", () => {
         expect(token.isToken).toBe(true);
         expect(getEffectivePower(state, token)).toBe(4);
     });
+});
+
+// --- CR 400.7: the copy carry may resurrect NOTHING from a previous existence
+
+describe("CR 400.7 — the copy carry never resurrects a previous existence (#2451)", () => {
+    it("a graveyard Clone's stale colorOverride and foreign ability grant do NOT ride the copy back onto the battlefield", () => {
+        const state = graveyardBoard(clone.id, [
+            opponentPermanent(serraAngel.id, "serra"),
+        ]);
+        // The exit side clears neither of these (the CR 400.7 reset is
+        // ENTRY-side), so both are reachable on a card sitting in a graveyard:
+        // `colorOverride` from a colour-changing effect, and
+        // `grantedTriggeredAbilities` from some OTHER source's grant — an aura
+        // that was on this creature during its previous battlefield existence.
+        const inGraveyard = state.players[0].graveyard.find(
+            (c) => c.id === "subject"
+        )!;
+        inGraveyard.colorOverride = ["R"];
+        inGraveyard.grantedTriggeredAbilities = [
+            { sourceCardId: "some-other-aura", abilityId: "stale-grant" },
+        ];
+
+        reanimateFromGraveyard(state, "subject");
+        answer(state, ["serra"]);
+
+        const copy = entered(state);
+        // The copy itself still happened…
+        expect((copy.card as { id: string }).id).toBe(serraAngel.id);
+        expect(copy.copiedFrom).toBe(clone.id);
+        // …and Clone's `opts` name NEITHER a colour clause nor an added
+        // trigger, so neither field may be set on the permanent that entered.
+        expect(copy.colorOverride).toBeUndefined();
+        expect(copy.grantedTriggeredAbilities).toBeUndefined();
+        // A surviving `colorOverride` would outrank the copied colour here.
+        expect(STATIC_EFFECT_CTX.getColors(copy)).toEqual(["W"]);
+    });
+
+    // The converse — a colour clause / added trigger the copy answer DID write
+    // must still cross the entry reset — is guarded by the Vesuvan
+    // Doppelganger (CR 707.9d) and Phantasmal Image cases above. A DECLINED
+    // copy needs no case of its own: nothing is carried, and the ordinary
+    // entry reset clears both fields on that leg regardless.
 });
 
 // --- Wire format (mandatory — P/T, subtypes and identity are client-visible)
