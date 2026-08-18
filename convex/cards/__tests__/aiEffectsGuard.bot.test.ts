@@ -468,11 +468,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
-        cardId: "348a467a-4661-4fdb-af1d-9171a1a930d9",
-        name: "Nameless Race",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
         cardId: "a8917dc8-01c0-4e72-9310-c4d501775411",
         name: "Natural Selection",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
@@ -505,11 +500,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
     {
         cardId: "a914138c-a593-414c-bbcb-83d3c1bc4f6f",
         name: "Pox",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
-        cardId: "ab9d0e3f-cf7c-41f8-bcd7-bb08ea8cc2f8",
-        name: "Primal Clay",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
@@ -565,11 +555,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
     {
         cardId: "7e68f4df-88ce-4e09-a03c-7edf40bff167",
         name: "Sevinne's Reclamation",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
-        cardId: "cc278af4-b60d-41b7-b9d7-36c8aefca1a7",
-        name: "Shapeshifter",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
@@ -1741,12 +1726,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "aa31efed-4a11-4f59-a623-bac45d20091d",
         name: "Illusionary Presence",
         abilityId: "illusionary-presence-cumulative-upkeep",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "691f4a1b-4706-41aa-82da-ae920739f036",
-        name: "Illusionary Terrain",
-        abilityId: "illusionary-terrain-choose-types",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {

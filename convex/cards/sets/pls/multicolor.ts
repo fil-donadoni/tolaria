@@ -1147,24 +1147,16 @@ export const hullBreach: CardDefinition = {
 //
 // Two subsystems, deliberately kept apart:
 //
-//  1. The CHOICE (CR 614.12) — "as it enters" is a replacement of the entry
-//     event itself, so the name must be picked while the creature spell is
-//     still resolving, before the permanent exists. That is exactly what the
-//     `resolveSteps` + suspend/replay shape is for, and Primal Clay
-//     (`atq/colorless.ts`) is the reference: `requestNameCard` enqueues a
-//     `name-card` Pending Choice and returns undefined on the first pass (the
-//     step returns early to suspend); the replay after the player submits reads
-//     the stored name back and stamps it on the entering permanent via
-//     `setSelfChosenName`.
-//
-//     protocol card: `resolveSteps`, not `effects[]`. The `nameCard` Op exists,
-//     but every effect site consumes its binding WITHIN the same resolution (a
-//     name compared against revealed cards — Desperate Research, Petra Sphinx);
-//     an Effect Script has no construct for persisting a resolution-time
-//     binding onto the permanent the spell is about to become, and CR 614.12's
-//     "as it enters" timing is a property of the permanent-spell resolution
-//     itself, not of an effect the interpreter can run. Same escape-hatch
-//     justification Primal Clay records for the same CR clause.
+//  1. The CHOICE (CR 614.12 / 614.12a) — "as it enters" is a replacement of
+//     the entry event itself, raised on EVERY entry path (cast, reanimation, a
+//     copy effect, `putFromHandOntoBattlefield`), not only a spell resolving —
+//     `entersWith.asEnters`'s `name` kind (ADR 0100 D3, #2467). `filter:
+//     { excludeType: "Land" }` is "nonland card name" enforced EXACTLY, closing
+//     what the prior `resolveSteps` shape could only approximate (its single
+//     `nameRestriction: "no-basic-land"` rejected a basic land name but still
+//     admitted a nonbasic one) — `applyNameCardSubmit`
+//     (`convex/gre/pendingChoiceSubmit.ts`) checks the FULL filter, fail-closed,
+//     at submit.
 //
 //  2. The RESTRICTION — a `cast-restriction` static (CR 601.3a), the SAME kind
 //     Brand of Ill Omen (`ice/red.ts`) uses, evaluated read-time by the shared
@@ -1183,30 +1175,6 @@ export const hullBreach: CardDefinition = {
 //     Mage's own controller included) and only to CASTING. A named card can
 //     still be discarded, cycled, put onto the battlefield by another effect,
 //     or copied — none of those is casting.
-//
-// DIVERGENCE — "nonland card name" is enforced only as far as the naming
-// pipeline can express it: `requestNameCard`'s single `nameRestriction`
-// ("no-basic-land") rejects basic land names but still admits a NONBASIC land
-// name. The looser check cannot change any game outcome — a land is never cast
-// (CR 601 / 305.1), so a restriction keyed to a land name is inert either way,
-// and the only player it could disadvantage is the one who chose it. Widening
-// the restriction vocabulary for a strictly cosmetic gain is out of scope here.
-//
-// DIVERGENCE — the CR 614.12 choice is raised only from the creature SPELL's
-// `resolveSteps`, but an as-enters replacement applies on EVERY entry, not just
-// spell resolution. A Mage that reaches the battlefield by a non-cast path
-// (reanimation, `putFromHandOntoBattlefield`, a copy effect) therefore gets no
-// name choice at all. This is the whole as-enters class, not a Meddling Mage
-// bug — Illusionary Terrain (`ice/blue.ts`, `chosenSubtypes`) and Primal Clay
-// (`atq/colorless.ts`, `ctx.setSelfBody`) lose their pick on exactly the same
-// paths — and the engine-side fix is tracked-by: #2043, which owns the
-// NON-modal as-enters storage fields. (#2019 is the declarative sibling, scoped
-// strictly to `modes`/`chosenModeId`; its ETB-replacement modal pick has
-// nothing to pick up from a `resolveSteps` name choice, so it does not own this
-// gap.) Until it lands, a non-cast Mage is a vanilla 2/2 with an
-// inert restriction, which is the safe failure direction: nothing gets locked
-// that shouldn't be, and no stale name survives a zone change
-// (`resetBattlefieldTransientState` clears `chosenName`, CR 400.7).
 export const meddlingMage: CardDefinition = {
     id: "176f84c6-aa5e-449c-bd2b-cc91a898f0c7", // PLS printing (scryfallId)
     rarity: "rare",
@@ -1218,35 +1186,24 @@ export const meddlingMage: CardDefinition = {
     subtypes: ["Human", "Wizard"],
     power: 2,
     toughness: 2,
-    // AI valuation override (issue #1431 / #1519): the as-enters choice is a
-    // `resolveSteps` closure with no Effect Script for `OP_VALUERS` to walk, so
-    // without this the bot would price a 2/2 for two mana at the blind
-    // `base + MV` floor. Valued as a 2/2 body plus a soft Duress-grade
-    // disruption effect — real but conditional (it only bites if the opponent
-    // holds a copy of the named card).
+    // AI valuation override (issue #1431 / #1519): the as-enters choice has no
+    // Effect Script for `OP_VALUERS` to walk, so without this the bot would
+    // price a 2/2 for two mana at the blind `base + MV` floor. Valued as a 2/2
+    // body plus a soft Duress-grade disruption effect — real but conditional
+    // (it only bites if the opponent holds a copy of the named card).
     aiValue: 150,
-    resolveSteps: [
-        (ctx) => {
-            // CR 614.12 — suspends on the first pass, replays with the answer.
-            const name = ctx.requestNameCard({
-                playerId: ctx.controller,
-                choiceId: "meddling-mage-name",
-                prompt: "Meddling Mage: choose a nonland card name.",
-                excludeBasicLand: true,
-            });
-            if (name === undefined) return; // suspended — wait for the pick
-            ctx.setSelfChosenName(name);
-        },
-    ],
+    entersWith: {
+        asEnters: [{ kind: "name", filter: { excludeType: "Land" } }],
+    },
     staticEffects: [
         {
             kind: "cast-restriction",
             id: "meddling-mage-name-lock",
             oracleText: "Spells with the chosen name can't be cast.",
-            // CR 201.3 — names are compared exactly. `chosenName` is undefined
-            // whenever the permanent reached the battlefield without resolving
-            // as a spell (see the DIVERGENCE note above, tracked-by: #2043), in
-            // which case no name was ever chosen and nothing is locked.
+            // CR 201.3 — names are compared exactly. The `name` as-enters
+            // choice is mandatory (CR 614.12) and raised on every entry path
+            // (#2467), so `chosenName` is set the instant the Mage exists; the
+            // `undefined` guard is defensive, not a documented gap.
             forbids: (_caster, spell, source, _state, ctx) =>
                 source.chosenName !== undefined &&
                 ctx.getName(spell) === source.chosenName,

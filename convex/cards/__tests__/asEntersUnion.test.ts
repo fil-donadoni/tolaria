@@ -68,16 +68,14 @@ function declaredAsEnters(
  *  `mode` left it in #2019 (ADR 0100 slice 2): its prompt reuses the shipped
  *  `option-pick` shape, which `chooseResolution` already realises, and the
  *  cast-time modal piggyback is retired for exactly the cards that declare it
- *  (`declaresAsEntersMode`, `gre/constants.ts`) so the pick is raised once. */
-const UNWIRED_KINDS = [
-    "name",
-    "subtypes",
-    "body",
-    "payLife",
-    "aura-host",
-    "pay",
-    "anchor",
-] as const;
+ *  (`declaresAsEntersMode`, `gre/constants.ts`) so the pick is raised once.
+ *  `name`, `subtypes`, `body` and `payLife` left it in #2467 (ADR 0100 slice 3:
+ *  Meddling Mage, Illusionary Terrain, Primal Clay, Shapeshifter, Nameless
+ *  Race): they reuse the shipped `name-card` and `option-pick` shapes,
+ *  `optionPickCandidates` now enumerates multi-pick answers so the bot cannot
+ *  offer an illegal one, and the `payLife` → `body` composition is covered on
+ *  both the cast and the reanimation path. */
+const UNWIRED_KINDS = ["aura-host", "pay", "anchor"] as const;
 
 describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)", () => {
     it("no shipped CardDefinition populates an UNWIRED entersWith.asEnters leg", () => {
@@ -88,13 +86,21 @@ describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)",
         expect(wired.map((w) => w.where)).toEqual([]);
     });
 
-    it("the wired legs are exactly the ones a slice has landed (discard #2389, copy #2451, mode #2019)", () => {
+    it("the wired legs are exactly the ones a slice has landed (discard #2389, copy #2451, mode #2019, name/subtypes/body/payLife #2467)", () => {
         const kinds = new Set(
             getAllCards()
                 .flatMap(declaredAsEnters)
                 .flatMap((w) => w.choices.map((c) => c.kind))
         );
-        expect([...kinds].sort()).toEqual(["copy", "discard", "mode"]);
+        expect([...kinds].sort()).toEqual([
+            "body",
+            "copy",
+            "discard",
+            "mode",
+            "name",
+            "payLife",
+            "subtypes",
+        ]);
     });
 
     it("the guard is not vacuous — the sweep does find a declaration when one exists", () => {

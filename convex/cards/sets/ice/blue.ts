@@ -981,10 +981,19 @@ export const illusionaryPresence: CardDefinition = {
 };
 // Illusionary Terrain — {U}{U} Enchantment. Cumulative upkeep {2} (ADR 0042
 // template) plus a continuous layer-4 subtype swap driven by an ordered pair of
-// basic land types chosen as it enters (CR 305.7, 603.6b, 611, 613; ADR 0050).
-// The ETB "choose two basic land types" is stored on the instance via
-// `setChosenSubtypes`; the `subtype-set` static's `subtypesFor` callback reads
-// that pair and rewrites every basic land of the FIRST type to the SECOND type.
+// basic land types chosen as it enters (CR 305.7, 611, 613; ADR 0050).
+//
+// CR 614.1c / 614.12a — "as this enchantment enters, choose two basic land
+// types" is a self-replacement, made BEFORE the permanent enters, on EVERY
+// entry path — `entersWith.asEnters`'s `subtypes` kind (ADR 0100 D3, #2467),
+// not a `PERMANENT_ENTERED` TRIGGER (the shape this card shipped with before
+// #2467, and a CR 614.12a violation in its own right: a trigger fires AFTER
+// the permanent has already entered and goes on the stack, so priority passes
+// with the swap not yet chosen — observably different from a replacement that
+// applies with the permanent's very first characteristics). The chosen pair
+// lands on `chosenSubtypes` in SUBMITTED order — `applyAsEntersAnswer`'s
+// `subtypes` arm writes it verbatim — which is what lets the `subtype-set`
+// static below treat the pair as ordered (FIRST → SECOND) rather than a set.
 // Because intrinsic basic-land mana is derived from subtype at read time
 // (CR 305.6), the mana each swapped land produces follows for free.
 export const illusionaryTerrain: CardDefinition = {
@@ -995,6 +1004,11 @@ export const illusionaryTerrain: CardDefinition = {
         "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAs this enchantment enters, choose two basic land types.\nBasic lands of the first chosen type are the second chosen type.",
     manaCost: { U: 2 },
     types: ["Enchantment"],
+    entersWith: {
+        asEnters: [
+            { kind: "subtypes", from: [...BASIC_LAND_SUBTYPES], count: 2 },
+        ],
+    },
     // CR 305.7 / 611 / 613 (layer 4, ADR 0050) — computed-output subtype swap.
     // `subtypesFor` reads the on-entry chosen pair off this source instance and
     // rewrites basic lands of the first type into the second. Returns null to
@@ -1020,39 +1034,6 @@ export const illusionaryTerrain: CardDefinition = {
             id: "illusionary-terrain-cumulative-upkeep",
             cost: { generic: 2 },
             costLabel: "{2}",
-        }),
-        // protocol: on-entry ordered-pair choice storage (CR 603.6b), the same
-        // class as Cursed Rack's `setChosenPlayer`. No Effect Script Op persists
-        // an instance-scoped choice, so this stays a `resolve()` — two sequential
-        // `requestOptionChoice` picks over the basic types, then stored via
-        // `setChosenSubtypes` for the static to read. (This is the sanctioned
-        // choice-storage protocol, NOT a "missing Op" escape hatch.)
-        enteredTrigger({
-            id: "illusionary-terrain-choose-types",
-            oracleText:
-                "As this enchantment enters, choose two basic land types.",
-            scope: "self",
-            resolve: (ctx) => {
-                const options = BASIC_LAND_SUBTYPES.map((s) => ({
-                    id: s,
-                    label: s,
-                }));
-                const first = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: "illusionary-terrain-first-type",
-                    options,
-                    prompt: "Choose the first basic land type.",
-                });
-                if (first === undefined) return;
-                const second = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: "illusionary-terrain-second-type",
-                    options,
-                    prompt: "Choose the second basic land type.",
-                });
-                if (second === undefined) return;
-                ctx.setChosenSubtypes([first, second]);
-            },
         }),
     ],
 };

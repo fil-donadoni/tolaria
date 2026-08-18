@@ -2267,7 +2267,15 @@ export type AsEntersChoice =
     | { kind: "subtypes"; from: string[]; count: number }
     /** CR 614.1c — "as this enters, choose a body" (Primal Clay, Shapeshifter):
      *  the chosen option supplies the entering permanent's power / toughness and
-     *  any body-bound subtypes or keywords. */
+     *  any body-bound subtypes or keywords.
+     *
+     *  A `body` immediately after a `payLife` in the same `asEnters` list is
+     *  the Nameless Race COMPOSITION (#2467), not a card-shaped special case:
+     *  `applyAsEntersAnswer`'s `payLife` arm overwrites the queued `body`'s
+     *  `options` with the single option derived from the life just paid, so
+     *  `body` never actually offers the card's OWN declared `options` in that
+     *  shape — declare `options: []` there; it is dead data kept only so the
+     *  type stays uniform across every `body` leg. */
     | {
           kind: "body";
           options: {
@@ -2281,9 +2289,29 @@ export type AsEntersChoice =
       }
     /** CR 614.1c + CR 119.4 — "as this enters, pay any amount of life" (Nameless
      *  Race). `cap: "life"` means "any amount you can pay"; a number caps it
-     *  lower. COST-BEARING, so it participates in the CR 614.12b constraint when
-     *  two permanents are staged simultaneously. */
-    | { kind: "payLife"; cap: number | "life" }
+     *  lower; `{ opponentBoardCount }` caps it at a count read fresh off the
+     *  chooser's OPPONENTS' board as the choice is offered — permanents
+     *  matching `permanents` plus graveyard cards matching `graveyardCards`
+     *  (Nameless Race: "can't be more than the total number of white nontoken
+     *  permanents your opponents control plus … white cards in their
+     *  graveyards", #2467). Generalizes the fixed-number cap by reusing
+     *  `PermanentFilter` / `EffectCardFilter` rather than adding a bespoke
+     *  `kind` for a board-derived cap (ADR 0100 D3 — "two kinds composing beats
+     *  one more bespoke kind"); resolved by `asEntersOpponentBoardCount`
+     *  (`convex/gre/state.ts`). COST-BEARING, so it participates in the CR
+     *  614.12b constraint when two permanents are staged simultaneously. */
+    | {
+          kind: "payLife";
+          cap:
+              | number
+              | "life"
+              | {
+                    opponentBoardCount: {
+                        permanents?: PermanentFilter;
+                        graveyardCards?: EffectCardFilter;
+                    };
+                };
+      }
     /** CR 707.6 — "as this enters, it becomes a copy of …" (Clone). Answering it
      *  can GROW the owed list: the COPIED definition's own `asEnters` entries are
      *  discovered only once the copy has been applied (ADR 0100 D4). */

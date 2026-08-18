@@ -1622,16 +1622,19 @@ export const tawnossWeaponry: CardDefinition = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Choose-body-on-entry creatures (ATQ cluster G, issue #289). These pick their
-// body "as they enter" (CR 614.12 replacement-style self-modification, resolved
-// during the creature spell's own `resolveSteps` while it is still on the
-// stack). The pick is an abstract `option-pick` PendingChoice (8 numbers for
-// Shapeshifter, 3 modes for Primal Clay) and the resulting base P/T / subtypes /
-// keywords are written onto the entering permanent via `ctx.setSelfBody`, which
-// persists indefinitely (NOT a layer-7b temporary set). Shapeshifter re-chooses
-// at each of its controller's upkeeps (CR 603.6a "may"), overwriting its base
-// P/T. New engine capabilities introduced for this cluster: the `option-pick`
-// PendingChoice kind (`ctx.requestOptionChoice`) and the persistent
-// `ctx.setSelfBody` self-body primitive.
+// body "as they enter" (CR 614.12 self-replacement — CR 614.12a requires the
+// choice on EVERY entry path, not only a cast, so both cards declare it via
+// `entersWith.asEnters`'s `body` kind (ADR 0100 D3, #2467) rather than raising
+// it from a spell-only `resolveSteps`). The pick is an `option-pick`
+// PendingChoice (8 numbers for Shapeshifter, 3 modes for Primal Clay); the
+// applier (`applyAsEntersAnswer`, `gre/state.ts`) writes the chosen option's
+// power/toughness/subtypes/staticAbilities onto the entering permanent — a
+// persistent base set, not a layer-7b temporary one. Shapeshifter ALSO
+// re-chooses at each of its controller's upkeeps (CR 603.6a "may"), which stays
+// a triggered ability: that leg is a later, on-battlefield re-choice, not part
+// of how the permanent enters, so `SpellContext.setSelfBody` still applies
+// there. New engine capability introduced for this cluster (pre-#2467): the
+// `option-pick` PendingChoice kind.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Primal Clay — {4} Artifact Creature — Shapeshifter, 0/0. "As this creature
@@ -1639,7 +1642,11 @@ export const tawnossWeaponry: CardDefinition = {
 // creature with flying, or a 1/6 Wall artifact creature with defender in
 // addition to its other types." (CR 614.12 — the body choice is made as it
 // enters; CR 702.3 defender; CR 702.9 flying. It is always an artifact
-// creature; only the Wall mode adds subtype "Wall" + keyword "defender".)
+// creature; only the Wall mode adds subtype "Wall" + keyword "defender". The
+// Wall option's `subtypes` lists BOTH `Shapeshifter` and `Wall` — the `body`
+// applier OVERWRITES `card.subtypes` from the chosen option rather than
+// appending, so "in addition to its other types" has to be spelled out in
+// full, not as a delta.)
 export const primalClay: CardDefinition = {
     id: "ab9d0e3f-cf7c-41f8-bcd7-bb08ea8cc2f8",
     rarity: "uncommon",
@@ -1651,41 +1658,31 @@ export const primalClay: CardDefinition = {
     subtypes: ["Shapeshifter"],
     power: 0,
     toughness: 0,
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            // CR 614.12 — choose the body as the permanent enters. The pick is
-            // made by the spell's controller during resolution; the resulting
-            // base characteristics are written onto the still-on-stack
-            // permanent and carry to the battlefield on `finalizeSpellResolution`.
-            const mode = ctx.requestOptionChoice({
-                playerId: ctx.controller,
-                choiceId: "primal-clay-body",
+    entersWith: {
+        asEnters: [
+            {
+                kind: "body",
                 options: [
-                    { id: "3-3", label: "3/3" },
-                    { id: "2-2-flying", label: "2/2 flying" },
-                    { id: "1-6-wall", label: "1/6 Wall (defender)" },
+                    { id: "3-3", label: "3/3", power: 3, toughness: 3 },
+                    {
+                        id: "2-2-flying",
+                        label: "2/2 flying",
+                        power: 2,
+                        toughness: 2,
+                        staticAbilities: ["flying"],
+                    },
+                    {
+                        id: "1-6-wall",
+                        label: "1/6 Wall (defender)",
+                        power: 1,
+                        toughness: 6,
+                        subtypes: ["Shapeshifter", "Wall"],
+                        staticAbilities: ["defender"],
+                    },
                 ],
-                prompt: "Choose Primal Clay's body.",
-            });
-            if (mode === undefined) return; // suspended — wait for the pick
-            if (mode === "3-3") {
-                ctx.setSelfBody({ power: 3, toughness: 3 });
-            } else if (mode === "2-2-flying") {
-                ctx.setSelfBody({
-                    power: 2,
-                    toughness: 2,
-                    addKeywords: ["flying"],
-                });
-            } else if (mode === "1-6-wall") {
-                ctx.setSelfBody({
-                    power: 1,
-                    toughness: 6,
-                    addSubtypes: ["Wall"],
-                    addKeywords: ["defender"],
-                });
-            }
-        },
-    ],
+            },
+        ],
+    },
 };
 
 // Shapeshifter — {6} Artifact Creature — Shapeshifter, */7-*. "As this creature
@@ -1701,6 +1698,19 @@ const SHAPESHIFTER_NUMBER_OPTIONS = Array.from({ length: 8 }, (_, n) => ({
     label: `${n}/${7 - n}`,
 }));
 
+// The `body` kind's option shape (id/label/power/toughness) generalizes the
+// same 8 numbers `SHAPESHIFTER_NUMBER_OPTIONS` already lists for the upkeep
+// re-choice's `option-pick` — derived, not duplicated, so the two prompts can
+// never drift apart on what "3" means.
+const SHAPESHIFTER_BODY_OPTIONS = SHAPESHIFTER_NUMBER_OPTIONS.map(
+    ({ id, label }) => ({
+        id,
+        label,
+        power: Number(id),
+        toughness: 7 - Number(id),
+    })
+);
+
 export const shapeshifter: CardDefinition = {
     id: "cc278af4-b60d-41b7-b9d7-36c8aefca1a7",
     rarity: "rare",
@@ -1712,20 +1722,14 @@ export const shapeshifter: CardDefinition = {
     subtypes: ["Shapeshifter"],
     power: 0,
     toughness: 0,
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            // CR 614.12 — mandatory entry choice. Power = N, toughness = 7 − N.
-            const choice = ctx.requestOptionChoice({
-                playerId: ctx.controller,
-                choiceId: "shapeshifter-entry-number",
-                options: SHAPESHIFTER_NUMBER_OPTIONS,
-                prompt: "Choose a number between 0 and 7.",
-            });
-            if (choice === undefined) return; // suspended — wait for the pick
-            const n = Number(choice);
-            ctx.setSelfBody({ power: n, toughness: 7 - n });
-        },
-    ],
+    // CR 614.12 — mandatory entry choice, on EVERY entry path (CR 614.12a,
+    // #2467), not only a cast. The optional upkeep RE-choice below is a
+    // separate, later, on-battlefield event (CR 603.6a) — it stays a
+    // triggered ability using `SpellContext.setSelfBody`, since it isn't part
+    // of how the permanent enters.
+    entersWith: {
+        asEnters: [{ kind: "body", options: SHAPESHIFTER_BODY_OPTIONS }],
+    },
     triggeredAbilities: [
         phaseTrigger({
             id: "shapeshifter-upkeep-renumber",

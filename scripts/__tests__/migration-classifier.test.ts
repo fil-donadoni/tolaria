@@ -1654,23 +1654,38 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 480->481, FREE 315->316, AFK-ready 306->307; X-only unchanged at 15,
         // Op-blocked unchanged at 150. Partition: 316+15+150=481.
         //
-        // The as-enters `copy` leg (ADR 0100 slice 4, issue #2451) REMOVES five
-        // closures: Clone, Copy Artifact, Vesuvan Doppelganger, Phyrexian
-        // Metamorph and Phantasmal Image each traded a card-level `resolveSteps`
-        // for a declarative `entersWith.asEnters` — data, not a migration to the
-        // Effect Script DSL, which is why the count drops rather than moving
-        // between partitions. All five were Op-blocked on `becomeCopyOf`, so the
-        // whole delta lands there: total 481->476, Op-blocked 150->145; FREE
-        // unchanged at 316, AFK-ready at 307, X-only at 15. Partition:
-        // 316+15+145=476. Vesuvan Doppelganger's UPKEEP re-copy trigger still
-        // calls `becomeCopyOf` and is untouched — it is a CR 603.3d triggered
-        // ability, not an as-enters replacement — which is why `becomeCopyOf`
-        // survives in the backlog at all.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(476);
+        // TWO as-enters slices each REMOVE five closures, and both land here.
+        //
+        // The `copy` leg (ADR 0100 slice 4, issue #2451): Clone, Copy Artifact,
+        // Vesuvan Doppelganger, Phyrexian Metamorph and Phantasmal Image each
+        // traded a card-level `resolveSteps` for a declarative
+        // `entersWith.asEnters` — data, not a migration to the Effect Script
+        // DSL, which is why the count drops rather than moving between
+        // partitions. All five were Op-blocked on `becomeCopyOf`. Vesuvan
+        // Doppelganger's UPKEEP re-copy trigger still calls `becomeCopyOf` and
+        // is untouched — it is a CR 603.3d triggered ability, not an as-enters
+        // replacement — which is why `becomeCopyOf` survives in the backlog.
+        //
+        // The `name`/`subtypes`/`body`/`payLife` legs (slice 3, issue #2467):
+        // Primal Clay / Shapeshifter (atq/colorless.ts), Nameless Race
+        // (drk/black.ts), Meddling Mage (pls/multicolor.ts) and Illusionary
+        // Terrain (ice/blue.ts). The CR 614.1c "as it enters" choice these five
+        // raised from a spell-only `resolveSteps` (or, for Illusionary Terrain,
+        // a `PERMANENT_ENTERED` trigger that fired AFTER the permanent had
+        // already entered — a CR 614.12a violation in its own right) is now
+        // `entersWith.asEnters` DATA (ADR 0100 D3), not an Effect Script and not
+        // a closure the classifier walks at all — the family called
+        // `requestOptionChoice` / `setSelfBody` / `requestNameCard` /
+        // `setChosenSubtypes`, none of which are covered Ops, so all five sat in
+        // Op-blocked too.
+        //
+        // Net across both: total 481->471, Op-blocked 150->140; FREE unchanged
+        // at 316, AFK-ready at 307, X-only at 15. Partition: 316+15+140=471.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(471);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(316);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(307);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(145);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
