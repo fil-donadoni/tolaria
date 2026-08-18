@@ -3,7 +3,13 @@
 // Replacement effects intercept a game event BEFORE the original action runs
 // and either rewrite the event payload (damage redirected, lifegain converted
 // to draw) or cancel the event entirely (Lich's "don't lose the game"). They
-// are continuous effects active while their source is on the battlefield.
+// are continuous effects active while their source is on the battlefield —
+// with ONE narrow exception (issue #2106): a self-referential "would be put
+// into a graveyard from anywhere ... instead" clause is intrinsic to the
+// object itself, not to it sitting on a battlefield, so `ReplacementEffect
+// .appliesFromAnyZone` lets `collectReplacements` also find it by instance id
+// while the card sits in hand/library/on the stack. See that flag's doc
+// comment and `collectReplacements` below.
 //
 // Apply order at any damage / life-change / discard / lose-game site:
 //   1. CR 614 replacement loop (this module)
@@ -53,9 +59,38 @@ import {
     putHandCardOnTopOfLibrary,
 } from "./state";
 
+/** Finds a card instance ANYWHERE in the game — every zone of every player,
+ *  plus the stack — by its instance id. Used only by the self-referential
+ *  graveyard-bound lookup below: unlike the battlefield scan `collectReplacements`
+ *  otherwise runs, this looks up exactly ONE known instance (never a wide
+ *  scan), so it cannot leak a replacement onto a different copy of the same
+ *  card. */
+function findCardInstanceAnywhere(
+    state: GameState,
+    instanceId: string
+): CardInstanceState | undefined {
+    for (const player of state.players) {
+        for (const zone of [
+            player.battlefield,
+            player.hand,
+            player.library,
+            player.graveyard,
+            player.exile,
+        ]) {
+            const hit = zone.find((c) => c.id === instanceId);
+            if (hit) return hit;
+        }
+    }
+    return state.stack.find((s) => s.id === instanceId);
+}
+
 function collectReplacements(
     state: GameState,
-    kind: ReplacementEventKind
+    kind: ReplacementEventKind,
+    /** The event currently being resolved, when known. Only consulted for
+     *  the `"graveyard-bound"` self-referential lookup below — every other
+     *  kind ignores it and keeps the pure battlefield scan. */
+    event?: ReplacementEvent
 ): { source: CardInstanceState; effect: ReplacementEffect }[] {
     const active = state.players.find((p) => p.id === state.activePlayerId);
     const opponents = state.players.filter(
@@ -64,8 +99,10 @@ function collectReplacements(
     const ordered = active ? [active, ...opponents] : state.players;
 
     const out: { source: CardInstanceState; effect: ReplacementEffect }[] = [];
+    const battlefieldSourceIds = new Set<string>();
     for (const player of ordered) {
         for (const card of player.battlefield) {
+            battlefieldSourceIds.add(card.id);
             const cardId = (card.card as { id?: string }).id;
             if (!cardId) continue;
             const def = tryGetDefinition(cardId);
@@ -75,6 +112,40 @@ function collectReplacements(
             }
         }
     }
+
+    // CR 614.1a "would be put into a graveyard from anywhere ... instead"
+    // self-effects (issue #2106): the effect is intrinsic to the object
+    // itself, so per its own oracle text it keeps applying no matter which
+    // zone the object currently occupies — battlefield presence is NOT
+    // required (Blightsteel Colossus). Opt-in via `appliesFromAnyZone` so
+    // every other permanent-bound `replacementEffects[]` entry (the
+    // overwhelming majority, e.g. Dauthi Voidwalker) is completely
+    // unaffected. Only `"graveyard-bound"` events carry a `cardInstanceId`
+    // identifying a SPECIFIC card that may be off the battlefield mid
+    // mill/discard/library-move/stack-resolution; this looks up exactly
+    // that one instance (never a battlefield-wide scan), so a second copy
+    // of the same card elsewhere is never touched. Skipped when the card is
+    // ALREADY on a battlefield — the loop above already found it there,
+    // and re-adding it here would be a harmless but pointless duplicate.
+    if (
+        kind === "graveyard-bound" &&
+        event &&
+        event.kind === "graveyard-bound" &&
+        !battlefieldSourceIds.has(event.cardInstanceId)
+    ) {
+        const self = findCardInstanceAnywhere(state, event.cardInstanceId);
+        if (self) {
+            const cardId = (self.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
+            const effects = def?.replacementEffects ?? [];
+            for (const r of effects) {
+                if (r.eventKind === kind && r.appliesFromAnyZone) {
+                    out.push({ source: self, effect: r });
+                }
+            }
+        }
+    }
+
     return out;
 }
 
@@ -268,7 +339,7 @@ function applyReplacementsLoop(
     let event = initial;
     const used = new Set<string>();
     for (let i = 0; i < 64; i++) {
-        const candidates = collectReplacements(state, kind);
+        const candidates = collectReplacements(state, kind, event);
         let pick: {
             source: CardInstanceState;
             effect: ReplacementEffect;
@@ -639,7 +710,7 @@ export function graveyardDestinationFor(
     ownerId: string,
     fromZone: GraveyardBoundReplacementEvent["fromZone"]
 ): {
-    destination: "graveyard" | "exile";
+    destination: "graveyard" | "exile" | "library";
     tagCounters?: Record<string, number>;
 } {
     const result = applyGraveyardBoundReplacements(state, {
