@@ -48,6 +48,39 @@ describe("the window is a real filter, not a label", () => {
         expect(card().tokensByRole.implement).toBe(100_000);
         expect(card().agentSpawns).toBe(6);
     });
+
+    it("excludes RECEIPTS outside it — the denominator is windowed too", () => {
+        // batch-later ships #901 at ts 9000. While only the events were
+        // filtered, every per-issue figure was a windowed numerator over an
+        // all-time denominator: measured on this repo, `passes` and
+        // `issuesShipped` read 80 and 63 at 7, 14, 30 AND 60 days while gate
+        // runs went 98 → 3653, so "gate runs per issue" was one series divided
+        // by a constant.
+        expect(card().passes).toBe(1); // batch-a only
+        expect(card().issuesShipped).toBe(2); // #101 and #102, not #901
+        expect(card().reviewsRecorded).toBe(2); // batch-a's two reviews
+    });
+
+    it("reports undated receipts rather than admitting them everywhere", () => {
+        // A receipt with no `ts` cannot belong to a window. Counting it in ALL
+        // of them is the bug above wearing a different hat, so it is excluded
+        // and said out loud.
+        const c = summarizeLoop({
+            events: events(),
+            receipts: [
+                ...receipts(),
+                {
+                    batch: "old",
+                    role: "implement",
+                    issue: 1,
+                    outcome: "pr-open",
+                },
+            ],
+            window: WINDOW,
+        });
+        expect(c.issuesShipped).toBe(2);
+        expect(c.notes.join(" ")).toMatch(/1 receipt\(s\) carry no `ts`/);
+    });
 });
 
 describe("issuesShipped — the definition", () => {
@@ -64,13 +97,26 @@ describe("issuesShipped — the definition", () => {
             events: [],
             receipts: [
                 {
+                    ts: 1000,
                     batch: "b",
                     role: "implement",
                     issue: 102,
                     outcome: "pr-open",
                 },
-                { batch: "b", role: "review", issue: 102, outcome: "blocking" },
-                { batch: "b", role: "fixup", issue: 102, outcome: "pr-open" },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "review",
+                    issue: 102,
+                    outcome: "blocking",
+                },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "fixup",
+                    issue: 102,
+                    outcome: "pr-open",
+                },
             ],
             window: WINDOW,
         });
@@ -82,12 +128,19 @@ describe("issuesShipped — the definition", () => {
             events: [],
             receipts: [
                 {
+                    ts: 1000,
                     batch: "b",
                     role: "implement",
                     issue: 102,
                     outcome: "pr-open",
                 },
-                { batch: "b", role: "review", issue: 102, outcome: "blocking" },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "review",
+                    issue: 102,
+                    outcome: "blocking",
+                },
             ],
             window: WINDOW,
         });
@@ -99,12 +152,19 @@ describe("issuesShipped — the definition", () => {
             events: [],
             receipts: [
                 {
+                    ts: 1000,
                     batch: "b",
                     role: "implement",
                     issue: 102,
                     outcome: "pr-open",
                 },
-                { batch: "b", role: "fixup", issue: 102, outcome: "wip" },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "fixup",
+                    issue: 102,
+                    outcome: "wip",
+                },
             ],
             window: WINDOW,
         });
@@ -134,8 +194,15 @@ describe("supersedesWork precedence — role-rank first, then round", () => {
         const only = summarizeLoop({
             events: [],
             receipts: [
-                { batch: "b", role: "implement", issue: 301, outcome: "wip" },
                 {
+                    ts: 1000,
+                    batch: "b",
+                    role: "implement",
+                    issue: 301,
+                    outcome: "wip",
+                },
+                {
+                    ts: 1000,
                     batch: "b",
                     role: "fixup",
                     issue: 301,
@@ -143,6 +210,7 @@ describe("supersedesWork precedence — role-rank first, then round", () => {
                     round: 1,
                 },
                 {
+                    ts: 1000,
                     batch: "b",
                     role: "implement",
                     issue: 301,
@@ -164,6 +232,7 @@ describe("supersedesWork precedence — role-rank first, then round", () => {
             events: [],
             receipts: [
                 {
+                    ts: 1000,
                     batch: "b",
                     role: "fixup",
                     issue: 302,
@@ -171,6 +240,7 @@ describe("supersedesWork precedence — role-rank first, then round", () => {
                     round: 1,
                 },
                 {
+                    ts: 1000,
                     batch: "b",
                     role: "fixup",
                     issue: 302,
@@ -193,8 +263,15 @@ describe("supersedesWork precedence — role-rank first, then round", () => {
         const absentFirst = summarizeLoop({
             events: [],
             receipts: [
-                { batch: "b", role: "fixup", issue: 303, outcome: "pr-open" },
                 {
+                    ts: 1000,
+                    batch: "b",
+                    role: "fixup",
+                    issue: 303,
+                    outcome: "pr-open",
+                },
+                {
+                    ts: 1000,
                     batch: "b",
                     role: "fixup",
                     issue: 303,
@@ -210,13 +287,20 @@ describe("supersedesWork precedence — role-rank first, then round", () => {
             events: [],
             receipts: [
                 {
+                    ts: 1000,
                     batch: "b",
                     role: "fixup",
                     issue: 304,
                     outcome: "pr-open",
                     round: 1,
                 },
-                { batch: "b", role: "fixup", issue: 304, outcome: "wip" },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "fixup",
+                    issue: 304,
+                    outcome: "wip",
+                },
             ],
             window: WINDOW,
         });
@@ -297,7 +381,13 @@ describe("review-blocking rate — the evidence for cheap-implementer/strong-rev
         const only = summarizeLoop({
             events: events(),
             receipts: [
-                { batch: "b", role: "implement", issue: 1, outcome: "pr-open" },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "implement",
+                    issue: 1,
+                    outcome: "pr-open",
+                },
             ],
             window: WINDOW,
         });
@@ -316,12 +406,48 @@ describe("fixup rounds as a distribution — the tail is the point", () => {
         const only = summarizeLoop({
             events: [],
             receipts: [
-                { batch: "b", role: "implement", issue: 1, outcome: "pr-open" },
-                { batch: "b", role: "implement", issue: 2, outcome: "pr-open" },
-                { batch: "b", role: "implement", issue: 3, outcome: "pr-open" },
-                { batch: "b", role: "fixup", issue: 3, outcome: "wip" },
-                { batch: "b", role: "fixup", issue: 3, outcome: "wip" },
-                { batch: "b", role: "fixup", issue: 3, outcome: "pr-open" },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "implement",
+                    issue: 1,
+                    outcome: "pr-open",
+                },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "implement",
+                    issue: 2,
+                    outcome: "pr-open",
+                },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "implement",
+                    issue: 3,
+                    outcome: "pr-open",
+                },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "fixup",
+                    issue: 3,
+                    outcome: "wip",
+                },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "fixup",
+                    issue: 3,
+                    outcome: "wip",
+                },
+                {
+                    ts: 1000,
+                    batch: "b",
+                    role: "fixup",
+                    issue: 3,
+                    outcome: "pr-open",
+                },
             ],
             window: WINDOW,
         });
@@ -365,6 +491,7 @@ describe("an empty window says so", () => {
             events: events(),
             receipts: [
                 {
+                    ts: 1000,
                     batch: "batch-a",
                     role: "implement",
                     issue: 1,

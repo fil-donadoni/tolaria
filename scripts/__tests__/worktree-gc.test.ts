@@ -34,6 +34,39 @@ describe("worktree-gc — classify", () => {
         expect(v.reason).toMatch(/not in origin\/main/);
     });
 
+    it("removes a branch whose PR MERGED, even though ancestry still calls it unmerged", () => {
+        // Every PR here lands as a SQUASH, so the branch's own commit is never
+        // an ancestor of main and `rev-list origin/main..HEAD` reads 1 forever.
+        // The first version of this tool therefore kept 26 of 36 worktrees,
+        // every one of them freshly merged.
+        const v = classify({ ...base, unmerged: 1, mergedPr: true });
+        expect(v.action).toBe("remove");
+        expect(v.reason).toMatch(/PR merged/);
+    });
+
+    it("keeps a branch whose PR is still OPEN, merged-looking ancestry or not", () => {
+        expect(classify({ ...base, unmerged: 0, openPr: true }).action).toBe(
+            "keep"
+        );
+        expect(
+            classify({ ...base, unmerged: 1, openPr: true, mergedPr: true })
+                .action
+        ).toBe("keep");
+    });
+
+    it("still keeps a branch with no PR at all and commits of its own", () => {
+        // The PR verdict is an ADDITIONAL way to be finished, never a
+        // replacement for the ancestry check: a branch nobody opened a PR for
+        // is exactly the work this tool must not throw away.
+        expect(classify({ ...base, unmerged: 2 }).action).toBe("keep");
+    });
+
+    it("keeps dirty work even when the PR merged", () => {
+        expect(classify({ ...base, dirty: true, mergedPr: true }).action).toBe(
+            "keep"
+        );
+    });
+
     it("keeps a locked worktree", () => {
         expect(classify({ ...base, locked: true }).action).toBe("keep");
     });
