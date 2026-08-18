@@ -83,10 +83,18 @@ function sh(cmd: string, args: string[]): string {
     return r.status === 0 ? r.stdout.trim() : "";
 }
 
-if (import.meta.main) {
-    const release = process.argv.includes("--release");
+/** Raw shape of one row of `gh issue list --json number,title,updatedAt`. */
+export type ClaimedIssue = { number: number; title: string; updatedAt: string };
 
-    const issues = JSON.parse(
+/**
+ * Every issue currently claimed (`is:open is:issue label:in-progress`).
+ *
+ * Exported (#2519) so `loop:status` builds its "who is claimed" view from the
+ * SAME query `loop:doctor` uses to find orphans, rather than a second,
+ * independently-drifting definition of "claimed".
+ */
+export function fetchClaimedIssues(): ClaimedIssue[] {
+    return JSON.parse(
         sh("gh", [
             "issue",
             "list",
@@ -97,14 +105,12 @@ if (import.meta.main) {
             "--limit",
             "200",
         ]) || "[]"
-    ) as { number: number; title: string; updatedAt: string }[];
+    ) as ClaimedIssue[];
+}
 
-    if (issues.length === 0) {
-        console.log("loop:doctor — no claimed issues. Nothing to check.");
-        process.exit(0);
-    }
-
-    const prBranches = new Set(
+/** Head branch names of every currently OPEN pull request. */
+export function fetchOpenPrBranches(): Set<string> {
+    return new Set(
         (
             JSON.parse(
                 sh("gh", [
@@ -120,7 +126,12 @@ if (import.meta.main) {
             ) as { headRefName: string }[]
         ).map((p) => p.headRefName)
     );
-    const allBranches = [
+}
+
+/** Every local AND remote branch name (local branches unprefixed; remote
+ *  `origin/*` refs reduced to their short name via `ls-remote`). */
+export function fetchAllBranchNames(): string[] {
+    return [
         ...sh("git", ["branch", "--all", "--format=%(refname:short)"]).split(
             "\n"
         ),
@@ -128,21 +139,48 @@ if (import.meta.main) {
             .split("\n")
             .map((l) => l.split("\t")[1] ?? ""),
     ];
+}
+
+/**
+ * Turn one claimed issue plus the two branch/PR scans into the `ClaimFacts`
+ * `classifyClaim` consumes. Pure — the scans themselves are the only I/O.
+ */
+export function buildClaimFacts(
+    issue: ClaimedIssue,
+    prBranches: Set<string>,
+    allBranches: string[],
+    now: number = Date.now()
+): ClaimFacts {
+    const suffix = new RegExp(`(^|/)issue-${issue.number}$`);
+    return {
+        issue: issue.number,
+        title: issue.title,
+        hasBranch: allBranches.some((b) =>
+            suffix.test(b.replace(/^refs\/heads\//, ""))
+        ),
+        hasOpenPr: [...prBranches].some((b) => suffix.test(b)),
+        ageHours:
+            (now - new Date(issue.updatedAt).getTime()) / (1000 * 60 * 60),
+    };
+}
+
+if (import.meta.main) {
+    const release = process.argv.includes("--release");
+
+    const issues = fetchClaimedIssues();
+
+    if (issues.length === 0) {
+        console.log("loop:doctor — no claimed issues. Nothing to check.");
+        process.exit(0);
+    }
+
+    const prBranches = fetchOpenPrBranches();
+    const allBranches = fetchAllBranchNames();
 
     const now = Date.now();
     const orphans: number[] = [];
     for (const issue of issues) {
-        const suffix = new RegExp(`(^|/)issue-${issue.number}$`);
-        const facts: ClaimFacts = {
-            issue: issue.number,
-            title: issue.title,
-            hasBranch: allBranches.some((b) =>
-                suffix.test(b.replace(/^refs\/heads\//, ""))
-            ),
-            hasOpenPr: [...prBranches].some((b) => suffix.test(b)),
-            ageHours:
-                (now - new Date(issue.updatedAt).getTime()) / (1000 * 60 * 60),
-        };
+        const facts = buildClaimFacts(issue, prBranches, allBranches, now);
         const v = classifyClaim(facts);
         const mark =
             v.state === "orphan" ? "×" : v.state === "suspect" ? "?" : "·";

@@ -16,16 +16,44 @@
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { Database } from "bun:sqlite";
+import { gatherLoopStatus } from "./loop-status";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
 const HTML_PATH = join(PROJECT_DIR, "scripts/telemetry-dashboard.html");
 
-if (!existsSync(DB_PATH)) {
-    console.error(
+/**
+ * `telemetry.db` is built by `telemetry:ingest` and goes stale/absent between
+ * runs (#2519: last written 2026-08-08 at the time this route was added).
+ * The server used to refuse to boot without it — `existsSync` → `exit(1)` —
+ * which took the WHOLE dashboard down, including `/api/loop-status`, which
+ * reads no DB at all and is exactly the view an operator needs when
+ * everything else here is stale. So `db` is lazy and nullable: the process
+ * always starts, and only the DB-BACKED routes fail, with a clear message
+ * naming the fix, when there is nothing to query.
+ */
+let db: Database | null = existsSync(DB_PATH)
+    ? new Database(DB_PATH, { readonly: true })
+    : null;
+
+/** Thrown by `requireDb()` — caught once, in the route dispatcher, and
+ *  turned into a 503 rather than the generic 400 every other query error
+ *  gets: "there is no store yet" is an operational fact, not a bad request. */
+class NoTelemetryStoreError extends Error {}
+
+function requireDb(): Database {
+    if (db) return db;
+    // A store created by a concurrent `telemetry:ingest` after this process
+    // started is picked up on the NEXT request rather than requiring a
+    // restart — cheap to check, and `existsSync` is the same test the
+    // startup path already used.
+    if (existsSync(DB_PATH)) {
+        db = new Database(DB_PATH, { readonly: true });
+        return db;
+    }
+    throw new NoTelemetryStoreError(
         `No telemetry store at ${DB_PATH}. Run: bun run telemetry:ingest`
     );
-    process.exit(1);
 }
 
 /** Per-table whitelist: which columns may be grouped on or filtered by. */
@@ -83,8 +111,6 @@ const METRICS: Record<string, Record<string, string>> = {
         messages: "sum(msgs)",
     },
 };
-
-const db = new Database(DB_PATH, { readonly: true });
 
 interface QueryBody {
     table?: string;
@@ -144,7 +170,9 @@ function runQuery(body: QueryBody) {
         ` ORDER BY "${metric}" DESC LIMIT ${Math.min(body.limit ?? 500, 5000)}`;
 
     return {
-        rows: db.query(sql).all(...params),
+        rows: requireDb()
+            .query(sql)
+            .all(...params),
         sql,
         metric,
         metrics: Object.keys(mets),
@@ -153,6 +181,7 @@ function runQuery(body: QueryBody) {
 
 /** Distinct values per dimension, so the UI can populate its filter pickers. */
 function meta() {
+    const database = requireDb();
     const out: Record<string, unknown> = {
         dimensions: DIMENSIONS,
         metrics: METRICS,
@@ -164,7 +193,7 @@ function meta() {
         for (const d of dims) {
             // session ids are high-cardinality and useless in a picker.
             if (d === "session") continue;
-            const rows = db
+            const rows = database
                 .query<
                     { v: string },
                     []
@@ -175,17 +204,17 @@ function meta() {
     }
     out.values = values;
 
-    const range = db
+    const range = database
         .query<
             { min_day: string; max_day: string },
             []
         >("SELECT min(day) AS min_day, max(day) AS max_day FROM llm")
         .get();
     out.range = range;
-    out.lastIngest = db
+    out.lastIngest = database
         .query<{ v: string }, []>("SELECT v FROM meta WHERE k = 'last_ingest'")
         .get()?.v;
-    out.counts = db
+    out.counts = database
         .query<Record<string, number>, []>(
             `SELECT (SELECT count(*) FROM spans) AS spans,
                     (SELECT count(*) FROM llm) AS llm,
@@ -208,7 +237,7 @@ function dayParam(url: URL, name: string, fallback: string): string {
  * spend; wall clock is the llm first→last message span.
  */
 function sessionsView(from: string, to: string) {
-    return db
+    return requireDb()
         .query(
             `WITH span AS (
                 SELECT session, min(ts) AS t0, max(ts) AS t1,
@@ -247,7 +276,7 @@ function sessionsView(from: string, to: string) {
  * count, latency (first→last event across its runs), tier, family, state.
  */
 function issuesView(from: string, to: string) {
-    const rows = db
+    const rows = requireDb()
         .query(
             `SELECT r.issue, m.title, m.family, m.state, m.closed_at,
                    min(r.started) AS first_ts,
@@ -291,7 +320,7 @@ function issuesView(from: string, to: string) {
 
 /** Per-family × role rollup — "what do reviews on mechanics issues cost". */
 function familiesView(from: string, to: string) {
-    return db
+    return requireDb()
         .query(
             `SELECT ifnull(m.family, '(none)') AS family, r.role,
                    count(*) AS runs, count(DISTINCT r.issue) AS issues,
@@ -316,7 +345,7 @@ function runsView(url: URL) {
         ? ["issue", Number(issue)]
         : ["session", String(session)];
     if (issue && !Number.isFinite(val as number)) throw new Error("bad issue");
-    return db
+    return requireDb()
         .query(
             `SELECT r.agent_id, r.session, r.started, round(r.dur_s/60,1) AS min,
                     r.msgs, r.model, r.agent_type, r.role, r.issue,
@@ -330,6 +359,34 @@ function runsView(url: URL) {
         .all(val);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// /api/loop-status (#2519) — `gatherLoopStatus` shells out to `gh`/`git`
+// (1-2s), so this caches the PROMISE, not just the resolved value: several
+// open tabs (or one tab re-polling every 10s) hitting this route inside the
+// same window must share a single in-flight gather rather than each firing
+// their own round of `gh` calls. A failed gather is NOT cached — the next
+// request retries rather than being stuck replaying a stale error for the
+// rest of the TTL.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LOOP_STATUS_TTL_MS = 10_000;
+let loopStatusCache: { promise: Promise<unknown>; expiresAt: number } | null =
+    null;
+
+function getLoopStatusCached(): Promise<unknown> {
+    const now = Date.now();
+    if (loopStatusCache && loopStatusCache.expiresAt > now) {
+        return loopStatusCache.promise;
+    }
+    const promise = (async () => gatherLoopStatus())();
+    loopStatusCache = { promise, expiresAt: now + LOOP_STATUS_TTL_MS };
+    promise.catch(() => {
+        // Only clear if nothing newer has already replaced this entry.
+        if (loopStatusCache?.promise === promise) loopStatusCache = null;
+    });
+    return promise;
+}
+
 const portArg = process.argv.indexOf("--port");
 const port = portArg > -1 ? Number(process.argv[portArg + 1]) : 5174;
 
@@ -339,6 +396,11 @@ const server = Bun.serve({
     async fetch(req) {
         const url = new URL(req.url);
         try {
+            // Reads no DB — must work even when telemetry.db is absent or
+            // stale (#2519), so it is dispatched before any DB-backed route.
+            if (url.pathname === "/api/loop-status") {
+                return Response.json(await getLoopStatusCached());
+            }
             if (url.pathname === "/api/meta") {
                 return Response.json(meta());
             }
@@ -373,6 +435,9 @@ const server = Bun.serve({
             }
             return new Response("not found", { status: 404 });
         } catch (err) {
+            if (err instanceof NoTelemetryStoreError) {
+                return Response.json({ error: err.message }, { status: 503 });
+            }
             return Response.json({ error: String(err) }, { status: 400 });
         }
     },
