@@ -82,7 +82,9 @@ import {
     processPendingActionTriggers,
     planDrawStep,
     commitDrawPlan,
+    sourcePreventionShieldApplies,
 } from "../../../../gre/state";
+import { questingBeast } from "../../eld/green";
 import {
     canAffordSacrifice,
     autoResolveFungible,
@@ -687,28 +689,70 @@ describe("Rally (blocking creatures +1/+1, CR 611.2a)", () => {
 });
 
 // --- Warning (prevent combat damage by target attacker) --------------------
+//
+// Warning's Oracle text is byte-identical to Restrain's first line, and per
+// CR 615.1a ("effects that use the word prevent are prevention effects") both
+// are CR 615 source-scoped shields, not the CR 510.1c assigns-no-combat-damage
+// restriction they used to share. The distinction became observable with
+// source-side unpreventable combat damage (CR 615.12, Questing Beast): a
+// shield is overridden, an assignment restriction is not. The second test
+// below is the discriminator — green only while Warning is on `preventDamage`.
 
-describe("Warning (attacker assigns no combat damage, CR 510.1c)", () => {
-    it("resolves and marks the attacker as assigning no combat damage", () => {
-        const attacker = vanilla("atk", 3, 3, {
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+describe("Warning (CR 615 source-scoped prevention shield)", () => {
+    function attackerShieldedByWarning(attacker: CardInstanceState) {
         const state = makeState({
+            activePlayerId: "p2",
             players: [
                 makePlayer("p1"),
                 makePlayer("p2", { battlefield: [attacker] }),
             ],
             combat: {
-                attackerIds: ["atk"],
+                attackerIds: [attacker.id],
                 confirmed: true,
                 blockerAssignments: {},
                 blockersConfirmed: true,
             },
         });
-        pushSpell(state, warning.id, "p1", [{ type: "permanent", id: "atk" }]);
+        pushSpell(state, warning.id, "p1", [
+            { type: "permanent", id: attacker.id },
+        ]);
         resolveTopOfStack(state);
+        return state;
+    }
+
+    it("shields the attacker, and the damage step deals nothing", () => {
+        const attacker = vanilla("atk", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = attackerShieldedByWarning(attacker);
         expect(state.stack).toHaveLength(0);
+        expect(sourcePreventionShieldApplies(state, "atk", true)).toBe(true);
+        applyAllCombatDamage(state, {});
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("is OVERRIDDEN by source-side unpreventable combat damage (CR 615.12)", () => {
+        // A Questing Beast attacking: "combat damage that would be dealt by
+        // creatures you control can't be prevented". A CR 510.1c assigns-none
+        // mark would survive that override, so this assertion is what tells
+        // the two primitives apart — it goes red the moment Warning is moved
+        // back onto `markAssignsNoCombatDamage`.
+        const beast = makeInstance(questingBeast.id, {
+            id: "qb",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = attackerShieldedByWarning(beast);
+        expect(sourcePreventionShieldApplies(state, "qb", true)).toBe(true);
+        expect(sourcePreventionShieldApplies(state, "qb", true, true)).toBe(
+            false
+        );
+        expect(state.sourcePreventionShields?.[0].assignsNone).toBeFalsy();
+        applyAllCombatDamage(state, {});
+        expect(state.players[0].life).toBe(16);
     });
 });
 

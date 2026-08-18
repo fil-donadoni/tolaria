@@ -10704,6 +10704,14 @@
         "firstPrintSet": "sos"
     },
     {
+        "name": "Questing Beast",
+        "scryfallId": "e41cf82d-3213-47ce-a015-6e51a8b07e4f",
+        "oracleId": "b685757b-521e-4353-a233-97052359723d",
+        "firstSet": "eld",
+        "firstPrintId": "e41cf82d-3213-47ce-a015-6e51a8b07e4f",
+        "firstPrintSet": "eld"
+    },
+    {
         "name": "Questing Phelddagrif",
         "scryfallId": "cea4cfef-6736-42a5-9f3e-10de8d0cd8d3",
         "oracleId": "97f3afdb-dcee-44da-b210-c8d20030baff",

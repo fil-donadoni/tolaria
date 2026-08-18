@@ -64,7 +64,11 @@ import {
 } from "./layers";
 import { attackTargetExcessSink, lethalForBlocker } from "./damageAssignment";
 import { isProtectedFromSource } from "./protection";
-import { isCombatDamagePreventedFromSource } from "./combatDamagePrevention";
+import {
+    anyCombatDamageUnpreventableStatic,
+    isCombatDamagePreventedFromSource,
+    isCombatDamageUnpreventable,
+} from "./combatDamagePrevention";
 import {
     collectTriggers,
     buildDelayedTriggerStackItem,
@@ -1162,7 +1166,21 @@ export function applyAllCombatDamage(
     kind: DamageKind = "regular"
 ): void {
     if (!state.combat) return;
-    if (state.preventAllCombatDamageThisTurn) return;
+    // CR 615 — a resolved Fog prevents ALL combat damage this turn, so the
+    // whole step is skipped. CR 615.12 carves one hole in that: a source whose
+    // combat damage "can't be prevented" (Questing Beast) still deals it
+    // THROUGH the Fog, and only that source does — the opponent's creatures
+    // stay fogged. The blanket short-circuit therefore survives only while no
+    // permanent on the board carries the immunity at all, which keeps the fast
+    // path byte-identical for every already-shipped card; when one does, the
+    // per-source `unpreventable` check inside `applyOneCombatDamage` below is
+    // the authority instead.
+    if (
+        state.preventAllCombatDamageThisTurn &&
+        !anyCombatDamageUnpreventableStatic(state)
+    ) {
+        return;
+    }
 
     const activePlayer = getPlayer(state, state.activePlayerId);
     const defenderId = getOpponentId(state, state.activePlayerId);
@@ -1200,6 +1218,28 @@ export function applyAllCombatDamage(
         rawAmount: number
     ): void {
         if (rawAmount <= 0) return;
+        // CR 615.12 — source-side unpreventable combat damage (Questing Beast:
+        // "combat damage that would be dealt by creatures you control can't be
+        // prevented"). Computed ONCE here and threaded into every prevention
+        // gate below, because prevention in this engine is not one chokepoint
+        // but nine, and a gate that forgot to ask is silent — the card passes
+        // its own test and is stopped by whichever shield was missed. The
+        // boolean is the SAME `unpreventable` vocabulary Urza's Rage's kicked
+        // mode already uses on the spell/ability damage path
+        // (`SpellContext.dealDamage`), so there is one concept, not two.
+        //
+        // What it does NOT bypass, deliberately: CR 614 replacement effects
+        // (a distinct rule — redirects still redirect), CR 702.16 protection
+        // (`isProtectedFromSource` below — the engine's standing convention,
+        // documented at `SpellContext.dealDamage`: a card would have to say so
+        // explicitly, and none in the catalogue does), and the CR 510.1c
+        // "assigns no combat damage" entries inside `runDamageReplacement`
+        // (no damage event is produced at all, so there is nothing to protect).
+        const unpreventable = isCombatDamageUnpreventable(state, source);
+        // CR 615 — a resolved Fog. Checked per damage event rather than once
+        // for the whole step (see `applyAllCombatDamage` above): with an
+        // immunity on the board, the Fog still stops every OTHER creature.
+        if (state.preventAllCombatDamageThisTurn && !unpreventable) return;
         // CR 510.1c / 615 — the SOURCE-scoped prevention shields (Farrel's
         // Mantle "assigns no combat damage", Falling Timber / Guard Dogs /
         // Radiant Kavu "prevent all combat damage <X> would deal") are checked
@@ -1210,8 +1250,9 @@ export function applyAllCombatDamage(
         // CR 615 — Ebony Horse: prevent all combat damage to and by the
         // shielded creature. Block both directions before the replacement
         // pipeline (the damage simply never happens).
-        if (isCombatDamageImmune(state, source.id)) return;
+        if (!unpreventable && isCombatDamageImmune(state, source.id)) return;
         if (
+            !unpreventable &&
             rawTarget.type === "permanent" &&
             isCombatDamageImmune(state, rawTarget.id)
         ) {
@@ -1223,33 +1264,44 @@ export function applyAllCombatDamage(
             source.controllerId,
             rawTarget,
             rawAmount,
-            true
+            true,
+            unpreventable
         );
         if (!repl) return;
         const finalTarget = repl.target;
         const finalAmount = repl.amount;
         if (finalAmount <= 0) return;
         if (finalTarget.type === "player") {
-            if (consumePreventionIfAny(state, source.id, finalTarget.id))
+            // CR 615.12 — an unpreventable event skips the shield ENTIRELY
+            // rather than consuming it: "existing damage prevention shields
+            // won't be reduced by damage that can't be prevented".
+            if (
+                !unpreventable &&
+                consumePreventionIfAny(state, source.id, finalTarget.id)
+            )
                 return;
             const desc = describeDamageSource(state, source.id);
             // CR 615.1: per-player source-matched shields (Dark Sphere /
             // Scarecrow). Scarecrow's "by creatures with flying" reads the
             // attacker's keywords off the damage source description.
-            let reduced = applyPlayerDamagePrevention(
-                state,
-                finalTarget.id,
-                source.id,
-                desc.staticAbilities,
-                finalAmount
-            );
+            let reduced = unpreventable
+                ? finalAmount
+                : applyPlayerDamagePrevention(
+                      state,
+                      finalTarget.id,
+                      source.id,
+                      desc.staticAbilities,
+                      finalAmount
+                  );
             if (reduced <= 0) return;
-            reduced = applyTargetPrevention(
-                state,
-                "player",
-                finalTarget.id,
-                reduced
-            );
+            reduced = unpreventable
+                ? reduced
+                : applyTargetPrevention(
+                      state,
+                      "player",
+                      finalTarget.id,
+                      reduced
+                  );
             if (reduced <= 0) return;
             // CR 702.90a — infect deals combat damage to a player as poison
             // counters instead of life loss (CR 702.90c: still "damage" for
@@ -1338,14 +1390,19 @@ export function applyAllCombatDamage(
             // CR 615 / 611 — continuous source-filtered combat-damage
             // prevention (Enchanted Being, Wall of Vapor). Re-evaluated live
             // each combat: prevents all combat damage from a matching source.
-            if (isCombatDamagePreventedFromSource(state, targetCard, source))
+            if (
+                !unpreventable &&
+                isCombatDamagePreventedFromSource(state, targetCard, source)
+            )
                 return;
-            const reduced = applyTargetPrevention(
-                state,
-                "permanent",
-                finalTarget.id,
-                finalAmount
-            );
+            const reduced = unpreventable
+                ? finalAmount
+                : applyTargetPrevention(
+                      state,
+                      "permanent",
+                      finalTarget.id,
+                      finalAmount
+                  );
             if (reduced <= 0) return;
             // CR 120.3c / 704.5i (issue #1220) — combat damage dealt to a
             // planeswalker removes that many loyalty counters instead of being
@@ -1529,8 +1586,16 @@ export function applyAllCombatDamage(
                     );
                 } else {
                     // CR 615 — Forcefield: cap damage from unblocked creature
+                    // ("prevent all but 1 damage that would be dealt to you by
+                    // target attacking creature"). A prevention effect, so
+                    // CR 615.12 unpreventable combat damage passes the cap
+                    // untouched AND leaves the shield unspent ("existing
+                    // damage prevention shields won't be reduced by damage
+                    // that can't be prevented").
                     let damage = attackerPower;
-                    const caps = state.damageCapShields;
+                    const caps = isCombatDamageUnpreventable(state, attacker)
+                        ? undefined
+                        : state.damageCapShields;
                     if (caps && caps.length > 0) {
                         const capIdx = caps.findIndex(
                             (s) => s.playerId === defenderId

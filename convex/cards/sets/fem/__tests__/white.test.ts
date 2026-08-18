@@ -42,6 +42,7 @@ import {
 } from "../../../../game";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { grizzlyBears, lightningBolt, monssGoblinRaiders } from "../../lea";
+import { questingBeast } from "../../eld/green";
 import { matchesPermanentFilter } from "../../../filters";
 import {
     makeInstance,
@@ -849,7 +850,7 @@ describe("Order of Leitbur — protection + pump knight (CR 702.16 / 611)", () =
 });
 
 describe("Heroism — sacrifice-a-white-creature punisher prevention on red attackers (CR 615, 117.3a)", () => {
-    function heroismBoard(): {
+    function heroismBoard(oppExtra: CardInstanceState[] = []): {
         state: GameState;
         heroismInst: CardInstanceState;
     } {
@@ -867,15 +868,22 @@ describe("Heroism — sacrifice-a-white-creature punisher prevention on red atta
             isAttacking: true,
         });
         const state = makeState({
+            activePlayerId: "p2",
             players: [
                 makePlayer("p1", { battlefield: [heroismInst] }),
-                makePlayer("p2", { battlefield: [redAttacker] }),
+                makePlayer("p2", { battlefield: [redAttacker, ...oppExtra] }),
             ],
+            combat: {
+                attackerIds: ["red-atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
         });
         return { state, heroismInst };
     }
 
-    it("marks the attacking red creature to assign no combat damage when its controller declines to pay {2}{R}", () => {
+    it("shields the attacking red creature when its controller declines to pay {2}{R}", () => {
         const { state, heroismInst } = heroismBoard();
         resolveActivated(state, heroismInst, "heroism-prevent");
         const head = state.pendingChoices?.[0];
@@ -897,7 +905,7 @@ describe("Heroism — sacrifice-a-white-creature punisher prevention on red atta
         );
     });
 
-    it("does not mark the attacker when its controller pays {2}{R}", () => {
+    it("does not shield the attacker when its controller pays {2}{R}", () => {
         const { state, heroismInst } = heroismBoard();
         state.players[1].manaPool = { C: 2, R: 1 };
         resolveActivated(state, heroismInst, "heroism-prevent");
@@ -905,6 +913,37 @@ describe("Heroism — sacrifice-a-white-creature punisher prevention on red atta
         expect(sourcePreventionShieldApplies(state, "red-atk", true)).toBe(
             false
         );
+    });
+
+    it("is OVERRIDDEN by source-side unpreventable combat damage (CR 615.12)", () => {
+        // Heroism's Oracle text says "PREVENT all combat damage that would be
+        // dealt by that creature this turn", and per CR 615.1a ("effects that
+        // use the word prevent are prevention effects") that makes it a CR 615
+        // shield, not the CR 510.1c "assigns no combat damage" assignment
+        // restriction. A Questing Beast on the same battlefield ("combat
+        // damage that would be dealt by creatures you control can't be
+        // prevented") therefore overrides it and the Goblin's 1 damage lands.
+        // An assigns-none mark would SURVIVE the override, so these three
+        // assertions are what tell the two primitives apart — they go red the
+        // moment Heroism is moved back onto `markAssignsNoCombatDamage`.
+        const beast = makeInstance(questingBeast.id, {
+            id: "qb",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const { state, heroismInst } = heroismBoard([beast]);
+        resolveActivated(state, heroismInst, "heroism-prevent");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(sourcePreventionShieldApplies(state, "red-atk", true)).toBe(
+            true
+        );
+        expect(
+            sourcePreventionShieldApplies(state, "red-atk", true, true)
+        ).toBe(false);
+        expect(state.sourcePreventionShields?.[0].assignsNone).toBeFalsy();
+        applyAllCombatDamage(state, {});
+        expect(state.players[0].life).toBe(19);
     });
 });
 

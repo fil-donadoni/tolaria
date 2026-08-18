@@ -309,8 +309,19 @@ export const heroism: CardDefinition = {
             useStack: true,
             resolve: (ctx: SpellContext) => {
                 // CR 615 — for each attacking red creature, its controller may
-                // pay {2}{R} to avoid the prevention; otherwise it assigns no
-                // combat damage this turn.
+                // pay {2}{R} to avoid the prevention; otherwise all combat
+                // damage that creature would deal this turn is PREVENTED.
+                //
+                // The Oracle text says "prevent", so per CR 615.1a ("effects
+                // that use the word prevent are prevention effects") this is a
+                // CR 615 source-scoped shield, NOT the CR 510.1c "assigns no
+                // combat damage" assignment restriction — same outcome on an
+                // ordinary board, opposite answers under a source-side
+                // "combat damage can't be prevented" static (CR 615.12,
+                // Questing Beast), which overrides the shield and leaves the
+                // damage to land. Same shape as Warning / Restrain / Loafing
+                // Giant; do NOT route this through
+                // `ctx.markAssignsNoCombatDamage`.
                 const attackers = ctx.allPlayerIds.flatMap((p) =>
                     ctx
                         .getBattlefieldIds(p, {
@@ -325,13 +336,13 @@ export const heroism: CardDefinition = {
                         playerId: owner,
                         choiceId: `heroism-${ctx.sourceInstanceId}-${id}`,
                         cost: { X: 2, R: 1 },
-                        prompt: "Heroism: pay {2}{R} or this attacking red creature assigns no combat damage this turn.",
+                        prompt: "Heroism: pay {2}{R} or all combat damage this attacking red creature would deal this turn is prevented.",
                     });
                     if (paid === undefined) return; // suspended
                     if (!paid) {
-                        ctx.markAssignsNoCombatDamage({
-                            type: "permanent",
-                            id,
+                        ctx.preventAllDamageFromSources({
+                            sourceIds: [id],
+                            combatOnly: true,
                         });
                     }
                 }

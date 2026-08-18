@@ -10,7 +10,8 @@
  *
  * CR references: 508.1 (attack declaration), 508.1a (a planeswalker as the
  * attack target), 509.1 (block declaration), 510.1c (combat damage to the
- * defending player), 704.5a (a player at 0 or less life loses).
+ * defending player), CR 615 (prevention), CR 615.12 (unpreventable damage),
+ * 704.5a (a player at 0 or less life loses).
  */
 
 import { describe, it, expect } from "vitest";
@@ -21,6 +22,7 @@ import {
     declaredBlockDelta,
 } from "../evaluate";
 import { blockDeltaOf } from "../search";
+import { applyAllCombatDamage } from "../phases";
 import type { GameState } from "../state";
 import {
     makeInstance,
@@ -453,5 +455,60 @@ describe("the term's TWO wiring seams, counted once each (issue #1489)", () => {
         expect(lethalUnblockedDelta(noBlock, DEFENDER)).toBe(0);
         // −24 face damage x W_LIFE(8), no creature dies: the pre-fix value.
         expect(declaredBlockDelta(noBlock, DEFENDER)).toBe(-192);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// The Fog x source-side unpreventable combat damage (CR 615 / 615.12, #2395)
+// ---------------------------------------------------------------------------
+//
+// `declaredFaceDamage` skips its blanket `preventAllCombatDamageThisTurn`
+// return whenever `anyCombatDamageUnpreventableStatic` is true — and that
+// helper is BOARD-WIDE, so an OPPONENT's Questing Beast disables it just as
+// the term's own controller's does. The engine has no such hole: it re-asks
+// per damage event (`applyOneCombatDamage`, phases.ts). Each case below pins
+// the mirror against the engine's own answer for the same position.
+describe("declaredFaceDamage mirrors the engine's per-attacker Fog (CR 615.12)", () => {
+    /** p1 attacks unblocked; `beastController` seats a Questing Beast (never
+     *  attacking — it only has to be on a battlefield for the board-wide
+     *  static scan to see it). A Fog is up. */
+    function fogAndABeast(beastController: string) {
+        const state = position({
+            attackers: [{ power: 2, toughness: 2 }],
+            defenderLife: 2,
+        });
+        const beast = makeInstance(getCardByName("Questing Beast").id, {
+            id: "qb",
+            controllerId: beastController,
+            ownerId: beastController,
+        });
+        const seat = state.players.find((p) => p.id === beastController)!;
+        seat.battlefield.push(beast);
+        state.preventAllCombatDamageThisTurn = true;
+        return state;
+    }
+
+    const lifeOf = (s: GameState, id: string) =>
+        s.players.find((p) => p.id === id)!.life;
+
+    it("stays EXACTLY ZERO when the Beast belongs to the DEFENDER", () => {
+        // The Fog still stops p1's 2/2 — the Beast grants "can't be prevented"
+        // only to creatures ITS controller controls, and p2 is not attacking.
+        const state = fogAndABeast(DEFENDER);
+        expect(lethalUnblockedDelta(state, ATTACKER)).toBe(0);
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        // ...and that is what the engine does with the identical position.
+        applyAllCombatDamage(state, {});
+        expect(lifeOf(state, DEFENDER)).toBe(2);
+    });
+
+    it("still sees lethal when the Beast belongs to the ATTACKER", () => {
+        // Same Fog, same 2/2 — but now its controller has the immunity, so the
+        // damage connects and the defender dies. The term must NOT be zeroed.
+        const state = fogAndABeast(ATTACKER);
+        expect(lethalUnblockedDelta(state, ATTACKER)).toBe(WIN_SCORE);
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
+        applyAllCombatDamage(state, {});
+        expect(lifeOf(state, DEFENDER)).toBe(0);
     });
 });
