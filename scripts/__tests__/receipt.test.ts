@@ -915,7 +915,7 @@ describe("newestBatchDir", () => {
 
     it("ignores plain files sitting next to the batch directories", () => {
         touch(path.join(tmp, "sess-1"), Date.now() - 5_000);
-        fs.writeFileSync(path.join(tmp, "README.md"), "not a batch");
+        fs.writeFileSync(path.join(tmp, "stray-file.txt"), "not a batch");
         // A stray file must never win just because fs.statSync happily
         // returns an mtime for it too.
         expect(newestBatchDir(tmp)).toBe("sess-1");
