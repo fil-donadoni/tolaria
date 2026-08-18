@@ -1,7 +1,8 @@
 ---
 title: land force-pushes and merges in the same breath, losing to GitHub's mergeability recompute
 discoveredBy: 2517
-status: draft
+status: triaged
+issue: 2536
 confidence: high
 ---
 
@@ -75,6 +76,8 @@ Closing it would mean denying `gh pr merge` everywhere except from inside
 recovery actions taken precisely _because_ `land` had failed. Denying them without
 first making `land` converge would leave no way to land anything. Sequence matters:
 fix the retry above first, then consider the guard.
+
+**Triaged 2026-08-18.** The retry and the two residuals are #2536; the merge-guard tightening is #2537, explicitly blocked on #2536 landing.
 
 **Why it may not deserve its own issue.** It is a defect in code that shipped
 hours earlier rather than an independent gap, so it could equally be folded into
