@@ -182,15 +182,39 @@ export function scanFile(file: string): MarkerRecord[] {
 // next comment line before matching, dropping that line's own `//`/`/*`/`*`
 // prefix first (else the fold string still reads "tracked-by: // #675" and
 // the immediately-following-`#` match fails). `TRACKED_BY_G` also accepts an
-// optional bare word between the colon and the number — a prefixed-repo-slug
-// form (`woe/colorless.ts`'s `TODO(tracked-by: tolaria` + `#1324)`) the
-// plain `#NNN` shape missed even on a single line. (Written split across two
-// literals right here on purpose — this file is itself in-scope tracked
+// optional, ANCHORED `tolaria` literal between the colon and the number — a
+// prefixed-repo-slug form (`woe/colorless.ts`'s `TODO(tracked-by: tolaria` +
+// `#1324)`) the plain `#NNN` shape missed even on a single line. Anchored,
+// not a bare word: every referenced issue in this sweep is same-repo (`gh
+// issue view` below resolves against this repo only), so a DIFFERENT
+// prefix — `tracked-by: otherrepo#12`, `tracked-by: v2#5` — is a foreign
+// ref this scanner cannot check and must not silently misresolve as local
+// issue 12 or 5; it now falls through unmatched instead (round 3 fix, issue
+// #2560 — the prior `[A-Za-z][\w.-]*` accepted ANY bare word, so a foreign
+// ref reported confident nonsense about a same-numbered local issue). A
+// slash-qualified form (`acme/otherrepo#12`) already fell through before
+// this change and still does — no live site uses one. (Written split across
+// two literals right here on purpose — this file is itself in-scope tracked
 // source, and an unbroken example would register as a live marker on ITSELF.)
+//
+// KNOWN FALSE POSITIVE (pinned by a test, not fixed — issue #2560 fixup
+// round 3, finding 1): the fold triggers on ANY comment line ending in the
+// literal words "tracked-by:", not only a genuine wrapped reference —
+// `TRACKED_BY_TAIL` cannot tell "nothing is tracked-by:" (ordinary prose)
+// from a real wrap, and the guard only checks that the FOLLOWING line is A
+// comment, not that it continues the same clause. So:
+//   // no live ticket; nothing is tracked-by:
+//   // #4242 was closed as a duplicate.
+// folds to `[[4242]]` today, attributing an unrelated issue number as this
+// paragraph's tracking ref. Zero instances of this shape existed in the
+// repo when this was found (grepped across every `tracked-by:`-adjacent
+// comment); if that changes, tighten `TRACKED_BY_TAIL` (e.g. require the
+// tail to follow an opening paren/bracket rather than bare prose) instead
+// of widening the guard further.
 const COMMENT_LINE = /^\s*(\/\/|\/\*|\*)/;
 const COMMENT_PREFIX = /^\s*(\/\/|\/\*\*?|\*)\s*/;
 const TRACKED_BY_TAIL = /tracked-by:\s*$/i;
-const TRACKED_BY_G = /tracked-by:\s*(?:[A-Za-z][\w.-]*)?#(\d+)/gi;
+const TRACKED_BY_G = /tracked-by:\s*(?:tolaria)?#(\d+)/gi;
 
 /** Every explicit `tracked-by: #NNN` occurrence on a comment line of `text`
  *  (`//`, `/*`, `/**` or a ` * ` JSDoc continuation) — independent of any

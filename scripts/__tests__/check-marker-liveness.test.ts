@@ -192,17 +192,45 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         expect(hits[0].issueNumbers).toEqual([1324]);
     });
 
-    it("does NOT fold when the line after a bare `tracked-by:` is not a comment — no phantom cross-boundary match", () => {
+    it("does NOT resolve a `tracked-by: <foreign-prefix>#NNN` ref as a local issue (issue #2560 fixup round 3, finding 2: the prefix was a bare `[A-Za-z][\\w.-]*` word, so `tracked-by: otherrepo#12` and `tracked-by: v2#5` used to resolve as LOCAL issues 12 and 5 — confident nonsense about a foreign repo's numbering. The prefix is now anchored to the literal `tolaria`; anything else falls through unmatched. A slash-qualified prefix (`acme/otherrepo#12`) already fell through before this change since `/` sits outside the accepted character class)", () => {
         const sources = [
             {
                 file: "convex/gre/foo.ts",
                 text: [
-                    "// some prose ending in tracked-by:",
-                    "export const foo = 1; // #4242 is just code, not a fold target",
+                    "// tracked-by: otherrepo#12 and tracked-by: v2#5 and tracked-by: acme/otherrepo#12",
+                    "export {};",
                 ].join("\n"),
             },
         ];
         expect(scanRepoMarkers(sources)).toEqual([]);
+    });
+
+    it("does NOT fold when the line after a bare `tracked-by:` is not a comment — no phantom cross-boundary match (issue #2560 fixup round 3: the prior fixture never reached `COMMENT_LINE.test(lines[i + 1])` at all — its `#4242` sat mid-line on `export const foo = 1; // #4242 …`, so `TRACKED_BY_G` could not match it whether or not the guard ran, and deleting the guard left all 28 tests green. This fixture puts the `#NNN` at the very START of the next, non-comment line — the reviewer's own proof shape: without the guard this folds to `tracked-by: #4242` and matches; with the guard, the fold never happens and nothing matches)", () => {
+        const sources = [
+            {
+                file: "convex/gre/foo.ts",
+                text: [
+                    "// dangling tracked-by:",
+                    "#4242 raw non-comment line",
+                ].join("\n"),
+            },
+        ];
+        expect(scanRepoMarkers(sources)).toEqual([]);
+    });
+
+    it("KNOWN FALSE POSITIVE (pinned, not fixed — issue #2560 fixup round 3, finding 1): prose ending in the literal words `tracked-by:` folds with an unrelated issue number on the next comment line. `TRACKED_BY_TAIL` cannot distinguish a genuine wrapped reference from a sentence that merely ends in those words, and `COMMENT_LINE.test(lines[i + 1])` only requires the next line to BE a comment, not that it continues the same clause. Zero instances of this shape exist in the repo today (grepped at fixup time), so this is not a live false green — but it is reachable, and the module note above documents it. Do not extend this fixture's shape or 'fix' it without updating the note.", () => {
+        const sources = [
+            {
+                file: "convex/gre/foo.ts",
+                text: [
+                    "// no live ticket; nothing is tracked-by:",
+                    "// #4242 was closed as a duplicate.",
+                ].join("\n"),
+            },
+        ];
+        const hits = scanRepoMarkers(sources);
+        expect(hits).toHaveLength(1);
+        expect(hits[0].issueNumbers).toEqual([4242]);
     });
 
     it("still drops a stub-context hit even under the widened scan", () => {
