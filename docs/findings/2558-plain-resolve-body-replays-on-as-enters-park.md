@@ -1,7 +1,8 @@
 ---
 title: A plain resolve() body replays in full when an as-enters park suspends its resolution
 discoveredBy: 2558
-status: draft
+status: triaged
+issue: 2570
 confidence: high
 ---
 
@@ -45,11 +46,17 @@ exempting as-enters parks everywhere, on the grounds that "the rest of the
 resolution would run without" the permanent, which is precisely what does not
 apply to a body that has already finished.
 
-**Why it may not deserve its own issue.** Only one shipped card reaches it
-through the token-copy path, and that one is now guarded card-side; the census
-row B analogue (a plain `resolve()` that puts a Clone-shaped card onto the
-battlefield) may have no shipped producer at all. If a sweep of
-`convex/cards/sets/**` for plain-`resolve()` bodies calling a
-battlefield-entering primitive comes back empty apart from Sin, this is a line
-on ADR 0100 rather than a ticket. If it comes back non-empty, every one of those
-cards is silently double-resolving today and it is a bug with a blast radius.
+**Why it may not deserve its own issue — resolved: it did.** The hedge below was
+written before the sweep ran, and the sweep refuted it. Measured on `main` with a
+plain `resolve()` that gains 1 life and then puts a card declaring an As-Enters
+Choice onto the battlefield: the controller went 20 -> 21 -> 22, i.e. the body ran
+twice. The row B analogue is not hypothetical and Sin is not the only reachable
+producer — a census of plain-`resolve()` bodies calling a battlefield-entering
+primitive comes back non-empty, and any generic reanimation or put-onto-battlefield
+effect can reach one of the wired As-Enters declarations. By this file's own
+closing test that makes it "a bug with a blast radius", so it was cut as #2570.
+
+The original hedge, kept for provenance: only one shipped card reaches it through
+the token-copy path and that one is now guarded card-side, so if the sweep had
+come back empty apart from Sin this would have been a line on ADR 0100 rather
+than a ticket.
