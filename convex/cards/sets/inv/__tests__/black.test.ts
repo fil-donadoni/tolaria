@@ -2073,6 +2073,76 @@ describe("Addle (choose a color; target player reveals hand, you choose a card o
         );
     });
 
+    it("the pick is MANDATORY when the hand holds a card of that color — an empty submission is rejected", () => {
+        const blackCard = makeInstance(bogInitiate.id, {
+            id: "p2-black-mand",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [blackCard] }),
+            ],
+        });
+        pushSpell(state, addle.id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull();
+        const colorPick = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: colorPick.stackItemId,
+            step: colorPick.step,
+            choiceId: colorPick.choiceId,
+            cardInstanceIds: ["2"], // black
+        });
+        const cardPick = state.pendingChoices![0];
+        // Oracle text has no "may" — a fixed count, not the `{ min: 0, max: 1 }`
+        // optional-range shape (CR 608.2b).
+        expect(cardPick.count).toBe(1);
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: cardPick.stackItemId,
+                step: cardPick.step,
+                choiceId: cardPick.choiceId,
+                cardInstanceIds: [],
+            })
+        ).toThrow("Select at least 1 card");
+    });
+
+    it("raises no choice at all when the hand holds no card of the chosen color (CR 608.2b)", () => {
+        const whiteCard = makeInstance(savannahLions.id, {
+            id: "p2-white-only",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [whiteCard] }),
+            ],
+        });
+        pushSpell(state, addle.id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull();
+        const colorPick = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: colorPick.stackItemId,
+            step: colorPick.step,
+            choiceId: colorPick.choiceId,
+            cardInstanceIds: ["2"], // black — nothing in hand matches
+        });
+        // The count clamps to an empty candidate set: no second prompt, the
+        // spell finishes resolving and the white card stays in hand.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual([
+            "p2-white-only",
+        ]);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
     it("wire format: the reveal keeps the opponent's remaining hand visible to the caster after resolution", () => {
         const blackCard = makeInstance(bogInitiate.id, {
             id: "p2-black-wire",
