@@ -8,7 +8,7 @@ import { AURA_AFFECTS_HOST } from "../../types";
 import { equipAbility } from "../../abilities/equipment";
 
 // Horizon Canopy — {T}, Pay 1 life: Add {G} or {W}; {1}, {T}, Sacrifice: Draw a
-// card. (CR 605.1a mana ability — useStack: false, CR 605.3a; CR 118.4 life
+// card. (CR 605.1a mana ability — useStack: false, CR 605.3a; CR 119.4 life
 // payment as part of the cost; CR 305 land. The cantrip-sacrifice ability is a
 // normal activated ability that uses the stack, CR 602.) Composed entirely from
 // existing primitives — the painland mana ability mirrors Standing Stones (DRK).

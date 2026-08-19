@@ -824,7 +824,7 @@ function enqueueDrawReplacementPay(
 
 /** Commits a `draw-replacement` `PendingChoice` (CR 614, ADR 0061 — Zur's
  *  Weirding) raised at the draw step. `paid` true: the choosing player pays the
- *  life cost (CR 118.4) and the revealed card goes to its owner's graveyard.
+ *  life cost (CR 119.4) and the revealed card goes to its owner's graveyard.
  *  `paid` false: the drawing player draws it. Resumes the draw-step priority
  *  window afterward. */
 export function finalizeDrawReplacementPay(
@@ -837,7 +837,7 @@ export function finalizeDrawReplacementPay(
     const chooserId = head.playerId;
     const drawingPlayerId = head.zoneOwnerId ?? head.playerId;
     if (paid && head.cost) {
-        // CR 118.4 — paying life routes through the shared choke (lifeloss
+        // CR 119.4 — paying life routes through the shared choke (lifeloss
         // replacement chain + LIFE_LOST emit).
         payMayPayCost(state, chooserId, head.cost);
     }

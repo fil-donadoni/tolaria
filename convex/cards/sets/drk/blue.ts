@@ -144,7 +144,7 @@ export const apprenticeWizard: CardDefinition = {
 // Erosion — Aura enchant land. "At the beginning of the upkeep of enchanted
 // land's controller, destroy that land unless that player pays {1} or 1 life."
 // (CR 603.6a upkeep trigger scoped to the HOST's controller + CR 117.3a do-X-
-// unless-you-pay with a choice of {1} OR 1 life — CR 118.4 life payment.) The
+// unless-you-pay with a choice of {1} OR 1 life — CR 119.4 life payment.) The
 // "pay {1} or 1 life" alternatives are offered as two sequential may-pay
 // prompts: mana first, then (if declined) 1 life; declining both destroys the
 // land.
@@ -199,7 +199,7 @@ export const erosion: CardDefinition = {
                 });
                 if (paidMana === undefined) return; // suspended
                 if (paidMana) return;
-                // Declined the mana — offer 1 life instead (CR 118.4).
+                // Declined the mana — offer 1 life instead (CR 119.4).
                 if (ctx.getLife(scopedPlayerId) >= 1) {
                     const paidLife = ctx.requestMayPay({
                         playerId: scopedPlayerId,

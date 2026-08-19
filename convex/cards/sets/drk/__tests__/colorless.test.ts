@@ -251,7 +251,7 @@ describe("Bone Flute — {2},{T}: all creatures get -1/-0 EOT (CR 611.2)", () =>
     });
 });
 
-describe("Book of Rass — {2}, Pay 2 life: Draw a card (CR 118.4/121.1)", () => {
+describe("Book of Rass — {2}, Pay 2 life: Draw a card (CR 119.4/121.1)", () => {
     it("draws one card (the life cost is enforced by the cost layer)", () => {
         const book = makeInstance(bookOfRass.id, {
             id: "book",

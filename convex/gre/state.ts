@@ -2335,7 +2335,7 @@ export type PendingActivation = {
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */
     removeCounterCost?: { type: string; count: number };
-    /** Life-payment cost (CR 118.4 — "Pay N life"). Validated up-front at
+    /** Life-payment cost (CR 119.4 — "Pay N life"). Validated up-front at
      *  announcement (activateAbility); the life is deducted at commit so a
      *  cancelled/dropped payment leaves the total untouched. */
     lifeCost?: number;
@@ -9820,7 +9820,7 @@ export function emitLifeLost(
 }
 
 /** Single choke point for a NON-damage life loss (CR 119.3): a "lose life"
- *  effect (`loseLife` primitive) or a paid life cost (CR 118.4). Runs the CR
+ *  effect (`loseLife` primitive) or a paid life cost (CR 119.4). Runs the CR
  *  614 lifeloss replacement layer (Lich's "if you would lose life, ... instead"
  *  may rewrite the amount or consume it), applies the resulting life drop, and
  *  emits LIFE_LOST with the actual amount lost so "whenever you lose life"
@@ -19190,7 +19190,7 @@ export function canPayRemoveCounterCost(
     return (card.counters?.[cost.type] ?? 0) >= cost.count;
 }
 
-/** CR 118.4 — whether `player` may pay a life cost: a payment greater than 0 is
+/** CR 119.4 — whether `player` may pay a life cost: a payment greater than 0 is
  *  legal only when the life total is at least the amount. Same three-caller
  *  contract as `canPayRemoveCounterCost` above; the server throws "Not enough
  *  life" on the same comparison. */
@@ -21102,7 +21102,7 @@ export function payMayPayCost(
         commitLandsForCost(player, normalized);
     }
     if (norm.life !== undefined && norm.life > 0) {
-        // CR 118.4 — paying life is losing life. Routes through the shared
+        // CR 119.4 — paying life is losing life. Routes through the shared
         // choke point so it runs the CR 614 lifeloss replacement chain (Lich)
         // AND emits LIFE_LOST (CR 119.3) like every other life-loss path
         // (Oath of Lim-Dûl).

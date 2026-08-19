@@ -844,7 +844,7 @@ export const flowOfMaggots: CardDefinition = {
 };
 // Foul Familiar — 3/1 that can't block (CR 509.1b block-restriction, ADR 0006)
 // with a "{B}, Pay 1 life: Return this creature to its owner's hand." dodge
-// (CR 118.4 life cost, CR 701.14 move-to-hand).
+// (CR 119.4 life cost, CR 701.14 move-to-hand).
 export const foulFamiliar: CardDefinition = {
     id: "8bad3541-8e40-4a2f-ac9d-f7b61f3d75a1",
     name: "Foul Familiar",
@@ -2353,7 +2353,7 @@ export const moorFiend: CardDefinition = {
 //      when the event fires, so the resolve moves it graveyard → exile.
 //   3. "Pay 1 life: Exile the top card of your library face down. Put that card
 //      into your hand at the beginning of your next end step." — a life-cost
-//      activated ability (CR 118.4) that exiles the top library card face down
+//      activated ability (CR 119.4) that exiles the top library card face down
 //      (`exileFaceDown`, ADR 0026 impulse-draw) and schedules a next-end-step
 //      delayed trigger (CR 603.7a) carrying that card's id; the delayed trigger
 //      moves it exile → hand. Each activation schedules its own delayed trigger,
@@ -2398,7 +2398,7 @@ export const necropotence: CardDefinition = {
         }),
     ],
     activatedAbilities: [
-        // 3. CR 118.4 — "Pay 1 life: Exile the top card of your library face
+        // 3. CR 119.4 — "Pay 1 life: Exile the top card of your library face
         //    down. Put that card into your hand at the beginning of your next
         //    end step."
         {
@@ -3119,7 +3119,7 @@ export const stenchOfEvil: CardDefinition = {
     ],
 };
 // Stromgald Cabal — "{T}, Pay 1 life: Counter target white spell." (CR 602.1
-// tap + CR 118.4 life cost; CR 701.6 counter restricted to white spells via the
+// tap + CR 119.4 life cost; CR 701.6 counter restricted to white spells via the
 // spell-target `colorFilter`.)
 export const stromgaldCabal: CardDefinition = {
     id: "6ac6fa0c-753e-4fbc-8a70-0f956503cf4e",

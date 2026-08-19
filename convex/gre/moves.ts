@@ -1160,7 +1160,7 @@ function enumerateAbilityMoves(
         ) {
             continue;
         }
-        // CR 118.4 — a life cost is unpayable below that much life; the server
+        // CR 119.4 — a life cost is unpayable below that much life; the server
         // throws "Not enough life" on the same comparison.
         if (
             ability.cost.life !== undefined &&

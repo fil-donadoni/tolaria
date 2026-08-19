@@ -50,7 +50,7 @@ export const concordantCrossroads: CardDefinition = {
 // Sylvan Library — "At the beginning of your draw step, you may draw two
 // additional cards. If you do, choose two cards in your hand drawn this turn.
 // For each of those cards, pay 4 life or put the card on top of your library."
-// (CR 603.6a draw-step trigger, CR 121.1 draw, CR 118.4 life payment.)
+// (CR 603.6a draw-step trigger, CR 121.1 draw, CR 119.4 life payment.)
 //
 // Migrated resolve()→effects[] (ADR 0045, issue #1283) via two Ops: the "you
 // may draw two additional cards" decision is a cost-free `mayPay` (issue

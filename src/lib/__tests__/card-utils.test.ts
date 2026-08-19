@@ -1278,11 +1278,11 @@ describe("getStackAbilities", () => {
         });
     });
 
-    // CR 118.4 — a "pay N life" activation cost is unpayable when the payer has
+    // CR 119.4 — a "pay N life" activation cost is unpayable when the payer has
     // fewer than N life. The menu must hide the ability rather than offer it and
     // let the server throw "Not enough life" at commit time. Griselbrand's
     // "Pay 7 life: Draw seven cards."
-    describe("life-payment cost affordability (CR 118.4)", () => {
+    describe("life-payment cost affordability (CR 119.4)", () => {
         const griselbrandId = "b51666ae-2aef-4cb1-9cd4-44aec81530f8";
         const makeGriselbrand = () =>
             makeCardInstance({

@@ -1731,7 +1731,7 @@ export const mercenaries: CardDefinition = {
     ],
 };
 // Order of the Sacred Torch — {T}, Pay 1 life: Counter target black spell
-// (CR 701.6 counter, CR 118.4 life cost). Target restricted to black spells on
+// (CR 701.6 counter, CR 119.4 life cost). Target restricted to black spells on
 // the stack via the spell color filter.
 export const orderOfTheSacredTorch: CardDefinition = {
     id: "ccc5cb36-c43d-4c71-8019-9b683e160a0a",

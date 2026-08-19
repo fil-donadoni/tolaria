@@ -469,7 +469,7 @@ export const ragMan: CardDefinition = {
 // Season of the Witch — "At the beginning of your upkeep, sacrifice this
 // enchantment unless you pay 2 life.\nAt the beginning of the end step, destroy
 // all untapped creatures that didn't attack this turn, except for creatures
-// that couldn't attack." (CR 603.6a + CR 118.4 upkeep pay-2-life-or-sacrifice;
+// that couldn't attack." (CR 603.6a + CR 119.4 upkeep pay-2-life-or-sacrifice;
 // CR 603.6a each end step a mass destroy of untapped creatures that didn't
 // attack — excepting those that "couldn't attack": creatures with defender or
 // that were summoning-sick this turn.)
@@ -508,7 +508,7 @@ export const seasonOfTheWitch: CardDefinition = {
             // boolean, matching what `answerChoice` alone can drive.
             resolve: (ctx) => {
                 const controller = ctx.controller;
-                // CR 118.4 — can't pay 2 life you don't have: forced sacrifice.
+                // CR 119.4 — can't pay 2 life you don't have: forced sacrifice.
                 if (ctx.getLife(controller) < 2) {
                     ctx.sacrifice(ctx.sourceInstanceId);
                     return;

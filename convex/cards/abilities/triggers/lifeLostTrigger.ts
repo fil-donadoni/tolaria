@@ -1,7 +1,7 @@
 // `lifeLostTrigger` — declarative factory for CR 119.3 "whenever you lose life"
 // triggered abilities. Listens to LIFE_LOST, emitted by the engine's life-loss
 // choke points: the `loseLifeEmitting` helper (the `loseLife` primitive and
-// paid life costs, CR 118.4) and every damage-to-player sink (CR 119.3 —
+// paid life costs, CR 119.4) and every damage-to-player sink (CR 119.3 —
 // combat, noncombat, and reflected damage), which all call `emitLifeLost`
 // AFTER the player's life total has actually dropped. Card authors describe
 // whose loss counts (scope) and what to do; the factory narrows the event type

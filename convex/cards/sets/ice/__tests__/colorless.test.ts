@@ -854,7 +854,7 @@ describe("ICE basic-land reprints (CardPrint wiring, ADR 0014 / CR 305.6)", () =
     });
 });
 
-describe("may-pay cost union — life / mana+life legs (CR 118.4, ADR 0042)", () => {
+describe("may-pay cost union — life / mana+life legs (CR 119.4, ADR 0042)", () => {
     function bf() {
         const land = makeInstance(getCardByName("Forest").id, {
             id: "l0",

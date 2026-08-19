@@ -6786,7 +6786,7 @@ describe("Effect Script value grammar: negate (signed value negation, issue #926
     // to the SIGNED value grammar (`EffectSignedValue`, `isSignedEffectValue`),
     // today only `pump`'s power/toughness. Unblocks "-X/-X" style pump amounts
     // driven off a non-negative-by-nature value member (Toxic Deluge's
-    // pay-X-life additional cost, CR 118.4 — "All creatures get -X/-X until
+    // pay-X-life additional cost, CR 118.4 / 119.4 — "All creatures get -X/-X until
     // end of turn"). Exercised here: a single-target -X/-X pump (the direct
     // Toxic Deluge shape), a mass -X/-X across EVERY player's creatures via
     // forEach (Toxic Deluge's actual scope), and the CR 608.2b skip when the
@@ -19443,7 +19443,7 @@ describe("Effect Script Op: putBack (CR 401.4, issue #1046)", () => {
 // construct combinations it participates in (pool clamp, CR 119.4 life
 // clamp, suspend/resume checkpoint), plus a wire-format assertion through
 // projectPublicState.
-describe("Effect Script Op: rangedTopdeck (CR 118.4 / 121.1, issue #1283)", () => {
+describe("Effect Script Op: rangedTopdeck (CR 119.4 / 121.1, issue #1283)", () => {
     const handOf = (owner: "p1" | "p2", ids: string[]) =>
         ids.map((cid) =>
             makeInstance(BEAR_ID, {

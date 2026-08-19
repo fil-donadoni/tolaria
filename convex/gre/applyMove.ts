@@ -333,7 +333,7 @@ export function applyActivationCostsForSearch(
     }
 
     if (ability.cost.tap) src.isTapped = true;
-    // CR 118.4 — the life leg (fetchland-style "Pay N life", Griselbrand).
+    // CR 119.4 — the life leg (fetchland-style "Pay N life", Griselbrand).
     if (ability.cost.life !== undefined && payer) {
         payer.life -= ability.cost.life;
     }

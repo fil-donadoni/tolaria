@@ -205,7 +205,7 @@ export default function LibraryOrderPicker({
      *  `keep`; leftover hand cards move nowhere (`onConfirm`'s second array is
      *  ignored by the caller). `min` (default = `keep`, the exact Brainstorm
      *  shape) is the FLOOR: a RANGED put-back (Sylvan Library's `rangedTopdeck`,
-     *  CR 118.4 — put back or pay life per kept card, issue #1691) passes
+     *  CR 119.4 — put back or pay life per kept card, issue #1691) passes
      *  `min` 0 so the player may put none back, or the CR 119.4 floor when they
      *  cannot pay for every kept card. Mutually exclusive with `distribute`. */
     putBack?: { keep: number; min?: number };

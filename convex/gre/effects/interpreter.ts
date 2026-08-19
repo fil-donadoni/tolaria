@@ -4903,7 +4903,7 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.setPlayerProtectionFromEverything(playerId);
     },
-    // CR 118.4 / 121.1 (issue #1283) — a single ranged 0..N pick over the
+    // CR 119.4 / 121.1 (issue #1283) — a single ranged 0..N pick over the
     // resolved player's "drawn this turn" hand cards: each NOT selected costs
     // `costPerKept` life (CR 119.4 floor clamp), each selected goes to the
     // library top via the SAME "hand → library-top" primitive `putBack` uses.

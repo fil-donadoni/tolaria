@@ -68,7 +68,7 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
 import { castle, crusade, grizzlyBears, lightningBolt } from "../../lea";
 
-describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)", () => {
+describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () => {
     it("draws two, scopes the pick to cards drawn this turn, mixed selection topdecks one and pays for the kept one", () => {
         // h0 was drawn this turn (e.g. the turn-based draw); x9 was not.
         const { state, sylvan } = makeSylvanState({

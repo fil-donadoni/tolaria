@@ -256,7 +256,7 @@ export const ancientSpider: CardDefinition = {
 // Cavern Harpy — {U}{B} Creature — Harpy Beast, 2/1. The set's engine piece:
 // the mandatory ETB bounce plus a free self-bounce for 1 life, which together
 // let it re-trigger any other ETB indefinitely. The self-bounce is a plain
-// activated ability with a CR 118.4 life cost (`cost: { life: 1 }`) — no mana,
+// activated ability with a CR 119.4 life cost (`cost: { life: 1 }`) — no mana,
 // no tap, so it is usable the turn it enters (summoning sickness only gates
 // {T} costs, CR 302.6).
 export const cavernHarpy: CardDefinition = {

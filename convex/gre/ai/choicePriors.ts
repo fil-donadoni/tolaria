@@ -52,7 +52,7 @@ export type ChoiceCandidateHint = {
     /** Summed board worth of the material this candidate gives up (sacrificed
      *  permanents / discarded cards). 0 when it gives up none. */
     materialGivenUp?: number;
-    /** Life this candidate pays (CR 118.4). 0 / undefined when it pays none. */
+    /** Life this candidate pays (CR 119.4). 0 / undefined when it pays none. */
     lifePaid?: number;
     /** Summed latent worth of the material this candidate GAINS — the cards a
      *  library search finds (CR 701.23). 0 for a "fail to find" (CR 701.23b).

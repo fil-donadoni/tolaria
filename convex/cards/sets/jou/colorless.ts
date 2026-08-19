@@ -5,7 +5,7 @@
 import type { ActivatedAbilityContext, CardDefinition } from "../../types";
 
 // Mana Confluence — "{T}, Pay 1 life: Add one mana of any color." (CR 605.1a
-// mana ability, `useStack: false`, CR 118.4 life payment cost.) The any-color
+// mana ability, `useStack: false`, CR 119.4 life payment cost.) The any-color
 // choice follows the established Birds of Paradise / Talisman shape.
 // Vintage Cube free tranche (issue #675, ADR 0041).
 export const manaConfluence: CardDefinition = {

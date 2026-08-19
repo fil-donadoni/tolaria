@@ -627,7 +627,7 @@ export const cyclopeanMummy: CardDefinition = {
     ],
 };
 
-// Greed — "{B}, Pay 2 life: Draw a card." (CR 118.4 life payment + CR 121.1
+// Greed — "{B}, Pay 2 life: Draw a card." (CR 119.4 life payment + CR 121.1
 // draw.)
 export const greed: CardDefinition = {
     id: "111a16a2-e875-4756-80db-290f9e8606db",

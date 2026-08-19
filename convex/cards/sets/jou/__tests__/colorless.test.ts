@@ -7,7 +7,7 @@ import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 
 // Mana Confluence — "{T}, Pay 1 life: Add one mana of any color." (CR 605.1a
-// mana ability, CR 118.4 life payment cost.) Unlike the Talisman/painland
+// mana ability, CR 119.4 life payment cost.) Unlike the Talisman/painland
 // cycle, EVERY colour choice costs the same flat 1 life (uniform `cost.life`,
 // no per-choice damage rider) — a plain any-colour mana ability with a life
 // tax on the whole activation.

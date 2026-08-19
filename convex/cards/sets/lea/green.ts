@@ -176,7 +176,7 @@ export const birdsOfParadise: CardDefinition = {
 };
 
 // CR 605.1a — the granted ability adds mana and does not target, so it
-// qualifies as a mana ability (useStack: false). CR 118.4 — paying 1 life
+// qualifies as a mana ability (useStack: false). CR 119.4 — paying 1 life
 // requires player.life >= 1; SBA handles reaching 0 (CR 704.5a).
 const CHANNEL_ID = "c1862c47-71cc-45a3-8805-a5ddc62e55ea";
 

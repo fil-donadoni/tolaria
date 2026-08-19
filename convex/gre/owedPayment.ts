@@ -99,7 +99,7 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     castOffSorceryTiming: "non-park",
     /** ADR 0037 — who ANSWERS choices, not a choice itself. */
     actingPlayerId: "non-park",
-    /** CR 118.4 — a scalar deducted at commit; the payer names nothing. */
+    /** CR 119.4 — a scalar deducted at commit; the payer names nothing. */
     payLife: "non-park",
 
     // ── PARKS (CR 601.2f/601.2g/118.8/118.9) ───────────────────────────────
@@ -157,7 +157,7 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         sacrificeSource: "non-park",
         /** CR 122.6 — counters removed at commit. */
         removeCounterCost: "non-park",
-        /** CR 118.4 — life deducted at commit. */
+        /** CR 119.4 — life deducted at commit. */
         lifeCost: "non-park",
         /** Jandor's Ring — the card is determined by the game, not the payer. */
         discardLastDrawnSource: "non-park",

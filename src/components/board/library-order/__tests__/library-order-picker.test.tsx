@@ -285,7 +285,7 @@ describe("LibraryOrderPicker", () => {
         expect(onConfirm).not.toHaveBeenCalled();
     });
 
-    // Ranged put-back (Sylvan Library's `rangedTopdeck`, CR 118.4, issue
+    // Ranged put-back (Sylvan Library's `rangedTopdeck`, CR 119.4, issue
     // #1691): `min` 0 means "put none back and pay life for both" is legal, so
     // Done is enabled with an empty top zone — and the top zone still accepts
     // up to `keep`.

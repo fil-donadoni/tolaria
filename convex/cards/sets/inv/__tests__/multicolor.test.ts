@@ -778,7 +778,7 @@ describe("Vile Consumption (triggered-grant to every creature, CR 113.1/611 + up
         ).toBe(false);
     });
 
-    it("paying 1 life keeps the creature (CR 118.4)", () => {
+    it("paying 1 life keeps the creature (CR 119.4)", () => {
         const { state } = withVileConsumption("p1");
         state.stack.push(
             ...collectTriggers(state, [

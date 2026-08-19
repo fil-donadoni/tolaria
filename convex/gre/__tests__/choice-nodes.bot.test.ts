@@ -243,7 +243,7 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         ]);
     });
 
-    it("may-pay (CR 118.4): an UNAFFORDABLE cost self-prunes to the decline", () => {
+    it("may-pay (CR 119.4): an UNAFFORDABLE cost self-prunes to the decline", () => {
         const state = stateWithChoice({ kind: "may-pay", cost: { life: 99 } });
         const cands = choiceCandidates(state, state.pendingChoices![0]);
         expect(cands.map((c) => c.key)).toEqual(["may-pay:no"]);

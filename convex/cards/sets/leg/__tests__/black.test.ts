@@ -405,7 +405,7 @@ describe("Cyclopean Mummy (dies → exile, CR 603.2 / 406)", () => {
     });
 });
 
-describe("Greed ({B}, Pay 2 life: Draw a card, CR 118.4 / 121.1)", () => {
+describe("Greed ({B}, Pay 2 life: Draw a card, CR 119.4 / 121.1)", () => {
     it("draws a card and costs 2 life", () => {
         const greedInst = makeInstance(greed.id, {
             id: "greed",

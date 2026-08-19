@@ -350,7 +350,7 @@ describe("Centaur Archer ({T}: 1 damage to a flyer, CR 605 / 120.1)", () => {
     });
 });
 
-describe("Essence Vortex (destroy unless pay life = toughness, CR 118.4 / 701.19a)", () => {
+describe("Essence Vortex (destroy unless pay life = toughness, CR 119.4 / 701.19a)", () => {
     function answerMayPay(state: GameState, accept: boolean): void {
         // applyMayPaySubmit commits the answer and re-resumes the suspended
         // resolution itself when the choice queue empties — no extra resolve.
@@ -395,7 +395,7 @@ describe("Essence Vortex (destroy unless pay life = toughness, CR 118.4 / 701.19
         expect(state.players[1].graveyard.some((c) => c.id === "v")).toBe(true);
         expect(state.players[1].life).toBe(20);
     });
-    it("destroys outright when the controller cannot afford the life (CR 118.4)", () => {
+    it("destroys outright when the controller cannot afford the life (CR 119.4)", () => {
         const state = setup(5, 3);
         pushSpell(state, essenceVortex.id, "p1", [
             { type: "permanent", id: "v" },

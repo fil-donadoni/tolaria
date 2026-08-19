@@ -124,7 +124,7 @@ describe("bot shock-land full path (CR 614.12, ADR 0051)", () => {
         expect(state.pendingChoices ?? []).toHaveLength(0);
     });
 
-    it("declines and enters tapped when it cannot afford the life (CR 118.4)", async () => {
+    it("declines and enters tapped when it cannot afford the life (CR 119.4)", async () => {
         const state = makeShockState(1);
         await runBotPlay(state);
 

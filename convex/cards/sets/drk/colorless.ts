@@ -92,7 +92,7 @@ export const boneFlute: CardDefinition = {
 };
 
 // Book of Rass — "{2}, Pay 2 life: Draw a card." (CR 605 activated ability;
-// CR 118.4 life payment as part of the cost; CR 121.1 draw. Same shape as
+// CR 119.4 life payment as part of the cost; CR 121.1 draw. Same shape as
 // Greed.)
 export const bookOfRass: CardDefinition = {
     id: "5a391ada-e9e3-45db-ae84-17421ac6b44d",
@@ -421,7 +421,7 @@ export const skullOfOrm: CardDefinition = {
 
 // Standing Stones — "{1}, {T}, Pay 1 life: Add one mana of any color." (CR 605.1
 // mana ability — resolves immediately, useStack: false, CR 605.3a; CR 106.1 mana
-// of any color via `manaChoices`; CR 118.4 life payment as part of the cost.)
+// of any color via `manaChoices`; CR 119.4 life payment as part of the cost.)
 export const standingStones: CardDefinition = {
     id: "6d4c853e-2231-4af2-bcb0-1781c18ec3be",
     rarity: "uncommon",

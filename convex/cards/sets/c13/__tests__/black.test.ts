@@ -18,8 +18,8 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 
 // Toxic Deluge — {2}{B} Sorcery. "As an additional cost to cast this spell,
-// pay X life. All creatures get -X/-X until end of turn." (CR 118.4 pay-X-life
-// additional cost, CR 611.2 temporary P/T reduction). Shipped as issue #926's
+// pay X life. All creatures get -X/-X until end of turn." (CR 118.4 / 119.4
+// pay-X-life additional cost, CR 611.2 temporary P/T reduction). Shipped as issue #926's
 // motivating card: a forEach sweep (no `controller` — EVERY player's
 // creatures) whose `pump` amounts are `{ negate: { X: true } }`, the negated
 // chosen-cost X the SIGNED value grammar now supports. `forEach`/`pump`/`X`/
@@ -28,7 +28,7 @@ import { projectPublicState } from "../../../../gameProjections";
 // power/toughness are not a plain number literal — an intentional, documented
 // skip (`convex/gre/effects/scenarioGenerator.ts`), which is this file's
 // justification for a hand-written test.
-describe("Toxic Deluge ({X}{2}{B} sorcery — pay X life, all creatures get -X/-X, CR 118.4 / 611.2, issue #926)", () => {
+describe("Toxic Deluge ({X}{2}{B} sorcery — pay X life, all creatures get -X/-X, CR 118.4 / 119.4 / 611.2, issue #926)", () => {
     it("sweeps every creature on BOTH sides for -X/-X — a 2/2 dies (CR 704.5f), a 6/4 survives shrunk", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "deluge-bear",
