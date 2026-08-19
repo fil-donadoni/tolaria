@@ -11,11 +11,17 @@
 //     generated itself (the bot-freeze shape, ADR 0047).
 //   • CHARGE — the search sandbox actually pays the leg it announced. Bitter
 //     Triumph's two legs differ ONLY in cost, so an uncharged leg makes the two
-//     Moves indistinguishable and the pick pure rollout noise.
+//     Moves indistinguishable and the pick pure rollout noise. There are TWO
+//     sandboxes and they are separate code paths — `applyMoveForSearch`
+//     (`applyMove.ts`, the greedy/dominance sandbox) and `applyMoveInSearch`
+//     (`search.ts`, the ISMCTS tree) — so each is asserted on its own. Driving
+//     only the greedy one leaves the ISMCTS charge free to be deleted with the
+//     suite still green.
 
 import { describe, it, expect } from "vitest";
 import { enumerateMoves } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
+import { applyMoveInSearch } from "../search";
 import { getPlayer, type GameState } from "../state";
 import {
     makeInstance,
@@ -101,20 +107,28 @@ describe("Bitter Triumph — Bot visibility (one Move per payable leg)", () => {
         expect(new Set(legIds)).toEqual(new Set(["pay-3-life"]));
     });
 
-    it("the search sandbox CHARGES the leg it announced (never a free cast)", () => {
-        const state = board({ life: 20, spare: 2 });
+    /** The two enumerated Bitter Triumph casts, one per leg. */
+    function legMoves(state: GameState) {
         const casts = enumerateMoves(state, "p1").filter(
             (m) => m.kind === "cast-spell" && m.cardInstanceId === "bt"
         );
-        const lifeMove = casts.find(
-            (m) =>
-                m.kind === "cast-spell" &&
-                m.additionalCostLegId === "pay-3-life"
-        )!;
-        const discardMove = casts.find(
-            (m) =>
-                m.kind === "cast-spell" && m.additionalCostLegId === "discard"
-        )!;
+        return {
+            lifeMove: casts.find(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.additionalCostLegId === "pay-3-life"
+            )!,
+            discardMove: casts.find(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.additionalCostLegId === "discard"
+            )!,
+        };
+    }
+
+    it("the GREEDY sandbox (applyMoveForSearch) CHARGES the leg it announced", () => {
+        const state = board({ life: 20, spare: 2 });
+        const { lifeMove, discardMove } = legMoves(state);
 
         const afterLife = applyMoveForSearch(state, "p1", lifeMove);
         const lp = getPlayer(afterLife, "p1");
@@ -125,6 +139,30 @@ describe("Bitter Triumph — Bot visibility (one Move per payable leg)", () => {
 
         const afterDiscard = applyMoveForSearch(state, "p1", discardMove);
         const dp = getPlayer(afterDiscard, "p1");
+        expect(dp.life).toBe(20);
+        expect(
+            dp.graveyard.filter((c) => c.id.startsWith("spare"))
+        ).toHaveLength(1);
+    });
+
+    it("the ISMCTS sandbox (applyMoveInSearch) CHARGES the leg it announced", () => {
+        // The tree's own apply path, mutating in place. Cloned per move so the
+        // two rollouts start from the same board — and so the assertion cannot
+        // accidentally compare a state with itself (proof-of-failure shape 2).
+        const state = board({ life: 20, spare: 2 });
+        const { lifeMove, discardMove } = legMoves(state);
+
+        const lifeWorld = structuredClone(state);
+        applyMoveInSearch(lifeWorld, "p1", lifeMove);
+        const lp = getPlayer(lifeWorld, "p1");
+        expect(lp.life).toBe(17);
+        expect(lp.graveyard.filter((c) => c.id.startsWith("spare"))).toEqual(
+            []
+        );
+
+        const discardWorld = structuredClone(state);
+        applyMoveInSearch(discardWorld, "p1", discardMove);
+        const dp = getPlayer(discardWorld, "p1");
         expect(dp.life).toBe(20);
         expect(
             dp.graveyard.filter((c) => c.id.startsWith("spare"))

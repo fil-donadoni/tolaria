@@ -284,6 +284,7 @@ import {
 import {
     additionalCostHandLeg,
     additionalCostLegs,
+    additionalCostLifePayment,
     canPayAdditionalCostSpec,
     resolveAdditionalCosts,
 } from "./gre/additionalCost";
@@ -6680,14 +6681,13 @@ export function finalizeTargetSelection(
         additionalCostLegId
     );
 
-    // CR 601.2b / 118.4 — "pay X life" additional cost (Fire Covenant). X was
-    // chosen at announcement and rides on `pt.chosenX`; the life is paid the
-    // instant the spell hits the stack (immediate or deferred commit below).
+    // CR 601.2b / 118.4 / 119.4 — the card's OWN "pay X life" / "pay N life"
+    // additional cost (Fire Covenant, Fumarole, Bitter Triumph's chosen life
+    // leg), through the seam BOTH commit paths share. X was chosen at
+    // announcement and rides on `pt.chosenX`; the life is paid the instant the
+    // spell hits the stack (immediate or deferred commit below).
     const payLife =
-        (effectiveAdditionalCosts?.payXLife === true ? (chosenX ?? 0) : 0) +
-        // CR 601.2b — a FIXED "pay N life" additional cost (Fumarole), or the
-        // life leg of a chosen `oneOf` (Bitter Triumph's "pay 3 life").
-        (effectiveAdditionalCosts?.payLife ?? 0) +
+        additionalCostLifePayment(effectiveAdditionalCosts, chosenX) +
         // CR 119.4 / 118.9 — the LIFE leg of the chosen alternative cost (Snuff
         // Out "pay 4 life", Force of Will "pay 1 life and exile a blue card").
         (chosenAltCost?.life ?? 0) +
@@ -8259,14 +8259,15 @@ export const announceCast = mutation({
         // NON-targeting spell reaches this branch instead and paid nothing —
         // Toxic Deluge's "pay X life" (c13, `payXLife`) was validated as
         // affordable at announcement and then never charged. The two commit
-        // paths owe the same cost, so they now compute it the same way; the
-        // caster-chosen `oneOf` life leg (Bitter Triumph's "pay 3 life") rides
-        // the same term through `effectiveAdditionalCosts`.
+        // paths owe the same cost, so they now compute it through the SAME
+        // seam (`additionalCostLifePayment`) rather than two hand-written
+        // copies; the caster-chosen `oneOf` life leg (Bitter Triumph's "pay 3
+        // life") rides it too, via the already-flattened
+        // `effectiveAdditionalCosts`.
         const phyrexianPayLife =
             phyrexianPayment.payLife +
             kickerLifeCost(cardDef, kickerPayments) +
-            (effectiveAdditionalCosts?.payXLife === true ? (chosenX ?? 0) : 0) +
-            (effectiveAdditionalCosts?.payLife ?? 0) +
+            additionalCostLifePayment(effectiveAdditionalCosts, chosenX) +
             // CR 118.9-analog / 119.4 (issue #2398) — the life that REPLACES
             // the whole mana cost on a cast off the top of the library
             // (Bolas's Citadel). `castRawManaCost` already zeroed the mana

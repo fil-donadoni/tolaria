@@ -32,6 +32,8 @@ import {
     LEG_COST_KEYS,
 } from "../gre/additionalCost";
 import { assertLegalAction, getLegalActions } from "../gre/rules";
+import { nextOwedPayment } from "../gre/owedPayment";
+import { pickForOwedPayment } from "../gre/paymentPicks";
 import {
     finalizeTargetSelection,
     recordCastAlternativeHandCostPick,
@@ -40,6 +42,8 @@ import {
 import { projectPublicState } from "../gameProjections";
 import { compactState, expandState } from "../gre/serialize";
 import { getPlayer, type GameState, type PendingTarget } from "../gre/state";
+import { getAllCards } from "../cards";
+import type { AdditionalCostSpec } from "../cards/types";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { bitterTriumph } from "../cards/sets/lci";
 import { grizzlyBears, lightningBolt } from "../cards/sets/lea";
@@ -316,6 +320,44 @@ describe("Bitter Triumph — cast commit pays the CHOSEN leg (CR 601.2f / 601.2h
     });
 });
 
+// The BOT side of the same park. `moves.ts` enumerates the discard-leg cast,
+// so `PendingCast.alternativeCostHandChoice` — a branch that shipped explicitly
+// UNREACHABLE in `paymentPicks.ts` — is now a park the bot actually has to
+// answer. An unanswered park is a frozen game (ADR 0047), and the freeze is
+// silent: `enumerateMoves` returns nothing at a park, so the bot simply stops.
+describe("Bitter Triumph — the BOT answers the parked discard leg (ADR 0047 / ADR 0091)", () => {
+    it("the park is reported as owed, picked from hand, and commits the cast", () => {
+        const state = board({ life: 20, spare: 2 });
+        finalizeTargetSelection(state, pendingTargetFor("discard"), "p1");
+
+        // 1. The park is what the bot is owed — from `expectedInput`'s own
+        //    census, never a parallel derivation.
+        const owed = nextOwedPayment(state, "p1");
+        expect(owed?.kind).toBe("cast:alternativeCostHandChoice");
+
+        // 2. `paymentPicks.ts` answers it with a real card from hand — NOT
+        //    Bitter Triumph itself (CR 601.2a).
+        const submission = pickForOwedPayment(state, "p1", owed!);
+        expect(submission?.mutation).toBe("selectCastAlternativeHandCost");
+        const picked =
+            submission?.mutation === "selectCastAlternativeHandCost"
+                ? submission.cardInstanceIds
+                : [];
+        expect(picked).toHaveLength(1);
+        expect(picked[0]).toMatch(/^spare/);
+
+        // 3. Realising that submission pays the leg and unblocks the cast —
+        //    nothing is owed afterwards.
+        recordCastAlternativeHandCostPick(state, "p1", picked);
+        tryAutoCommitPendingCast(state, "p1");
+        const player = getPlayer(state, "p1");
+        expect(state.stack).toHaveLength(1);
+        expect(player.graveyard.map((c) => c.id)).toEqual(picked);
+        expect(player.life).toBe(20);
+        expect(nextOwedPayment(state, "p1")).toBeNull();
+    });
+});
+
 describe("Bitter Triumph — wire format (the client sees the choice)", () => {
     it("projectPublicState preserves the parked discard picker and the chosen leg", () => {
         const state = board({ life: 20, spare: 2 });
@@ -337,5 +379,129 @@ describe("Bitter Triumph — wire format (the client sees the choice)", () => {
         expect(round.pendingCast?.alternativeCostHandChoice?.action).toBe(
             "discard"
         );
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Catalogue guard — every declared `oneOf` disjunction is WELL FORMED.
+//
+// `AdditionalCostLeg.id` is what the caster names in `announceCast`'s
+// `additionalCostLegId`, and `resolveAdditionalCosts` resolves it with a plain
+// `.find()`. Two legs sharing an id therefore make the SECOND unreachable: the
+// picker offers both rows, the caster clicks either, and the FIRST leg's cost
+// is what gets charged — a mispaid cost, silent everywhere. A leg declaring no
+// cost field at all is worse: it is a FREE leg on a card whose oracle text says
+// it costs something, and it is always payable, so it also defeats the CR
+// 601.2h castability gate.
+//
+// Neither shape is expressible as a TypeScript constraint (both are perfectly
+// typed), and neither is caught by the affordability sweep in
+// `src/lib/__tests__/cast-additional-cost-legs.catalogue.test.ts` — it compares
+// SORTED id arrays, so a duplicate id appears identically on both sides and
+// passes. This is the guard the type docs promise.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Every way a declared `oneOf` can be malformed, as `card → complaint`
+ *  strings. Pure over a card list so the fixtures below can prove it fires. */
+function malformedOneOfLegs(
+    defs: readonly { name: string; additionalCosts?: AdditionalCostSpec }[]
+): string[] {
+    const out: string[] = [];
+    for (const def of defs) {
+        const legs = def.additionalCosts?.oneOf;
+        if (!legs || legs.length === 0) continue;
+        // CR 601.2b — a disjunction of one is not a choice; it is a plain
+        // additional cost declared in the wrong shape.
+        if (legs.length < 2) {
+            out.push(`${def.name}: oneOf has ${legs.length} leg`);
+        }
+        const seen = new Set<string>();
+        for (const leg of legs) {
+            if (!leg.id.trim()) {
+                out.push(`${def.name}: a leg has a blank id`);
+            } else if (seen.has(leg.id)) {
+                out.push(`${def.name}: duplicate leg id "${leg.id}"`);
+            }
+            seen.add(leg.id);
+            if (!leg.label.trim()) {
+                out.push(`${def.name}: leg "${leg.id}" has a blank label`);
+            }
+            // An empty leg is a FREE leg — always payable, and it flattens
+            // nothing onto the spec.
+            if (!LEG_COST_KEYS.some((k) => leg[k] !== undefined)) {
+                out.push(`${def.name}: leg "${leg.id}" declares no cost`);
+            }
+        }
+    }
+    return out;
+}
+
+describe("catalogue guard — every additionalCosts.oneOf is well formed (CR 601.2b)", () => {
+    it("the whole catalogue is clean", () => {
+        const withLegs = getAllCards().filter(
+            (c) => (c.additionalCosts?.oneOf?.length ?? 0) > 0
+        );
+        // Non-vacuity: deleting the last disjunction card must not silence
+        // this guard.
+        expect(withLegs.length).toBeGreaterThan(0);
+        expect(
+            malformedOneOfLegs(withLegs),
+            "a duplicate leg id makes the later leg unreachable " +
+                "(`resolveAdditionalCosts` takes the first match) and an " +
+                "empty leg is a free cost — both are silent everywhere else."
+        ).toEqual([]);
+    });
+
+    it("flags a duplicate leg id", () => {
+        expect(
+            malformedOneOfLegs([
+                {
+                    name: "Fixture",
+                    additionalCosts: {
+                        oneOf: [
+                            { id: "a", label: "A", payLife: 3 },
+                            { id: "a", label: "B", discard: { count: 1 } },
+                        ],
+                    },
+                },
+            ])
+        ).toEqual(['Fixture: duplicate leg id "a"']);
+    });
+
+    it("flags a leg that declares no cost at all", () => {
+        expect(
+            malformedOneOfLegs([
+                {
+                    name: "Fixture",
+                    additionalCosts: {
+                        oneOf: [
+                            { id: "a", label: "A", payLife: 3 },
+                            { id: "free", label: "Nothing" },
+                        ],
+                    },
+                },
+            ])
+        ).toEqual(['Fixture: leg "free" declares no cost']);
+    });
+
+    it("flags a blank id, a blank label and a one-leg disjunction", () => {
+        expect(
+            malformedOneOfLegs([
+                {
+                    name: "Fixture",
+                    additionalCosts: {
+                        oneOf: [{ id: " ", label: "", payLife: 1 }],
+                    },
+                },
+            ])
+        ).toEqual([
+            "Fixture: oneOf has 1 leg",
+            "Fixture: a leg has a blank id",
+            'Fixture: leg " " has a blank label',
+        ]);
+    });
+
+    it("passes the real Bitter Triumph", () => {
+        expect(malformedOneOfLegs([bitterTriumph])).toEqual([]);
     });
 });

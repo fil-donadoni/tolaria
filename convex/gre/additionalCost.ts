@@ -66,6 +66,33 @@ export function resolveAdditionalCosts(
     return flat;
 }
 
+/** CR 601.2b / 119.4 — the LIFE a cast owes for the card's OWN additional cost:
+ *  the `payXLife` variable leg priced at the announced X (Toxic Deluge, Fire
+ *  Covenant), plus any FIXED `payLife` (Fumarole, or the chosen `oneOf` life
+ *  leg — Bitter Triumph's "pay 3 life"). Takes the ALREADY-FLATTENED spec, so
+ *  it prices the leg the caster announced and never re-derives one.
+ *
+ *  This is the shared seam BOTH cast-commit paths fold into their single life
+ *  payment, and it exists because they did not: `finalizeTargetSelection` (the
+ *  targeted commit) had the term inline and `announceCast`'s NO-TARGET commit
+ *  had none at all, so a non-targeting spell with a life additional cost was
+ *  validated as affordable at announcement and then never charged — Toxic
+ *  Deluge's "pay X life" was free. Two hand-written copies of a cost cannot be
+ *  kept in step by review; one named function called from both can, and
+ *  `castCommitLifeSeam.test.ts` fails when a commit path stops calling it.
+ *
+ *  Deliberately NOT included: the Phyrexian pips (CR 107.4f), the Kicker life
+ *  leg (CR 702.33a) and the alternative cost's life leg (CR 118.9) — those are
+ *  different costs with their own seams, and only the TARGETED path can carry
+ *  an alternative cost at all. */
+export function additionalCostLifePayment(
+    spec: AdditionalCostSpec | undefined,
+    chosenX: number | undefined
+): number {
+    if (!spec) return 0;
+    return (spec.payXLife === true ? (chosenX ?? 0) : 0) + (spec.payLife ?? 0);
+}
+
 /** Every COST-bearing key {@link resolveAdditionalCosts} projects off a leg
  *  (i.e. `AdditionalCostLeg` minus its `id`/`label` metadata). Exported purely
  *  so a catalogue guard can fail when the type grows a leg the projection

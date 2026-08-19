@@ -196,6 +196,39 @@ describe("executeMove (issue #110)", () => {
         expect(m.confirmTargets).toHaveBeenCalledWith(GP);
     });
 
+    // CR 601.2b (issue #2379) — the caster-chosen ADDITIONAL cost leg. The Move
+    // carries the leg the search valued and CHARGED
+    // (`applyAdditionalCostLegForSearch`); the executor must hand that exact id
+    // to `announceCast`, which rejects a disjunction cast without one ("must
+    // choose which additional cost to pay"). Dropping the forward stalls the
+    // bot on a move it generated itself — the #2283/#2284 freeze shape (ADR
+    // 0047) — and is invisible to every other assertion in this file, because
+    // `toHaveBeenCalledWith` ignores a key whose value is `undefined`.
+    it("cast-spell → announceCast carries the chosen additional-cost leg id (#2379)", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "bitter-triumph",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            additionalCostLegId: "pay-3-life",
+            confirmTargets: false,
+            targets: [{ type: "permanent", id: "bears" }],
+            tapPlan: [],
+        });
+        expect(m.announceCast).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "bitter-triumph",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            additionalCostLegId: "pay-3-life",
+        });
+        // Explicit: the id is on the announcement, not smuggled into a later
+        // mutation (the leg is paid AT announcement, CR 601.2h).
+        expect(m.announceCast.mock.calls[0][0].additionalCostLegId).toBe(
+            "pay-3-life"
+        );
+    });
+
     it("activate-ability → activate, batch-select targets, then fund via tapForActivationPayment", async () => {
         const m = await run({
             kind: "activate-ability",

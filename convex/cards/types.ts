@@ -1708,10 +1708,15 @@ export interface CostLegs {
  *  chosen leg flattens onto the spec (`resolveAdditionalCosts`,
  *  `convex/gre/additionalCost.ts`) and every downstream cost site keeps reading
  *  one flat shape. Declare exactly the fields the leg pays; an empty leg is a
- *  free leg and is rejected by the catalogue guard. */
+ *  free leg, and is rejected — with a duplicate or blank id, a blank label and
+ *  a one-leg "disjunction" — by the catalogue guard in
+ *  `convex/__tests__/additionalCostLegChoice.test.ts`. */
 export interface AdditionalCostLeg {
     /** Stable id the caster names in `announceCast`'s `additionalCostLegId`.
-     *  Unique within the card's `oneOf` (guarded catalogue-wide). */
+     *  Unique within the card's `oneOf` — `resolveAdditionalCosts` resolves it
+     *  with a `.find()`, so a duplicate would make the LATER leg unreachable
+     *  and charge the earlier leg's cost for it. Guarded catalogue-wide (see
+     *  {@link AdditionalCostLeg}). */
     id: string;
     /** Picker label, e.g. "Discard a card" / "Pay 3 life". */
     label: string;
