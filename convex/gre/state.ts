@@ -10396,13 +10396,25 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // the game. The zone change makes a new object, so hand every held
     // occurrence back BEFORE the records are dropped.
     //
-    // EVERY entry is restored, not just the sentinel-keyed ones: a hold whose
-    // source is still on the battlefield is re-applied to the re-entering object
-    // by the ordinary entry-side recompute (`applyExistingGrantsTo`), and a hold
-    // whose source has left is stale by definition — so clearing all of them is
-    // both correct and self-healing. Grant-owned occurrences were already handed
-    // back by the `releaseGrantedKeywordOccurrence` loop above, so what remains
-    // here is the printed card's own keywords. `temporaryRemovedKeywords` (the
+    // EVERY entry is restored, not just the sentinel-keyed ones. For the
+    // `ability-loss` producer (Titania's Song's continuous arm, Oko's `+1`)
+    // that is also self-healing: a hold whose source is still on the
+    // battlefield is re-applied to the re-entering object by the entry-side
+    // recompute — `applyExistingGrantsTo` has an `ability-loss` branch, which
+    // re-stamps the hold with the source's own `staticSeq` — and a hold whose
+    // source has left is stale by definition.
+    //
+    // The OTHER producer, `keyword-remove` (Gravity Sphere), is NOT re-applied
+    // on re-entry: `applyExistingGrantsTo` has no `keyword-remove` branch at
+    // all, so a Serra Angel bounced and recast under a live Gravity Sphere
+    // comes back still flying. That is a PRE-EXISTING entry-side gap, not a
+    // consequence of restoring here — a flier cast fresh from hand under the
+    // same Sphere already keeps flying. Drafted in
+    // `docs/findings/2361-applyexistinggrantsto-has-no-keyword-remove-branch.md`.
+    //
+    // Grant-owned occurrences were already handed back by the
+    // `releaseGrantedKeywordOccurrence` loop above, so what remains here is the
+    // printed card's own keywords. `temporaryRemovedKeywords` (the
     // duration-scoped twin, Shelkin Brownie) rides along: its expiry purge in
     // `phases.ts` scans the BATTLEFIELD only, so a hold that leaves play with
     // the card is never restored either.

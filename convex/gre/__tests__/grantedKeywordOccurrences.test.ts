@@ -24,6 +24,7 @@ import { describe, it, expect } from "vitest";
 import {
     applySourceStaticEffects,
     buildSpellContext,
+    removePermanentTo,
     unapplySourceStaticEffects,
     type CardInstanceState,
     type GameState,
@@ -364,6 +365,39 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
 
             runCleanup(state);
             expect(count(bear, "flying")).toBe(0);
+        });
+
+        it("a duration-scoped strip does NOT survive a bounce — the keyword is back in hand (CR 400.7)", () => {
+            // CR 400.7 — the card that leaves the battlefield is a new object
+            // with no memory of its previous existence, so it cannot still be
+            // missing a printed keyword. The duration-scoped hold is the half
+            // nothing else can release: the expiry purge (`phases.ts`
+            // `finalizeCleanup`) scans the BATTLEFIELD only, so a hold that
+            // leaves play with the card is otherwise held forever, and the
+            // permanent stays flightless in every later zone.
+            const elemental = makeInstance(airElemental.id, { id: "ae-4" });
+            const state = makeBoard(elemental);
+            const ctx = ctxFor(state);
+
+            // Shelkin Brownie / Tolaria shape: "loses <keyword> until end of
+            // turn", on the printed keyword this time (not a counter grant).
+            ctx.removeStaticAbilities(
+                { type: "permanent", id: "ae-4" },
+                (kw) => kw === "flying",
+                UNTIL_EOT
+            );
+            expect(count(elemental, "flying")).toBe(0);
+            expect(elemental.temporaryRemovedKeywords).toHaveLength(1);
+
+            removePermanentTo(state, "ae-4", "hand");
+            const bounced = state.players[0].hand.find((c) => c.id === "ae-4")!;
+            expect(count(bounced, "flying")).toBe(1);
+            expect(bounced.temporaryRemovedKeywords).toBeUndefined();
+
+            // And the purge that would have expired it never sees the card
+            // again, so the restore above is the only one there is.
+            runCleanup(state);
+            expect(count(bounced, "flying")).toBe(1);
         });
     });
 
