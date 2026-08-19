@@ -64,3 +64,36 @@ export function computeLibraryTopRevealedPlayers(
     }
     return revealed;
 }
+
+/** CR 401.5 / 604.2 — ids of the players who may currently LOOK at the top card
+ *  of their own library ("You may look at the top card of your library any
+ *  time" — Bolas's Citadel), derived live from the battlefield exactly like
+ *  {@link computeLibraryTopRevealedPlayers}.
+ *
+ *  Same rule (CR 401.5 covers the reveal and the look in one sentence), same
+ *  position-attached derivation, same CR 401.6 / 701.20d freshness for free —
+ *  and one difference that makes it a SEPARATE set rather than a widened
+ *  scope: this exposure is ASYMMETRIC. Only the library's own controller sees
+ *  the card; the opponent must not. Callers therefore OR the two sets with a
+ *  viewer gate (`gameProjections.ts`), never merge them.
+ *
+ *  A player in BOTH sets is simply revealed — the public reveal subsumes the
+ *  private look, so the OR needs no precedence rule. */
+export function computeLibraryTopLookedAtPlayers(
+    state: GameState
+): Set<string> {
+    const looking = new Set<string>();
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            const cardId = (card.card as { id?: string }).id;
+            const scope = cardId
+                ? tryGetDefinition(cardId)?.looksAtLibraryTop
+                : undefined;
+            if (!scope) continue;
+            // Only scope shipped today (see `CardDefinition.looksAtLibraryTop`);
+            // widen here in lockstep with the union when a card needs it.
+            looking.add(player.id);
+        }
+    }
+    return looking;
+}

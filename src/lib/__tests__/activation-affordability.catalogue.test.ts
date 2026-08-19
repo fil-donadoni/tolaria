@@ -582,21 +582,26 @@ function env(c: Case, broken: boolean) {
             tapHelpers.push(crewHelper(`tap${i}`, match.id, helperDef));
         }
     }
-    // CR 602.1 / 118.5 — one matching permanent to pay a `sacrificeFilter`
-    // cost (Deadapult's "Sacrifice a Zombie"); the break removes it entirely
-    // (there is no partial sacrifice — either a legal candidate exists or it
-    // doesn't, CR 602.1's "illegal if no matching permanent" is a boolean
-    // gate, unlike `tapOtherFilter`'s countable pool).
+    // CR 602.1 / 118.5 — enough matching permanents to pay a `sacrificeFilter`
+    // cost: one for the classic single-permanent shape (Deadapult's "Sacrifice
+    // a Zombie"), `sacrificeFilterCount` of them for a multi-permanent cost
+    // (issue #2398, Bolas's Citadel's "Sacrifice ten nonland permanents").
+    // The break drops exactly ONE below the required count — the same
+    // one-short discipline `tapOtherFilter` uses, and for a single-permanent
+    // cost it degenerates to removing the only candidate.
     const sacrificeHelpers: CardInstance[] = [];
     if (ability.cost.sacrificeFilter) {
         const matchId = findMatchingAnyPermanentCardId(
             ability.cost.sacrificeFilter
         );
-        if (!(broken && shape === "sacrificeFilter")) {
+        const sacNeeded = ability.cost.sacrificeFilterCount ?? 1;
+        const sacCount =
+            broken && shape === "sacrificeFilter" ? sacNeeded - 1 : sacNeeded;
+        for (let i = 0; i < sacCount; i++) {
             if (matchId) {
                 const helperDef = getAllCards().find((d) => d.id === matchId)!;
                 sacrificeHelpers.push({
-                    ...crewHelper("sac0", matchId, helperDef),
+                    ...crewHelper(`sac${i}`, matchId, helperDef),
                     // `findMatchingAnyPermanentCardId` matched every OTHER
                     // dimension while ignoring `isToken` (a real card
                     // definition can never itself be a token) — stamp the
@@ -613,7 +618,7 @@ function env(c: Case, broken: boolean) {
                 // verified satisfiable by `skipReason` before this point.
                 sacrificeHelpers.push(
                     syntheticSacrificeFixture(
-                        "sac0",
+                        `sac${i}`,
                         ability.cost.sacrificeFilter
                     )
                 );

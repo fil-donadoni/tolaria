@@ -202,8 +202,11 @@ import {
     assertLegalAction,
     canCastFromGraveyardByPermission,
     canCastPermanentFromGraveyardByPermission,
+    canCastSpellsFromTopOfLibrary,
     canPlayLandsFromGraveyard,
+    isCastableLibraryTopSpell,
     isPlayableLibraryTopLand,
+    libraryTopCastLifeCost,
     markGraveyardPermanentCastUsed,
     getLegalTargets,
     checkPermanentTargetFilters,
@@ -2418,9 +2421,29 @@ function findGraveyardPermanentPermissionCastable(
         : undefined;
 }
 
+/** CR 601.3e-analog (issue #2398, Bolas's Citadel) — the cast-from-top-of-
+ *  library lookup. Returns the NONLAND card on top of `player`'s own library
+ *  when it matches `instanceId` and `player` holds the cast-from-top
+ *  permission, or undefined. Position-strict (index 0 only): the permission
+ *  names the TOP card and the rest of the library is a hidden zone (CR 400.2),
+ *  so a stale client id naming a card the library has since moved must never
+ *  become a cast from the middle of the deck. Like the graveyard/library land
+ *  permissions this is derived live from the battlefield every call — nothing
+ *  on the card itself to check or clear. */
+function findCastableLibraryTopSpell(
+    state: GameState,
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    if (!isCastableLibraryTopSpell(state, player, instanceId)) return undefined;
+    return player.library[0];
+}
+
 /** The zone a cast originates from (CR 601.3e). Normally the hand; exile for
- *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34). */
-type CastFromZone = "hand" | "exile" | "graveyard";
+ *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34);
+ *  library for a cast off the TOP under a cast-from-top permission
+ *  (CR 601.3e-analog, Bolas's Citadel). */
+type CastFromZone = "hand" | "exile" | "graveyard" | "library";
 
 /** Locate the card being cast and the zone it comes from — hand, exile
  *  (Ice Cauldron, CR 601.3e), or graveyard (Flashback, CR 702.34, Escape,
@@ -2495,6 +2518,17 @@ export function locateCastSource(
             viaGraveyardPermanentPermission: true,
         };
     }
+    // CR 601.3e-analog (issue #2398, Bolas's Citadel) — the NONLAND card on
+    // top of the caster's OWN library, under the player-wide cast-from-top
+    // permission. Last in the chain because every other mechanism above is
+    // scoped to hand/exile/graveyard and can never name a library card, so
+    // the ordering is informational rather than a precedence rule.
+    const libraryTopCast = findCastableLibraryTopSpell(
+        state,
+        player,
+        instanceId
+    );
+    if (libraryTopCast) return { card: libraryTopCast, zone: "library" };
     return { zone: "hand" };
 }
 
@@ -2579,6 +2613,36 @@ export function reboundCastStackFlags(
  *  alternative cost, just the printed one), else the card's printed mana cost
  *  for a hand/exile cast. Exported for the flashback/escape integration tests
  *  (issue #944 pattern). */
+/** CR 118.9-analog / 119.4 / 107.3b (issue #2398, Bolas's Citadel) — the
+ *  payment a cast owes INSTEAD of its mana cost when it comes off the top of
+ *  the caster's library under a permission that replaces the mana cost.
+ *  `undefined` for every other cast (including a library-top cast under a
+ *  permission with no replacement — Vizier of the Menagerie's shape — which
+ *  simply pays the printed cost).
+ *
+ *  The caster is the library's OWNER: `zone === "library"` is only ever
+ *  produced by `locateCastSource`'s own-library branch, and no cross-player
+ *  library-cast primitive exists (mirroring `castZoneOwner`'s reasoning for
+ *  the graveyard).
+ *
+ *  One helper feeds BOTH halves of the substitution — `castRawManaCost` zeroes
+ *  the mana, and each of the three cast-commit life accumulators adds
+ *  `.life` — so the two can never disagree about whether this cast is free. */
+function libraryTopCastPayment(
+    state: GameState,
+    card: CardInstanceState,
+    zone: CastFromZone
+): { life: number } | undefined {
+    if (zone !== "library") return undefined;
+    const owner = state.players.find((p) => p.id === card.ownerId);
+    if (!owner) return undefined;
+    const grant = canCastSpellsFromTopOfLibrary(state, owner);
+    if (grant?.manaCostReplacement !== "life-equal-to-mana-value") {
+        return undefined;
+    }
+    return { life: libraryTopCastLifeCost(state, owner, card) };
+}
+
 export function castRawManaCost(
     state: GameState,
     card: CardInstanceState,
@@ -2598,6 +2662,17 @@ export function castRawManaCost(
     // madness cost, not its printed mana cost. `Madness {0}` is the empty cost.
     if (zone === "exile" && card.madnessExiled) {
         return getMadnessCost(card) ?? {};
+    }
+    // CR 118.9-analog / 119.4 (issue #2398, Bolas's Citadel) — a cast made
+    // under a cast-from-top-of-library permission whose `manaCostReplacement`
+    // is `"life-equal-to-mana-value"` pays NO mana at all: the whole mana cost
+    // is replaced by a life payment charged at commit
+    // (`castLifeInsteadOfMana`, deducted alongside every other life leg).
+    // Returning `{}` here — not `undefined` — is what makes the mana half free
+    // at every cost site (`normalizeManaCost`, the pool-coverage gate, the
+    // auto-tap solver) without any of them learning about the permission.
+    if (libraryTopCastPayment(state, card, zone)) {
+        return {};
     }
     if (zone !== "graveyard") return getInstanceManaCost(card);
     // CR 601.3e / 117.6-analog (issue #1344) — Malcolm, Alluring Scoundrel's
@@ -6154,7 +6229,11 @@ export function finalizeTargetSelection(
                     }
                 )
             );
-            if (candidates.length === 0) {
+            // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland
+            // permanents" (Bolas's Citadel): the cost gives up
+            // `sacrificeFilterCount` matching permanents (default 1), so the
+            // gate is a COUNT, not mere existence.
+            if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
                 throw new Error("No legal permanent to pay the sacrifice cost");
             }
         }
@@ -6588,7 +6667,12 @@ export function finalizeTargetSelection(
         kickerLifeCost(cardDef, kickerPayments) +
         // CR 107.4f — the life paid for Phyrexian pips chosen to be paid with
         // life (2 per pip). Dismember paying both {B/P} with life adds 4.
-        phyrexianPayment.payLife;
+        phyrexianPayment.payLife +
+        // CR 118.9-analog / 119.4 (issue #2398) — the life that REPLACES the
+        // whole mana cost on a cast off the top of the library (Bolas's
+        // Citadel). `castRawManaCost` already zeroed the mana half; this is
+        // the other half of the same substitution. 0 for every other cast.
+        (libraryTopCastPayment(state, cardInHand, castZone)?.life ?? 0);
 
     // CR 601.2c → 601.2f — targets have just been chosen; now the additional
     // cost is paid. A spell with both a target and an additional cost (FEM Soul
@@ -7378,6 +7462,22 @@ export const announceCast = mutation({
         ) {
             throw new Error("Can't pay the alternative cost");
         }
+        // CR 601.2b (issue #2398) — "A player can't apply two alternative
+        // methods of casting or two alternative costs to a single spell."
+        // Casting off the top of the library under a permission that replaces
+        // the mana cost with a life payment (Bolas's Citadel) IS such a
+        // method, so no announced alternative cost may ride along with it —
+        // otherwise the caster would pay the life AND the alt cost's legs
+        // while `castRawManaCost` zeroed the mana for both. Fail CLOSED here,
+        // at announcement, so neither commit path can reach a double payment.
+        if (
+            chosenAltCost &&
+            libraryTopCastPayment(state, cardInHand, castFromZone)
+        ) {
+            throw new Error(
+                "Can't apply an alternative cost to a spell cast from the top of your library"
+            );
+        }
         // CR 702.74a — the chosen alt cost IS the card's Evoke cost. Tags the
         // resulting stack item `evoked: true` at commit below so the
         // "sacrifice this when it enters" trigger fires.
@@ -8008,7 +8108,15 @@ export const announceCast = mutation({
         // CR 702.33a / 118.4 — the LIFE leg of every paid Kicker joins the
         // Phyrexian life on this cast's single life payment (ADR 0079).
         const phyrexianPayLife =
-            phyrexianPayment.payLife + kickerLifeCost(cardDef, kickerPayments);
+            phyrexianPayment.payLife +
+            kickerLifeCost(cardDef, kickerPayments) +
+            // CR 118.9-analog / 119.4 (issue #2398) — the life that REPLACES
+            // the whole mana cost on a cast off the top of the library
+            // (Bolas's Citadel). `castRawManaCost` already zeroed the mana
+            // half. 0 for every other cast; the accumulator keeps its historic
+            // name because it is this cast's single life payment, whatever
+            // legs contributed to it.
+            (libraryTopCastPayment(state, cardInHand, castFromZone)?.life ?? 0);
         // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
         // (Drought). Gate on affordability at announcement; pip count comes from
         // the spell's PRINTED mana cost.
@@ -13569,7 +13677,9 @@ export function activateAbilityOnState(
                 }
             )
         );
-        if (candidates.length === 0) {
+        // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland permanents"
+        // (Bolas's Citadel): the gate is a COUNT, not mere existence.
+        if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
             throw new Error("No legal permanent to pay the sacrifice cost");
         }
     }

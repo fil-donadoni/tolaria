@@ -1592,6 +1592,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Bolas's Citadel",
+        "scryfallId": "d2124603-d20e-40eb-97f0-a66323397ac2",
+        "oracleId": "2bd111bb-ce02-414c-b5b7-e0e037d8d96b",
+        "firstSet": "war",
+        "firstPrintId": "d2124603-d20e-40eb-97f0-a66323397ac2",
+        "firstPrintSet": "war"
+    },
+    {
         "name": "Bone Flute",
         "scryfallId": "63a31de0-d764-4ff6-a85f-027e1e58d86c",
         "oracleId": "8664a004-d786-4357-8856-2f8f5a9ae24d",

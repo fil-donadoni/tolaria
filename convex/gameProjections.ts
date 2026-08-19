@@ -13,13 +13,17 @@ import {
     canCastFromGraveyardByPermission,
     canCastPermanentFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
+    isCastableLibraryTopSpell,
     isPlayableLibraryTopLand,
     getLegalActions,
     phyrexianLifePipOptions,
     flashSurchargeRequired,
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
-import { computeLibraryTopRevealedPlayers } from "./gre/libraryReveal";
+import {
+    computeLibraryTopLookedAtPlayers,
+    computeLibraryTopRevealedPlayers,
+} from "./gre/libraryReveal";
 import { flashbackExileEligibleCount, hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
 import {
@@ -323,7 +327,15 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
  *  the source leaves the battlefield the flag is simply false again. An EMPTY
  *  library reveals nothing (the loop never runs) — `known` stays `[]`.
  *
- *  CR 305.1-analog — `topLandLegalActions`, when supplied, is attached to the
+ *  CR 401.5 (issue #2398) — the same `topRevealed` channel also carries the
+ *  ASYMMETRIC "you may look at the top card of your library" permission
+ *  (Bolas's Citadel, `CardDefinition.looksAtLibraryTop`): the caller ORs it in
+ *  only when the library belongs to the VIEWER, so a looked-at top card
+ *  reaches its own controller and nobody else. This function stays
+ *  viewer-independent — it is told whether index 0 is known to THIS viewer,
+ *  never why.
+ *
+ *  CR 305.1-analog / 601.3e-analog — `topLegalActions`, when supplied, is attached to the
  *  index-0 entry as its `legalActions`: the viewer's OWN library top is a
  *  playable land under a play-lands-from-top-of-library permission (Courser of
  *  Kruphix). Computed by the caller (which alone knows whether this library
@@ -332,14 +344,16 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
  *  spent, or a draw/shuffle moves a different card to the top. It rides the
  *  card object rather than a new wire field, exactly as the graveyard land
  *  affordance does (`SlimGraveyardCard`), so the client's per-card action
- *  overlay needs no new plumbing. Only emitted when index 0 is ALSO known —
+ *  overlay needs no new plumbing. It carries "cast" instead of "play" when the
+ *  top card is a nonland spell the viewer may cast from there (issue #2398,
+ *  Bolas's Citadel) — one field, whichever action the permission grants. Only emitted when index 0 is ALSO known —
  *  which is why it never leaks identity: it is an affordance on a card the
  *  viewer can already see, never a signal about a hidden one. */
 function projectLibrary(
     library: CardInstanceState[],
     viewerId: string,
     topRevealed: boolean = false,
-    topLandLegalActions?: CardAction[]
+    topLegalActions?: CardAction[]
 ): PublicLibrary {
     // CR 401.5 — the continuous reveal is viewer-INDEPENDENT and covers exactly
     // index 0; every other position stays gated by per-viewer `knownTo`.
@@ -354,8 +368,8 @@ function projectLibrary(
         known.push({
             index: topEnd,
             card:
-                topEnd === 0 && topLandLegalActions !== undefined
-                    ? { ...slim, legalActions: topLandLegalActions }
+                topEnd === 0 && topLegalActions !== undefined
+                    ? { ...slim, legalActions: topLegalActions }
                     : slim,
         });
         topEnd++;
@@ -629,7 +643,7 @@ function projectGraveyardCard(
  *  Gated on `player.id === viewerId`: an opponent's library top can legitimately
  *  be known (the CR 401.5 reveal is symmetric — both seats see it) but is never
  *  playable by the viewer, so it must never carry an affordance. */
-function libraryTopLandPlayable(
+function libraryTopPlayable(
     state: GameState,
     player: PlayerState,
     viewerId: string,
@@ -637,7 +651,18 @@ function libraryTopLandPlayable(
 ): CardAction[] | undefined {
     if (player.id !== viewerId) return undefined;
     const top = player.library[0];
-    if (!top || !isPlayableLibraryTopLand(state, player, top.id)) {
+    if (!top) return undefined;
+    // CR 305.1-analog / 601.3e-analog (issue #2398) — the two halves of a
+    // top-of-library permission are orthogonal fields on different cards
+    // (Courser of Kruphix plays lands; Vizier of the Menagerie casts spells;
+    // Bolas's Citadel does both), so the affordance exists when EITHER covers
+    // the top card. `getLegalActions` then decides which action it actually
+    // is — the two branches are mutually exclusive by card type (CR 305.9: a
+    // land is played, never cast).
+    if (
+        !isPlayableLibraryTopLand(state, player, top.id) &&
+        !isCastableLibraryTopSpell(state, player, top.id)
+    ) {
         return undefined;
     }
     return getLegalActions(state, player, top, allActions);
@@ -947,6 +972,12 @@ export function projectPublicState(
     // library revealed (Goblin Spy). Derived live off the battlefield, once per
     // projection; the top card then crosses the wire to BOTH seats (below).
     const libraryTopRevealedPlayers = computeLibraryTopRevealedPlayers(state);
+    // CR 401.5 (issue #2398) — players who may LOOK at their own library top
+    // (Bolas's Citadel). Same live battlefield derivation as the reveal above,
+    // but ASYMMETRIC: the card crosses the wire only to its own controller, so
+    // this set is intersected with the viewer below rather than merged into
+    // the reveal set. A player in both is simply revealed.
+    const libraryTopLookedAtPlayers = computeLibraryTopLookedAtPlayers(state);
 
     const players = state.players.map((player): PublicPlayer => {
         const librarySearch =
@@ -1021,8 +1052,10 @@ export function projectPublicState(
             library: projectLibrary(
                 player.library,
                 viewerId,
-                libraryTopRevealedPlayers.has(player.id),
-                libraryTopLandPlayable(state, player, viewerId, allActions)
+                libraryTopRevealedPlayers.has(player.id) ||
+                    (player.id === viewerId &&
+                        libraryTopLookedAtPlayers.has(player.id)),
+                libraryTopPlayable(state, player, viewerId, allActions)
             ),
             librarySearch,
             libraryPeek,

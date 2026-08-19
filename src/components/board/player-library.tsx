@@ -16,6 +16,7 @@ import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import CardsPile from "./cards-pile";
 import LibrarySearchConfirm from "./library-search-confirm";
 import LibraryOrderPicker from "./library-order/library-order-picker";
+import LibraryCastButton from "./library-cast-button";
 import LibraryPlayLandButton from "./library-play-land-button";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import { orderLibrarySearchCards } from "~/lib/library-search-order";
@@ -321,7 +322,20 @@ export default function PlayerLibrary({
                 isMe && !isLibraryPick
                     ? (card, onClose) =>
                           card.legalActions === undefined ? null : (
+                                card.types ?? []
+                            ).includes("Land") ? (
                               <LibraryPlayLandButton
+                                  card={card}
+                                  onCommitted={onClose}
+                              />
+                          ) : (
+                              // CR 601.3e-analog (issue #2398, Bolas's Citadel)
+                              // — the SPELL half of the same permission. The
+                              // two are mutually exclusive by card type (CR
+                              // 305.9: a land is played, never cast), so the
+                              // card's own types pick the affordance and the
+                              // projection stays the only legality gate.
+                              <LibraryCastButton
                                   card={card}
                                   onCommitted={onClose}
                               />

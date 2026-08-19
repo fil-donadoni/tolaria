@@ -1,5 +1,6 @@
 import type {
     AbilityMode,
+    CardDefinition,
     CardSupertype,
     CardType,
     Color,
@@ -227,6 +228,78 @@ export function isPlayableLibraryTopLand(
         top.id === cardInstanceId &&
         top.types.includes("Land")
     );
+}
+
+/** CR 601.3e-analog — the SPELL twin of {@link canPlayLandsFromTopOfLibrary}:
+ *  the unconditional, player-wide permission to CAST nonland spells from the
+ *  top of `player`'s own library, granted by ANY permanent declaring
+ *  `castsSpellsFromTopOfLibrary` on their battlefield (Bolas's Citadel).
+ *  Returns the GRANT (so its `manaCostReplacement` reaches the cost sites),
+ *  or `undefined` when no source grants it.
+ *
+ *  Read live from the battlefield every call, so the permission ends the
+ *  instant the granting source leaves play — no stale flag. When two sources
+ *  grant it, the FIRST scanned wins; no printed card pairs two different
+ *  replacements, and CR 601.2f would make the caster choose among them, which
+ *  is a choice no shipped board can present. */
+export function canCastSpellsFromTopOfLibrary(
+    _state: GameState,
+    player: PlayerState
+): NonNullable<CardDefinition["castsSpellsFromTopOfLibrary"]> | undefined {
+    for (const card of player.battlefield) {
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        const grant = tryGetDefinition(cardId)?.castsSpellsFromTopOfLibrary;
+        if (grant) return grant;
+    }
+    return undefined;
+}
+
+/** Whether `cardInstanceId` is the NONLAND card on top of `player`'s own
+ *  library while `player` holds the cast-from-top permission (CR 601.3e-analog
+ *  — Bolas's Citadel). The mirror of {@link isPlayableLibraryTopLand} for the
+ *  cast half, and position-strict for the same reason: the permission names
+ *  the TOP card, and the library is otherwise a hidden zone (CR 400.2), so a
+ *  card two deep is never a legal cast source. Lands are excluded — a land is
+ *  PLAYED, never cast (CR 305.9), and the land half of the same Oracle
+ *  sentence rides `playsLandsFromTopOfLibrary` instead. Recomputed from the
+ *  live library on every call, so a draw / shuffle / mill / put-on-top moves
+ *  the affordance with the position. */
+export function isCastableLibraryTopSpell(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string
+): boolean {
+    if (!canCastSpellsFromTopOfLibrary(state, player)) return false;
+    const top = player.library[0];
+    return (
+        top !== undefined &&
+        top.id === cardInstanceId &&
+        !top.types.includes("Land")
+    );
+}
+
+/** CR 118.9-analog / 119.4 / 107.3b — the LIFE a cast from the top of the
+ *  library pays INSTEAD of its mana cost, under a permission whose
+ *  `manaCostReplacement` is `"life-equal-to-mana-value"` (Bolas's Citadel).
+ *  `0` when the permission carries no replacement (the spell then pays its
+ *  normal printed cost) or when there is no permission at all.
+ *
+ *  The amount is the card's mana value as computed OFF the stack, so an `{X}`
+ *  counts as 0 (CR 107.3b — the only legal choice for X is 0 when an effect
+ *  lets a player cast a spell paying neither its mana cost nor an alternative
+ *  cost containing X). The SINGLE authority for this number: the legality
+ *  gate, the wire affordance, the bot's enumerator and the three commit sites
+ *  in `convex/game.ts` all read it here, so none of them can charge a
+ *  different amount than another. */
+export function libraryTopCastLifeCost(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState
+): number {
+    const grant = canCastSpellsFromTopOfLibrary(state, player);
+    if (grant?.manaCostReplacement !== "life-equal-to-mana-value") return 0;
+    return manaValue(getInstanceManaCost(card));
 }
 
 /** Reads the turn-scoped, player-wide graveyard play/cast permission granted
@@ -925,6 +998,47 @@ export function getLegalActions(
             castProhibitionReason(caster.id, card, state) === undefined &&
             canPotentiallyPayCost(caster, card, {}, state) &&
             hasEnoughLegalTargets(state, caster, card)
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
+    // CR 601.3e-analog / 118.9-analog / 119.4 (issue #2398, Bolas's Citadel) —
+    // the NONLAND card on TOP of the player's own library, while the player
+    // holds the player-wide cast-from-top permission
+    // (`isCastableLibraryTopSpell`, position-strict at index 0: the rest of
+    // the library stays hidden, CR 400.2). The land half of the same Oracle
+    // sentence is handled by the land branch above
+    // (`isPlayableLibraryTopLand`) — CR 305.9, a land is played, never cast.
+    // This branch fully owns the "cast" decision for the top card, exactly
+    // like the graveyard/exile branches above: same timing / phase / target /
+    // prohibition gates, with affordability judged against whatever the
+    // permission says the cast pays — life equal to the card's mana value
+    // (CR 119.4, `libraryTopCastLifeCost`) when the grant replaces the mana
+    // cost, else the printed mana cost.
+    const isLibraryTopCast = isCastableLibraryTopSpell(state, player, card.id);
+    if (isLibraryTopCast) {
+        const lifeCost = libraryTopCastLifeCost(state, player, card);
+        const grant = canCastSpellsFromTopOfLibrary(state, player);
+        const affordable =
+            grant?.manaCostReplacement === "life-equal-to-mana-value"
+                ? // CR 119.4 — a player may pay life only while their life
+                  // total is at least the amount. Paying down to exactly 0 is
+                  // legal (SBAs then end the game); paying below it is not.
+                  player.life >= lifeCost
+                : canPotentiallyPayCost(
+                      player,
+                      card,
+                      getInstanceManaCost(card) ?? {},
+                      state
+                  );
+        if (
+            castTimingBaseLegal(state, player.id, card) &&
+            passesCastPhaseRestriction(state, card) &&
+            castProhibitionReason(player.id, card, state) === undefined &&
+            affordable &&
+            hasEnoughLegalTargets(state, player, card)
         ) {
             actions.push("cast");
         }

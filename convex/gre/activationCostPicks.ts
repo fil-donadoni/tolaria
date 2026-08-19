@@ -210,8 +210,15 @@ export function buildActivationSacrificeSelection(
                 ability.cost.sacrificeFilter,
                 source.id
             ),
-            count: 1,
-            snapshot: true,
+            // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland
+            // permanents" (Bolas's Citadel). Default 1: the single-permanent
+            // shape every earlier card uses. The mana-value snapshot is taken
+            // only for a count of 1 — "the sacrificed permanent" (Priest of
+            // Yawgmoth's `getAdditionalSacrificeMv()`) names no single victim
+            // above that, and `sacrificeSnapshotFromSelection` picks the first
+            // flagged result, which would be an arbitrary one of ten.
+            count: ability.cost.sacrificeFilterCount ?? 1,
+            snapshot: (ability.cost.sacrificeFilterCount ?? 1) === 1,
         });
     }
     for (const req of getStaticAdditionalSacrifices(
