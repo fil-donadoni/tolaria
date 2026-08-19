@@ -8,11 +8,15 @@ export default function TouchPreviewOverlay({
     landscape,
     actions,
     onClose,
+    tapAnywhereCloses = false,
 }: {
     card: ProtoCard;
     landscape: boolean;
     actions: { label: string; primary?: boolean; onClick: () => void }[];
     onClose: () => void;
+    /** Draft: a tap ANYWHERE closes (read → back to picking); only the primary
+     *  action is exempt. */
+    tapAnywhereCloses?: boolean;
 }) {
     return (
         <div
@@ -26,7 +30,9 @@ export default function TouchPreviewOverlay({
                         ? "min(92dvh, 380px)"
                         : "min(94dvh, 760px)",
                 }}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                    if (!tapAnywhereCloses) e.stopPropagation();
+                }}
             >
                 <img
                     src={getImageUrl(card.cardId)}
@@ -55,7 +61,10 @@ export default function TouchPreviewOverlay({
                             <button
                                 key={a.label}
                                 type="button"
-                                onClick={a.onClick}
+                                onClick={(e) => {
+                                    if (a.primary) e.stopPropagation();
+                                    a.onClick();
+                                }}
                                 className={`min-h-11 rounded-full border px-4 font-beleren text-sm ${a.primary ? "border-accent bg-accent text-surface-base" : "border-accent/50 bg-surface-elevated text-accent-strong"}`}
                             >
                                 {a.label}

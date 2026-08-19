@@ -1,7 +1,7 @@
 // PROTOTYPE — throwaway. Ring buffer of engine decisions for TouchEventLog.
 import { useCallback, useState } from "react";
 
-export function useGestureLog(cap = 8) {
+export function useGestureLog(cap = 5) {
     const [lines, setLines] = useState<string[]>([]);
     const log = useCallback(
         (line: string) => {
