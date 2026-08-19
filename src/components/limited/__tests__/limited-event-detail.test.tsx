@@ -537,6 +537,63 @@ describe("chrome collapses while drafting on a compact viewport (issue #2515)", 
         expect(screen.getByText("Close Event")).toBeTruthy();
     });
 
+    // Review round 1, finding 1 (medium, blocking): happy-dom has no layout
+    // engine, so it cannot see the ~16px occlusion itself (that's why round 1
+    // shipped with no test or probe covering this state at all — the browser
+    // probe below is the geometric evidence). What happy-dom CAN see is the
+    // structural cause: `PanelHeader`'s `.panel-header-band` (`panel.tsx`)
+    // carries `-mt-2 sm:-mt-4` — built to climb to a Panel's TOP edge — and at
+    // >=640px (which includes the 844x390 landscape-phone target viewport)
+    // that 16px climbed back over the persistent Back link + this toggle,
+    // covering ~16 of their ~22px and capturing their clicks. This asserts
+    // the fix's actual mechanism: the EXPANDED folded band never renders that
+    // flush-top wrapper mid-panel, and both controls above it stay reachable
+    // (present, not `disabled`, no `aria-hidden`) once expanded.
+    //
+    // Proof of failure: reverting the fix in `limited-event-detail.tsx`
+    // (rendering `<PanelHeader title={limitedEventName(event)} />`
+    // unconditionally instead of branching on `collapseChrome`) makes the
+    // `.panel-header-band` assertion below fail — `document.querySelector`
+    // finds the band's div instead of `null`.
+    it("renders the expanded folded band as a plain heading, not a flush-top PanelHeader band, so the Back link and toggle above it stay reachable", () => {
+        stubLandscapeCompactViewport();
+        eventMock.mockReturnValue(
+            makeEvent({
+                type: "draft",
+                status: "started",
+                createdBy: "user-1",
+                packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
+            })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        const backLink = screen.getByText("← Back to Limited Events");
+        const backButton = backLink.closest("button");
+        const toggle = screen.getByRole("button", { name: /Event Details/ });
+        expect(backButton?.disabled).toBe(false);
+        expect((toggle as HTMLButtonElement).disabled).toBe(false);
+
+        fireEvent.click(toggle);
+
+        // The would-be-occluding wrapper must not exist at all in this state.
+        expect(document.querySelector(".panel-header-band")).toBeNull();
+
+        // Both controls above the (now-plain) heading remain present and
+        // reachable — not removed, not disabled, not hidden from a11y.
+        expect(backLink.isConnected).toBe(true);
+        expect(backLink.closest("button")?.disabled).toBe(false);
+        expect(backLink.closest("[aria-hidden='true']")).toBeNull();
+        const reopenedToggle = screen.getByRole("button", {
+            name: /Event Details/,
+        });
+        expect((reopenedToggle as HTMLButtonElement).disabled).toBe(false);
+        expect(reopenedToggle.closest("[aria-hidden='true']")).toBeNull();
+
+        // The title itself must still be showing, just via the plain heading.
+        expect(screen.getByText("Vintage Cube Draft")).toBeTruthy();
+    });
+
     it("keeps the full chrome on the SAME compact viewport when the event is NOT drafting", () => {
         stubLandscapeCompactViewport();
         eventMock.mockReturnValue(

@@ -244,8 +244,29 @@ export default function LimitedEventDetail({
                     "draft — VINTAGE-CUBE, VINTAGE-CUBE, VINTAGE-CUBE —
                     started"). `limitedEventName` collapses the repeated pack
                     sources to "Vintage Cube Draft"; the phase moves into the
-                    toolbar chip. */}
-                <PanelHeader title={limitedEventName(event)} />
+                    toolbar chip.
+
+                    `PanelHeader`'s `.panel-header-band` is built to sit FLUSH
+                    at a panel's top edge — `-mt-2 sm:-mt-4` climbs it up over
+                    whatever precedes it, which is exactly right when it's the
+                    very first thing in the Panel. It is NOT the first thing
+                    here while `collapseChrome`: the persistent Back link and
+                    this disclosure's own toggle button render immediately
+                    above it, and at >=640px the band's `-mt-4` (16px) covered
+                    ~16 of their ~22px, capturing their clicks (issue #2515
+                    review round 1, finding 1). Rather than fight the band's
+                    own offset, `collapseChrome` renders a plain heading with
+                    no band wrapper — legitimate per `heading-panel`'s other
+                    bare uses (`not-found-page.tsx`, `admin-page-frame.tsx`) —
+                    and keeps `PanelHeader` only for the genuinely-flush-top
+                    case (desktop, or any non-drafting event). */}
+                {collapseChrome ? (
+                    <h2 className="heading-panel mt-3 text-center text-base tracking-[0.16em] uppercase sm:text-lg">
+                        {limitedEventName(event)}
+                    </h2>
+                ) : (
+                    <PanelHeader title={limitedEventName(event)} />
+                )}
                 <PanelBody>
                     <LimitedEventToolbar event={event} onBack={handleBack} />
 
@@ -322,9 +343,21 @@ export default function LimitedEventDetail({
                 separator from whatever sits above it — stacking `PanelBody`'s
                 OWN `mt-4` on top of that (flex items never collapse margins)
                 cost 16px of exactly the budget this collapse exists to claw
-                back. Left alone (`undefined`) everywhere else, so the
-                desktop / non-drafting spacing is untouched. */}
-            <PanelBody className={collapseChrome ? "mt-0" : undefined}>
+                back.
+
+                `mt-3` (never bare `undefined`) everywhere else — review round
+                1 finding 2: before this PR the chrome and `LimitedDraftTable`
+                were children of the SAME `PanelBody`, so the gap between them
+                was that body's `gap-3` (12px) plus the table's own `mt-4`
+                (16px) = 28px. Splitting one `PanelBody` into two turned that
+                12px `gap-3` into this SECOND body's own top margin — leaving
+                it at the base `mt-4` (16px) silently grew the boundary to
+                32px on every non-collapsed render (desktop AND the play
+                phase), 4px more than main. `mt-3` puts the same 12px back
+                (`cn` merges via `twMerge`, so this overrides the base
+                `PanelBody` `mt-4`), restoring the exact 28px pre-existing
+                rhythm; `mt-0` still zeroes it only while collapsed. */}
+            <PanelBody className={collapseChrome ? "mt-0" : "mt-3"}>
                 {draftInProgress && viewerSeat && (
                     <LimitedDraftTable
                         eventId={eventId}
