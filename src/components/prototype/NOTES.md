@@ -8,8 +8,11 @@ CTA row, the 3-tab builder and the chamfer prompt feel right on a real phone?
 
 ```bash
 cd /Users/filippo/code/mtg/tolaria-proto-touch   # branch prototype/touch-gestures
-bunx vite --host --port 5183
-# phone on the same Wi-Fi → http://<mac-ip>:5183/prototype/touch  (log in once)
+# the dev Convex backend is LOCAL (127.0.0.1:3210) — the phone cannot reach that
+# address, so point the client at the Mac's LAN IP or the login spins on "Working…":
+VITE_CONVEX_URL=http://192.168.0.47:3210 VITE_CONVEX_SITE_URL=http://192.168.0.47:3211 \
+  bunx vite --host --port 5183
+# phone on the same Wi-Fi → http://192.168.0.47:5183/prototype/touch  (log in once)
 ```
 
 URL params: `?surface=builder|draft|prompt` · `?variant=A|B|C` (prompt: A|B).
@@ -39,6 +42,12 @@ pack pane's last 15% is its status bar / peek CTA row.
 Prompt: A chamfered plate + arrow Confirm vs B rounded panel.
 
 Prompt variants and the draft surface have no persistence; reload = reset.
+
+## Verdicts so far (2026-08-19)
+
+- Builder: **A** (long-press drag). Must also drag between rows/columns.
+- Prompt: **B** rounded panel. Chamfer rejected.
+- Draft: landscape = pack 80 | 20% sneak-peek pile + actions under; swipe → pack pile / pool MV columns (implemented round 2). Inspect closes on any tap except Pick. Portrait picks split Main/SB.
 
 ## Known limits (prototype, not findings)
 
