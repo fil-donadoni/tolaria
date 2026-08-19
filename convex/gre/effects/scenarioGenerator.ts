@@ -936,6 +936,29 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // on the canned smoke sweep.
             req.skip ??= `Op "setColor" is new — covered by the Op's own interpreter + wire-format tests`;
             return;
+        case "setCardTypes":
+            // `setCardTypes` (issue #2361) REPLACES a permanent's card types
+            // (CR 205.1a layer 4). Same rationale as `animate` above: it
+            // changes the target's basic "kind" mid-scenario, which the canned
+            // generator's target-seeding (one stable kind per slot) does not
+            // model — a permanent that stops being an artifact and starts
+            // being a creature is re-binned by the SBA pass the check runs
+            // after. Explicit skip — the Op is new (per-Op regime,
+            // `.claude/rules/gre-development.md`) and earns its own
+            // hand-written interpreter + wire-format tests.
+            req.skip ??= `Op "setCardTypes" changes a permanent's card types (CR 205.1a) — covered by the Op's own interpreter + wire-format tests`;
+            return;
+        case "loseAllAbilities":
+            // `loseAllAbilities` (issue #2361) strips a permanent's abilities
+            // indefinitely (CR 613.1f layer 6). The canned generator seeds a
+            // VANILLA filler creature at a permanent slot, so the only outcome
+            // it could assert is that an already-empty ability set is still
+            // empty — a vacuous assertion, which is worse than no assertion.
+            // Explicit skip — the Op is new (per-Op regime) and earns its own
+            // hand-written interpreter + wire-format tests, run against a
+            // permanent that actually HAS abilities to lose.
+            req.skip ??= `Op "loseAllAbilities" strips abilities (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests`;
+            return;
         case "setSubtype":
             // `setSubtype` (issue #1083) replaces a target land's subtypes
             // for a duration (CR 305.7 layer 4). Same rationale as
@@ -2509,6 +2532,22 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // skips before descending). Kept for the 1:1 coverage guard; the Op's own
     // interpreter + wire-format tests are the behavioural guarantor.
     setSubtype() {
+        return null;
+    },
+    // `setCardTypes` (CR 205.1a layer 4, issue #2361) — never reached:
+    // `analyseOp` skips every script with a setCardTypes Op (it changes the
+    // target's basic kind mid-scenario, which the canned target-seeding does
+    // not model). Kept for the 1:1 coverage guard; the Op's own interpreter +
+    // wire-format tests are the behavioural guarantor.
+    setCardTypes() {
+        return null;
+    },
+    // `loseAllAbilities` (CR 613.1f layer 6, issue #2361) — never reached:
+    // `analyseOp` skips every script with a loseAllAbilities Op (the canned
+    // filler permanent has no abilities to lose, so any assertion would be
+    // vacuous). Kept for the 1:1 coverage guard; the Op's own interpreter +
+    // wire-format tests are the behavioural guarantor.
+    loseAllAbilities() {
         return null;
     },
     // `nameCard` (CR 201.3 / 202.3, issue #1085) — never reached: `analyseOp`

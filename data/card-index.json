@@ -9608,6 +9608,14 @@
         "firstPrintSet": "mh3"
     },
     {
+        "name": "Oko, Thief of Crowns",
+        "scryfallId": "3462a3d0-5552-49fa-9eb7-100960c55891",
+        "oracleId": "60c60923-ff1b-43f7-8768-731499fcffc9",
+        "firstSet": "eld",
+        "firstPrintId": "3462a3d0-5552-49fa-9eb7-100960c55891",
+        "firstPrintSet": "eld"
+    },
+    {
         "name": "Old Man of the Sea",
         "scryfallId": "d10f8a05-78b0-42a7-adcd-83f6bafe5417",
         "oracleId": "cce84cf1-5574-43b0-9d75-72e6451403a7",

@@ -77,6 +77,7 @@ const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
 const GRANT_CAST_TIMING_VALUE = 8; // a "cast as though flash" self-grant (tempo)
 const RESTRICT_COMBAT_VALUE = 45; // a targeted "can't attack/block" soft removal
 const SET_BASE_PT_VALUE = 45; // a base-P/T set (CR 613.4b) — mostly a shrink/neutralize
+const LOSE_ALL_ABILITIES_VALUE = 60; // an ability strip (CR 613.1f) — a neutralize that also takes evasion/engines, so above a bare P/T set
 const PUT_BACK_PER_CARD = 5; // Brainstorm-style card-selection upside, per card
 const SHUFFLE_SELF_VALUE = 10; // dodges the graveyard — small recursion-adjacent upside
 const EXILE_SELF_VALUE = -5; // opposite of shuffleSelfIntoLibrary — forfeits graveyard recursion (Regrowth-style) on the resolving card itself, a small downside
@@ -975,6 +976,26 @@ const setColor: Valuer<"setColor"> = () => ZERO_OP_VALUE;
 
 const setSubtype: Valuer<"setSubtype"> = () => ZERO_OP_VALUE;
 
+// A card-type SET (CR 205.1a layer 4) carries no material worth on its own —
+// it changes WHAT the permanent is, not how much board it represents. Like
+// `setColor` / `addSubtype` / `setSubtype` above it is a pure enabler, and the
+// composed effect's worth is carried by the Ops it is paired with (Oko's
+// `loseAllAbilities` + `setBasePT`). ZERO rather than an invented magnitude.
+const setCardTypes: Valuer<"setCardTypes"> = () => ZERO_OP_VALUE;
+
+// Stripping every ability (CR 613.1f layer 6) is a NEUTRALIZE: the permanent
+// stays on the battlefield but stops doing anything it was printed to do —
+// the same shape the `setBasePT` shrink is valued as (a targeted soft removal
+// that leaves a body behind), not a hard `destroy`. Worth a little MORE than a
+// P/T set, because it also takes away evasion, protection, activated engines
+// and triggers rather than only combat stats.
+const loseAllAbilities: Valuer<"loseAllAbilities"> = (op) => ({
+    points: LOSE_ALL_ABILITIES_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval"],
+});
+
 const shuffleSelfIntoLibrary: Valuer<"shuffleSelfIntoLibrary"> = () => ({
     points: SHUFFLE_SELF_VALUE,
     tags: ["recursion"],
@@ -1111,6 +1132,8 @@ export const OP_VALUERS: {
     scryReorder,
     setColor,
     setSubtype,
+    setCardTypes,
+    loseAllAbilities,
     shuffleSelfIntoLibrary,
     tapUntap,
     skipNextUntap,
@@ -1291,6 +1314,16 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     unattach: "harmful",
     armGraveyardRedirect: "harmful",
     shuffleSelfIntoLibrary: "harmful",
+    // CR 613.1f layer 6 — stripping every ability takes the permanent's whole
+    // printed function away from whoever controls it. Always an attack, never
+    // a gift: unlike a P/T set (which can go either way) there is no "loses
+    // all abilities" that helps its recipient.
+    loseAllAbilities: "harmful",
+    // CR 205.1a layer 4 (`setCardTypes`) is deliberately UNLISTED, i.e.
+    // "neutral": replacing a permanent's card types is genuinely ambiguous in
+    // sign on its own (it can strip Artifact off an opponent's Equipment or
+    // turn your own land into a creature). The composed effect's sign comes
+    // from the Ops it is paired with — same treatment as `transform` above.
 };
 
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for

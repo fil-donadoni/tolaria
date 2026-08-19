@@ -1319,6 +1319,18 @@ function enumerateAbilityMoves(
         // here, not a move the server then rejects.
         const selfExcluded = (req: TargetRequirement | undefined) =>
             req ? applySelfExclusion(req, perm.id) : req;
+        // CR 601.2c via CR 602.2b (issue #2361) — an activated ability may
+        // declare ADDITIONAL independent target groups beyond its primary
+        // requirement (Oko, Thief of Crowns' −5, whose two groups differ in
+        // `controller` AND `powerFilter`). The ability-side twin of the cast
+        // path's `groupsFor`: primary first, then each extra, flattened in
+        // declaration order — the same order `finalizeTargetSelection` hands
+        // the mutation, so the Effect Script's positional `{ target: N }` refs
+        // line up. `AbilityMode` has no per-mode twin of the field, so the
+        // extras are always read off the ability itself.
+        const abilityExtraGroups = (
+            ability.additionalTargetRequirements ?? []
+        ).map((r) => selfExcluded(r));
         const abilityModeVariants =
             ability.modes && ability.modes.length > 0
                 ? ability.modes.map((m) => ({
@@ -1347,13 +1359,22 @@ function enumerateAbilityMoves(
         if (pickVariants.length === 0) continue;
 
         for (const { modeId, req } of abilityModeVariants) {
-            const tuples = enumerateTargetTuples(
-                state,
-                player,
-                perm,
-                req,
-                undefined
-            );
+            const tuples =
+                abilityExtraGroups.length > 0
+                    ? enumerateTargetGroupTuples(
+                          state,
+                          player,
+                          perm,
+                          [req, ...abilityExtraGroups],
+                          undefined
+                      )
+                    : enumerateTargetTuples(
+                          state,
+                          player,
+                          perm,
+                          req,
+                          undefined
+                      );
             for (const targets of tuples) {
                 for (const costPicks of pickVariants) {
                     moves.push({
