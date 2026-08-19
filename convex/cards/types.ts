@@ -14060,6 +14060,16 @@ export interface CardDefinition {
      *  `count: "kicker"` reads how many times the spell was kicked (CR 702.33e —
      *  "a charge counter for each time it was kicked", Everflowing Chalice);
      *  both are 0 for a permanent that was never cast (CR 107.3b).
+     *  `count: "sunburst"` reads how many DISTINCT COLORS of mana were spent to
+     *  cast the spell (CR 702.44a — colors, not pips: `{R}{R}` is one), off the
+     *  `notedManaSpent` capture the cast-commit step records when the card also
+     *  sets `noteManaSpent: true`. It is 0 on every non-cast entry path, which
+     *  is what CR 702.44b requires ("only if the object … is entering the
+     *  battlefield from the stack as a resolving spell"). The counter TYPE
+     *  stays the card's own declaration — `charge` for a noncreature artifact
+     *  (Pentad Prism), `+1/+1` for a card entering as a creature — because
+     *  CR 702.44a picks between them by the object's printed type, ignoring
+     *  type-changing effects.
      *
      *  Resolved by the frontend-safe oracle `resolveEntersWithCounters`
      *  (`convex/cards/entersWith.ts`) and applied by the GRE at EVERY
@@ -14068,7 +14078,10 @@ export interface CardDefinition {
      *  clause is a copiable value, CR 706.2), and every play-a-land path. The
      *  per-site census lives on that module's header comment. */
     entersWith?: {
-        counters?: { type: string; count: number | "X" | "kicker" }[];
+        counters?: {
+            type: string;
+            count: number | "X" | "kicker" | "sunburst";
+        }[];
         /** CR 614.1c / 614.12a (ADR 0100 D3) — the ordered "as this enters …"
          *  choices this permanent's controller answers BEFORE it enters, while
          *  it is held off every zone (`GameState.stagedEntries`). Sibling to

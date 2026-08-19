@@ -3249,6 +3249,72 @@ function payAlternativeCostHandChoice(
     return true;
 }
 
+/** What a cast-time mana payment produced, beyond draining the pool: the
+ *  CR 106.6 "can't be countered" rider flag (issue #1559) and the CR 106.4
+ *  per-colour record of the mana actually spent. */
+interface CastManaPayment {
+    usedRiderMana: boolean;
+    /** Present only when the card declares `noteManaSpent` (and the cost had a
+     *  mana part at all) — the per-colour delta over the payment. */
+    notedManaSpent?: Record<string, number>;
+}
+
+/** CR 601.2h — pay a spell's mana cost at the cast-commit step, and capture
+ *  what was spent.
+ *
+ *  This is the ONE payment site for every spell cast-commit path in this file:
+ *  `tryAutoCommitPendingCast` (park-and-pay), `finalizeTargetSelection`'s
+ *  immediate branch, and `announceCast`'s two immediate-commit branches
+ *  (normal cost and alternative cost). It exists because the capture half used
+ *  to be copy-pasted at each site and only TWO of the four had it (issue
+ *  #2378): a caster who floated the mana at priority before casting reached
+ *  `announceCast`'s immediate branch, whose stack item carried no
+ *  `notedManaSpent` at all — so Soul Burn (CR 202.3) read an empty record and
+ *  a Sunburst permanent (CR 702.44a, Pentad Prism) entered with zero counters.
+ *  Every path now shares one implementation, so a fifth cannot forget.
+ *
+ *  `cardDef` is the single source of the spell's printed types/supertypes
+ *  (CR 106.6 restricted-mana eligibility, CR 205.4a `legendary-spell`) as well
+ *  as the `noteManaSpent` opt-in — the callers no longer derive them
+ *  separately and cannot disagree. */
+export function payCastManaCost(
+    player: PlayerState,
+    manaCost: Record<string, number>,
+    cardDef: CardDefinition | null | undefined,
+    substitutions: ManaSubstitution[],
+    cardInstanceId: string,
+    genericSpendOrder?: readonly string[]
+): CastManaPayment {
+    if (Object.keys(manaCost).length === 0) return { usedRiderMana: false };
+    // CR 106.4 / 202.3 / 702.44b — snapshot the pool before payment so the
+    // per-colour delta (`manaSpentDelta`, CR 106.10) becomes `notedManaSpent`
+    // on the stack item. Only for cards that asked for it: the snapshot is a
+    // pool copy per cast otherwise.
+    const poolBeforePayment = cardDef?.noteManaSpent
+        ? { ...player.manaPool }
+        : undefined;
+    const usedRiderMana = payManaCostForSpell(
+        player,
+        manaCost,
+        cardDef?.types ?? [],
+        substitutions,
+        cardInstanceId,
+        genericSpendOrder,
+        cardDef?.supertypes ?? []
+    );
+    return {
+        usedRiderMana,
+        ...(poolBeforePayment
+            ? {
+                  notedManaSpent: manaSpentDelta(
+                      poolBeforePayment,
+                      player.manaPool
+                  ),
+              }
+            : {}),
+    };
+}
+
 export function tryAutoCommitPendingCast(
     state: GameState,
     playerId: string,
@@ -3358,24 +3424,19 @@ export function tryAutoCommitPendingCast(
     // parked prompt before the pool is spent.
     state.pendingCast.manaSpendChoice = undefined;
 
-    // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn). Snapshot
-    // the pool before payment so the per-colour delta becomes `notedManaSpent`
-    // on the stack item (mirrors the activated-ability `noteManaSpent` path).
-    const castPoolBeforePayment = castDef?.noteManaSpent
-        ? { ...player.manaPool }
-        : undefined;
-    const castUsedRiderMana = payManaCostForSpell(
+    // CR 106.4 / 202.3 — cast-path payment + mana-spent tracking (Soul Burn,
+    // Sunburst), through the shared `payCastManaCost` seam.
+    const {
+        usedRiderMana: castUsedRiderMana,
+        notedManaSpent: castNotedManaSpent,
+    } = payCastManaCost(
         player,
         state.pendingCast.manaCost,
-        castTypes,
+        castDef,
         getManaSubstitutions(state, player.id),
         castInstanceId,
-        genericSpendOrder,
-        castSupertypes
+        genericSpendOrder
     );
-    const castNotedManaSpent = castPoolBeforePayment
-        ? manaSpentDelta(castPoolBeforePayment, player.manaPool)
-        : undefined;
     commitLandsForCost(player, state.pendingCast.manaCost);
 
     // CR 118.8 / 701.21a — execute the player-chosen filtered sacrifice(s)
@@ -6744,21 +6805,15 @@ export function finalizeTargetSelection(
         // `cantBeCounteredRider`; stamped onto the pushed stack item below.
         let immediateUsedRiderMana = false;
         if (Object.keys(manaCost).length > 0) {
-            const poolBeforePayment = cardDef.noteManaSpent
-                ? { ...player.manaPool }
-                : undefined;
-            immediateUsedRiderMana = payManaCostForSpell(
+            const payment = payCastManaCost(
                 player,
                 manaCost,
-                cardDef.types,
+                cardDef,
                 getManaSubstitutions(state, player.id),
-                cardInstanceId,
-                undefined,
-                cardSupertypes
+                cardInstanceId
             );
-            immediateNotedManaSpent = poolBeforePayment
-                ? manaSpentDelta(poolBeforePayment, player.manaPool)
-                : undefined;
+            immediateUsedRiderMana = payment.usedRiderMana;
+            immediateNotedManaSpent = payment.notedManaSpent;
             commitLandsForCost(player, manaCost);
         }
         // CR 601.2b / 118.4 — pay the "pay X life" additional cost as the spell
@@ -7741,16 +7796,21 @@ export const announceCast = mutation({
             // commit now.
             // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
             let altUsedRiderMana = false;
+            // CR 106.4 / 702.44b (issue #2378) — the alternative-cost mana leg
+            // (Dash's own amount, and any future non-zero alt cost) is real
+            // mana spent on the spell's costs, so its per-colour record rides
+            // the stack item exactly as the printed-cost paths' does.
+            let altNotedManaSpent: Record<string, number> | undefined;
             if (Object.keys(altManaCost).length > 0) {
-                altUsedRiderMana = payManaCostForSpell(
+                const payment = payCastManaCost(
                     player,
                     altManaCost,
-                    cardDef.types,
+                    cardDef,
                     getManaSubstitutions(state, player.id),
-                    args.cardInstanceId,
-                    undefined,
-                    cardSupertypes
+                    args.cardInstanceId
                 );
+                altUsedRiderMana = payment.usedRiderMana;
+                altNotedManaSpent = payment.notedManaSpent;
                 commitLandsForCost(player, altManaCost);
             }
             if (altChoice) sacrificeSnapshotFromSelection(altChoice, state);
@@ -7780,6 +7840,11 @@ export const announceCast = mutation({
                 // CR 106.6 rider (issue #1559) — see the matching comment on
                 // the `tryAutoCommitPendingCast` stack item.
                 ...(altUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
+                // CR 106.4 / 202.3 / 702.44a (issue #2378) — the mana actually
+                // spent, for Soul Burn's resolution and Sunburst's colour count.
+                ...(altNotedManaSpent
+                    ? { notedManaSpent: altNotedManaSpent }
+                    : {}),
                 ...(isEvokeCost ? { evoked: true } : {}),
                 ...(isDashCost ? { dashed: true } : {}),
                 // CR 601.2 (issue #2473) — `announceCast` no-target +
@@ -8141,16 +8206,22 @@ export const announceCast = mutation({
         ) {
             // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
             let normalUsedRiderMana = false;
+            // CR 106.4 / 702.44b (issue #2378) — this branch commits the cast in
+            // ONE mutation because the pool already covered the cost (the
+            // caster floated the mana at priority, `tapUntap`). It used to skip
+            // the mana-spent capture the parked path does, so a Sunburst
+            // permanent cast this way entered with zero counters.
+            let normalNotedManaSpent: Record<string, number> | undefined;
             if (Object.keys(manaCost).length > 0) {
-                normalUsedRiderMana = payManaCostForSpell(
+                const payment = payCastManaCost(
                     player,
                     manaCost,
-                    cardDef.types,
+                    cardDef,
                     getManaSubstitutions(state, player.id),
-                    args.cardInstanceId,
-                    undefined,
-                    cardSupertypes
+                    args.cardInstanceId
                 );
+                normalUsedRiderMana = payment.usedRiderMana;
+                normalNotedManaSpent = payment.notedManaSpent;
                 commitLandsForCost(player, manaCost);
             }
             // CR 107.4f — pay the Phyrexian pips chosen as life as the spell
@@ -8191,6 +8262,11 @@ export const announceCast = mutation({
                 // the `tryAutoCommitPendingCast` stack item.
                 ...(normalUsedRiderMana
                     ? { dynamicCantBeCountered: true }
+                    : {}),
+                // CR 106.4 / 202.3 / 702.44a (issue #2378) — the mana actually
+                // spent, for Soul Burn's resolution and Sunburst's colour count.
+                ...(normalNotedManaSpent
+                    ? { notedManaSpent: normalNotedManaSpent }
                     : {}),
                 // CR 601.2 (issue #2473) — `announceCast` no-target +
                 // normal-cost immediate-commit branch. Same announcement-time

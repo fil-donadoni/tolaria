@@ -15,7 +15,11 @@
 // set's colour test file; the catalogue-wide guard that no card re-declares the
 // clause as a trigger lives in `convex/cards/__tests__/entersWithCounters.test.ts`.
 import { describe, it, expect } from "vitest";
-import { resolveEntersWithCounters } from "../../cards/entersWith";
+import {
+    distinctColorsSpent,
+    resolveEntersWithCounters,
+    type EntersWithCastValues,
+} from "../../cards/entersWith";
 import {
     buildSpellContext,
     exileWithAttachments,
@@ -45,6 +49,7 @@ import { clockworkBeast } from "../../cards/sets/lea/colorless";
 import { clone } from "../../cards/sets/lea/blue";
 import { rockHydra } from "../../cards/sets/lea/red";
 import { everflowingChalice } from "../../cards/sets/wwk/colorless";
+import { pentadPrism } from "../../cards/sets/5dn/colorless";
 import { resurrection } from "../../cards/sets/lea/white";
 import { titaniasSong } from "../../cards/sets/atq/green";
 import { bloodMoon } from "../../cards/sets/drk/red";
@@ -53,18 +58,26 @@ import { bloodMoon } from "../../cards/sets/drk/red";
  *  by id (not by import) exactly as `gre/__tests__/sagas.test.ts` does. */
 const HISTORY_OF_BENALIA_ID = "d134385d-b01c-41c7-bb2d-30722b44dc5a";
 
+/** CR 702.44b (issue #2378) — cast values for an entry where nothing was cast,
+ *  the shape every entry site except a resolving spell passes.
+ *  `EntersWithCastValues.manaSpentToCast` is REQUIRED precisely so a producer
+ *  has to say this out loud rather than omit it. */
+const NO_CAST: EntersWithCastValues = { manaSpentToCast: {} };
+
 describe("resolveEntersWithCounters — the count vocabulary (CR 121.6)", () => {
     it("returns an empty delta for a card declaring nothing", () => {
-        expect(resolveEntersWithCounters(undefined, {})).toEqual({});
-        expect(resolveEntersWithCounters({}, {})).toEqual({});
-        expect(resolveEntersWithCounters({ entersWith: {} }, {})).toEqual({});
+        expect(resolveEntersWithCounters(undefined, NO_CAST)).toEqual({});
+        expect(resolveEntersWithCounters({}, NO_CAST)).toEqual({});
+        expect(resolveEntersWithCounters({ entersWith: {} }, NO_CAST)).toEqual(
+            {}
+        );
     });
 
     it("reads a literal count", () => {
         expect(
             resolveEntersWithCounters(
                 { entersWith: { counters: [{ type: "wish", count: 3 }] } },
-                {}
+                NO_CAST
             )
         ).toEqual({ wish: 3 });
     });
@@ -73,12 +86,14 @@ describe("resolveEntersWithCounters — the count vocabulary (CR 121.6)", () => 
         const def = {
             entersWith: { counters: [{ type: "+1/+1", count: "X" as const }] },
         };
-        expect(resolveEntersWithCounters(def, { chosenX: 4 })).toEqual({
+        expect(
+            resolveEntersWithCounters(def, { ...NO_CAST, chosenX: 4 })
+        ).toEqual({
             "+1/+1": 4,
         });
         // CR 107.3b — X is 0 anywhere other than on the stack, so a reanimated
         // / tutored permanent enters with none.
-        expect(resolveEntersWithCounters(def, {})).toEqual({});
+        expect(resolveEntersWithCounters(def, NO_CAST)).toEqual({});
     });
 
     it("reads the kicker tally (CR 702.33e) and drops a zero", () => {
@@ -87,10 +102,14 @@ describe("resolveEntersWithCounters — the count vocabulary (CR 121.6)", () => 
                 counters: [{ type: "charge", count: "kicker" as const }],
             },
         };
-        expect(resolveEntersWithCounters(def, { kickerCount: 2 })).toEqual({
+        expect(
+            resolveEntersWithCounters(def, { ...NO_CAST, kickerCount: 2 })
+        ).toEqual({
             charge: 2,
         });
-        expect(resolveEntersWithCounters(def, { kickerCount: 0 })).toEqual({});
+        expect(
+            resolveEntersWithCounters(def, { ...NO_CAST, kickerCount: 0 })
+        ).toEqual({});
     });
 
     it("SUMS repeated entries of the same type — the 'N × kicker' idiom", () => {
@@ -107,10 +126,14 @@ describe("resolveEntersWithCounters — the count vocabulary (CR 121.6)", () => 
                 ],
             },
         };
-        expect(resolveEntersWithCounters(def, { kickerCount: 1 })).toEqual({
+        expect(
+            resolveEntersWithCounters(def, { ...NO_CAST, kickerCount: 1 })
+        ).toEqual({
             "+1/+1": 4,
         });
-        expect(resolveEntersWithCounters(def, { kickerCount: 0 })).toEqual({});
+        expect(
+            resolveEntersWithCounters(def, { ...NO_CAST, kickerCount: 0 })
+        ).toEqual({});
     });
 
     it("drops non-positive literals rather than recording a zero counter", () => {
@@ -125,9 +148,139 @@ describe("resolveEntersWithCounters — the count vocabulary (CR 121.6)", () => 
                         ],
                     },
                 },
-                {}
+                NO_CAST
             )
         ).toEqual({ c: 1 });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CR 702.44 — Sunburst, the third count-vocabulary word (issue #2378).
+//
+// The keyword's whole numeric content is "for each COLOR of mana spent to cast
+// it" (702.44a). Everything below is about that word "color": it is not pips,
+// not symbols, and — CR 105.1 — not colorless. The per-card behaviour (Pentad
+// Prism, a real cast through the real cast-commit seam) lives in
+// `convex/cards/sets/5dn/__tests__/colorless.test.ts`; this block owns the
+// vocabulary itself, including the counts a {2} artifact can never reach.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("distinctColorsSpent — CR 702.44a counts COLORS, not pips (CR 105.1)", () => {
+    it("counts nothing when no mana was spent", () => {
+        expect(distinctColorsSpent({})).toBe(0);
+    });
+
+    it("collapses repeated pips of one colour to ONE color", () => {
+        expect(distinctColorsSpent({ R: 1 })).toBe(1);
+        expect(distinctColorsSpent({ R: 2 })).toBe(1);
+        expect(distinctColorsSpent({ R: 7 })).toBe(1);
+    });
+
+    it("ignores colorless mana — CR 105.1 names exactly five colors", () => {
+        expect(distinctColorsSpent({ C: 5 })).toBe(0);
+        // Generic paid PARTLY with colored mana contributes that colour and
+        // nothing for the colorless half.
+        expect(distinctColorsSpent({ C: 3, G: 1 })).toBe(1);
+    });
+
+    it("counts each distinct colour once, up to the five CR 105.1 colors", () => {
+        expect(distinctColorsSpent({ W: 1, U: 1, B: 1 })).toBe(3);
+        expect(distinctColorsSpent({ W: 1, U: 1, B: 1, R: 1, G: 1 })).toBe(5);
+        // Ten mana, five colors — still five.
+        expect(distinctColorsSpent({ W: 2, U: 2, B: 2, R: 2, G: 2 })).toBe(5);
+    });
+
+    it("ignores a zero or negative entry rather than counting the key", () => {
+        expect(distinctColorsSpent({ W: 0, U: 1 })).toBe(1);
+        expect(distinctColorsSpent({ W: -1 })).toBe(0);
+    });
+});
+
+describe('entersWith count: "sunburst" (CR 702.44a/b)', () => {
+    /** The CR 702.44a creature branch: "+1/+1 counter … for each color", the
+     *  shape a Sunburst CREATURE (Skyreach Manta) would declare. The count word
+     *  is type-agnostic — 702.44a picks the counter TYPE by the object's
+     *  printed type, which is a static per-card fact. */
+    const creatureSunburst = {
+        entersWith: {
+            counters: [{ type: "+1/+1", count: "sunburst" as const }],
+        },
+    };
+    /** The CR 702.44a noncreature branch — charge counters (Pentad Prism). */
+    const artifactSunburst = {
+        entersWith: {
+            counters: [{ type: "charge", count: "sunburst" as const }],
+        },
+    };
+
+    it("resolves to the number of distinct colours spent to cast the spell", () => {
+        expect(
+            resolveEntersWithCounters(artifactSunburst, {
+                manaSpentToCast: { W: 1, U: 1, B: 1 },
+            })
+        ).toEqual({ charge: 3 });
+        expect(
+            resolveEntersWithCounters(creatureSunburst, {
+                manaSpentToCast: { W: 1, U: 1, B: 1, R: 1, G: 1 },
+            })
+        ).toEqual({ "+1/+1": 5 });
+    });
+
+    it("two pips of the SAME colour are one counter (CR 702.44a — colors, not symbols)", () => {
+        expect(
+            resolveEntersWithCounters(artifactSunburst, {
+                manaSpentToCast: { R: 2 },
+            })
+        ).toEqual({ charge: 1 });
+    });
+
+    it("CR 702.44b — no coloured mana spent means NO counter entry at all, not a zero", () => {
+        // A {0} / alternative cost cast, and a cost paid entirely with
+        // colorless mana, both note no colours.
+        expect(
+            resolveEntersWithCounters(artifactSunburst, { manaSpentToCast: {} })
+        ).toEqual({});
+        expect(
+            resolveEntersWithCounters(artifactSunburst, {
+                manaSpentToCast: { C: 2 },
+            })
+        ).toEqual({});
+    });
+
+    it("CR 702.44d — multiple instances of sunburst each work separately (entries SUM)", () => {
+        expect(
+            resolveEntersWithCounters(
+                {
+                    entersWith: {
+                        counters: [
+                            { type: "charge", count: "sunburst" },
+                            { type: "charge", count: "sunburst" },
+                        ],
+                    },
+                },
+                { manaSpentToCast: { W: 1, U: 1 } }
+            )
+        ).toEqual({ charge: 4 });
+    });
+
+    it("is independent of the X and kicker words on the same declaration", () => {
+        expect(
+            resolveEntersWithCounters(
+                {
+                    entersWith: {
+                        counters: [
+                            { type: "charge", count: "sunburst" },
+                            { type: "charge", count: "kicker" },
+                            { type: "charge", count: "X" },
+                        ],
+                    },
+                },
+                {
+                    manaSpentToCast: { W: 1, U: 1 },
+                    kickerCount: 1,
+                    chosenX: 3,
+                }
+            )
+        ).toEqual({ charge: 6 });
     });
 });
 
@@ -316,6 +469,83 @@ describe("entry site: a token COPY (CR 706.2 / 707.2, issue #1693)", () => {
         )!;
         expect(slim.counters?.["+1/+0"]).toBe(BEAST_COUNTERS);
         expect(getEffectivePower(projected, slim)).toBe(BEAST_COUNTERS);
+    });
+});
+
+describe("entry site: a token copy of a SUNBURST permanent (CR 702.44b, issue #2378)", () => {
+    // The seam where issue #2558 and issue #2378 meet. #2558 folded the
+    // token-copy path INTO `createTokenPermanents`, so the copied card's
+    // CR 614.1c clause is now read from the shared token entry site — the same
+    // call that hands the CR 614 chokepoint the token's presented definition so
+    // a token copy can answer the copied card's "as this enters" choices.
+    //
+    // Pentad Prism's clause IS copiable and IS therefore read here (that is
+    // what the Clockwork Beast block above proves for the same branch), but
+    // CR 702.44b makes it resolve to nothing: sunburst adds counters "only if
+    // the object with sunburst is entering the battlefield from the stack as a
+    // resolving spell", and a token is created, never cast.
+    //
+    // The creating spell below is given a NON-EMPTY `notedManaSpent` on
+    // purpose. That is the wrong answer this test exists to catch: threading
+    // the resolving effect's own mana through the `copyOf` branch would read as
+    // plausible and would give the token three charge counters. CR 702.44b keys
+    // on how the ENTERING object arrived, not on what was spent by whatever
+    // created it.
+    function tokenCopyOfPrism() {
+        const source = makeInstance(pentadPrism.id, {
+            id: "source-prism",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, resurrection.id, "p1");
+        // CR 106.10 — the CREATING spell's own colour spend, which must not
+        // leak onto the token it creates.
+        item.notedManaSpent = { W: 1, U: 1, B: 1 };
+        const ctx = buildSpellContext(state, item);
+        const tokenId = ctx.createTokenCopyOf("source-prism", "p1");
+        expect(tokenId).toBeDefined();
+        const token = state.players[0].battlefield.find(
+            (c) => c.id === tokenId
+        )!;
+        return { state, token };
+    }
+
+    it("the clause is live — a real cast spending three colours gives three", () => {
+        // Control for the assertion below: proves the ZERO is CR 702.44b
+        // talking, not an inert or unread declaration.
+        expect(
+            resolveEntersWithCounters(pentadPrism, {
+                manaSpentToCast: { W: 1, U: 1, B: 1 },
+            })
+        ).toEqual({ charge: 3 });
+    });
+
+    it("a token copy of Pentad Prism enters with ZERO charge counters", () => {
+        const { token } = tokenCopyOfPrism();
+        expect(token.isToken).toBe(true);
+        // It really is a copy — the `copyOf` branch ran and presented the
+        // copied definition, so a zero here is the rule and not a dead path.
+        // The placeholder this token was minted from is a 0/0 `["Creature"]`;
+        // reading `["Artifact"]` means `applyCopy` has already stamped Pentad
+        // Prism's copiable values on.
+        expect(token.types).toEqual(["Artifact"]);
+        expect(token.counters?.charge).toBeUndefined();
+    });
+
+    it("wire format: the token copy still reads zero after projectPublicState", () => {
+        const { state, token } = tokenCopyOfPrism();
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === token.id
+        )!;
+        expect(slim.counters?.charge).toBeUndefined();
     });
 });
 

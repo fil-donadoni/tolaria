@@ -423,11 +423,15 @@ function settleEnteredLand(
     // `finalizeLandEntry` does NOT come through here — that land already got
     // its counters inside `stageReanimatedOnBattlefield`, so there is no
     // double application.
+    // CR 702.44b (issue #2378) — a PLAYED land is never cast (CR 305.1: playing
+    // a land uses no stack and is not a spell), so no mana was spent to cast
+    // it and a sunburst count here is 0 by rule, not by accident. Stated
+    // explicitly because `EntersWithCastValues.manaSpentToCast` is required.
     const cardId = (card.card as { id?: string } | undefined)?.id;
     applyEntersWithCounters(
         card,
         cardId ? (tryGetDefinition(cardId) ?? undefined) : undefined,
-        {},
+        { manaSpentToCast: {} },
         state
     );
 
