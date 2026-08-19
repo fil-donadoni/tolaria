@@ -89,14 +89,21 @@ function Panel({
                 pair of queries `useViewportMode()` discriminates on. */}
             <CornerFiligreeFrame
                 overlay
-                className={cn("compact-chrome:hidden", frameClassName)}
+                className={cn("z-[1] compact-chrome:hidden", frameClassName)}
             />
             <CornerBracketFrame
-                className={cn("hidden compact-chrome:block", frameClassName)}
+                className={cn(
+                    "z-[1] hidden compact-chrome:block",
+                    frameClassName
+                )}
             />
         </>
     ) : (
-        <CornerBracketFrame className={frameClassName} />
+        // `z-[1]`: the frame is rendered BEFORE `children`, and PanelHeader's
+        // band now bleeds to the panel border — without a rung the top two
+        // corners paint underneath it. Decorative and `pointer-events-none`,
+        // so it steals nothing.
+        <CornerBracketFrame className={cn("z-[1]", frameClassName)} />
     );
 
     if (overlay) return frame;

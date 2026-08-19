@@ -116,10 +116,10 @@
                     "ctrlsZero": 1,
                     "ctrlsOcc": 4,
                     "ctrlsStranded": 9,
-                    "starved": 0,
+                    "starved": 1,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "worst cell in the matrix: 1 collapsed + 4 occluded controls and 9 STRANDED ones on tablet portrait, plus 1 axe serious (color-contrast)"
+                    "knownDebt": "worst cell in the matrix: 1 collapsed + 4 occluded controls and 9 STRANDED ones on tablet portrait, plus 1 axe serious (color-contrast). starved raised 0 → 1 by issue #2581: the toolbar's `flex flex-1 items-start gap-3 overflow-auto` container is a fixed-height flex child that does not grow, and the ADR 0101 §2 pointer rung (44px on a coarse pointer) makes its filter rows 228px against a 171px window. The SAME container is already starved at 1440x900x2 and 1180x820x2 — the touch rung surfaces a pre-existing deck-builder defect one viewport earlier, it does not create one. Owned by the deckbuilder slice (ADR 0101 §7: toolbar collapsed into the bar, filters in a popover); measured by neutralising the coarse rung, which returns this cell to starved 0 with every other number unchanged."
                 },
                 "1180x820x2": {
                     "cardsZero": 0,
@@ -132,6 +132,138 @@
                     "axeSerious": 1,
                     "axeCritical": 0,
                     "knownDebt": "1 collapsed + 2 occluded controls, 6 STRANDED, 1 starved container, 1 axe serious (color-contrast)"
+                }
+            }
+        },
+        "design-system": {
+            "label": "Design system census (/admin/design-system)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation."
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 2,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation. Phone portrait adds `scrollable-region-focusable` (a table scroller with no tab stop)."
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation."
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation."
+                }
+            }
+        },
+        "design-system-dialog": {
+            "label": "GameDialog live demo (/admin/design-system → Open live demo)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 12,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc 1` on the two portrait cells is a card specimen on the page underneath, likewise behind the scrim. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 10,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc 1` on the two portrait cells is a card specimen on the page underneath, likewise behind the scrim. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 10,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc 1` on the two portrait cells is a card specimen on the page underneath, likewise behind the scrim. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 12,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc 1` on the two portrait cells is a card specimen on the page underneath, likewise behind the scrim. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 12,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc 1` on the two portrait cells is a card specimen on the page underneath, likewise behind the scrim. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
                 }
             }
         },

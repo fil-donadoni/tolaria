@@ -132,6 +132,27 @@ There is no `/settings` route, and the admin surfaces live under `/admin/*`
 behind `AdminRouteGate` (a non-admin gets the 404 page, indistinguishable from
 an unknown path).
 
+## Design system census and the GameDialog demo (2026-08-19)
+
+The permanent v3 census (ADR 0101) and the lane's only MODAL row (#2581).
+
+| Route                  | Screen                                                                     |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `/admin/design-system` | Design system census — tokens, chrome, component variants, §14 = v3 tokens |
+
+**It is `/admin/design-system`, not `/design-system`** — the census moved under
+`/admin` with the other curation surfaces. The top-level path 404s, and the 404
+page renders its own `main`, so a walk that asserts `main` measures the
+not-found screen and reports a green: assert the `Design system census` heading
+instead. Measured exactly that failure while writing the walk.
+
+To reach a real dialog without touching a live game: open
+`/admin/design-system`, scroll to §08 Modal languages, and click the FIRST
+`Open live demo` (specimen **A · GameDialog**; B is the plain shadcn dialog, C
+the ActionSheet). Every in-game dialog is a `GameDialog`, so this is the Panel
+frame under measurement. With the dialog open, 10-12 controls behind the scrim
+measure as occluded — that is what a modal is, not a defect.
+
 ## Reach the Limited deck builder (2026-08-17)
 
 The pool builder is where a Sealed/Draft pool becomes a deck, and it is the

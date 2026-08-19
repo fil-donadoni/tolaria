@@ -220,6 +220,65 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "design-system",
+        label: "Design system census (/admin/design-system)",
+        async walk(page, ctx) {
+            // The permanent census page (ADR 0101 names it the living record
+            // of v3). It lives UNDER /admin — it was moved off the guessable
+            // top-level path with the other curation surfaces (router.tsx).
+            //
+            // The reachability check is the census HEADING, not `main`: the
+            // 404 page also renders a `main`, so a `main`-only assertion
+            // measured the not-found screen and reported PASS. Measured
+            // exactly that on the wrong path while writing this walk.
+            await goto(page, ctx, "/admin/design-system");
+            if (
+                !(await visible(
+                    page,
+                    "h1:has-text('Design system census')",
+                    10_000
+                ))
+            ) {
+                throw new Unreachable(
+                    "/admin/design-system did not render the census heading"
+                );
+            }
+        },
+    },
+    {
+        id: "design-system-dialog",
+        label: "GameDialog live demo (/admin/design-system → Open live demo)",
+        async walk(page, ctx) {
+            // The lane's only MODAL row. Every in-game dialog is a GameDialog,
+            // and the census page opens a real one on demand — so the dialog
+            // gets measured at all five viewports without touching a live game
+            // (issue #2581; ADR 0101 §2 re-specifies the Panel frame those
+            // dialogs are built on).
+            await goto(page, ctx, "/admin/design-system");
+            // The FIRST "Open live demo" is specimen A (GameDialog); B is the
+            // plain shadcn dialog and C the ActionSheet. Wait rather than
+            // probe: the census page is long and its sections mount late.
+            const opener = page
+                .getByRole("button", { name: "Open live demo" })
+                .first();
+            try {
+                await opener.waitFor({ state: "visible", timeout: 10_000 });
+            } catch {
+                throw new Unreachable(
+                    "/admin/design-system rendered no `Open live demo` button"
+                );
+            }
+            await opener.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
+            await opener.click({ timeout: STEP_TIMEOUT });
+            if (!(await visible(page, "[role=dialog]", STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "`Open live demo` did not open a dialog within 8s"
+                );
+            }
+            await page.waitForTimeout(400);
+        },
+    },
+    {
         id: "limited-list",
         label: "Limited events list (/limited)",
         async walk(page, ctx) {
