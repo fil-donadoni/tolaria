@@ -1734,7 +1734,7 @@ function isBoolean(value: unknown): boolean {
  *  `isEffectValue` itself never accepts `negate`, only the SIGNED grammar
  *  below does). No other keys are permitted. Unblocks "-X/-X" style pump
  *  amounts driven off a non-negative-by-nature value member (Toxic Deluge's
- *  chosen-cost X, CR 118.4 pay-X-life). */
+ *  chosen-cost X, CR 118.4 / 119.4 pay-X-life). */
 function isNegatedValue(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false;
     const keys = Object.keys(value);
@@ -4336,7 +4336,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     setProtectionFromEverything: {
         required: { player: isPlayerRef },
     },
-    // CR 118.4 / 121.1 (issue #1283) — a single ranged 0..N "drawn this turn"
+    // CR 119.4 / 121.1 (issue #1283) — a single ranged 0..N "drawn this turn"
     // hand pick with a per-NOT-chosen life cost (Sylvan Library). `pool` is
     // the candidate-set discriminator (only `"drawn-this-turn"` today); `max`
     // is the "choose N" cap; `costPerKept` is the life paid per pool member

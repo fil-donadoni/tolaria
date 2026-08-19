@@ -98,7 +98,7 @@ describe("Sylvan Library put-on-top pick — client wiring (issue #1691)", () =>
             "l0",
             "l1",
         ]);
-        // Ranged 0–2 pick (CR 118.4): the player may keep both (pay 8), put
+        // Ranged 0–2 pick (CR 119.4): the player may keep both (pay 8), put
         // both back (pay 0), or mix (pay 4).
         expect(props.putBack).toEqual({ keep: 2, min: 0 });
     });

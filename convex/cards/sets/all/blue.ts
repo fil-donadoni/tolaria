@@ -4,7 +4,7 @@ import type { CardDefinition } from "../../types";
 
 // Force of Will — {3}{U}{U} Instant. "You may pay 1 life and exile a blue card
 // from your hand rather than pay this spell's mana cost. Counter target spell."
-// (CR 118.9 alternative pitch cost; CR 118.4 pay-life leg; CR 701.13 exile leg;
+// (CR 118.9 alternative pitch cost; CR 119.4 pay-life leg; CR 701.13 exile leg;
 // CR 701.6a counter.) The alternative cost is a censusless CR 118.9 rules
 // concept (no keyword name) built from two legs — pay 1 life + exile a blue
 // card from hand — paid at cast commit; the on-resolution effect is a single

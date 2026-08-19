@@ -140,7 +140,7 @@ describe("Erosion — upkeep destroy enchanted land unless pay {1} or 1 life (CR
         ).toBeUndefined();
     });
 
-    it("paying 1 life keeps the land (CR 118.4)", () => {
+    it("paying 1 life keeps the land (CR 119.4)", () => {
         const { state, aura } = setup();
         resolveTrigger(state, aura, "erosion-upkeep-tax", UPKEEP("p2"));
         answerChoice(state, ["decline"]); // decline {1}

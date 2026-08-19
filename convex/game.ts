@@ -2977,7 +2977,7 @@ export function tryAutoCommitPendingActivation(
         }
         payDiscardAtRandomCost(state, playerId, pa.discardAtRandomCount);
     }
-    // CR 118.4 — pay the life cost at commit (deferred so a dropped/cancelled
+    // CR 119.4 — pay the life cost at commit (deferred so a dropped/cancelled
     // payment leaves the total untouched). Validated up-front at announcement.
     if (pa.lifeCost !== undefined) {
         player.life -= pa.lifeCost;
@@ -6284,7 +6284,7 @@ export function finalizeTargetSelection(
                 ability.cost.discardAtRandom
             );
         }
-        // CR 118.4 — pay the life cost as the targeted ability goes on the
+        // CR 119.4 — pay the life cost as the targeted ability goes on the
         // stack. Validated up-front in activateAbility before pendingTarget.
         if (ability.cost.life !== undefined) {
             player.life -= ability.cost.life;
@@ -6482,7 +6482,7 @@ export function finalizeTargetSelection(
         (cardDef.additionalCosts?.payXLife === true ? (chosenX ?? 0) : 0) +
         // CR 601.2b — a FIXED "pay N life" additional cost (Fumarole).
         (cardDef.additionalCosts?.payLife ?? 0) +
-        // CR 118.4 / 118.9 — the LIFE leg of the chosen alternative cost (Snuff
+        // CR 119.4 / 118.9 — the LIFE leg of the chosen alternative cost (Snuff
         // Out "pay 4 life", Force of Will "pay 1 life and exile a blue card").
         (chosenAltCost?.life ?? 0) +
         // CR 702.33a / 118.4 — the LIFE leg of every paid Kicker ("pay 3 life"),
@@ -7299,7 +7299,7 @@ export const announceCast = mutation({
         // CR 601.2b / 118.4 — "pay X life" additional cost (Fire Covenant):
         // the caster chooses X independently of the mana cost. Validate it's
         // present, non-negative, and affordable from current life (you can't
-        // pay more life than you have, CR 118.4). The life itself is paid at
+        // pay more life than you have, CR 119.4). The life itself is paid at
         // cast commit (finalizeTargetSelection / no-target commit), CR 601.2h.
         const payXLife = cardDef.additionalCosts?.payXLife === true;
         if (payXLife) {
@@ -13143,7 +13143,7 @@ export function activateAbilityOnState(
                 throw new Error("Not enough counters to pay activation cost");
             }
         }
-        // CR 118.4 — a life-payment cost is illegal unless the player has
+        // CR 119.4 — a life-payment cost is illegal unless the player has
         // at least that much life. Validated up-front on the targeted path
         // too, before entering pendingTarget.
         if (
@@ -13333,7 +13333,7 @@ export function activateAbilityOnState(
             );
         }
     }
-    // CR 118.4 — a life-payment cost is illegal unless the player has at
+    // CR 119.4 — a life-payment cost is illegal unless the player has at
     // least that much life. Validated up-front so we never enter a
     // pendingActivation that can't be paid (fetch lands: {T}, Pay 1 life,
     // Sacrifice — the life leg was previously unpaid on the stack path).
@@ -13535,7 +13535,7 @@ export function activateAbilityOnState(
     if (ability.cost.discardAtRandom) {
         payDiscardAtRandomCost(state, player.id, ability.cost.discardAtRandom);
     }
-    // CR 118.4 — pay the life cost (fetch lands: "Pay 1 life"). Validated
+    // CR 119.4 — pay the life cost (fetch lands: "Pay 1 life"). Validated
     // up-front; deducted here as the ability goes on the stack.
     if (ability.cost.life !== undefined) {
         player.life -= ability.cost.life;
@@ -14638,7 +14638,7 @@ export const activatePlayerAbility = mutation({
             commitLandsForCost(player, manaCost);
         }
 
-        // CR 118.4 — a player can't pay more life than they have.
+        // CR 119.4 — a player can't pay more life than they have.
         if (ability.cost.life !== undefined) {
             if (player.life < ability.cost.life) {
                 throw new Error("Not enough life");

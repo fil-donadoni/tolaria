@@ -3,7 +3,7 @@
 import type { CardDefinition } from "../../types";
 
 // Toxic Deluge — {2}{B} Sorcery. "As an additional cost to cast this spell,
-// pay X life. All creatures get -X/-X until end of turn." (CR 118.4 pay-X-life
+// pay X life. All creatures get -X/-X until end of turn." (CR 118.4 / 119.4 pay-X-life
 // additional cost — already shipped via `additionalCosts.payXLife`, Fire
 // Covenant; CR 611.2 temporary P/T reduction — the `pump` Op, forEach/battlefield
 // sweep idiom already shipped, Pyroclasm-style; CR 611.2 negative amount now

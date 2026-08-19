@@ -938,7 +938,7 @@ export interface ActivatedAbility {
             count?: number;
             totalPower?: number;
         };
-        /** Life payment (CR 118.4). Legal while `player.life >= life`; SBA
+        /** Life payment (CR 119.4). Legal while `player.life >= life`; SBA
          *  handles the loss if payment takes life to 0 or below. */
         life?: number;
         /** Loyalty cost of a LOYALTY ABILITY (CR 606). A SIGNED integer that is
@@ -1601,7 +1601,7 @@ export interface CostLegs {
         filter: PermanentFilter;
         count: number | { minTotalPower: number };
     };
-    /** LIFE leg (CR 118.4 / 119.4 — "Pay N life"). Snuff Out pays 4, Force of
+    /** LIFE leg (CR 119.4 — "Pay N life"). Snuff Out pays 4, Force of
      *  Will pays 1, a shock land pays 2. Affordable only when the payer's life
      *  total ≥ this amount (CR 119.4). Deterministic — no picker. */
     life?: number;
@@ -8275,7 +8275,7 @@ export interface CardPutIntoGraveyardEvent {
  *  Lich), carrying the ACTUAL amount lost (post-replacement, post-prevention).
  *  Used by "whenever you lose life" triggers (Oath of Lim-Dûl — "for each 1
  *  life you lost, ..."). Every life-loss path — the `loseLife` primitive, paid
- *  life costs (CR 118.4), and all damage-to-player sinks (CR 119.3 — combat,
+ *  life costs (CR 119.4), and all damage-to-player sinks (CR 119.3 — combat,
  *  noncombat, reflected) — flows through the single `loseLifeEmitting` choke
  *  point (or, for damage, calls `emitLifeLost` after the prevention/replacement
  *  chain) so the event fires off EVERY path. NOT emitted for a zero-amount loss
@@ -13377,7 +13377,7 @@ export type EffectOp =
      *  this shape). Duration is intrinsic, no `duration` field.
      *  Skipped when the player cannot be resolved (CR 608.2b). */
     | { op: "setProtectionFromEverything"; player: EffectPlayerRef }
-    /** CR 118.4 / 121.1 (issue #1283) — Sylvan Library's single ranged 0..N
+    /** CR 119.4 / 121.1 (issue #1283) — Sylvan Library's single ranged 0..N
      *  "cards drawn this turn" hand pick, with a per-NOT-chosen life cost. A
      *  thin declarative composition over EXISTING SpellContext primitives —
      *  `getDrawnThisTurnIds` / `getHandIds` / `getLife` / `requestChoice` /
@@ -13386,7 +13386,7 @@ export type EffectOp =
      *  `"drawn-this-turn"` today — the cards `player` drew this turn that are
      *  still in their hand); `max` is the "choose N" cap (Sylvan Library's
      *  printed "choose two", CR 608.2b-clamped to the pool size); `costPerKept`
-     *  is the life paid PER pool member NOT put on top (CR 118.4's "pay 4 …
+     *  is the life paid PER pool member NOT put on top (CR 119.4's "pay 4 …
      *  or put the card on top", collapsed into ONE ranged pick because the two
      *  printed per-card options are reachable-outcome-identical — keep both =
      *  pay 8, topdeck both = pay 0, mix = pay 4 — see the card's own comment).
@@ -14179,7 +14179,7 @@ export interface CardDefinition {
          *  cost — the card has no {X} pip); the engine pays X life at cast
          *  commit and snapshots X onto the stack item so `getX()` returns it at
          *  resolve. The cast is illegal if the player's life is below the chosen
-         *  X (CR 118.4 — you can't pay more life than you have). When set, the
+         *  X (CR 119.4 — you can't pay more life than you have). When set, the
          *  spell's `targetRequirement.count` may be `"X"` to take up to X
          *  targets, and the divided total equals the chosen X. Used by Fire
          *  Covenant. */
@@ -14187,7 +14187,7 @@ export interface CardDefinition {
         /** CR 601.2b / 118.4 — "As an additional cost to cast this spell, pay N
          *  life" for a FIXED N (distinct from the caster-chosen `payXLife`).
          *  The engine pays exactly N life at cast commit; the cast is illegal if
-         *  the player's life is below N (CR 118.4 — you can't pay more life than
+         *  the player's life is below N (CR 119.4 — you can't pay more life than
          *  you have). Composes with `targetRequirement` /
          *  `additionalTargetRequirements` (targets are chosen first, CR 601.2c).
          *  Used by Fumarole ("pay 3 life"). */

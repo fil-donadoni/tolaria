@@ -186,7 +186,7 @@ describe("shock land entry: independence from other tapped sources (CR 616)", ()
     });
 });
 
-describe("shock land entry: affordability gate (CR 118.4)", () => {
+describe("shock land entry: affordability gate (CR 119.4)", () => {
     it("at 1 life only 'decline' is legal, and accepting throws", () => {
         const { state, player } = playSteamVents(1);
         applyPlayLand(state, player, "shock");

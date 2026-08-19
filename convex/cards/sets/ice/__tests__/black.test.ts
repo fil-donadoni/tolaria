@@ -1879,7 +1879,7 @@ describe("Infernal Darkness — lands produce {B} (CR 614, #665)", () => {
 
 // ---------------------------------------------------------------------------
 // Necropotence (#667) — CR 504/614 skip-draw + CR 701.9/603 discard→exile
-// trigger + CR 118.4 pay-life face-down exile + CR 603.7a next-end-step return.
+// trigger + CR 119.4 pay-life face-down exile + CR 603.7a next-end-step return.
 // ---------------------------------------------------------------------------
 
 describe("Necropotence (CR 504/614 skip-draw + CR 701.9 discard→exile)", () => {
@@ -2021,7 +2021,7 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.9 discard→exile)", () =>
         });
 
         // Activate "Pay 1 life: exile the top card face down" (cost paid here).
-        state.players[0].life -= 1; // CR 118.4 — pay 1 life.
+        state.players[0].life -= 1; // CR 119.4 — pay 1 life.
         resolveActivated(state, necro, "necropotence-pay-life");
 
         // CR 406.3 — the top card is exiled face down, library shrinks.

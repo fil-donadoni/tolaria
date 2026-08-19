@@ -353,7 +353,7 @@ export const loreholdCharm: CardDefinition = {
 
 // Vicious Rivalry — {2}{B}{G} Sorcery. "As an additional cost to cast this
 // spell, pay X life. Destroy all artifacts and creatures with mana value X or
-// less." (CR 118.4 pay-X-life additional cost — already shipped via
+// less." (CR 118.4 / 119.4 pay-X-life additional cost — already shipped via
 // `additionalCosts.payXLife`, Fire Covenant.) BLOCKED: `EffectCardFilter.
 // manaValueAtMost` is a FIXED literal ceiling by design (its own doc comment
 // in `convex/cards/types.ts` names Green Sun's Zenith's "mana value X or

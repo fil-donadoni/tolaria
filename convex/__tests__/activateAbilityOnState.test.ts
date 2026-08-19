@@ -89,7 +89,7 @@ describe("activateAbilityOnState — committed path (CR 602.1)", () => {
 
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].abilityId).toBe("polluted-delta-fetch");
-        // CR 118.4 — the life leg is really paid.
+        // CR 119.4 — the life leg is really paid.
         expect(state.players[0].life).toBe(19);
         // CR 701.21 — and so is the sacrifice.
         expect(state.players[0].battlefield).toHaveLength(0);

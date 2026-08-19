@@ -9,7 +9,7 @@ import { makeTalisman } from "../../abilities";
 // The Modern Horizons "Horizon land" cycle — a painland mana ability
 // ({T}, Pay 1 life: Add one of two colours) plus a cantrip-sacrifice ability
 // ({1}, {T}, Sacrifice this land: Draw a card). CR 605.1a mana ability
-// (useStack: false), CR 118.4 life payment in the cost, CR 602 sacrifice
+// (useStack: false), CR 119.4 life payment in the cost, CR 602 sacrifice
 // ability that uses the stack. Composed from existing primitives — the mana
 // ability mirrors Standing Stones (DRK).
 

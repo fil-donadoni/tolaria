@@ -233,7 +233,7 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
         ).toThrow(/Not enough counters/);
     });
 
-    it("cost.life — the life is deducted from the ACTIVATING player (CR 118.4)", () => {
+    it("cost.life — the life is deducted from the ACTIVATING player (CR 119.4)", () => {
         const griselbrand = bf(GRISELBRAND, "gris");
         const state = makeState({
             players: [
@@ -803,7 +803,7 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
         });
     }
 
-    it("does not offer a life activation below the cost (CR 118.4)", () => {
+    it("does not offer a life activation below the cost (CR 119.4)", () => {
         // The sibling gap: fail-closed today only because the leaf happened not
         // to flip the choice. Gated in the same pass rather than left behind.
         const state = griselbrandAt(3);

@@ -51,6 +51,10 @@ import {
     keywordIndex,
     scanKeywordCitations,
 } from "./cr-keyword-citations.ts";
+import {
+    formatLifePaymentHit,
+    scanLifePaymentMiscitations,
+} from "./cr-118-4-life-payment.ts";
 
 // `import.meta.dir` is Bun-only; the regression guard imports this module under
 // vitest/node, where it is undefined.
@@ -209,6 +213,36 @@ function keywordScan(showFiles: boolean): number {
     return 1;
 }
 
+/**
+ * The CR 118.4 life-payment scan (`cr-118-4-life-payment.ts`, issue #2559) —
+ * a third "resolvable but wrong" check alongside the keyword scan, for the
+ * narrow shape where `CR 118.4` ("some costs include an X") is cited for a
+ * claim about paying life, which is CR 119.4's rule instead.
+ */
+function lifePaymentScan(showFiles: boolean): number {
+    const hits = scanLifePaymentMiscitations(readSources());
+    if (!hits.length) {
+        console.log(
+            "\nno CR 118.4 citation is attached to a claim about paying life"
+        );
+        return 0;
+    }
+    console.log(
+        `\n${hits.length} citation(s) of CR 118.4 describe paying life (that's CR 119.4):\n`
+    );
+    for (const hit of showFiles ? hits : hits.slice(0, 25)) {
+        console.log(formatLifePaymentHit(hit));
+    }
+    if (!showFiles && hits.length > 25) {
+        console.log(`  … ${hits.length - 25} more (re-run with --files)`);
+    }
+    console.log(
+        `\nPrint \`bun run cr 119.4\` before editing. If the cost also names an` +
+            `\n{X} placeholder (CR 107.3), cite both: "CR 118.4 / 119.4".`
+    );
+    return 1;
+}
+
 function main(): number {
     const showFiles = process.argv.includes("--files");
     const ruleCount = knownRuleIds().size;
@@ -219,7 +253,9 @@ function main(): number {
     );
     if (!bad.size) {
         console.log("all citations resolve");
-        return keywordScan(showFiles);
+        const keywordResult = keywordScan(showFiles);
+        const lifePaymentResult = lifePaymentScan(showFiles);
+        return keywordResult || lifePaymentResult;
     }
     console.log(`\n${bad.size} unresolvable rule ids:\n`);
     for (const [id, hits] of [...bad.entries()].sort(
@@ -235,6 +271,7 @@ function main(): number {
         `\nFind the real rule with \`bun run cr grep "<keyword>"\` — never guess the letter.`
     );
     keywordScan(showFiles);
+    lifePaymentScan(showFiles);
     return 1;
 }
 

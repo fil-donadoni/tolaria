@@ -1786,7 +1786,7 @@ export function getStackAbilities(
      *  of Alexandria, Pestilence, Nettling Imp — are surfaced correctly (#436). */
     stateView?: TriggerStateView,
     /** Life available to the player who would pay the ability's cost. Gates the
-     *  CR 118.4 life-payment cost as a UI hint: an ability whose `cost.life`
+     *  CR 119.4 life-payment cost as a UI hint: an ability whose `cost.life`
      *  exceeds it is unpayable and hidden, mirroring the server throw ("Not
      *  enough life"). Omit to skip the gate (callers/tests without life data). */
     payerLife?: number,
@@ -1916,7 +1916,7 @@ export function getStackAbilities(
         if (a.cost.tap && card.isTapped) return false;
         // CR 302.1 — creature with summoning sickness can't pay {T}.
         if (a.cost.tap && tapLocked) return false;
-        // CR 118.4 — a "pay N life" cost is illegal unless the payer has at
+        // CR 119.4 — a "pay N life" cost is illegal unless the payer has at
         // least N life. Hidden as a UI hint so the ability is never offered
         // when unpayable; the server throw ("Not enough life") is
         // authoritative. Skipped when `payerLife` is unknown (undefined).
@@ -2301,7 +2301,7 @@ export function getAnyPlayerStackAbilities(
     stateView?: TriggerStateView,
     /** Life of the activating (non-controller) player — the viewer paying the
      *  cost, NOT the permanent's controller. Forwarded to `getStackAbilities`
-     *  to gate the CR 118.4 life cost (see there). */
+     *  to gate the CR 119.4 life cost (see there). */
     payerLife?: number,
     /** The non-controller ACTIVATOR (the viewer). Required for the
      *  `activatableByEnchantedController` branch, whose legality is "do you

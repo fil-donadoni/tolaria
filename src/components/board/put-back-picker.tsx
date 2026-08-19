@@ -24,7 +24,7 @@ import LibraryOrderPicker from "./library-order/library-order-picker";
  *   • EXACT — Brainstorm's `putBack` (`count: 2`): exactly 2 go back on top.
  *   • RANGED — Sylvan Library's `rangedTopdeck` (`count: { min, max }`): the
  *     chooser puts BETWEEN `min` and `max` back and pays life for each one
- *     KEPT (CR 118.4), with `min` carrying the CR 119.4 "can't pay life you
+ *     KEPT (CR 119.4), with `min` carrying the CR 119.4 "can't pay life you
  *     don't have" floor the engine computed. Collapsing the range to
  *     `count.min` (the old behavior) pinned the cap at 0 at a healthy life
  *     total, so nothing could ever be dragged onto the library — the pick

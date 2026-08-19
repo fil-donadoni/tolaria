@@ -12,7 +12,7 @@
 //     sacrifices a Mountain). WHICH permanents pay is the player's choice,
 //     routed through the unified `sacrificeChoice.ts` layer as a
 //     `SacrificeSelection`.
-//   * LIFE leg (`life`) — pay N life (CR 118.4 / 119.4). Snuff Out pays 4,
+//   * LIFE leg (`life`) — pay N life (CR 119.4). Snuff Out pays 4,
 //     Force of Will / Force of Negation pay 1. Deterministic (no picker).
 //   * HAND leg (`hand: { action, requirements }`) — exile / discard cards FROM
 //     HAND matching a filter (Force of Will exiles a blue card, Foil discards an

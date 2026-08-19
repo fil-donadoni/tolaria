@@ -1276,7 +1276,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`;
             return;
         case "rangedTopdeck":
-            // CR 118.4 / 121.1 (issue #1283) — a suspending ranged `choose-
+            // CR 119.4 / 121.1 (issue #1283) — a suspending ranged `choose-
             // hand-card` pick over a "drawn this turn" candidate pool the
             // canned single-resolution generator cannot drive a live answer
             // for. Every shipped consumer (Sylvan Library) additionally wraps
@@ -1284,7 +1284,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // on its own. Explicit skip for exhaustiveness — covered by the
             // Op's own interpreter tests (per-Op regime) plus Sylvan
             // Library's hand-written per-card tests.
-            req.skip ??= `Op "rangedTopdeck" suspends for a live ranged hand pick (CR 118.4) — covered by the Op's interpreter tests`;
+            req.skip ??= `Op "rangedTopdeck" suspends for a live ranged hand pick (CR 119.4) — covered by the Op's interpreter tests`;
             return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
@@ -2555,7 +2555,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     setProtectionFromEverything() {
         return null;
     },
-    // `rangedTopdeck` (CR 118.4 / 121.1, issue #1283) — never reached:
+    // `rangedTopdeck` (CR 119.4 / 121.1, issue #1283) — never reached:
     // `analyseOp` skips every script with this Op (it suspends for a live
     // ranged hand pick, and its shipped consumer wraps it in a `mayPay`+`if`
     // body, which already skips wholesale). Kept for the 1:1 coverage guard;

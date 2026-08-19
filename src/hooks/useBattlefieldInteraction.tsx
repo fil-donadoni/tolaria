@@ -806,7 +806,7 @@ export function useBattlefieldInteraction(player: Player) {
         // second — where clicking silently did nothing (Merseine).
         if (card.controllerId !== playerId) {
             if (!viewerHasPriority) return [];
-            // CR 118.4 — the viewer (not the permanent's controller) pays a
+            // CR 119.4 — the viewer (not the permanent's controller) pays a
             // non-controller ability's life cost, so gate on the viewer's life.
             return getAnyPlayerStackAbilities(
                 card,
@@ -846,7 +846,7 @@ export function useBattlefieldInteraction(player: Player) {
             phase,
             canDiscardLastDrawn,
             stateView,
-            // CR 118.4 — controller's own ability: the controller (the viewer on
+            // CR 119.4 — controller's own ability: the controller (the viewer on
             // this path, by the `card.controllerId` split above) pays the life
             // cost.
             viewer.life,

@@ -83,13 +83,13 @@ describe("Polluted Delta (CR 701.23 / 400.7 / 701.24)", () => {
         );
     });
 
-    // CR 118.4 — the "Pay 1 life" leg of the activation cost. Regression for a
+    // CR 119.4 — the "Pay 1 life" leg of the activation cost. Regression for a
     // bug where the life cost was declared on every fetchland but never paid:
     // activateAbility's commit paths deducted tap/sacrifice but skipped life.
     // Drives the REAL cost-commit seam (buildPendingActivation +
     // tryAutoCommitPendingActivation) so a future regression in the commit
     // order is caught, not a test-local mirror.
-    it("pays 1 life and sacrifices itself when the fetch ability is committed (CR 118.4)", () => {
+    it("pays 1 life and sacrifices itself when the fetch ability is committed (CR 119.4)", () => {
         const ability = pollutedDelta.activatedAbilities![0];
         const land = makeInstance(pollutedDelta.id, {
             id: "deltaLand",

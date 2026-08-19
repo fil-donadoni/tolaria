@@ -529,7 +529,7 @@ export const essenceVortex: CardDefinition = {
         if (target?.type !== "permanent") return;
         const toughness = ctx.getToughness(target);
         const controller = ctx.getController(target);
-        // CR 118.4 — only offer the life payment when the controller can
+        // CR 119.4 — only offer the life payment when the controller can
         // afford it; otherwise the creature is destroyed outright.
         if (toughness > 0 && ctx.getLife(controller) >= toughness) {
             const pay = ctx.requestMayPay({
@@ -579,7 +579,7 @@ export const fieryJustice: CardDefinition = {
 // number of target creatures." (CR 601.2b pay-X-life additional cost; CR 601.2d
 // / 120.4 divide as you choose.) The {X} here is NOT in the mana cost — it is
 // the life the caster chooses to pay, which becomes the damage total. The
-// engine validates affordability (CR 118.4), pays the life as the spell hits
+// engine validates affordability (CR 119.4), pays the life as the spell hits
 // the stack, snapshots X so `getX()` returns it, and drives the per-target
 // split via `divideAsChosen: { total: "X" }`. DSL-first (ADR 0045): the
 // `dealDamageDividedAsChosen` Op resolves `total: "X"` as `getX()`.

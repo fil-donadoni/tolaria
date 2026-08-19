@@ -134,7 +134,7 @@ describe("alternativeCostConditionMet (CR 118.9)", () => {
     });
 });
 
-describe("canPayAlternativeCost — life & hand legs (CR 118.4 / 118.9)", () => {
+describe("canPayAlternativeCost — life & hand legs (CR 119.4 / 118.9)", () => {
     it("life leg is affordable only with life >= amount (CR 119.4)", () => {
         const altCost = getAlternativeCost(snuffOut, "pitch-pay-4-life")!;
         const swampId = getCardByName("Swamp").id;
@@ -416,7 +416,7 @@ describe("pitch cast commit pays the hand + life legs (CR 118.9 / 601.2h)", () =
         expect(p1.exile.map((c) => c.id)).toEqual(["b1"]);
         expect(p1.hand.map((c) => c.id)).toContain("b2");
         expect(p1.hand.map((c) => c.id)).not.toContain("fow");
-        // 1 life paid (CR 118.4).
+        // 1 life paid (CR 119.4).
         expect(p1.life).toBe(19);
         // Force of Will on the stack, above the bolt it targets.
         expect(state.stack.some((s) => s.id === "fow")).toBe(true);
