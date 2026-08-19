@@ -5,13 +5,22 @@
 // through the real `LimitedEventDetail` render, mirroring
 // `limited-vs-ai-panel.test.tsx`'s mocking discipline.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import {
     projectLimitedEvent,
     type LimitedEventRow,
 } from "@convex/limited/eventProjection";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import LimitedEventDetail from "../limited-event-detail";
+
+// `LimitedDraftTable` (mounted while drafting) pulls in `LimitedDraftTimer`,
+// which reads `useReducedMotion` from `motion/react` — happy-dom has no
+// `matchMedia` by default, and the chrome-collapse tests below stub one that
+// only answers `useViewportMode`'s two queries, so this needs its own stub
+// (mirrors `limited-draft-table.test.tsx`'s discipline).
+vi.mock("motion/react", () => ({
+    useReducedMotion: () => false,
+}));
 
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),
@@ -456,6 +465,98 @@ function projectedChallengeableEvent(
         viewerOutgoingChallenge: null,
     };
 }
+
+// Issue #2515: on a compact viewport the event's own chrome (title, badges,
+// Seats, Close Event, the decorative frame) pushed the first pack card to 86%
+// of a landscape phone screen while drafting. The collapse is gated on BOTH
+// `draftInProgress` AND a compact viewport — get either alone wrong and an
+// acceptance criterion breaks (viewport-only strips chrome off a
+// non-drafting event; drafting-only changes desktop). happy-dom's
+// `useViewportMode()` falls back to "desktop" with no `matchMedia`
+// (`src/hooks/useViewportMode.ts`), which is exactly why every test ABOVE
+// this block keeps passing unchanged — none of them reach the compact
+// branch. Reaching it here requires an explicit `matchMedia` stub that
+// answers the hook's own two queries (mirrors
+// `src/hooks/__tests__/useViewportMode.test.ts`'s discipline), not a mock of
+// the hook itself — a hook-level mock would prove the component reads SOME
+// boolean, not that it reads the REAL media query the CSS `compact-chrome:`
+// variant also keys on.
+describe("chrome collapses while drafting on a compact viewport (issue #2515)", () => {
+    function stubLandscapeCompactViewport() {
+        vi.stubGlobal(
+            "matchMedia",
+            (query: string) =>
+                ({
+                    media: query,
+                    // Only the landscape-phone query matches — exactly
+                    // `useViewportMode()`'s "landscape-compact" mode, i.e.
+                    // `mode !== "desktop"`.
+                    matches: query.includes("orientation: landscape"),
+                    addEventListener: () => {},
+                    removeEventListener: () => {},
+                    addListener: () => {},
+                    removeListener: () => {},
+                    onchange: null,
+                    dispatchEvent: () => true,
+                }) as MediaQueryList
+        );
+    }
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("folds title/badges/Seats/Close Event behind a toggle while drafting, keeping the Booster meta row and a way back", () => {
+        stubLandscapeCompactViewport();
+        eventMock.mockReturnValue(
+            makeEvent({
+                type: "draft",
+                status: "started",
+                createdBy: "user-1",
+                packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
+            })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.queryByText("Vintage Cube Draft")).toBeNull();
+        expect(screen.queryByText("drafting")).toBeNull();
+        expect(screen.queryByText(/Seats ·/)).toBeNull();
+        expect(screen.queryByText("Close Event")).toBeNull();
+
+        // The Booster meta row — the whole point of the collapse — stays
+        // resident, and a way back is reachable without opening the
+        // disclosure.
+        expect(screen.getByText(/Booster 1 of/)).toBeTruthy();
+        expect(screen.getByText("← Back to Limited Events")).toBeTruthy();
+
+        // Reachable, not removed: the toggle expands the folded band back.
+        const toggle = screen.getByRole("button", { name: /Event Details/ });
+        fireEvent.click(toggle);
+        expect(screen.getByText("Vintage Cube Draft")).toBeTruthy();
+        expect(screen.getByText("Close Event")).toBeTruthy();
+    });
+
+    it("keeps the full chrome on the SAME compact viewport when the event is NOT drafting", () => {
+        stubLandscapeCompactViewport();
+        eventMock.mockReturnValue(
+            makeEvent({ type: "sealed", status: "open", createdBy: "user-1" })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        // Never folded: no toggle exists at all off a Draft.
+        expect(
+            screen.queryByRole("button", { name: /Event Details/ })
+        ).toBeNull();
+        // The event name, seatingOpen's own "Cancel Event" label (creator,
+        // still open) and the toolbar's own Back link all render exactly as
+        // the non-drafting suites above already prove they do on desktop.
+        expect(screen.getByText("Limited Edition Alpha Sealed")).toBeTruthy();
+        expect(screen.getByText("Cancel Event")).toBeTruthy();
+        expect(screen.getByText("← Back to Limited Events")).toBeTruthy();
+    });
+});
 
 describe("LimitedChallengePanel hides during rounds, reappears at finish (finding 2, issue #1648 review)", () => {
     it("hides the challenge panel while the event's rounds are running", () => {
