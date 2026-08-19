@@ -22,7 +22,7 @@ import { describe, it, expect } from "vitest";
 import { oko } from "../multicolor";
 import { getCardByName } from "../../../index";
 import type { GameState, CardInstanceState } from "../../../../gre/state";
-import { resolveTopOfStack } from "../../../../gre/state";
+import { removePermanentTo, resolveTopOfStack } from "../../../../gre/state";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -209,6 +209,44 @@ describe("Oko, Thief of Crowns — +1 elk-ification (CR 611.2c, layers 4/5/6/7b)
         expect(getEffectivePower(state, after)).toBe(3);
     });
 
+    it("the strip does NOT survive a zone change — a bounced elk is a Serra Angel again (CR 400.7)", () => {
+        const state = board(
+            makeInstance(SERRA, { id: "victim", controllerId: "p2" })
+        );
+        activate(state, PLUS1, [{ type: "permanent", id: "victim" }]);
+        expect(find(state, "victim").staticAbilities).toEqual([]);
+
+        // CR 400.7 — the object that leaves is a new object with no memory of
+        // its previous existence. The one-shot arm's holds are keyed to the
+        // `"indefinite"` sentinel, which no `unapplySourceStaticEffects` call
+        // can ever match, so `resetBattlefieldTransientState` is the ONLY
+        // release path there is.
+        removePermanentTo(state, "victim", "hand");
+        const bounced = state.players[1].hand.find((c) => c.id === "victim")!;
+        expect(bounced.staticAbilities).toEqual(
+            expect.arrayContaining(["flying", "vigilance"])
+        );
+        expect(bounced.abilitiesSuppressedBy).toBeUndefined();
+        expect(bounced.removedKeywords).toBeUndefined();
+        // The type half (already covered for `setCardTypes`) restores in the
+        // same pass — asserted here so the whole printed object comes back.
+        expect(bounced.types).toEqual(["Creature"]);
+        expect(bounced.subtypes).toEqual(["Angel"]);
+
+        // Recast/reanimated: a full 4/4 flier again, abilities and all.
+        bounced.zone = "battlefield";
+        state.players[1].hand = state.players[1].hand.filter(
+            (c) => c.id !== "victim"
+        );
+        state.players[1].battlefield.push(bounced);
+        const reentered = find(state, "victim");
+        expect(getEffectivePower(state, reentered)).toBe(4);
+        expect(getEffectiveToughness(state, reentered)).toBe(4);
+        expect(reentered.staticAbilities).toEqual(
+            expect.arrayContaining(["flying", "vigilance"])
+        );
+    });
+
     it("the elk-ified permanent survives projection (wire format)", () => {
         const state = board(
             makeInstance(LOTUS, { id: "victim", controllerId: "p2" })
@@ -296,6 +334,45 @@ describe("Oko, Thief of Crowns — −5 control exchange (CR 701.12b)", () => {
         ]);
         expect(controllerOf(state, "mine")).toBe("p1");
         expect(controllerOf(state, "alsoMine")).toBe("p1");
+    });
+
+    it("refuses to ANNOUNCE when the second group is unfillable, before any pendingTarget is set (CR 601.2c via 602.2b)", () => {
+        // The opponent's only creature is a 4/4 — group 1 ("power 3 or less")
+        // has zero legal candidates. Group 0 is fillable, so without the
+        // per-extra-group legality loop in `activateAbilityOnState` the
+        // activation would be accepted, strand the player on group 0's
+        // `pendingTarget`, and dead-end with a second slot nothing can fill.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        okoOnBattlefield(5),
+                        makeInstance(LOTUS, { id: "mine", controllerId: "p1" }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(SERRA, {
+                            id: "bigTheirs",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "oko1",
+                abilityId: MINUS5,
+            })
+        ).toThrow(/legal targets/);
+        // The throw must land BEFORE the announcement commits anything.
+        expect(state.pendingTarget).toBeUndefined();
+        // CR 606.5 — and before the loyalty cost is paid.
+        expect(find(state, "oko1").counters?.loyalty).toBe(5);
     });
 
     it("announces two INDEPENDENT target groups and rejects a power-4 creature for the second (CR 602.2b)", () => {

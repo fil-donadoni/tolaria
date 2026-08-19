@@ -10384,7 +10384,37 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.staticSeq;
     delete card.grantedActivatedAbilities;
     delete card.grantedTriggeredAbilities;
+    // CR 400.7 / 613.1f (issue #2361 review round 1) — the ability-STRIP half of
+    // the `revertTypeProvenance` restore below, and missed for the same reason
+    // it exists: `removedKeywords` / `abilitiesSuppressedBy` are keyed by the
+    // SOURCE but mutate the TARGET's `staticAbilities` in place, so the
+    // source-driven release (`unapplySourceStaticEffects`) never fires when the
+    // TARGET is the one leaving. Worse, the INDEFINITE one-shot arm (CR 611.2c —
+    // Oko, Thief of Crowns' `+1`) keys its holds to the `"indefinite"` sentinel,
+    // which names no permanent at all, so nothing can EVER release them: a
+    // bounced/reanimated elk stayed a blank, ability-less object for the rest of
+    // the game. The zone change makes a new object, so hand every held
+    // occurrence back BEFORE the records are dropped.
+    //
+    // EVERY entry is restored, not just the sentinel-keyed ones: a hold whose
+    // source is still on the battlefield is re-applied to the re-entering object
+    // by the ordinary entry-side recompute (`applyExistingGrantsTo`), and a hold
+    // whose source has left is stale by definition — so clearing all of them is
+    // both correct and self-healing. Grant-owned occurrences were already handed
+    // back by the `releaseGrantedKeywordOccurrence` loop above, so what remains
+    // here is the printed card's own keywords. `temporaryRemovedKeywords` (the
+    // duration-scoped twin, Shelkin Brownie) rides along: its expiry purge in
+    // `phases.ts` scans the BATTLEFIELD only, so a hold that leaves play with
+    // the card is never restored either.
+    for (const r of card.removedKeywords ?? []) {
+        card.staticAbilities = [...card.staticAbilities, r.keyword];
+    }
+    for (const r of card.temporaryRemovedKeywords ?? []) {
+        card.staticAbilities = [...card.staticAbilities, r.keyword];
+    }
     delete card.removedKeywords;
+    delete card.temporaryRemovedKeywords;
+    delete card.abilitiesSuppressedBy;
     delete card.chosenMana;
     delete card.manaCounterRemoval;
     delete card.lifePaidThisTap;

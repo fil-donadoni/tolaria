@@ -703,6 +703,22 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
         expect(getEffectivePower(state, newRing)).toBe(1);
     });
 
+    it("a recompute does not stack a SECOND hold from the same source (CR 613.1f per-source dedupe)", () => {
+        // The CONTINUOUS arm re-runs on every layer recompute, so
+        // `applyAbilityLossHold`'s per-source dedupe is what keeps
+        // `abilitiesSuppressedBy` at one entry. Only the INDEFINITE one-shot arm
+        // (`opts.restamp`, Oko's `+1`) turns it off, because each resolution is
+        // its own continuous effect with its own timestamp (CR 611.2c / 613.7).
+        const { state, song, ring } = withTitaniasSong();
+        expect(ring.abilitiesSuppressedBy).toHaveLength(1);
+        applySourceStaticEffects(state, song);
+        applySourceStaticEffects(state, song);
+        expect(ring.abilitiesSuppressedBy).toHaveLength(1);
+        // The keyword half must not double-book either.
+        expect(ring.removedKeywords ?? []).toHaveLength(0);
+        expect(hasManaAbility(ring)).toBe(false);
+    });
+
     it("reverts cleanly when the Song leaves play (unapplySourceStaticEffects)", () => {
         const { state, song, ring } = withTitaniasSong();
         unapplySourceStaticEffects(state, song);
