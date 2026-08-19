@@ -1,7 +1,8 @@
 ---
 title: A token copy never owes the COPIED card's as-enters choices — CR 614.12's own worked example
 discoveredBy: 2019
-status: draft
+status: triaged
+issue: 2558
 confidence: medium
 ---
 
@@ -46,3 +47,11 @@ behind it, and the in-code marker on `voiceOfAll` (`convex/cards/sets/pls/
 white.ts`) now carries `tracked-by: #2043` rather than pointing at a slice that
 does not fix it. Triage is whether #2043 gets a dedicated slice for
 `createTokenCopyOf`, not whether the gap exists.
+
+**Resolved (2026-08-19, #2558).** The token-copy primitive now stamps the copy
+onto the token INSIDE `createTokenPermanents`, before the CR 614 chokepoint
+reads it (CR 707.5: "becomes a copy as it enters the battlefield"), and the
+chokepoint is handed `card: token.card` so its presented-definition branch sees
+the copied card's `entersWith.asEnters`. The `createTokenCopy` Op gained the
+ADR 0100 D5 replay marker its `createToken` sibling already carried. Guarding
+tests: `convex/gre/__tests__/asEntersTokenCopy.test.ts`.

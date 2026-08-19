@@ -43,13 +43,13 @@ that pass through the CR 614 replacement chokepoint, and one that does not.
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------- |
 | A   | `finalizeSpellResolution` — `gre/state.ts:5634`, writes `zone` at `:5737`                                                                                                                                                                                                                                 | a permanent spell resolving off the stack                                                                                                                                                                                                                                                                                                                           | yes        | **yes**                               |
 | B   | `stageReanimatedOnBattlefield` — `gre/state.ts:10068` (+ `finishReanimatedEntry` `:10191`)                                                                                                                                                                                                                | every non-cast entry: `moveZone` → battlefield (`:12055`, `:12070`), blink / return from exile (`:12231`), reanimated Aura + host bundle (`:8798`, `:8827`), the batch path `putReanimatedSetOnBattlefield` (`:10272`, #1094), and a land put onto the battlefield **by an effect** (`playLand.ts:562-567`, whose deferred entry `finalizeLandEntry` later commits) | yes        | no                                    |
-| C   | `createTokenPermanents` — `gre/state.ts:16683`, writes `zone` at `:16772` (+ `SpellContext.createTokenCopyOf` `:13391`, which calls it)                                                                                                                                                                   | token creation and token copies                                                                                                                                                                                                                                                                                                                                     | yes        | no                                    |
+| C   | `createTokenPermanents` — `gre/state.ts:18138`, writes `zone` at `:18461` (+ `SpellContext.createTokenCopyOf` `:14771`, which calls it with `copyOf` so the copy is stamped on BEFORE the chokepoint, CR 707.5 — issue #2558)                                                                             | token creation and token copies                                                                                                                                                                                                                                                                                                                                     | yes        | no                                    |
 | D   | the **play-land family** — `applyPlayLand` (`gre/playLand.ts:117`), `applyPlayLandFromExile` (`:193`, `:194`), `applyPlayLandFromGraveyard` (`:238`), `applyPlayLandFromLibraryTop` (`:291`), `finalizeLandEntry`'s play branch (`:553`), every one of them settling through `settleEnteredLand` (`:369`) | a land **played** (CR 305) from hand, exile, graveyard or library top                                                                                                                                                                                                                                                                                               | **no**     | no — CR 305.1 requires an empty stack |
 
 **Why rows A–C are closed, rather than merely long.** The CR 614
 enters-the-battlefield **replacement** chokepoint, `enterBattlefieldDestinationFor`
-(`gre/replacements.ts:692`), has exactly three callers: `state.ts:5669`,
-`:10091`, `:16827` — one per row A/B/C. A spell/effect/token entry path that did
+(`gre/replacements.ts:794`), has exactly three callers: `state.ts:5930`,
+`:10519`, `:18335` — one per row A/B/C. A spell/effect/token entry path that did
 not pass through it would already be a live bug today (Containment Priest, #1148,
 would miss it), so those three rows are guarded by an invariant the suite already
 exercises rather than by this document's diligence.
@@ -403,7 +403,7 @@ Replay-idempotence is therefore a per-row obligation, not a free property:
 | ---------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A — spell  | **no**                 | `resolveTopOfStackInner` pops the item (`state.ts:4894`, and `:5248` on the non-stepped path) **before** calling `finalizeSpellResolution`. There is no stack item left to resume, so the as-enters finalize must itself run the remainder of the entry tail and the resolution is over. |
 | B — effect | yes, harmlessly        | the re-run finds the card no longer in its source zone, so the Op's selector cannot be satisfied and it is skipped individually (CR 608.2b, `interpreter.ts:4802-4803`). This — not the mechanism — is why the Aura path survives its replay today.                                      |
-| C — token  | yes, **destructively** | the `createToken` executor (`interpreter.ts:3801`) has no done-marker, so a bare re-run creates a **second** token.                                                                                                                                                                      |
+| C — token  | yes, **destructively** | the `createToken` executor (`interpreter.ts:3898`) and its copy sibling `createTokenCopy` (`:4016`) each need a done-marker, or a bare re-run creates a **second** token. Both carry one as of #2558.                                                                                    |
 
 Row C is load-bearing work for slice 4, not a detail: the token-entry Op must
 guard its commit under its own checkpointed position via
@@ -412,9 +412,13 @@ guard its commit under its own checkpointed position via
 duplicates the token. No test written for the _choice_ would catch it.
 
 The marker must be **per token, not per Op**, because `createToken` resolves
-`count` once (`interpreter.ts:3804`) and creates the whole batch in a single
-`ctx.createToken(token, controllerId, count)` call (`:3855`) — `createTokenCopy`
-has its own `count` (`:3883`). A plain done-marker written at the Op's checkpoint
+`count` once and creates the whole batch in a single
+`ctx.createToken(token, controllerId, count)` call (`interpreter.ts:3987`) —
+`createTokenCopy` has its own `count`, spent in a LOOP of single-token
+`ctx.createTokenCopyOf` calls (`:4132`), which runs to completion before
+`runOpList` observes the rise in the parked count, so the same
+"write the marker for the whole batch, after the loop" shape holds for it
+(#2558). A plain done-marker written at the Op's checkpoint
 short-circuits the **entire** Op on re-entry, so whatever part of a `count: N`
 batch the park left unfinished is never created at all: the Op under-delivers by
 an amount that depends on where the park landed, up to the whole batch. The

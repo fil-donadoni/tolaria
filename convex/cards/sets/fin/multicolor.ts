@@ -160,6 +160,32 @@ const PERMANENT_CARD_TYPES: ReadonlySet<CardType> = new Set(PERMANENT_TYPES);
 // a spin is a server hang, so `exiledThisResolution` is an explicit belt: a
 // card that somehow failed to leave the graveyard is never picked twice.
 function sinExileRandomPermanentAndCopy(ctx: SpellContext): void {
+    // CR 614.12a / ADR 0100 D5 (issue #2558) — REPLAY SAFETY. A copied card
+    // that declares "as this enters" choices (Voice of All, Primal Clay,
+    // Meddling Mage, Illusionary Terrain) PARKS its token off every zone until
+    // its controller answers, and a park suspends the resolution: the trigger
+    // stays on the stack and this body is RE-ENTERED from its first line once
+    // the answer lands. Unlike a stepped resolve or an Effect Script, a plain
+    // `resolve()` closure carries no checkpoint — the replay would exile a
+    // SECOND graveyard card at random and mint a second copy, which can park
+    // again. The body has already run to completion by the time it parks, so
+    // the correct amount of it to re-run is none: the same idempotent-commit
+    // marker the `createToken` / `createTokenCopy` Ops use, keyed on the
+    // resolving item's own `collectedChoices` (which survives the suspension
+    // — it is cleared only as the item is popped).
+    if (ctx.recallChoice(SIN_RESOLVED_KEY) !== undefined) return;
+    sinExileCopyLoop(ctx);
+    ctx.noteChoice(SIN_RESOLVED_KEY, ["done"]);
+}
+
+/** `collectedChoices` key for {@link sinExileRandomPermanentAndCopy}'s
+ *  run-to-completion marker. */
+const SIN_RESOLVED_KEY = "#sin-exile-copy-loop";
+
+/** The Oracle loop itself, extracted so the marker above brackets it as one
+ *  commit: every `return` inside it is "the loop is finished", not "the
+ *  ability did nothing". */
+function sinExileCopyLoop(ctx: SpellContext): void {
     const controller = ctx.controller;
     const exiledThisResolution = new Set<string>();
     for (;;) {
