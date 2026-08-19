@@ -37,6 +37,7 @@ import { pickForOwedPayment } from "../gre/paymentPicks";
 import {
     finalizeTargetSelection,
     recordCastAlternativeHandCostPick,
+    tapSourceIntoPayment,
     tryAutoCommitPendingCast,
 } from "../game";
 import { projectPublicState } from "../gameProjections";
@@ -280,6 +281,62 @@ describe("Bitter Triumph — cast commit pays the CHOSEN leg (CR 601.2f / 601.2h
         finalizeTargetSelection(state, pendingTargetFor("discard"), "p1");
         const player = getPlayer(state, "p1");
         expect(state.stack).toHaveLength(1);
+        expect(player.graveyard.map((c) => c.id)).toEqual(["spare0"]);
+        expect(player.hand).toHaveLength(0);
+        expect(player.life).toBe(20);
+    });
+
+    it("discard leg, FORCED choice, mana NOT yet covered: the mana park still pays the cost at commit (issue #2358 review)", () => {
+        // Same forced-pick shape as the case above (exactly one spare card, so
+        // the hand pick auto-resolves), but starting from an EMPTY mana pool
+        // so `finalizeTargetSelection` takes the mana-NOT-covered park (the
+        // `else` branch building `pendingCast` directly, not the
+        // immediate-commit branch above) instead of the mana-covered path.
+        // That park is exactly the one `alternativeCostHandChoice` used to be
+        // dropped from for a FORCED pick (issue #2358 review finding 1) — a
+        // regression every other case in this file is blind to, since they
+        // all seed `manaPool: { B: 2 }` and never reach it.
+        const state = board({ life: 20, spare: 1 });
+        state.players[0].manaPool = {};
+        finalizeTargetSelection(state, pendingTargetFor("discard"), "p1");
+        const player = getPlayer(state, "p1");
+
+        // Mana isn't covered yet: the cast parks rather than committing.
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingCast?.alternativeCostHandChoice).toEqual({
+            action: "discard",
+            requirements: [{ filter: {}, count: 1 }],
+            excludeInstanceId: "bt",
+            // Exactly one spare card: the pick is forced, so it's already
+            // resolved on the picker — it's the COMMIT of that resolved pick
+            // that the mana park used to drop (issue #2358 review finding 1).
+            pickedCardIds: ["spare0"],
+        });
+        // Nothing paid yet — the additional cost only fires at commit, and
+        // Bitter Triumph itself stays in hand until mana is covered too.
+        expect(player.hand.map((c) => c.id).sort()).toEqual(["bt", "spare0"]);
+        expect(player.graveyard).toHaveLength(0);
+        expect(player.life).toBe(20);
+
+        // Tap both Swamps for {1}{B} — the same per-entry call
+        // `tapForPayment`'s handler makes, mirroring
+        // `castOffSorceryTiming.test.ts`'s mana-park pattern.
+        for (const swampId of ["swamp0", "swamp1"]) {
+            tapSourceIntoPayment(
+                state,
+                player,
+                player.battlefield.find((c) => c.id === swampId)!,
+                undefined,
+                state.pendingCast!.tappedLandIds
+            );
+        }
+        tryAutoCommitPendingCast(state, "p1");
+
+        // The additional cost was ACTUALLY paid at commit: the discard moved
+        // hand → graveyard and no life was lost (the discard leg, not
+        // pay-3-life).
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].card.id).toBe(bitterTriumph.id);
         expect(player.graveyard.map((c) => c.id)).toEqual(["spare0"]);
         expect(player.hand).toHaveLength(0);
         expect(player.life).toBe(20);
