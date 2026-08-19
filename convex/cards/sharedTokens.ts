@@ -383,3 +383,41 @@ export const INSECT_TOKEN: EffectTokenSpec = {
     toughness: 1,
     colors: ["B", "G"],
 };
+
+/** Food token (CR 111.10b — "A Food token is a colorless Food artifact token
+ *  with '{2}, {T}, Sacrifice this token: You gain 3 life.'"; issue #2361).
+ *  Created today by Oko, Thief of Crowns' `+2` (`sets/eld/multicolor.ts`);
+ *  every future Food producer shares THIS spec, so all Food tokens hash to one
+ *  synthesized `tokenDefinitionId` and one client rehydration path.
+ *
+ *  Shaped like `CLUE_TOKEN_SPEC` (`cards/abilities/tokens/clueToken.ts`) — a
+ *  colorless artifact whose single ability spends `cost.mana` + a
+ *  `cost.sacrifice` of its own source (CR 602.1) and carries a DSL-only
+ *  `effects` body — plus the `{T}` leg Food has and Clue does not. NOT a mana
+ *  ability, so `useStack: true` (CR 605.1a): it uses the stack and can be
+ *  responded to.
+ *
+ *  `colors` omitted = colorless (CR 105.2 / 110.5), which is what CR 111.10b
+ *  specifies; `Food` is an ARTIFACT type (CR 205.3g), never a creature type,
+ *  so the token has no P/T.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `RABBIT_TOKEN` / `KNIGHT_TOKEN` /
+ *  `HUMAN_TOKEN` treatment: Food is a printed token across many sets and the
+ *  art-match rule is "the token associated with the PRODUCING card's own
+ *  printing", which `SpellContext.createToken` resolves per producer from
+ *  `generated/token-prints.json` (`tokenPrintIdFor`) — Oko's own ELD #197
+ *  printing reverse-links to the ELD Food token. */
+export const FOOD_TOKEN: EffectTokenSpec = {
+    name: "Food",
+    types: ["Artifact"],
+    subtypes: ["Food"],
+    activatedAbilities: [
+        {
+            id: "food-token-sacrifice-gain-life",
+            oracleText: "{2}, {T}, Sacrifice this token: You gain 3 life.",
+            cost: { mana: { generic: 2 }, tap: true, sacrifice: true },
+            useStack: true,
+            effects: [{ op: "gainLife", player: "controller", amount: 3 }],
+        },
+    ],
+};

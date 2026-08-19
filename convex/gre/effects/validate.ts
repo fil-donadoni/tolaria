@@ -574,6 +574,19 @@ function isStringArray(value: unknown, allowed?: Set<string>): boolean {
     );
 }
 
+/** `isStringArray` that additionally REJECTS the empty array. For a field
+ *  whose empty form is not a legal value rather than a meaningful one — a card
+ *  TYPE line (CR 205.1: every object has at least one card type, so
+ *  `setCardTypes` with `types: []` is malformed), as opposed to `setColor`'s
+ *  `colors: []`, which is the perfectly legal "becomes colorless". */
+function isNonEmptyStringArray(value: unknown, allowed?: Set<string>): boolean {
+    return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        isStringArray(value, allowed)
+    );
+}
+
 /** The JSON-pure token spec of a `createToken` Op (issue #847, `EffectTokenSpec`).
  *  Every printed characteristic a token enters with, all plain data — name +
  *  a non-empty types array are required; subtypes / supertypes / P/T / colors /
@@ -3689,6 +3702,29 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             grantedAbilities: (v) => isStringArray(v),
             duration: isDurationSpec,
         },
+    },
+    // CR 205.1a layer 4 (issue #2361) — SET a permanent's card types,
+    // REPLACING every type it currently has, indefinitely (Oko, Thief of
+    // Crowns' "+1 … becomes a green Elk creature": the artifact stops being an
+    // artifact). `target` is an object selector; `types` is the full
+    // replacement list and must be NON-EMPTY (CR 205.1 — every object has at
+    // least one card type, so an empty list is not a legal type line, unlike
+    // `setColor`'s empty-array "becomes colorless"). No `duration`: the timed
+    // "becomes an artifact creature until end of turn" template is `animate`'s.
+    setCardTypes: {
+        required: {
+            target: isObjectSelector,
+            types: (v) => isNonEmptyStringArray(v, TOKEN_CARD_TYPES),
+        },
+    },
+    // CR 613.1f layer 6 (issue #2361) — a permanent LOSES ALL ABILITIES,
+    // indefinitely (Oko, Thief of Crowns' "+1: Target artifact or creature
+    // loses all abilities …"). `target` is an object selector; deliberately no
+    // other field — no `duration` (the storage is source-keyed, not
+    // duration-keyed) and no ability filter (a selective strip is
+    // `keyword-remove`'s job, not this Op's).
+    loseAllAbilities: {
+        required: { target: isObjectSelector },
     },
     // CR 701.24 (issue #844) — shuffle a player's library. `action` is
     // "shuffle" (the only folded library primitive); `player` names whose

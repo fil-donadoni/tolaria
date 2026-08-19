@@ -3041,6 +3041,29 @@ export const OP_EXECUTORS: {
             op.duration ?? "indefinite"
         );
     },
+    // CR 205.1a layer 4 (issue #2361) — SET a permanent's card types,
+    // REPLACING every type it currently has, indefinitely (CR 611.2c). A thin
+    // declarative skin over `setCardTypes`, ONE execution path (ADR 0045).
+    // Skipped when the referenced permanent is gone (CR 608.2b —
+    // `resolveObjectRef` returns undefined); the primitive itself no-ops for a
+    // non-permanent target.
+    setCardTypes(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.setCardTypes(target, op.types);
+    },
+    // CR 613.1f layer 6 (issue #2361) — the target permanent LOSES ALL
+    // ABILITIES indefinitely (CR 611.2c — Oko, Thief of Crowns' `+1`). A thin
+    // declarative skin over `loseAllAbilities`, ONE execution path (ADR 0045):
+    // the same applier the continuous `ability-loss` static effect (Titania's
+    // Song) writes through, so keyword, activated, triggered and intrinsic
+    // mana abilities all stop functioning by one mechanism. Skipped when the
+    // referenced permanent is gone (CR 608.2b).
+    loseAllAbilities(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.loseAllAbilities(target);
+    },
     // CR 701.24 (issue #844) — shuffle a player's library. A thin declarative
     // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded
     // PRNG reorder that also clears persistent knowledge (ADR 0026). Skipped

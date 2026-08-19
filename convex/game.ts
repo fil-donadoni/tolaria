@@ -13180,16 +13180,22 @@ export function activateAbilityOnState(
     // color-word changes (Sleight of Mind on a Circle of Protection
     // retargets its "<color> source of your choice"). The substituted
     // filter flows into both getLegalTargets and the stored pendingTarget.
-    const colorSubstitutedTargetReq =
-        baseTargetReq && baseTargetReq.colorFilter !== undefined
-            ? {
-                  ...baseTargetReq,
-                  colorFilter: substituteColorFilter(
-                      card,
-                      baseTargetReq.colorFilter
-                  ),
-              }
-            : baseTargetReq;
+    // Both merges the primary requirement gets (CR 612.6 colour substitution
+    // and the CR 601.2c reflexive self-exclude below) are folded into ONE
+    // helper so the ADDITIONAL target groups (issue #2361) cannot silently
+    // skip a merge the primary receives — an extra group declaring
+    // `targetIsAnother` or a `colorFilter` must behave identically to a
+    // primary that declares it.
+    const effectiveRequirement = (req: TargetRequirement): TargetRequirement =>
+        applySelfExclusion(
+            req.colorFilter !== undefined
+                ? {
+                      ...req,
+                      colorFilter: substituteColorFilter(card, req.colorFilter),
+                  }
+                : req,
+            card.id
+        );
     // Reflexive self-EXCLUDE (issue #2399) — "ANOTHER target nonlegendary
     // creature you control" (Reflection of Kiki-Jiki). An activated ability's
     // source is always the on-battlefield `card` itself (unlike a triggered
@@ -13198,9 +13204,9 @@ export function activateAbilityOnState(
     // shared helper. The merge lands on `effectiveTargetReq`, which flows into
     // BOTH `getLegalTargets` below and the stored `pendingTarget` filters that
     // `applyOneTargetSelection` re-validates every pick against.
-    const effectiveTargetReq = colorSubstitutedTargetReq
-        ? applySelfExclusion(colorSubstitutedTargetReq, card.id)
-        : colorSubstitutedTargetReq;
+    const effectiveTargetReq = baseTargetReq
+        ? effectiveRequirement(baseTargetReq)
+        : baseTargetReq;
     if (effectiveTargetReq) {
         if (state.pendingTarget) {
             throw new Error("Target selection is in progress");
@@ -13309,6 +13315,35 @@ export function activateAbilityOnState(
                     : "Not enough legal targets"
             );
         }
+        // CR 601.2c via CR 602.2b (issue #2361) — additional INDEPENDENT
+        // target groups, the ability-level twin of the cast path's
+        // `additionalRequirements` block above. Each group's legality is
+        // checked HERE, at activation, which is where Oko, Thief of Crowns'
+        // "target creature an opponent controls with power 3 or less"
+        // restriction bites (the −5's power filter is an announce-time target
+        // restriction, not a resolution-time re-check). `AbilityMode` has no
+        // per-mode twin of this field, so unlike the cast path there is no
+        // `chosenMode ??` leg to prefer.
+        const abilityAdditionalRequirements = (
+            ability.additionalTargetRequirements ?? []
+        ).map(effectiveRequirement);
+        for (const extra of abilityAdditionalRequirements) {
+            const extraLegal = getLegalTargets(
+                state,
+                extra,
+                targetingSourceFromCard(card, false),
+                args.playerId,
+                targetChosenX,
+                [],
+                abilitySourcePower
+            );
+            if (
+                extraLegal.length <
+                minTargetCount(resolveTargetCount(extra.count, targetChosenX))
+            ) {
+                throw new Error("Not enough legal targets");
+            }
+        }
         // CR 601.2d / 120.4 — divide-as-you-choose budget for an activated
         // ability (Arc Mage). Mirrors the spell-cast path: resolve the total
         // against the chosen X, cap an open-ended `{ min }` count at the
@@ -13361,6 +13396,17 @@ export function activateAbilityOnState(
                 targetChosenX,
                 abilitySourcePower
             ),
+            // CR 601.2c (issue #2361) — queue the additional independent
+            // target groups. `selectTarget` / `confirmTargets` reach the SAME
+            // generic `advanceTargetGroupOrFinalize` the cast path uses (it
+            // reads `pendingTarget` without caring about `kind`), which swaps
+            // in the next group's filters via
+            // `applyRequirementToPendingTarget` and only finalizes once the
+            // queue is empty — so nothing downstream needed an ability-side
+            // twin.
+            ...(abilityAdditionalRequirements.length > 0
+                ? { remainingRequirements: abilityAdditionalRequirements }
+                : {}),
         };
 
         return;

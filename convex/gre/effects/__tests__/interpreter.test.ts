@@ -66,6 +66,9 @@ import { finalizeTargetSelection } from "../../../game";
 import { INLINE_DELAYED_TRIGGER_ID, runEffectScript } from "../interpreter";
 import { validateEffectScript } from "../validate";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
+import { getEffectiveActivatedAbilities } from "../../activatedAbilities";
+import { effectiveTriggeredAbilities } from "../../copy";
+import { hasSupertypeLive } from "../../../cards/snowReads";
 import {
     registerEmblemDefinition,
     SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
@@ -23393,6 +23396,345 @@ describe("Effect Script Op: setBasePT (CR 613.4b layer 7b)", () => {
         )!;
         expect(getEffectivePower(projected, slim)).toBe(5);
         expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Fixtures for the two layer Ops Oko, Thief of Crowns introduced (issue #2361).
+// ---------------------------------------------------------------------------
+
+/** A 2/2 with one of EACH ability kind, so a "loses all abilities" strip has
+ *  something to remove on every surface a stripped permanent is read from:
+ *  a keyword (`staticAbilities`), an activated ability
+ *  (`getEffectiveActivatedAbilities`) and a triggered ability
+ *  (`effectiveTriggeredAbilities`). */
+const ABILITY_BEAR_ID = "test-effects-ability-bear";
+registerTokenDefinition({
+    id: ABILITY_BEAR_ID,
+    name: ABILITY_BEAR_ID,
+    rarity: "common",
+    manaCost: { generic: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Bear"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "ability-bear-pump",
+            oracleText: "{G}: This creature gets +1/+1 until end of turn.",
+            cost: { mana: { G: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "ability-bear-cast",
+            oracleText: "Whenever a player casts a spell, you gain 1 life.",
+            scope: "any",
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        }),
+    ],
+});
+
+/** A NONCREATURE artifact with a keyword and an activated ability — the other
+ *  half of "target artifact or creature". */
+const ABILITY_ARTIFACT_ID = "test-effects-ability-artifact";
+registerTokenDefinition({
+    id: ABILITY_ARTIFACT_ID,
+    name: ABILITY_ARTIFACT_ID,
+    rarity: "common",
+    manaCost: { generic: 2 },
+    types: ["Artifact"],
+    subtypes: ["Treasure"],
+    supertypes: ["Legendary"],
+    staticAbilities: ["indestructible"],
+    activatedAbilities: [
+        {
+            id: "ability-artifact-draw",
+            oracleText: "{2}, Sacrifice this artifact: Draw a card.",
+            cost: { mana: { generic: 2 }, sacrifice: true },
+            useStack: true,
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+});
+
+describe("Effect Script Op: loseAllAbilities (CR 613.1f layer 6)", () => {
+    /** p2 controls one ability-laden 2/2 as the announced strip target. */
+    function oneAbilityBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(ABILITY_BEAR_ID, {
+                            controllerId: "p2",
+                            id: "abilityBear",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    function stripped(state: GameState): CardInstanceState {
+        return state.players[1].battlefield.find(
+            (c) => c.id === "abilityBear"
+        )!;
+    }
+
+    it("strips keyword, activated AND triggered abilities from the announced target", () => {
+        const id = registerScript("test-op-loseabilities-all", [
+            { op: "loseAllAbilities", target: { target: 0 } },
+        ]);
+        const state = oneAbilityBear();
+        // Precondition — every ability kind is actually there to lose, so the
+        // assertions below are not vacuously true of a blank creature.
+        const before = stripped(state);
+        expect(before.staticAbilities).toContain("flying");
+        expect(getEffectiveActivatedAbilities(before)).toHaveLength(1);
+        expect(effectiveTriggeredAbilities(before)).toHaveLength(1);
+
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "abilityBear" }]);
+        resolveTopOfStack(state);
+
+        const after = stripped(state);
+        expect(after.staticAbilities).toEqual([]);
+        expect(getEffectiveActivatedAbilities(after)).toEqual([]);
+        expect(effectiveTriggeredAbilities(after)).toEqual([]);
+        // CR 613.1f — the hold itself, keyed to the resolved-one-shot sentinel
+        // (no live source can ever release it, CR 611.2c).
+        expect(after.abilitiesSuppressedBy?.map((s) => s.sourceId)).toEqual([
+            "indefinite",
+        ]);
+    });
+
+    it("an ability GRANTED after the strip survives it (CR 613.7 timestamp order)", () => {
+        const stripId = registerScript("test-op-loseabilities-then-grant", [
+            { op: "loseAllAbilities", target: { target: 0 } },
+        ]);
+        const grantId = registerScript("test-op-loseabilities-grant", [
+            { op: "grantAbility", target: { target: 0 }, ability: "haste" },
+        ]);
+        const state = oneAbilityBear();
+        pushSpell(state, stripId, "p1", [
+            { type: "permanent", id: "abilityBear" },
+        ]);
+        resolveTopOfStack(state);
+        expect(stripped(state).staticAbilities).toEqual([]);
+        // A LATER grant takes a LATER layer timestamp, so the earlier strip
+        // does not reach it — Oko's printed ruling ("If the affected creature
+        // gains an ability after Oko's second ability resolves, it will keep
+        // that ability").
+        pushSpell(state, grantId, "p1", [
+            { type: "permanent", id: "abilityBear" },
+        ]);
+        resolveTopOfStack(state);
+        expect(stripped(state).staticAbilities).toContain("haste");
+    });
+
+    it("a SECOND strip outranks a grant made between the two (CR 613.7)", () => {
+        const stripId = registerScript("test-op-loseabilities-restamp", [
+            { op: "loseAllAbilities", target: { target: 0 } },
+        ]);
+        const grantId = registerScript("test-op-loseabilities-restamp-grant", [
+            { op: "grantAbility", target: { target: 0 }, ability: "haste" },
+        ]);
+        const state = oneAbilityBear();
+        const target: TargetSelection[] = [
+            { type: "permanent", id: "abilityBear" },
+        ];
+        pushSpell(state, stripId, "p1", target);
+        resolveTopOfStack(state);
+        pushSpell(state, grantId, "p1", target);
+        resolveTopOfStack(state);
+        expect(stripped(state).staticAbilities).toContain("haste");
+        // The second strip is a DISTINCT continuous effect with its own,
+        // later timestamp — it must remove the intervening grant. A per-source
+        // idempotence check on the shared `"indefinite"` sentinel would
+        // collapse the two into one and leave haste behind.
+        pushSpell(state, stripId, "p1", target);
+        resolveTopOfStack(state);
+        expect(stripped(state).staticAbilities).toEqual([]);
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-loseabilities-gone", [
+            { op: "loseAllAbilities", target: { target: 0 } },
+        ]);
+        const state = oneAbilityBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+        expect(stripped(state).staticAbilities).toContain("flying");
+    });
+
+    it("the strip survives projection (wire format)", () => {
+        const id = registerScript("test-op-loseabilities-wire", [
+            { op: "loseAllAbilities", target: { target: 0 } },
+        ]);
+        const state = oneAbilityBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "abilityBear" }]);
+        resolveTopOfStack(state);
+        // The suppression lives on the INSTANCE, not the stripped inner card,
+        // so the client's own ability preview must read the same "lost" rows.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "abilityBear"
+        )!;
+        expect(slim.staticAbilities).toEqual([]);
+        expect(getEffectiveActivatedAbilities(slim)).toEqual([]);
+        expect(effectiveTriggeredAbilities(slim)).toEqual([]);
+    });
+});
+
+describe("Effect Script Op: setCardTypes (CR 205.1a layer 4)", () => {
+    /** p2 controls one legendary noncreature artifact as the announced target. */
+    function oneArtifact(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(ABILITY_ARTIFACT_ID, {
+                            controllerId: "p2",
+                            id: "relic",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    function relic(state: GameState): CardInstanceState {
+        return state.players[1].battlefield.find((c) => c.id === "relic")!;
+    }
+
+    it("REPLACES the card types — the artifact stops being an artifact", () => {
+        const id = registerScript("test-op-settypes-replace", [
+            {
+                op: "setCardTypes",
+                target: { target: 0 },
+                types: ["Creature"],
+            },
+        ]);
+        const state = oneArtifact();
+        expect(relic(state).types).toEqual(["Artifact"]);
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "relic" }]);
+        resolveTopOfStack(state);
+        const after = relic(state);
+        expect(after.types).toEqual(["Creature"]);
+        expect(after.types).not.toContain("Artifact");
+        // CR 205.1a — supertypes are a SEPARATE characteristic and survive
+        // ("The creature keeps any supertypes (such as legendary) it has").
+        expect(hasSupertypeLive(after, "Legendary")).toBe(true);
+    });
+
+    it("a base-P/T set applies once the permanent is a creature, with counters on top (7b then 7c)", () => {
+        const id = registerScript("test-op-settypes-then-pt", [
+            {
+                op: "setCardTypes",
+                target: { target: 0 },
+                types: ["Creature"],
+            },
+            {
+                op: "setBasePT",
+                target: { target: 0 },
+                power: 3,
+                toughness: 3,
+            },
+            {
+                op: "counters",
+                target: { target: 0 },
+                action: "add",
+                counter: "+1/+1",
+                count: 1,
+            },
+        ]);
+        const state = oneArtifact();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "relic" }]);
+        resolveTopOfStack(state);
+        const after = relic(state);
+        // Layer 7b sets the base to 3/3; layer 7c adds the counter ON TOP.
+        expect(getEffectivePower(state, after)).toBe(4);
+        expect(getEffectiveToughness(state, after)).toBe(4);
+    });
+
+    it("restores the printed type line when the permanent leaves the battlefield (CR 400.7)", () => {
+        const id = registerScript("test-op-settypes-bounce", [
+            {
+                op: "setCardTypes",
+                target: { target: 0 },
+                types: ["Creature"],
+            },
+        ]);
+        const state = oneArtifact();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "relic" }]);
+        resolveTopOfStack(state);
+        expect(relic(state).types).toEqual(["Creature"]);
+        // CR 400.7 — the object that comes back is a NEW one, with none of the
+        // layer-4 mutation. `revertTypeProvenance` is source-agnostic, so the
+        // one-shot's `"indefinite"` markers are cleared by the same block that
+        // clears an aura's.
+        removePermanentTo(state, "relic", "hand");
+        const bounced = state.players[1].hand.find((c) => c.id === "relic")!;
+        expect(bounced.types).toEqual(["Artifact"]);
+        expect(bounced.grantedTypes).toBeUndefined();
+        expect(bounced.suppressedTypes).toBeUndefined();
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-settypes-gone", [
+            {
+                op: "setCardTypes",
+                target: { target: 0 },
+                types: ["Creature"],
+            },
+        ]);
+        const state = oneArtifact();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+        expect(relic(state).types).toEqual(["Artifact"]);
+    });
+
+    it("the new type line survives projection (wire format)", () => {
+        const id = registerScript("test-op-settypes-wire", [
+            {
+                op: "setCardTypes",
+                target: { target: 0 },
+                types: ["Creature"],
+            },
+            {
+                op: "setBasePT",
+                target: { target: 0 },
+                power: 3,
+                toughness: 3,
+            },
+        ]);
+        const state = oneArtifact();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "relic" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "relic"
+        )!;
+        // The type line lives on the INSTANCE, not the stripped inner card —
+        // so the client's own layer reads (which gate the P/T pipeline on
+        // `isCreature`) see the same 3/3 the engine does.
+        expect(slim.types).toEqual(["Creature"]);
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
     });
 });
 

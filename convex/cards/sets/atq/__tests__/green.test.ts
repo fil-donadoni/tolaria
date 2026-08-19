@@ -20,6 +20,7 @@ import {
     argothianPixies,
     argothianTreefolk,
     titaniasSong,
+    ashnodsBattleGear,
 } from "..";
 import { grizzlyBears, hillGiant, solRing } from "../../lea";
 import {
@@ -701,6 +702,41 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
             { sourceId: "song-1", seq: expect.any(Number) },
         ]);
         expect(getEffectivePower(state, newRing)).toBe(1);
+    });
+
+    it("a recompute does not stack a SECOND hold from the same source (CR 613.1f per-source dedupe)", () => {
+        // The CONTINUOUS arm re-runs on every layer recompute, so
+        // `applyAbilityLossHold`'s per-source dedupe is what keeps
+        // `abilitiesSuppressedBy` at one entry. Only the INDEFINITE one-shot arm
+        // (`opts.restamp`, Oko's `+1`) turns it off, because each resolution is
+        // its own continuous effect with its own timestamp (CR 611.2c / 613.7).
+        const { state, song, ring } = withTitaniasSong();
+        expect(ring.abilitiesSuppressedBy).toHaveLength(1);
+        // The KEYWORD half of the hold needs a keyword-bearing noncreature
+        // artifact to say anything at all: Sol Ring has no `staticAbilities`,
+        // so its `removedKeywords` stays empty with or without the dedupe.
+        // Ashnod's Battle Gear carries `may-choose-not-to-untap`.
+        const gear = makeInstance(ashnodsBattleGear.id, {
+            id: "gear-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(gear);
+        applySourceStaticEffects(state, song);
+        expect(gear.staticAbilities).toEqual([]);
+        expect(gear.removedKeywords).toHaveLength(1);
+
+        applySourceStaticEffects(state, song);
+        applySourceStaticEffects(state, song);
+        expect(ring.abilitiesSuppressedBy).toHaveLength(1);
+        expect(gear.abilitiesSuppressedBy).toHaveLength(1);
+        // The keyword occurrence stays taken exactly once: the recompute must
+        // not hand it back and re-strip it. (`removedKeywords` cannot grow
+        // here even with the dedupe off — the first strip empties
+        // `staticAbilities`, so later passes find nothing to take —
+        // `abilitiesSuppressedBy` is the count that moves, 1 → 3.)
+        expect(gear.staticAbilities).toEqual([]);
+        expect(hasManaAbility(ring)).toBe(false);
     });
 
     it("reverts cleanly when the Song leaves play (unapplySourceStaticEffects)", () => {
