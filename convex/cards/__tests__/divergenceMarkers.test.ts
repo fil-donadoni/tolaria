@@ -41,80 +41,18 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import {
+    SETS_DIR,
+    collectSetFiles,
+    scanDivergenceMarkers,
+} from "../../../scripts/lib/divergence-markers";
 
-const SETS_DIR = path.resolve("convex/cards/sets");
-
-const MARKER =
-    /\/\/\s*(Deferred|DEFERRED|divergence|DIVERGENCE|not implemented|TODO)\b/i;
-// Tracking dispositions. `#NNN` or an explicit out-of-scope note — NOT a bare
-// `ADR NNNN` provenance citation (see header).
-const DISPOSITION = /#\d+|tracked-by:|out[-\s]of[-\s]scope/i;
-const IS_COMMENT = /^\s*\/\//;
-
-/** A comment line that ENDS the current paragraph when it sits adjacent to
- *  the marker: a blank `//` separator, or a box-rule line whose only content
- *  is dashes / box-drawing glyphs (`// ─────`, `// ═════`, `// -----`). Both
- *  are the natural paragraph breaks authors already use between a card intro,
- *  its divergence note, and a following section. */
-function isParagraphBreak(line: string): boolean {
-    if (!IS_COMMENT.test(line)) return true; // non-comment ends the paragraph
-    const body = line.replace(/^\s*\/\/\s?/, "").trim();
-    if (body === "") return true; // blank `//`
-    // Rule line: nothing but dashes / underscores / box-drawing characters.
-    return /^[\s─-╿=\-_]+$/.test(body);
-}
-
-/** Collect every `.ts` source file under a colour-split set directory
- *  (`sets/<code>/<colour>.ts`, ADR 0043), excluding `__tests__` and
- *  `*.test.ts` — recurses so it also picks up a legacy flat `sets/<code>.ts`
- *  file if one exists, mirroring `scripts/check-stub-coverage.ts`'s own
- *  file collector. */
-function collectSetFiles(root: string): string[] {
-    const out: string[] = [];
-    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-        if (entry.name === "__tests__") continue;
-        const full = path.join(root, entry.name);
-        if (entry.isDirectory()) {
-            out.push(...collectSetFiles(full));
-        } else if (
-            entry.name.endsWith(".ts") &&
-            !entry.name.endsWith(".test.ts")
-        ) {
-            out.push(full);
-        }
-    }
-    return out;
-}
-
-/** The comment PARAGRAPH containing line `i`: expand up and down while the
- *  adjacent line is neither a paragraph break nor a non-comment line. Pure
- *  function of `lines` (no disk I/O) so it can be unit-tested against a
- *  fixture — see the regression tests below. */
-function paragraphAround(lines: string[], i: number): string {
-    let start = i;
-    let end = i;
-    while (start > 0 && !isParagraphBreak(lines[start - 1])) start--;
-    while (end < lines.length - 1 && !isParagraphBreak(lines[end + 1])) end++;
-    return lines.slice(start, end + 1).join("\n");
-}
-
-/** Every divergence-marker comment line in `lines`, paired with whether its
- *  own comment PARAGRAPH (not the whole contiguous block) carries a tracking
- *  disposition. */
-function scanDivergenceMarkers(
-    lines: string[]
-): Array<{ line: number; tracked: boolean; text: string }> {
-    const hits: Array<{ line: number; tracked: boolean; text: string }> = [];
-    for (let i = 0; i < lines.length; i++) {
-        if (!MARKER.test(lines[i])) continue;
-        hits.push({
-            line: i + 1,
-            tracked: DISPOSITION.test(paragraphAround(lines, i)),
-            text: lines[i].trim(),
-        });
-    }
-    return hits;
-}
+// Scanner (marker/disposition regexes, paragraph scoping, file collection) now
+// lives in `scripts/lib/divergence-markers.ts` (issue #2560) — shared with the
+// marker-LIVENESS sweep (`scripts/check-marker-liveness.ts`) so both consumers
+// use one parser and cannot drift. This test still owns the PRESENCE
+// assertion (Guard B's original scope); liveness — whether a referenced issue
+// is still open — is checked separately, outside the offline gate.
 
 describe("Guard B — documented-divergence-needs-issue (issue #962)", () => {
     it("every divergence marker (Deferred/divergence/not implemented/TODO) in convex/cards/sets/** carries a linked disposition in its own paragraph", () => {
