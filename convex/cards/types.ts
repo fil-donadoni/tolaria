@@ -2707,7 +2707,7 @@ export interface SpellContext {
     /** CR 122.1 / 118.12 — "pay {E}": spends `n` energy counters, all-or-
      *  nothing. Returns true and deducts when the player has at least `n`
      *  (a paid cost); returns false and spends nothing when they can't afford it
-     *  (CR 118.4 — an unpayable cost isn't paid). n <= 0 is a trivially-paid
+     *  (CR 601.2h — "Unpayable costs can't be paid"). n <= 0 is a trivially-paid
      *  no-op. */
     payEnergy: (playerId: string, n: number) => boolean;
     getLife: (playerId: string) => number;

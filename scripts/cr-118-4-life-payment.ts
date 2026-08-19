@@ -8,9 +8,9 @@
  * shape: printed CR 118.4 is "Some costs include an {X} or an X. See rule 107.3."
  * — it says nothing about life. The rule that governs "you can't pay more life
  * than you have" and "paying life is losing life" is CR 119.4. A line citing
- * `CR 118.4` while describing a life payment is wrong by construction, the same
- * way a `CR 701.19` next to the word "sacrifice" is: the fix reads straight off
- * the printed rule, no judgement call left over.
+ * `CR 118.4` while describing a life payment is wrong by construction, the
+ * same way a `CR 701.19` next to the word "sacrifice" is (example only, not a real citation — cr-cite-ok): the fix reads straight off the printed rule, no
+ * judgement call left over.
  *
  * 93 of the 100 `CR 118.4` sites standing when this guard was written were
  * exactly this shape (issue #2559) — corrected to CR 119.4 in the same change.
@@ -27,6 +27,21 @@
  * something else entirely (energy, mana) and happens not to mention "life" on
  * its own line is untouched, same as `cr-keyword-citations.ts` only sees a line
  * that names its keyword.
+ *
+ * REMAINING BLIND SPOTS (measured, not fixed here — narrowing scope, not a
+ * defeat of the guard's purpose):
+ * 1. A citation WRAPPED ACROSS TWO COMMENT LINES — `CR` on one line, `118.4`
+ *    on the next — is invisible, the same blind spot `check-cr-citations.ts`
+ *    documents for the existence scan: both the `PREFIXED_118_4` match and the
+ *    `LIFE_CLAIM` match are anchored to a single line. Keep a citation and the
+ *    life claim it supports on one line.
+ * 2. `X_COST` matches ANY standalone `X` token on the line, not specifically
+ *    an `{X}` cost — so a line like "// CR 118.4 — pay 2 life (see the X
+ *    column of the table)." passes clean: the stray `X` suppresses the hit
+ *    even though the line has nothing to do with a variable cost. This guard
+ *    trades that false negative for avoiding a false positive on the genuine
+ *    Toxic-Deluge-shaped dual citation (see above) — a plain regex can't tell
+ *    "the X cost" from "the X column".
  *
  * Usage: run through `bun run cr:lint` (this module has no CLI of its own).
  * Suppress a deliberate counter-example with a trailing `cr-cite-ok` comment
@@ -52,7 +67,7 @@ export const SUPPRESS = "cr-cite-ok";
  * A literal `CR 118.4` citation — the exact shape this guard's issue (#2559)
  * scoped and counted (100 sites). Deliberately NARROWER than the existence
  * scan's bare-id pass: a slash-listed `NNN.Nx / 118.4` (the may-pay/Kicker/
- * tap-mana-ability family — "CR 117.3a / 118.4", "CR 702.33a / 118.4") is a
+ * tap-mana-ability family — "CR 117.3a / 118.4", "CR 702.33a / 118.4" — quoted as example citation SHAPES only, not endorsed as correct — cr-cite-ok) is a
  * DIFFERENT, uncensused citation shape the issue explicitly left out of scope
  * ("a general resolvable-but-wrong scanner ... much larger work") — catching
  * it here would both overreach this guard's mandate and false-positive on
