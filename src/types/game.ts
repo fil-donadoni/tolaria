@@ -243,21 +243,26 @@ export interface CardInstance {
      *  cannot re-derive it, and `useHandCardCommit` for the two announcement
      *  choices it suppresses ({X} and the alternative-cost picker). */
     castManaCostReplaced?: true;
-    /** CR 702.34 / 702.138 / 305.1-analog / 117.6-analog / 702.139 — which
-     *  graveyard-cast mechanism surfaced this card's cast affordance, so the
-     *  graveyard button labels "Flashback" / "Escape" / "Cast". Present only
-     *  on the viewer's own graveyard cards alongside `legalActions`.
+    /** CR 702.34 / 702.138 / 702.81 / 305.1-analog / 117.6-analog / 702.139 —
+     *  which graveyard-cast mechanism surfaced this card's cast affordance, so
+     *  the graveyard button labels "Flashback" / "Escape" / "Retrace" / "Cast".
+     *  Present only on the viewer's own graveyard cards alongside
+     *  `legalActions`.
      *  `"graveyard-grant"` (issue #1344) is a SPECIFIC-CARD grant (Malcolm,
      *  Alluring Scoundrel), distinct from the BROAD `"graveyard-permission"`
      *  (Yawgmoth's Will) — both currently render the same "Cast" label.
      *  `"graveyard-permanent-permission"` (issue #1392) is Lurrus's STATIC,
-     *  once-per-turn, permanent-cards-only permission — also renders "Cast". */
+     *  once-per-turn, permanent-cards-only permission — also renders "Cast".
+     *  `"retrace"` (CR 702.81a, issue #2358) pays the printed mana cost PLUS a
+     *  discarded land card, so it labels and explains itself separately.
+     *  MIRROR of the union in `convex/gameProjections.ts` — keep both in step. */
     castKind?:
         | "flashback"
         | "escape"
         | "graveyard-permission"
         | "graveyard-grant"
-        | "graveyard-permanent-permission";
+        | "graveyard-permanent-permission"
+        | "retrace";
     /** CR 702.34a / 118.5 / 107.3 — max {X} announceable on this flashback
      *  cast, bounded by its `flashbackExileFromGraveyard` cost (Flash of
      *  Insight). Present only on a `castKind: "flashback"` card carrying that

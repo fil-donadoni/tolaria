@@ -27,6 +27,7 @@ import {
 } from "./gre/libraryReveal";
 import { flashbackExileEligibleCount, hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
+import { hasRetrace } from "./gre/retrace";
 import {
     FACE_DOWN_CARD_ID,
     getInstanceManaCost,
@@ -98,18 +99,25 @@ export type SlimExileCard = SlimCardInstance & {
  *  for an exile cast. */
 export type SlimGraveyardCard = SlimCardInstance & {
     legalActions?: CardAction[];
-    /** CR 702.34 / 702.138 / 305.1-analog / 117.6-analog — which
+    /** CR 702.34 / 702.138 / 702.81 / 305.1-analog / 117.6-analog — which
      *  graveyard-cast mechanism surfaced this card's affordance, so the UI
-     *  labels the button "Flashback" / "Escape" / "Cast". Present only
-     *  alongside `legalActions` for a CAST affordance — a land tagged under
+     *  labels the button "Flashback" / "Escape" / "Retrace" / "Cast". Present
+     *  only alongside `legalActions` for a CAST affordance — a land tagged under
      *  a play-from-graveyard permission carries `legalActions` with NO
-     *  `castKind` (it's a "play", not a keyword cast). */
+     *  `castKind` (it's a "play", not a keyword cast).
+     *
+     *  Widening this union is a FAIL-OPEN change on the client: the label
+     *  dispatch in `graveyard-flashback-button.tsx` is an `if`/`===` chain with
+     *  a "Flashback" default, so an unhandled new member renders the wrong
+     *  label with no type error. Every new member must be handled there in the
+     *  same change (and mirrored in `src/types/game.ts`'s re-export). */
     castKind?:
         | "flashback"
         | "escape"
         | "graveyard-permission"
         | "graveyard-grant"
-        | "graveyard-permanent-permission";
+        | "graveyard-permanent-permission"
+        | "retrace";
     /** CR 702.34a / 118.5 / 107.3 — the maximum {X} the caster may announce on
      *  THIS flashback cast, bounded by its `flashbackExileFromGraveyard`
      *  additional cost ("Exile X blue cards from your graveyard", Flash of
@@ -635,6 +643,26 @@ function projectGraveyardCard(
             ...slim,
             legalActions: legalActionsFor(),
             castKind: "graveyard-permanent-permission",
+        };
+    }
+    // CR 702.81a (issue #2358) — a NONLAND card in the viewer's own graveyard
+    // that currently has RETRACE, printed or granted (Wrenn and Six's emblem):
+    // castable for its printed mana cost PLUS discarding a land card. Re-derived
+    // live every projection, so a "during your turn" grant's affordance appears
+    // and disappears with the turn, no stale flag.
+    //
+    // LAST among the cast branches, matching `locateCastSource`'s own ordering
+    // (convex/game.ts): retrace costs the caster strictly more than any
+    // mechanism above (they replace or waive the mana cost; retrace ADDS a
+    // discarded land), so a card qualifying for two of them must surface the
+    // cheaper one. Projection order and cast-source order agreeing is what keeps
+    // the label the client shows equal to the mechanism the server actually
+    // charges for.
+    if (isOwnGraveyard && hasRetrace(state, card)) {
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "retrace",
         };
     }
     // CR 305.1-analog — a LAND sitting in the viewer's own graveyard while

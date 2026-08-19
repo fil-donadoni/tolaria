@@ -1,6 +1,7 @@
 // mh1 — multicolor cards (ADR 0043 colour split).
 
 import type { CardDefinition } from "../../types";
+import { WRENN_AND_SIX_EMBLEM_ID } from "../../emblems";
 
 // Hogaak, Arisen Necropolis — {5}{B/G}{B/G} Legendary Creature — Avatar, 8/8
 // (issue #1338, PRD #702, ADR 0063). "You can't spend mana to cast this spell.
@@ -65,4 +66,70 @@ export const hogaakArisenNecropolis: CardDefinition = {
 //     toughness: 4,
 // };
 
-export {};
+// Wrenn and Six — {R}{G} Legendary Planeswalker — Wrenn, loyalty 3 (MH1,
+// issue #2358). All three loyalty abilities use the shipped loyalty framework
+// (ADR 0058, #700):
+//   +1: "Return up to one target land card from your graveyard to your hand."
+//       — `count: {min:0,max:1}` is the genuinely optional "up to one" target
+//       (CR 601.2c; an empty announced set = decline), scoped to the
+//       controller's own graveyard by `zone` + `controller` (Reya Dawnbringer
+//       idiom), then a single `moveZone` to hand.
+//   -1: "Wrenn and Six deals 1 damage to any target." — "any target" is
+//       CR 115.4 (creature, player, or battle/planeswalker).
+//   -7: emblem "Instant and sorcery cards in your graveyard have retrace."
+//       — the emblem Op plus WRENN_AND_SIX_EMBLEM_ID, whose grant is the SECOND
+//       producer of a retrace grant (`convex/gre/retrace.ts`): an emblem is not
+//       a permanent (CR 114.1), so the battlefield sweep cannot see it.
+//
+// The card is the only exposure of Retrace (CR 702.81) in the pool: no card
+// prints the keyword yet, and the emblem's grant is what makes an instant or
+// sorcery in the graveyard castable for its printed cost plus a discarded land.
+export const wrennAndSix: CardDefinition = {
+    id: "4a706ecf-3277-40e3-871c-4ba4ead16e20",
+    name: "Wrenn and Six",
+    rarity: "mythic",
+    oracleText:
+        '+1: Return up to one target land card from your graveyard to your hand.\n−1: Wrenn and Six deals 1 damage to any target.\n−7: You get an emblem with "Instant and sorcery cards in your graveyard have retrace."',
+    manaCost: { R: 1, G: 1 },
+    types: ["Planeswalker"],
+    supertypes: ["Legendary"],
+    subtypes: ["Wrenn"],
+    loyalty: 3,
+    activatedAbilities: [
+        {
+            id: "wrenn-and-six-plus1",
+            cost: { loyalty: 1 },
+            useStack: true,
+            oracleText:
+                "+1: Return up to one target land card from your graveyard to your hand.",
+            // CR 601.2c — "up to one target": `{min:0,max:1}` lets the
+            // controller announce zero targets (decline) without the ability
+            // becoming illegal. `zone: "graveyard"` + `controller: "you"` is
+            // "from YOUR graveyard".
+            targetRequirement: {
+                type: "Land",
+                count: { min: 0, max: 1 },
+                zone: "graveyard",
+                controller: "you",
+            },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+        {
+            id: "wrenn-and-six-minus1",
+            cost: { loyalty: -1 },
+            useStack: true,
+            oracleText: "−1: Wrenn and Six deals 1 damage to any target.",
+            // CR 115.4 — "any target".
+            targetRequirement: { type: "any", count: 1 },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
+        },
+        {
+            id: "wrenn-and-six-minus7",
+            cost: { loyalty: -7 },
+            useStack: true,
+            oracleText:
+                '−7: You get an emblem with "Instant and sorcery cards in your graveyard have retrace."',
+            effects: [{ op: "emblem", emblem: WRENN_AND_SIX_EMBLEM_ID }],
+        },
+    ],
+};

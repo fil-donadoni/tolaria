@@ -308,3 +308,32 @@ registerEmblemDefinition({
         },
     ],
 });
+
+/** Wrenn and Six −7 emblem (MH1, issue #2358). The first emblem whose granted
+ *  ability is a CAST PERMISSION rather than a characteristic or a trigger:
+ *  "Instant and sorcery cards in your graveyard have retrace" (CR 702.81a —
+ *  "You may cast this card from your graveyard by discarding a land card as an
+ *  additional cost to cast it").
+ *
+ *  Declared as a `grantsRetraceToOwnGraveyard` grant, not a `staticEffects[]`
+ *  entry: the layer system (CR 613) computes an object's CHARACTERISTICS, and
+ *  neither a cast permission nor an additional cost is one. The grant is swept
+ *  by `collectRetraceGrants` (`convex/gre/retrace.ts`) together with the
+ *  battlefield-permanent producer of the identical `RetraceGrant` shape — an
+ *  emblem is not a permanent (CR 114.1) and would be invisible to a
+ *  battlefield-only scan.
+ *
+ *  Because CR 702.81a never exiles the card, a retraced instant or sorcery is
+ *  put into its owner's graveyard as it finishes resolving (CR 608.2m) and is
+ *  immediately retraceable again — bounded only by the lands left to discard. */
+export const WRENN_AND_SIX_EMBLEM_ID = "wrenn-and-six-emblem";
+
+registerEmblemDefinition({
+    id: WRENN_AND_SIX_EMBLEM_ID,
+    name: "Wrenn and Six emblem",
+    text: "Instant and sorcery cards in your graveyard have retrace.",
+    // Scryfall print of the emblem card (set `tmh1`, layout `emblem`) — the
+    // card's own printing's emblem, per the token/emblem art rule.
+    imagePrintId: "58c8a9fc-755a-4bff-8e13-41fbf4d9e546",
+    grantsRetraceToOwnGraveyard: { cardTypes: ["Instant", "Sorcery"] },
+});

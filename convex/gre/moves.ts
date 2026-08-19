@@ -94,6 +94,7 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
 import { canSummonCompanion } from "./companion";
+import { hasRetrace } from "./retrace";
 import { substituteColorFilter } from "./textChanges";
 // Choice-node candidate generation (PRD #1423, issue #1425) — a live
 // `PendingChoice` becomes an in-tree decision node whose candidate answers this
@@ -1905,14 +1906,39 @@ export function enumerateMoves(
     // returned "play" for these — but this enumerator only ever fed it HAND
     // cards, so the Bot could hold any of those permanents and never once use
     // the permission. The candidate SET is what was missing, not the rule.
-    // Only lands are considered: `getLegalActions` returns "play" for a land
-    // and "cast" for everything else, and a graveyard/library CAST is a
-    // separate mechanism (flashback/escape) enumerated elsewhere.
+    // Only lands are considered here: `getLegalActions` returns "play" for a
+    // land and "cast" for everything else. The graveyard CAST mechanisms are
+    // enumerated separately — retrace immediately below (issue #2358); the
+    // others (Flashback, Escape, the broad/per-card/permanent permissions) are
+    // NOT enumerated anywhere, a standing gap recorded in
+    // docs/findings/2358-graveyard-cast-moves.md (the previous wording here
+    // claimed they were "enumerated elsewhere"; there is no elsewhere).
     for (const card of player.graveyard) {
         if (!card.types.includes("Land")) continue;
         if (getLegalActions(state, player, card).includes("play")) {
             moves.push({ kind: "play-land", cardInstanceId: card.id });
         }
+    }
+    // CR 702.81a (issue #2358) — the RETRACE cast. A nonland card in the
+    // player's own graveyard that currently has retrace is castable for its
+    // printed mana cost plus discarding a land card, and without this loop the
+    // Bot could hold Wrenn and Six's emblem and never once use it: the
+    // candidate SET never included the graveyard for a CAST (only for a land
+    // PLAY, above, and for graveyard-source activated abilities, below).
+    //
+    // Gated on `hasRetrace` FIRST, before `getLegalActions`: that function's
+    // final "cast is for all non-land cards" fallback is zone-blind, so handing
+    // it an arbitrary graveyard card reports "cast" for a spell the commit path
+    // would then refuse to locate — the same trap the library-top branch below
+    // documents. Scoped to retrace deliberately: the OTHER graveyard-cast
+    // mechanisms (Flashback CR 702.34, Escape CR 702.138, the broad/specific/
+    // permanent permissions) are equally missing from this enumerator, but that
+    // is a pre-existing gap whose fix needs the sandbox executors to learn every
+    // one of their stack flags — see docs/findings/2358-graveyard-cast-moves.md.
+    for (const card of player.graveyard) {
+        if (!hasRetrace(state, card)) continue;
+        if (!getLegalActions(state, player, card).includes("cast")) continue;
+        moves.push(...enumerateCastMoves(state, player, card));
     }
     // Library: index 0 ONLY — the permission is positional and the rest of the
     // library is hidden (CR 400.2). Feeding the whole library here would leak

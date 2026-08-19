@@ -352,20 +352,29 @@ export function buildCastPermanentCostChoice(
  *  creature card") and any further leg the caller supplies into a single
  *  selection. Returns `undefined` when none contributes a hand leg.
  *
- *  `extraLegs` is how the card's OWN additional cost joins (CR 118.8 / 701.9 —
- *  Bitter Triumph's "discard a card", via `additionalCostHandLeg`): an
+ *  `extraLegs` is how every hand cost the CARD DEFINITION does not itself
+ *  declare joins: the card's OWN additional cost (CR 118.8 / 701.9 — Bitter
+ *  Triumph's "discard a card", via `additionalCostHandLeg`) and the keyword-
+ *  derived retrace cost (CR 702.81a — "discard a land card", issue #2358). An
  *  ADDITIONAL cost is paid alongside the mana cost, so its hand leg belongs in
  *  the SAME single picker as the CR 118.9/702.33a ones rather than in a
  *  parallel slot the cast has no room for. Legs concatenate in argument order,
  *  so `CostLegs.hand`'s most-restrictive-requirement-first authoring constraint
- *  extends across them. */
+ *  extends across them.
+ *
+ *  `extraLegs` is REQUIRED, deliberately (issue #2358 review): it used to
+ *  default to `[]`, and the one cast-commit path that forgot to pass it charged
+ *  no retrace discard at all while type-checking clean. A new commit path now
+ *  cannot compile without deciding — and the decision it should make is
+ *  `castExtraHandCostLegs` (`convex/game.ts`), the single authority on what
+ *  belongs in this list. */
 export function buildCastHandCostChoice(
     player: PlayerState,
     altCost: CostLegs | undefined,
     cardDef: CardDefinition,
     payments: KickerPayments | undefined,
     castInstanceId: string,
-    extraLegs: readonly CostLegs[] = []
+    extraLegs: readonly CostLegs[]
 ): ReturnType<typeof buildCostLegsHandChoice> {
     return buildCostLegsHandChoice(
         player,

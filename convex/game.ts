@@ -124,6 +124,11 @@ import {
     hasEscape,
 } from "./gre/escape";
 import {
+    findRetraceCastable,
+    hasRetrace,
+    RETRACE_COST_LEGS,
+} from "./gre/retrace";
+import {
     applyGenericOffset,
     buildConvokeCreatureChoice,
     buildDelveExileChoice,
@@ -189,6 +194,7 @@ import type {
     CardDefinition,
     CardType,
     Color,
+    CostLegs,
     ManaCost,
     PermanentFilter,
     SpellMode,
@@ -2467,6 +2473,10 @@ type CastFromZone = "hand" | "exile" | "graveyard" | "library";
  *  (Flashback/Escape/the broad permission/a specific grant) already claimed
  *  the card, so the flag unambiguously identifies which permission to debit
  *  its once-per-turn use against at commit (`markGraveyardPermanentCastUsed`).
+ *  `viaRetrace` is the same idea for Retrace (CR 702.81, issue #2358): the
+ *  LAST branch of the chain, so the flag unambiguously says "this cast owes
+ *  the discard-a-land additional cost" and no other mechanism's cast ever
+ *  pays it.
  *  Exported so the flashback integration test can drive the REAL cast-source
  *  resolution (no convex-test harness — issue #944). */
 export function locateCastSource(
@@ -2477,6 +2487,7 @@ export function locateCastSource(
     card?: CardInstanceState;
     zone: CastFromZone;
     viaGraveyardPermanentPermission?: true;
+    viaRetrace?: true;
 } {
     const inHand = player.hand.find((c) => c.id === instanceId);
     if (inHand) return { card: inHand, zone: "hand" };
@@ -2539,7 +2550,51 @@ export function locateCastSource(
         instanceId
     );
     if (libraryTopCast) return { card: libraryTopCast, zone: "library" };
+    // CR 702.81 (issue #2358) — a card castable under RETRACE, printed or
+    // granted (Wrenn and Six's emblem). Deliberately last among the GRAVEYARD
+    // branches: retrace
+    // pays the card's normal mana cost PLUS an extra land discard, so every
+    // graveyard mechanism above is cheaper for the caster and a card
+    // qualifying for two of them takes the other.
+    const retraceCast = findRetraceCastable(state, player, instanceId);
+    if (retraceCast) {
+        return { card: retraceCast, zone: "graveyard", viaRetrace: true };
+    }
     return { zone: "hand" };
+}
+
+/** CR 118.8 / 601.2f / 701.9 / 702.81a — every HAND-cost leg a cast owes that
+ *  `buildCastHandCostChoice` cannot derive from the card definition and the
+ *  announced choices it is already given:
+ *
+ *   - the card's OWN "discard a card" ADDITIONAL cost (CR 118.8 / 701.9 — Bitter
+ *     Triumph), read off the already-`oneOf`-flattened spec;
+ *   - the RETRACE additional cost (CR 702.81a — "discard a land card"), which is
+ *     keyword-derived rather than declared on the definition and so can only be
+ *     known from WHICH mechanism supplied this cast (`CastSource.viaRetrace`).
+ *
+ *  THE choke point (issue #2358 review, finding 1). It exists because the same
+ *  cost was previously threaded per call site: `finalizeTargetSelection` spread
+ *  the retrace leg in, `announceCast`'s two no-target branches did not, and a
+ *  retrace cast of a NON-targeting spell therefore committed having discarded
+ *  nothing — a straight CR 702.81a violation that also removed the only thing
+ *  bounding the no-exile recast loop. One function, three call sites, and
+ *  `buildCastHandCostChoice`'s `extraLegs` is a REQUIRED parameter so a fourth
+ *  commit path cannot silently omit it.
+ *
+ *  Every leg lands in the cast's ONE `alternativeCostHandChoice` picker, so it
+ *  is paid by the same commit path, gated by the same `nextOwedPayment`, picked
+ *  through the same mutation and rendered by the same component as every
+ *  CR 118.9 hand leg. Returns `[]` for the overwhelming majority of casts. */
+export function castExtraHandCostLegs(
+    effectiveAdditionalCosts: AdditionalCostSpec | undefined,
+    castSource: { viaRetrace?: true }
+): CostLegs[] {
+    const additionalHandLeg = additionalCostHandLeg(effectiveAdditionalCosts);
+    return [
+        ...(additionalHandLeg ? [additionalHandLeg] : []),
+        ...(castSource.viaRetrace ? [RETRACE_COST_LEGS] : []),
+    ];
 }
 
 /** CR 702.34 — the stack-item flags a Flashback cast (from the graveyard) adds:
@@ -2590,6 +2645,26 @@ export function graveyardCastStackFlags(
     // path rather than a second parallel one.
     if (card.castFromGraveyardExilesOnResolve) {
         return { castFromGraveyard: true, exileOnResolve: true };
+    }
+    // CR 702.81a (issue #2358) — a RETRACE cast.
+    //
+    // THIS BRANCH IS DOCUMENTATION, NOT CONTROL FLOW: it returns exactly the
+    // same object as the fallback three lines below, so deleting it changes no
+    // behaviour and reds no test (issue #2358 review, finding 3 — the original
+    // proof-of-failure claim for it was wrong; only ADDING `exileOnResolve`
+    // here reds `retrace.test.ts`). It is kept deliberately, because the
+    // ABSENCE of `exileOnResolve` is the mechanic's headline divergence from
+    // Flashback and is worth stating where the choice between mechanisms is
+    // made: CR 702.81a says nothing about exiling, so a retraced instant or
+    // sorcery finishes resolving and is put into its owner's graveyard
+    // (CR 608.2m) — which is exactly what makes it retraceable again, bounded
+    // only by the lands left in hand to discard. `escaped` is likewise absent:
+    // retrace is an ADDITIONAL cost, not the escape alternative cost, so
+    // nothing escaped. The behaviour itself IS asserted, on the fallback's
+    // output, by `retrace.test.ts`'s `graveyardCastStackFlags` and end-to-end
+    // resolve cases.
+    if (hasRetrace(state, card)) {
+        return { castFromGraveyard: true };
     }
     // CR 305.1-analog / 601 (issue #1149) / 117.6-analog (issue #1344) —
     // neither Escape nor Flashback: this is a plain cast under the BROAD
@@ -6774,19 +6849,19 @@ export function finalizeTargetSelection(
     // two never coexist. CR 702.33a — a paid Kicker's HAND leg joins the same
     // picker. Same rule as the permanent selection above: the builder itself
     // returns `undefined` when no leg contributes, so no leg-count gate.
-    // CR 118.8 / 701.9 — the card's OWN "discard a card" additional cost joins
-    // the SAME picker (see `buildCastHandCostChoice`'s `extraLegs`); the cast
-    // has one hand-cost slot and an additional cost is paid alongside the mana
-    // cost, not instead of it. `undefined` for every card without a discard
-    // leg, so the merged list is unchanged for them.
-    const additionalHandLeg = additionalCostHandLeg(effectiveAdditionalCosts);
+    // CR 118.8 / 701.9 / 702.81a — the card's OWN "discard a card" additional
+    // cost and a RETRACE cast's "discard a land card" join the SAME picker (see
+    // `buildCastHandCostChoice`'s `extraLegs`); the cast has one hand-cost slot
+    // and an additional cost is paid alongside the mana cost, not instead of
+    // it. `castExtraHandCostLegs` is the single authority on that list — see its
+    // doc for why it is a function rather than a per-site ternary.
     const altHandChoice = buildCastHandCostChoice(
         player,
         chosenAltCost,
         cardDef,
         kickerPayments,
         cardInstanceId,
-        additionalHandLeg ? [additionalHandLeg] : []
+        castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
     );
     // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from your
     // hand" cost (generalized `FlashbackCost.exileFromHand`) also applies to a
@@ -7083,6 +7158,20 @@ export function finalizeTargetSelection(
             // Auto-resolved sacrifice (complete) rides along so the deferred
             // commit applies the chosen ids (CR 701.21a).
             ...(castSac ? { sacrificeSelection: castSac } : {}),
+            // CR 601.2f / 118.8 / 702.81a (issue #2358 review, finding 1) — and
+            // so does an auto-resolved HAND choice. This is the THIRD cast-
+            // commit path: `parkForSacrifice` above only fires on an INCOMPLETE
+            // hand choice, so a FORCED pick (exactly one land in hand for
+            // retrace, exactly one card for Bitter Triumph's discard leg) falls
+            // through it with `pickedCardIds` pre-filled; the immediate branch
+            // above then pays it, but THIS branch — mana not yet covered —
+            // simply dropped the field, and `tryAutoCommitPendingCast` reads
+            // the choice off `pendingCast` and nowhere else. The cost was
+            // therefore never charged. Same shape and same reason as the
+            // no-target park's `alternativeCostHandChoice` (`announceCast`).
+            ...(altHandChoice
+                ? { alternativeCostHandChoice: altHandChoice }
+                : {}),
             // CR 702.109a — a Dash cast whose mana isn't yet covered parks here
             // like any ordinary cast; `tryAutoCommitPendingCast` reads this back
             // off `pendingCast.dashed` once `tapForPayment` covers it.
@@ -8040,12 +8129,22 @@ export const announceCast = mutation({
                 kickerPayments,
                 cardDef.name ?? "Alternative cost"
             );
+            // CR 118.8 / 601.2f / 702.81a — the card's own hand-cost additional
+            // leg and the retrace discard, through the SAME authority the other
+            // two commit paths use. An ALTERNATIVE cost replaces the mana cost
+            // (CR 118.9); it never discharges an ADDITIONAL one, so both still
+            // apply here. Inert for every shipped card (none carries both an
+            // alternative cost and a hand-leg additional cost, and no retrace
+            // card in the pool has an alternative cost either) — it is here so
+            // the three commit paths price the same cast identically, the same
+            // symmetry argument as the flash-surcharge fold above.
             const altHandChoice = buildCastHandCostChoice(
                 player,
                 chosenAltCost,
                 cardDef,
                 kickerPayments,
-                args.cardInstanceId
+                args.cardInstanceId,
+                castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
             );
             const altPayLife =
                 (chosenAltCost.life ?? 0) +
@@ -8327,20 +8426,22 @@ export const announceCast = mutation({
             cardDef.name ?? "Kicker"
         );
         const castSac = kickerPermSel ?? ownSac;
-        // CR 118.8 / 701.9 — the card's OWN "discard a card" additional cost
-        // joins the cast's single hand-cost picker, exactly as it does on the
-        // targeted commit path (`finalizeTargetSelection`). `undefined` for
-        // every card without a discard leg.
-        const additionalHandLeg = additionalCostHandLeg(
-            effectiveAdditionalCosts
-        );
+        // CR 118.8 / 701.9 / 702.81a — the card's OWN "discard a card"
+        // additional cost AND a retrace cast's "discard a land card" join the
+        // cast's single hand-cost picker, exactly as they do on the targeted
+        // commit path (`finalizeTargetSelection`) — same authority, same list.
+        // The retrace half is the issue #2358 review's finding 1: this path
+        // built the picker from the declared additional cost alone, so a
+        // retrace cast of a NON-targeting spell (Wrath of God under the Wrenn
+        // and Six emblem) committed with `alternativeCostHandChoice`
+        // `undefined` and discarded no land at all.
         const kickerHandChoice = buildCastHandCostChoice(
             player,
             undefined,
             cardDef,
             kickerPayments,
             args.cardInstanceId,
-            additionalHandLeg ? [additionalHandLeg] : []
+            castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
         );
         // CR 702.34a / 118.5 — Flash of Insight's flashback-only additional
         // cost "Exile X blue cards from your graveyard". Applies ONLY on a
