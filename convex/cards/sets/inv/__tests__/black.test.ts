@@ -1679,7 +1679,20 @@ describe("Hypnotic Cloud (Kicker {4} → discard 1 card, or 3 if kicked; CR 702.
         const head = state.pendingChoices![0];
         expect(head.kind).toBe("discard-hand");
         expect(head.playerId).toBe("p2"); // the TARGET player chooses (CR 701.9)
-        expect(head.count).toEqual({ min: 0, max: 1 });
+        // Mandatory (CR 608.2b / 701.9b) — a fixed count, not the `{ min: 0,
+        // max: 1 }` optional-range shape (#1851).
+        expect(head.count).toBe(1);
+        // The discard is mandatory: an empty submission is rejected outright
+        // (min === max === 1, no "decline" branch).
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p2",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [],
+            })
+        ).toThrow("Select at least 1 card");
         applyPendingChoiceSubmit(state, {
             playerId: "p2",
             stackItemId: head.stackItemId,
@@ -1706,7 +1719,7 @@ describe("Hypnotic Cloud (Kicker {4} → discard 1 card, or 3 if kicked; CR 702.
         ).toBe(true);
     });
 
-    it("kicked: the target player discards up to three chosen cards instead", () => {
+    it("kicked: the target player discards exactly three chosen cards", () => {
         const cards = ["a", "b", "c", "d"].map((id) =>
             makeInstance(savannahLions.id, {
                 id: `hc-${id}`,
@@ -1724,7 +1737,20 @@ describe("Hypnotic Cloud (Kicker {4} → discard 1 card, or 3 if kicked; CR 702.
         item.kickerPayments = { kicker: 1 };
         expect(resolveTopOfStack(state)).toBeNull();
         const head = state.pendingChoices![0];
-        expect(head.count).toEqual({ min: 0, max: 3 });
+        // Mandatory (CR 608.2b / 701.9b) — a fixed count, not the
+        // `{ min: 0, max: 3 }` optional-range shape (#1851).
+        expect(head.count).toBe(3);
+        // The discard is mandatory: a partial submission (fewer than 3, with
+        // 3+ still in hand) is rejected outright.
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p2",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["hc-a"],
+            })
+        ).toThrow("Select at least 3 cards");
         applyPendingChoiceSubmit(state, {
             playerId: "p2",
             stackItemId: head.stackItemId,
@@ -1748,6 +1774,41 @@ describe("Hypnotic Cloud (Kicker {4} → discard 1 card, or 3 if kicked; CR 702.
             "hc-a",
             "hc-b",
             "hc-c",
+        ]);
+    });
+
+    it("kicked with fewer than three cards in hand: discards as many as possible (CR 608.2b / 701.9b)", () => {
+        const cards = ["a", "b"].map((id) =>
+            makeInstance(savannahLions.id, {
+                id: `hc-${id}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: cards })],
+        });
+        const item = pushSpell(state, hypnoticCloud.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.kickerPayments = { kicker: 1 };
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        // Clamped to the 2 cards actually in hand, still a fixed (mandatory)
+        // count — not the optional `{ min: 0, max }` shape.
+        expect(head.count).toBe(2);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["hc-a", "hc-b"],
+        });
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "hc-a",
+            "hc-b",
         ]);
     });
 });

@@ -642,7 +642,10 @@ export const hypnoticCloud: CardDefinition = {
                     kind: "discard-hand",
                     player: { target: 0 },
                     zone: "hand",
-                    count: { min: 0, max: 3 },
+                    // CR 608.2b / 701.9b — mandatory (no "may"); a fixed
+                    // count clamps down to hand size when it holds fewer
+                    // than 3, it never lets the chooser decline outright.
+                    count: 3,
                     prompt: "Discard three cards.",
                     bind: "$picked3",
                 },
@@ -658,7 +661,9 @@ export const hypnoticCloud: CardDefinition = {
                     kind: "discard-hand",
                     player: { target: 0 },
                     zone: "hand",
-                    count: { min: 0, max: 1 },
+                    // CR 608.2b / 701.9b — mandatory (no "may"); see the
+                    // kicked branch above for the fixed-count rationale.
+                    count: 1,
                     prompt: "Discard a card.",
                     bind: "$picked1",
                 },
