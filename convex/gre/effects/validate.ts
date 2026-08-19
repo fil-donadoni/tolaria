@@ -2352,7 +2352,7 @@ function isPredicate(value: unknown): boolean {
     // snapshot ref: this form reads the battlefield now, not a snapshot.
     if (
         (keys.length === 2 ||
-            // CR 109.2 (issue #2388) — the optional `controlledBy` player
+            // CR 109.5 (issue #2388) — the optional `controlledBy` player
             // scope ("attached to a creature you control").
             (keys.length === 3 && keys.includes("controlledBy"))) &&
         keys.includes("objectMatchesFilter") &&

@@ -146,7 +146,7 @@ export const malevolentRumble: CardDefinition = {
 //     all: `attachedTo` is only ever set on this permanent by a bestowed cast,
 //     so the buff switches itself off the instant CR 702.103f reverts it.
 //  3. The landfall half is the shared `landfallTrigger` factory (CR 603.6a /
-//     109.2) over a fully DSL body. "That creature" is `{ ref: "$host" }`, the
+//     109.5) over a fully DSL body. "That creature" is `{ ref: "$host" }`, the
 //     implicit attachment-host binding every Aura/Equipment ability already
 //     gets (CR 303.4m); "attached to a creature YOU CONTROL" is
 //     `objectMatchesFilter` + its `controlledBy` scope. An unattached source
@@ -190,7 +190,7 @@ export const springheartNantuko: CardDefinition = {
             effects: [
                 {
                     op: "if",
-                    // CR 109.2 — the may-pay is offered ONLY while this
+                    // CR 109.5 — the may-pay is offered ONLY while this
                     // permanent is attached to a creature its controller
                     // controls. `$host` is seeded from the live `attachedTo`
                     // as the trigger begins resolving (CR 608.2), so an

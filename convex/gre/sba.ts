@@ -9,6 +9,7 @@ import {
     refreshLandPlayLock,
     removePermanentTo,
     revertControlChange,
+    unapplyAuraControlChange,
     unapplySourceStaticEffects,
 } from "./state";
 import { isAura, isCreature, isPlaneswalker } from "./constants";
@@ -200,8 +201,28 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
         // it here (and not in a separate sweep ordered before this one) is
         // what keeps the OFFERED and the ENFORCED host sets in agreement: any
         // future narrowing of aura legality applies to bestow automatically.
+        //
+        // CR 611.3a — but "stays on the battlefield" is NOT "keeps applying":
+        // a static ability's continuous effect "applies at any given moment to
+        // whatever its text indicates", and "enchanted creature" indicates
+        // nothing once the Aura is unattached. So every effect this object was
+        // applying THROUGH the attachment ends right here, and
+        // the release has to be explicit because the two paths that normally
+        // do it are both skipped on this branch: `removePermanentTo` below
+        // (the CR 704.5m graveyard road) and the CR 704.5n Equipment branch
+        // (`checkAttachmentSBA`), which unapplies before clearing
+        // `attachedTo` for exactly this reason. Without it a bestowed Aura
+        // that granted its host a keyword leaves the grant on the host
+        // indefinitely — the host's `grantedStaticAbilities` entry documents
+        // itself as removed "when the aura unattaches", and nothing else on
+        // this road removes it. Order matters twice over:
+        // `unapplyAuraControlChange` reads `attachedTo` (which `revertBestow`
+        // clears), and both reads happen while the object still LOOKS like
+        // the Aura it was.
         const bestowed = findOnBattlefield(state, id);
         if (bestowed?.bestowed) {
+            unapplyAuraControlChange(state, bestowed);
+            unapplySourceStaticEffects(state, bestowed);
             revertBestow(bestowed);
             continue;
         }

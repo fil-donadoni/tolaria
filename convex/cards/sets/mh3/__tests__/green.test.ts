@@ -521,7 +521,7 @@ describe("Springheart Nantuko — bestowed buff (CR 613 layer 7c / 303.4m)", () 
     });
 });
 
-describe("Springheart Nantuko — Landfall (CR 603.6a / 109.2)", () => {
+describe("Springheart Nantuko — Landfall (CR 603.6a / 109.5)", () => {
     it("attached to a creature you control and paid: copies that creature", () => {
         const { state } = bestowedBoard();
         nantukoLandfallOnStack(state, "land1", "p1");
@@ -570,7 +570,7 @@ describe("Springheart Nantuko — Landfall (CR 603.6a / 109.2)", () => {
         expect(state.players[0].manaPool.G).toBe(2); // nothing was paid
     });
 
-    it("attached to a creature you DON'T control: no payment, Insect only (CR 109.2)", () => {
+    it("attached to a creature you DON'T control: no payment, Insect only (CR 109.5)", () => {
         // The `controlledBy` scope on the objectMatchesFilter predicate is the
         // whole of this clause: without it the may-pay would be offered on an
         // opponent's enchanted creature.
@@ -599,7 +599,7 @@ describe("Springheart Nantuko — Landfall (CR 603.6a / 109.2)", () => {
         expect(getEffectiveToughness(projected, slimToken)).toBe(1);
     });
 
-    it("an OPPONENT's land entering does NOT trigger (CR 109.2 — a land YOU control)", () => {
+    it("an OPPONENT's land entering does NOT trigger (CR 109.5 — a land YOU control)", () => {
         const { state } = bestowedBoard();
         const triggers = collectTriggers(state, [
             {

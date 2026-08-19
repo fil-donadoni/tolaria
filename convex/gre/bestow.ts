@@ -43,11 +43,12 @@
 import type {
     AlternativeCost,
     CardDefinition,
+    CardType,
     EnchantRestriction,
     TargetRequirement,
 } from "../cards/types";
 import { tryGetDefinition } from "../cards/registry";
-import { isCreature } from "./constants";
+import { composeMaterializedSubtypes, isCreature } from "./constants";
 import type { CardInstanceState, GameState } from "./state";
 
 /** CR 702.103b — the enchant ability a bestowed spell GAINS ("enchant
@@ -71,11 +72,6 @@ export const BESTOW_TARGET_REQUIREMENT: TargetRequirement = {
     type: "Creature",
     count: 1,
 };
-
-/** CR 702.103a — does this card have Bestow at all? */
-export function hasBestow(def: CardDefinition | undefined): boolean {
-    return def?.bestow !== undefined;
-}
 
 /** CR 702.103a — is `altCost` THIS card's bestow cost? Compared by REFERENCE,
  *  the same discriminator `announceCast` uses for `def.evoke` / `def.dash`:
@@ -136,7 +132,18 @@ export function applyBestowCharacteristics(card: CardInstanceState): void {
  *  Restores from the card DEFINITION, not from a saved anchor — see the file
  *  header. A no-op on an object that is not bestowed, and on one whose card id
  *  no longer resolves (synthetic test fixtures), which is why the marker is
- *  cleared unconditionally first. */
+ *  cleared unconditionally first.
+ *
+ *  CR 613.1d — the printed line is the layer-1 BASE, not the answer. On the
+ *  CR 702.103f road the object stays on the battlefield, so any layer-4
+ *  card-type / subtype effect from a source that is still there still applies
+ *  and has to be replayed over the restored base — a bare assignment would
+ *  silently drop a `type-add` while leaving its `grantedTypes` origin entry
+ *  behind, so the materialized line and its own provenance record would
+ *  disagree (and the entry's later unapply would "remove" a type that is no
+ *  longer there). Same replay-over-a-new-base shape, and for the same reason,
+ *  as `gre/identitySwap.ts`'s `replayLayer4Types` / `replayLayer4Subtypes`
+ *  after a copy-identity swap. */
 export function revertBestow(card: CardInstanceState): void {
     if (!card.bestowed) return;
     delete card.bestowed;
@@ -145,10 +152,28 @@ export function revertBestow(card: CardInstanceState): void {
     const cardId = (card.card as { id?: string } | undefined)?.id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return;
-    card.types = [...def.types];
-    card.subtypes = [...(def.subtypes ?? [])];
     card.power = def.power;
     card.toughness = def.toughness;
+    // Layer 4 (CR 613.1d), additive then subtractive — the `grantedTypes` /
+    // `suppressedTypes` surrogates are keyed by SOURCE and name the type
+    // itself, so they are identity-independent and replay verbatim.
+    const types: CardType[] = [...def.types];
+    for (const granted of card.grantedTypes ?? []) {
+        const type = granted.type as CardType;
+        if (!types.includes(type)) types.push(type);
+    }
+    for (const suppressed of card.suppressedTypes ?? []) {
+        const idx = types.indexOf(suppressed.type as CardType);
+        if (idx !== -1) types.splice(idx, 1);
+    }
+    card.types = types;
+    // CR 305.7 / 613.7 — subtypes go through the ONE composer, whose layer-1
+    // anchor is `printedSubtypes`; re-anchor it on the printed line first (the
+    // bestow mutation may have been the value it was captured from).
+    const printedSubtypes = [...(def.subtypes ?? [])];
+    card.subtypes = printedSubtypes;
+    if (card.printedSubtypes) card.printedSubtypes = [...printedSubtypes];
+    card.subtypes = composeMaterializedSubtypes(card);
 }
 
 /** CR 601.2c / 702.103b — is there any creature a bestowed cast could legally

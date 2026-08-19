@@ -16,18 +16,31 @@
 //   / 608.3b   creature spell.
 //   702.103f — a bestowed Aura that becomes unattached reverts to a creature
 //              IN PLACE. Explicitly an exception to CR 704.5m, so the control
-//              case (an ordinary Aura) must still be binned.
+//              case (an ordinary Aura) must still be binned — and "in place"
+//              is not "still applying": CR 611.3a ends every effect it was
+//              applying through the attachment (keyword grant, control
+//              change), while CR 613.1d layer-4 effects from sources that are
+//              still there survive the printed-line restore.
 //   400.7    — a bestowed object that changes zone sheds the Aura type line.
+//
+// Every boundary is driven through its REAL entry point — `removePermanentTo`
+// for the departure, `removeFromZone` for the shared entry-side reset,
+// `checkStateBasedActions` for the SBA, `resolveTopOfStack` for the two
+// resolution roads — never by calling `revertBestow` by hand, which would
+// prove the helper works and never that the boundary calls it.
 
 import { describe, it, expect } from "vitest";
 import { finalizeTargetSelection } from "../../game";
 import {
     getPlayer,
+    removeFromZone,
+    removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
     type PendingTarget,
 } from "../state";
+import { affordableAlternativeCosts } from "../alternativeCost";
 import { checkStateBasedActions } from "../sba";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { compactState, expandState } from "../serialize";
@@ -42,10 +55,8 @@ import { grizzlyBears } from "../../cards/sets/lea";
 import { unstableMutation } from "../../cards/sets/arn/blue";
 import { counterspell } from "../../cards/sets/lea/blue";
 import {
-    BESTOW_TARGET_REQUIREMENT,
     applyBestowCharacteristics,
     hasLegalBestowHost,
-    isBestowAlternativeCost,
     revertBestow,
 } from "../bestow";
 
@@ -105,40 +116,22 @@ function castBestowed(state: GameState, hostId: string) {
 }
 
 describe("Bestow — cast-mode plumbing (CR 702.103a)", () => {
-    it("declares its bestow cost as an alternative cost identified by reference", () => {
-        expect(springheartNantuko.bestow?.id).toBe("bestow");
-        expect(springheartNantuko.bestow?.mana).toEqual({ X: 1, G: 1 });
-        expect(
-            isBestowAlternativeCost(
-                springheartNantuko,
-                springheartNantuko.bestow
-            )
-        ).toBe(true);
-        // A DIFFERENT alt cost on the same card is not the bestow one.
-        expect(
-            isBestowAlternativeCost(springheartNantuko, {
-                id: "bestow",
-                description: "impostor",
-            })
-        ).toBe(false);
-    });
-
-    it("offers the bestow mode only while some creature could host it (CR 601.2c)", () => {
+    it("is offered as an alternative cost only while some creature could host it (CR 601.2c)", () => {
+        // Through the real cost-offer predicate, not the definition: this is
+        // the same function `affordableAltCostsForCard` (and therefore the
+        // cast-option picker) consults.
         const { state } = boardWithHost();
+        const p1 = getPlayer(state, "p1");
+        const inHand = p1.hand.find((c) => c.id === "nantuko")!;
+        expect(
+            affordableAlternativeCosts(state, p1, inHand).map((a) => a.id)
+        ).toEqual(["bestow"]);
         expect(hasLegalBestowHost(state)).toBe(true);
-        // Same board with the creature gone: no legal target, no offer.
-        const empty = makeState();
-        expect(hasLegalBestowHost(empty)).toBe(false);
-    });
-
-    it("takes the 'enchant creature' target requirement, not the card's own", () => {
-        // The card is a creature and declares no `targetRequirement` at all —
-        // the whole of a bestowed cast's targeting comes from CR 702.103b.
-        expect(springheartNantuko.targetRequirement).toBeUndefined();
-        expect(BESTOW_TARGET_REQUIREMENT).toEqual({
-            type: "Creature",
-            count: 1,
-        });
+        // Same card, same mana, board with no creature on it: no legal
+        // target (CR 601.2c), so the mode is not offered at all.
+        p1.battlefield = [];
+        expect(hasLegalBestowHost(state)).toBe(false);
+        expect(affordableAlternativeCosts(state, p1, inHand)).toEqual([]);
     });
 });
 
@@ -285,6 +278,108 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         expect(getEffectiveToughness(state, permanent!)).toBe(1);
     });
 
+    it("releases the keyword it granted its still-present host (CR 611.3a)", () => {
+        // "Stays on the battlefield" is not "keeps applying". Springheart
+        // Nantuko's own buff is a read-time layer effect, so the leak this
+        // guards needs the OTHER bestow shape — the Theros creature whose
+        // Aura half GRANTS the enchanted creature a keyword. Its footprint on
+        // the host is `grantedStaticAbilities` keyed by the aura's instance
+        // id, exactly as `applySourceStaticEffects` writes it; that is what
+        // is stamped here, and the entry's own doc says it is "removed when
+        // the aura unattaches".
+        const { state, host } = boardWithHost();
+        castBestowed(state, "host");
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+        host.staticAbilities = [...host.staticAbilities, "flying"];
+        host.grantedStaticAbilities = [
+            { ability: "flying", auraId: "nantuko" },
+        ];
+
+        // CR 702.16c — the host gains protection from the Aura's colour. It
+        // does NOT leave the battlefield, so the only thing that can release
+        // the grant is the CR 702.103f detach itself.
+        host.staticAbilities = [
+            ...host.staticAbilities,
+            "protection from green",
+        ];
+        checkStateBasedActions(state);
+
+        const p1 = getPlayer(state, "p1");
+        const nantuko = p1.battlefield.find((c) => c.id === "nantuko");
+        expect(nantuko).toBeDefined();
+        expect(nantuko!.bestowed).toBeUndefined();
+        const stillThere = p1.battlefield.find((c) => c.id === "host")!;
+        expect(stillThere).toBeDefined();
+        expect(stillThere.grantedStaticAbilities).toBeUndefined();
+        expect(stillThere.staticAbilities).not.toContain("flying");
+    });
+
+    it("releases the control change it imposed on its still-present host (CR 611.3a)", () => {
+        // The control-half of the same release, and the reason the unapply
+        // must run BEFORE `revertBestow` clears `attachedTo`:
+        // `unapplyAuraControlChange` is keyed on it.
+        const { state, host } = boardWithHost();
+        castBestowed(state, "host");
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+        // What a bestow Aura reading "You control enchanted creature" leaves
+        // behind (`applyAuraControlChange`'s own record shape): the host is
+        // p2's card, currently controlled by p1 because of this Aura.
+        host.ownerId = "p2";
+        host.controlChanges = [
+            { auraId: "nantuko", previousControllerId: "p2" },
+        ];
+        host.staticAbilities = [
+            ...host.staticAbilities,
+            "protection from green",
+        ];
+        checkStateBasedActions(state);
+
+        const returned = getPlayer(state, "p2").battlefield.find(
+            (c) => c.id === "host"
+        );
+        expect(returned).toBeDefined();
+        expect(returned!.controllerId).toBe("p2");
+        expect(returned!.controlChanges).toBeUndefined();
+    });
+
+    it("replays a live layer-4 type grant over the restored printed line (CR 613.1d)", () => {
+        // The revert restores the printed type line, which is the layer-1
+        // BASE — not the answer. The object stays on the battlefield, so a
+        // `type-add` from a source that is still there still applies and must
+        // survive; a bare assignment would drop it while leaving its
+        // `grantedTypes` origin entry behind, so the materialized line and
+        // its own provenance record would disagree.
+        const { state, host } = boardWithHost();
+        castBestowed(state, "host");
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+        const bestowed = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "nantuko"
+        )!;
+        // Titania's Song-style grant, materialised exactly as
+        // `applySourceStaticEffects` writes it (type in `types[]`, origin in
+        // `grantedTypes` keyed by the granting source).
+        bestowed.types = [...bestowed.types, "Artifact"];
+        bestowed.grantedTypes = [{ type: "Artifact", auraId: "song" }];
+
+        host.staticAbilities = [
+            ...host.staticAbilities,
+            "protection from green",
+        ];
+        checkStateBasedActions(state);
+
+        const after = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "nantuko"
+        )!;
+        expect(after.bestowed).toBeUndefined();
+        expect(after.types).toEqual(["Enchantment", "Creature", "Artifact"]);
+        expect(after.grantedTypes).toEqual([
+            { type: "Artifact", auraId: "song" },
+        ]);
+    });
+
     it("CONTROL — an ordinary Aura with no host is still put into its owner's graveyard (CR 704.5m)", () => {
         // Unstable Mutation is a printed Aura, not a bestowed one. If the
         // bestow exception ever widened to every Aura, this goes red.
@@ -328,6 +423,43 @@ describe("Bestow — an illegal target resolves as a creature spell (CR 702.103e
         expect(getEffectivePower(state, permanent!)).toBe(1);
     });
 
+    it("enters as a creature when its target is still TARGETABLE but is no longer a legal HOST", () => {
+        // The half `targetLegalityGate` cannot see (its permanent branch asks
+        // zone existence only): the host is still on the battlefield, so the
+        // gate says "resolve", and only `isFullyLegalAuraHost` inside
+        // `finalizeSpellResolution` knows it acquired protection from the
+        // Aura's colour in response (CR 702.16b). Both roads must reach the
+        // creature or the CR 702.103e exception holds for one half of
+        // 608.2b's legality and not the other.
+        const { state, host } = boardWithHost();
+        castBestowed(state, "host");
+        host.staticAbilities = [
+            ...host.staticAbilities,
+            "protection from green",
+        ];
+
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+
+        const after = getPlayer(state, "p1");
+        const permanent = after.battlefield.find((c) => c.id === "nantuko");
+        expect(permanent).toBeDefined();
+        expect(after.graveyard.some((c) => c.id === "nantuko")).toBe(false);
+        expect(permanent!.bestowed).toBeUndefined();
+        expect(permanent!.attachedTo).toBeUndefined();
+        // The Aura-ness took the target with it (a creature spell has none) —
+        // the permanent carries no stale host pointer.
+        expect(
+            (permanent as unknown as { targets?: unknown }).targets
+        ).toBeUndefined();
+        expect(permanent!.types).toEqual(["Enchantment", "Creature"]);
+        expect(permanent!.subtypes).toEqual(["Insect", "Monk"]);
+        expect(getEffectivePower(state, permanent!)).toBe(1);
+        // The protected host is untouched — no +1/+1 from an Aura that never
+        // attached (CR 613 layer 7c reads `attachedTo`).
+        expect(getEffectivePower(state, host)).toBe(2);
+    });
+
     it("CONTROL — an ordinary Aura spell whose target left IS countered (CR 608.2b)", () => {
         const bear = makeInstance(BEARS, { id: "bear", controllerId: "p1" });
         const aura = makeInstance(unstableMutation.id, {
@@ -367,23 +499,64 @@ describe("Bestow — an illegal target resolves as a creature spell (CR 702.103e
 });
 
 describe("Bestow — CR 400.7 zone-change reverts", () => {
-    it("a bestowed permanent leaving the battlefield lands as its printed self", () => {
+    it("a bestowed permanent DESTROYED lands in the graveyard as its printed self", () => {
         const { state } = boardWithHost();
         castBestowed(state, "host");
         resolveTopOfStack(state);
         checkStateBasedActions(state);
 
-        const permanent = getPlayer(state, "p1").battlefield.find(
-            (c) => c.id === "nantuko"
-        )!;
-        // Reach the departure chokepoint directly — every destroy / sacrifice
-        // / bounce path funnels through it.
-        revertBestow(permanent);
-        expect(permanent.types).toEqual(["Enchantment", "Creature"]);
-        expect(permanent.subtypes).toEqual(["Insect", "Monk"]);
-        expect(permanent.power).toBe(1);
-        expect(permanent.toughness).toBe(1);
-        expect(permanent.bestowed).toBeUndefined();
+        // Through `removePermanentTo`, the ONE battlefield-departure funnel
+        // every destroy / sacrifice / bounce / tuck path in the engine ends
+        // at — not through `revertBestow` by hand, which would prove only
+        // that the helper works and never that the boundary calls it.
+        removePermanentTo(state, "nantuko", "graveyard");
+
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield.some((c) => c.id === "nantuko")).toBe(false);
+        const inYard = p1.graveyard.find((c) => c.id === "nantuko")!;
+        expect(inYard).toBeDefined();
+        // CR 400.7 — a new object with its printed characteristics. A leaked
+        // Aura type line here hides it from every "return target CREATURE
+        // card from your graveyard" effect, and from `isCreature` at ~20
+        // hidden-zone call sites.
+        expect(inYard.bestowed).toBeUndefined();
+        expect(inYard.types).toEqual(["Enchantment", "Creature"]);
+        expect(inYard.subtypes).toEqual(["Insect", "Monk"]);
+        expect(inYard.power).toBe(1);
+        expect(inYard.toughness).toBe(1);
+        expect(inYard.attachedTo).toBeUndefined();
+        expect(inYard.grantedEnchantRestriction).toBeUndefined();
+    });
+
+    it("the shared entry-side reset scrubs a bestow marker that reached a non-battlefield zone", () => {
+        // Defense in depth, and deliberately so: today the departure funnel
+        // above reverts first, so nothing can hand this helper a still-
+        // bestowed object. `resetBattlefieldTransientState` is the shared
+        // reset EVERY re-entry and every recast-from-a-zone runs, and it must
+        // not be the one CR 400.7 field that trusts an upstream caller — a
+        // marker surviving here carries an `Enchantment — Aura` type line
+        // onto a reanimated / blinked / recast creature. Driven through the
+        // real chokepoint (`removeFromZone`, the cast-from-graveyard road),
+        // with only the leaked marker itself set by hand — the same shape
+        // `typeProvenanceReset.test.ts` uses for `grantedTypes`.
+        const { state } = boardWithHost();
+        const p1 = getPlayer(state, "p1");
+        const leaked = makeInstance(NANTUKO, {
+            id: "leaked",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        applyBestowCharacteristics(leaked);
+        p1.graveyard.push(leaked);
+
+        removeFromZone(p1, "leaked", "graveyard");
+
+        expect(leaked.bestowed).toBeUndefined();
+        expect(leaked.types).toEqual(["Enchantment", "Creature"]);
+        expect(leaked.subtypes).toEqual(["Insect", "Monk"]);
+        expect(leaked.power).toBe(1);
+        expect(leaked.grantedEnchantRestriction).toBeUndefined();
     });
 
     it("a COUNTERED bestowed spell lands in the graveyard as its printed self", () => {

@@ -806,7 +806,7 @@ function enumerateCastMoves(
     // Both `??` chains below are the SAME shape `announceCast` uses, checked
     // line by line against `game.ts`:
     //  - primary  ← `chosenMode?.targetRequirement ??
-    //    kickerAdjustedTargetRequirement(cardDef, kickerPayments)`
+    //    castAdjustedTargetRequirement(cardDef, kickerPayments)`
     //    (game.ts `activeTargetRequirement`). `??`, NOT a ternary on `mode`:
     //    a modal card whose chosen MODE carries no requirement while the CARD
     //    does — Prismatic Ward, Chromatic Armor, Magical Hack, Phantasmal
@@ -815,7 +815,7 @@ function enumerateCastMoves(
     //    to the card level. A ternary yielded `undefined` for every mode, so
     //    the Bot emitted one zero-target cast per colour and the executor's
     //    next `tapForPayment` threw the same `expect: "priority"` stall.
-    //    `kickerAdjustedTargetRequirement` reduces to `cardDef
+    //    `castAdjustedTargetRequirement` reduces to `cardDef
     //    .targetRequirement` here because this enumerator never pays kicker
     //    (no `kickerPayments` anywhere in this file), so the fallback is
     //    identical for every move it can emit.

@@ -13741,7 +13741,7 @@ export interface EffectBoundMatchesFilterPredicate {
 export interface EffectObjectMatchesFilterPredicate {
     objectMatchesFilter: EffectObjectSelector;
     filter: EffectCardFilter;
-    /** CR 109.2 (issue #2388) — additionally require that the object be
+    /** CR 109.5 (issue #2388) — additionally require that the object be
      *  controlled by this player: "…is attached to a creature YOU CONTROL"
      *  (Springheart Nantuko's landfall trigger). Omitted, the predicate is
      *  controller-agnostic and any battlefield is scanned, which is what every
@@ -14460,7 +14460,7 @@ export interface CardDefinition {
      *  of being put into its owner's graveyard.
      *
      *  By convention this card's `AlternativeCost.id` is `"bestow"`. Used by
-     *  Springheart Nantuko (BIG). */
+     *  Springheart Nantuko (MH3). */
     bestow?: AlternativeCost;
     /** CR 702.34 — Flashback. A static ability that functions while the card
      *  is in its owner's graveyard: "You may cast this card from your graveyard
