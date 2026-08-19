@@ -109,7 +109,12 @@ import type {
     EntersWithCastValues,
     EntersWithDeclaration,
 } from "../cards/entersWith";
-import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
+import {
+    getAbilityEffectFn,
+    getResolveFn,
+    spellBodyShape,
+    type ResolutionBodyShape,
+} from "../cards/effectRegistry";
 import {
     INLINE_DELAYED_TRIGGER_ID,
     runDelayedTriggerBody,
@@ -4974,18 +4979,58 @@ function targetLegalityGate(
     return "resolve";
 }
 
-/** CR 614.12 / ADR 0051 — true when the current resolution must suspend for a
- *  mid-resolution player choice. Every stack-coupled choice (search-library,
- *  may-pay, `requestChoice`) belongs to the resolving item and suspends it. The
- *  ONE exception is a stackless `land-entry-tapped` pay-choice (a shock land put
- *  onto the battlefield by THIS effect, `stackItemId === ""`): it is answered in
- *  the active player's priority window AFTER the resolution completes, exactly
- *  like the play-land path, so it must NOT suspend/replay the resolution (which
- *  would re-run the search/move that already committed the entry). */
-function resolutionSuspendedOnChoice(state: GameState): boolean {
-    return (state.pendingChoices ?? []).some(
-        (c) => !(c.kind === "land-entry-tapped" && c.stackItemId === "")
-    );
+/** A stackless `land-entry-tapped` pay-choice (CR 614.12 / ADR 0051) — a shock
+ *  land put onto the battlefield by the effect that is resolving right now. It
+ *  is answered in the active player's priority window AFTER the resolution
+ *  completes, exactly like the play-land path, so it never suspends a
+ *  resolution of ANY shape: the land has already entered and nothing left to
+ *  run observes its tapped bit. */
+function isStacklessLandEntryPay(c: PendingChoice): boolean {
+    return c.kind === "land-entry-tapped" && c.stackItemId === "";
+}
+
+/** A stackless as-enters Entry Park (CR 614.12a / ADR 0100 D5). Discriminated
+ *  on `asEntersCardId` — the SAME explicit, fail-closed field `finalizeAsEnters`
+ *  routes on — never on `kind`: every as-enters prompt deliberately reuses an
+ *  existing `PendingChoiceKind` shape (`payLife`, `mode`, `aura-host`,
+ *  `name-card`, …), so a `kind ===` test would swallow the stack-coupled
+ *  `requestChoice` that shares it. */
+function isStacklessEntryPark(c: PendingChoice): boolean {
+    return c.stackItemId === "" && c.asEntersCardId !== undefined;
+}
+
+/** How the resolution body guarded by a `resolutionSuspendedOnChoice` call
+ *  RESUMES (ADR 0100 D5, issue #2570) — named explicitly at every call site so
+ *  a new site has to answer the question rather than inherit an answer:
+ *
+ *  - `"checkpointed"` — the body has a resume point and genuinely has work
+ *    left: a stepped `resolveSteps` loop (`top.resolutionStep = i` committed
+ *    before step `i`) or an Effect Script (`runOpList` skips below `resume`
+ *    and re-executes the Op AT `resume`). Re-entry continues the body.
+ *  - `"completed"` — a plain imperative `resolve()` closure. It carries no
+ *    checkpoint, so re-entry restarts it from its first statement; but it has
+ *    also, by construction, already returned by the time this predicate is
+ *    consulted. The correct amount of it to re-run is zero.
+ *
+ *  CR 608.2 / 117.3a — every stack-coupled choice (search-library, may-pay,
+ *  `requestChoice`) belongs to the resolving item and suspends it whatever the
+ *  shape. Two stackless choices are exempt at a `"checkpointed"` site: only the
+ *  land-entry pay-choice (above). At a `"completed"` site an Entry Park is
+ *  exempt as well — popping the stack item lets the as-enters finalize's
+ *  no-live-parking-item branch run the entry tail (ADR 0100 D5 row A's
+ *  mechanism), instead of replaying a body that already committed every side
+ *  effect it has. This is NOT the blanket exemption D5 rejected: that rejection
+ *  turns on "the rest of the resolution would run without" the permanent, and a
+ *  completed body has no rest. */
+function resolutionSuspendedOnChoice(
+    state: GameState,
+    shape: ResolutionBodyShape
+): boolean {
+    return (state.pendingChoices ?? []).some((c) => {
+        if (isStacklessLandEntryPay(c)) return false;
+        if (shape === "completed" && isStacklessEntryPark(c)) return false;
+        return true;
+    });
 }
 
 function resolveTopOfStackInner(state: GameState): StackItem | null {
@@ -5110,7 +5155,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             top.resolutionStep = i;
             const ctx = buildSpellContext(state, top);
             cardDef.resolveSteps[i](ctx);
-            if (resolutionSuspendedOnChoice(state)) {
+            if (resolutionSuspendedOnChoice(state, "checkpointed")) {
                 return null; // suspended — wait for selectResolutionChoice
             }
         }
@@ -5156,7 +5201,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             top.delayedEffects,
             top.delayedPayload ?? {}
         );
-        if (resolutionSuspendedOnChoice(state)) return null;
+        if (resolutionSuspendedOnChoice(state, "checkpointed")) return null;
         delete top.collectedChoices;
         state.stack.pop();
         return top;
@@ -5189,12 +5234,21 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             // invocation needs payload binding, which the plain
             // `compileEffectScript` closure it would otherwise return does
             // not do.
+            //
+            // The two arms have DIFFERENT resume shapes (ADR 0100 D5, issue
+            // #2570), so each carries its own suspension guard: the script arm
+            // is checkpointed, the imperative arm has already run to completion.
             if (getAbilityEffectFn(trigger)) {
                 runDelayedTriggerBody(ctx, trigger.effects!, payload);
+                if (resolutionSuspendedOnChoice(state, "checkpointed")) {
+                    return null;
+                }
             } else {
                 trigger.resolve!(ctx, payload);
+                if (resolutionSuspendedOnChoice(state, "completed")) {
+                    return null;
+                }
             }
-            if (resolutionSuspendedOnChoice(state)) return null;
         }
         delete top.collectedChoices;
         state.stack.pop();
@@ -5219,11 +5273,13 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             if (scriptFn) {
                 const ctx = buildSpellContext(state, top);
                 scriptFn(ctx);
-                if (resolutionSuspendedOnChoice(state)) return null;
+                if (resolutionSuspendedOnChoice(state, "checkpointed"))
+                    return null;
             } else if (ability.resolve) {
                 const ctx = buildSpellContext(state, top);
                 ability.resolve(ctx, top.triggerEvent);
-                if (resolutionSuspendedOnChoice(state)) return null;
+                if (resolutionSuspendedOnChoice(state, "completed"))
+                    return null;
             }
         }
         delete top.collectedChoices;
@@ -5318,7 +5374,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     top.resolutionStep = i;
                     const ctx = buildSpellContext(state, top);
                     ability.resolveSteps[i](ctx);
-                    if (resolutionSuspendedOnChoice(state)) {
+                    if (resolutionSuspendedOnChoice(state, "checkpointed")) {
                         return null; // suspended — wait for the choice submit
                     }
                 }
@@ -5344,11 +5400,13 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     if (scriptFn) {
                         const ctx = buildSpellContext(state, top);
                         scriptFn(ctx);
-                        if (resolutionSuspendedOnChoice(state)) return null;
+                        if (resolutionSuspendedOnChoice(state, "checkpointed"))
+                            return null;
                     } else if (mode.resolve) {
                         const ctx = buildSpellContext(state, top);
                         mode.resolve(ctx);
-                        if (resolutionSuspendedOnChoice(state)) return null;
+                        if (resolutionSuspendedOnChoice(state, "completed"))
+                            return null;
                     }
                 }
             } else {
@@ -5360,11 +5418,13 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 if (scriptFn) {
                     const ctx = buildSpellContext(state, top);
                     scriptFn(ctx);
-                    if (resolutionSuspendedOnChoice(state)) return null;
+                    if (resolutionSuspendedOnChoice(state, "checkpointed"))
+                        return null;
                 } else if (ability.resolve) {
                     const ctx = buildSpellContext(state, top);
                     ability.resolve(ctx, top.triggerEvent);
-                    if (resolutionSuspendedOnChoice(state)) return null;
+                    if (resolutionSuspendedOnChoice(state, "completed"))
+                        return null;
                 }
             }
         }
@@ -5399,7 +5459,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 top.resolutionStep = i;
                 const ctx = buildSpellContext(state, top);
                 ability.resolveSteps[i](ctx);
-                if (resolutionSuspendedOnChoice(state)) {
+                if (resolutionSuspendedOnChoice(state, "checkpointed")) {
                     return null; // suspended — wait for selectResolutionChoice
                 }
             }
@@ -5425,11 +5485,13 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 if (scriptFn) {
                     const ctx = buildSpellContext(state, top);
                     scriptFn(ctx);
-                    if (resolutionSuspendedOnChoice(state)) return null;
+                    if (resolutionSuspendedOnChoice(state, "checkpointed"))
+                        return null;
                 } else if (body.resolve) {
                     const ctx = buildSpellContext(state, top);
                     body.resolve(ctx);
-                    if (resolutionSuspendedOnChoice(state)) return null;
+                    if (resolutionSuspendedOnChoice(state, "completed"))
+                        return null;
                 }
             }
         }
@@ -5454,11 +5516,13 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 if (scriptFn) {
                     const ctx = buildSpellContext(state, top);
                     scriptFn(ctx);
-                    if (resolutionSuspendedOnChoice(state)) return null;
+                    if (resolutionSuspendedOnChoice(state, "checkpointed"))
+                        return null;
                 } else if (mode.resolve) {
                     const ctx = buildSpellContext(state, top);
                     mode.resolve(ctx);
-                    if (resolutionSuspendedOnChoice(state)) return null;
+                    if (resolutionSuspendedOnChoice(state, "completed"))
+                        return null;
                 }
             }
         } else {
@@ -5466,7 +5530,15 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             if (resolveFn) {
                 const ctx = buildSpellContext(state, top);
                 resolveFn(ctx);
-                if (resolutionSuspendedOnChoice(state)) return null;
+                // ADR 0100 D5 / issue #2570 — `getResolveFn` hides THREE
+                // authoring modes behind one closure: `def.resolve` and the
+                // `def.effect` shorthand are plain imperative bodies that have
+                // run to completion here, while `def.effects` is a COMPILED
+                // Effect Script that checkpoints and has Ops left to run.
+                // Discriminate on the definition, not on the closure — the
+                // shorthand registry hands back an indistinguishable function.
+                if (resolutionSuspendedOnChoice(state, spellBodyShape(cardDef)))
+                    return null;
             }
         }
     }
