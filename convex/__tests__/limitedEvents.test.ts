@@ -45,6 +45,7 @@ import {
     buildEmptySeats,
     fillBotSeats,
     generateSealedPools,
+    MAX_SEATS,
     releaseSeat,
     type ResolveCardMeta,
 } from "../limited/eventLogic";
@@ -1975,6 +1976,25 @@ describe("Limited Event: Vintage Cube gate (Draft-only, ADR 0062 §4)", () => {
     });
 });
 
+/** The seat count a cube table is actually DEALT at: the singleton pool cap
+ *  (`maxCubeSeats`) clamped to the table maximum, exactly as every production
+ *  caller does it (`create-limited-event-dialog.tsx` wraps the same call in
+ *  `Math.min(MAX_SEATS, …)`, `draftLabEngine.ts` mins it against the requested
+ *  seats, and `createLimitedEvent` only ever compares it against a
+ *  validator-bounded `args.seatCount`). `maxCubeSeats` is pure pool division —
+ *  `floor(poolSize / (packSize × roundCount))`, deliberately unclamped — so it
+ *  crosses `MAX_SEATS` the moment the implemented cube pool reaches
+ *  `8 × 15 × 3 + 15 = 375`+ cards and keeps climbing. Feeding that raw number
+ *  to `buildEmptySeats` throws "seatCount must be an integer between 2 and 8",
+ *  which is what happened at 405 cards: a table of 9 is not a table these
+ *  tests can express, and never was. */
+function cubeTableSeats(poolSize: number, roundCount: number): number {
+    return Math.min(
+        MAX_SEATS,
+        maxCubeSeats(poolSize, CUBE_PACK_SIZE, roundCount)
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // The cube pool is FROZEN on the event at start (ADR 0062), and every round
 // of the draft is dealt from that snapshot. Regression for a shipped bug: a
@@ -2026,7 +2046,7 @@ describe("Vintage Cube singleton across the whole event (ADR 0062, frozen pool)"
 
     it("deals a full table with no card appearing twice in the entire draft", () => {
         const pool = buildCubePool();
-        const seatCount = maxCubeSeats(pool.length, CUBE_PACK_SIZE, 3);
+        const seatCount = cubeTableSeats(pool.length, 3);
         const result = runAllBotCubeDraft(seatCount, 421349364, pool);
 
         expect(result.completed).toBe(true);
@@ -2042,7 +2062,7 @@ describe("Vintage Cube singleton across the whole event (ADR 0062, frozen pool)"
         // between round 0 and the later rounds. Nothing about the seed, seat
         // count or pick order changes — only the pool identity.
         const pool = buildCubePool();
-        const seatCount = maxCubeSeats(pool.length, CUBE_PACK_SIZE, 3);
+        const seatCount = cubeTableSeats(pool.length, 3);
         const grown = [...pool, "a-newly-implemented-cube-card"];
         const drifted = runAllBotCubeDraft(seatCount, 421349364, pool, grown);
 
@@ -2268,7 +2288,7 @@ describe("checked-in Vintage Cube Pick Rating seed (PRD #1296 Slice D, issue #12
         // same cap `createLimitedEvent` enforces. Derived from the live pool
         // so it self-lifts as cube cards land.
         const seats = fillBotSeats(
-            buildEmptySeats(maxCubeSeats(cubePool.length, CUBE_PACK_SIZE, 3))
+            buildEmptySeats(cubeTableSeats(cubePool.length, 3))
         );
         const dealt = startDraft(
             seats,
