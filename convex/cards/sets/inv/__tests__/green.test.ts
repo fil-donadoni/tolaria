@@ -31,6 +31,7 @@ import {
 } from "../../../__tests__/setup";
 import { getDefinition, registerTokenDefinition } from "../../..";
 import {
+    emitPermanentEntered,
     emitSpellCastEvent,
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -55,6 +56,7 @@ import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { plains, island, swamp } from "../../lea/colorless";
+import { getEffectivePower } from "../../../../gre/layers";
 import { resolveTrigger } from "./helpers";
 // Saproling Infestation (issue #1097) — the SPELL_KICKED consumer.
 import { saprolingInfestation } from "../green";
@@ -270,6 +272,44 @@ describe("Kavu Lair (CR 603.6a ETB, power 4+ creature, controller draws)", () =>
         ];
         processPendingActionTriggers(state);
         expect(state.stack.length).toBe(0);
+    });
+
+    it("triggers for a STORED 2/2 that is EFFECTIVELY 4/4 via +1/+1 counters (CR 603.2 / 613.4, issue #1852)", () => {
+        const lair = makeInstance(kavuLair.id, {
+            id: "lair",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Base 2/2 already carrying two +1/+1 counters when it lands —
+        // mirrors `entersWith.counters`, which the engine applies BEFORE
+        // `emitPermanentEntered` runs (a kicked creature entering with
+        // counters is the common line this used to miss).
+        const counteredCreature = makeInstance(blurredMongoose.id, {
+            id: "countered",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 2,
+            toughness: 2,
+            counters: { "+1/+1": 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lair] }),
+                makePlayer("p2", {
+                    library: [makeInstance(plains.id, { id: "lib-1" })],
+                }),
+            ],
+        });
+        state.players[1].battlefield.push(counteredCreature);
+        // Sanity: the layer pipeline really does compute an effective 4.
+        expect(getEffectivePower(state, counteredCreature)).toBe(4);
+        // Drive the REAL producer, not a hand-built event — the effective-P/T
+        // snapshot the condition reads is taken at this chokepoint.
+        emitPermanentEntered(state, counteredCreature);
+        processPendingActionTriggers(state);
+        expect(state.stack.length).toBe(1);
+        resolveTopOfStack(state);
+        expect(state.players[1].hand.length).toBe(1);
     });
 });
 

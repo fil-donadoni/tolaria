@@ -6,6 +6,7 @@
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+import { enteringEffectivePower } from "../../abilities/triggers/shared";
 import { GOLEM_TOKEN } from "../../sharedTokens";
 
 // Sandstorm Salvager — {2}{G} Creature — Human Artificer, 1/1 (Cube FREE
@@ -147,16 +148,11 @@ const vaultbornTyrantEtbTrigger = enteredTrigger({
         "Whenever this creature or another creature you control with power 4 or greater enters, you gain 3 life and draw a card.",
     scope: "yours",
     filter: { types: "Creature" },
-    condition: (event, _self, state) => {
-        if (!state) return false;
-        for (const player of state.players) {
-            const entered = player.battlefield.find(
-                (c) => c.id === event.instanceId
-            );
-            if (entered) return (entered.power ?? 0) >= 4;
-        }
-        return false;
-    },
+    // CR 603.2 / 613.4 (issue #1852) — EFFECTIVE power through the layer
+    // pipeline, so a creature entering with +1/+1 counters or under an anthem
+    // is weighed at the size it actually enters as.
+    condition: (event, _self, state) =>
+        (enteringEffectivePower(event, state) ?? 0) >= 4,
     effects: [
         { op: "gainLife", player: "controller", amount: 3 },
         { op: "draw", player: "controller", count: 1 },
