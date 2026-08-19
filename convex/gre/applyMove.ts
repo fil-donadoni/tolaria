@@ -84,6 +84,7 @@ import {
 } from "./combat";
 import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
+import { hasRetrace, RETRACE_COST_LEGS } from "./retrace";
 import { enumerateMoves, type Move } from "./moves";
 import { evaluate } from "./evaluate";
 import { tryGetDefinition, getInstanceManaCost } from "../cards";
@@ -231,6 +232,48 @@ export function applyAdditionalCostLegForSearch(
     );
     if (!picks) return;
     for (const c of picks) discardToGraveyard(state, playerId, c.id);
+}
+
+/** CR 702.81a (issue #2358) — is this `cast-spell` move a RETRACE cast, and if
+ *  so charge its additional cost on a search sandbox state, in place.
+ *
+ *  Returns the zone the spell leaves from (`"graveyard"`) so the caller can
+ *  route `removeFromZone` and stamp `castFromGraveyard`; `undefined` for every
+ *  other cast, leaving the caller's hand/library logic untouched.
+ *
+ *  Charging the discard here is not an accuracy nicety, it is what TERMINATES
+ *  the line. CR 702.81a exiles nothing, so a retraced instant or sorcery is put
+ *  back into its owner's graveyard as it finishes resolving (CR 608.2m) and is
+ *  immediately castable again; the only thing that stops the search re-casting
+ *  it at every node is the land card each cast destroys. A sandbox that skipped
+ *  the discard would model an unbounded free recast loop and value it
+ *  accordingly.
+ *
+ *  Shared by BOTH move-application sandboxes — `applyMoveForSearch` below and
+ *  `applyMoveInSearch` (`search.ts`) — because a cost charged in one tree and
+ *  not the other is a divergence between the greedy selector and ISMCTS. */
+export function applyRetraceCastForSearch(
+    state: GameState,
+    playerId: string,
+    cardInstanceId: string
+): "graveyard" | undefined {
+    const player = getPlayer(state, playerId);
+    const card = player.graveyard.find((c) => c.id === cardInstanceId);
+    if (!card || !hasRetrace(state, card)) return undefined;
+    // CR 601.2a — the card being cast is in the graveyard, so no hand card is
+    // ever the cast card; the exclusion is passed for symmetry with the
+    // additional-cost path above.
+    const handLeg = RETRACE_COST_LEGS.hand;
+    if (handLeg) {
+        const eligible = player.hand.filter((c) => c.id !== cardInstanceId);
+        const picks = assignMayPayHandCards(
+            eligible,
+            handLeg,
+            eligible.map((c) => c.id)
+        );
+        for (const c of picks ?? []) discardToGraveyard(state, playerId, c.id);
+    }
+    return "graveyard";
 }
 
 /** CR 602.1 / 118 (issue #2155) — pay EVERY non-mana cost of an
@@ -687,6 +730,14 @@ export function applyMoveForSearch(
                 move.cardInstanceId,
                 move.additionalCostLegId
             );
+            // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD
+            // and pays a discarded land on the way. Probed (and charged) before
+            // the zone decision below, which knows only hand and library.
+            const retraceZone = applyRetraceCastForSearch(
+                next,
+                playerId,
+                move.cardInstanceId
+            );
             // CR 601.3e-analog (issue #2398) — the enumerator offers a cast off
             // the TOP of the library under a cast-from-top permission (Bolas's
             // Citadel), so this leaf can no longer assume the hand: hard-coding
@@ -695,10 +746,11 @@ export function applyMoveForSearch(
             // land half. Only index 0 qualifies — the permission is positional
             // and the rest of the library stays hidden (CR 400.2).
             const castFromZone =
-                player.hand.some((c) => c.id === move.cardInstanceId) ||
+                retraceZone ??
+                (player.hand.some((c) => c.id === move.cardInstanceId) ||
                 player.library[0]?.id !== move.cardInstanceId
                     ? "hand"
-                    : "library";
+                    : "library");
             const spellCard = removeFromZone(
                 player,
                 move.cardInstanceId,
@@ -726,6 +778,12 @@ export function applyMoveForSearch(
                 ...(wasCastOffSorceryTiming(next, playerId)
                     ? { castOffSorceryTiming: true }
                     : {}),
+                // CR 702.81a (issue #2358) — "cast from a graveyard" is true of
+                // a retrace cast and is read by clauses that care; NO
+                // `exileOnResolve`, so the card goes back to the graveyard as it
+                // finishes resolving (CR 608.2m) and stays retraceable. Mirrors
+                // `graveyardCastStackFlags`'s retrace branch (`convex/game.ts`).
+                ...(retraceZone ? { castFromGraveyard: true } : {}),
             };
             // CR 702.103b (issue #2388) — a BESTOW variant of this move casts
             // the card as an Aura enchantment, not as a creature. The sandbox

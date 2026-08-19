@@ -9230,6 +9230,32 @@ export interface TapManaBonusForPotential {
 // abilities). This keeps `GameState` JSON-pure and serializable (ADR 0046),
 // mirroring how a permanent references its `card.id`.
 
+/** CR 702.81 — one "<cards> in your graveyard have retrace" grant, in the ONE
+ *  shape every producer of the grant declares it in. Exactly ONE producer ships
+ *  today, a command-zone EMBLEM
+ *  ({@link EmblemDefinition.grantsRetraceToOwnGraveyard}, Wrenn and Six's −7),
+ *  and it is read through the single sweep `collectRetraceGrants`
+ *  (`convex/gre/retrace.ts`). A second producer — an Underworld-Breach-shaped
+ *  battlefield permanent granting retrace to the cards in its controller's
+ *  graveyard (Six, BLB) — adds a loop to that ONE sweep and nothing else; it is
+ *  deliberately NOT declared ahead of the card that needs it, because an
+ *  unreachable grant field is exactly the fail-open shape the producer census
+ *  exists to prevent.
+ *
+ *  `cardTypes` is a FAIL-CLOSED filter and is not part of CR 702.81 itself
+ *  (which restricts nothing — the printed keyword simply sits on a card): it is
+ *  the granting object's OWN Oracle wording. A grant with no `cardTypes` reaches
+ *  every nonland card; a land never receives the grant under any wording,
+ *  because a land is played and is never a spell (CR 305.1), so "cast it from
+ *  your graveyard" can never apply to one. */
+export interface RetraceGrant {
+    /** Card types the grant reaches (CR 205.2a type words); the graveyard card
+     *  must have at least ONE of them. Wrenn and Six's emblem: "Instant and
+     *  sorcery cards in your graveyard have retrace" = `["Instant","Sorcery"]`.
+     *  Omitted = every nonland card. */
+    cardTypes?: CardType[];
+}
+
 /** The closure-bearing definition of an emblem's granted abilities (CR 114.3).
  *  Registered by key in `convex/cards/emblems.ts`; never stored in game state
  *  directly (its closures aren't serializable). */
@@ -9257,6 +9283,15 @@ export interface EmblemDefinition {
      *  Source-less: collected by the trigger scanner scoped to the owner. Same
      *  shape as `CardDefinition.triggeredAbilities`. */
     triggeredAbilities?: TriggeredAbility[];
+    /** CR 702.81 — a continuous grant of Retrace to cards in the emblem OWNER's
+     *  graveyard (Wrenn and Six's −7: "Instant and sorcery cards in your
+     *  graveyard have retrace"). NOT a `staticEffects[]` entry: the layer system
+     *  (CR 613) computes characteristics of objects, and retrace is a CAST
+     *  PERMISSION plus an additional cost read by the cost system, not a
+     *  characteristic — so it is declared here and swept by
+     *  `collectRetraceGrants` (`convex/gre/retrace.ts`) alongside the
+     *  battlefield-permanent producer of the identical {@link RetraceGrant}. */
+    grantsRetraceToOwnGraveyard?: RetraceGrant;
 }
 
 /** A command-zone emblem object (CR 114) as it lives in `GameState.emblems`.
@@ -14608,28 +14643,14 @@ export interface CardDefinition {
      *  from that graveyard (CR 702.138a). Functions only while this permanent is
      *  on the battlefield. */
     grantsEscapeToOwnGraveyard?: { exileOtherCount: number };
-    /** CR 702.81 — Retrace, PRINTED on this card ("You may cast this card from
-     *  your graveyard by discarding a land card in addition to paying its other
-     *  costs"). The engine (`convex/gre/retrace.ts`) reads this to make the
-     *  graveyard card castable for its NORMAL mana cost plus the land-discard
-     *  additional cost. Unlike Flashback (CR 702.34a) the card is NOT exiled as
-     *  it resolves — no printed-retrace card is in the pool yet, but the field
-     *  is the keyword's own half of the mechanism (the grant below is the
-     *  other). */
-    retrace?: boolean;
-    /** CR 702.81 — a static ability granting retrace to cards in its
-     *  controller's OWN graveyard (Six: "During your turn, nonland permanent
-     *  cards in your graveyard have retrace"). Functions only while this
-     *  permanent is on the battlefield. The two flags are the printed wording's
-     *  own restrictions, NOT part of CR 702.81 itself (which restricts
-     *  neither): `permanentCardsOnly` limits the grant to permanent cards, and
-     *  `duringControllerTurnOnly` switches it off outside the granting
-     *  permanent's controller's turn. Lands never receive the grant — retrace's
-     *  own cost discards a land, and every shipped granter says "nonland". */
-    grantsRetraceToOwnGraveyard?: {
-        permanentCardsOnly?: boolean;
-        duringControllerTurnOnly?: boolean;
-    };
+    // CR 702.81 — PRINTED Retrace is NOT a bespoke field on this interface: it
+    // is the ordinary keyword channel, `staticAbilities: ["retrace"]`, read by
+    // `hasPrintedRetrace` (`convex/gre/retrace.ts`). Declaring it that way is
+    // what makes a card shipping the keyword simultaneously live in the engine
+    // and visible to the Mechanics Registry's keyword-must-be-implemented guard.
+    // The GRANTED half ("<cards> in your graveyard have retrace") is
+    // {@link RetraceGrant}, declared today only on
+    // {@link EmblemDefinition.grantsRetraceToOwnGraveyard}.
     /** CR 702.27 — Buyback. An OPTIONAL additional cost the caster may choose
      *  to pay as they cast this spell ("You may pay an additional [cost] as
      *  you cast this spell. If you do, put this card into its owner's hand

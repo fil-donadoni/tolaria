@@ -957,15 +957,15 @@ export function getLegalActions(
     }
 
     // CR 702.81 — a card in the player's OWN graveyard that currently has
-    // RETRACE (printed, or granted by a battlefield permanent such as Six) is
-    // castable from there for its NORMAL printed mana cost PLUS the retrace
-    // additional cost, "discard a land card" (CR 702.81a). Deliberately the
-    // LAST graveyard branch: every mechanism above is cheaper for the caster
-    // (Flashback/Escape replace the mana cost, the permissions add no cost at
-    // all), so a card that qualifies for more than one prefers the other and
-    // never pays a land it did not have to. `hasRetrace` itself carries the
-    // grant's own "during your turn" / "nonland permanent cards" restrictions,
-    // so this call site needs no turn gate of its own.
+    // RETRACE (printed, or granted by a battlefield permanent or by Wrenn and
+    // Six's emblem) is castable from there for its NORMAL printed mana cost
+    // PLUS the retrace additional cost, "discard a land card" (CR 702.81a).
+    // Deliberately the LAST graveyard branch: every mechanism above is cheaper
+    // for the caster (Flashback/Escape replace the mana cost, the permissions
+    // add no cost at all), so a card that qualifies for more than one prefers
+    // the other and never pays a land it did not have to. `hasRetrace` itself
+    // carries each grant's own card-type / "during your turn" restrictions, so
+    // this call site needs no filter of its own.
     const isRetraceCast =
         player.graveyard.some((c) => c.id === card.id) &&
         hasRetrace(state, card);

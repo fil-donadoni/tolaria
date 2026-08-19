@@ -1465,7 +1465,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Retrace",
         kind: "keyword-ability",
         cr: "702.81",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/retrace.ts",
+        note: 'Cost-system / keyword-cast capability (engine infra, NOT an Effect Script Op). CR 702.81a is the whole keyword — the retrace section has exactly one subrule: "You may cast this card from your graveyard by discarding a land card as an additional cost to cast it." convex/gre/retrace.ts holds RETRACE_COST_LEGS (the shared CostLegs hand leg { action: "discard", requirements: [{ filter: { type: "Land" }, count: 1 }] }, ADR 0079), hasPrintedRetrace (the ordinary staticAbilities: ["retrace"] keyword channel), collectRetraceGrants (the SINGLE producer sweep over both grant producers: CardDefinition.grantsRetraceToOwnGraveyard on a battlefield permanent, and EmblemDefinition.grantsRetraceToOwnGraveyard on a command-zone emblem — an emblem is not a permanent, CR 114.1, so a battlefield-only scan cannot see it), hasRetrace, findRetraceCastable and canPayRetraceDiscard. Wired at: getLegalActions (gre/rules.ts, last graveyard branch — every other graveyard mechanism is cheaper for the caster, so a card qualifying for two takes the other), locateCastSource + the buildCastHandCostChoice extraLegs picker + graveyardCastStackFlags (convex/game.ts), projectGraveyardCard castKind: "retrace" (convex/gameProjections.ts), GraveyardFlashbackButton label/tooltip (src/components/board/graveyard-flashback-button.tsx), and enumerateMoves\' graveyard cast loop (gre/moves.ts). DIVERGENCE FROM FLASHBACK: CR 702.81a never exiles, so graveyardCastStackFlags sets castFromGraveyard WITHOUT exileOnResolve and a retraced instant/sorcery returns to the graveyard as it finishes resolving (CR 608.2m) — recastable for as long as lands remain to discard, which is also what bounds the loop. No printed-retrace card is in the pool; Wrenn and Six\'s −7 emblem (convex/cards/emblems.ts) is the only exposure.',
     },
     // 702.82 Devour
     {

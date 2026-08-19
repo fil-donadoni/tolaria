@@ -82,6 +82,7 @@ import { getInstanceManaCost } from "../cards";
 import {
     applyActivationCostsForSearch,
     applyAdditionalCostLegForSearch,
+    applyRetraceCastForSearch,
     applyDelveExileForSearch,
 } from "./applyMove";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
@@ -716,10 +717,21 @@ export function applyMoveInSearch(
                 move.cardInstanceId,
                 move.additionalCostLegId
             );
+            // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD,
+            // not the hand, and destroys a land card from hand on the way. The
+            // discard is what BOUNDS the line: retrace exiles nothing, so the
+            // spell returns to the graveyard on resolution (CR 608.2m) and is
+            // recastable, and only the shrinking supply of lands stops the tree
+            // recasting it forever.
+            const retraceZone = applyRetraceCastForSearch(
+                state,
+                playerId,
+                move.cardInstanceId
+            );
             const spellCard = removeFromZone(
                 player,
                 move.cardInstanceId,
-                "hand"
+                retraceZone ?? "hand"
             );
             const stackItem: StackItem = {
                 ...spellCard,
@@ -747,6 +759,11 @@ export function applyMoveInSearch(
                 ...(wasCastOffSorceryTiming(state, playerId)
                     ? { castOffSorceryTiming: true }
                     : {}),
+                // CR 702.81a (issue #2358) — "cast from a graveyard" holds for a
+                // retrace cast; NO `exileOnResolve`, so the card lands back in
+                // the graveyard as it finishes resolving. Mirrors
+                // `graveyardCastStackFlags`'s retrace branch (`convex/game.ts`).
+                ...(retraceZone ? { castFromGraveyard: true } : {}),
             };
             state.stack.push(stackItem);
             // CR 117: the caster gets priority but auto-passes it (no Ctrl), so

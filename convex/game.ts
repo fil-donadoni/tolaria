@@ -123,7 +123,11 @@ import {
     getEscapeManaCost,
     hasEscape,
 } from "./gre/escape";
-import { findRetraceCastable, RETRACE_COST_LEGS } from "./gre/retrace";
+import {
+    findRetraceCastable,
+    hasRetrace,
+    RETRACE_COST_LEGS,
+} from "./gre/retrace";
 import {
     applyGenericOffset,
     buildConvokeCreatureChoice,
@@ -2468,7 +2472,7 @@ type CastFromZone = "hand" | "exile" | "graveyard" | "library";
  *  (Flashback/Escape/the broad permission/a specific grant) already claimed
  *  the card, so the flag unambiguously identifies which permission to debit
  *  its once-per-turn use against at commit (`markGraveyardPermanentCastUsed`).
- *  `viaRetrace` is the same idea for Retrace (CR 702.81, issue #2377): the
+ *  `viaRetrace` is the same idea for Retrace (CR 702.81, issue #2358): the
  *  LAST branch of the chain, so the flag unambiguously says "this cast owes
  *  the discard-a-land additional cost" and no other mechanism's cast ever
  *  pays it.
@@ -2545,8 +2549,9 @@ export function locateCastSource(
         instanceId
     );
     if (libraryTopCast) return { card: libraryTopCast, zone: "library" };
-    // CR 702.81 (issue #2377) — a card castable under RETRACE, printed or
-    // granted (Six). Deliberately last among the GRAVEYARD branches: retrace
+    // CR 702.81 (issue #2358) — a card castable under RETRACE, printed or
+    // granted (Wrenn and Six's emblem). Deliberately last among the GRAVEYARD
+    // branches: retrace
     // pays the card's normal mana cost PLUS an extra land discard, so every
     // graveyard mechanism above is cheaper for the caster and a card
     // qualifying for two of them takes the other.
@@ -2605,6 +2610,18 @@ export function graveyardCastStackFlags(
     // path rather than a second parallel one.
     if (card.castFromGraveyardExilesOnResolve) {
         return { castFromGraveyard: true, exileOnResolve: true };
+    }
+    // CR 702.81a (issue #2358) — a RETRACE cast. Explicit rather than left to
+    // the fallback below, because the ABSENCE of `exileOnResolve` here is the
+    // mechanic's headline divergence from Flashback and has to be legible as a
+    // decision: CR 702.81a says nothing about exiling, so a retraced instant or
+    // sorcery finishes resolving and is put into its owner's graveyard
+    // (CR 608.2m) — which is exactly what makes it retraceable again, bounded
+    // only by the lands left in hand to discard. `escaped` is likewise absent:
+    // retrace is an ADDITIONAL cost, not the escape alternative cost, so
+    // nothing escaped.
+    if (hasRetrace(state, card)) {
+        return { castFromGraveyard: true };
     }
     // CR 305.1-analog / 601 (issue #1149) / 117.6-analog (issue #1344) —
     // neither Escape nor Flashback: this is a plain cast under the BROAD
@@ -6796,7 +6813,7 @@ export function finalizeTargetSelection(
     // leg, so the merged list is unchanged for them.
     const additionalHandLeg = additionalCostHandLeg(effectiveAdditionalCosts);
     // CR 702.81a — a RETRACE cast's "discard a land card" additional cost joins
-    // that same picker (issue #2377). It is keyword-derived rather than
+    // that same picker (issue #2358). It is keyword-derived rather than
     // declared on the definition, so it cannot come from
     // `effectiveAdditionalCosts`; `viaRetrace` is set only when retrace is the
     // mechanism that actually supplied this cast, so no other cast pays it.

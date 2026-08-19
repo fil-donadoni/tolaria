@@ -52,12 +52,28 @@ export default function GraveyardFlashbackButton({
         card.castKind === "graveyard-permission" ||
         card.castKind === "graveyard-grant" ||
         card.castKind === "graveyard-permanent-permission";
-    const label = isEscape ? "Escape" : isPermissionCast ? "Cast" : "Flashback";
+    // CR 702.81a (issue #2358) — a RETRACE cast is the only graveyard mechanism
+    // that pays the card's PRINTED mana cost *plus* an extra cost (discard a
+    // land card), so it needs its own label and its own disabled explanation.
+    // The chain below defaults to "Flashback", so a new `castKind` that is not
+    // handled here renders a silently WRONG label with no type error — every
+    // member of the union in `convex/gameProjections.ts` must appear in this
+    // dispatch.
+    const isRetrace = card.castKind === "retrace";
+    const label = isEscape
+        ? "Escape"
+        : isRetrace
+          ? "Retrace"
+          : isPermissionCast
+            ? "Cast"
+            : "Flashback";
     const disabledTitle = isEscape
         ? "Can't escape yet — not your main phase, or you can't pay the escape cost (mana, or exile enough other cards from your graveyard)."
-        : isPermissionCast
-          ? "Can't cast yet — not your main phase, or you can't pay this card's mana cost."
-          : "Can't flash back yet — not your main phase, or you can't pay the flashback cost (mana, sacrifice, or exile-from-hand).";
+        : isRetrace
+          ? "Can't retrace yet — not your main phase, or you can't pay this card's mana cost plus discarding a land card from your hand."
+          : isPermissionCast
+            ? "Can't cast yet — not your main phase, or you can't pay this card's mana cost."
+            : "Can't flash back yet — not your main phase, or you can't pay the flashback cost (mana, sacrifice, or exile-from-hand).";
 
     return (
         <>
