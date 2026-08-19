@@ -47,7 +47,7 @@ export default function ZoneCreatureFilterSelect({
                     type="button"
                     onClick={() => onChange(option)}
                     className={cn(
-                        "rounded-sm px-2 py-1 transition",
+                        "segment-pill",
                         value === option ? "segment-active" : "segment-inactive"
                     )}
                     aria-pressed={value === option}

@@ -86,7 +86,7 @@ export const PILE_TILE_BOX = "w-(--card-w-sm) aspect-5/7";
 /** Pixel breakpoint below which a pile/picker card grid switches to its
  *  mobile-compact tile (issue #1817, opus review round 2). Below this width:
  *  the tile drops to `PILE_GRID_TILE_PX`, `GameDialog`'s opt-in
- *  `density="compact-mobile"` (`panel.tsx`) shrinks the surrounding Panel
+ *  `density="comfortable"` (`panel.tsx`) shrinks the surrounding Panel
  *  padding, and `cards-pile.tsx`'s `PILE_GRID_ROW_CLASS` / `PILE_GRID_H_PADDING`
  *  shrink their gap/padding. At/above it every one of those reverts to the
  *  pre-#1817 sizing (96px tile, `p-6` Panel padding, `gap-2`/`px-2`) — the
@@ -106,7 +106,7 @@ export const PILE_GRID_COMPACT_BREAKPOINT_PX = 420;
  *  BELOW the compact breakpoint ("phone held upright" territory) it drops to
  *  a fixed 68px (`PILE_GRID_TILE_PX`) — chosen so 4 tiles + 3
  *  `PILE_GRID_GAP_PX` gaps fit the available dialog width at BOTH 360px and
- *  390px viewports once `GameDialog`'s `density="compact-mobile"` shrinks the
+ *  390px viewports once `GameDialog`'s `density="comfortable"` shrinks the
  *  surrounding Panel padding (see the executable arithmetic assertion in
  *  `__tests__/cards-pile.test.tsx`).
  *

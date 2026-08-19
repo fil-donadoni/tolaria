@@ -319,7 +319,7 @@ describe("CardsPile — collapsed stack flights + depth (zone-change animations)
 // (not just in prose):
 //   dialog width    = min(100vw - 32px, 90vw)                    → 90vw binds above ~320px
 //   Panel border    = `border` (1px each side)                     = 2px total
-//   Panel padding   = density="compact-mobile" → `p-3` below 420px = 24px total
+//   Panel padding   = density="comfortable" → `p-3` below 420px = 24px total
 //   reveal wrapper  = game-dialog.tsx "p-[0.2rem]"                 = 6.4px total
 //   grid padding    = PILE_GRID_H_PADDING ("px-0 …")                = 0px below 420px
 //   grid gap        = PILE_GRID_ROW_CLASS ("gap-1 …")               = PILE_GRID_GAP_PX (4px) per gap below 420px
@@ -330,7 +330,7 @@ describe("CardsPile — collapsed stack flights + depth (zone-change animations)
 //   = 272 + 12 = 284px
 //   390px: 284 <= 318.6  (34.6px to spare)
 //   360px: 284 <= 291.6  (7.6px to spare — the binding case)
-// This is only reachable because `GameDialog`'s `density="compact-mobile"`
+// This is only reachable because `GameDialog`'s `density="comfortable"`
 // (opt-in on CardsPile's own dialog only) shrinks the Panel padding from
 // `p-6` (48px total) to `p-3` (24px total) below the SAME 420px breakpoint —
 // see PANEL_PADDING_BELOW_420_PX below. A 96px (w-24, pre-#1817) tile does
@@ -447,10 +447,10 @@ describe("CardsPile — grid layout mobile density arithmetic (issue #1817, roun
     // / `PILE_GRID_GAP_PX` are the REAL constants `cards-pile.tsx` renders
     // from (imported above); the Panel/GameDialog numbers below are the
     // classes those modules render (`panel.test.tsx` / `game-dialog.test.tsx`
-    // cover them in isolation — see `PanelDensity`'s "compact-mobile" case
+    // cover them in isolation — see `PanelDensity`'s "comfortable" case
     // and `GameDialog`'s `density` passthrough).
     const DIALOG_BORDER_PX = 2; // Panel's `border` utility (1px each side, border-box)
-    const PANEL_PADDING_BELOW_420_PX = 24; // `density="compact-mobile"` → `p-3` (12px each side)
+    const PANEL_PADDING_BELOW_420_PX = 24; // `density="comfortable"` → `p-3` (12px each side)
     const REVEAL_WRAPPER_PADDING_PX = 6.4; // game-dialog.tsx's `p-[0.2rem]` reveal wrapper (0.2rem = 3.2px each side)
     const GRID_H_PADDING_BELOW_420_PX = 0; // PILE_GRID_H_PADDING's `px-0` branch
 
@@ -516,7 +516,7 @@ describe("CardsPile — grid tile responsive image sizing (issue #1817, round 2)
         );
     });
 
-    it("360px viewport: same compact-mobile branch as 390px", () => {
+    it("360px viewport: same comfortable branch as 390px", () => {
         window.innerWidth = 360;
         const card = makeCard("card-1");
         const { baseElement } = render(

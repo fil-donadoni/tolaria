@@ -410,7 +410,15 @@
         @apply bg-surface-elevated/20 opacity-60 hover:opacity-100;
     }
 
-    /* ── Segmented control ── */
+    /* ── Segmented control ──
+       `.segment-pill` is the shared geometry every segmented control uses; the
+       two tone classes below stay orthogonal to it. Height comes from the
+       pointer token (ADR 0101 §2), so a segment is a 40px touch target on a
+       phone and a 28px control with a mouse. */
+    .segment-pill {
+        @apply inline-flex items-center justify-center rounded-sm px-2 py-1 transition;
+        min-height: var(--control-h-sm);
+    }
     .segment-active {
         @apply bg-accent-soft/30 text-parchment;
     }
@@ -479,6 +487,58 @@
             var(--color-accent-strong) 50%,
             color-mix(in srgb, var(--color-accent) 70%, transparent) 80%,
             transparent
+        );
+    }
+
+    /* ── Panel v3 corner brackets (ADR 0101 §2, issue #2581) ──
+       The default Panel frame: a 10px L at 1px / opacity .5, inset 4px from the
+       panel border. Replaces the 40px `CornerFiligree` ornament, which the
+       viewport audit measured overlapping dialog titles. Pure CSS (one empty
+       span per corner) — no SVG, no viewBox, and every number is a token, so
+       the clearance guard in `design-tokens.test.ts` reads the same values the
+       browser paints. */
+    .panel-bracket {
+        position: absolute;
+        width: var(--panel-bracket-size);
+        height: var(--panel-bracket-size);
+        opacity: var(--panel-bracket-opacity);
+        color: var(--color-accent);
+        pointer-events: none;
+    }
+    .panel-bracket[data-corner="tl"] {
+        top: var(--panel-bracket-inset);
+        left: var(--panel-bracket-inset);
+        border-top: var(--panel-bracket-width) solid currentColor;
+        border-left: var(--panel-bracket-width) solid currentColor;
+    }
+    .panel-bracket[data-corner="tr"] {
+        top: var(--panel-bracket-inset);
+        right: var(--panel-bracket-inset);
+        border-top: var(--panel-bracket-width) solid currentColor;
+        border-right: var(--panel-bracket-width) solid currentColor;
+    }
+    .panel-bracket[data-corner="bl"] {
+        bottom: var(--panel-bracket-inset);
+        left: var(--panel-bracket-inset);
+        border-bottom: var(--panel-bracket-width) solid currentColor;
+        border-left: var(--panel-bracket-width) solid currentColor;
+    }
+    .panel-bracket[data-corner="br"] {
+        bottom: var(--panel-bracket-inset);
+        right: var(--panel-bracket-inset);
+        border-bottom: var(--panel-bracket-width) solid currentColor;
+        border-right: var(--panel-bracket-width) solid currentColor;
+    }
+
+    /* Title clearance for a title that sits in the Panel's own padding box
+       rather than in `PanelHeader`'s full-bleed band (i.e. `GameDialog`). Adds
+       exactly the shortfall between the panel padding at the current density
+       and `--panel-header-pad-x`, so the title starts at the same inset from
+       the panel BORDER either way and the bracket can never reach it. */
+    .panel-title-clear {
+        padding-inline-start: max(
+            0px,
+            calc(var(--panel-header-pad-x) - var(--panel-pad))
         );
     }
 
@@ -700,6 +760,96 @@
         --card-h: calc(var(--card-w) * 7 / 5);
         --card-w-sm: calc(var(--card-w) * 0.75);
 
+        /* ══════════════════════════════════════════════════════════════════
+         * DESIGN SYSTEM v3 (ADR 0101 §2, PRD #2405, issue #2581)
+         *
+         * Five token families. They are MIRRORED, value for value, in
+         * `src/lib/design-tokens.ts`, and `src/__tests__/design-tokens.test.ts`
+         * re-parses this block and fails on any drift between the two. The
+         * mirror is what the `/design-system` census renders, so the page can
+         * never quietly describe a token this file no longer declares.
+         *
+         * These live in `@layer base :root`, NOT in `@theme inline` — that
+         * block is the semantic COLOUR palette and its parser only sees
+         * `--color-*: #hex`. A non-colour token added there is invisible to
+         * both the census and the drift guard.
+         * ══════════════════════════════════════════════════════════════════ */
+
+        /* ── 1. Fluid type (ADR 0101 §2) ──
+         * Each step interpolates linearly between its phone value at 390px and
+         * its desktop value at 1440px — the two ends of the viewport matrix —
+         * and clamps outside that range. Replaces the fixed `text-xs … text-2xl`
+         * jumps that made a 390px phone read the desktop scale verbatim. */
+        --t-xs: clamp(0.6875rem, 0.6643rem + 0.0952vw, 0.75rem); /* 11 → 12 */
+        --t-sm: clamp(0.75rem, 0.7036rem + 0.1905vw, 0.875rem); /* 12 → 14 */
+        --t-base: clamp(0.875rem, 0.8286rem + 0.1905vw, 1rem); /* 14 → 16 */
+        --t-lg: clamp(1rem, 0.9536rem + 0.1905vw, 1.125rem); /* 16 → 18 */
+        --t-xl: clamp(1.125rem, 1.0321rem + 0.381vw, 1.375rem); /* 18 → 22 */
+        --t-2xl: clamp(1.375rem, 1.1893rem + 0.7619vw, 1.875rem); /* 22 → 30 */
+
+        /* ── 2. Density (ADR 0101 §2) ──
+         * Three rungs with base units 8 / 10 / 12px. `--density-unit` is the
+         * INTERNAL rhythm (Panel body/footer gaps and offsets); `--panel-pad`
+         * is the Panel's own outer padding at that rung. Padding is a literal
+         * per rung rather than a multiple of the unit: `compact` is the
+         * banner/picker rung where the panel IS the chrome and must stay tight
+         * (issue #1817), and its 8px predates and outlives any multiplier.
+         *
+         * v3 renames the three v2 values onto the ADR's vocabulary with
+         * IDENTICAL rendered padding, so none of the 41 Panel render sites
+         * reflows: compact ← "compact" (p-2), comfortable ← "compact-mobile"
+         * (p-3 / p-6 at 420px), roomy ← "default" (p-6, still the default). */
+        --density-unit-compact: 8px;
+        --density-unit-comfortable: 10px;
+        --density-unit-roomy: 12px;
+        /* Ambient default for anything rendered outside a `[data-density]`
+           subtree (a bare PanelBody in a test, a non-Panel consumer). */
+        --density-unit: var(--density-unit-comfortable);
+        --panel-pad: 24px;
+
+        /* ── 3. Pointer-aware control heights (ADR 0101 §2) ──
+         * 44px on a coarse pointer (the WCAG 2.5.8 / platform touch target),
+         * 32px on a fine one. Chosen by the INPUT DEVICE, never by viewport
+         * width — a 1180px tablet in landscape is a touch device and a 700px
+         * desktop window is not. */
+        --control-h-fine: 32px;
+        --control-h-coarse: 44px;
+        --control-h: var(--control-h-fine);
+        /* Secondary rung for dense controls (small buttons, segmented pills).
+           Resolves lazily, so it follows the pointer override below. */
+        --control-h-sm: calc(var(--control-h) - 4px);
+
+        /* ── 4. Motion (ADR 0101 §2) ──
+         * Named durations + easings so a transition is never a magic number.
+         * Collapsed to 1ms (not 0) under `prefers-reduced-motion: reduce`, so
+         * `transitionend` still fires and nothing waits forever on a listener. */
+        --motion-fast: 120ms;
+        --motion-base: 200ms;
+        --motion-slow: 320ms;
+        --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+        --motion-ease-emphasis: cubic-bezier(0.22, 1, 0.36, 1);
+
+        /* ── 5. Panel v3 frame (ADR 0101 §2) ──
+         * 10px inset brackets at 1px / opacity .5, replacing the 40px corner
+         * filigree on every Panel that has not explicitly opted back in.
+         *
+         * `--panel-header-pad-x` is the horizontal inset, MEASURED FROM THE
+         * PANEL BORDER, at which a Panel title may start. The clearance
+         * invariant the ADR asks for —
+         *
+         *     --panel-header-pad-x  ≥  inset + size + 4px
+         *
+         * — is asserted arithmetically from these four numbers in
+         * `design-tokens.test.ts`. It cannot be a layout test: happy-dom has no
+         * layout engine, so `getBoundingClientRect()` returns zeroes and a
+         * geometric assertion would pass vacuously. */
+        --panel-bracket-inset: 4px;
+        --panel-bracket-size: 10px;
+        --panel-bracket-width: 1px;
+        --panel-bracket-opacity: 0.5;
+        --panel-title-bracket-clearance: 4px;
+        --panel-header-pad-x: 20px;
+
         /* Named z-index layers (phase-3 unification). Card-internal stacking
            (0/5/10/20/30) stays bare — it is scoped inside a card and never
            collides. Everything above the board uses these named layers so the
@@ -756,6 +906,49 @@
         --z-modal: 100;
         --z-modal-top: 110;
         --z-modal-peak: 120;
+    }
+
+    /* Pointer-aware control height. `pointer: coarse` is the primary input
+       device; a hybrid laptop with a touchscreen reports `fine` and keeps the
+       compact controls, which is the intended reading. */
+    @media (pointer: coarse) {
+        :root {
+            --control-h: var(--control-h-coarse);
+        }
+    }
+
+    /* Reduced motion collapses every named duration. Rules that read the
+       tokens need no media query of their own. */
+    @media (prefers-reduced-motion: reduce) {
+        :root {
+            --motion-fast: 1ms;
+            --motion-base: 1ms;
+            --motion-slow: 1ms;
+        }
+    }
+
+    /* The density rungs. `data-density` is set by `Panel`, and can be set on
+       any subtree that wants the rhythm without a Panel. */
+    [data-density="compact"] {
+        --density-unit: var(--density-unit-compact);
+        --panel-pad: 8px;
+    }
+    [data-density="comfortable"] {
+        --density-unit: var(--density-unit-comfortable);
+        --panel-pad: 12px;
+    }
+    /* `comfortable` is the phone-aware rung (issue #1817): the pile browser and
+       the manual peek dialog need the extra grid width below 420px and the full
+       padding above it. Keep in step with `PILE_GRID_COMPACT_BREAKPOINT_PX`
+       (`src/lib/card-layout.ts`). */
+    @media (min-width: 420px) {
+        [data-density="comfortable"] {
+            --panel-pad: 24px;
+        }
+    }
+    [data-density="roomy"] {
+        --density-unit: var(--density-unit-roomy);
+        --panel-pad: 24px;
     }
 
     * {

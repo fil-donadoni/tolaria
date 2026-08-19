@@ -819,7 +819,7 @@ export default function CardsPile({
                 // PILE_GRID_COMPACT_BREAKPOINT_PX, and unchanged for every
                 // OTHER `size="wide"` GameDialog (this prop defaults to
                 // "default" elsewhere).
-                density="compact-mobile"
+                density="comfortable"
             >
                 {layout === "fan" ? (
                     <FanLayout

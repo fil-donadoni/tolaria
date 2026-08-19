@@ -71,7 +71,7 @@ export default function ColorFilter({
                         key={m}
                         onClick={() => onChangeMode(m)}
                         className={cn(
-                            "rounded-sm px-2 py-1 transition",
+                            "segment-pill",
                             mode === m ? "segment-active" : "segment-inactive"
                         )}
                         aria-pressed={mode === m}

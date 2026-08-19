@@ -74,7 +74,13 @@ export default function DashboardPlayBox({
     const canCreateMultiplayer = canPlayReal || canPlayManual;
 
     return (
-        <Panel tone="accent">
+        // Rich-ornament survivor (ADR 0101 §2): the "lobby hero". The ADR and
+        // PRD #2405 name the surface but no component, and the lobby has no
+        // literally-named hero — the Play box is its primary waiting surface,
+        // so it is the one that keeps the filigree. Explicit opt-in: every
+        // other lobby Panel gets the v3 brackets. The Panel gates the ornament
+        // to viewports above 844x390 by itself.
+        <Panel tone="accent" ornament>
             <PanelHeader title="Play" />
             <PanelBody>
                 {/* Featured-art HERO SPLASH of the selected deck (PRD #589,
