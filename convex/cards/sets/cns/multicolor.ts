@@ -11,7 +11,7 @@ import { DACK_FAYDEN_EMBLEM_ID } from "../../emblems";
 //   • +1 — "Target player draws two cards, then discards two cards." CR 608.2
 //     sequencing: the whole draw happens before the discard, so the two fresh
 //     cards are discardable. The discard is MANDATORY and the discarding player
-//     picks (CR 701.9a), which is the `choice(discard-hand)` + `discard` pair
+//     picks (CR 701.9b), which is the `choice(discard-hand)` + `discard` pair
 //     Urza's Guilt (pls/multicolor.ts) already exercises — here scoped to the
 //     announced target player (CR 115.1) instead of a `forEach` over players.
 //   • −2 — "Gain control of target artifact." `gainControl` with no `duration`
@@ -34,7 +34,7 @@ export const dackFayden: CardDefinition = {
     activatedAbilities: [
         {
             id: "dack-fayden-plus1",
-            // CR 606.2 / 606.5 — loyalty ability; `+1` adds one counter.
+            // CR 606.2 / 606.4 — loyalty ability; `+1` adds one counter.
             cost: { loyalty: 1 },
             useStack: true,
             oracleText:
@@ -44,7 +44,7 @@ export const dackFayden: CardDefinition = {
             effects: [
                 { op: "draw", player: { target: 0 }, count: 2 },
                 {
-                    // CR 701.9a — the DISCARDING player chooses which cards go.
+                    // CR 701.9b — the DISCARDING player chooses which cards go.
                     // A plain numeric `count` is an exact count the submit path
                     // enforces as floor and ceiling, clamped down to the hand
                     // actually held (a range would let them submit `[]`).
@@ -65,7 +65,7 @@ export const dackFayden: CardDefinition = {
         },
         {
             id: "dack-fayden-minus2",
-            // CR 606.2 / 606.5 — `-2` removes two counters.
+            // CR 606.2 / 606.4 — `-2` removes two counters.
             cost: { loyalty: -2 },
             useStack: true,
             oracleText: "−2: Gain control of target artifact.",
@@ -81,7 +81,7 @@ export const dackFayden: CardDefinition = {
         },
         {
             id: "dack-fayden-minus6",
-            // CR 606.2 / 606.5 — `-6` removes six counters (the ultimate).
+            // CR 606.2 / 606.4 — `-6` removes six counters (the ultimate).
             cost: { loyalty: -6 },
             useStack: true,
             oracleText:

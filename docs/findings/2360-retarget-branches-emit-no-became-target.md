@@ -8,7 +8,7 @@ confidence: medium
 **What is wrong.** `BECAME_TARGET` (CR 601.2c) has five producers, all of them
 target-ANNOUNCEMENT sites. Two further sites write `targets` onto a stack object
 and emit nothing: the `"copy-retarget"` branch (a Fork-style copy choosing new
-targets, CR 707.10b) and the `"retarget"` branch (a change-target effect, CR
+targets, CR 707.10c) and the `"retarget"` branch (a change-target effect, CR
 115.7). Both make objects become the target of a spell or ability, so a
 became-target trigger should see them — Ward (CR 702.21a) should tax a redirected
 spell, Leovold should let its controller draw, and Dack Fayden's emblem (issue
@@ -27,5 +27,5 @@ Dack's emblem is _correct_ to ignore the copy-retarget branch — the gap only
 bites the "spell or ability" family (Ward, Leovold, Nadu) and only on the two
 shipped retarget shapes. It may be one line on the ward/targeting tracker rather
 than a ticket. It is also not obvious that the copy branch should emit at the
-same moment as the announcement branch: CR 707.10b's target choice happens as the
+same moment as the announcement branch: CR 707.10c's target choice happens as the
 copy is created, which is a different timing window than CR 601.2c.

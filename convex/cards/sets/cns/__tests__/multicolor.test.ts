@@ -12,7 +12,9 @@
 //     the classification is proven at the emitter, not restated at the reader.
 //   - PERMANENT vs PLAYER target — a spell aimed at a player steals nothing.
 // Plus the CR 603.2c multi-target shape (N triggers, one per targeted
-// permanent) and the CR 608.2b departed-target skip.
+// permanent) and a departed-target case that proves resolution survives an
+// unresolvable ref — see the SCOPE note on that `it` for what it does NOT
+// cover.
 
 import { describe, it, expect } from "vitest";
 import { dackFayden } from "../multicolor";
@@ -177,7 +179,7 @@ function queuedBecameTargets(state: GameState) {
     );
 }
 
-describe("Dack Fayden — loyalty abilities (CR 606.2 / 606.5, ADR 0058)", () => {
+describe("Dack Fayden — loyalty abilities (CR 606.2 / 606.4, ADR 0058)", () => {
     it("+1 makes the TARGET player draw two, then discard two (CR 608.2 order)", () => {
         const state = makeState({
             players: [
@@ -462,7 +464,20 @@ describe("Dack Fayden emblem — cast-target steal (CR 601.2c / 603.2c / 613.1b)
         expect(controllerOf(state, "victim1")).toBe("p2");
     });
 
-    it("a target that LEFT the battlefield is skipped, not crashed (CR 608.2b)", () => {
+    // SCOPE — read the name literally. This asserts only that the emblem
+    // trigger RESOLVES CLEANLY when its target is gone; the single line it
+    // guards is the `gainControl` Op's `if (!target) return;`
+    // (`gre/effects/interpreter.ts`), which reds with a TypeError when deleted.
+    //
+    // It does NOT guard the CR 608.2b battlefield re-check in
+    // `resolveObjectRef`'s `$event` branch. That re-check is UNOBSERVABLE from
+    // this card: `ctx.gainControl` is inert for an id that is not on the
+    // battlefield, so deleting the re-check leaves an identical game state and
+    // this test stays green (verified — as does the stronger probe that moves
+    // the victim to the graveyard instead of deleting it). Guarding the
+    // re-check needs an Op whose off-battlefield resolution is observable, not
+    // a stronger assertion here.
+    it("the emblem trigger does not throw when its target has left the battlefield", () => {
         const state = emblemBoard();
         const spell = pushSpell(state, ONE_TARGET_SPELL, "p1", [
             { type: "permanent", id: "victim1" },
@@ -476,7 +491,8 @@ describe("Dack Fayden emblem — cast-target steal (CR 601.2c / 603.2c / 613.1b)
         ).toHaveLength(1);
 
         // The targeted permanent leaves the battlefield before the trigger
-        // resolves — `resolveObjectRef` re-checks presence and skips.
+        // resolves. CR 608.2b is why nothing is stolen; the assertions below
+        // prove only that resolution survives the unresolvable ref.
         state.players[1].battlefield = [];
 
         expect(() => resolveTopOfStack(state)).not.toThrow();
