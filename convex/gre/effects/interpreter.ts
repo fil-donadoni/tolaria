@@ -4016,6 +4016,29 @@ export const OP_EXECUTORS: {
     createTokenCopy(ctx, op) {
         const controllerId = resolvePlayerRef(ctx, op.controller);
         if (controllerId === undefined) return;
+        // CR 614.12a / 707.6 / ADR 0100 D5 — REPLAY SAFETY, the same marker
+        // `createToken` above carries and for the same reason (issue #2558): a
+        // token copy whose entry parks on the COPIED card's "as it enters"
+        // choices suspends the resolution, and resume re-executes this Op at
+        // exactly the resume position. Without a done-marker every re-entry
+        // would create another `count` copies — and because the whole
+        // `count` loop below runs to completion before `runOpList` notices the
+        // rise in the parked count, "creating more than one token copy owes
+        // each token its own choices exactly once" needs the marker written
+        // AFTER the loop, for the whole batch, never per iteration (a marker
+        // written at the Op's checkpoint before the loop is the mirror bug: it
+        // would short-circuit the whole Op on re-entry and create nothing).
+        const doneKey = `#createTokenCopy:${ctx.getScriptCheckpoint() ?? 0}`;
+        const alreadyCreated = ctx.recallChoice(doneKey);
+        if (alreadyCreated !== undefined) {
+            if (op.bind && alreadyCreated.length > 0) {
+                bindSnapshot(ctx, op.bind, {
+                    type: "permanent",
+                    id: alreadyCreated[alreadyCreated.length - 1],
+                });
+            }
+            return;
+        }
         const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
         let source = resolveObjectRef(ctx, op.source);
@@ -4104,17 +4127,23 @@ export const OP_EXECUTORS: {
                           : {}),
                   }
                 : undefined;
-        let lastId: string | undefined;
+        const createdIds: string[] = [];
         for (let i = 0; i < count; i++) {
-            lastId = ctx.createTokenCopyOf(
+            const id = ctx.createTokenCopyOf(
                 source.id,
                 controllerId,
                 ctx.sourceInstanceId,
                 opts
             );
+            if (id !== undefined) createdIds.push(id);
         }
+        // ADR 0100 D5 — commit the whole batch exactly once (see `doneKey`
+        // above). Recorded even when nothing was created (a source that left
+        // the battlefield, CR 608.2b) so a zero-copy call is not re-run either.
+        ctx.noteChoice(doneKey, createdIds);
         // issue #1202 — snapshot the LAST created copy so a follow-up Op can act
         // on the specific just-created permanent (mirrors `createToken`'s bind).
+        const lastId = createdIds[createdIds.length - 1];
         if (op.bind && lastId !== undefined) {
             bindSnapshot(ctx, op.bind, { type: "permanent", id: lastId });
         }

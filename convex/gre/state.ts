@@ -4423,7 +4423,6 @@ export interface StagedEntry {
         entryCounters?: Record<string, number>;
         entersTapped?: boolean;
         entersAttacking?: boolean;
-        deferEntryEvent?: boolean;
     };
 }
 
@@ -14822,26 +14821,33 @@ export function buildSpellContext(
                     ? findCardInGraveyardOrExile(state, sourceCreatureId)
                     : undefined);
             if (!source) return undefined;
-            // Minimal placeholder body: a 0/0 creature token. `applyCopy`
-            // immediately replaces every copiable field, so the placeholder is
-            // never observed on the battlefield. CR 508.4 (issue #1195) —
-            // `opts.entersTapped`/`entersAttacking` (Satya, Aetherflux
+            // Minimal placeholder body: a 0/0 creature token, overwritten by
+            // `applyCopy` INSIDE `createTokenPermanents` before anything —
+            // the CR 614 chokepoint included — observes it (CR 707.5: the
+            // object "becomes a copy as it enters the battlefield. It doesn't
+            // enter the battlefield, and then become a copy"). CR 508.4 (issue
+            // #1195) — `opts.entersTapped`/`entersAttacking` (Satya, Aetherflux
             // Genius) ride straight onto this placeholder spec so the SAME
             // `createTokenPermanents` tap/combat-join handling a plain
-            // `createToken` gets applies here too, BEFORE `applyCopy`
-            // overwrites the token's copiable characteristics below — entry
-            // state is independent of what gets copied.
+            // `createToken` gets applies here too; entry state is independent
+            // of what gets copied.
+            //
             // Calls `createTokenPermanents` DIRECTLY rather than through
-            // `ctx.createToken` for one reason: the `deferEntryEvent` opt
-            // (issue #2300). The placeholder must not announce its own
-            // CR 603.6a entry — a 0/0 named "Copy" with no copied subtypes is
-            // exactly what the comment above means by "never observed"; this
-            // function emits the real `PERMANENT_ENTERED` below, once
-            // `applyCopy` has stamped the copied characteristics on. Nothing
-            // else is lost by bypassing the closure: its only extra work is
-            // the `tokenPrintIdFor` art lookup, which cannot resolve for the
-            // synthetic name "Copy" and which `applyCopy` supersedes anyway
-            // (the copy presents the SOURCE's definition, art included).
+            // `ctx.createToken` because the `copyOf` opt is not part of the
+            // public `TokenSpec` surface. Nothing else is lost by bypassing the
+            // closure: its only extra work is the `tokenPrintIdFor` art lookup,
+            // which cannot resolve for the synthetic name "Copy" and which
+            // `applyCopy` supersedes anyway (the copy presents the SOURCE's
+            // definition, art included).
+            //
+            // Everything this function used to do AFTER the call — `applyCopy`,
+            // the copied definition's CR 121.6 entry counters, the CR 611 grant
+            // / static passes and the CR 603.6a announcement — now happens
+            // inside the one shared token entry path (issue #2558). That is
+            // what makes a token copy able to PARK on the copied card's
+            // "as this enters" choices (CR 707.6): a parked token is in no zone
+            // at all, so a post-call `findOnBattlefield` would have found
+            // nothing and silently skipped every one of those steps.
             const [tokenId] = createTokenPermanents(
                 state,
                 {
@@ -14855,50 +14861,9 @@ export function buildSpellContext(
                 controllerId,
                 1,
                 createdBy,
-                { deferEntryEvent: true }
+                { copyOf: { source, copyOpts: opts } }
             );
-            const token = findOnBattlefield(state, tokenId)?.card;
-            if (!token) return undefined;
-            applyCopy(token, source, opts);
-            // `applyCopy` anchors `copiedFrom` to the recipient's PRE-copy
-            // printed id so a copy can revert to its true self later (CR
-            // 707.2). A token born via `createTokenCopyOf` never had a true
-            // self — its "pre-copy" state is the disposable 0/0 "Copy"
-            // placeholder above, never observed on the battlefield. Left in
-            // place, that placeholder id leaks out through `copiedFrom` as a
-            // bogus "original" identity (card preview's split view, revert
-            // path) — clear it so the token presents as what it IS, with
-            // nothing to revert to.
-            delete token.copiedFrom;
-            // CR 121.6 / 706.2 / 707.2 (issue #1693) — the copied card's
-            // "enters with N counters" self-replacement is a COPIABLE value,
-            // so a token copy of Clockwork Beast enters with its +1/+0
-            // counters just like the original. Applied AFTER `applyCopy` (it
-            // overwrites `staticAbilities`, which the keyword-counter grant
-            // writes into) and BEFORE the grant/static passes below, so the
-            // layer system's first read already sees the counters. No
-            // cast-time values exist for a token — CR 107.3b puts X at 0 off
-            // the stack and a token was never kicked.
-            applyEntersWithCounters(
-                token,
-                tryGetDefinition(presentedDefId(token)) ?? undefined,
-                {},
-                state
-            );
-            // CR 611 — re-apply existing grants / source static effects after
-            // the copy rewrites the token's characteristics so anthem-style and
-            // P/T-buff effects observe the copied type/color.
-            applyExistingGrantsTo(state, token);
-            applySourceStaticEffects(state, token);
-            // CR 111.1 / 603.6a (issue #2300) — NOW announce the entry, with
-            // the copied characteristics in place (`applyCopy` above rewrote
-            // `types`, `subtypes` and P/T; the counter + grant passes have run,
-            // so `emitPermanentEntered`'s effective-P/T snapshot is correct).
-            // `createTokenPermanents` was told to defer precisely so this
-            // event describes the COPY and not the 0/0 "Copy" placeholder.
-            // Unreachable when a CR 614 replacement sent the token to exile —
-            // the `findOnBattlefield` guard above already returned.
-            emitPermanentEntered(state, token);
+            if (tokenId === undefined) return undefined;
             // CR 603.10 — bind the creator to its token (both directions) so the
             // creator's leave-linkage triggers can identify the exact token by
             // id after it has left the battlefield. The token already records
@@ -18196,18 +18161,23 @@ export function createTokenPermanents(
     controllerId: string,
     count = 1,
     createdBy?: string,
-    /** `deferEntryEvent` (issue #2300) — suppress this function's own
-     *  `emitPermanentEntered` per entering token, leaving it to the CALLER.
-     *  Exactly one caller needs it: `SpellContext.createTokenCopyOf`, which
-     *  creates a 0/0 placeholder "Copy" token and only afterwards overwrites
-     *  every copiable characteristic via `applyCopy` (CR 707.2). Announcing
-     *  the entry here would announce the PLACEHOLDER — a 0/0 with types
-     *  `["Creature"]` and no copied subtypes — to every CR 603.2 trigger
-     *  condition, so `createTokenCopyOf` defers and emits once the token
-     *  really has its copied characteristics. Everything else (the plain
-     *  `createToken` primitive, the draw-replacement seam, the scenario
-     *  builder) leaves it false and emits inline. */
-    opts?: { deferEntryEvent?: boolean }
+    /** `copyOf` (CR 707.5 / 707.6, issue #2558) — this token enters AS A COPY.
+     *  Every copiable characteristic is stamped onto the token INSIDE the loop
+     *  below, before the CR 614 chokepoint reads it, because CR 707.5 is
+     *  explicit that the object "becomes a copy as it enters the battlefield.
+     *  It doesn't enter the battlefield, and then become a copy of that
+     *  permanent." The observable consequence this option exists for is
+     *  CR 707.6 / CR 614.12's own worked example — "An effect creates a token
+     *  that's a copy of Voice of All. As that token is created, the token's
+     *  controller chooses a color for it" — which is only reachable once the
+     *  chokepoint is handed a token PRESENTING the copied definition.
+     *
+     *  It replaces the `deferEntryEvent` opt (#2300): that one existed solely
+     *  so `createTokenCopyOf` could suppress the placeholder's entry
+     *  announcement and re-emit it after copying. With the copy applied before
+     *  entry there is no placeholder to announce — `finishTokenEntry` emits the
+     *  real thing, in the one place every other token announces from. */
+    opts?: { copyOf?: { source: CardInstanceState; copyOpts?: CopyOptions } }
 ): string[] {
     const owner = getPlayer(state, controllerId);
     const ids: string[] = [];
@@ -18310,6 +18280,30 @@ export function createTokenPermanents(
             // (Tetravus exiles its own Tetravites to recover +1/+1 counters).
             ...(createdBy ? { createdBy } : {}),
         };
+        // CR 707.5 (issue #2558) — "An object that enters the battlefield 'as a
+        // copy' … becomes a copy AS it enters the battlefield. It doesn't enter
+        // the battlefield, and then become a copy of that permanent." So the
+        // copy is stamped HERE, on the freshly minted placeholder, before the
+        // entry counters are derived and before the CR 614 chokepoint below
+        // reads the token's characteristics. Everything downstream — the
+        // `entersWith` lookup, the chokepoint's presented-definition branch
+        // (CR 707.6 / 614.12: "an effect creates a token that's a copy of Voice
+        // of All … the token's controller chooses a color for it"),
+        // `shouldEnterTapped`'s type read, the layer passes and the CR 603.6a
+        // entry announcement — therefore observes the COPY and never the 0/0
+        // "Copy" placeholder.
+        if (opts?.copyOf) {
+            applyCopy(token, opts.copyOf.source, opts.copyOf.copyOpts ?? {});
+            // `applyCopy` anchors `copiedFrom` to the recipient's PRE-copy
+            // printed id so a copy can revert to its true self later (CR
+            // 707.2). A token born as a copy never had a true self — its
+            // "pre-copy" state is the disposable 0/0 "Copy" placeholder above,
+            // never observed anywhere. Left in place, that placeholder id leaks
+            // out through `copiedFrom` as a bogus "original" identity (card
+            // preview's split view, revert path) — clear it so the token
+            // presents as what it IS, with nothing to revert to.
+            delete token.copiedFrom;
+        }
         // CR 111.9 / 122.1 (issue #1210) — a token can enter WITH counters
         // already on it (Incubate N: "create an Incubator token ... with N
         // +1/+1 counters on it", CR 701.53). Stamped onto the instance before
@@ -18332,16 +18326,31 @@ export function createTokenPermanents(
         // declaration is NOT an ability of the entering permanent: "create an
         // Incubator token with N +1/+1 counters on it" puts those counters on as
         // part of the RESOLVING EFFECT (CR 121.6), so a "loses all abilities"
-        // static (Humility, Titania's Song) does not remove them. Contrast
-        // `createTokenCopyOf` below, whose declaration is the COPIED card's own
+        // static (Humility, Titania's Song) does not remove them. Contrast the
+        // `copyOf` branch below, whose declaration is the COPIED card's own
         // CR 614.1c ability (a copiable value) and therefore IS gated.
-        const entryCounters = applyEntersWithCounters(
-            token,
-            { entersWith: spec.entersWith },
-            {},
-            state,
-            { fromCreatingEffect: true, deferEvents: true }
-        );
+        //
+        // CR 706.2 / 707.2 (issue #1693) — for a token entering as a COPY the
+        // declaration is not the placeholder spec's (it has none) but the
+        // copied card's own self-replacement, read off the definition the token
+        // now presents: a token copy of Clockwork Beast is itself "a permanent
+        // that enters with seven +1/+0 counters". No `fromCreatingEffect` —
+        // this one IS an ability of the entering permanent.
+        const entryCounters = opts?.copyOf
+            ? applyEntersWithCounters(
+                  token,
+                  tryGetDefinition(presentedDefId(token)) ?? undefined,
+                  {},
+                  state,
+                  { deferEvents: true }
+              )
+            : applyEntersWithCounters(
+                  token,
+                  { entersWith: spec.entersWith },
+                  {},
+                  state,
+                  { fromCreatingEffect: true, deferEvents: true }
+              );
         // CR 614 (issue #1148) — enters-the-battlefield replacement chokepoint.
         const enterDestination = enterBattlefieldDestinationFor(
             state,
@@ -18349,12 +18358,23 @@ export function createTokenPermanents(
                 id: token.id,
                 ownerId: token.ownerId,
                 types: token.types,
+                // CR 614.12 / 707.6 (issue #2558) — the presented definition.
+                // For a plain token that is this call's own synthesized def
+                // (whose `entersWith.asEnters` the `declaredEntersWith` below
+                // already supplies, so the branch is a no-op); for a `copyOf`
+                // token it is the COPIED card's definition, and it is the only
+                // way the chokepoint can see clauses that were never on the
+                // placeholder spec.
+                card: token.card,
             },
             controllerId,
             true,
             false,
             // A `TokenSpec` is not a printed `CardDefinition`, so the clause is
-            // handed to the chokepoint directly rather than looked up.
+            // handed to the chokepoint directly rather than looked up. A
+            // `copyOf` token's placeholder spec declares none, so the merge
+            // (`declared ?? fromDefinition`) falls through to the copied
+            // definition read above.
             { declaredEntersWith: spec.entersWith }
         );
         if (enterDestination === "exile") {
@@ -18388,9 +18408,6 @@ export function createTokenPermanents(
                         ...(spec.entersAttacking
                             ? { entersAttacking: true }
                             : {}),
-                        ...(opts?.deferEntryEvent
-                            ? { deferEntryEvent: true }
-                            : {}),
                     },
                 }
             );
@@ -18401,7 +18418,6 @@ export function createTokenPermanents(
             entryCounters,
             entersTapped: spec.entersTapped,
             entersAttacking: spec.entersAttacking,
-            deferEntryEvent: opts?.deferEntryEvent,
         });
         ids.push(id);
     }
@@ -18451,7 +18467,6 @@ function finishTokenEntry(
         entryCounters?: Record<string, number>;
         entersTapped?: boolean;
         entersAttacking?: boolean;
-        deferEntryEvent?: boolean;
     }
 ): void {
     const owner = getPlayer(state, controllerId);
@@ -18530,7 +18545,12 @@ function finishTokenEntry(
         // No `wasCast` / `wasPlayed`: a token is neither cast nor played
         // (CR 111.1 / 601.2i / 305.2), matching every other non-chokepoint
         // caller of `emitPermanentEntered`.
-        if (!opts.deferEntryEvent) emitPermanentEntered(state, token);
+        // CR 707.5 (issue #2558) — a token entering AS A COPY announces the
+        // copy, not a placeholder: `createTokenPermanents` stamped every
+        // copiable characteristic on before the chokepoint, so there is nothing
+        // left for a caller to defer this emit for (it superseded the
+        // `deferEntryEvent` opt #2300 added for exactly that reason).
+        emitPermanentEntered(state, token);
     }
     // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`). A token
     // IS a permanent (CR 111.1), and token creation is the canonical
