@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useReducedMotion } from "motion/react";
 import { CARD_TILT } from "~/lib/board-motion";
+import { cardTiltFrame } from "~/lib/card-tilt-frame";
 
 type CardTilt3DProps = {
     children: ReactNode;
@@ -8,6 +9,12 @@ type CardTilt3DProps = {
      *  is being dragged, #271). The element stays mounted so any hover-zoom
      *  vehicle it wraps keeps its identity — only the tilt is suppressed. */
     suppressTilt?: boolean;
+    /** Clockwise visual rotation, in degrees, applied to the card face BELOW
+     *  this component — today only the battlefield's 90° tap rotation (#1994,
+     *  issue #2551). Opt-in: at the default `0` every output is the legacy
+     *  slot-frame one, so hand, pile and untapped-board callers need no change
+     *  and behave identically. See `~/lib/card-tilt-frame`. */
+    visualRotationDeg?: number;
 };
 
 /**
@@ -36,12 +43,23 @@ type CardTilt3DProps = {
  * `pointer-events-none` so it never blocks the underlying card's hover-zoom or
  * click handlers.
  *
+ * **Follows the card's visual orientation, without moving in under it**
+ * (issue #2551). A tapped permanent rotates a presentational layer 90° while
+ * this component stays OUTSIDE it (the tilt root must not inherit that layer's
+ * `pointer-events: none`, #1994 round 4). `visualRotationDeg` therefore tells
+ * the tilt what rotation is applied beneath it and both outputs move into the
+ * card's own frame: the pointer offset is read in the card's axes and the tilt
+ * conjugated back into the slot's, and the glare overlay carries the SAME
+ * rotation as the visual layer so its box coincides with the visible card face
+ * (`~/lib/card-tilt-frame` carries the derivation).
+ *
  * Accessibility: when the user prefers reduced motion the tilt and glare are
  * disabled entirely — the card renders flat and the pointer handlers are no-ops.
  */
 export default function CardTilt3D({
     children,
     suppressTilt = false,
+    visualRotationDeg = 0,
 }: CardTilt3DProps) {
     const reduceMotion = useReducedMotion();
     const inert = reduceMotion || suppressTilt;
@@ -72,22 +90,31 @@ export default function CardTilt3D({
             // Pointer offset from the card center, normalised to -0.5..0.5.
             const px = (e.clientX - rect.left) / rect.width - 0.5;
             const py = (e.clientY - rect.top) / rect.height - 0.5;
+            // One derivation, both outputs: the tilt in the slot's axes (this
+            // element is never rotated) and the glare in the card's own box.
+            const { tiltXDeg, tiltYDeg, glareXPct, glareYPct } = cardTiltFrame({
+                px,
+                py,
+                aspect: rect.width / rect.height,
+                rotationDeg: visualRotationDeg,
+                maxTiltDeg: CARD_TILT.maxTiltDeg,
+            });
             inner.style.transition = CARD_TILT.moveTransition;
             inner.style.transform =
-                `rotateX(${(-py * CARD_TILT.maxTiltDeg).toFixed(2)}deg) ` +
-                `rotateY(${(px * CARD_TILT.maxTiltDeg).toFixed(2)}deg) ` +
+                `rotateX(${tiltXDeg.toFixed(2)}deg) ` +
+                `rotateY(${tiltYDeg.toFixed(2)}deg) ` +
                 `translateZ(${CARD_TILT.liftZ}px) ` +
                 `scale(${CARD_TILT.hoverScale})`;
             const glare = glareRef.current;
             if (glare) {
                 glare.style.opacity = String(CARD_TILT.glareOpacity);
                 glare.style.background =
-                    `radial-gradient(circle at ${((px + 0.5) * 100).toFixed(2)}% ` +
-                    `${((py + 0.5) * 100).toFixed(2)}%, ` +
+                    `radial-gradient(circle at ${glareXPct.toFixed(2)}% ` +
+                    `${glareYPct.toFixed(2)}%, ` +
                     `rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 55%)`;
             }
         },
-        [inert]
+        [inert, visualRotationDeg]
     );
 
     const reset = useCallback(() => {
@@ -130,11 +157,23 @@ export default function CardTilt3D({
             >
                 {children}
                 {/* Glare highlight — tracks the pointer, fades on leave. Inert
-                    so it never intercepts the card's click / hover-zoom. */}
+                    so it never intercepts the card's click / hover-zoom.
+                    `inset-0` is the same box the rotated visual layer starts
+                    from, so carrying the SAME rotation makes the two coincide
+                    exactly: right aspect, `rounded-sm` on the card's own
+                    corners, covering the rotated face's long-side overhang
+                    instead of the portrait slot's short-side strips (#2551).
+                    The gradient centre is then a percentage of the card's own
+                    box, which is precisely what `cardTiltFrame` returns. */}
                 <div
                     ref={glareRef}
                     data-card-glare
                     className="absolute inset-0 rounded-sm pointer-events-none mix-blend-overlay opacity-0"
+                    style={
+                        visualRotationDeg
+                            ? { transform: `rotate(${visualRotationDeg}deg)` }
+                            : undefined
+                    }
                 />
             </div>
         </div>
