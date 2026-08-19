@@ -100,8 +100,11 @@ function mostCommonColorsFromSpellContext(ctx: SpellContext): Color[] {
 // has no dedicated primitive, so it's expressed as a 5-mode `optionChoice`
 // (one per W/U/B/R/G) — each mode is the exact Thoughtseize `reveal` +
 // `choice(choose-hand-card)` + `discard` template (lrw/black.ts), just
-// filtered by that mode's fixed color instead of `excludeType`. `count: {
-// min: 0, max: 1 }` auto-handles "no card of that color" (CR 608.2b).
+// filtered by that mode's fixed color instead of `excludeType`. The pick is
+// MANDATORY (no "may" in the oracle text): a plain `count: 1` clamps to the
+// filtered candidate set, so "no card of that color" raises no choice at all
+// (CR 608.2b — the interpreter returns early at `available === 0`) while a
+// hand that does hold one leaves the caster no way to decline.
 function addleMode(color: Color, label: string) {
     return {
         label,
@@ -114,7 +117,7 @@ function addleMode(color: Color, label: string) {
                 zoneOwnerId: { target: 0 },
                 zone: "hand" as const,
                 filter: { color },
-                count: { min: 0, max: 1 },
+                count: 1,
                 prompt: `Choose a ${label.toLowerCase()} card from that player's hand.`,
                 bind: "$picked",
             },
