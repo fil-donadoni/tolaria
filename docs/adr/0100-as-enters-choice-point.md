@@ -386,18 +386,42 @@ without one is invisible when it rots:
    restore the "set `priorityPlayerId` and return" behaviour and watch it go red.
 
 **What replays.** Resume is a **re-entry, not a continuation** — and the Op that
-parked the entry is the one that re-runs:
+parked the entry is the one that re-runs. This turns on the RESOLUTION SHAPE, an
+axis orthogonal to the origin rows above: origin says which entry tail the
+finalize runs, shape says what re-entering the resolution costs. There are
+**three** shapes, and the first version of this decision priced only two of them
+(corrected by issue #2570):
 
-- stepped resolve: `top.resolutionStep = i` is committed **before** step `i`
-  runs (`state.ts:4877-4890`, deliberate — a `requestChoice` inside the step
-  must key under the right step), so `start = i` on resume and step `i` replays
-  from its beginning;
-- Effect Script: `runOpList` skips every Op whose pre-order position is
-  `< resume` — an already-completed, possibly irreversible side effect never
-  replays — but **re-executes the Op at exactly `resume`**
-  (`gre/effects/interpreter.ts:4809-4852`).
+| Shape                        | Checkpoint                                                                                                                                 | On re-entry                                                                                                                                     | Suspends on an Entry Park? |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| stepped `resolveSteps`       | `top.resolutionStep = i` committed **before** step `i` runs (deliberate — a `requestChoice` inside the step must key under the right step) | `start = i`, so step `i` replays from its beginning and every earlier step is skipped                                                           | **yes**                    |
+| Effect Script `effects[]`    | the interpreter's `resume` position (`gre/effects/interpreter.ts`, `runOpList`)                                                            | every Op whose pre-order position is `< resume` is skipped — an irreversible side effect never replays — but the Op **at** `resume` re-executes | **yes**                    |
+| plain imperative `resolve()` | **none**                                                                                                                                   | the closure restarts **from its first statement** — but it has already RETURNED, so there is nothing left to resume                             | **no** (#2570)             |
 
-Replay-idempotence is therefore a per-row obligation, not a free property:
+Row three is the one D5 originally missed, and missing it is not a gap in the
+table but a live bug: the suspension predicate treated a completed body exactly
+like a checkpointed one, so a plain `resolve()` that parked an entry re-ran in
+full and re-committed every side effect it had already made (measured: life
+20 → 21 → 22, a second permanent staged and parked, and so on). The fix is
+site-local and fails closed — `resolutionSuspendedOnChoice(state, shape)` takes
+the shape as a **required argument** at all sixteen call sites, and only the
+`"completed"` ones exempt a stackless Entry Park. Everything else still suspends
+there: a stack-coupled `requestChoice` the body raised, any other kind, and the
+park itself at every `"checkpointed"` site. The exemption is keyed on
+`asEntersCardId`, the same explicit discriminator `finalizeAsEnters` routes on,
+never on `kind` — every as-enters prompt deliberately reuses an existing
+`PendingChoiceKind` shape, so a `kind ===` test would swallow the wrong choices.
+Popping the item is what makes a completed body land in the no-live-parking-item
+branch above; it is row A's mechanism, reached by a different route.
+
+`getResolveFn` (`cards/effectRegistry.ts`) hides all three shapes behind one
+returned closure — `def.resolve` and the `def.effect` shorthand are imperative,
+`def.effects` is a compiled script, and the functions are indistinguishable — so
+the spell site discriminates on the DEFINITION via `spellBodyShape`, which lives
+in that same file precisely so the two cannot drift.
+
+Replay-idempotence remains a per-row obligation for the two checkpointed shapes,
+not a free property:
 
 | Row        | Replays on resume?     | Why                                                                                                                                                                                                                                                                                      |
 | ---------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -429,13 +453,40 @@ park. The guarding test is therefore "park a token entry with `count: N`, answer
 every owed choice, assert exactly N tokens" — run for `N = 1` **and** `N > 1`,
 since the two values fail in opposite directions.
 
+Those two Op-level markers stay: they guard the Effect Script shape, which still
+suspends and still re-executes the Op at its resume position. The CARD-level
+twin does not — `Sin, Spira's Punishment` carried a hand-written
+run-to-completion marker in its plain `resolve()` body for exactly the replay
+#2570 removed, and it was deleted with the general fix rather than left standing
+as a second, silent authority on the same question (`cards/sets/fin/multicolor.ts`).
+
 The rejected alternative is exempting as-enters choices from
-`resolutionSuspendedOnChoice` (`state.ts:4759`) the way `land-entry-tapped`
+`resolutionSuspendedOnChoice` (`gre/state.ts`) the way `land-entry-tapped`
 is, which would sidestep replay entirely. It is wrong here: that exemption is
 safe only because the land has **already entered** and nothing observes the
 tapped bit, whereas an as-enters park holds the permanent off every zone — the
 rest of the resolution would run without it, and D2 already rejects the
 provisional-entry shape that would make it safe.
+
+**#2570's carve-out is not that rejection reversed**, and the shape table above
+is why. What is rejected is a BLANKET exemption — one that applies wherever the
+predicate is consulted. The clause it turns on is "the rest of the resolution
+would run without" the permanent, and that clause is a statement about
+checkpointed shapes: a stepped body has a step left, a script has Ops below its
+resume position, and both would run them against a permanent that is in no zone.
+A plain `resolve()` closure has no rest — it returned before the predicate was
+consulted, and re-entering it re-runs work that is already done rather than
+work that is still owed. So the carve-out is granted per SHAPE, at the sites
+where that argument does not apply, and denied everywhere else. The
+`"checkpointed"` sites keep the original behaviour verbatim.
+
+What the plain shape still shares with the rejected version is that the
+statements a body writes AFTER its entry primitive run while the permanent is
+parked — CR 614.12a's "before the permanent enters" holds for the entry itself
+but not for a closure's trailing lines, which no engine seam can suspend
+mid-function. That is a separate defect of the shape (it exists identically
+whether or not the body replays) and is out of #2570's scope; the DSL-first
+default is the answer, since an Effect Script CAN suspend between Ops.
 
 ### D6 — Scope
 

@@ -86,6 +86,26 @@ export function getResolveFn(def: CardDefinition): ResolveFn | undefined {
     return undefined;
 }
 
+/** How a resolution body RESUMES after a mid-resolution suspension (ADR 0100
+ *  D5, issue #2570). `"checkpointed"` = a stepped `resolveSteps` loop or an
+ *  Effect Script, both of which record a resume position and have work left;
+ *  `"completed"` = a plain imperative closure, which carries no checkpoint and
+ *  has already returned by the time a suspension is tested for. Lives here,
+ *  beside `getResolveFn`, because the classification IS that function's
+ *  dispatch order read back — keeping the two in one file is what stops them
+ *  drifting when a fourth authoring mode arrives. */
+export type ResolutionBodyShape = "checkpointed" | "completed";
+
+/** The resume shape of the closure {@link getResolveFn} returns for `def`.
+ *  `def.effects` compiles to an Effect Script (checkpointed); `def.resolve` and
+ *  the `def.effect` shorthand are plain imperative bodies — the returned
+ *  closures are indistinguishable, so the definition is the only discriminator.
+ *  (`def.resolveSteps` never reaches `getResolveFn`: the stepped-spell branch in
+ *  `resolveTopOfStackInner` handles it first, and it is checkpointed there.) */
+export function spellBodyShape(def: CardDefinition): ResolutionBodyShape {
+    return def.effects ? "checkpointed" : "completed";
+}
+
 /** The narrow slice an ability shares for effect-site dispatch — an id (for a
  *  legible error), an optional Effect Script, and the two imperative forms it
  *  is mutually exclusive with. Both `ActivatedAbility` and `TriggeredAbility`
