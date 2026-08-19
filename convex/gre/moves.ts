@@ -34,6 +34,9 @@ import { handCardMatchesFilter } from "./alternativeCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
 import {
     getLegalActions,
+    canCastSpellsFromTopOfLibrary,
+    isCastableLibraryTopSpell,
+    libraryTopCastLifeCost,
     getLegalTargets,
     getProducibleManaOptions,
     maxAffordableX,
@@ -759,11 +762,26 @@ export function enumerateRaisedTargetMoves(
 function enumerateCastMoves(
     state: GameState,
     player: PlayerState,
-    card: CardInstanceState
+    card: CardInstanceState,
+    /** CR 118.9-analog / 119.4 (issue #2398, Bolas's Citadel) — when set, this
+     *  cast pays NO mana at all and instead pays this much life, because the
+     *  permission that supplied it replaces the whole mana cost
+     *  (`libraryTopCastLifeCost`, gre/rules.ts — the same single authority the
+     *  server's commit sites read, so the enumerated Move and the mutation
+     *  charge the identical amount). Absent for every ordinary cast. */
+    opts?: { lifeInsteadOfMana?: number }
 ): Move[] {
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    const rawCost = getInstanceManaCost(card) ?? {};
+    const lifeInsteadOfMana = opts?.lifeInsteadOfMana;
+    // CR 119.4 — a player may pay life only while their life total covers it.
+    if (lifeInsteadOfMana !== undefined && player.life < lifeInsteadOfMana) {
+        return [];
+    }
+    const rawCost =
+        lifeInsteadOfMana !== undefined
+            ? {}
+            : (getInstanceManaCost(card) ?? {});
 
     // Bot-only prune (#938): a copy-on-ETB spell (Clone, Copy Artifact, Vesuvan
     // Doppelganger, Dance of Many) is a legal but strictly wasteful cast when no
@@ -872,6 +890,17 @@ function enumerateCastMoves(
     // to the same ceiling the cast mutation enforces, so the Bot never offers
     // an X the human cast path would reject.
     const hasX = typeof rawCost.X === "string";
+    // CR 107.3b (issue #2398 review round 1, finding 5) — when the permission
+    // replaced the whole mana cost, `rawCost` is `{}` and carries no X at all,
+    // while the PRINTED cost may still have one (Fireball off the top of the
+    // library). "The only legal choice for X is 0", which `announceCast`
+    // enforces, so the enumeration announces exactly that value rather than
+    // omitting `chosenX` and relying on the mutation to fill it in: an explicit
+    // 0 is what keeps the Move and the mutation reading the same number
+    // (the #2283/#2284 bot-freeze class — a Move the server refuses).
+    const xLockedToZero =
+        lifeInsteadOfMana !== undefined &&
+        typeof getInstanceManaCost(card)?.X === "string";
     const xCeiling =
         def?.castXUpperBound === "snow-lands"
             ? Math.min(
@@ -879,9 +908,11 @@ function enumerateCastMoves(
                   countSnowLands(player.battlefield)
               )
             : maxAffordableX(player, card, state);
-    const xValues: (number | undefined)[] = hasX
-        ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
-        : [undefined];
+    const xValues: (number | undefined)[] = xLockedToZero
+        ? [0]
+        : hasX
+          ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
+          : [undefined];
 
     // CR 107.4f — a Phyrexian cost ({B/P}, {U/P}) is paid pip-by-pip with mana
     // or 2 life. The Bot takes the most-life affordable split (the canonical
@@ -968,7 +999,11 @@ function enumerateCastMoves(
             if (costModifiers) {
                 applyCostModifiers(normCost, costModifiers);
             }
-            let payLife = 0;
+            // CR 118.9-analog / 119.4 (issue #2398) — a cast whose mana cost
+            // the permission replaced starts its life leg at the substituted
+            // amount; a Phyrexian split (below) can only add to it, and no
+            // shipped card combines the two.
+            let payLife = lifeInsteadOfMana ?? 0;
             if (phyPips > 0) {
                 const split = solvePhyrexianSplit(
                     player,
@@ -981,7 +1016,14 @@ function enumerateCastMoves(
                 for (const [c, n] of Object.entries(split.manaAdditions)) {
                     if (n && n > 0) normCost[c] = (normCost[c] ?? 0) + n;
                 }
-                payLife = split.lifePips * PHYREXIAN_LIFE_PER_PIP;
+                // `+=`, not `=` (issue #2398 review round 1, finding 5): the
+                // substituted life above is a payment this cast already owes,
+                // so a Phyrexian split ADDS to it rather than replacing it —
+                // what the comment on `payLife`'s initializer has always
+                // claimed. Unreachable today (a replaced cost is `{}`, whose
+                // `phyPips` is 0), so this is the comment and the code agreeing
+                // rather than a behaviour change.
+                payLife += split.lifePips * PHYREXIAN_LIFE_PER_PIP;
             }
             // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063): graveyard cards
             // exiled while casting pay for {1} of GENERIC mana each, so a spell
@@ -1253,9 +1295,14 @@ function enumerateAbilityMoves(
         // "a green creature", Homarid Spawning Bed's "a blue creature",
         // Freyalise Supplicant's "a red or white creature") matched nothing and
         // the bot dropped the whole activation as illegal (issue #1209).
+        // CR 602.1 / 118.5 (issue #2398) — the cost gives up
+        // `sacrificeFilterCount` matching permanents ("Sacrifice ten nonland
+        // permanents", Bolas's Citadel), defaulting to 1. Counted, not merely
+        // existence-checked, so the bot never enumerates an activation the
+        // server would reject for want of victims.
         if (
             ability.cost.sacrificeFilter &&
-            !player.battlefield.some((c) =>
+            player.battlefield.filter((c) =>
                 matchesPermanentFilter(
                     effectivePermanentView(state, c),
                     ability.cost.sacrificeFilter!,
@@ -1270,7 +1317,7 @@ function enumerateAbilityMoves(
                         supertypesOf: liveSupertypesOf,
                     }
                 )
-            )
+            ).length < (ability.cost.sacrificeFilterCount ?? 1)
         ) {
             continue;
         }
@@ -1846,6 +1893,39 @@ export function enumerateMoves(
         getLegalActions(state, player, libraryTop).includes("play")
     ) {
         moves.push({ kind: "play-land", cardInstanceId: libraryTop.id });
+    }
+    // CR 601.3e-analog (issue #2398, Bolas's Citadel) — the SPELL half of the
+    // same top-of-library permission. Index 0 ONLY, for the same
+    // hidden-information reason as the land loop above. Without this the Bot
+    // could hold Citadel and never once cast off the top: `getLegalActions`
+    // has the branch, but the candidate SET never included the library.
+    //
+    // The permission is checked FIRST, before `getLegalActions`: that
+    // function's final "cast is for all non-land cards" fallback is
+    // zone-BLIND (only the land branch above it scopes itself to a zone), so
+    // handing it an unpermissioned library card reports "cast" for the
+    // printed mana cost — a move `locateCastSource` then refuses to resolve,
+    // which surfaces as a search error rather than an illegal cast. Gating
+    // here keeps the candidate set exactly the cards the permission covers.
+    if (
+        libraryTop &&
+        !libraryTop.types.includes("Land") &&
+        isCastableLibraryTopSpell(state, player, libraryTop.id) &&
+        getLegalActions(state, player, libraryTop).includes("cast")
+    ) {
+        const lifeCost = libraryTopCastLifeCost(state, player, libraryTop);
+        moves.push(
+            ...enumerateCastMoves(state, player, libraryTop, {
+                // Only pass the substitution when the permission actually
+                // replaces the mana cost: a grant with no `manaCostReplacement`
+                // (Vizier of the Menagerie's shape) casts for the printed cost,
+                // which is exactly what `undefined` selects.
+                ...(canCastSpellsFromTopOfLibrary(state, player)
+                    ?.manaCostReplacement === "life-equal-to-mana-value"
+                    ? { lifeInsteadOfMana: lifeCost }
+                    : {}),
+            })
+        );
     }
     for (const perm of player.battlefield) {
         moves.push(...enumerateAbilityMoves(state, player, perm));

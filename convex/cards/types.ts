@@ -913,6 +913,16 @@ export interface ActivatedAbility {
          *  engines (Atog, Ashnod's Altar, Orcish Mechanics, Sage of Lat-Nam,
          *  Priest of Yawgmoth, Dwarven Weaponsmith, Gate to Phyrexia). */
         sacrificeFilter?: PermanentFilter;
+        /** How MANY permanents matching `sacrificeFilter` the cost gives up
+         *  (CR 602.1 / 118.5 — Bolas's Citadel: "Sacrifice ten nonland
+         *  permanents"). Omitted = 1, the historical single-permanent shape
+         *  every earlier card uses. The activation is illegal unless the
+         *  activator's battlefield holds at least this many matching
+         *  permanents, and the picker owes exactly this many picks. Only
+         *  meaningful alongside `sacrificeFilter`; the mana-value snapshot
+         *  (`getAdditionalSacrificeMv()`) is taken only for a count of 1,
+         *  since "the sacrificed permanent" is ambiguous above that. */
+        sacrificeFilterCount?: number;
         /** "Tap untapped permanents matching <filter> you control" as an
          *  activation cost (CR 602.1, 118.8). The activating player chooses
          *  which untapped permanents to tap while paying the cost; the
@@ -1580,6 +1590,24 @@ export interface BoardManaColorSource {
  *  an absent leg costs nothing. The nesting is deliberate — `permanent` and
  *  `hand` group the fields that only make sense together, so an orphan `count`
  *  with no `filter`, or an `action` with neither, is unrepresentable. */
+/** A WHOLESALE substitution of a spell's mana cost, applied automatically by
+ *  the permission that supplied the cast rather than announced up front by the
+ *  caster (CR 601.2b's alternative costs are the caster's CHOICE; this is not
+ *  one — there is nothing to opt into, and no `AlternativeCost` is offered).
+ *  That is why it is its own vocabulary and not an `AlternativeCost` leg:
+ *  `CostLegs.life` is a FIXED number, while every member here is a payment
+ *  DERIVED from the card being cast.
+ *
+ *  - `"life-equal-to-mana-value"` (CR 119.4 life payment / 202.3 mana value /
+ *    107.3b, Bolas's Citadel) — the caster pays life equal to the cast card's
+ *    mana value and pays no mana at all. Because the card is not on the stack
+ *    when the amount is computed, an `{X}` in its mana cost counts as 0
+ *    (CR 107.3b: the only legal choice for X is 0 when an effect lets a player
+ *    cast a spell paying neither its mana cost nor an alternative cost with an
+ *    X in it). Affordable only while the caster's life total is at least the
+ *    amount (CR 119.4) — paying down to exactly 0 is legal; SBAs then apply. */
+export type ManaCostReplacement = "life-equal-to-mana-value";
+
 export interface CostLegs {
     /** MANA leg (CR 117.3a / 118.9). For a may-pay this is mana paid on top of
      *  nothing; for an alternative cost it is mana paid INSTEAD of the printed
@@ -14715,6 +14743,24 @@ export interface CardDefinition {
      *  - `"controller"` — reveal the controller's own library top (Goblin Spy,
      *    "Play with the top card of YOUR library revealed"). */
     revealsLibraryTop?: "controller";
+    /** CR 401.5 — the PRIVATE half of the same rule: "You may look at the top
+     *  card of your library any time" (Bolas's Citadel, Vizier of the
+     *  Menagerie, Oracle of Mul Daya's second clause). Same continuous,
+     *  position-attached, derived-never-stored model as
+     *  {@link revealsLibraryTop} (`gre/libraryReveal.ts`) and the same CR
+     *  613.11 rules-modifying-effect posture — it differs ONLY in WHO may see
+     *  the card: the controller alone, never the opponent.
+     *
+     *  That difference is why it is a separate field rather than a widened
+     *  `revealsLibraryTop` scope: `revealsLibraryTop`'s scope names WHOSE
+     *  library is exposed and the exposure is symmetric (CR 401.5 "play with
+     *  the top card of their library revealed" — both seats see it), so
+     *  folding a viewer-scoped look into that enum would silently change what
+     *  the opponent sees for every existing card. The projection ORs the two:
+     *  a revealed top crosses the wire to everyone, a looked-at top only to
+     *  its own controller (`gameProjections.ts`).
+     *  - `"controller"` — only the library's owner may look. */
+    looksAtLibraryTop?: "controller";
     /** Continuous draw-event replacement (CR 614, ADR 0061) that intercepts
      *  EVERY card draw an affected player would take, one card at a time, at
      *  the single suspend-capable draw seam (`planDrawStep` in `gre/state.ts`).
@@ -14770,6 +14816,33 @@ export interface CardDefinition {
      *  hidden-information library (CR 400.2) requires — the top card's
      *  identity crosses the wire only when a reveal is separately in force. */
     playsLandsFromTopOfLibrary?: boolean;
+    /** Unconditional, player-wide permission (CR 601.3e-analog) to CAST
+     *  nonland spells from the TOP of the controller's own library — and only
+     *  the top card (index 0) — while ANY permanent with this field is on the
+     *  battlefield (Bolas's Citadel; Vizier of the Menagerie's creature-only
+     *  variant would add a filter here). The SPELL twin of
+     *  {@link playsLandsFromTopOfLibrary}: same live-off-the-battlefield
+     *  derivation (`canCastSpellsFromTopOfLibrary`, `gre/rules.ts`), so the
+     *  permission ends the instant the granting source leaves play — no stale
+     *  flag, no `GameState` field — and the same position-strict rule, since
+     *  the permission names the TOP card and the rest of the library stays
+     *  hidden (CR 400.2).
+     *
+     *  DELIBERATELY ORTHOGONAL to {@link looksAtLibraryTop} /
+     *  {@link revealsLibraryTop}, for the reason spelled out on
+     *  `playsLandsFromTopOfLibrary`: permission is legality, reveal is
+     *  information, and CR ties neither to the other. Bolas's Citadel prints
+     *  all three clauses and so declares all three fields.
+     *
+     *  `manaCostReplacement` (CR 118.9-analog) replaces the ENTIRE mana cost
+     *  of a cast made under THIS permission — never a cast of the same card
+     *  from hand. It is a general cost-substitution vocabulary, not a
+     *  card-shaped flag: see {@link ManaCostReplacement}. Omitted = the spell
+     *  is cast for its normal printed mana cost (Vizier of the Menagerie's
+     *  shape). */
+    castsSpellsFromTopOfLibrary?: {
+        manaCostReplacement?: ManaCostReplacement;
+    };
     /** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — "Once during each
      *  of your turns, you may cast a permanent spell with mana value N or
      *  less from your graveyard." A STATIC, battlefield-derived permission —

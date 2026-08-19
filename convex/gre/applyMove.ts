@@ -621,10 +621,22 @@ export function applyMoveForSearch(
             if (move.payLife && move.payLife > 0) {
                 player.life -= move.payLife;
             }
+            // CR 601.3e-analog (issue #2398) — the enumerator offers a cast off
+            // the TOP of the library under a cast-from-top permission (Bolas's
+            // Citadel), so this leaf can no longer assume the hand: hard-coding
+            // `"hand"` threw `Card <id> not found in hand` for exactly those
+            // moves, the same shape `applyPlayLandFromAnyZone` fixed for the
+            // land half. Only index 0 qualifies — the permission is positional
+            // and the rest of the library stays hidden (CR 400.2).
+            const castFromZone =
+                player.hand.some((c) => c.id === move.cardInstanceId) ||
+                player.library[0]?.id !== move.cardInstanceId
+                    ? "hand"
+                    : "library";
             const spellCard = removeFromZone(
                 player,
                 move.cardInstanceId,
-                "hand"
+                castFromZone
             );
             const stackItem: StackItem = {
                 ...spellCard,

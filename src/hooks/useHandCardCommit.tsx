@@ -272,11 +272,24 @@ export function useHandCardCommit(
         // player sees next differs by this click. `affordableAltCostsForCard`
         // already folds `def.bestow` in — and filters it out when no creature
         // is on the battlefield to enchant (CR 601.2c).
+        //
+        // CR 601.2b (issue #2398 review round 1, finding 3) — "A player can't
+        // apply two alternative methods of casting or two alternative costs to
+        // a single spell." Casting off the top of the library under a
+        // permission that REPLACES the mana cost (Bolas's Citadel) already is
+        // one such method, so NO alternative cost may be announced alongside
+        // it — Bestow included, since it reaches `announceCast` as an ordinary
+        // `alternativeCostId`. `announceCast` fails closed on that combination,
+        // but a thrown mutation reachable from a legal click is a crash, not a
+        // rule: with Gush on top under a Citadel this picker rendered "Return
+        // two Islands" and selecting it threw. The gate belongs where the
+        // option is OFFERED; the server throw stays as defense-in-depth.
         if (
-            (def.alternativeCosts && def.alternativeCosts.length > 0) ||
-            def.evoke ||
-            def.dash ||
-            def.bestow
+            !cardInstance.castManaCostReplaced &&
+            ((def.alternativeCosts && def.alternativeCosts.length > 0) ||
+                def.evoke ||
+                def.dash ||
+                def.bestow)
         ) {
             const affordableAlts = affordableAltCostsForCard(
                 cardInstance,
@@ -341,8 +354,19 @@ export function useHandCardCommit(
         // (CR 107.3, e.g. Fireball) or is a "pay X life" additional cost
         // (CR 601.2b / 118.4, e.g. Toxic Deluge, Fire Covenant). Both send
         // `chosenX`, so both must open the cost dialog.
+        // CR 107.3b (issue #2398 review round 1, finding 1) — when an effect
+        // lets the caster cast this spell while paying neither its mana cost
+        // nor an alternative cost that includes X (a cast off the top of the
+        // library whose mana cost the permission replaced with life), "the only
+        // legal choice for X is 0", so there is no choice to collect: offering
+        // the stepper invites an announcement `announceCast` now rejects, and
+        // before that clamp it silently bought X = 5 for zero mana and one life
+        // (CR 202.3e prices the card at X = 0 off the stack). The `payXLife`
+        // ADDITIONAL cost (Toxic Deluge, Fire Covenant) is unaffected — it is
+        // not part of the replaced mana cost, so its X is still chosen here.
         const hasX =
-            typeof def.manaCost?.X === "string" ||
+            (typeof def.manaCost?.X === "string" &&
+                !cardInstance.castManaCostReplaced) ||
             def.additionalCosts?.payXLife === true;
         const anchor = e.currentTarget as HTMLElement | null;
         const rect = anchor?.getBoundingClientRect();

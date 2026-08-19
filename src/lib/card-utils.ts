@@ -1843,6 +1843,10 @@ export function getStackAbilities(
              *  either — Thopter Foundry's "sacrifice a nontoken artifact" can
              *  legally sacrifice itself). */
             sacrificeFilter?: PermanentFilter;
+            /** CR 602.1 / 118.5 (issue #2398) — how many matching permanents
+             *  the cost gives up ("Sacrifice ten nonland permanents", Bolas's
+             *  Citadel). Omitted = 1. */
+            sacrificeFilterCount?: number;
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         sorcerySpeedOnly?: boolean;
@@ -1993,7 +1997,7 @@ export function getStackAbilities(
             // mirroring the server exactly here is what keeps it that way.
             const payerId = activatorId ?? card.controllerId;
             const mine = stateView.players.find((p) => p.id === payerId);
-            const hasCandidate = (mine?.battlefield ?? []).some((c) =>
+            const candidateCount = (mine?.battlefield ?? []).filter((c) =>
                 matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
                     selfControllerId: payerId,
                     // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact"
@@ -2005,8 +2009,14 @@ export function getStackAbilities(
                     // wrong, but never an illegal click.
                     selfInstanceId: card.id,
                 })
-            );
-            if (!hasCandidate) return false;
+            ).length;
+            // CR 602.1 / 118.5 (issue #2398) — a multi-permanent sacrifice cost
+            // ("Sacrifice ten nonland permanents", Bolas's Citadel) needs the
+            // COUNT, not mere existence; otherwise the ability is offered with
+            // three permanents out and the server throws on click.
+            if (candidateCount < (a.cost.sacrificeFilterCount ?? 1)) {
+                return false;
+            }
         }
         // CR 606 — a LOYALTY ABILITY (signed `cost.loyalty`) is offered only as
         // a UI hint when its three restrictions can be met; the `activateAbility`
@@ -2195,7 +2205,7 @@ export function getGraveyardStackAbilities(
                 const mine = stateView.players.find(
                     (p) => p.id === card.ownerId
                 );
-                const hasCandidate = (mine?.battlefield ?? []).some((c) =>
+                const candidateCount = (mine?.battlefield ?? []).filter((c) =>
                     matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
                         selfControllerId: card.ownerId,
                         // CR 109.2 (issue #2367) — "Sacrifice ANOTHER <filter>".
@@ -2206,8 +2216,12 @@ export function getGraveyardStackAbilities(
                         // permanently hidden rather than wrongly offered).
                         selfInstanceId: card.id,
                     })
-                );
-                if (!hasCandidate) return false;
+                ).length;
+                // CR 602.1 / 118.5 (issue #2398) — counted, not merely
+                // existence-checked (see the battlefield gate above).
+                if (candidateCount < (a.cost.sacrificeFilterCount ?? 1)) {
+                    return false;
+                }
             }
             if (a.canActivate) {
                 if (!a.canActivate(card as unknown as PermanentView, stateView))

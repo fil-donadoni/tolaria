@@ -39,7 +39,10 @@
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { cloneGameState } from "./clone";
-import { computeLibraryTopRevealedPlayers } from "./libraryReveal";
+import {
+    computeLibraryTopLookedAtPlayers,
+    computeLibraryTopRevealedPlayers,
+} from "./libraryReveal";
 import { shuffleWithRng } from "./rng";
 
 /** Re-tag an instance's zone so the world stays internally consistent after a
@@ -69,9 +72,19 @@ export function determinize(
     // plainly see is something else. Derived from the (public) battlefield, so
     // the observer is entitled to it whichever side the source is on.
     const topRevealed = computeLibraryTopRevealedPlayers(next);
+    // CR 401.5 (issue #2398) — the ASYMMETRIC half: "you may look at the top
+    // card of your library" (Bolas's Citadel) is not public, so it pins the
+    // top card only for the OBSERVER'S OWN library. Pinning an opponent's
+    // looked-at top would hand the search information the bot cannot have;
+    // NOT pinning the observer's own would have it re-sample a card it is
+    // looking at right now.
+    const topLookedAt = computeLibraryTopLookedAtPlayers(next);
 
     for (const player of next.players) {
-        const pinTop = topRevealed.has(player.id) && player.library.length > 0;
+        const pinTop =
+            (topRevealed.has(player.id) ||
+                (player.id === observerId && topLookedAt.has(player.id))) &&
+            player.library.length > 0;
         if (player.id === observerId) {
             // Own hand is known; only the library ORDER is hidden.
             determinizeObserver(player, rng, pinTop);

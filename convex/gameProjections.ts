@@ -13,13 +13,18 @@ import {
     canCastFromGraveyardByPermission,
     canCastPermanentFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
+    canCastSpellsFromTopOfLibrary,
+    isCastableLibraryTopSpell,
     isPlayableLibraryTopLand,
     getLegalActions,
     phyrexianLifePipOptions,
     flashSurchargeRequired,
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
-import { computeLibraryTopRevealedPlayers } from "./gre/libraryReveal";
+import {
+    computeLibraryTopLookedAtPlayers,
+    computeLibraryTopRevealedPlayers,
+} from "./gre/libraryReveal";
 import { flashbackExileEligibleCount, hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
 import {
@@ -144,6 +149,21 @@ export type SlimCompanionSlot = {
  *  never playable by the viewer. */
 export type SlimLibraryCard = SlimCardInstance & {
     legalActions?: CardAction[];
+    /** CR 118.9-analog / 107.3b / 601.2b (issue #2398) — true when the
+     *  cast-from-top permission covering THIS card replaces its mana cost
+     *  wholesale (Bolas's Citadel: "pay life equal to its mana value rather
+     *  than pay its mana cost"), rather than letting it be cast for the printed
+     *  cost (Vizier of the Menagerie's shape).
+     *
+     *  The client has no view of the permission at all — it sees only this
+     *  projected card — and two announcement choices are ILLEGAL on such a
+     *  cast, so both must be suppressed where they are OFFERED and not only
+     *  rejected at the mutation: an `{X}` value (CR 107.3b — "the only legal
+     *  choice for X is 0") and an alternative cost (CR 601.2b — "a player can't
+     *  apply two alternative methods of casting … to a single spell"). Derived
+     *  from the GRANT's `manaCostReplacement` being present at all, so a future
+     *  replacement shape inherits both suppressions without a second field. */
+    castManaCostReplaced?: true;
 };
 
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
@@ -323,7 +343,15 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
  *  the source leaves the battlefield the flag is simply false again. An EMPTY
  *  library reveals nothing (the loop never runs) — `known` stays `[]`.
  *
- *  CR 305.1-analog — `topLandLegalActions`, when supplied, is attached to the
+ *  CR 401.5 (issue #2398) — the same `topRevealed` channel also carries the
+ *  ASYMMETRIC "you may look at the top card of your library" permission
+ *  (Bolas's Citadel, `CardDefinition.looksAtLibraryTop`): the caller ORs it in
+ *  only when the library belongs to the VIEWER, so a looked-at top card
+ *  reaches its own controller and nobody else. This function stays
+ *  viewer-independent — it is told whether index 0 is known to THIS viewer,
+ *  never why.
+ *
+ *  CR 305.1-analog / 601.3e-analog — `topLegalActions`, when supplied, is attached to the
  *  index-0 entry as its `legalActions`: the viewer's OWN library top is a
  *  playable land under a play-lands-from-top-of-library permission (Courser of
  *  Kruphix). Computed by the caller (which alone knows whether this library
@@ -332,14 +360,21 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
  *  spent, or a draw/shuffle moves a different card to the top. It rides the
  *  card object rather than a new wire field, exactly as the graveyard land
  *  affordance does (`SlimGraveyardCard`), so the client's per-card action
- *  overlay needs no new plumbing. Only emitted when index 0 is ALSO known —
+ *  overlay needs no new plumbing. It carries "cast" instead of "play" when the
+ *  top card is a nonland spell the viewer may cast from there (issue #2398,
+ *  Bolas's Citadel) — one field, whichever action the permission grants. Only emitted when index 0 is ALSO known —
  *  which is why it never leaks identity: it is an affordance on a card the
  *  viewer can already see, never a signal about a hidden one. */
 function projectLibrary(
     library: CardInstanceState[],
     viewerId: string,
     topRevealed: boolean = false,
-    topLandLegalActions?: CardAction[]
+    /** The whole index-0 affordance bundle (`legalActions` plus the CR
+     *  118.9-analog cost-replacement flag), or `undefined` when the top card
+     *  carries no affordance for this viewer. Spread verbatim onto the
+     *  projected top card so a new affordance field never needs a new
+     *  positional parameter here. */
+    topAffordance?: Omit<SlimLibraryCard, keyof SlimCardInstance>
 ): PublicLibrary {
     // CR 401.5 — the continuous reveal is viewer-INDEPENDENT and covers exactly
     // index 0; every other position stays gated by per-viewer `knownTo`.
@@ -354,8 +389,8 @@ function projectLibrary(
         known.push({
             index: topEnd,
             card:
-                topEnd === 0 && topLandLegalActions !== undefined
-                    ? { ...slim, legalActions: topLandLegalActions }
+                topEnd === 0 && topAffordance !== undefined
+                    ? { ...slim, ...topAffordance }
                     : slim,
         });
         topEnd++;
@@ -617,30 +652,53 @@ function projectGraveyardCard(
     return slim;
 }
 
-/** CR 305.1-analog (Courser of Kruphix) — the `legalActions` to attach to the
- *  viewer's OWN library top when it is a LAND they currently hold the
- *  play-from-top permission for, or `undefined` when the affordance doesn't
- *  apply at all. Returns the array even when it is empty: an empty
- *  `legalActions` still tells the client "this card is playable in principle,
- *  just not right now" (no land drop left, not your main phase), which is what
- *  renders the Play button DISABLED rather than absent — the same
- *  present-but-empty convention the graveyard land affordance uses.
+/** CR 305.1-analog (Courser of Kruphix) — the affordance bundle to attach to
+ *  the viewer's OWN library top when they currently hold a play/cast-from-top
+ *  permission covering it, or `undefined` when the affordance doesn't apply at
+ *  all. `legalActions` is returned even when it is EMPTY: that still tells the
+ *  client "this card is playable in principle, just not right now" (no land
+ *  drop left, not your main phase), which is what renders the Play/Cast button
+ *  DISABLED rather than absent — the same present-but-empty convention the
+ *  graveyard land affordance uses.
  *
  *  Gated on `player.id === viewerId`: an opponent's library top can legitimately
  *  be known (the CR 401.5 reveal is symmetric — both seats see it) but is never
  *  playable by the viewer, so it must never carry an affordance. */
-function libraryTopLandPlayable(
+function libraryTopAffordance(
     state: GameState,
     player: PlayerState,
     viewerId: string,
     allActions: boolean
-): CardAction[] | undefined {
+): Omit<SlimLibraryCard, keyof SlimCardInstance> | undefined {
     if (player.id !== viewerId) return undefined;
     const top = player.library[0];
-    if (!top || !isPlayableLibraryTopLand(state, player, top.id)) {
+    if (!top) return undefined;
+    // CR 305.1-analog / 601.3e-analog (issue #2398) — the two halves of a
+    // top-of-library permission are orthogonal fields on different cards
+    // (Courser of Kruphix plays lands; Vizier of the Menagerie casts spells;
+    // Bolas's Citadel does both), so the affordance exists when EITHER covers
+    // the top card. `getLegalActions` then decides which action it actually
+    // is — the two branches are mutually exclusive by card type (CR 305.9: a
+    // land is played, never cast).
+    const castable = isCastableLibraryTopSpell(state, player, top.id);
+    if (!isPlayableLibraryTopLand(state, player, top.id) && !castable) {
         return undefined;
     }
-    return getLegalActions(state, player, top, allActions);
+    // CR 118.9-analog / 107.3b / 601.2b (issue #2398) — tell the client when
+    // THIS cast's mana cost is replaced wholesale by the permission, so the
+    // affordance suppresses the X dialog and the alternative-cost picker
+    // instead of offering choices `announceCast` then rejects. Read live off
+    // the grant, like every other field here — the flag disappears with the
+    // granting permanent. Never set on the LAND half (a land is played, not
+    // cast, CR 305.9), hence the `castable` gate.
+    const replaced =
+        castable &&
+        canCastSpellsFromTopOfLibrary(state, player)?.manaCostReplacement !==
+            undefined;
+    return {
+        legalActions: getLegalActions(state, player, top, allActions),
+        ...(replaced ? { castManaCostReplaced: true as const } : {}),
+    };
 }
 
 /** Hydrate a granted ability instance with its template data for the wire. */
@@ -947,6 +1005,12 @@ export function projectPublicState(
     // library revealed (Goblin Spy). Derived live off the battlefield, once per
     // projection; the top card then crosses the wire to BOTH seats (below).
     const libraryTopRevealedPlayers = computeLibraryTopRevealedPlayers(state);
+    // CR 401.5 (issue #2398) — players who may LOOK at their own library top
+    // (Bolas's Citadel). Same live battlefield derivation as the reveal above,
+    // but ASYMMETRIC: the card crosses the wire only to its own controller, so
+    // this set is intersected with the viewer below rather than merged into
+    // the reveal set. A player in both is simply revealed.
+    const libraryTopLookedAtPlayers = computeLibraryTopLookedAtPlayers(state);
 
     const players = state.players.map((player): PublicPlayer => {
         const librarySearch =
@@ -1021,8 +1085,10 @@ export function projectPublicState(
             library: projectLibrary(
                 player.library,
                 viewerId,
-                libraryTopRevealedPlayers.has(player.id),
-                libraryTopLandPlayable(state, player, viewerId, allActions)
+                libraryTopRevealedPlayers.has(player.id) ||
+                    (player.id === viewerId &&
+                        libraryTopLookedAtPlayers.has(player.id)),
+                libraryTopAffordance(state, player, viewerId, allActions)
             ),
             librarySearch,
             libraryPeek,
