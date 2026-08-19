@@ -32,6 +32,7 @@ import {
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
+import { payableAdditionalCostLegs } from "./additionalCost";
 import {
     getLegalActions,
     canCastSpellsFromTopOfLibrary,
@@ -235,6 +236,14 @@ export type Move =
            *  evoke/dash/alt-cost variant later is the same field and needs no
            *  new plumbing — only its own enumeration and its own cost. */
           alternativeCostId?: string;
+          /** CR 601.2b / 118.8 — which leg of a CASTER-CHOSEN additional cost
+           *  ("discard a card or pay 3 life", Bitter Triumph) this variant
+           *  pays, by `AdditionalCostLeg.id`. One Move per PAYABLE leg, the
+           *  same shape `chosenModeId` uses for modes; absent for a card with
+           *  no disjunction. `applyMove` charges the leg in the search tree and
+           *  `executor.ts` names it to `announceCast`, so the Bot's valuation
+           *  and the server's payment see the same cost. */
+          additionalCostLegId?: string;
           chosenX?: number;
           targets: TargetSelection[];
           /** Variable-count targets (CR 601.2c "up to"/X) need an explicit
@@ -865,6 +874,28 @@ function enumerateCastMoves(
               }))
             : [{ modeId: undefined, groups: groupsFor() }];
 
+    // CR 601.2b / 118.8 / 601.2h — a CASTER-CHOSEN additional cost is a real
+    // decision with real board consequences (discard a card vs lose 3 life), so
+    // the Bot gets ONE Move per PAYABLE leg and the search values them against
+    // each other — exactly the modal treatment above. `payableAdditionalCostLegs`
+    // is the SAME authority `getLegalActions`' cast gate and the human client's
+    // picker read, so a leg enumerated here is always a leg `announceCast`
+    // accepts. A card with no disjunction yields the single `undefined` variant,
+    // leaving every existing card's enumeration byte-identical; a card whose
+    // every leg is unpayable never reaches here at all (the gate above already
+    // dropped "cast").
+    const legVariants: (string | undefined)[] = (() => {
+        const payable = payableAdditionalCostLegs(
+            player,
+            def?.additionalCosts,
+            card.id
+        );
+        return payable.length > 0 ? payable.map((l) => l.id) : [undefined];
+    })();
+    const announceVariants = legVariants.flatMap((additionalCostLegId) =>
+        modeVariants.map((v) => ({ ...v, additionalCostLegId }))
+    );
+
     // X spells: enumerate X = 0..maxAffordable. Fixed (numeric) costs use a
     // single X = undefined. The X ceiling comes from the SHARED
     // `maxAffordableX` (rules.ts) — the same helper the human castability gate
@@ -950,7 +981,7 @@ function enumerateCastMoves(
     const flashSurcharge = flashSurchargeOf(card);
 
     const moves: Move[] = [];
-    for (const { modeId, groups } of modeVariants) {
+    for (const { modeId, groups, additionalCostLegId } of announceVariants) {
         // CR 601.2c — the executor sends every announced target in ONE batched
         // `selectTargets` call and then AT MOST ONE trailing `confirmTargets`.
         // A fixed-count group auto-advances inside that batch
@@ -1068,6 +1099,7 @@ function enumerateCastMoves(
                     kind: "cast-spell",
                     cardInstanceId: card.id,
                     chosenModeId: modeId,
+                    ...(additionalCostLegId ? { additionalCostLegId } : {}),
                     chosenX: x,
                     targets,
                     // Only the LAST group can be variable (guarded above), so

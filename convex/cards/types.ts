@@ -1693,6 +1693,50 @@ export interface CostLegs {
     energy?: number;
 }
 
+// --- Additional-cost legs (CR 601.2b / 601.2f / 118.8) ---
+
+/** ONE leg of a caster-chosen ADDITIONAL cost (`additionalCosts.oneOf`).
+ *
+ *  "As an additional cost to cast this spell, discard a card or pay 3 life"
+ *  (Bitter Triumph, Bone Shards) is a DISJUNCTION the caster resolves at
+ *  announcement — CR 601.2b: "the player announces their intentions to pay any
+ *  or all of those costs". This is orthogonal to `alternativeCosts` /
+ *  {@link CostLegs}, which model paying INSTEAD OF the mana cost (CR 118.9);
+ *  every leg here is paid ALONGSIDE it (CR 601.2f).
+ *
+ *  A leg reuses the SAME field vocabulary as `additionalCosts` itself, so the
+ *  chosen leg flattens onto the spec (`resolveAdditionalCosts`,
+ *  `convex/gre/additionalCost.ts`) and every downstream cost site keeps reading
+ *  one flat shape. Declare exactly the fields the leg pays; an empty leg is a
+ *  free leg, and is rejected — with a duplicate or blank id, a blank label and
+ *  a one-leg "disjunction" — by the catalogue guard in
+ *  `convex/__tests__/additionalCostLegChoice.test.ts`. */
+export interface AdditionalCostLeg {
+    /** Stable id the caster names in `announceCast`'s `additionalCostLegId`.
+     *  Unique within the card's `oneOf` — `resolveAdditionalCosts` resolves it
+     *  with a `.find()`, so a duplicate would make the LATER leg unreachable
+     *  and charge the earlier leg's cost for it. Guarded catalogue-wide (see
+     *  {@link AdditionalCostLeg}). */
+    id: string;
+    /** Picker label, e.g. "Discard a card" / "Pay 3 life". */
+    label: string;
+    /** CR 701.9 — "discard a card" leg. See `additionalCosts.discard`. */
+    discard?: { filter?: EffectCardFilter; count: number };
+    /** CR 119.4 — "pay N life" leg. See `additionalCosts.payLife`. */
+    payLife?: number;
+    /** CR 701.21 — "sacrifice a <filter>" leg. See
+     *  `additionalCosts.sacrificeFilter`. */
+    sacrificeFilter?: PermanentFilter;
+    /** CR 701.13 — "exile a <filter>" leg. See `additionalCosts.exileFilter`. */
+    exileFilter?: PermanentFilter;
+}
+
+/** The whole `CardDefinition.additionalCosts` spec (CR 601.2f / 118.8), named
+ *  so the cost helpers and the cast pipeline can pass it around — and so a
+ *  FLATTENED spec (base fields + the caster's chosen {@link AdditionalCostLeg},
+ *  `resolveAdditionalCosts`) has the same type as the declared one. */
+export type AdditionalCostSpec = NonNullable<CardDefinition["additionalCosts"]>;
+
 // --- May-pay cost union (CR 117.3a / 118.4 / 702.24) ---
 
 /** The cost a `requestMayPay` decision offers to pay: the shared
@@ -14403,6 +14447,43 @@ export interface CardDefinition {
          *  graveyard"). `color` filters the eligible cards (CR 105.2); omit for
          *  any card. */
         flashbackExileFromGraveyard?: { color?: Color };
+        /** CR 601.2f / 701.9 — "As an additional cost to cast this spell,
+         *  discard a card." The caster gives up `count` cards FROM HAND as the
+         *  spell is cast; WHICH cards is their choice, routed through the SAME
+         *  cast hand-cost picker every other hand leg uses
+         *  (`PendingCast.alternativeCostHandChoice`, `CostLegs.hand` with
+         *  `action: "discard"`) — parks when the choice is real,
+         *  auto-resolves when forced. An omitted / empty `filter` constrains
+         *  nothing (the untyped "discard a card" shape); the cast card itself
+         *  is never eligible (CR 601.2a — it is on the stack, not in hand).
+         *
+         *  **AUTHORING CONSTRAINT** — the requirement inherits
+         *  `CostLegs.hand`'s greedy, declaration-ordered matching: with several
+         *  overlapping requirements the MOST RESTRICTIVE one must be declared
+         *  first. A single requirement (every printed additional-cost discard
+         *  today) is unaffected. Used by Bitter Triumph / Bone Shards, each
+         *  behind an `oneOf` leg. */
+        discard?: { filter?: EffectCardFilter; count: number };
+        /** CR 601.2b — a CASTER-CHOSEN disjunction: "As an additional cost to
+         *  cast this spell, discard a card OR pay 3 life" (Bitter Triumph).
+         *  The caster names exactly ONE leg at announcement — before targets
+         *  are chosen and before any mana is paid (CR 601.2b precedes
+         *  601.2c/601.2f/601.2h) — via `announceCast`'s `additionalCostLegId`,
+         *  the same plain-mutation-arg shape `chosenModeId` (CR 700.2) and
+         *  `alternativeCostId` (CR 118.9) use, collected by a client-side
+         *  picker. The chosen leg is then FLATTENED onto this spec
+         *  (`resolveAdditionalCosts`, `convex/gre/additionalCost.ts`), so every
+         *  downstream cost site reads one flat shape and no site needs an
+         *  `oneOf` branch.
+         *
+         *  The cast is illegal when NO leg is payable (CR 601.2h — unpayable
+         *  costs can't be paid); `hasPayableAdditionalCost` (`gre/rules.ts`)
+         *  suppresses "cast" from `getLegalActions`, which gates the human
+         *  mutation AND the Bot's enumerator alike. Legs whose own cost is
+         *  unpayable are filtered out of the picker rather than rejected on
+         *  click. Never combine `oneOf` with a same-named sibling field on the
+         *  spec (a flattened leg overwrites it). */
+        oneOf?: AdditionalCostLeg[];
     };
     /** CR 118.9 — alternative casting costs the caster may choose at
      *  announcement INSTEAD of paying this spell's mana cost. Each entry pays

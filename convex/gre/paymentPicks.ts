@@ -480,13 +480,18 @@ export function pickForOwedPayment(
             };
         }
         case "cast:alternativeCostHandChoice": {
-            // Reachability: no `Move` reaches this park today — `moves.ts`
-            // contains zero `additionalCosts` references, so the enumerator
-            // never emits an alt-cost / kicker-paid cast (Force of Will is dead
-            // for the bot rather than stalling). The branch ships anyway: the
-            // census forces the classification, and leaving it out re-creates
-            // the one-park-at-a-time pattern this seam exists to end. It becomes
-            // live the moment #2081 / #2135 land the enumerator variants.
+            // Reachability: LIVE since issue #2379. The park is shared by two
+            // producers, and only one of them reaches it today:
+            //   • CR 118.9 alternative costs with a hand leg (Force of Will) —
+            //     still unreachable: `moves.ts` emits no alt-cost / kicker-paid
+            //     cast variant, so those cards are dead for the bot rather than
+            //     stalling. Live when #2081 / #2135 land the enumerator.
+            //   • CR 601.2b caster-chosen ADDITIONAL cost with a discard leg
+            //     (Bitter Triumph) — REACHED: `moves.ts` enumerates one cast
+            //     per payable leg via `payableAdditionalCostLegs`, and the
+            //     discard leg parks exactly here (`additionalCostHandLeg` feeds
+            //     `buildCastHandCostChoice`'s `extraLegs`). Covered by
+            //     `convex/__tests__/additionalCostLegChoice.test.ts`.
             const choice = pc?.alternativeCostHandChoice;
             if (!choice) return null;
             const ids = pickAlternativeHandCost(player, choice);

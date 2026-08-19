@@ -55,6 +55,11 @@ export type MoveMutations = {
             /** CR 118.9 / 702.103a — chosen alternative casting cost (Bestow
              *  today, issue #2388). */
             alternativeCostId?: string;
+            /** CR 601.2b / 118.8 — the chosen leg of a caster-chosen ADDITIONAL
+             *  cost ("discard a card or pay 3 life"). Named at announcement,
+             *  like the mode; the server rejects the cast without it when the
+             *  card declares a disjunction. */
+            additionalCostLegId?: string;
         }
     ) => Promise<unknown>;
     selectTarget: (
@@ -330,6 +335,11 @@ export async function executeMove(
                 // cast is an Aura spell and the target group the executor
                 // sends next is the one `announceCast` derives from this id.
                 alternativeCostId: move.alternativeCostId,
+                // CR 601.2b — the leg the search actually valued and charged
+                // (`applyAdditionalCostLegForSearch`). Omitting it here would
+                // make `announceCast` throw "must choose which additional cost
+                // to pay" and stall the bot on a move it generated itself.
+                additionalCostLegId: move.additionalCostLegId,
             });
             // issue #1101 — `TargetSelection.type` grew a "hand-card" member
             // for `lookDistribute`'s internal `bind` resolution, but it is never a

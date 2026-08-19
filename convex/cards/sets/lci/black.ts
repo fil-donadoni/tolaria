@@ -3,18 +3,49 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-// TODO(issue #676 stub — "as an additional cost, discard a card or pay 3
-// life" is a CASTER-CHOSEN alternative additional cost; same gap as Bone
-// Shards (mh2/black.ts) — `CardDefinition.additionalCosts` only models ONE
-// fixed leg (no "pick cost A or cost B" shape, and no plain discard-a-card
-// leg at all). Stop-and-issue per gre-development.md; tracked stub.
-// export const bitterTriumph: CardDefinition = {
-//     id: "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f",
-//     name: "Bitter Triumph",
-//     rarity: "uncommon",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Instant"],
-// };
+import type { CardDefinition } from "../../types";
+
+/** Bitter Triumph — {1}{B} Instant. "As an additional cost to cast this spell,
+ *  discard a card or pay 3 life. Destroy target creature or planeswalker."
+ *
+ *  CR 601.2b / 118.8 — the "discard a card OR pay 3 life" clause is a
+ *  CASTER-CHOSEN disjunction of ADDITIONAL costs: both legs are paid ALONGSIDE
+ *  the mana cost (CR 118.8), never instead of it, and the caster names which
+ *  one at ANNOUNCEMENT — before targets (CR 601.2c) and before anything is paid
+ *  (CR 601.2h). That is exactly `additionalCosts.oneOf`; the engine flattens
+ *  the named leg onto the spec (`resolveAdditionalCosts`,
+ *  `convex/gre/additionalCost.ts`) and the ordinary cost machinery pays it —
+ *  the discard through the cast's hand-cost picker (CR 701.9), the life as a
+ *  scalar at commit (CR 119.4).
+ *
+ *  The empty `filter` is the untyped "discard A CARD" shape; the cast card
+ *  itself is never eligible (CR 601.2a — it is on the stack by then). With an
+ *  empty hand AND 3 or less life NEITHER leg is payable, so the spell is not
+ *  castable at all (CR 601.2h). */
+export const bitterTriumph: CardDefinition = {
+    id: "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f",
+    name: "Bitter Triumph",
+    rarity: "uncommon",
+    oracleText:
+        "As an additional cost to cast this spell, discard a card or pay 3 life.\nDestroy target creature or planeswalker.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Instant"],
+    additionalCosts: {
+        oneOf: [
+            {
+                id: "discard",
+                label: "Discard a card",
+                discard: { count: 1 },
+            },
+            { id: "pay-3-life", label: "Pay 3 life", payLife: 3 },
+        ],
+    },
+    targetRequirement: {
+        type: ["Creature", "Planeswalker"],
+        count: 1,
+    },
+    effects: [{ op: "destroy", target: { target: 0 } }],
+};
 
 // TODO(issue #679 stub — Deep-Cavern Bat's leave trigger needs to remember
 // ONE specific card this creature exiled (arbitrarily many turns earlier)

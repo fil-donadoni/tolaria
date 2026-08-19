@@ -1064,7 +1064,8 @@ describe("Kicker permanent-leg collision — rejected in announceCast's PRELUDE,
             cardInHand,
             player,
             kickerPayments,
-            "hand"
+            "hand",
+            cardDef.additionalCosts
         );
         state.pendingTarget = {
             playerId: player.id,
@@ -1155,7 +1156,8 @@ describe("Kicker permanent-leg collision — rejected in announceCast's PRELUDE,
                 cardInHand,
                 player,
                 { "kicker-sac": 1 },
-                "hand"
+                "hand",
+                pipSacProbe.additionalCosts
             )
         ).toThrow(/kicker cost cannot be paid/i);
     });

@@ -185,6 +185,7 @@ import {
 import type {
     AbilityMode,
     ActivatedAbility,
+    AdditionalCostSpec,
     CardDefinition,
     CardType,
     Color,
@@ -278,6 +279,15 @@ import {
     applyBestowCharacteristics,
     isBestowAlternativeCost,
 } from "./gre/bestow";
+// Additional-cost system (CR 118.8 / 601.2b) — costs paid ALONGSIDE the mana
+// cost, including the caster-chosen `oneOf` disjunction.
+import {
+    additionalCostHandLeg,
+    additionalCostLegs,
+    additionalCostLifePayment,
+    canPayAdditionalCostSpec,
+    resolveAdditionalCosts,
+} from "./gre/additionalCost";
 // Kicker cost system (CR 702.33 / 702.33e, ADR 0079) — plural kickers on the
 // shared `CostLegs` vocabulary, payment recorded per kicker id.
 import type { KickerPayments } from "./gre/kicker";
@@ -6134,6 +6144,12 @@ export function finalizeTargetSelection(
     // BEGUN the cast under the permission finishes it at the announced price.
     const flashSurchargePaid = pt.flashSurchargePaid ?? false;
     const chosenModeId = pt.chosenModeId;
+    // CR 601.2b / 118.8 — the ADDITIONAL-cost leg the caster named at
+    // announcement ("discard a card or pay 3 life"), locked in on
+    // `pendingTarget` for exactly the reason `flashSurchargePaid` above is:
+    // target selection is a separate mutation, so this commit must flatten the
+    // leg that was CHOSEN, never re-decide one from the board it now sees.
+    const additionalCostLegId = pt.additionalCostLegId;
     // The absent-kind default is the SHARED one (`gre/constants.ts`), never a
     // local `?? "cast"` — issue #2296 review.
     const kind = resolvePendingTargetKind(pt.kind);
@@ -6655,13 +6671,23 @@ export function finalizeTargetSelection(
         "spell"
     );
 
-    // CR 601.2b / 118.4 — "pay X life" additional cost (Fire Covenant). X was
-    // chosen at announcement and rides on `pt.chosenX`; the life is paid the
-    // instant the spell hits the stack (immediate or deferred commit below).
+    // CR 601.2b / 118.8 — the EFFECTIVE additional cost for this cast: the
+    // declared spec with the caster's chosen `oneOf` leg flattened onto it.
+    // Identity for every card without a disjunction, so each read below is
+    // unchanged for them. Computed ONCE and used at every additional-cost site
+    // in this commit, so no two sites can flatten differently.
+    const effectiveAdditionalCosts = resolveAdditionalCosts(
+        cardDef.additionalCosts,
+        additionalCostLegId
+    );
+
+    // CR 601.2b / 118.4 / 119.4 — the card's OWN "pay X life" / "pay N life"
+    // additional cost (Fire Covenant, Fumarole, Bitter Triumph's chosen life
+    // leg), through the seam BOTH commit paths share. X was chosen at
+    // announcement and rides on `pt.chosenX`; the life is paid the instant the
+    // spell hits the stack (immediate or deferred commit below).
     const payLife =
-        (cardDef.additionalCosts?.payXLife === true ? (chosenX ?? 0) : 0) +
-        // CR 601.2b — a FIXED "pay N life" additional cost (Fumarole).
-        (cardDef.additionalCosts?.payLife ?? 0) +
+        additionalCostLifePayment(effectiveAdditionalCosts, chosenX) +
         // CR 119.4 / 118.9 — the LIFE leg of the chosen alternative cost (Snuff
         // Out "pay 4 life", Force of Will "pay 1 life and exile a blue card").
         (chosenAltCost?.life ?? 0) +
@@ -6695,7 +6721,7 @@ export function finalizeTargetSelection(
             rawCost,
             cardInHand,
             player,
-            cardDef.additionalCosts,
+            effectiveAdditionalCosts,
             cardDef.name ?? "Sacrifice",
             castZone
         );
@@ -6748,12 +6774,19 @@ export function finalizeTargetSelection(
     // two never coexist. CR 702.33a — a paid Kicker's HAND leg joins the same
     // picker. Same rule as the permanent selection above: the builder itself
     // returns `undefined` when no leg contributes, so no leg-count gate.
+    // CR 118.8 / 701.9 — the card's OWN "discard a card" additional cost joins
+    // the SAME picker (see `buildCastHandCostChoice`'s `extraLegs`); the cast
+    // has one hand-cost slot and an additional cost is paid alongside the mana
+    // cost, not instead of it. `undefined` for every card without a discard
+    // leg, so the merged list is unchanged for them.
+    const additionalHandLeg = additionalCostHandLeg(effectiveAdditionalCosts);
     const altHandChoice = buildCastHandCostChoice(
         player,
         chosenAltCost,
         cardDef,
         kickerPayments,
-        cardInstanceId
+        cardInstanceId,
+        additionalHandLeg ? [additionalHandLeg] : []
     );
     // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from your
     // hand" cost (generalized `FlashbackCost.exileFromHand`) also applies to a
@@ -6868,6 +6901,10 @@ export function finalizeTargetSelection(
             ...(kickerPayments ? { kickerPayments } : {}),
             ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
+            // CR 601.2b / 118.8 — the record of WHICH additional-cost leg this
+            // parked cast is paying; the cost itself is already folded into
+            // `payLife` / `alternativeCostHandChoice` / the sacrifice selection.
+            ...(additionalCostLegId ? { additionalCostLegId } : {}),
             ...(exilePicker ? { additionalCost: exilePicker } : {}),
             ...(castSac ? { sacrificeSelection: castSac } : {}),
             ...(castConvokeChoice
@@ -7039,6 +7076,10 @@ export function finalizeTargetSelection(
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(payLife > 0 ? { payLife } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
+            // CR 601.2b / 118.8 — the record of WHICH additional-cost leg this
+            // parked cast is paying; the cost itself is already folded into
+            // `payLife` / `alternativeCostHandChoice` / the sacrifice selection.
+            ...(additionalCostLegId ? { additionalCostLegId } : {}),
             // Auto-resolved sacrifice (complete) rides along so the deferred
             // commit applies the chosen ids (CR 701.21a).
             ...(castSac ? { sacrificeSelection: castSac } : {}),
@@ -7232,7 +7273,12 @@ export function assertKickerAnnouncementLegal(
     cardInHand: CardInstanceState,
     player: PlayerState,
     kickerPayments: KickerPayments | undefined,
-    castFromZone: CastFromZone
+    castFromZone: CastFromZone,
+    /** CR 601.2b — the EFFECTIVE additional cost (the caster's chosen `oneOf`
+     *  leg already flattened on, `resolveAdditionalCosts`). Passed in rather
+     *  than re-read off `cardDef` so this prelude gate prices the same cost the
+     *  commit downstream pays. */
+    effectiveAdditionalCosts: AdditionalCostSpec | undefined
 ): void {
     if (!kickerPayments) return;
     const rawCost = castRawManaCost(state, cardInHand, castFromZone);
@@ -7241,7 +7287,7 @@ export function assertKickerAnnouncementLegal(
         rawCost,
         cardInHand,
         player,
-        cardDef.additionalCosts,
+        effectiveAdditionalCosts,
         cardDef.name ?? "Sacrifice",
         castFromZone
     );
@@ -7354,6 +7400,16 @@ export const announceCast = mutation({
          *  returning / sacrificing the named lands INSTEAD of paying its mana
          *  cost (Gush, Thwart, Fireblast). */
         alternativeCostId: v.optional(v.string()),
+        /** CR 601.2b / 118.8 — which ADDITIONAL-cost leg to pay, by
+         *  `AdditionalCostLeg.id`, when the card declares a caster-chosen
+         *  disjunction (`additionalCosts.oneOf` — Bitter Triumph's "discard a
+         *  card or pay 3 life"). REQUIRED for such a card and rejected for any
+         *  other, mirroring `chosenModeId`. A plain mutation arg, not a
+         *  `PendingChoice`: CR 601.2b puts this choice at ANNOUNCEMENT, before
+         *  targets (601.2c) and before the total cost is locked in (601.2f), so
+         *  it is collected by a client-side picker exactly like the modal mode
+         *  and the alternative cost. */
+        additionalCostLegId: v.optional(v.string()),
         /** CR 107.4f — how many of this cast's Phyrexian pips ({C/P}) to pay
          *  with LIFE (2 each); the rest are paid with the pip's colour of mana.
          *  Omitted → the engine auto-resolves to the most-life affordable split
@@ -7543,12 +7599,60 @@ export const announceCast = mutation({
                 "X can't be greater than the number of snow lands you control"
             );
         }
+        // CR 601.2b / 118.8 — a CASTER-CHOSEN additional cost ("As an
+        // additional cost to cast this spell, discard a card or pay 3 life",
+        // Bitter Triumph): the caster names exactly ONE leg here, at
+        // announcement — before targets (CR 601.2c) and before the total cost
+        // is locked in (CR 601.2f). Same required-iff-declared / unknown-id /
+        // not-declared triad the `chosenModeId` block below uses, plus one rung
+        // the modal case has no analogue for: CR 601.2h — an UNPAYABLE cost
+        // can't be paid, so a named leg the caster cannot afford is rejected
+        // outright rather than parking a cast that can never commit.
+        const declaredLegs = additionalCostLegs(cardDef.additionalCosts);
+        if (declaredLegs.length > 0) {
+            if (!args.additionalCostLegId) {
+                throw new Error(
+                    `${cardDef.name} — must choose which additional cost to pay at announcement`
+                );
+            }
+            const leg = declaredLegs.find(
+                (l) => l.id === args.additionalCostLegId
+            );
+            if (!leg) {
+                throw new Error(
+                    `Unknown additional-cost leg "${args.additionalCostLegId}" for ${cardDef.name}`
+                );
+            }
+            if (
+                !canPayAdditionalCostSpec(
+                    player,
+                    resolveAdditionalCosts(cardDef.additionalCosts, leg.id),
+                    args.cardInstanceId
+                )
+            ) {
+                throw new Error("Can't pay that additional cost");
+            }
+        } else if (args.additionalCostLegId) {
+            throw new Error(
+                "Card declares no additional-cost choice — additionalCostLegId must not be supplied"
+            );
+        }
+        // CR 601.2b — the EFFECTIVE additional cost for this cast: the declared
+        // spec with the chosen leg flattened onto it. Identity for every card
+        // without a disjunction. Every additional-cost read below this line
+        // goes through it, so the announcement and the commit can never price
+        // different legs.
+        const effectiveAdditionalCosts = resolveAdditionalCosts(
+            cardDef.additionalCosts,
+            args.additionalCostLegId
+        );
+
         // CR 601.2b / 118.4 — "pay X life" additional cost (Fire Covenant):
         // the caster chooses X independently of the mana cost. Validate it's
         // present, non-negative, and affordable from current life (you can't
         // pay more life than you have, CR 119.4). The life itself is paid at
         // cast commit (finalizeTargetSelection / no-target commit), CR 601.2h.
-        const payXLife = cardDef.additionalCosts?.payXLife === true;
+        const payXLife = effectiveAdditionalCosts?.payXLife === true;
         if (payXLife) {
             if (args.chosenX === undefined || args.chosenX < 0) {
                 throw new Error("Must choose X (≥ 0) life to pay");
@@ -7559,13 +7663,13 @@ export const announceCast = mutation({
         }
         // CR 601.2b / 118.4 — a FIXED "pay N life" additional cost (Fumarole):
         // the cast is illegal if the caster's life is below N.
-        const fixedPayLife = cardDef.additionalCosts?.payLife ?? 0;
+        const fixedPayLife = effectiveAdditionalCosts?.payLife ?? 0;
         if (fixedPayLife > 0 && player.life < fixedPayLife) {
             throw new Error("Cannot pay more life than you have");
         }
         // CR 107.3 / 608.2g — X derived from an opponent's graveyard at cast
         // time (Spoils of War). Computed by the engine, not chosen / paid.
-        const gyDeriv = cardDef.additionalCosts?.xFromOpponentGraveyard;
+        const gyDeriv = effectiveAdditionalCosts?.xFromOpponentGraveyard;
         const derivedGraveyardX = gyDeriv
             ? countOpponentGraveyardCards(
                   state,
@@ -7661,7 +7765,8 @@ export const announceCast = mutation({
             cardInHand,
             player,
             kickerPayments,
-            castFromZone
+            castFromZone,
+            effectiveAdditionalCosts
         );
 
         // CR 702.27 — validate and canonicalize the optional Buyback choice
@@ -7853,6 +7958,13 @@ export const announceCast = mutation({
                 // selection so it is paid at cast commit (finalizeTargetSelection).
                 ...(args.alternativeCostId
                     ? { alternativeCostId: args.alternativeCostId }
+                    : {}),
+                // CR 601.2b / 118.8 — carry the chosen ADDITIONAL-cost leg
+                // through target selection: the leg was picked at announcement
+                // (CR 601.2b, before targets), but the cost is assembled and
+                // paid at cast commit, which is a later mutation.
+                ...(args.additionalCostLegId
+                    ? { additionalCostLegId: args.additionalCostLegId }
                     : {}),
                 // CR 601.2 (issue #2473) — carry the ANNOUNCEMENT-time timing
                 // snapshot through target selection so the commit downstream
@@ -8140,9 +8252,22 @@ export const announceCast = mutation({
         }
         // CR 702.33a / 118.4 — the LIFE leg of every paid Kicker joins the
         // Phyrexian life on this cast's single life payment (ADR 0079).
+        //
+        // CR 601.2b / 118.4 / 119.4 — so does the card's OWN "pay N life" /
+        // "pay X life" additional cost. This term was MISSING: the targeted
+        // commit (`finalizeTargetSelection`) has always folded it, but a
+        // NON-targeting spell reaches this branch instead and paid nothing —
+        // Toxic Deluge's "pay X life" (c13, `payXLife`) was validated as
+        // affordable at announcement and then never charged. The two commit
+        // paths owe the same cost, so they now compute it through the SAME
+        // seam (`additionalCostLifePayment`) rather than two hand-written
+        // copies; the caster-chosen `oneOf` life leg (Bitter Triumph's "pay 3
+        // life") rides it too, via the already-flattened
+        // `effectiveAdditionalCosts`.
         const phyrexianPayLife =
             phyrexianPayment.payLife +
             kickerLifeCost(cardDef, kickerPayments) +
+            additionalCostLifePayment(effectiveAdditionalCosts, chosenX) +
             // CR 118.9-analog / 119.4 (issue #2398) — the life that REPLACES
             // the whole mana cost on a cast off the top of the library
             // (Bolas's Citadel). `castRawManaCost` already zeroed the mana
@@ -8169,7 +8294,7 @@ export const announceCast = mutation({
             rawCost,
             cardInHand,
             player,
-            cardDef.additionalCosts,
+            effectiveAdditionalCosts,
             cardDef.name ?? "Sacrifice",
             castFromZone
         );
@@ -8202,12 +8327,20 @@ export const announceCast = mutation({
             cardDef.name ?? "Kicker"
         );
         const castSac = kickerPermSel ?? ownSac;
+        // CR 118.8 / 701.9 — the card's OWN "discard a card" additional cost
+        // joins the cast's single hand-cost picker, exactly as it does on the
+        // targeted commit path (`finalizeTargetSelection`). `undefined` for
+        // every card without a discard leg.
+        const additionalHandLeg = additionalCostHandLeg(
+            effectiveAdditionalCosts
+        );
         const kickerHandChoice = buildCastHandCostChoice(
             player,
             undefined,
             cardDef,
             kickerPayments,
-            args.cardInstanceId
+            args.cardInstanceId,
+            additionalHandLeg ? [additionalHandLeg] : []
         );
         // CR 702.34a / 118.5 — Flash of Insight's flashback-only additional
         // cost "Exile X blue cards from your graveyard". Applies ONLY on a
@@ -8217,7 +8350,7 @@ export const announceCast = mutation({
         // picker so commit gates on it. A zero-X flashback cast has no exile
         // cost (the spell looks at 0 cards).
         const fbExileSpec =
-            cardDef.additionalCosts?.flashbackExileFromGraveyard;
+            effectiveAdditionalCosts?.flashbackExileFromGraveyard;
         let castExileChoice: PendingCast["exileFromGraveyardChoice"];
         if (
             fbExileSpec &&
@@ -8376,6 +8509,13 @@ export const announceCast = mutation({
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
+                // CR 601.2b / 118.8 — the record of WHICH additional-cost leg
+                // this parked cast is paying (the cost itself is already folded
+                // into `payLife` / `alternativeCostHandChoice` / the sacrifice
+                // selection above).
+                ...(args.additionalCostLegId
+                    ? { additionalCostLegId: args.additionalCostLegId }
+                    : {}),
                 ...(exilePicker ? { additionalCost: exilePicker } : {}),
                 ...(castSac ? { sacrificeSelection: castSac } : {}),
                 ...(castConvokeChoice
@@ -8531,6 +8671,11 @@ export const announceCast = mutation({
                 ...(phyrexianPayLife > 0 ? { payLife: phyrexianPayLife } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
+                    : {}),
+                // CR 601.2b / 118.8 — see the matching field on the
+                // sacrifice-park write above.
+                ...(args.additionalCostLegId
+                    ? { additionalCostLegId: args.additionalCostLegId }
                     : {}),
                 // Auto-resolved sacrifice (complete) rides along so the
                 // deferred commit applies the chosen ids (CR 701.21a).

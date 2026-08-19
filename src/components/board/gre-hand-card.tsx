@@ -175,6 +175,7 @@ export default function GreHandCard({
         modePickerOverlay,
         altCostPickerOverlay,
         phyrexianPickerOverlay,
+        additionalCostPickerOverlay,
         costDialogOverlay,
     } = useHandCardCommit(card);
 
@@ -470,6 +471,7 @@ export default function GreHandCard({
             {modePickerOverlay}
             {altCostPickerOverlay}
             {phyrexianPickerOverlay}
+            {additionalCostPickerOverlay}
             {costDialogOverlay}
         </div>
     );

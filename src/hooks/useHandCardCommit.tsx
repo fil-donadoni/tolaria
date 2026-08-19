@@ -13,6 +13,7 @@ import {
     affordableAltCostsForCard,
     affordableKickersForCard,
     manaCostToString,
+    payableAdditionalCostLegsForCard,
     phyrexianSplitChoices,
     type PhyrexianSplitChoice,
 } from "~/lib/card-utils";
@@ -20,8 +21,9 @@ import type { CardInstance } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
 import PhyrexianPicker from "~/components/cards/phyrexian-picker";
+import AdditionalCostPicker from "~/components/cards/additional-cost-picker";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
-import type { AlternativeCost } from "@convex/cards/types";
+import type { AdditionalCostLeg, AlternativeCost } from "@convex/cards/types";
 
 type ModePickerState = {
     chosenX: number | undefined;
@@ -45,6 +47,21 @@ type AltCostPickerState = {
     altCosts: AlternativeCost[];
 };
 
+/** CR 601.2b / 118.8 — open state for the caster-chosen ADDITIONAL-cost picker
+ *  ("discard a card or pay 3 life"). Present while the caster picks a leg; the
+ *  chosen id rides `announceCast`'s `additionalCostLegId`. */
+type AdditionalCostPickerState = {
+    chosenX: number | undefined;
+    kickerPayments: Record<string, number> | undefined;
+    buyback: boolean | undefined;
+    payFlashSurcharge: boolean | undefined;
+    keepPriority: boolean | undefined;
+    position: { x: number; y: number };
+    /** The legs the caster can currently AFFORD (CR 601.2h) — an unpayable leg
+     *  is never offered, so clicking a row can't throw a hard rejection. */
+    legs: AdditionalCostLeg[];
+};
+
 /** CR 107.4f — open state for the Phyrexian mana-vs-life split picker. Present
  *  while the caster picks how many `{C/P}` pips to pay with life; the chosen
  *  value rides `announceCast`'s `phyrexianLifePips`. */
@@ -56,6 +73,10 @@ type PhyrexianPickerState = {
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
     choices: PhyrexianSplitChoice[];
+    /** CR 601.2b — the additional-cost leg already chosen upstream, carried so
+     *  the final dispatch still sends it (the Phyrexian step is downstream of
+     *  the leg picker in CR 601.2b's own announcement order). */
+    additionalCostLegId: string | undefined;
 };
 
 /** Cost-choice dialog state (CR 601.2b {X} + CR 702.33 Kicker + CR 702.27 buyback
@@ -117,6 +138,8 @@ export function useHandCardCommit(
         useState<AltCostPickerState | null>(null);
     const [phyrexianPickerState, setPhyrexianPickerState] =
         useState<PhyrexianPickerState | null>(null);
+    const [additionalCostPickerState, setAdditionalCostPickerState] =
+        useState<AdditionalCostPickerState | null>(null);
     const [costDialogState, setCostDialogState] =
         useState<CostDialogState | null>(null);
 
@@ -160,6 +183,10 @@ export function useHandCardCommit(
         payFlashSurcharge?: boolean | undefined;
         /** CR 107.4f — how many `{C/P}` pips the caster chose to pay with life. */
         phyrexianLifePips?: number | undefined;
+        /** CR 601.2b / 118.8 — which leg of a caster-chosen ADDITIONAL cost to
+         *  pay ("discard a card or pay 3 life"). Required by the server for a
+         *  card declaring `additionalCosts.oneOf`, rejected for any other. */
+        additionalCostLegId?: string | undefined;
     }) {
         // Every pre-cast picker is DONE the moment the cast is dispatched —
         // clear them all here rather than trusting each picker to close itself.
@@ -172,6 +199,7 @@ export function useHandCardCommit(
         setModePickerState(null);
         setAltCostPickerState(null);
         setPhyrexianPickerState(null);
+        setAdditionalCostPickerState(null);
         setCostDialogState(null);
         // Same in-flight drop as `onPlayClick` — a double swipe / double click
         // never reaches the server twice.
@@ -190,6 +218,7 @@ export function useHandCardCommit(
                     buyback: args.buyback,
                     payFlashSurcharge: args.payFlashSurcharge,
                     phyrexianLifePips: args.phyrexianLifePips,
+                    additionalCostLegId: args.additionalCostLegId,
                 })
             )
         ).catch(reportError);
@@ -213,6 +242,13 @@ export function useHandCardCommit(
         payFlashSurcharge: boolean | undefined;
         keepPriority: boolean | undefined;
         position: { x: number; y: number };
+        /** CR 601.2b / 118.8 — set once the caster has picked a leg of a
+         *  caster-chosen ADDITIONAL cost; the leg picker below re-enters this
+         *  same tail with it filled in, so the remaining announcement steps
+         *  (Phyrexian split, dispatch) run identically either way. `undefined`
+         *  on the first pass — which is exactly the "not asked yet" signal the
+         *  leg gate reads. */
+        additionalCostLegId?: string | undefined;
     }) {
         const {
             chosenX,
@@ -221,6 +257,7 @@ export function useHandCardCommit(
             payFlashSurcharge,
             keepPriority,
             position,
+            additionalCostLegId,
         } = params;
         const def = getDefinition(cardInstance.card.id);
         // CR 700.2 — modal spell: pick a mode before announcement.
@@ -310,6 +347,37 @@ export function useHandCardCommit(
                 return;
             }
         }
+        // CR 601.2b / 118.8 — a spell with a CASTER-CHOSEN additional cost
+        // ("As an additional cost to cast this spell, discard a card or pay 3
+        // life", Bitter Triumph): the caster names one leg BEFORE targets
+        // (CR 601.2c) and before any payment (CR 601.2h), so the picker opens
+        // here and its answer rides `announceCast`'s `additionalCostLegId`.
+        // Only PAYABLE legs are offered — an empty hand hides the discard leg,
+        // 3-or-less life hides the life leg — so a click can never throw a
+        // hard "Can't pay that additional cost" rejection; a card whose EVERY
+        // leg is unpayable is not castable at all and `getLegalActions`
+        // suppressed its Cast affordance upstream. The `undefined` guard is
+        // what makes the picker's own re-entry fall through instead of
+        // re-asking forever.
+        if (additionalCostLegId === undefined) {
+            const legs = payableAdditionalCostLegsForCard(
+                cardInstance,
+                playerId,
+                allPlayers
+            );
+            if (legs.length > 0) {
+                setAdditionalCostPickerState({
+                    chosenX,
+                    kickerPayments,
+                    buyback,
+                    payFlashSurcharge,
+                    keepPriority,
+                    position,
+                    legs,
+                });
+                return;
+            }
+        }
         // CR 107.4f — a Phyrexian-mana spell whose `{C/P}` pips can be paid with
         // EITHER colour or 2 life (both legs affordable): let the caster pick the
         // split before announcement instead of silently auto-charging life. The
@@ -326,6 +394,7 @@ export function useHandCardCommit(
                 keepPriority,
                 position,
                 choices: phyrexianChoices,
+                additionalCostLegId,
             });
             return;
         }
@@ -336,6 +405,7 @@ export function useHandCardCommit(
             kickerPayments,
             buyback,
             payFlashSurcharge,
+            additionalCostLegId,
         });
     }
 
@@ -507,6 +577,7 @@ export function useHandCardCommit(
                         buyback,
                         payFlashSurcharge,
                         keepPriority,
+                        additionalCostLegId,
                     } = phyrexianPickerState;
                     setPhyrexianPickerState(null);
                     commitAnnounceCast({
@@ -517,9 +588,46 @@ export function useHandCardCommit(
                         buyback,
                         payFlashSurcharge,
                         phyrexianLifePips: lifePips,
+                        additionalCostLegId,
                     });
                 }}
                 onCancel={() => setPhyrexianPickerState(null)}
+            />
+        ) : null;
+
+    const additionalCostPickerOverlay =
+        additionalCostPickerState &&
+        additionalCostPickerState.legs.length > 0 ? (
+            <AdditionalCostPicker
+                legs={additionalCostPickerState.legs}
+                cardName={def.name}
+                position={additionalCostPickerState.position}
+                onSelect={(legId) => {
+                    const {
+                        chosenX,
+                        kickerPayments,
+                        buyback,
+                        payFlashSurcharge,
+                        keepPriority,
+                        position,
+                    } = additionalCostPickerState;
+                    setAdditionalCostPickerState(null);
+                    // Re-enter the SAME announcement tail with the leg filled
+                    // in, rather than dispatching from here: the Phyrexian
+                    // split (CR 107.4f) is downstream of this choice in
+                    // CR 601.2b's order, and a card carrying both must still
+                    // see it.
+                    proceedAfterCost({
+                        chosenX,
+                        kickerPayments,
+                        buyback,
+                        payFlashSurcharge,
+                        keepPriority,
+                        position,
+                        additionalCostLegId: legId,
+                    });
+                }}
+                onCancel={() => setAdditionalCostPickerState(null)}
             />
         ) : null;
 
@@ -562,6 +670,7 @@ export function useHandCardCommit(
         modePickerOverlay,
         altCostPickerOverlay,
         phyrexianPickerOverlay,
+        additionalCostPickerOverlay,
         costDialogOverlay,
     };
 }

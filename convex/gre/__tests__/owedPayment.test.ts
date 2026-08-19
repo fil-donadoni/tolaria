@@ -53,6 +53,7 @@ const FULL_CAST: Required<PendingCast> = {
     targetAmounts: {},
     payLife: 0,
     chosenModeId: "m",
+    additionalCostLegId: "leg-life",
     actingPlayerId: P1,
     additionalCost: { kind: "exile", filter: {}, pickedId: undefined },
     sacrificeSelection: {

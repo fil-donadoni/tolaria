@@ -54,6 +54,7 @@ import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { affordableAlternativeCosts } from "./alternativeCost";
+import { canPayAnyAdditionalCost } from "./additionalCost";
 import {
     getFlashbackCost,
     getFlashbackAdditionalCost,
@@ -1139,19 +1140,25 @@ export function getLegalActions(
     return actions;
 }
 
-/** CR 118.8 / 601.2f: a spell whose additional cost is "sacrifice/exile a
- *  permanent matching a filter" (Natural Order, Soul Exchange) can only be
- *  cast if the caster controls at least one legal permanent to pay that
- *  cost — you can't announce a spell whose additional cost is unpayable.
- *  Suppressing "cast" here also blocks the server path, since
- *  `assertLegalAction` rejects the cast mutation when "cast" is absent,
- *  which keeps `buildAdditionalCostPicker` (convex/game.ts) — which throws
- *  on zero candidates — unreachable from announceCast. Cards without a
- *  sacrifice/exile additional cost are unaffected. Effective colours are
- *  derived per-candidate via the layer system (mirrors `tapOtherCandidates`
- *  in game.ts) so a `colors` filter (Natural Order's "a green creature")
- *  reads the same colour the rest of the engine sees, not the raw instance
- *  which carries no `colors` field of its own. */
+/** CR 118.8 / 601.2f / 601.2h: you can't announce a spell whose additional cost
+ *  is unpayable ("unpayable costs can't be paid"). Suppressing "cast" here also
+ *  blocks the server path, since `assertLegalAction` rejects the cast mutation
+ *  when "cast" is absent, which keeps `buildAdditionalCostPicker`
+ *  (convex/game.ts) — which throws on zero candidates — unreachable from
+ *  announceCast. The Bot enumerates from this same gate, so a cast it offers is
+ *  always one it can pay for.
+ *
+ *  Delegates to `canPayAnyAdditionalCost` (`gre/additionalCost.ts`), the single
+ *  authority shared with the client-side leg picker and the Bot's enumerator:
+ *  the "sacrifice/exile a matching permanent" leg (Natural Order, Soul
+ *  Exchange), the fixed "pay N life" leg (CR 119.4 — Fumarole), the "discard a
+ *  card" leg (CR 701.9) and — the reason it is a delegation rather than a
+ *  filter lookup — a CASTER-CHOSEN DISJUNCTION (CR 601.2b `oneOf`, Bitter
+ *  Triumph), payable iff SOME leg is. Effective colours are derived
+ *  per-candidate via the layer system there (mirrors `tapOtherCandidates` in
+ *  game.ts) so a `colors` filter (Natural Order's "a green creature") reads the
+ *  same colour the rest of the engine sees. Cards with no additional cost are
+ *  unaffected. */
 function hasPayableAdditionalCost(
     player: PlayerState,
     card: CardInstanceState
@@ -1159,16 +1166,7 @@ function hasPayableAdditionalCost(
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return true;
     const def = tryGetDefinition(cardId);
-    const filter =
-        def?.additionalCosts?.sacrificeFilter ??
-        def?.additionalCosts?.exileFilter;
-    if (!filter) return true;
-    return player.battlefield.some((c) => {
-        const view = { ...c, colors: STATIC_EFFECT_CTX.getColors(c) };
-        return matchesPermanentFilter(view, filter, {
-            selfControllerId: player.id,
-        });
-    });
+    return canPayAnyAdditionalCost(player, def?.additionalCosts, card.id);
 }
 
 /** CR 702.138a — affordability gate for the ESCAPE additional cost "exile N
