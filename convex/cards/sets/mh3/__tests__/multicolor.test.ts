@@ -348,6 +348,7 @@ function becameTarget(
 ): GameEvent {
     return {
         type: "BECAME_TARGET",
+        sourceKind: "spell",
         target: { type: "permanent", id: instanceId },
         targetControllerId,
         sourceControllerId,

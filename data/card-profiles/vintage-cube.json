@@ -1692,6 +1692,12 @@
             "provides": ["cheap-artifact"],
             "requires": [],
             "reviewed": false
+        },
+        "3fcb7810-1054-4001-855c-6e17939b3d3f": {
+            "archetypes": ["artifacts", "control"],
+            "provides": [],
+            "requires": [],
+            "reviewed": false
         }
     }
 }

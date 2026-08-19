@@ -115,7 +115,13 @@ describe("Phantasmal Image (copy + Illusion subtype + self-sac trigger, CR 707.2
         const removal = pushSpell(state, REMOVAL_ID, "p2", [
             { type: "permanent", id: "image1" },
         ]);
-        emitBecameTargetEvents(state, removal.targets, "p2", removal.id);
+        emitBecameTargetEvents(
+            state,
+            removal.targets,
+            "p2",
+            removal.id,
+            "spell"
+        );
         processPendingActionTriggers(state);
         // The self-sac trigger is now ON TOP of the removal spell — assert
         // this explicitly (not just the eventual graveyard outcome, which
@@ -169,6 +175,7 @@ describe("Phantasmal Image (copy + Illusion subtype + self-sac trigger, CR 707.2
             template.matches(
                 {
                     type: "BECAME_TARGET",
+                    sourceKind: "spell",
                     target: { type: "permanent", id: "image1" },
                     targetControllerId: "p1",
                     sourceControllerId: "p1",
@@ -182,6 +189,7 @@ describe("Phantasmal Image (copy + Illusion subtype + self-sac trigger, CR 707.2
             template.matches(
                 {
                     type: "BECAME_TARGET",
+                    sourceKind: "spell",
                     target: { type: "permanent", id: "some-other-creature" },
                     targetControllerId: "p1",
                     sourceControllerId: "p1",

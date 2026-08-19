@@ -27,6 +27,7 @@ import * as wth from "./sets/wth";
 import * as tsp from "./sets/tsp";
 import * as csp from "./sets/csp";
 import * as ltc from "./sets/ltc";
+import * as cns from "./sets/cns";
 import * as cn2 from "./sets/cn2";
 import * as thb from "./sets/thb";
 import * as fut from "./sets/fut";
@@ -206,6 +207,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "tsp", exports: tsp },
     { code: "csp", exports: csp },
     { code: "ltc", exports: ltc },
+    { code: "cns", exports: cns },
     { code: "cn2", exports: cn2 },
     { code: "thb", exports: thb },
     { code: "fut", exports: fut },

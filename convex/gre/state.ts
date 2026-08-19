@@ -32,6 +32,7 @@ import {
     type PermanentView,
     type SpellCastEvent,
     type BecameTargetEvent,
+    type BecameTargetSourceKind,
     type SourceDamagePreventionShield,
     type SpellContext,
     type StaticEffect,
@@ -9380,7 +9381,16 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // its stack item here, so this doubles as the target-declaration choke for
     // "whenever ~ becomes the target of a spell" triggers (Leovold). A
     // non-targeted spell carries no `targets` → no-op.
-    emitBecameTargetEvents(state, item.targets, item.castById, item.id);
+    // `"spell"` (issue #2360): this is the CAST choke point (CR 601.2c) — a
+    // spell copy never reaches this function, so nothing but a genuinely cast
+    // spell ever claims that kind.
+    emitBecameTargetEvents(
+        state,
+        item.targets,
+        item.castById,
+        item.id,
+        "spell"
+    );
     collectCastTriggers(state, item, event);
 }
 
@@ -9400,12 +9410,21 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
  *  reflexive "counter that spell or ability" trigger (Ward, CR 702.21a/e) can
  *  pin its own target to the EXACT causing object instead of any object that
  *  merely also targets the same permanent (the two-simultaneous-targeters
- *  fix, `gre/rules.ts` `raiseTriggerTargetSelection`). */
+ *  fix, `gre/rules.ts` `raiseTriggerTargetSelection`).
+ *
+ *  `sourceKind` (issue #2360) is the caller's own declaration of WHAT is
+ *  announcing these targets — a cast spell, an activated ability or a
+ *  triggered ability. It is a required parameter precisely so every present
+ *  and future producer must answer: a trigger scoped to "whenever you CAST A
+ *  SPELL that targets…" (Dack Fayden's emblem) reads it and fires only for
+ *  `"spell"`, and an unclassified new emitter would not compile rather than
+ *  silently widening that trigger to activated abilities. */
 export function emitBecameTargetEvents(
     state: GameState,
     targets: readonly TargetSelection[] | undefined,
     sourceControllerId: string,
-    sourceInstanceId: string
+    sourceInstanceId: string,
+    sourceKind: BecameTargetSourceKind
 ): void {
     if (!targets || targets.length === 0) return;
     const events: BecameTargetEvent[] = [];
@@ -9432,6 +9451,7 @@ export function emitBecameTargetEvents(
             targetControllerId,
             sourceControllerId,
             sourceInstanceId,
+            sourceKind,
         });
     }
     if (events.length > 0) {

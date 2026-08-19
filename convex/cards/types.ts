@@ -8372,10 +8372,38 @@ export interface CounterAddedEvent {
  *  resolves the targeted object's controller at emit time so a trigger's
  *  `matches()` can test "you or a permanent you control" with a single
  *  comparison and filter to an opponent's source without a battlefield scan. */
+/** Which sort of stack object announced the targets that raised a
+ *  `BECAME_TARGET` event (issue #2360). Three shapes exist in the engine and
+ *  each producer names its own:
+ *   - `"spell"` — a spell being CAST locks its announced targets (CR 601.2c).
+ *     `emitSpellCastEvent` is the only site; a spell COPY put onto the stack
+ *     never reaches it (CR 707.10 — a copy isn't cast), so it never claims this
+ *     kind.
+ *   - `"activated-ability"` — an activated ability's targets lock as it is put
+ *     onto the stack (CR 602.2b), immediately or after deferred payment.
+ *   - `"triggered-ability"` — a triggered ability's targets are chosen as it is
+ *     put onto the stack (CR 603.3d), by the player or auto-selected when
+ *     exactly one legal target exists. */
+export type BecameTargetSourceKind =
+    | "spell"
+    | "activated-ability"
+    | "triggered-ability";
+
 export interface BecameTargetEvent {
     type: "BECAME_TARGET";
     /** The object that became a target — a permanent or a player. */
     target: TargetSelection;
+    /** What KIND of stack object announced this target (issue #2360). The
+     *  event fires for every targeting source — a cast spell (CR 601.2c), an
+     *  activated ability and a triggered ability all announce targets — but
+     *  oracle text routinely scopes to only one of them ("whenever you CAST A
+     *  SPELL that targets…", Dack Fayden's emblem). `sourceControllerId` alone
+     *  cannot tell them apart, and `sourceInstanceId` is an opaque stack-item
+     *  id, so the producer declares it explicitly. REQUIRED, so a new producer
+     *  cannot inherit a permissive default: an emblem/keyword scoped to
+     *  "spell" fails CLOSED for anything a future emitter forgets to classify.
+     *  Ward (CR 702.21a, "spell or ability") deliberately ignores it. */
+    sourceKind: BecameTargetSourceKind;
     /** Controller of the targeted object at emit time: for a permanent target
      *  its `controllerId`; for a player target the player id itself. So "you or
      *  a permanent you control" is `targetControllerId === self.controllerId`. */

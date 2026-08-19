@@ -270,7 +270,15 @@ export function applyRaisedTargetFinalization(
         // CR 603.2b / 603.3d (issue #1265) — a targeted trigger's targets
         // are locked at announcement; fire "becomes the target of an ability"
         // triggers (Leovold) for this trigger's controller.
-        emitBecameTargetEvents(state, targets, trig.controllerId, trig.id);
+        // `"triggered-ability"` (issue #2360) — a trigger's targets, chosen by
+        // its controller; never a cast spell (CR 603.3d).
+        emitBecameTargetEvents(
+            state,
+            targets,
+            trig.controllerId,
+            trig.id,
+            "triggered-ability"
+        );
     }
     // Despite its name this also runs the CR 603.3c MODE announcement for any
     // still-un-announced modal trigger of the batch first (issue #2461).

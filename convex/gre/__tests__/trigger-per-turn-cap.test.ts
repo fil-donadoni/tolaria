@@ -82,6 +82,7 @@ registerTokenDefinition({
 function becameTarget(instanceId: string): GameEvent {
     return {
         type: "BECAME_TARGET",
+        sourceKind: "spell",
         target: { type: "permanent", id: instanceId },
         targetControllerId: "p1",
         sourceControllerId: "p1",

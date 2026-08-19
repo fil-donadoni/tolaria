@@ -2816,6 +2816,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Dack Fayden",
+        "scryfallId": "3fcb7810-1054-4001-855c-6e17939b3d3f",
+        "oracleId": "9d4b1e44-3c66-4b1b-8a1d-308aa4f841f8",
+        "firstSet": "cns",
+        "firstPrintId": "3fcb7810-1054-4001-855c-6e17939b3d3f",
+        "firstPrintSet": "cns"
+    },
+    {
         "name": "Dakkon Blackblade",
         "scryfallId": "fbfd1278-1486-4516-8846-007ce1985ee9",
         "oracleId": "1aa78e3b-bf7e-4645-9521-4b3537c93f46",

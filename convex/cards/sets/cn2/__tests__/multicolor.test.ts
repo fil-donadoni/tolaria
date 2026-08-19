@@ -138,6 +138,7 @@ describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)
 
         const targetedByOpponent: GameEvent = {
             type: "BECAME_TARGET",
+            sourceKind: "spell",
             target: { type: "permanent", id: "leo" },
             targetControllerId: "p2",
             sourceControllerId: "p1",
@@ -153,6 +154,7 @@ describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)
                 trig.matches(
                     {
                         type: "BECAME_TARGET",
+                        sourceKind: "spell",
                         target: { type: "player", id: "p2" },
                         targetControllerId: "p2",
                         sourceControllerId: "p1",
@@ -203,7 +205,8 @@ describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)
                 state,
                 [{ type: "permanent", id: "leo" }],
                 "p1",
-                "opponent-spell-1"
+                "opponent-spell-1",
+                "spell"
             );
             processPendingActionTriggers(state);
             // Leovold's trigger resolves and raises the optional draw.
@@ -220,7 +223,8 @@ describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)
                 state,
                 [{ type: "permanent", id: "leo" }],
                 "p1",
-                "opponent-spell-1"
+                "opponent-spell-1",
+                "spell"
             );
             processPendingActionTriggers(state);
             resolveTopOfStack(state);
@@ -234,7 +238,8 @@ describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)
                 state,
                 [{ type: "permanent", id: "leo" }],
                 "p2",
-                "opponent-spell-1"
+                "opponent-spell-1",
+                "spell"
             );
             processPendingActionTriggers(state);
             expect(state.stack).toHaveLength(0);
@@ -257,7 +262,8 @@ describe("Leovold, Emissary of Trest (CR 614 / 603.2b, ADR 0061 — issue #1265)
                 state,
                 [{ type: "permanent", id: "leo" }],
                 "p1",
-                "opponent-spell-1"
+                "opponent-spell-1",
+                "spell"
             );
             processPendingActionTriggers(state);
             resolveTopOfStack(state);

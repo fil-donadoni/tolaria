@@ -227,3 +227,84 @@ registerEmblemDefinition({
     imagePrintId: "c88e2bea-9c95-447e-bc9d-7d7f8ea40567",
     staticEffects: [{ kind: "hand-size-override", value: "unlimited" }],
 });
+
+/** Dack Fayden −6 emblem (CNS, issues #2360 / #1571). A TRIGGERED emblem
+ *  (CR 114.4, 113.3) — "Whenever you cast a spell that targets one or more
+ *  permanents, gain control of those permanents."
+ *
+ *  SEAM (issue #2360). The trigger needs the CAST spell's chosen targets, and
+ *  `SPELL_CAST` cannot carry them: `SpellCastEvent` has no target field, and an
+ *  `EVENT_FIELD_REGISTRY` row (`EventFieldRow`, `mechanicsRegistry.ts`)
+ *  resolves an event to EXACTLY ONE id — it structurally cannot express "the
+ *  list of permanents this spell targets". `BECAME_TARGET` is the event that
+ *  already carries a targeted object (CR 601.2c: "the chosen objects each
+ *  become a target of that spell… any abilities that trigger when those
+ *  objects become the target of a spell trigger at this point"), and
+ *  `EVENT_FIELD_REGISTRY.BECAME_TARGET.targetPermanent` already ships — issue
+ *  #1571's "no registry row" premise was obsolete by the time it was worked.
+ *
+ *  `BECAME_TARGET` is WIDER than the oracle text in two ways, both closed here:
+ *
+ *  1. SPELL vs ABILITY. `emitBecameTargetEvents` fires for every targeting
+ *     source — activated and triggered abilities announce targets too (Ward,
+ *     `raiseTriggerTargetSelection`). "Whenever you CAST A SPELL" admits only
+ *     the cast path, so `matches` requires `sourceKind === "spell"` (the
+ *     explicit producer-declared discriminator added in #2360). Filtering on
+ *     `sourceControllerId` alone would steal permanents off the emblem owner's
+ *     OWN activated abilities.
+ *  2. ONE trigger or N. CR 603.2c — the ability triggers once per occurrence of
+ *     its trigger event, and one cast is one event, so paper Dack makes ONE
+ *     trigger that gains control of every targeted permanent. `BECAME_TARGET`
+ *     fires once PER target, so the shipped mapping is N triggers, one per
+ *     targeted permanent, each gaining control of its own. Collapsing them with
+ *     `oncePerEventBatch` (Leovold's shape) is NOT available: `buildTriggerItem`
+ *     carries a SINGULAR `triggerEvent`, so a collapsed trigger sees only the
+ *     FIRST event of the batch and would steal exactly one permanent — wrong in
+ *     the other direction. DIVERGENCE (deliberate, documented): a spell
+ *     targeting N permanents puts N emblem triggers on the stack instead of 1.
+ *     The end state is identical (all N change controller); what differs is the
+ *     stack-object count, an extra priority window between the individual
+ *     steals, and the granularity of a Stifle (one permanent saved, not all).
+ *
+ *  `{ ref: "$event.targetPermanent" }` re-checks battlefield presence in
+ *  `resolveObjectRef` before `gainControl` acts (CR 608.2b), so a permanent
+ *  that left the battlefield between the cast and the trigger's resolution is
+ *  skipped rather than crashing. `gainControl` with no `duration` is the
+ *  INDEFINITE layer-2 reassignment (CR 613.1b) the oracle text means. */
+export const DACK_FAYDEN_EMBLEM_ID = "dack-fayden-emblem";
+
+registerEmblemDefinition({
+    id: DACK_FAYDEN_EMBLEM_ID,
+    name: "Dack Fayden emblem",
+    text: "Whenever you cast a spell that targets one or more permanents, gain control of those permanents.",
+    // Scryfall print of the emblem card (set `tcns`, layout `emblem`) — the
+    // CNS-era emblem printing matching Dack's own set, per the token/emblem art
+    // rule (the card's own printing where present).
+    imagePrintId: "f4e0b8d9-4e22-409d-acf1-05afaaac33df",
+    triggeredAbilities: [
+        {
+            id: "dack-fayden-emblem-cast-steal",
+            oracleText:
+                "Whenever you cast a spell that targets one or more permanents, gain control of those permanents.",
+            event: "BECAME_TARGET",
+            // CR 601.2c — targets are announced as the spell is cast, and the
+            // "became the target" triggers fire at that point. "you cast" is
+            // the emblem owner casting (`sourceControllerId`); "a spell" is the
+            // fail-closed `sourceKind` discriminator; "permanents" drops player
+            // targets (a Shock at the opponent's face steals nothing).
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                event.type === "BECAME_TARGET" &&
+                event.sourceKind === "spell" &&
+                event.sourceControllerId === self.controllerId &&
+                event.target.type === "permanent",
+            // CR 613.1b — indefinite layer-2 control change (no `duration`).
+            effects: [
+                {
+                    op: "gainControl",
+                    target: { ref: "$event.targetPermanent" },
+                    controller: "controller",
+                },
+            ],
+        },
+    ],
+});
