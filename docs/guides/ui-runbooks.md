@@ -13,6 +13,12 @@ Every runbook here was executed against `main` on the date in its heading. A
 sequence nobody has run is not in this file — see [What is not written
 yet](#what-is-not-written-yet).
 
+**Several of these are executable.** `scripts/ui-gate/surfaces.ts` is the
+machine copy of the walks `bun run check:ui` drives (issue #2580). When a
+sequence here changes, change that file in the same PR — a drifted walk shows
+up as an `UNWALKED` surface and a red lane, which is loud but points at the
+wrong thing.
+
 ## Conventions
 
 `snapshot` means `take_snapshot`, whose uids the next `click` consumes. Pass
@@ -89,6 +95,43 @@ To add a scenario, use the panel's own save form (label + spec) — a DB insert,
 never a code edit. Headless agents do not insert: they emit `{ label, spec }`
 in the PR receipt and the orchestrator seeds it post-merge.
 
+## Sign in from cold (2026-08-19)
+
+Every route is behind `<AuthGate>`, so a fresh browser profile lands on the
+sign-in Panel, not on the lobby.
+
+1. `navigate_page` → `http://localhost:5173`
+2. Fill `input[type=email]` and `input[type=password]` — the fields carry no
+   id or `data-testid`; the `type` attribute and the visible `Email` /
+   `Password` labels are the handles.
+3. Click the submit button (`Sign In`). The email field detaching is the
+   signal that the gate opened; the lobby renders behind it.
+
+Credentials are **not** in the repo. `bun run check:ui` reads them from
+`TOLARIA_UI_EMAIL` / `TOLARIA_UI_PASSWORD` (environment, else the gitignored
+`.env.local`); a human uses whatever dev account they created.
+
+**Do not carry a session between browser contexts.** Convex auth rotates its
+refresh token on use, so a Playwright `storageState` captured in one context
+is already spent when a second context loads it — the second context lands
+silently back on the sign-in form. Sign in per context.
+
+## Lobby, deck builder and the Limited lists (2026-08-19)
+
+The four routes that need no fixture beyond a signed-in account. Each is one
+navigation:
+
+| Route             | Screen                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| `/`               | Lobby — PLAY box, PRESET DECKS / MY DECKS, the active-game banner when one is running         |
+| `/decks/create`   | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode)            |
+| `/limited`        | Limited events list — YOUR CURRENT EVENTS plus `+ Create Event`                               |
+| `/limited/events` | Your-events page (#2357); a STATIC sibling of `/limited/$eventId`, so it never gets swallowed |
+
+There is no `/settings` route, and the admin surfaces live under `/admin/*`
+behind `AdminRouteGate` (a non-admin gets the 404 page, indistinguishable from
+an unknown path).
+
 ## Reach the Limited deck builder (2026-08-17)
 
 The pool builder is where a Sealed/Draft pool becomes a deck, and it is the
@@ -125,20 +168,26 @@ pack and holds what this seat has taken.
 An event whose status is `playing` shows the table, pairings and
 `Build Deck` instead — the runbook above.
 
-## Sweep a screen across viewports (2026-08-17)
+## Sweep a screen across viewports (2026-08-19)
 
-Run this on any screen a change can reach, before calling it done.
+**First try `bun run check:ui`** — it does the whole sweep, at all five
+viewports, for every surface in `scripts/ui-gate/surfaces.ts`, and prints the
+receipt. Do the manual sweep below only for a screen the lane does not walk.
 
 1. `emulate { viewport: "1440x900x2" }` → walk the runbook → probe →
    screenshot.
 2. `emulate { viewport: "390x844x3,mobile,touch" }` → probe → screenshot.
 3. `emulate { viewport: "844x390x3,mobile,touch,landscape" }` → probe →
    screenshot.
-4. `list_console_messages { types: ["error"] }`.
+4. `emulate { viewport: "820x1180x2,mobile,touch" }` → probe → screenshot.
+5. `emulate { viewport: "1180x820x2,mobile,touch,landscape" }` → probe →
+   screenshot.
+6. `list_console_messages { types: ["error"] }`.
 
-Emulation survives navigation, so set it once and re-walk the runbook rather
-than re-emulating per step. The probe itself, and what its numbers mean, are
-in [Browser verification](browser-verification.md#the-occlusion-probe).
+Five since ADR 0101 — the tablet pair is where the deck builders hid their
+worst clipping. Emulation survives navigation, so set it once and re-walk the
+runbook rather than re-emulating per step. The probe itself, and what its
+numbers mean, are in [Browser verification](browser-verification.md#the-probe).
 
 ## Where client state is kept
 
@@ -161,9 +210,12 @@ There is no player-name key: the nickname comes from the authenticated user.
 
 Add a runbook after you run it, not before. Missing today: creating a Limited
 event, the vs-AI setup dialog (difficulty + opponent deck), Bo3 sideboarding
-between games, and the admin panels. (`/decks/create` and `/decks/<slug>/edit`
-are the deck builder outside Limited — same components as the Limited build
-screen, reached straight from the URL or from a deck's `Edit` in the lobby.)
+between games, and the admin panels.
+
+Creating a Limited event is the one that matters most right now: without an
+event, `bun run check:ui` reports the Limited pool builder and the draft pick
+screen as `unwalked`, and those two surfaces are exactly where the occlusion
+bug that motivated all this lives.
 
 ## Two browsers, one of which does not work
 

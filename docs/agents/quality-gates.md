@@ -96,6 +96,50 @@ merge-train always takes Lane B (local full gate on the rebased tree).
 **Re-adding a workflow only makes sense together with branch protection** —
 otherwise it is a report nobody blocks on.
 
+## `check:ui` — the headless browser lane, and why it stands outside `check:all`
+
+`bun run check:ui` (issue #2580, base slice #2512) is the only check in this
+repo that looks at pixels. It starts its own Vite on `127.0.0.1`, signs in
+with the dev account, walks the runbook surfaces at the five ADR 0101
+viewports, runs the occlusion probe plus axe-core, and compares the result
+against `scripts/ui-gate/budgets.json`.
+
+**It is deliberately NOT in `check:all` or `check:pr`.** Three reasons, in
+order of weight:
+
+1. `check:all` is offline by contract; this lane needs a live Convex
+   deployment and a browser binary. A gate that can go red because a backend
+   is not running is a gate people learn to route around.
+2. `check:all` is the heavy, mutex-held tier. A browser boot taxes every
+   session that never touches the DOM, and it holds a browser rather than
+   `ncpu - 1` vitest workers, so neither tier fits it.
+3. It is slower than the whole static gate — measured ~4 min for eight
+   surfaces × five viewports on this machine, most of it axe.
+
+So `check:ui` is a standalone command, and **its output is the receipt a UI PR
+pastes**. The enforcement is the same as it was for the manual browser check
+(`.claude/rules/chrome-debug.md`): a UI diff with no receipt and no "cannot
+reach the DOM" line is not done. What changed is that the receipt is now
+mechanical, reproducible, and available to a headless agent, which the manual
+CDP procedure never was.
+
+**Coverage is asserted, not assumed.** The lane exits non-zero for two
+different reasons and never conflates them: `FAIL` (a number over its
+budgeted ceiling) and `UNWALKED` (it could not measure the surface at all —
+no budget entry, an absent debug-scenario row, a route blocked by an active
+game). The pure comparison lives in `scripts/ui-gate/budgets.ts` and is unit
+tested in `scripts/__tests__/ui-gate-budgets.test.ts`, because "a screen we
+could not reach reported as green" is precisely the failure this lane exists
+to make impossible. A surface may be skipped only by declaring it
+`{"status": "unwalked", "reason": …}` in the budget file — which still prints,
+and still shows in the coverage line.
+
+**The budget file is the contract later slices tighten.** Ceilings start at
+what each surface measures TODAY. Where today's number violates a hard floor
+(zero occluded card tiles, zero stranded controls, no axe serious/critical)
+the entry carries a `knownDebt` note naming the defect, printed under every
+run — never a silently loosened floor.
+
 ## Hooks, and why they are tracked in git
 
 `.husky/pre-commit` — lint-staged/prettier on staged files. A convenience;

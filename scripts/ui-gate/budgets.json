@@ -1,0 +1,281 @@
+{
+    "version": 1,
+    "recordedOn": "2026-08-19",
+    "note": "Ceilings for `bun run check:ui` (issue #2580). Recorded from a real run on this machine — see the PR. The floors this lane is FOR are cardsOcc 0, ctrlsStranded 0 and axeSerious/axeCritical 0; where a surface breaks one of those TODAY the entry keeps the measured value and carries a `knownDebt` note naming the defect, printed under every run. A slice that fixes a surface lowers its ceilings in the same PR. A surface nobody can walk yet is `{\"status\":\"unwalked\",\"reason\":…}` — listed in the output and in the coverage line, never silently green.",
+    "surfaces": {
+        "lobby": {
+            "label": "Lobby (/)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 2,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 2,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 2,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 2,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 2,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                }
+            }
+        },
+        "deck-builder": {
+            "label": "Constructed deck builder (/decks/create)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 1,
+                    "ctrlsOcc": 1,
+                    "ctrlsStranded": 4,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "1 collapsed + 1 occluded control, 4 STRANDED controls (unreachable by any gesture), 1 starved container, 1 axe serious (color-contrast)"
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 1,
+                    "ctrlsOcc": 1,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "1 collapsed + 1 occluded control, 1 axe serious (scrollable-region-focusable)"
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 2,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "2 occluded controls, 1 axe serious (scrollable-region-focusable)"
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 1,
+                    "ctrlsOcc": 4,
+                    "ctrlsStranded": 9,
+                    "starved": 0,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "worst cell in the matrix: 1 collapsed + 4 occluded controls and 9 STRANDED ones on tablet portrait, plus 1 axe serious (color-contrast)"
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 1,
+                    "ctrlsOcc": 2,
+                    "ctrlsStranded": 6,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "1 collapsed + 2 occluded controls, 6 STRANDED, 1 starved container, 1 axe serious (color-contrast)"
+                }
+            }
+        },
+        "limited-list": {
+            "label": "Limited events list (/limited)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                }
+            }
+        },
+        "limited-your-events": {
+            "label": "Your Limited events (/limited/events)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                }
+            }
+        },
+        "game-board": {
+            "label": "Game board (/game)",
+            "status": "unwalked",
+            "reason": "MEASURED AND WITHDRAWN, on purpose. The walk works (surfaces.ts resumes a match or deals a solo game), but the position it lands on is not fixed, and two consecutive runs of the SAME tree gave cardsOcc 4 then 5 at 844x390x3 — hand-fan overlap scales with the hand. A ceiling that flaps is worse than no ceiling: a lane people learn to re-run is a lane they route around (#2512). The board becomes budgetable through `game-stress` below, which loads a FIXED position; close that row first, then this one."
+        },
+        "game-stress": {
+            "label": "Game board — UI stress scenario",
+            "status": "unwalked",
+            "reason": "needs a game the lane created ITSELF (it refuses to load a debug scenario into a match it did not create — that would clobber someone's game) AND the `UI stress — full board, full hand, deep piles` row on the deployment. An active game was in progress when these budgets were recorded. Re-record from an empty lobby: `bun run check:ui -- --record --surface=game-stress`."
+        },
+        "limited-build": {
+            "label": "Limited pool builder (/limited/<id>/build)",
+            "status": "unwalked",
+            "reason": "the only Limited event on this deployment is still in the DRAFTING phase, so no seat offers `Build Deck` yet. The walk is implemented in surfaces.ts (open the event from /limited, click Build Deck); delete this row and re-record once an event reaches `playing`. This is the surface the 2026-08-17 occlusion measurement came from, so it is the highest-value row to close."
+        },
+        "draft-pick": {
+            "label": "Draft pick screen (/limited/<id> while drafting)",
+            "status": "unwalked",
+            "reason": "the drafting event on this deployment renders no pack for this seat right now (`Booster 1 of 3 · 7 packs queued`, zero `button[aria-label^='Draft pick:']` tiles). The walk is implemented in surfaces.ts; delete this row and re-record from a seat holding a live pack."
+        }
+    }
+}

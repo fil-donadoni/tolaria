@@ -23,4 +23,4 @@ globs:
 ## After changes
 
 - Run `bun run check:all` — format + lint + type-check must pass
-- **Verify in a real browser at three viewports** (desktop, phone portrait, phone landscape) and paste the probe receipt in the PR. The `dom` project runs on happy-dom, which has no layout: it cannot see a collapsed or occluded element. `.claude/rules/chrome-debug.md`
+- **Run `bun run check:ui`** — headless Chrome at five viewports (desktop, phone portrait/landscape, tablet portrait/landscape), probe + axe against `scripts/ui-gate/budgets.json`. Paste its output in the PR. The `dom` project runs on happy-dom, which has no layout: it cannot see a collapsed or occluded element. `.claude/rules/chrome-debug.md`
