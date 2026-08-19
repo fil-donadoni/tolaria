@@ -21,6 +21,13 @@ import ExileCastButton from "./exile-cast-button";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
+/** Clockwise screen rotation a tapped permanent's presentational layer carries
+ *  (#1994). Single source for BOTH consumers — the layer's own `transform` and
+ *  the tilt frame that has to compensate for it (#2551): a rotation the tilt
+ *  did not hear about is exactly the bug, so the two must never be typed
+ *  independently. */
+const TAP_ROTATION_DEG = 90;
+
 type BoardBattlefieldCardProps = {
     card: CardInstance;
     /** Board-coupled visual state computed by `useBattlefieldVisualState`
@@ -99,7 +106,10 @@ type BoardBattlefieldCardProps = {
  *  layer rather than living inside it, so its own pointer listeners (and
  *  `card-preview.tsx`'s) sit outside the `pointer-events: none` region a
  *  tapped permanent's overhang uses to stay non-hit-testable (see
- *  `tapTransform`).
+ *  `tapTransform`). Because that leaves the tilt element unrotated under a
+ *  rotated face, this card passes {@link TAP_ROTATION_DEG} down as
+ *  `visualRotationDeg` so the tilt axes and glare box are expressed in the
+ *  CARD's frame rather than the slot's (#2551).
  *
  *  Reads ONLY projected (`PublicGameState` / `FullGameState`) fields — no GRE
  *  import — consistent with the CLAUDE.md wire-format rule. The battlefield is
@@ -298,7 +308,10 @@ export default function BoardBattlefieldCard({
     // the card). `card-preview.tsx` re-binds those handlers imperatively on
     // the same `[data-card-tilt-root]` ancestor the other listeners use, so
     // long-press is restored too — see that file's own comment.
-    const tapTransform = card.isTapped ? "rotate(90deg)" : undefined;
+    const tapRotationDeg = card.isTapped ? TAP_ROTATION_DEG : 0;
+    const tapTransform = card.isTapped
+        ? `rotate(${TAP_ROTATION_DEG}deg)`
+        : undefined;
 
     // Combat lift (#1770 follow-up from #1802): landscape-compact re-derives
     // the desktop `translate-y-8` class as a proportional inline `translate`
@@ -362,8 +375,16 @@ export default function BoardBattlefieldCard({
     // root]`) must sit OUTSIDE the inert rotated layer so its pointer
     // listeners — and `card-preview.tsx`'s, bound onto the same element —
     // keep receiving events on a tapped permanent.
+    //
+    // The cost of that arrangement is that the tilt element is NOT rotated
+    // while the face beneath it is, so the hover effect would be computed in
+    // the slot's frame while the art sits in the card's (#2551). It is a frame
+    // problem, not a DOM one: `visualRotationDeg` hands the tilt the rotation
+    // applied below it — the same `TAP_ROTATION_DEG` `[data-tap-visual]` uses,
+    // never a second literal — and it re-expresses both the tilt axes and the
+    // glare box in the card's own frame without moving anywhere.
     const inner = (
-        <CardTilt3D>
+        <CardTilt3D visualRotationDeg={tapRotationDeg}>
             <div
                 data-tap-visual
                 className="relative w-full h-full transition duration-250"
