@@ -19,6 +19,7 @@ import { makeInstance } from "../../../__tests__/setup";
 import { citadelBoard } from "./citadelBoard";
 import { grizzlyBears } from "../../lea/green";
 import { forest } from "../../lea/colorless";
+import { fireball } from "../../lea/red";
 
 describe("Bolas's Citadel — bot move enumeration (CR 601.3e-analog)", () => {
     it("enumerates the library-top cast, priced in LIFE rather than mana", () => {
@@ -31,6 +32,26 @@ describe("Bolas's Citadel — bot move enumeration (CR 601.3e-analog)", () => {
         expect(cast!.kind === "cast-spell" && cast!.payLife).toBe(2);
         // No mana is owed, so no lands are tapped for it (CR 118.9-analog).
         expect(cast!.kind === "cast-spell" && cast!.tapPlan).toEqual([]);
+    });
+
+    it("CR 107.3b — an {X} spell off the top is enumerated at exactly X = 0, the one value announceCast accepts", () => {
+        // The Move's `chosenX` is what the driver forwards to `announceCast`,
+        // and the two derive `hasX` from DIFFERENT costs: the enumerator from
+        // the REPLACED cost (`{}`, no X at all), the mutation from the PRINTED
+        // one. Left as `undefined` that is a latent #2283/#2284-class
+        // divergence — a Move the server can reject. Pinned to the single
+        // legal value instead (issue #2398 review round 1, finding 5).
+        const state = citadelBoard([fireball.id]);
+        const moves = enumerateMoves(state, "p1");
+        const casts = moves.filter(
+            (m) => m.kind === "cast-spell" && m.cardInstanceId === "p1-lib-0"
+        );
+        expect(casts.length).toBeGreaterThan(0);
+        for (const cast of casts) {
+            expect(cast.kind === "cast-spell" && cast.chosenX).toBe(0);
+            // CR 202.3e — X is 0 off the stack, so {X}{R} costs 1 life.
+            expect(cast.kind === "cast-spell" && cast.payLife).toBe(1);
+        }
     });
 
     it("enumerates NO library cast without the permission — the top card is not a candidate at all", () => {

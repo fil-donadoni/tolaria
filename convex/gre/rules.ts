@@ -1021,24 +1021,62 @@ export function getLegalActions(
     if (isLibraryTopCast) {
         const lifeCost = libraryTopCastLifeCost(state, player, card);
         const grant = canCastSpellsFromTopOfLibrary(state, player);
+        // CR 601.2f (ADR 0063) / CR 601.3c (issue #2146) — whichever cost the
+        // permission leaves this cast owing, `announceCast` folds the SAME two
+        // mandatory additions onto it before payment: board-wide cost
+        // modifiers (`applyCostModifiers(getCostModifiers(...))`) and the
+        // conditional-flash surcharge when the cast is only legal inside that
+        // permission. Judging affordability without them (issue #2398 review
+        // round 1, finding 4) offers a cast that then parks unpayable in
+        // `pendingCast` the moment a `costIncrease` static (Thorn Elemental's
+        // shape — inv/*.ts, fem/black.ts, lea/black.ts, wth/white.ts) is on
+        // the board. Shared by BOTH branches below, exactly as the plain
+        // hand-cast branch does it.
+        const mandatoryCostOpts = {
+            foldCostModifiers: true,
+            ...(flashSurchargeRequired(state, player.id, card)
+                ? { extraMana: flashSurchargeOf(card) }
+                : {}),
+        };
         const affordable =
             grant?.manaCostReplacement === "life-equal-to-mana-value"
                 ? // CR 119.4 — a player may pay life only while their life
                   // total is at least the amount. Paying down to exactly 0 is
                   // legal (SBAs then end the game); paying below it is not.
-                  player.life >= lifeCost
+                  //
+                  // CR 118.9-analog — the mana cost is REPLACED (an empty
+                  // cost, exactly what `castRawManaCost` returns), but a cost
+                  // INCREASE and the flash surcharge still apply on top of
+                  // that empty cost at the real payment site, so the mana
+                  // probe runs against `{}` rather than being skipped.
+                  player.life >= lifeCost &&
+                  canPotentiallyPayCost(
+                      player,
+                      card,
+                      {},
+                      state,
+                      mandatoryCostOpts
+                  )
                 : canPotentiallyPayCost(
                       player,
                       card,
                       getInstanceManaCost(card) ?? {},
-                      state
+                      state,
+                      mandatoryCostOpts
                   );
         if (
             castTimingBaseLegal(state, player.id, card) &&
             passesCastPhaseRestriction(state, card) &&
             castProhibitionReason(player.id, card, state) === undefined &&
             affordable &&
-            hasEnoughLegalTargets(state, player, card)
+            hasEnoughLegalTargets(state, player, card) &&
+            // CR 118.8 / 601.2f — a spell whose additional cost is "sacrifice /
+            // exile a permanent matching a filter" (Natural Order) is
+            // unannounceable with no legal permanent to pay it. Every other
+            // cast branch that can reach `buildAdditionalCostPicker`'s
+            // zero-candidate throw gates on this; the library zone is no
+            // different (issue #2398 review round 1, finding 4).
+            hasPayableAdditionalCost(player, card)
         ) {
             actions.push("cast");
         }

@@ -44,6 +44,9 @@ import { bolassCitadel } from "../black";
 import { forest, mountain } from "../../lea/colorless";
 import { grizzlyBears } from "../../lea/green";
 import { fireball } from "../../lea/red";
+import { gloom } from "../../lea/black";
+import { benalishHero } from "../../lea/white";
+import { naturalOrder } from "../../vis/green";
 
 describe("Bolas's Citadel — cast-from-top permission (CR 601.3e-analog)", () => {
     it("canCastSpellsFromTopOfLibrary is held only by the Citadel's controller", () => {
@@ -150,6 +153,46 @@ describe("Bolas's Citadel — life instead of mana (CR 118.9-analog / 119.4 / 10
         });
     });
 
+    it("CR 601.2f — a cost INCREASE still applies on top of the replaced cost (Gloom + a white spell on top)", () => {
+        // The permission replaces the mana COST, not the CR 601.2f modifiers
+        // `announceCast` folds onto it: with Gloom out, Benalish Hero off the
+        // top owes {3} generic in addition to the 1 life. Judging affordability
+        // on life alone (issue #2398 review round 1, finding 4) offered a cast
+        // that then parked unpayable in `pendingCast`.
+        const state = citadelBoard([benalishHero.id]);
+        const p1 = getPlayer(state, "p1");
+        p1.battlefield.push(
+            makeInstance(gloom.id, {
+                id: "gloom",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        expect(getLegalActions(state, p1, p1.library[0])).not.toContain("cast");
+
+        // Three Mountains cover the {3}: the affordance comes back.
+        for (let i = 0; i < 3; i++) {
+            p1.battlefield.push(
+                makeInstance(mountain.id, {
+                    id: `mtn-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
+        expect(getLegalActions(state, p1, p1.library[0])).toContain("cast");
+    });
+
+    it("CR 118.8 / 601.2f — an unpayable filtered additional cost suppresses the affordance (Natural Order off the top)", () => {
+        // `buildAdditionalCostPicker` throws on zero candidates; every other
+        // cast branch keeps it unreachable via `hasPayableAdditionalCost`, and
+        // the library branch now does too. Natural Order's "sacrifice a green
+        // creature" has no candidate on an empty board.
+        const state = citadelBoard([naturalOrder.id]);
+        const p1 = getPlayer(state, "p1");
+        expect(getLegalActions(state, p1, p1.library[0])).not.toContain("cast");
+    });
+
     it("CR 119.4 — the cast is legal at exactly enough life and illegal below it", () => {
         const exact = citadelBoard([grizzlyBears.id], true, { life: 2 });
         const p1 = getPlayer(exact, "p1");
@@ -185,6 +228,27 @@ describe("Bolas's Citadel — top-of-library look is controller-only (CR 401.5)"
         const theirLib = theirs.players.find((p) => p.id === "p1")!.library;
         expect(theirLib.known).toEqual([]);
         expect(theirLib.count).toBe(2);
+    });
+
+    it("WIRE — the top card is tagged castManaCostReplaced, the client's only view of CR 107.3b / 601.2b", () => {
+        const state = citadelBoard([fireball.id]);
+        const own = projectPublicState(state, 1, "p1");
+        const top = own.players.find((p) => p.id === "p1")!.library.known[0]
+            .card;
+        // The client cannot re-derive the permission (it never sees the GRE),
+        // and the flag is what suppresses the X stepper (CR 107.3b — the only
+        // legal choice for X is 0) and the alternative-cost picker (CR 601.2b)
+        // in `useHandCardCommit`. Dropping it here re-opens both.
+        expect(top.castManaCostReplaced).toBe(true);
+    });
+
+    it("WIRE — a top LAND carries no castManaCostReplaced (CR 305.9 — a land is played, never cast)", () => {
+        const state = citadelBoard([mountain.id]);
+        const own = projectPublicState(state, 1, "p1");
+        const top = own.players.find((p) => p.id === "p1")!.library.known[0]
+            .card;
+        expect(top.legalActions).toContain("play");
+        expect(top.castManaCostReplaced).toBeUndefined();
     });
 
     it("WIRE — the look follows the POSITION: after a draw the NEW top card is the visible one (CR 401.6)", () => {

@@ -234,6 +234,15 @@ export interface CardInstance {
      *  Each entry adds to effective P/T at read time. */
     temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;
     legalActions?: CardAction[];
+    /** CR 118.9-analog / 107.3b / 601.2b (issue #2398) — true when the
+     *  cast-from-top-of-library permission covering this card replaces its mana
+     *  cost wholesale (Bolas's Citadel), rather than letting it be cast for its
+     *  printed cost. Present only on the viewer's OWN library top alongside
+     *  `legalActions`. Mirrors `SlimLibraryCard.castManaCostReplaced` in
+     *  `convex/gameProjections.ts` — read that field's doc for why the client
+     *  cannot re-derive it, and `useHandCardCommit` for the two announcement
+     *  choices it suppresses ({X} and the alternative-cost picker). */
+    castManaCostReplaced?: true;
     /** CR 702.34 / 702.138 / 305.1-analog / 117.6-analog / 702.139 — which
      *  graveyard-cast mechanism surfaced this card's cast affordance, so the
      *  graveyard button labels "Flashback" / "Escape" / "Cast". Present only

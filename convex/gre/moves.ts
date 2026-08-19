@@ -890,6 +890,17 @@ function enumerateCastMoves(
     // to the same ceiling the cast mutation enforces, so the Bot never offers
     // an X the human cast path would reject.
     const hasX = typeof rawCost.X === "string";
+    // CR 107.3b (issue #2398 review round 1, finding 5) — when the permission
+    // replaced the whole mana cost, `rawCost` is `{}` and carries no X at all,
+    // while the PRINTED cost may still have one (Fireball off the top of the
+    // library). "The only legal choice for X is 0", which `announceCast`
+    // enforces, so the enumeration announces exactly that value rather than
+    // omitting `chosenX` and relying on the mutation to fill it in: an explicit
+    // 0 is what keeps the Move and the mutation reading the same number
+    // (the #2283/#2284 bot-freeze class — a Move the server refuses).
+    const xLockedToZero =
+        lifeInsteadOfMana !== undefined &&
+        typeof getInstanceManaCost(card)?.X === "string";
     const xCeiling =
         def?.castXUpperBound === "snow-lands"
             ? Math.min(
@@ -897,9 +908,11 @@ function enumerateCastMoves(
                   countSnowLands(player.battlefield)
               )
             : maxAffordableX(player, card, state);
-    const xValues: (number | undefined)[] = hasX
-        ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
-        : [undefined];
+    const xValues: (number | undefined)[] = xLockedToZero
+        ? [0]
+        : hasX
+          ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
+          : [undefined];
 
     // CR 107.4f — a Phyrexian cost ({B/P}, {U/P}) is paid pip-by-pip with mana
     // or 2 life. The Bot takes the most-life affordable split (the canonical
@@ -1003,7 +1016,14 @@ function enumerateCastMoves(
                 for (const [c, n] of Object.entries(split.manaAdditions)) {
                     if (n && n > 0) normCost[c] = (normCost[c] ?? 0) + n;
                 }
-                payLife = split.lifePips * PHYREXIAN_LIFE_PER_PIP;
+                // `+=`, not `=` (issue #2398 review round 1, finding 5): the
+                // substituted life above is a payment this cast already owes,
+                // so a Phyrexian split ADDS to it rather than replacing it —
+                // what the comment on `payLife`'s initializer has always
+                // claimed. Unreachable today (a replaced cost is `{}`, whose
+                // `phyPips` is 0), so this is the comment and the code agreeing
+                // rather than a behaviour change.
+                payLife += split.lifePips * PHYREXIAN_LIFE_PER_PIP;
             }
             // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063): graveyard cards
             // exiled while casting pay for {1} of GENERIC mana each, so a spell

@@ -25,8 +25,11 @@ import type { CardDefinition } from "../../types";
 //      permission that supplied the cast, and the amount is DERIVED from the
 //      card (its mana value, with {X} counting 0 off the stack per CR 107.3b)
 //      where every `CostLegs.life` in the engine is a fixed number.
-//      `castRawManaCost` zeroes the mana; the three cast-commit life
-//      accumulators (`convex/game.ts`) charge the life.
+//      `castRawManaCost` zeroes the mana; the two cast-commit life
+//      accumulators (`convex/game.ts`) charge the life. Because the mana cost
+//      is replaced wholesale, CR 107.3b locks an `{X}` on such a cast to 0 and
+//      CR 601.2b bars announcing an alternative cost alongside it — both
+//      enforced in `announceCast` and suppressed in the client affordance.
 //
 // The drain clause is the already-solved shape: {T} + a filtered sacrifice
 // cost + `loseLife`. The only widening it needed is `sacrificeFilterCount`,

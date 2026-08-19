@@ -84,6 +84,7 @@ async function topSlotFor(
     faceUp: boolean;
     cardId: string | undefined;
     legalActions: string[] | undefined;
+    castManaCostReplaced: true | undefined;
 }> {
     const { ctx } = makeMutationCtx("user-1", [
         gameSeed(),
@@ -102,6 +103,7 @@ async function topSlotFor(
         faceUp: top.faceUp,
         cardId: (top.card.card as { id?: string } | undefined)?.id,
         legalActions: top.card.legalActions,
+        castManaCostReplaced: top.card.castManaCostReplaced,
     };
 }
 
@@ -140,6 +142,11 @@ describe("cast-from-top-of-library end-to-end (CR 601.3e-analog, Bolas's Citadel
         expect(top.faceUp).toBe(true);
         expect(top.cardId).toBe(grizzlyBears.id);
         expect(top.legalActions).toContain("cast");
+        // CR 118.9-analog / 107.3b / 601.2b — the flag survives the QUERY and
+        // the pile reducer, which is the only route by which `useHandCardCommit`
+        // can learn this cast pays life instead of mana. Dropped here, the X
+        // stepper and the alternative-cost picker come back (both illegal).
+        expect(top.castManaCostReplaced).toBe(true);
     });
 
     it("CR 401.5 — the OPPONENT sees a face-DOWN top card: the look is controller-only", async () => {
@@ -163,6 +170,7 @@ describe("cast-from-top-of-library end-to-end (CR 601.3e-analog, Bolas's Citadel
         expect(top.faceUp).toBe(true);
         expect(top.legalActions).toContain("play");
         expect(top.legalActions).not.toContain("cast");
+        expect(top.castManaCostReplaced).toBeUndefined();
     });
 
     it("CR 119.4 — renders DISABLED (present but empty) when the life total can't cover the cost", async () => {

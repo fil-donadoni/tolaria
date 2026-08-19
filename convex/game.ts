@@ -2626,8 +2626,11 @@ export function reboundCastStackFlags(
  *  the graveyard).
  *
  *  One helper feeds BOTH halves of the substitution — `castRawManaCost` zeroes
- *  the mana, and each of the three cast-commit life accumulators adds
- *  `.life` — so the two can never disagree about whether this cast is free. */
+ *  the mana, and each of the two cast-commit life accumulators (the targeted
+ *  `finalizeTargetSelection` path and the no-target `announceCast` path) adds
+ *  `.life` — so the two can never disagree about whether this cast is free.
+ *  It is ALSO the CR 107.3b / 601.2b discriminator at announcement: an `{X}`
+ *  is locked to 0 and no alternative cost may ride along on this cast. */
 function libraryTopCastPayment(
     state: GameState,
     card: CardInstanceState,
@@ -7470,10 +7473,12 @@ export const announceCast = mutation({
         // otherwise the caster would pay the life AND the alt cost's legs
         // while `castRawManaCost` zeroed the mana for both. Fail CLOSED here,
         // at announcement, so neither commit path can reach a double payment.
-        if (
-            chosenAltCost &&
-            libraryTopCastPayment(state, cardInHand, castFromZone)
-        ) {
+        const libraryTopPayment = libraryTopCastPayment(
+            state,
+            cardInHand,
+            castFromZone
+        );
+        if (chosenAltCost && libraryTopPayment) {
             throw new Error(
                 "Can't apply an alternative cost to a spell cast from the top of your library"
             );
@@ -7500,7 +7505,28 @@ export const announceCast = mutation({
         const hasX =
             typeof (cardDef.manaCost as { X?: unknown } | undefined)?.X ===
             "string";
-        if (hasX && (args.chosenX === undefined || args.chosenX < 0)) {
+        // CR 107.3b (issue #2398) — "If a player is casting a spell that has an
+        // {X} in its mana cost … and an effect lets that player cast that spell
+        // while paying neither its mana cost nor an alternative cost that
+        // includes X, then the only legal choice for X is 0." A cast off the
+        // top of the library under a permission that REPLACES the mana cost
+        // (Bolas's Citadel: pay life equal to mana value) is exactly that
+        // effect, and CR 202.3e already prices the card at X = 0 off the stack,
+        // so the life charged never covers a larger X. `hasX` is read off the
+        // PRINTED cost (`cardDef.manaCost`) while `castRawManaCost` has already
+        // replaced it with `{}` — so without this clamp the announced X owed
+        // nothing at all anywhere: `normalizeManaCost({}, { chosenX })` adds no
+        // mana and `libraryTopCastLifeCost` charges the off-stack mana value.
+        // Announcing anything but 0 is illegal; announcing nothing is fine and
+        // means 0 (the client no longer offers the dialog on this path).
+        const xLockedToZero = hasX && libraryTopPayment !== undefined;
+        if (xLockedToZero) {
+            if (args.chosenX !== undefined && args.chosenX !== 0) {
+                throw new Error(
+                    "The only legal choice for X is 0 for a spell cast without paying its mana cost (CR 107.3b)"
+                );
+            }
+        } else if (hasX && (args.chosenX === undefined || args.chosenX < 0)) {
             throw new Error("Must choose X (≥ 0) for this spell");
         }
         // CR 107.3 — a board-count upper bound on X ("X can't be greater than
@@ -7547,11 +7573,18 @@ export const announceCast = mutation({
                   gyDeriv.cardTypes
               )
             : undefined;
-        const chosenX = hasX
-            ? args.chosenX
-            : payXLife
+        const chosenX = xLockedToZero
+            ? // CR 107.3b — the announced value is forced to 0, never carried
+              // through as `undefined`: every downstream consumer
+              // (`pendingTarget.chosenX`, `pendingCast.chosenX`, the stack
+              // item's X, `normalizeManaCost`) then reads the one legal value
+              // instead of re-deriving it from a cost that no longer has an X.
+              0
+            : hasX
               ? args.chosenX
-              : derivedGraveyardX;
+              : payXLife
+                ? args.chosenX
+                : derivedGraveyardX;
 
         // Modal spell — caster locks in a mode at announcement (CR 700.2c).
         // The chosen mode's targetRequirement / resolve drive the rest of
