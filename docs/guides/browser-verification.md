@@ -64,14 +64,17 @@ Emulate, do not resize the window — `emulate` sets DPR, touch and the mobile
 flag, which is what triggers the responsive branches.
 
 ```
-emulate { viewport: "1440x900x2" }                        # desktop
-emulate { viewport: "390x844x3,mobile,touch" }            # phone portrait
-emulate { viewport: "844x390x3,mobile,touch,landscape" }  # phone landscape
+emulate { viewport: "1440x900x2" }                         # desktop
+emulate { viewport: "390x844x3,mobile,touch" }             # phone portrait
+emulate { viewport: "844x390x3,mobile,touch,landscape" }   # phone landscape
+emulate { viewport: "820x1180x2,mobile,touch" }            # tablet portrait
+emulate { viewport: "1180x820x2,mobile,touch,landscape" }  # tablet landscape
 ```
 
-A change to a shared layout primitive (Panel, a zone surface, a scroll
-container) owes all three. A change scoped to a desktop-only affordance owes
-desktop plus one phone pass to prove it did not leak.
+Five viewports since ADR 0101 (the tablet pair was where the deck builders hid
+their worst clipping). A change to a shared layout primitive (Panel, a zone
+surface, a scroll container) owes all five. A change scoped to a desktop-only
+affordance owes desktop plus one phone pass to prove it did not leak.
 
 Emulation persists across navigations in the same page, so set it once and
 walk the runbook.
