@@ -64,6 +64,7 @@ import {
     planActivationCostPicks,
 } from "./activationCostPicks";
 import { checkStateBasedActions } from "./sba";
+import { applyBestowCharacteristics } from "./bestow";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
     applyAllCombatDamage,
@@ -648,6 +649,23 @@ export function applyMoveForSearch(
                     ? { castOffSorceryTiming: true }
                     : {}),
             };
+            // CR 702.103b (issue #2388) — a BESTOW variant of this move casts
+            // the card as an Aura enchantment, not as a creature. The sandbox
+            // resolves the item below (`resolveTopOfStack`), so without this
+            // the search would evaluate every bestow line as "a 1/1 body
+            // entered" and never see the attachment or the +1/+1 it grants —
+            // the two things that make the mode worth choosing. Compared by
+            // reference against the definition, the same discriminator
+            // `announceCast` uses.
+            if (
+                move.alternativeCostId !== undefined &&
+                move.alternativeCostId ===
+                    tryGetDefinition(
+                        (spellCard.card as { id?: string }).id ?? ""
+                    )?.bestow?.id
+            ) {
+                applyBestowCharacteristics(stackItem);
+            }
             next.stack.push(stackItem);
             resolveTopOfStack(next);
             // CR 614.12 / ADR 0051 — a spell that puts a shock land onto the

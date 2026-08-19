@@ -263,10 +263,20 @@ export function useHandCardCommit(
         // that leg (mana affordability is checked downstream by the normal
         // payment machinery, same as "Pay mana cost" itself is never
         // affordability-filtered here).
+        // CR 702.103a — Bestow is likewise an alternative cost ("casting a
+        // spell using its bestow ability follows the rules for paying
+        // alternative costs"), in its own dedicated `def.bestow` field
+        // mirroring `evoke`/`dash`. Picking it here is what makes the cast an
+        // AURA cast: `announceCast` derives the "enchant creature" target
+        // requirement from the chosen alt-cost id, so the target prompt the
+        // player sees next differs by this click. `affordableAltCostsForCard`
+        // already folds `def.bestow` in — and filters it out when no creature
+        // is on the battlefield to enchant (CR 601.2c).
         if (
             (def.alternativeCosts && def.alternativeCosts.length > 0) ||
             def.evoke ||
-            def.dash
+            def.dash ||
+            def.bestow
         ) {
             const affordableAlts = affordableAltCostsForCard(
                 cardInstance,

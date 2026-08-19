@@ -69,6 +69,7 @@ const FULL_CAST: Required<PendingCast> = {
     },
     evoked: false,
     dashed: false,
+    bestowed: false,
     castOffSorceryTiming: false,
     improviseTappedArtifactIds: [],
     convokeCreatureChoice: { min: 1, max: 1, hybridPips: [] },

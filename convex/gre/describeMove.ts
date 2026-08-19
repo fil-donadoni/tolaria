@@ -118,7 +118,14 @@ export function describeMove(move: Move, state: GameState): string {
         case "cast-spell": {
             const name = instanceName(state, move.cardInstanceId);
             const x = move.chosenX !== undefined ? ` (X=${move.chosenX})` : "";
-            return `cast ${name}${x}${withTargets(state, move.targets)}`;
+            // CR 118.9 / 702.103a — an alternative-cost cast is a DIFFERENT
+            // move from the plain one and must read as such in a trace: "cast
+            // Springheart Nantuko" and "cast Springheart Nantuko [bestow]
+            // target Grizzly Bears" are two lines a reader has to tell apart.
+            const alt = move.alternativeCostId
+                ? ` [${move.alternativeCostId}]`
+                : "";
+            return `cast ${name}${x}${alt}${withTargets(state, move.targets)}`;
         }
         case "activate-ability": {
             const name = instanceName(state, move.cardInstanceId);

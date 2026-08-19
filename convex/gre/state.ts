@@ -163,6 +163,7 @@ import {
     applyLandTypeReplacement,
     composeMaterializedSubtypes,
 } from "./constants";
+import { revertBestow } from "./bestow";
 import {
     STATIC_EFFECT_CTX,
     getEffectivePower,
@@ -1338,6 +1339,35 @@ export type CardInstanceState = {
      *  step" half of Dash fires. See {@link PermanentView.dashed} for the
      *  full doc. */
     dashed?: boolean;
+    /** CR 702.103b — true iff this object is currently BESTOWED: it was cast
+     *  for its Bestow cost and has not yet ceased to be bestowed
+     *  (CR 702.103e–g). Set on the stack item at cast commit
+     *  (`convex/game.ts`, when the chosen alternative cost ===
+     *  `CardDefinition.bestow`) by `applyBestowCharacteristics`
+     *  (`convex/gre/bestow.ts`), which in the same breath rewrites `types` /
+     *  `subtypes` / `power` / `toughness` to the Aura enchantment the spell
+     *  becomes (CR 205.1a) and stamps `grantedEnchantRestriction` with the
+     *  gained "enchant creature". Rides onto the resulting battlefield
+     *  permanent for free (a stack item IS its CardInstanceState, the
+     *  `escaped`/`evoked`/`dashed` precedent). Bestow requires that verbatim
+     *  (CR 702.103b): "the permanent it becomes as it resolves will be a
+     *  bestowed Aura".
+     *
+     *  UNLIKE `evoked`/`dashed`, this flag is not merely a memory a trigger
+     *  reads: it is the live discriminator for two engine behaviours.
+     *   - `checkAuraAttachmentSBA` (`sba.ts`) reverts a bestowed Aura to a
+     *     creature IN PLACE instead of putting it into its owner's graveyard
+     *     (CR 702.103f, the explicit exception to CR 704.5m).
+     *   - `finalizeSpellResolution` lets a bestowed Aura spell with an
+     *     illegal target keep resolving as a CREATURE spell rather than
+     *     fizzling (CR 702.103e / 608.3b).
+     *
+     *  Because it is paired with an in-place type mutation, every boundary at
+     *  which the object stops being bestowed calls `revertBestow`, never a
+     *  bare `delete`: the two SBA/resolution sites above, plus the CR 400.7
+     *  zone-change resets (`resetStackTransientState`, `removePermanentTo`,
+     *  `resetBattlefieldTransientState`). */
+    bestowed?: boolean;
     /** CR 307.1 / 117.1a / 601.3a — true iff this spell was cast at a moment
      *  a sorcery couldn't have been cast (stack non-empty, not the caster's
      *  main phase, or not the caster's turn) — the memory "if you cast it
@@ -2197,6 +2227,15 @@ export type PendingCast = {
      *  (`tryAutoCommitPendingCast`) can still tag the resulting stack item
      *  `dashed: true` once mana is covered / the pick resolves. */
     dashed?: boolean;
+    /** CR 702.103a — true iff the alternative cost chosen for this cast is the
+     *  card's Bestow cost (`isBestowAlternativeCost` at announcement). Carried
+     *  through a parked cast (the ordinary "tap for the mana" park, or a real
+     *  non-mana pick) so the deferred commit (`tryAutoCommitPendingCast`) can
+     *  still apply the CR 702.103b characteristic change to the resulting
+     *  stack item once mana is covered / the pick resolves. Same shape as
+     *  `evoked`/`dashed` above, and the same reason: the choice is made at
+     *  announcement (CR 601.2b) but the stack item is not built until commit. */
+    bestowed?: boolean;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the "a sorcery
      *  couldn't have been cast right now" snapshot, taken at ANNOUNCEMENT
      *  (`announceCast`, before any cost is paid) and carried here so the
@@ -5097,7 +5136,27 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // its effect. Partially-legal items have `targets` pruned to the legal
     // subset (handled inside the gate) and resolve normally.
     if (top.resolutionStep === undefined) {
-        if (targetLegalityGate(state, top) === "fizzle") {
+        const legality = targetLegalityGate(state, top);
+        if (legality === "fizzle" && top.bestowed) {
+            // CR 702.103e / 608.3b — the ONE documented exception to "a spell
+            // whose targets are all illegal doesn't resolve": "As a bestowed
+            // Aura spell begins resolving, if its target is illegal, it ceases
+            // to be bestowed and the effect making it an Aura spell ends. It
+            // continues resolving as a creature spell." 608.3b says the same
+            // thing from the resolution side ("it becomes a creature spell and
+            // will resolve as described in rule 608.3a").
+            //
+            // So this is deliberately NOT a `return`: the item stays on the
+            // stack, sheds the Aura characteristics (`revertBestow` restores
+            // its printed type line) and falls through to the ordinary
+            // permanent-spell tail below, which enters it as the creature it
+            // was printed as. Its `targets` are dropped with the Aura-ness —
+            // a creature spell has none, and leaving the illegal entry behind
+            // would make `finalizeSpellResolution` read a host that isn't
+            // there.
+            revertBestow(top);
+            delete top.targets;
+        } else if (legality === "fizzle") {
             delete top.collectedChoices;
             state.stack.pop();
             // CR 608.2b — a countered SPELL is put into its owner's graveyard;
@@ -5853,6 +5912,18 @@ function resetStackTransientState(item: StackItem): void {
     delete item.evoked;
     delete item.dashed;
     delete item.escaped;
+    // CR 702.103b/400.7 — the bestow marker is the same leak shape as the
+    // three above, with one extra obligation: bestow also MUTATED the object's
+    // type line in place, so a bare `delete` would leave a countered
+    // Springheart Nantuko sitting in the graveyard as an `Enchantment — Aura`
+    // with no power or toughness. `revertBestow` restores the printed line and
+    // clears both the marker and the granted "enchant creature" together. A
+    // no-op on every non-bestowed item. Every path reaching here leaves the
+    // stack for a NON-battlefield zone (graveyard, exile, library, hand) — a
+    // spell that actually resolves onto the battlefield never calls this
+    // function, which is exactly what lets the resolved permanent stay
+    // bestowed (CR 702.103b).
+    revertBestow(item);
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — same leak shape as
     // `evoked`/`dashed`/`escaped` immediately above: a COUNTERED (or
     // otherwise stack-leaving-without-resolving) spell must not carry this
@@ -6087,10 +6158,28 @@ function finalizeSpellResolution(
                     // re-checking its target's legality before it resolves.
                     isFullyLegalAuraHost(state, host, item, true));
             if (!isLegalHost) {
-                sendStackItemToGraveyard(state, item);
-                return;
+                // CR 702.103e / 608.3b — a BESTOWED Aura spell does not
+                // fizzle on an illegal target: "it ceases to be bestowed and
+                // the effect making it an Aura spell ends. It continues
+                // resolving as a creature spell." The `targetLegalityGate`
+                // above already applies the same exception for the CR 608.2b
+                // shroud/protection/gone cases; THIS branch is the one it
+                // cannot see — a target still legal to TARGET but no longer a
+                // legal aura HOST (CR 702.16b protection from the aura's
+                // colour, Guardian Beast's "can't be enchanted"), which only
+                // `isFullyLegalAuraHost` decides. Both roads must lead to the
+                // creature, or the exception would hold for one half of
+                // 608.2b's legality and not the other.
+                if (item.bestowed) {
+                    revertBestow(item);
+                    delete item.targets;
+                } else {
+                    sendStackItemToGraveyard(state, item);
+                    return;
+                }
+            } else {
+                item.attachedTo = hostPlayerId ?? host!.id;
             }
-            item.attachedTo = hostPlayerId ?? host!.id;
         }
         item.zone = "battlefield";
         // CR 113.6c — an ability that functions only OUTSIDE the battlefield
@@ -8940,6 +9029,15 @@ export function removePermanentTo(
     // departure, not only the hand/library one that runs
     // `resetBattlefieldTransientState` below.
     clearGrantedEnchantRestriction(creature);
+    // CR 702.103f / 400.7 — a bestowed Aura leaving the battlefield ceases to
+    // be bestowed, and (unlike the granted restriction cleared immediately
+    // above) bestow also rewrote the object's TYPE LINE in place, so the
+    // printed line has to be put back or a dead Springheart Nantuko sits in
+    // the graveyard as an `Enchantment — Aura` and no "return target creature
+    // card from your graveyard" can ever see it. Same site, same reasoning,
+    // and same coverage: EVERY departure, not only the hand/library one that
+    // runs `resetBattlefieldTransientState` below.
+    revertBestow(creature);
     // CR 707.2 — a copy effect lasts only while the object is on the
     // battlefield. Restore the printed identity now (after LKI snapshots, so
     // death triggers still read the copied P/T) so the card re-casts and
@@ -10565,6 +10663,12 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // earlier (`putReanimatedSetOnBattlefield`), because it asks its legality
     // question before this reset runs.
     clearGrantedEnchantRestriction(card);
+    // CR 702.103f / 400.7 — the entry-side half of the bestow revert, paired
+    // with the departure-side one in `removePermanentTo`: the object that
+    // enters is a new one and is never bestowed (nothing but a bestow CAST can
+    // make it so, CR 702.103a), so a marker surviving here would carry an
+    // Aura type line onto a reanimated / blinked creature.
+    revertBestow(card);
     // CR 111 / 400.7 (issue #791/#1319) — the per-source exile provenance
     // link is only meaningful while the card sits in exile. This helper is
     // the shared chokepoint for every reanimation-style entry

@@ -466,6 +466,16 @@ function compactCard(
     if (card.dashed) {
         out.dashed = card.dashed;
     }
+    // CR 702.103b — the Bestow marker must survive a save/load for the whole
+    // life of the bestowed object: it is the live discriminator the CR 702.103f
+    // Aura-SBA exception (`sba.ts`) and the CR 702.103e resolution exception
+    // (`state.ts`) both read, so a dropped flag turns a bestowed Nantuko into
+    // an ordinary Aura and the next SBA sweep bins it to the graveyard. The
+    // type-line half of the change rides the ordinary `types`/`subtypes`
+    // definition-diff above.
+    if (card.bestowed) {
+        out.bestowed = card.bestowed;
+    }
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — the "cast when a sorcery
     // couldn't have been cast" timing snapshot must survive a save/load
     // between the cast committing and a later check-time predicate (e.g. a
@@ -842,6 +852,18 @@ function expandCard(
     // CR 702.109a — restore the Dash cast marker.
     if (compact.dashed) {
         result.dashed = compact.dashed as boolean;
+    }
+    // CR 702.103b — restore the Bestow marker, and with it the ONE part of the
+    // bestow characteristic change the definition-diff cannot carry. A
+    // bestowed object is an Aura enchantment with NO power or toughness
+    // (CR 205.1a), so `compactCard` writes `power: undefined` — and an
+    // explicit `undefined` does not survive JSON, which makes the
+    // `"power" in compact` fallback above hand back the printed 1/1 instead.
+    // Re-clearing here keeps the round-trip exact.
+    if (compact.bestowed) {
+        result.bestowed = compact.bestowed as boolean;
+        delete result.power;
+        delete result.toughness;
     }
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — restore the "cast off
     // sorcery timing" snapshot.

@@ -488,6 +488,17 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
             ...(base ?? {}),
             instanceIds: [target.id],
         };
+        // CR 109.5 (issue #2388) — an optional CONTROLLER scope: "attached to
+        // a creature you control". Narrows the scan to the one player instead
+        // of every battlefield; an unresolvable player ref reads `false`
+        // (CR 608.2b), the same fail-closed rule the unmatchable-filter guard
+        // above applies, never "scan everyone".
+        const scoped = pred.controlledBy;
+        if (scoped !== undefined) {
+            const pid = resolvePlayerRef(ctx, scoped);
+            if (!pid) return false;
+            return ctx.getBattlefieldIds(pid, filter).length > 0;
+        }
         return ctx.allPlayerIds.some(
             (pid) => ctx.getBattlefieldIds(pid, filter).length > 0
         );

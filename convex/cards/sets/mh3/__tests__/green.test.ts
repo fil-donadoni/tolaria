@@ -13,7 +13,15 @@
 // and the Eldrazi Spawn token is created alongside.
 
 import { describe, it, expect } from "vitest";
-import { fanaticOfRhonas, malevolentRumble } from "../green";
+import {
+    fanaticOfRhonas,
+    malevolentRumble,
+    springheartNantuko,
+} from "../green";
+import { grizzlyBears } from "../../lea";
+import { collectTriggers } from "../../../../gre/triggers";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { applyBestowCharacteristics } from "../../../../gre/bestow";
 import { forest, island } from "../../lea/colorless";
 import {
     makeInstance,
@@ -416,5 +424,192 @@ describe("Fanatic of Rhonas — Eternalize (CR 702.129 / 707.2)", () => {
             })
         ).toThrow("You do not own this card");
         expect(state.players[0].graveyard).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Springheart Nantuko (issue #2388) — the catalogue's first Bestow card.
+//
+// The BESTOW cast mode itself is engine infra and is proved in
+// `convex/gre/__tests__/bestow.test.ts` (CR 702.103b/e/f, the SBA exception,
+// the wire projection, the DB round-trip). What is proved HERE is the card:
+// the +1/+1 while attached, and both branches of the landfall trigger — which
+// earn a hand-written test because the auto-generated smoke sweep cannot drive
+// a script that suspends on a `mayPay`, and because "that creature" resolves
+// through the `$host` attachment binding, which is only ever populated when
+// the permanent is bestowed.
+// ---------------------------------------------------------------------------
+
+/** Synthesizes the PERMANENT_ENTERED event a land drop emits (CR 603.6a) and
+ *  puts the resulting landfall trigger on the stack. */
+function nantukoLandfallOnStack(
+    state: GameState,
+    landId: string,
+    controllerId: string
+) {
+    const triggers = collectTriggers(state, [
+        {
+            type: "PERMANENT_ENTERED" as const,
+            instanceId: landId,
+            controllerId,
+            cardId: forest.id,
+            types: ["Land"] as const,
+        },
+    ]);
+    expect(triggers).toHaveLength(1);
+    state.stack.push(...triggers);
+    return triggers[0];
+}
+
+/** A board where Nantuko is already bestowed onto `host`, plus a Forest that
+ *  has "just entered". `hostController` decides whether the enchanted creature
+ *  is one p1 controls (the payment branch) or the opponent's (it is not). */
+function bestowedBoard(hostController: "p1" | "p2" = "p1") {
+    const nantuko = makeInstance(springheartNantuko.id, {
+        id: "nantuko",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    // CR 702.103b — the state a resolved bestowed cast leaves behind. Applied
+    // through the engine's own helper so this fixture can never drift from
+    // what `finalizeTargetSelection` actually produces.
+    applyBestowCharacteristics(nantuko);
+    nantuko.attachedTo = "host";
+    const host = makeInstance(grizzlyBears.id, {
+        id: "host",
+        controllerId: hostController,
+        ownerId: hostController,
+    });
+    const land = makeInstance(forest.id, { id: "land1", controllerId: "p1" });
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [
+                    nantuko,
+                    ...(hostController === "p1" ? [host] : []),
+                    land,
+                ],
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 2, C: 2 },
+            }),
+            makePlayer("p2", {
+                battlefield: hostController === "p2" ? [host] : [],
+            }),
+        ],
+    });
+    return { state, nantuko, host };
+}
+
+describe("Springheart Nantuko — bestowed buff (CR 613 layer 7c / 303.4m)", () => {
+    it("gives the enchanted creature +1/+1, on the board and across the wire", () => {
+        const { state, host } = bestowedBoard();
+        expect(getEffectivePower(state, host)).toBe(3);
+        expect(getEffectiveToughness(state, host)).toBe(3);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimHost = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slimHost)).toBe(3);
+        expect(getEffectiveToughness(projected, slimHost)).toBe(3);
+    });
+
+    it("gives nothing while unattached — the buff is keyed on attachedTo", () => {
+        const { state, host, nantuko } = bestowedBoard();
+        nantuko.attachedTo = undefined;
+        expect(getEffectivePower(state, host)).toBe(2);
+        expect(getEffectiveToughness(state, host)).toBe(2);
+    });
+});
+
+describe("Springheart Nantuko — Landfall (CR 603.6a / 109.5)", () => {
+    it("attached to a creature you control and paid: copies that creature", () => {
+        const { state } = bestowedBoard();
+        nantukoLandfallOnStack(state, "land1", "p1");
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices?.[0]).toMatchObject({ kind: "may-pay" });
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        const p1 = state.players[0];
+        const tokens = p1.battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        // CR 707.2 — a copy of the ENCHANTED creature, not the Insect.
+        expect(getDefinition((tokens[0].card as { id: string }).id).name).toBe(
+            "Grizzly Bears"
+        );
+        expect(p1.manaPool.G).toBe(1); // {1}{G} paid out of {G}{G} + {C}{C}
+    });
+
+    it("attached to a creature you control and DECLINED: creates the 1/1 green Insect", () => {
+        const { state } = bestowedBoard();
+        nantukoLandfallOnStack(state, "land1", "p1");
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices?.[0]).toMatchObject({ kind: "may-pay" });
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+
+        const p1 = state.players[0];
+        const tokens = p1.battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0].subtypes).toContain("Insect");
+        expect(tokens[0].power).toBe(1);
+        expect(tokens[0].toughness).toBe(1);
+        expect(getEffectiveColors(tokens[0])).toEqual(["G"]);
+    });
+
+    it("UNATTACHED: offers no payment at all and creates the Insect (CR 608.2b — no $host)", () => {
+        const { state, nantuko } = bestowedBoard();
+        nantuko.attachedTo = undefined;
+        nantukoLandfallOnStack(state, "land1", "p1");
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0].subtypes).toContain("Insect");
+        expect(state.players[0].manaPool.G).toBe(2); // nothing was paid
+    });
+
+    it("attached to a creature you DON'T control: no payment, Insect only (CR 109.5)", () => {
+        // The `controlledBy` scope on the objectMatchesFilter predicate is the
+        // whole of this clause: without it the may-pay would be offered on an
+        // opponent's enchanted creature.
+        const { state } = bestowedBoard("p2");
+        nantukoLandfallOnStack(state, "land1", "p1");
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0].subtypes).toContain("Insect");
+    });
+
+    it("wire format: the landfall token reaches the client with its colour and P/T", () => {
+        const { state } = bestowedBoard();
+        nantukoLandfallOnStack(state, "land1", "p1");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimToken = projected.players[0].battlefield.find(
+            (c) => c.isToken
+        )!;
+        expect(slimToken.subtypes).toContain("Insect");
+        expect(getEffectivePower(projected, slimToken)).toBe(1);
+        expect(getEffectiveToughness(projected, slimToken)).toBe(1);
+    });
+
+    it("an OPPONENT's land entering does NOT trigger (CR 109.5 — a land YOU control)", () => {
+        const { state } = bestowedBoard();
+        const triggers = collectTriggers(state, [
+            {
+                type: "PERMANENT_ENTERED" as const,
+                instanceId: "land1",
+                controllerId: "p2",
+                cardId: forest.id,
+                types: ["Land"] as const,
+            },
+        ]);
+        expect(triggers).toHaveLength(0);
     });
 });

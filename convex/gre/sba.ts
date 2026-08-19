@@ -9,9 +9,11 @@ import {
     refreshLandPlayLock,
     removePermanentTo,
     revertControlChange,
+    unapplyAuraControlChange,
     unapplySourceStaticEffects,
 } from "./state";
 import { isAura, isCreature, isPlaneswalker } from "./constants";
+import { revertBestow } from "./bestow";
 import { applyZoneCharacteristics } from "./zoneCharacteristics";
 import {
     getEffectivePower,
@@ -187,6 +189,43 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
     // reverts any keyword grants this aura applied to its host (if still
     // present), keeping read-time lookups consistent.
     for (const id of toDetach) {
+        // CR 702.103f — "If a bestowed Aura becomes unattached, it ceases to
+        // be bestowed. If a bestowed Aura is attached to an illegal object or
+        // player, it becomes unattached and ceases to be bestowed. This is an
+        // exception to rule 704.5m." So a BESTOWED Aura reaching this loop is
+        // not put into its owner's graveyard: it reverts to its printed type
+        // line (a creature again) and STAYS on the battlefield — structurally
+        // the Equipment treatment of CR 704.5n (`checkAttachmentSBA` below),
+        // reached through the SAME legality verdict the loop above already
+        // computed rather than through a second, parallel predicate. Deciding
+        // it here (and not in a separate sweep ordered before this one) is
+        // what keeps the OFFERED and the ENFORCED host sets in agreement: any
+        // future narrowing of aura legality applies to bestow automatically.
+        //
+        // CR 611.3a — but "stays on the battlefield" is NOT "keeps applying":
+        // a static ability's continuous effect "applies at any given moment to
+        // whatever its text indicates", and "enchanted creature" indicates
+        // nothing once the Aura is unattached. So every effect this object was
+        // applying THROUGH the attachment ends right here, and
+        // the release has to be explicit because the two paths that normally
+        // do it are both skipped on this branch: `removePermanentTo` below
+        // (the CR 704.5m graveyard road) and the CR 704.5n Equipment branch
+        // (`checkAttachmentSBA`), which unapplies before clearing
+        // `attachedTo` for exactly this reason. Without it a bestowed Aura
+        // that granted its host a keyword leaves the grant on the host
+        // indefinitely — the host's `grantedStaticAbilities` entry documents
+        // itself as removed "when the aura unattaches", and nothing else on
+        // this road removes it. Order matters twice over:
+        // `unapplyAuraControlChange` reads `attachedTo` (which `revertBestow`
+        // clears), and both reads happen while the object still LOOKS like
+        // the Aura it was.
+        const bestowed = findOnBattlefield(state, id);
+        if (bestowed?.bestowed) {
+            unapplyAuraControlChange(state, bestowed);
+            unapplySourceStaticEffects(state, bestowed);
+            revertBestow(bestowed);
+            continue;
+        }
         removePermanentTo(state, id, "graveyard");
     }
     return toDetach.length > 0;

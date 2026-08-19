@@ -13741,6 +13741,22 @@ export interface EffectBoundMatchesFilterPredicate {
 export interface EffectObjectMatchesFilterPredicate {
     objectMatchesFilter: EffectObjectSelector;
     filter: EffectCardFilter;
+    /** CR 109.5 (issue #2388) — additionally require that the object be
+     *  controlled by this player: "…is attached to a creature YOU CONTROL"
+     *  (Springheart Nantuko's landfall trigger). Omitted, the predicate is
+     *  controller-agnostic and any battlefield is scanned, which is what every
+     *  pre-existing consumer means.
+     *
+     *  A field on THIS predicate rather than a `controller` member of
+     *  {@link EffectCardFilter} (primitive-reuse rule, "generalize, don't
+     *  add"): `EffectCardFilter` is read by a dozen zone-scoped sites where
+     *  "you control" is either meaningless (a graveyard/hand/library card has
+     *  no controller) or already implied by the site's own `player` field, and
+     *  a field those readers ignore FAILS OPEN — it would validate and then
+     *  silently not constrain. Here it is the one reader, and it fails closed:
+     *  an unresolvable player ref makes the predicate `false` (CR 608.2b),
+     *  never "no constraint". */
+    controlledBy?: EffectPlayerRef;
 }
 
 /** Has-city's-blessing predicate (Ascend, CR 702.131b — issue #1460): true iff
@@ -14415,6 +14431,37 @@ export interface CardDefinition {
      *  `CardInstanceState.dashed`. By convention this card's
      *  `AlternativeCost.id` is `"dash"`. */
     dash?: AlternativeCost;
+    /** CR 702.103 — Bestow. "Bestow [cost]" means "As you cast this spell, you
+     *  may choose to cast it bestowed. If you do, you pay [cost] rather than
+     *  its mana cost" (702.103a), and a spell cast bestowed "becomes an Aura
+     *  enchantment and gains enchant creature" as it is put onto the stack
+     *  (702.103b). This field carries the COST half only — it reuses the
+     *  {@link AlternativeCost} shape verbatim, because 702.103a says in so
+     *  many words that "casting a spell using its bestow ability follows the
+     *  rules for paying alternative costs", so the SAME cost-system infra as
+     *  `alternativeCosts` / `evoke` / `dash` resolves it
+     *  (`convex/gre/alternativeCost.ts`'s `getAlternativeCost` /
+     *  `affordableAlternativeCosts`). Kept as its own dedicated field — like
+     *  `evoke`/`dash` — so a card's chosen alt cost is IDENTIFIABLE as "the
+     *  bestow one" at cast commit (compared by reference,
+     *  `isBestowAlternativeCost`).
+     *
+     *  What makes Bestow different from every other keyword-cast mode this
+     *  engine ships is the CHARACTERISTIC half, which lives in
+     *  `convex/gre/bestow.ts`: `evoke`/`dash`/`flashback`/`madness`/`escape`
+     *  are pure cost swaps, while a bestowed cast additionally swaps the
+     *  spell's TYPE LINE (Enchantment — Aura, no P/T, CR 205.1a) and its
+     *  TARGET REQUIREMENT (the gained "enchant creature", CR 303.4a — the
+     *  same "a cast-time choice replaces `targetRequirement`" shape
+     *  `kickedTargetRequirement` has). `CardInstanceState.bestowed` marks the
+     *  object for the duration and rides onto the permanent the spell becomes
+     *  (702.103b), where it makes CR 702.103f's documented exception to the
+     *  CR 704.5m Aura SBA fire: the permanent becomes a creature again instead
+     *  of being put into its owner's graveyard.
+     *
+     *  By convention this card's `AlternativeCost.id` is `"bestow"`. Used by
+     *  Springheart Nantuko (MH3). */
+    bestow?: AlternativeCost;
     /** CR 702.34 — Flashback. A static ability that functions while the card
      *  is in its owner's graveyard: "You may cast this card from your graveyard
      *  by paying [this cost] rather than its mana cost", and "If the flashback
