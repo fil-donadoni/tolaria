@@ -384,6 +384,32 @@ export const INSECT_TOKEN: EffectTokenSpec = {
     colors: ["B", "G"],
 };
 
+/** Green Insect token (CR 111, issue #2388). "1/1 green Insect creature
+ *  token" — created today by Springheart Nantuko's landfall trigger
+ *  (`sets/mh3/green.ts`) on the branch where no copy token was made.
+ *
+ *  A SEPARATE spec from `INSECT_TOKEN` above rather than a colour override on
+ *  it: `INSECT_TOKEN` is Grist's BLACK AND GREEN Insect (CR 105.2 — a
+ *  two-colour object), and colour is a copiable characteristic that every
+ *  colour-matters effect reads (`getEffectiveColors`, `sharesColor`, protection
+ *  from black). Two tokens that differ in colour are two tokens; folding them
+ *  into one spec with a per-producer override would make the shared spec a
+ *  lie and hash both to the same synthesized `tokenDefinitionId`.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `INSECT_TOKEN` treatment: the
+ *  art-match rule is "the token associated with the PRODUCING card's own
+ *  printing", resolved per producer from `generated/token-prints.json`
+ *  (`tokenPrintIdFor`). Springheart Nantuko's MH3 #171 printing reverse-links
+ *  to the TMH3 #25 mono-green Insect token, which is exactly this spec. */
+export const GREEN_INSECT_TOKEN: EffectTokenSpec = {
+    name: "Insect",
+    types: ["Creature"],
+    subtypes: ["Insect"],
+    power: 1,
+    toughness: 1,
+    colors: ["G"],
+};
+
 /** Food token (CR 111.10b — "A Food token is a colorless Food artifact token
  *  with '{2}, {T}, Sacrifice this token: You gain 3 life.'"; issue #2361).
  *  Created today by Oko, Thief of Crowns' `+2` (`sets/eld/multicolor.ts`);

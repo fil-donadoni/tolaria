@@ -12,6 +12,7 @@ import {
     unapplySourceStaticEffects,
 } from "./state";
 import { isAura, isCreature, isPlaneswalker } from "./constants";
+import { revertBestow } from "./bestow";
 import { applyZoneCharacteristics } from "./zoneCharacteristics";
 import {
     getEffectivePower,
@@ -187,6 +188,23 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
     // reverts any keyword grants this aura applied to its host (if still
     // present), keeping read-time lookups consistent.
     for (const id of toDetach) {
+        // CR 702.103f — "If a bestowed Aura becomes unattached, it ceases to
+        // be bestowed. If a bestowed Aura is attached to an illegal object or
+        // player, it becomes unattached and ceases to be bestowed. This is an
+        // exception to rule 704.5m." So a BESTOWED Aura reaching this loop is
+        // not put into its owner's graveyard: it reverts to its printed type
+        // line (a creature again) and STAYS on the battlefield — structurally
+        // the Equipment treatment of CR 704.5n (`checkAttachmentSBA` below),
+        // reached through the SAME legality verdict the loop above already
+        // computed rather than through a second, parallel predicate. Deciding
+        // it here (and not in a separate sweep ordered before this one) is
+        // what keeps the OFFERED and the ENFORCED host sets in agreement: any
+        // future narrowing of aura legality applies to bestow automatically.
+        const bestowed = findOnBattlefield(state, id);
+        if (bestowed?.bestowed) {
+            revertBestow(bestowed);
+            continue;
+        }
         removePermanentTo(state, id, "graveyard");
     }
     return toDetach.length > 0;

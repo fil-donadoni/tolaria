@@ -2351,7 +2351,10 @@ function isPredicate(value: unknown): boolean {
     // selector position is what separates it from `boundMatchesFilter`'s bare
     // snapshot ref: this form reads the battlefield now, not a snapshot.
     if (
-        keys.length === 2 &&
+        (keys.length === 2 ||
+            // CR 109.2 (issue #2388) — the optional `controlledBy` player
+            // scope ("attached to a creature you control").
+            (keys.length === 3 && keys.includes("controlledBy"))) &&
         keys.includes("objectMatchesFilter") &&
         keys.includes("filter")
     ) {
@@ -2369,6 +2372,7 @@ function isPredicate(value: unknown): boolean {
         // permanent at runtime.
         return (
             isObjectSelector(obj.objectMatchesFilter) &&
+            (obj.controlledBy === undefined || isPlayerRef(obj.controlledBy)) &&
             isCardFilter(obj.filter, {
                 allowHasAbility: true,
                 allowIsAttacking: true,
@@ -4777,6 +4781,12 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
     // caught exactly as at every other selector site.
     if ("objectMatchesFilter" in p) {
         collectRefUses(p.objectMatchesFilter, "objectMatchesFilter", out);
+        // issue #2388 — the optional `controlledBy` player scope may itself be
+        // a ref (`{ controllerOf: "$host" }`); route it through the shared
+        // player-position collector so a dangling binding is caught here too.
+        if (p.controlledBy !== undefined) {
+            collectRefUses(p.controlledBy, "controlledBy", out);
+        }
         return;
     }
     // targetMatchesGraveyardFilter (issue #2385) — an object SELECTOR (same

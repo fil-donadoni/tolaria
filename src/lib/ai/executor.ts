@@ -52,6 +52,9 @@ export type MoveMutations = {
             cardInstanceId: string;
             chosenX?: number;
             chosenModeId?: string;
+            /** CR 118.9 / 702.103a — chosen alternative casting cost (Bestow
+             *  today, issue #2388). */
+            alternativeCostId?: string;
         }
     ) => Promise<unknown>;
     selectTarget: (
@@ -321,6 +324,12 @@ export async function executeMove(
                 cardInstanceId: move.cardInstanceId,
                 chosenX: move.chosenX,
                 chosenModeId: move.chosenModeId,
+                // CR 118.9 / 702.103a (issue #2388) — the chosen alternative
+                // casting cost. The enumerator emits it for Bestow, whose
+                // choice must reach the mutation BEFORE targets: the bestow
+                // cast is an Aura spell and the target group the executor
+                // sends next is the one `announceCast` derives from this id.
+                alternativeCostId: move.alternativeCostId,
             });
             // issue #1101 — `TargetSelection.type` grew a "hand-card" member
             // for `lookDistribute`'s internal `bind` resolution, but it is never a

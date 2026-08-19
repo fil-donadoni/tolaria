@@ -225,6 +225,16 @@
             "name": "Wasp"
         }
     ],
+    "54a3ea87-005e-4985-b2a5-21711d0b71c0": [
+        {
+            "scryfallId": "8a016157-6f3f-4fb2-b962-1f548d378545",
+            "name": "Copy"
+        },
+        {
+            "scryfallId": "059e9d51-c7bf-41c0-a6f0-c0bbc6d3b434",
+            "name": "Insect"
+        }
+    ],
     "5a077de0-1893-40d0-a499-ee2e6e2258f1": [
         {
             "scryfallId": "406e2960-f560-48bb-b4a6-4bd35889a8f8",
@@ -267,6 +277,12 @@
         {
             "scryfallId": "45364163-62b7-4641-b2c9-c2e46d61335c",
             "name": "Copy"
+        }
+    ],
+    "6ef58164-4155-4e5b-8c16-f16f2ab65baa": [
+        {
+            "scryfallId": "6ef58164-4155-4e5b-8c16-f16f2ab65baa",
+            "name": "Fanatic of Rhonas"
         }
     ],
     "72d5fab1-fa20-4006-b19d-179d36238c9b": [
@@ -361,6 +377,12 @@
         {
             "scryfallId": "b9f3042b-784c-4006-9bf1-60a323e60c5c",
             "name": "Thrull"
+        }
+    ],
+    "a178cfe8-f9fa-4255-88d0-54a0bed079f5": [
+        {
+            "scryfallId": "e32795e1-5548-43ef-8cd6-c605a19ef708",
+            "name": "Eldrazi Spawn"
         }
     ],
     "aa533845-4c4b-4072-aa39-8e56ce7ec325": [

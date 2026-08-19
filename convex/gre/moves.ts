@@ -31,6 +31,7 @@ import {
     resolveTargetRequirementCount,
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
+import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
 import {
     getLegalActions,
     getLegalTargets,
@@ -217,6 +218,20 @@ export type Move =
           kind: "cast-spell";
           cardInstanceId: string;
           chosenModeId?: string;
+          /** CR 118.9 — id of the ALTERNATIVE casting cost this variant pays
+           *  instead of the printed mana cost, forwarded verbatim to
+           *  `announceCast.alternativeCostId`. Absent = the ordinary cast.
+           *
+           *  Today the enumerator emits it for exactly one cast mode, Bestow
+           *  (CR 702.103a, issue #2388) — and Bestow is why the field exists
+           *  at all: every other alternative cost this engine ships
+           *  (evoke/dash/Gush/Fireblast) changes only what the caster PAYS, so
+           *  a Bot that never picks one merely plays suboptimally, while a Bot
+           *  that never picks Bestow cannot reach a whole class of board state
+           *  (an Aura on a creature) no other move produces. Adding an
+           *  evoke/dash/alt-cost variant later is the same field and needs no
+           *  new plumbing — only its own enumeration and its own cost. */
+          alternativeCostId?: string;
           chosenX?: number;
           targets: TargetSelection[];
           /** Variable-count targets (CR 601.2c "up to"/X) need an explicit
@@ -1019,6 +1034,59 @@ function enumerateCastMoves(
                         isVariableCount(lastReq) && targets.length > 0,
                     tapPlan,
                     ...(payLife > 0 ? { payLife } : {}),
+                });
+                if (moves.length >= MAX_COMBINATIONS) return moves;
+            }
+        }
+    }
+
+    // CR 702.103a/b (issue #2388) — the BESTOW cast mode: "As you cast this
+    // spell, you may choose to cast it bestowed. If you do, you pay [cost]
+    // rather than its mana cost", and the spell "becomes an Aura enchantment
+    // and gains enchant creature". A second, independent variant axis rather
+    // than another `modeVariants` entry, because it changes BOTH halves of
+    // what a mode row carries: the base cost (`def.bestow.mana`, not the
+    // printed cost) and the target groups (the gained "enchant creature", not
+    // the card's own `targetRequirement` — a bestow creature has none). The
+    // loop above is written around a single `rawCost`, so folding a
+    // second cost into it would mean threading a cost through the X /
+    // Phyrexian / delve machinery for a mode that has none of those: no
+    // printed Bestow cost carries {X} or a Phyrexian pip, and a bestow cast is
+    // never a delve/flashback cast.
+    //
+    // `hasLegalBestowHost` is only a cheap pre-filter; the real gate is
+    // `enumerateTargetGroupTuples` below, which emits nothing when no creature
+    // is a legal target — so the Bot can never announce a bestow cast the
+    // mutation would reject for want of a target (the executor announces
+    // first and taps afterwards, which is exactly the shape that strands it in
+    // `pendingCast`).
+    if (def?.bestow && hasLegalBestowHost(state)) {
+        const bestowCost = normalizeManaCost(def.bestow.mana ?? {}, {
+            chosenX: 0,
+        });
+        foldFlashSurchargeCost(bestowCost, flashSurcharge, flashSurchargeOwed);
+        // CR 601.2f — the same battlefield cost modifiers the printed-cost
+        // branch folds; a bestow cost is a mana cost like any other.
+        const bestowModifiers = getCostModifiers(state, card, "spell");
+        applyCostModifiers(bestowCost, bestowModifiers);
+        const bestowTapPlan = planManaPayment(state, player, bestowCost);
+        if (bestowTapPlan !== null) {
+            for (const targets of enumerateTargetGroupTuples(
+                state,
+                player,
+                card,
+                [BESTOW_TARGET_REQUIREMENT],
+                undefined
+            )) {
+                moves.push({
+                    kind: "cast-spell",
+                    cardInstanceId: card.id,
+                    alternativeCostId: def.bestow.id,
+                    targets,
+                    // CR 601.2c — a fixed-count single group auto-finalizes on
+                    // the last pick, so no trailing confirm.
+                    confirmTargets: false,
+                    tapPlan: bestowTapPlan,
                 });
                 if (moves.length >= MAX_COMBINATIONS) return moves;
             }

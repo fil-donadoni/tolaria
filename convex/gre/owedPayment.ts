@@ -94,6 +94,9 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     buybackPaid: "non-park",
     evoked: "non-park",
     dashed: "non-park",
+    // CR 702.103a — a bestow cast-mode marker, like `evoked`/`dashed`: a
+    // snapshot of a choice already made, never a payment the caster still owes.
+    bestowed: "non-park",
     /** CR 601.2 (issue #2473) — a board-state SNAPSHOT taken at announcement
      *  and carried to the commit; the payer decides nothing about it. */
     castOffSorceryTiming: "non-park",

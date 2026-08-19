@@ -268,6 +268,13 @@ import {
     validateAlternativeHandCostPicks,
     handCardMatchesFilter,
 } from "./gre/alternativeCost";
+// Bestow (CR 702.103) — the cost half rides the alternative-cost machinery
+// above; these are the CHARACTERISTIC half (`convex/gre/bestow.ts`).
+import {
+    BESTOW_TARGET_REQUIREMENT,
+    applyBestowCharacteristics,
+    isBestowAlternativeCost,
+} from "./gre/bestow";
 // Kicker cost system (CR 702.33 / 702.33e, ADR 0079) — plural kickers on the
 // shared `CostLegs` vocabulary, payment recorded per kicker id.
 import type { KickerPayments } from "./gre/kicker";
@@ -3616,6 +3623,15 @@ export function tryAutoCommitPendingCast(
         ...graveyardCastStackFlags(state, spellCard, castFromZone),
         ...reboundCastStackFlags(spellCard, castFromZone),
     };
+    // CR 702.103b (issue #2388) — see the matching call in
+    // `finalizeTargetSelection`. This is the DEFERRED half of the same commit:
+    // a bestow cast whose mana was paid across a separate `tapForPayment`
+    // mutation lands here instead, and must become an Aura at exactly the same
+    // seam. The choice rode here on `PendingCast.bestowed` (set at
+    // announcement, the `evoked`/`dashed` shape); the flag on the stack item
+    // itself is written by `applyBestowCharacteristics`, alongside the type
+    // line it rewrites, so the two can never be set apart from each other.
+    if (state.pendingCast.bestowed) applyBestowCharacteristics(stackItem);
     state.stack.push(stackItem);
 
     const cardName = (spellCard.card as { name?: string }).name;
@@ -5910,15 +5926,30 @@ export function assertFlashSurchargeDeclaration(
     }
 }
 
-/** CR 702.33 — the target requirement in force for a cast: the card's
- *  `kickedTargetRequirement` when the spell was kicked and one is declared
- *  (Bloodchief's Thirst, Tear Asunder), else the base `targetRequirement`. A
- *  chosen modal mode's requirement still wins over both (modal + kicker never
- *  co-occur on a shipped card, but the precedence is defined). */
-function kickerAdjustedTargetRequirement(
+/** The target requirement in force for a cast, given the cast-time choices
+ *  that can REPLACE the card's printed one. Two do:
+ *
+ *   - CR 702.103b/303.4a — a BESTOWED cast. "As a spell cast bestowed is put
+ *     onto the stack, it becomes an Aura enchantment and gains enchant
+ *     creature … Because the spell is an Aura spell, its controller must
+ *     choose a legal target for that spell as defined by its enchant creature
+ *     ability." A bestow creature has no printed `targetRequirement` at all,
+ *     so this is the whole of it. Checked FIRST: bestow is an alternative cost
+ *     and a Kicker is an additional one, and CR 601.2b forbids neither
+ *     combination outright, but no printed card combines them and the
+ *     characteristic change is the stronger claim on the target set.
+ *   - CR 702.33 — a KICKED cast with a declared `kickedTargetRequirement`
+ *     (Bloodchief's Thirst, Tear Asunder), else the base `targetRequirement`.
+ *
+ *  A chosen modal mode's requirement still wins over both (modal never
+ *  co-occurs with kicker or bestow on a shipped card, but the precedence is
+ *  defined at the call site). */
+function castAdjustedTargetRequirement(
     cardDef: CardDefinition,
-    kickerPayments: KickerPayments | undefined
+    kickerPayments: KickerPayments | undefined,
+    isBestowCost: boolean
 ): TargetRequirement | undefined {
+    if (isBestowCost) return BESTOW_TARGET_REQUIREMENT;
     if (
         totalKickerCount(kickerPayments) > 0 &&
         cardDef.kickedTargetRequirement
@@ -6457,6 +6488,12 @@ export function finalizeTargetSelection(
     // fires.
     const isDashCost =
         chosenAltCost !== undefined && chosenAltCost === cardDef.dash;
+    // CR 702.103a — the chosen alt cost IS the card's Bestow cost (compared by
+    // reference — `getAlternativeCost` resolves `def.bestow` for its own id).
+    // Unlike `evoked`/`dashed` this is not just a marker for a later trigger:
+    // `applyBestowCharacteristics` rewrites the resulting stack item into the
+    // Aura enchantment CR 702.103b says it becomes.
+    const isBestowCost = isBestowAlternativeCost(cardDef, chosenAltCost);
     // CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the ANNOUNCEMENT-time
     // timing snapshot, taken in `announceCast` and ridden here on
     // `pendingTarget` (target selection is a separate mutation, so the board
@@ -6757,6 +6794,12 @@ export function finalizeTargetSelection(
                 : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
+            // CR 702.103a (producer census, issue #2388) — a bestowed cast
+            // that PARKS carries the choice here so the deferred commit
+            // (`tryAutoCommitPendingCast`) still applies the CR 702.103b
+            // characteristic change; same shape and same reason as
+            // `evoked`/`dashed` above.
+            ...(isBestowCost ? { bestowed: true } : {}),
             // CR 601.2 (issue #2473) — carry the announcement-time timing
             // snapshot one more hop, to the deferred commit.
             ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
@@ -6876,6 +6919,16 @@ export function finalizeTargetSelection(
             ...graveyardCastStackFlags(state, card, castZone),
             ...reboundCastStackFlags(card, castZone),
         };
+        // CR 702.103b (issue #2388) — "as a spell cast bestowed is put onto
+        // the stack, it becomes an Aura enchantment and gains enchant
+        // creature". THIS is the branch a real bestow cast reaches: a bestowed
+        // spell always targets (CR 303.4a), so it is announced through
+        // `pendingTarget` and committed here or, when a cost still owes a
+        // payment, through `tryAutoCommitPendingCast`. Applied on the built
+        // item immediately before the push, so everything downstream of the
+        // stack — the CR 608.2b re-check, the wire projection, cast triggers —
+        // sees the Aura and never the creature.
+        if (isBestowCost) applyBestowCharacteristics(stackItem);
         state.stack.push(stackItem);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, playerId);
@@ -6906,6 +6959,12 @@ export function finalizeTargetSelection(
             // like any ordinary cast; `tryAutoCommitPendingCast` reads this back
             // off `pendingCast.dashed` once `tapForPayment` covers it.
             ...(isDashCost ? { dashed: true } : {}),
+            // CR 702.103a (producer census, issue #2388) — a bestowed cast
+            // that PARKS carries the choice here so the deferred commit
+            // (`tryAutoCommitPendingCast`) still applies the CR 702.103b
+            // characteristic change; same shape and same reason as
+            // `evoked`/`dashed` above.
+            ...(isBestowCost ? { bestowed: true } : {}),
             // CR 601.2 (issue #2473) — the announcement-time timing snapshot
             // rides through the payment park exactly like `dashed` above; it
             // must NOT be re-derived once `tapForPayment` has run (CR 605.4a).
@@ -7329,6 +7388,13 @@ export const announceCast = mutation({
         // haste, returned to hand at the next end step" trigger fires.
         const isDashCost =
             chosenAltCost !== undefined && chosenAltCost === cardDef.dash;
+        // CR 702.103a — the chosen alt cost IS the card's Bestow cost. Two
+        // things follow from it in this mutation, and neither is a plain
+        // marker: the spell takes the "enchant creature" TARGET REQUIREMENT
+        // (CR 702.103b/303.4a, `castAdjustedTargetRequirement` below), and the
+        // stack item it eventually becomes is rewritten into an Aura
+        // enchantment at the commit (`applyBestowCharacteristics`).
+        const isBestowCost = isBestowAlternativeCost(cardDef, chosenAltCost);
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
         const hasX =
@@ -7496,7 +7562,11 @@ export const announceCast = mutation({
         // its wider/different set (CR 702.33).
         const activeTargetRequirement =
             chosenMode?.targetRequirement ??
-            kickerAdjustedTargetRequirement(cardDef, kickerPayments);
+            castAdjustedTargetRequirement(
+                cardDef,
+                kickerPayments,
+                isBestowCost
+            );
 
         // Check if the card requires targets (CR 601.2c). When `count: "X"`
         // resolves to 0 (X chosen as 0), the spell takes no targets — fall
@@ -7777,6 +7847,14 @@ export const announceCast = mutation({
                         : {}),
                     ...(isEvokeCost ? { evoked: true } : {}),
                     ...(isDashCost ? { dashed: true } : {}),
+                    // CR 702.103a (issue #2388 producer census) — a bestow
+                    // cast cannot structurally reach this NO-TARGET branch: a
+                    // bestowed spell is an Aura spell and always requires a
+                    // target (CR 303.4a), so `requiresTargets` is true and
+                    // `announceCast` routes it through `pendingTarget`.
+                    // Stamped anyway, fail-closed: the flag is cheap and a
+                    // silently dropped cast mode is not.
+                    ...(isBestowCost ? { bestowed: true } : {}),
                     // CR 601.2 (issue #2473) — the announcement-time timing
                     // snapshot rides to the deferred commit.
                     ...(castOffSorceryTiming
@@ -7847,12 +7925,22 @@ export const announceCast = mutation({
                     : {}),
                 ...(isEvokeCost ? { evoked: true } : {}),
                 ...(isDashCost ? { dashed: true } : {}),
+                // CR 702.103a (issue #2388 producer census) — unreachable for
+                // bestow (an Aura spell always targets, CR 303.4a); stamped
+                // fail-closed. `applyBestowCharacteristics` below turns it
+                // into the real characteristic change if it ever IS reached.
+                ...(isBestowCost ? { bestowed: true } : {}),
                 // CR 601.2 (issue #2473) — `announceCast` no-target +
                 // alternative-cost immediate-commit branch. Uses the same
                 // announcement-time constant as every deferred path, so the
                 // one-mutation and the many-mutation flows can never disagree.
                 ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
             };
+            // CR 702.103b — see `finalizeTargetSelection`'s matching call.
+            if (stackItem.bestowed) {
+                delete stackItem.bestowed;
+                applyBestowCharacteristics(stackItem);
+            }
             state.stack.push(stackItem);
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);

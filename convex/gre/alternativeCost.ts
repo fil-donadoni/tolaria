@@ -48,6 +48,7 @@ import { cardHasColor } from "../cards/colors";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getPlayer, manaCostForCardFilter } from "./state";
 import { manaCostsEqual } from "./constants";
+import { hasLegalBestowHost } from "./bestow";
 import { liveSupertypesOf } from "./snow";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { getDefinition, tryGetDefinition } from "../cards";
@@ -348,6 +349,9 @@ export function getAlternativeCost(
 ): AlternativeCost | undefined {
     if (def?.evoke?.id === altCostId) return def.evoke;
     if (def?.dash?.id === altCostId) return def.dash;
+    // CR 702.103a — same treatment for `def.bestow` ("casting a spell using
+    // its bestow ability follows the rules for paying alternative costs").
+    if (def?.bestow?.id === altCostId) return def.bestow;
     return def?.alternativeCosts?.find((a) => a.id === altCostId);
 }
 
@@ -376,6 +380,13 @@ export function affordableAlternativeCosts(
         ...(def.alternativeCosts ?? []),
         ...(def.evoke ? [def.evoke] : []),
         ...(def.dash ? [def.dash] : []),
+        // CR 702.103a — Bestow IS an alternative cost, offered on the same
+        // terms. CR 601.2c / 702.103b adds one gate the other variants don't
+        // need: a bestowed cast is an AURA spell and so requires a legal
+        // target, and a mode with no legal target must not be offered (the
+        // click would hard-reject at `announceCast`). `hasLegalBestowHost`
+        // (`convex/gre/bestow.ts`) is that gate.
+        ...(def.bestow && hasLegalBestowHost(state) ? [def.bestow] : []),
     ];
     if (variants.length === 0) return [];
     return variants.filter((a) =>

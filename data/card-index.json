@@ -12992,6 +12992,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Springheart Nantuko",
+        "scryfallId": "54a3ea87-005e-4985-b2a5-21711d0b71c0",
+        "oracleId": "8a3ad2ef-8bcb-40c0-85de-f03328c2b644",
+        "firstSet": "mh3",
+        "firstPrintId": "54a3ea87-005e-4985-b2a5-21711d0b71c0",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Squee, Goblin Nabob",
         "scryfallId": "4ba8325a-1203-4125-9111-94d9e2b1f14b",
         "oracleId": "0ef760f4-bbec-4735-8d60-fc24d973452a",
