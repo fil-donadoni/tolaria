@@ -9,7 +9,8 @@
 // exit the pause menu already offers.
 
 /** Route prefixes that render without the shared header. */
-const FULLSCREEN_PREFIXES = ["/game"];
+// `/prototype/*` spikes are immersive surfaces too (PRD #2405 touch prototype).
+const FULLSCREEN_PREFIXES = ["/game", "/prototype"];
 
 export function shellShowsHeader(pathname: string): boolean {
     return !FULLSCREEN_PREFIXES.some(

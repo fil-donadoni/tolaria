@@ -656,6 +656,16 @@ const ROUTE_ROOTS: Record<
         routePath: "/no-such-route",
         files: [{ rel: "components/ui/not-found-page.tsx" }],
     },
+    PrototypeTouchRoute: {
+        // PROTOTYPE — throwaway (/prototype/* is header-less like /game);
+        // each surface is a `fixed inset-0` layer of its own.
+        routePath: "/prototype/touch",
+        files: [
+            { rel: "components/prototype/touch/touch-builder-surface.tsx" },
+            { rel: "components/prototype/touch/touch-draft-surface.tsx" },
+            { rel: "components/prototype/touch/touch-prompt-surface.tsx" },
+        ],
+    },
     GameRoute: {
         // The one route with no header band — `<main>` IS the viewport there.
         routePath: "/game/abc123",

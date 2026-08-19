@@ -26,6 +26,7 @@ import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
 import AdminBugReportsRoute from "./routes/admin/admin-bug-reports.route";
 import AppShell from "./components/chrome/app-shell";
 import NotFoundPage from "./components/ui/not-found-page";
+import PrototypeTouchRoute from "./routes/prototype-touch.route";
 
 // Root: auth first, then the shell, which mounts the shared header on every
 // route except the fullscreen board. `AppShell` owns the `Outlet`.
@@ -216,6 +217,26 @@ const adminDesignSystemRoute = createRoute({
     component: DesignSystemRoute,
 });
 
+// PROTOTYPE — throwaway route (delete with `src/components/prototype/`).
+// Touch-gesture / snap / peek / chamfer prototypes for PRD #2405 (#G1).
+const prototypeTouchRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/prototype/touch",
+    validateSearch: (
+        search
+    ): { variant?: string; surface?: "builder" | "draft" | "prompt" } => {
+        const v = search.variant;
+        const sf = search.surface;
+        return {
+            ...(typeof v === "string" ? { variant: v } : {}),
+            ...(sf === "builder" || sf === "draft" || sf === "prompt"
+                ? { surface: sf }
+                : {}),
+        };
+    },
+    component: PrototypeTouchRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -239,6 +260,7 @@ const routeTree = rootRoute.addChildren([
         adminDraftLabRoute,
         adminDesignSystemRoute,
     ]),
+    prototypeTouchRoute,
 ]);
 
 // One 404 for the whole app. TanStack Router's built-in fallback is a bare
