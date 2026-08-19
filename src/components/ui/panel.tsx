@@ -50,6 +50,7 @@ function Panel({
     density = "default",
     overlay = false,
     className,
+    frameClassName,
     children,
 }: {
     size?: PanelSize;
@@ -57,10 +58,15 @@ function Panel({
     density?: PanelDensity;
     overlay?: boolean;
     className?: string;
+    /** Extra classes merged onto the decorative `CornerFiligreeFrame` alone
+     *  (never the panel body) — e.g. `compact-chrome:hidden` to drop the 40px
+     *  ornament where a caller has decided vertical space is scarce (issue
+     *  #2515). Every existing caller omits it and is unaffected. */
+    frameClassName?: string;
     children?: React.ReactNode;
 }) {
     if (overlay) {
-        return <CornerFiligreeFrame overlay />;
+        return <CornerFiligreeFrame overlay className={frameClassName} />;
     }
 
     return (
@@ -74,7 +80,7 @@ function Panel({
                 className
             )}
         >
-            <CornerFiligreeFrame overlay />
+            <CornerFiligreeFrame overlay className={frameClassName} />
             {children}
         </div>
     );

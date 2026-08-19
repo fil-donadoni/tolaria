@@ -9,6 +9,13 @@ export interface CompactChromeDisclosureProps {
     /** The chrome band itself. Rendered UNCHANGED (no wrapper element) on a
      *  desktop-shaped viewport. */
     children: ReactNode;
+    /** Gates the whole viewport check — `false` forces the verbatim (desktop)
+     *  render at EVERY viewport, never folding (issue #2515: the Limited
+     *  event chrome collapses only while a seat is actively drafting, never
+     *  when the event isn't — pairings/standings/Close Event are the page
+     *  then, even on a compact viewport). Default `true` keeps every existing
+     *  caller's plain `useViewportMode() !== "desktop"` behaviour. */
+    active?: boolean;
 }
 
 /**
@@ -42,8 +49,12 @@ export interface CompactChromeDisclosureProps {
 export default function CompactChromeDisclosure({
     label,
     children,
+    active = true,
 }: CompactChromeDisclosureProps) {
-    const compact = useViewportMode() !== "desktop";
+    // Hook called unconditionally regardless of `active` (Rules of Hooks) —
+    // only the DERIVED `compact` boolean is gated.
+    const viewportMode = useViewportMode();
+    const compact = active && viewportMode !== "desktop";
     const [open, setOpen] = useState(false);
 
     if (!compact) return <>{children}</>;
