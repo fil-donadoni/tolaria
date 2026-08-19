@@ -613,6 +613,33 @@ describe("chrome collapses while drafting on a compact viewport (issue #2515)", 
         expect(screen.getByText("Cancel Event")).toBeTruthy();
         expect(screen.getByText("← Back to Limited Events")).toBeTruthy();
     });
+
+    // The other half of the AND-gate. The two tests above both stub a compact
+    // viewport, so they pin `draftInProgress` while leaving the viewport term
+    // free: narrowing the collapse condition to `draftInProgress` alone keeps
+    // all of them green while stripping the flush-top `PanelHeader` band off
+    // DESKTOP mid-draft — the one thing the issue's "1440x900 unchanged"
+    // criterion forbids. No `matchMedia` stub here on purpose: that IS the
+    // desktop case (`useViewportMode()` falls back to "desktop" without one).
+    it("keeps the flush-top PanelHeader band while drafting on DESKTOP, where nothing collapses", () => {
+        eventMock.mockReturnValue(
+            makeEvent({
+                type: "draft",
+                status: "started",
+                createdBy: "user-1",
+                packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
+            })
+        );
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(document.querySelector(".panel-header-band")).not.toBeNull();
+        // Nothing is folded away, so no toggle and no second Back link.
+        expect(
+            screen.queryByRole("button", { name: /Event Details/ })
+        ).toBeNull();
+        expect(screen.getByText("Vintage Cube Draft")).toBeTruthy();
+    });
 });
 
 describe("LimitedChallengePanel hides during rounds, reappears at finish (finding 2, issue #1648 review)", () => {
