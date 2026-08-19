@@ -234,7 +234,21 @@ export default function TouchDraftSurface({ model }: { model: GestureModel }) {
                         armed && "animate-pulse"
                     )}
                 >
-                    <span className="text-[10px] uppercase tracking-widest text-text-muted">
+                    <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-text-muted">
+                        {stop === "pack" ? (
+                            <svg
+                                viewBox="0 0 24 24"
+                                className="h-3.5 w-3.5 stroke-accent-strong"
+                                style={{
+                                    fill: "none",
+                                    strokeWidth: 2,
+                                    animation:
+                                        "protoNudgeY 1.8s ease-in-out infinite",
+                                }}
+                            >
+                                <path d="m6 15 6-6 6 6" />
+                            </svg>
+                        ) : null}
                         Pool · {picks.main.length}
                     </span>
                     <span className="font-beleren text-[12px] text-accent-strong">
@@ -333,7 +347,19 @@ export default function TouchDraftSurface({ model }: { model: GestureModel }) {
                             armed && "animate-pulse"
                         )}
                     >
-                        <span className="text-[10px] uppercase tracking-widest text-text-muted">
+                        <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-text-muted">
+                            <svg
+                                viewBox="0 0 24 24"
+                                className="h-3.5 w-3.5 stroke-accent-strong"
+                                style={{
+                                    fill: "none",
+                                    strokeWidth: 2,
+                                    animation:
+                                        "protoNudgeX 1.8s ease-in-out infinite",
+                                }}
+                            >
+                                <path d="m15 6-6 6 6 6" />
+                            </svg>
                             Pool · {picks.main.length} · SB {picks.side.length}
                         </span>
                         <div className="relative w-[64px] flex-1 overflow-hidden">
@@ -369,7 +395,7 @@ export default function TouchDraftSurface({ model }: { model: GestureModel }) {
                             armed && "animate-pulse"
                         )}
                     >
-                        drop here = SB
+                        SB · {picks.side.length} · drop here
                     </div>
                     {/* actions bar UNDER the sneak peek */}
                     <div
@@ -407,6 +433,7 @@ export default function TouchDraftSurface({ model }: { model: GestureModel }) {
 
     return (
         <div className="fixed inset-0 flex bg-surface-base text-text select-none">
+            <style>{`@keyframes protoNudgeY{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-3px);opacity:.9}}@keyframes protoNudgeX{0%,100%{transform:translateX(0);opacity:.45}50%{transform:translateX(-3px);opacity:.9}}`}</style>
             <div
                 ref={scroller}
                 onScroll={onScroll}
