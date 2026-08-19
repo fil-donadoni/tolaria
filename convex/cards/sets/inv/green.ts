@@ -11,7 +11,10 @@ import type {
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import { kickerPaidCondition } from "../../abilities/triggers/shared";
+import {
+    enteringEffectivePower,
+    kickerPaidCondition,
+} from "../../abilities/triggers/shared";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 import { protectionColorModes } from "../../abilities";
 
@@ -364,16 +367,12 @@ export const kavuLair: CardDefinition = {
                 "Whenever a creature with power 4 or greater enters, its controller draws a card.",
             scope: "any",
             filter: { types: "Creature" },
-            condition: (event, _self, state) => {
-                if (!state) return false;
-                for (const player of state.players) {
-                    const entered = player.battlefield.find(
-                        (c) => c.id === event.instanceId
-                    );
-                    if (entered) return (entered.power ?? 0) >= 4;
-                }
-                return false;
-            },
+            // CR 603.2 / 613.4 (issue #1852) — "power 4 or greater" is read
+            // through the layer pipeline: the entering creature's EFFECTIVE
+            // power, counters it entered with and anthems already in play
+            // included, not its printed characteristic.
+            condition: (event, _self, state) =>
+                (enteringEffectivePower(event, state) ?? 0) >= 4,
             effects: [
                 {
                     op: "draw",

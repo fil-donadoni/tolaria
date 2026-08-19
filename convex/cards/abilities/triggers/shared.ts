@@ -30,6 +30,7 @@ import type {
     CardType,
     Color,
     DamageDealtEvent,
+    PermanentEnteredEvent,
     PermanentView,
     PhaseBeginEvent,
     TargetSelection,
@@ -224,6 +225,38 @@ export function passesSourceFilter(
         selfControllerId: self.controllerId,
     };
     return matchesDamageSourceFilter(buildSourceMatchable(event), filter, ctx);
+}
+
+/** Effective power (CR 613.4) of the creature that just entered, as an
+ *  ETB-trigger `condition` must weigh it — CR 603.2 evaluates a trigger
+ *  condition against the game state with continuous effects APPLIED, so a
+ *  "creature with power 4 or greater enters" gate must see the +1/+1 counters
+ *  a kicked creature entered with, and any anthem already active at the
+ *  moment of entry.
+ *
+ *  Reads the snapshot `emitPermanentEntered` takes through the layer pipeline
+ *  (issue #1965) rather than the raw stored `.power` off `TriggerStateView`,
+ *  which is the base characteristic server-side and silently disagrees with
+ *  both (issue #1852). Falls back to the raw battlefield read only when the
+ *  event carries no snapshot — a pre-#1965 serialized log or a hand-built
+ *  fixture — so those keep their old behaviour instead of reading `undefined`
+ *  and never firing.
+ *
+ *  Returns `undefined` when neither source has a value (the permanent is not
+ *  a creature, or has already left); callers gate with `?? 0`. */
+export function enteringEffectivePower(
+    event: PermanentEnteredEvent,
+    state?: TriggerStateView
+): number | undefined {
+    if (event.power !== undefined) return event.power;
+    if (!state) return undefined;
+    for (const player of state.players) {
+        const entered = player.battlefield.find(
+            (c) => c.id === event.instanceId
+        );
+        if (entered) return entered.power;
+    }
+    return undefined;
 }
 
 /** Looks up a permanent on the battlefield via the narrow trigger state view.
