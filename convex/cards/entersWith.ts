@@ -29,12 +29,15 @@
 //     "put it onto the battlefield", and blink/flicker returns. Applied above
 //     the `entersTappedUnlessPay` early return so a deferred land-entry choice
 //     doesn't skip it;
-//   * `createToken` — a token spec's own `entersWith.counters` (Incubate N).
-//     The ONE site NOT gated by the CR 613.1f ability-loss probe below: those
-//     counters come from the effect CREATING the token, not from an ability of
-//     the token, so "loses all abilities" cannot remove them (issue #1882);
-//   * `createTokenCopyOf` — a token COPY inherits the copied card's clause,
-//     a copiable value (CR 706.2 / 707.2);
+//   * `createTokenPermanents` — ONE call site with two branches (issue #2558
+//     folded the token-copy path into the shared token entry path, so the copy
+//     is stamped on before the CR 614 chokepoint reads it). Plain token: the
+//     token spec's own `entersWith.counters` (Incubate N), the ONE branch NOT
+//     gated by the CR 613.1f ability-loss probe below, because those counters
+//     come from the effect CREATING the token, not from an ability of the
+//     token, so "loses all abilities" cannot remove them (issue #1882).
+//     `copyOf` token: a token COPY inherits the copied card's clause, a
+//     copiable value (CR 706.2 / 707.2), and IS gated;
 //   * `settleEnteredLand` (`gre/playLand.ts`) — every play-a-land path
 //     (hand / exile / graveyard / post-pay-choice). Latent: no shipped Land
 //     declares the clause yet.
@@ -48,6 +51,7 @@
 // permanent — but it defaults an entry's counters to this oracle's output so a
 // staged board matches what a real entry would produce.
 
+import { MANA_COLORS } from "../gre/manaColors";
 import { tryGetDefinition } from ".";
 import { ATTACK_RESTRICTION_CTX } from "./attackRestrictions";
 import type { PermanentView, StaticEffectStateView } from "./types";
@@ -58,19 +62,56 @@ import type { PermanentView, StaticEffectStateView } from "./types";
  *  `CardDefinition` type graph in (mirrors `resolveEntersTapped`'s
  *  parameter). */
 export interface EntersWithDeclaration {
-    counters?: { type: string; count: number | "X" | "kicker" }[];
+    counters?: { type: string; count: number | "X" | "kicker" | "sunburst" }[];
 }
 
 /** Cast-time values the count vocabulary may read off the entering object.
- *  Both are absent for a permanent that was never cast (reanimation, a
- *  library tutor's "put it onto the battlefield") — CR 107.3b: X is 0 anywhere
- *  other than on the stack, and an uncast permanent was never kicked. */
+ *
+ *  `chosenX` / `kickerCount` are OPTIONAL and absent for a permanent that was
+ *  never cast (reanimation, a library tutor's "put it onto the battlefield")
+ *  — CR 107.3b: X is 0 anywhere other than on the stack, and an uncast
+ *  permanent was never kicked.
+ *
+ *  `manaSpentToCast` is deliberately REQUIRED (issue #2378). There are six
+ *  producers of this record — the five `applyEntersWithCounters` call sites
+ *  censused in this module's header (`createTokenPermanents` contributes two,
+ *  one per branch) plus `gre/scenarioBuilder.ts` — and only
+ *  ONE of them (a resolving spell) can ever supply a non-empty value. An
+ *  optional field would let a SEVENTH producer be added that silently passes
+ *  `undefined`; requiring it makes every site state its answer out loud and
+ *  turns "a new entry path forgot sunburst" into a compile error rather than a
+ *  silent zero. */
 export interface EntersWithCastValues {
     /** CR 107.3 — the value chosen for X as the spell was cast. */
     chosenX?: number;
     /** CR 702.33e — how many times the spell was kicked (0/1 for a plain
      *  Kicker, 0..N for Multikicker — Everflowing Chalice). */
     kickerCount?: number;
+    /** CR 702.44b — the per-colour mana ACTUALLY spent to cast the spell whose
+     *  resolution is putting this permanent onto the battlefield, as captured
+     *  by `manaSpentDelta` (CR 106.10) at the cast-commit step and carried on
+     *  the stack item as `notedManaSpent`. `{}` — never `undefined` — at every
+     *  entry path that is not "entering from the stack as a resolving spell",
+     *  which CR 702.44b makes the only path sunburst counts at all. */
+    manaSpentToCast: Record<string, number>;
+}
+
+/** CR 702.44a + CR 105.1 — how many DISTINCT COLORS of mana a record of spent
+ *  mana represents.
+ *
+ *  CR 105.1 names exactly five colors (white, blue, black, red, green), so
+ *  `C` — colorless — is skipped: mana spent on the generic part of a cost
+ *  contributes the COLOR of the mana that paid it, and generic paid with
+ *  colorless mana contributes nothing. It counts COLORS, not symbols and not
+ *  pips: `{R}{R}` spent is one color, `{W}{U}{B}{R}{G}` is five. The cap is
+ *  therefore five, structurally — there are only five keys it can match. */
+export function distinctColorsSpent(spent: Record<string, number>): number {
+    let n = 0;
+    for (const color of MANA_COLORS) {
+        if (color === "C") continue;
+        if ((spent[color] ?? 0) > 0) n++;
+    }
+    return n;
 }
 
 /** CR 121.6 / 614.1c — resolves a permanent's declared entry counters into a
@@ -95,7 +136,17 @@ export function resolveEntersWithCounters(
                 ? Math.max(0, cast.chosenX ?? 0)
                 : entry.count === "kicker"
                   ? Math.max(0, cast.kickerCount ?? 0)
-                  : entry.count;
+                  : // CR 702.44a — Sunburst: "it enters with a charge counter
+                    // on it for each color of mana spent to cast it" (a +1/+1
+                    // counter instead if the object is entering as a creature,
+                    // ignoring type-changing effects — which is why the counter
+                    // TYPE is declared per card and this vocabulary word only
+                    // supplies the COUNT). CR 702.44b restricts it to a
+                    // resolving spell, which is exactly the one entry site that
+                    // can pass a non-empty `manaSpentToCast`.
+                    entry.count === "sunburst"
+                    ? distinctColorsSpent(cast.manaSpentToCast)
+                    : entry.count;
         if (n <= 0) continue;
         delta[entry.type] = (delta[entry.type] ?? 0) + n;
     }

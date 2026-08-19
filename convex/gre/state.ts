@@ -6114,6 +6114,16 @@ function finalizeSpellResolution(
                 // on the resolving stack item, summed across its Kickers
                 // (ADR 0079 — the total is always derived, never stored).
                 kickerCount: totalKickerCount(item.kickerPayments),
+                // CR 702.44a/b (issue #2378) — Sunburst. THE one entry site
+                // that can supply this: 702.44b adds counters "only if the
+                // object with sunburst is entering the battlefield from the
+                // stack as a resolving spell", which is precisely this
+                // function. Read off the EPHEMERAL cast-commit capture (set
+                // only when the definition declares `noteManaSpent: true`),
+                // snapshotted onto `notedManaSpentOnCast` a few lines above —
+                // the ephemeral field is what the payment actually produced,
+                // so it is read here rather than the persisted twin.
+                manaSpentToCast: item.notedManaSpent ?? {},
             },
             state
         );
@@ -10613,7 +10623,18 @@ function stageReanimatedOnBattlefield(
     // shock-land-style permanent put onto the battlefield by an effect. The
     // deferred `finalizeLandEntry` completion does not re-apply it either, so
     // the counters would simply have been lost.
-    applyEntersWithCounters(card, putDef ?? undefined, {}, state);
+    // CR 702.44b (issue #2378) — Sunburst counts mana spent to CAST the spell,
+    // and this permanent was not cast: reanimation, a tutor's "put it onto the
+    // battlefield" and blink all put the object onto the battlefield from
+    // somewhere other than the stack, so no mana was spent on it. An explicit,
+    // commented `{}` — not an omitted field — so this reads as an ANSWER rather
+    // than an oversight (`EntersWithCastValues.manaSpentToCast` is required).
+    applyEntersWithCounters(
+        card,
+        putDef ?? undefined,
+        { manaSpentToCast: {} },
+        state
+    );
     // CR 306.5b (issue #2380) — a planeswalker enters with its printed starting
     // loyalty however it enters, not only when it resolves off the stack: a
     // reanimated / tutored-onto-the-battlefield planeswalker, and the ORI
@@ -18314,7 +18335,13 @@ export function createTokenPermanents(
         // an `indestructible` counter never actually gained indestructible.
         // Routing it through `applyEntersWithCounters` is exactly the drift the
         // single-oracle design exists to prevent. No cast-time values exist for
-        // a token (CR 107.3b; a token was never kicked).
+        // a token (CR 107.3b, and a token was never kicked).
+        // CR 702.44b — Sunburst counts 0 at BOTH branches below: neither a
+        // created token nor a token copy is "entering the battlefield from the
+        // stack as a resolving spell", so no mana was spent to cast either one
+        // (issue #2378). Stated as an explicit `{}` rather than an omitted
+        // field — `EntersWithCastValues.manaSpentToCast` is required so an
+        // entry path has to ANSWER instead of defaulting to zero by oversight.
         //
         // The COUNTER_ADDED emit is DEFERRED (`deferEvents`) until after the CR
         // 614 chokepoint below: a token this loop redirects to exile never
@@ -18335,19 +18362,23 @@ export function createTokenPermanents(
         // copied card's own self-replacement, read off the definition the token
         // now presents: a token copy of Clockwork Beast is itself "a permanent
         // that enters with seven +1/+0 counters". No `fromCreatingEffect` —
-        // this one IS an ability of the entering permanent.
+        // this one IS an ability of the entering permanent. A token copy of a
+        // SUNBURST permanent (Pentad Prism) is the contrast: the clause is
+        // copiable and so is read here, but it resolves to zero counters,
+        // because CR 702.44b keys on how the object entered and this one was
+        // created, not cast.
         const entryCounters = opts?.copyOf
             ? applyEntersWithCounters(
                   token,
                   tryGetDefinition(presentedDefId(token)) ?? undefined,
-                  {},
+                  { manaSpentToCast: {} },
                   state,
                   { deferEvents: true }
               )
             : applyEntersWithCounters(
                   token,
                   { entersWith: spec.entersWith },
-                  {},
+                  { manaSpentToCast: {} },
                   state,
                   { fromCreatingEffect: true, deferEvents: true }
               );

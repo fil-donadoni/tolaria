@@ -349,7 +349,14 @@ export function buildStateFromScenario(
                     entry.counters ??
                         (entry.faceDown
                             ? undefined
-                            : resolveEntersWithCounters(battlefieldDef, {})),
+                            : // CR 702.44b (issue #2378) — a debug board PLACES
+                              // a permanent; nothing was cast, so no mana was
+                              // spent and the sunburst count defaults to 0. A
+                              // scenario that wants charge counters on a
+                              // Sunburst permanent states them in `counters`.
+                              resolveEntersWithCounters(battlefieldDef, {
+                                  manaSpentToCast: {},
+                              })),
                     {
                         isPlaneswalker: isPlaneswalker(
                             instance as CardInstanceState
