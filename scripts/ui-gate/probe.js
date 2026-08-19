@@ -134,11 +134,28 @@ window.__tolariaProbe = () => {
 
     const hOverflow = document.documentElement.scrollWidth - V;
 
+    // A decorative image (AmbientPageGround's random full-bleed art,
+    // FeaturedDeckArt's hero splash, the library-order deck mock, …) is not a
+    // card — even though several of them draw from the exact same
+    // `cards.scryfall.io` CDN as a real card image, which is what the raw
+    // `img[src*="scryfall"]` selector below alone cannot tell apart. Every
+    // decorative image in this codebase is marked `aria-hidden="true"` (own
+    // convention, see `ambient-page-ground.tsx`, `featured-deck-art.tsx`,
+    // `library-order/deck-mock.tsx`) — real card art (`card-image.tsx`,
+    // `card-back.tsx`, `card-preview-face.tsx`, `stack-row.tsx`) never sets
+    // it. `data-ambient-art` is named explicitly too, so the exclusion still
+    // holds if a future edit ever drops the `aria-hidden` from that one spot.
+    // Fail CLOSED: `closest` also walks ancestors, so an image nested inside
+    // an `aria-hidden="true"` wrapper is excluded even without the attribute
+    // on the `<img>` itself.
+    const isDecorativeArt = (e) =>
+        !!e.closest('[data-ambient-art],[aria-hidden="true"]');
+
     const imgs = [
         ...document.querySelectorAll(
             'img[src*="scryfall"],img[src*="card-back"],img[src*="/cards/"],img[data-card-id],[data-card-id] img'
         ),
-    ];
+    ].filter((e) => !isDecorativeArt(e));
     const sizes = imgs
         .map((i) => i.getBoundingClientRect().width)
         .filter((w) => w > 4);
