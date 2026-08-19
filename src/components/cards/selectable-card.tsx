@@ -43,6 +43,7 @@ export default function SelectableCard({
         modePickerOverlay,
         altCostPickerOverlay,
         phyrexianPickerOverlay,
+        additionalCostPickerOverlay,
         costDialogOverlay,
     } = useHandCardCommit(cardInstance);
 
@@ -100,6 +101,7 @@ export default function SelectableCard({
                 {modePickerOverlay}
                 {altCostPickerOverlay}
                 {phyrexianPickerOverlay}
+                {additionalCostPickerOverlay}
                 {costDialogOverlay}
             </>
         );
@@ -151,6 +153,7 @@ export default function SelectableCard({
                 {modePickerOverlay}
                 {altCostPickerOverlay}
                 {phyrexianPickerOverlay}
+                {additionalCostPickerOverlay}
                 {costDialogOverlay}
             </>
         );
@@ -201,6 +204,7 @@ export default function SelectableCard({
             {modePickerOverlay}
             {altCostPickerOverlay}
             {phyrexianPickerOverlay}
+            {additionalCostPickerOverlay}
             {costDialogOverlay}
         </>
     );

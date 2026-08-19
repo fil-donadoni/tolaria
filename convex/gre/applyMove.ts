@@ -52,7 +52,13 @@ import {
     canPayLifeCost,
     canPayDiscardLastDrawn,
     canPayDiscardAtRandom,
+    assignMayPayHandCards,
+    getPlayer,
 } from "./state";
+import {
+    additionalCostHandLeg,
+    resolveAdditionalCosts,
+} from "./additionalCost";
 // CR 613.1f (issue #1920 review, finding 4) — the POST-LAYER ability set, the
 // same authority the search's push gate reads (`effectiveAbilityOf`). Two
 // different answers to "which ability is this" is how an ability gets pushed
@@ -178,6 +184,53 @@ export function applyDelveExileForSearch(
     for (const c of delveEligibleCards(player, card.id).slice(0, delveCount)) {
         moveCard(player, c.id, "graveyard", "exile");
     }
+}
+
+/** CR 601.2b / 601.2h / 118.8 — pay the CASTER-CHOSEN additional-cost leg a
+ *  `cast-spell` move announced, on a search sandbox state, in place.
+ *
+ *  Same reason `applyDelveExileForSearch` above exists: a cost the search tree
+ *  does not charge is a cost the Bot values at zero. Bitter Triumph's two legs
+ *  differ ONLY in what they cost (a card from hand vs 3 life) — leave them
+ *  unpaid and the two Moves are indistinguishable and the pick is rollout
+ *  noise, which is the whole decision this issue exists to make real.
+ *
+ *  WHICH card pays the discard leg is chosen by the SAME assignment authority
+ *  the real path uses (`assignMayPayHandCards`, shared with the picker, the
+ *  submit boundary and `paymentPicks.ts`'s bot realisation), fed the sandbox's
+ *  own hand-order preference — so the search charges a legal payment rather
+ *  than a summed count. No-op for a card with no `oneOf`; the leg's own
+ *  sacrifice/exile shapes are not applied here, matching this file's
+ *  pre-existing (and separately tracked) omission of the non-chosen additional
+ *  costs — no shipped `oneOf` leg carries one. */
+export function applyAdditionalCostLegForSearch(
+    state: GameState,
+    playerId: string,
+    cardInstanceId: string,
+    legId: string | undefined
+): void {
+    if (!legId) return;
+    const player = getPlayer(state, playerId);
+    const card = player.hand.find((c) => c.id === cardInstanceId);
+    const defId = card ? (card.card as { id?: string }).id : undefined;
+    const def = defId ? tryGetDefinition(defId) : undefined;
+    const spec = resolveAdditionalCosts(def?.additionalCosts, legId);
+    if (!spec) return;
+    // CR 119.4 — the life leg. SBAs run at the end of the cast-spell case.
+    if (spec.payLife && spec.payLife > 0) player.life -= spec.payLife;
+    // CR 701.9 — the discard leg. The cast card itself is never eligible
+    // (CR 601.2a): it is excluded by name here because it has not left hand yet
+    // on this sandbox path.
+    const handLeg = additionalCostHandLeg(spec)?.hand;
+    if (!handLeg) return;
+    const eligible = player.hand.filter((c) => c.id !== cardInstanceId);
+    const picks = assignMayPayHandCards(
+        eligible,
+        handLeg,
+        eligible.map((c) => c.id)
+    );
+    if (!picks) return;
+    for (const c of picks) discardToGraveyard(state, playerId, c.id);
 }
 
 /** CR 602.1 / 118 (issue #2155) — pay EVERY non-mana cost of an
@@ -621,6 +674,19 @@ export function applyMoveForSearch(
             if (move.payLife && move.payLife > 0) {
                 player.life -= move.payLife;
             }
+            // CR 601.2b / 601.2h / 118.8 — pay the CASTER-CHOSEN additional
+            // cost leg this Move announced ("discard a card or pay 3 life").
+            // Paid BEFORE the spell leaves hand, mirroring the real commit
+            // order (`finalizeTargetSelection`), because the discard leg reads
+            // the caster's hand and the cast card itself is never eligible
+            // (CR 601.2a). Without this the search values a Bitter Triumph line
+            // as a free removal spell and the Bot mis-picks between its legs.
+            applyAdditionalCostLegForSearch(
+                next,
+                playerId,
+                move.cardInstanceId,
+                move.additionalCostLegId
+            );
             // CR 601.3e-analog (issue #2398) — the enumerator offers a cast off
             // the TOP of the library under a cast-from-top permission (Bolas's
             // Citadel), so this leaf can no longer assume the hand: hard-coding

@@ -27,6 +27,7 @@ export default function ExileCastButton({
         modePickerOverlay,
         altCostPickerOverlay,
         phyrexianPickerOverlay,
+        additionalCostPickerOverlay,
         costDialogOverlay,
     } = useHandCardCommit(card, { onCommitted });
 
@@ -81,6 +82,7 @@ export default function ExileCastButton({
             {modePickerOverlay}
             {altCostPickerOverlay}
             {phyrexianPickerOverlay}
+            {additionalCostPickerOverlay}
             {costDialogOverlay}
         </>
     );

@@ -81,6 +81,7 @@ import { manaValue } from "./constants";
 import { getInstanceManaCost } from "../cards";
 import {
     applyActivationCostsForSearch,
+    applyAdditionalCostLegForSearch,
     applyDelveExileForSearch,
 } from "./applyMove";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
@@ -704,6 +705,17 @@ export function applyMoveInSearch(
                 );
             }
             applyTapPlan(state, playerId, move.tapPlan);
+            // CR 601.2b / 601.2h / 118.8 — charge the CASTER-CHOSEN additional
+            // cost leg in the ISMCTS tree too, for the same reason the greedy
+            // sandbox does (`applyAdditionalCostLegForSearch`'s doc): the two
+            // legs of "discard a card or pay 3 life" differ only in their cost,
+            // so an uncharged leg makes the choice pure rollout noise.
+            applyAdditionalCostLegForSearch(
+                state,
+                playerId,
+                move.cardInstanceId,
+                move.additionalCostLegId
+            );
             const spellCard = removeFromZone(
                 player,
                 move.cardInstanceId,

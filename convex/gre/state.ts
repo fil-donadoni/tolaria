@@ -2249,6 +2249,16 @@ export type PendingCast = {
      *  cast into a false positive. Same announcement-snapshot shape as
      *  `evoked`/`dashed` above; absent = the cast WAS at sorcery timing. */
     castOffSorceryTiming?: boolean;
+    /** CR 601.2b / 118.8 — id of the ADDITIONAL-cost leg the caster picked out
+     *  of `CardDefinition.additionalCosts.oneOf` (Bitter Triumph's "discard a
+     *  card or pay 3 life"), carried from announcement. The legs themselves are
+     *  already PAID or already BUILT into this pending cast by the time it
+     *  parks (life folded into `payLife`, discard folded into
+     *  `alternativeCostHandChoice`, sacrifice/exile into `sacrificeSelection` /
+     *  `additionalCost`) — this field is the record of WHICH leg that was, so
+     *  the board can label the picker and a replay can be read back. Absent for
+     *  a card with no disjunction. */
+    additionalCostLegId?: string;
     /** CR 702.126 — Improvise: ids of untapped artifacts the caster has tapped
      *  DURING this payment, each paying for {1} of the spell's GENERIC cost
      *  (only reduces `manaCost.X`/generic, never a colored pip — CR 702.126a).
@@ -3223,6 +3233,15 @@ export type PendingTarget = {
      *  is paid at cast commit (`finalizeTargetSelection`) instead of the mana
      *  cost. Used by targeted alt-cost spells (Thwart, Fireblast). */
     alternativeCostId?: string;
+    /** CR 601.2b / 118.8 — id of the ADDITIONAL-cost leg the caster picked out
+     *  of `CardDefinition.additionalCosts.oneOf` ("discard a card OR pay 3
+     *  life", Bitter Triumph). Chosen at ANNOUNCEMENT, before targets and
+     *  before any payment, and propagated here because a targeted cast spans
+     *  several mutations: `finalizeTargetSelection` re-reads the card's
+     *  additional cost from the definition and must flatten the SAME leg the
+     *  caster named (`resolveAdditionalCosts`, `gre/additionalCost.ts`).
+     *  Absent for a card with no disjunction. */
+    additionalCostLegId?: string;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the announcement-time
      *  "a sorcery couldn't have been cast right now" snapshot, taken in
      *  `announceCast` and propagated through `finalizeTargetSelection` → the

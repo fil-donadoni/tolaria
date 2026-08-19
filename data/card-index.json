@@ -1288,6 +1288,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Bitter Triumph",
+        "scryfallId": "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f",
+        "oracleId": "776341cb-d2ec-423f-9250-92dc8bd8d503",
+        "firstSet": "lci",
+        "firstPrintId": "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f",
+        "firstPrintSet": "lci"
+    },
+    {
         "name": "Black Knight",
         "scryfallId": "c1662949-0d69-49a3-8c69-daf10717ed4e",
         "oracleId": "9456c5b6-946d-403a-8ed0-dff9f921d98c",

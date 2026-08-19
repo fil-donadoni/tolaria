@@ -27,6 +27,7 @@ import {
 } from "@convex/gre/controlContinuity";
 import type {
     ActivatedAbility,
+    AdditionalCostLeg,
     AlternativeCost,
     CardDefinition,
     EffectCardFilter,
@@ -71,6 +72,9 @@ import {
     affordableAlternativeCosts,
     handCardMatchesFilter,
 } from "@convex/gre/alternativeCost";
+// CR 601.2b / 118.8 — the server's own additional-cost leg affordability, reused
+// verbatim so the cast-time leg picker and `announceCast` can never disagree.
+import { payableAdditionalCostLegs } from "@convex/gre/additionalCost";
 // CR 702.33a (ADR 0079) — the server's own kicker-leg affordability check,
 // reused verbatim so the cast-cost dialog and `announceCast` can never disagree.
 import { canPayKickerLegs } from "@convex/gre/kicker";
@@ -3739,4 +3743,35 @@ export function groupByName(cards: CardInstance[]): CardInstance[][] {
         }
     }
     return [...groups.values()];
+}
+
+/** CR 601.2b / 118.8 — the ADDITIONAL-cost legs (`additionalCosts.oneOf`) the
+ *  caster can currently AFFORD for a hand card: "discard a card or pay 3 life"
+ *  (Bitter Triumph) with an empty hand offers only the life leg, and at 3 or
+ *  less life only the discard leg. `[]` for every card without a disjunction —
+ *  callers read that as "no choice to make", never as "unpayable" (a card whose
+ *  every leg is unpayable is not castable at all, and `getLegalActions` has
+ *  already suppressed the Cast affordance by then).
+ *
+ *  Delegates to the server predicate `payableAdditionalCostLegs` — the SAME
+ *  authority `announceCast` enforces and the Bot's enumerator reads — so the
+ *  picker can never offer a leg the mutation rejects, and no leg-affordability
+ *  logic is duplicated client-side. The projected `Player` carries every field
+ *  the predicate reads (`life`, own-hand `card.id`, battlefield
+ *  `types`/`subtypes`), so it evaluates correctly against the wire projection:
+ *  the caster's OWN hand is projected in full, and this affordance is only ever
+ *  computed for the viewer's own cast. */
+export function payableAdditionalCostLegsForCard(
+    card: CardInstance,
+    casterId: string,
+    players: ReadonlyArray<Player>
+): AdditionalCostLeg[] {
+    const caster = players.find((p) => p.id === casterId);
+    if (!caster) return [];
+    const def = tryGetDefinition(card.card.id);
+    return payableAdditionalCostLegs(
+        caster as unknown as PlayerState,
+        def?.additionalCosts,
+        card.id
+    );
 }

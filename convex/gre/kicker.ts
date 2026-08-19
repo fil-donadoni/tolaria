@@ -347,20 +347,33 @@ export function buildCastPermanentCostChoice(
 }
 
 /** CR 601.2f / 601.2h — the cast's ONE hand-cost picker, folding the chosen
- *  ALTERNATIVE cost's hand leg (CR 118.9 — Force of Will's "exile a blue card")
- *  and every paid KICKER's hand legs (CR 702.33a — Dralnu's Pet's "discard a
- *  creature card") into a single selection. Returns `undefined` when neither
- *  contributes a hand leg. */
+ *  ALTERNATIVE cost's hand leg (CR 118.9 — Force of Will's "exile a blue card"),
+ *  every paid KICKER's hand legs (CR 702.33a — Dralnu's Pet's "discard a
+ *  creature card") and any further leg the caller supplies into a single
+ *  selection. Returns `undefined` when none contributes a hand leg.
+ *
+ *  `extraLegs` is how the card's OWN additional cost joins (CR 118.8 / 701.9 —
+ *  Bitter Triumph's "discard a card", via `additionalCostHandLeg`): an
+ *  ADDITIONAL cost is paid alongside the mana cost, so its hand leg belongs in
+ *  the SAME single picker as the CR 118.9/702.33a ones rather than in a
+ *  parallel slot the cast has no room for. Legs concatenate in argument order,
+ *  so `CostLegs.hand`'s most-restrictive-requirement-first authoring constraint
+ *  extends across them. */
 export function buildCastHandCostChoice(
     player: PlayerState,
     altCost: CostLegs | undefined,
     cardDef: CardDefinition,
     payments: KickerPayments | undefined,
-    castInstanceId: string
+    castInstanceId: string,
+    extraLegs: readonly CostLegs[] = []
 ): ReturnType<typeof buildCostLegsHandChoice> {
     return buildCostLegsHandChoice(
         player,
-        [...(altCost ? [altCost] : []), ...kickerCostLegs(cardDef, payments)],
+        [
+            ...(altCost ? [altCost] : []),
+            ...kickerCostLegs(cardDef, payments),
+            ...extraLegs,
+        ],
         castInstanceId
     );
 }
