@@ -179,9 +179,12 @@ spawns leaking to the inherited tier over 30 days):
 ## Browser verification
 
 **Mandatory for any diff that can change what a user sees** — component, CSS,
-layout, responsive rule, overlay, scroll container — at three viewports, with
-a measured receipt, because happy-dom has no layout and cannot see a collapsed
-or occluded element. Engine/Convex/script work owes nothing here. Rule:
+layout, responsive rule, overlay, scroll container — at five viewports, with a
+measured receipt, because happy-dom has no layout and cannot see a collapsed
+or occluded element. Run **`bun run check:ui`** (#2580): it drives headless
+Chrome through the runbook surfaces, probes + axe, and fails on
+`scripts/ui-gate/budgets.json`; its output IS the receipt.
+Engine/Convex/script work owes nothing here. Rule:
 `.claude/rules/chrome-debug.md` (auto-loaded); procedure and click sequences:
 `docs/guides/browser-verification.md`, `docs/guides/ui-runbooks.md`.
 
@@ -246,8 +249,9 @@ prose is the fallback for judgment, not the home of invariants.
    Debug panel → Scenarios → "Save scenario" (`saveDebugScenario`). Skip only
    for pure refactors.
 8. **UI verify** — mandatory whenever the diff can change what a user sees
-   (three viewports + probe receipt, `.claude/rules/chrome-debug.md`); nothing
-   owed when the diff cannot reach the DOM
+   (`bun run check:ui`, five viewports + probe receipt,
+   `.claude/rules/chrome-debug.md`); nothing owed when the diff cannot reach
+   the DOM
 
 ### Quality gates (mandatory, no exceptions)
 
@@ -308,10 +312,12 @@ baseline).
 my test" is not an exemption; never branch off red, never merge on red, never
 silence a test. Red baseline → fix or surface first.
 
-**Browser verification is a gate for UI-affecting diffs** — three viewports, a
-measured probe receipt, `.claude/rules/chrome-debug.md`. It is not part of
-`check:all` (no headless browser lane exists yet), so nothing fails on its
-absence: the receipt in the PR is the whole enforcement.
+**Browser verification is a gate for UI-affecting diffs** — `bun run check:ui`,
+five viewports, `.claude/rules/chrome-debug.md`. It stays outside `check:all`
+(the full gate is offline by contract; this lane needs a live Convex
+deployment and a browser), so nothing fails on its absence: the receipt in the
+PR is the whole enforcement. A surface the lane could not reach prints
+`UNWALKED` and exits non-zero — a coverage hole is a red, not a pass.
 
 ## Rules Implementation Process
 

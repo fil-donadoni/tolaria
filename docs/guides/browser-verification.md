@@ -9,6 +9,11 @@ scenario) live in [UI runbooks](ui-runbooks.md). Read that one when the
 question is "how do I GET to the screen", this one when it is "how do I prove
 the screen is right".
 
+**Most of this page is now automated: `bun run check:ui`** (issue #2580). Read
+[The headless lane](#the-headless-lane-bun-run-checkui) first — the manual CDP
+procedure below is for what the lane does not walk, and for diagnosing what it
+flagged.
+
 ## Why the unit tests do not cover this
 
 The `dom` vitest project runs on happy-dom. It has a DOM tree, and it has no
@@ -26,6 +31,62 @@ they were rendered.
 
 That is the gap this guide closes. It is not a style check — it is the only
 check that looks at pixels.
+
+## The headless lane (`bun run check:ui`)
+
+One command, no browser plugin, no interactive session — the lane a headless
+agent can actually run:
+
+```
+bun run check:ui                              # every surface, all five viewports
+bun run check:ui -- --surface=lobby           # one surface, same rules
+bun run check:ui -- --record                  # rewrite budgets.json from this run
+bun run check:ui -- --headed                  # watch it walk
+```
+
+It owns the whole lifecycle: it checks the Convex deployment answers, starts
+its **own** Vite on `127.0.0.1` and a free port (your `bun run dev` is left
+alone), signs in, walks each surface in `scripts/ui-gate/surfaces.ts` at each
+of the five viewports, injects `scripts/ui-gate/probe.js` and `axe-core`, and
+compares the result against `scripts/ui-gate/budgets.json`. Screenshots land
+in `.claude/telemetry/ui-gate/` (gitignored).
+
+**Requirements.** A running Convex backend (`bunx convex dev` — the lane never
+starts one), the Chromium binary (`bunx playwright install chromium`; a
+missing one fails with that exact line), and dev-account credentials in
+`TOLARIA_UI_EMAIL` / `TOLARIA_UI_PASSWORD` — read from the environment or from
+the gitignored `.env.local`. The credentials are deliberately not in the repo.
+
+**What a red means.** Two different things, and the lane never confuses them:
+
+- **FAIL** — a measured number is over its budgeted ceiling. A real
+  regression, or a surface whose budget a slice is meant to tighten.
+- **UNWALKED** — the lane could not measure the surface at all: no budget
+  entry for it, the debug-scenario row is absent from this deployment, an
+  active game blocks the route, a walk timed out. This also exits non-zero.
+  Coverage is the thing being asserted; "we could not look" is a red, not a
+  shrug. The one exception is a surface the budget file explicitly declares
+  `{"status": "unwalked", "reason": …}` — that is listed in the output and in
+  the coverage line, and is the row a later slice deletes.
+
+**The budget file is the contract.** `scripts/ui-gate/budgets.json` holds one
+ceiling set per surface × viewport (`cardsZero/Occ/Stranded`,
+`ctrlsZero/Occ/Stranded`, `starved`, `axeSerious`, `axeCritical`). The floors
+the lane is FOR are zero occluded card tiles, zero stranded controls and no
+axe serious/critical; where a surface violates one today the entry carries a
+`knownDebt` note naming what is broken, printed under every run, so the number
+reads as debt rather than as a decision. A slice that fixes a surface lowers
+its ceilings in the same PR.
+
+**What it is not.** It is not part of `check:all`: the full gate is offline by
+contract and mutex-held, and booting a browser inside it would tax every
+session that never touches the DOM. It is a standalone command a UI diff runs,
+and its output is the receipt.
+
+**Non-destructive by construction.** The lane resumes a pre-existing match
+read-only and never concedes one it did not create, and it only loads a debug
+scenario into a game it created itself. That is why an active game makes it
+red (UNWALKED on the board surfaces) rather than making it lie.
 
 ## The tool: chrome-devtools-mcp, not the Claude extension
 
@@ -83,76 +144,14 @@ walk the runbook.
 
 Eyeballing a screenshot is how the deck-builder bug shipped: the strip of
 cards was visible, cut off at the bottom, and read as "cards are there".
-Measure instead. Paste this into `evaluate_script` after reaching the screen:
+Measure instead.
 
-```js
-() => {
-    const V = innerWidth,
-        H = innerHeight;
-    const canScroll = (e) =>
-        e.scrollHeight > e.clientHeight + 2 ||
-        e.scrollWidth > e.clientWidth + 2;
-    const scrollableAncestor = (e) => {
-        for (let p = e.parentElement; p; p = p.parentElement) {
-            const cs = getComputedStyle(p);
-            if (/auto|scroll/.test(cs.overflowY + cs.overflowX) && canScroll(p))
-                return true;
-        }
-        return false;
-    };
-    const probe = (list) => {
-        const o = {
-            n: list.length,
-            zero: 0,
-            occ: 0,
-            reachable: 0,
-            stranded: 0,
-        };
-        for (const e of list) {
-            const r = e.getBoundingClientRect();
-            if (r.width < 4 || r.height < 4) {
-                o.zero++;
-                continue;
-            }
-            const cx = r.left + r.width / 2,
-                cy = r.top + r.height / 2;
-            if (cx >= 0 && cx <= V - 1 && cy >= 0 && cy <= H - 1) {
-                const t = document.elementFromPoint(cx, cy);
-                if (t && !e.contains(t) && !t.contains(e)) o.occ++;
-            } else if (scrollableAncestor(e)) o.reachable++;
-            else o.stranded++;
-        }
-        return o;
-    };
-    const starved = [];
-    for (const el of document.querySelectorAll("*")) {
-        const cs = getComputedStyle(el);
-        if (!/auto|scroll/.test(cs.overflowY + cs.overflowX)) continue;
-        const kids = [...el.children];
-        if (!kids.length || el.clientHeight === 0) continue;
-        const tallest = Math.max(
-            ...kids.map((k) => k.getBoundingClientRect().height)
-        );
-        if (tallest > 40 && el.clientHeight < tallest * 0.9)
-            starved.push({
-                cls: (el.className || "").toString().slice(0, 34),
-                h: el.clientHeight,
-                tallest: Math.round(tallest),
-            });
-    }
-    return {
-        vp: V + "x" + H,
-        cards: probe([
-            ...document.querySelectorAll(
-                'img[src*="scryfall"],img[src*="card-back"]'
-            ),
-        ]),
-        ctrls: probe([...document.querySelectorAll("button,a[href]")]),
-        starvedN: starved.length,
-        starved: starved.slice(0, 4),
-    };
-};
-```
+**The probe lives in one file: [`scripts/ui-gate/probe.js`](../../scripts/ui-gate/probe.js).**
+`bun run check:ui` injects that file; a human pastes the arrow function it
+assigns (everything after the `=`) into `evaluate_script`. This page used to
+embed a copy of its own and the two had already drifted — the manual copy had
+lost the touch-target, tiny-text and chrome-height measurements. One source,
+so the gate and the hand check can never disagree about what "measured" means.
 
 ### Reading the output
 
@@ -180,21 +179,36 @@ screen whose real count was 25, and it reported 13 of 13 on a lobby that is
 fine. If you write your own variant, never hit-test a point the element does
 not actually occupy.
 
-Swap the `img` selector for whatever the change is about (`[data-card-id]`, a
-zone container). The five questions do not change.
-
-What the probe still does not see: colour and contrast regressions, and
-whether the layout is _good_. For those, look at the screenshot.
+What the probe still does not see: whether the layout is _good_. For that,
+look at the screenshot. Colour and contrast are now covered by axe, which the
+lane runs alongside the probe (`axeSerious` / `axeCritical` are budgeted).
 
 ## What goes in the PR
 
-State the surface, then per viewport: the probe line and one screenshot.
+The `check:ui` table IS the receipt — paste the surface × viewport lines, the
+coverage line and the screenshot directory:
+
+```
+PASS     lobby           1440x900x2   cards n39 zero0 occ1 stranded0 | ctrls … | starved2 | axe s1/c0
+PASS     lobby           390x844x3    …
+PASS     lobby           844x390x3    …
+PASS     lobby           820x1180x2   …
+PASS     lobby           1180x820x2   …
+coverage: 5/8 surfaces measured, 3 declared unwalked
+console errors: none
+screenshots: .claude/telemetry/ui-gate/
+```
+
+For a surface the lane does not walk, the hand-driven equivalent — same five
+viewports, same probe:
 
 ```
 Deck-builder zones, verified in Chrome (CDP):
-- 1440x900  → cards n95 zero0 occ0 stranded0, starved0
-- 390x844   → cards n95 zero0 occ0 stranded0, starved0
-- 844x390   → cards n95 zero0 occ0 stranded0, starved0
+- 1440x900   → cards n95 zero0 occ0 stranded0, starved0
+- 390x844    → cards n95 zero0 occ0 stranded0, starved0
+- 844x390    → cards n95 zero0 occ0 stranded0, starved0
+- 820x1180   → cards n95 zero0 occ0 stranded0, starved0
+- 1180x820   → cards n95 zero0 occ0 stranded0, starved0
 console errors: none
 ```
 
