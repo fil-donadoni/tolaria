@@ -153,7 +153,7 @@ describe("Lavaspur Boots (OTJ #243, issue #1530)", () => {
             targets: [{ type: "permanent" as const, id: "bear1" }],
         } as StackItem;
         state.stack.push(spell);
-        emitBecameTargetEvents(state, spell.targets!, "p2", spell.id);
+        emitBecameTargetEvents(state, spell.targets!, "p2", spell.id, "spell");
         processPendingActionTriggers(state);
 
         // The granted trigger is on the stack above the removal spell, with
@@ -195,7 +195,7 @@ describe("Lavaspur Boots (OTJ #243, issue #1530)", () => {
             targets: [{ type: "permanent" as const, id: "bear1" }],
         } as StackItem;
         state.stack.push(spell);
-        emitBecameTargetEvents(state, spell.targets!, "p2", spell.id);
+        emitBecameTargetEvents(state, spell.targets!, "p2", spell.id, "spell");
         processPendingActionTriggers(state);
 
         resolveTopOfStack(state); // suspends on may-pay
@@ -228,7 +228,7 @@ describe("Lavaspur Boots (OTJ #243, issue #1530)", () => {
             targets: [{ type: "permanent" as const, id: "bear1" }],
         } as StackItem;
         state.stack.push(spell);
-        emitBecameTargetEvents(state, spell.targets!, "p2", spell.id);
+        emitBecameTargetEvents(state, spell.targets!, "p2", spell.id, "spell");
         processPendingActionTriggers(state);
         // No ward trigger raised — the removal spell is still alone on top.
         expect(state.stack).toHaveLength(1);

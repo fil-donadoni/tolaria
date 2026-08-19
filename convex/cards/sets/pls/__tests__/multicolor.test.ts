@@ -1019,6 +1019,7 @@ describe("Cloud Cover ({2}{W}{U} — bounce a targeted permanent you control; CR
         sourceControllerId: string
     ): BecameTargetEvent => ({
         type: "BECAME_TARGET",
+        sourceKind: "spell",
         target: { type: "permanent", id: targetId },
         targetControllerId,
         sourceControllerId,

@@ -3120,7 +3120,15 @@ export function tryAutoCommitPendingActivation(
     // CR 603.2b (issue #1265) — a DEFERRED-payment targeted ability locks its
     // targets as it finally reaches the stack; fire "becomes the target of an
     // ability" triggers (Leovold) alongside the tap-trigger flush below.
-    emitBecameTargetEvents(state, pa.targets, playerId, stackItem.id);
+    // `"activated-ability"` (issue #2360) — a deferred-payment ACTIVATED
+    // ability (CR 602.2b), never a cast spell.
+    emitBecameTargetEvents(
+        state,
+        pa.targets,
+        playerId,
+        stackItem.id,
+        "activated-ability"
+    );
     // CR 603.2 — flush PERMANENT_TAPPED events queued during payment so
     // mana-tap triggers (Manabarbs / Mana Flare / Wild Growth) land on top
     // of the freshly-pushed activated ability. BEFORE the auto-pass drain,
@@ -6341,7 +6349,15 @@ export function finalizeTargetSelection(
         // CR 603.2b (issue #1265) — the ability's targets are locked onto its
         // stack item; fire "becomes the target of an ability" triggers
         // (Leovold) alongside the ABILITY_ACTIVATED flush below.
-        emitBecameTargetEvents(state, targets, playerId, stackItem.id);
+        // `"activated-ability"` (issue #2360) — an ACTIVATED ability's targets
+        // (CR 602.2b), never a cast spell's.
+        emitBecameTargetEvents(
+            state,
+            targets,
+            playerId,
+            stackItem.id,
+            "activated-ability"
+        );
         // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
         // "non-tap ability activated" punisher lands on top of the freshly
         // pushed ability (resolves first). No-op for {T} abilities. BEFORE the

@@ -3201,11 +3201,14 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             // CR 603.2b (issue #1265) — even an auto-selected targeted trigger
             // locks a target, so it fires "becomes the target of an ability"
             // triggers (Leovold). Queued for the next event drain.
+            // `"triggered-ability"` (issue #2360) — an AUTO-selected trigger
+            // target is still a trigger's target, not a cast spell's.
             emitBecameTargetEvents(
                 state,
                 item.targets,
                 item.controllerId,
-                item.id
+                item.id,
+                "triggered-ability"
             );
             continue;
         }

@@ -184,7 +184,8 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
             state,
             [{ type: "permanent", id: "subject" }],
             "p2",
-            bolt.id
+            bolt.id,
+            "spell"
         );
         processPendingActionTriggers(state);
 
