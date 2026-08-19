@@ -62,6 +62,8 @@ export const EXEMPT = [
     "scripts/cr-keyword-citations.ts",
     "scripts/check-cr-citations.ts",
     "scripts/__tests__/cr-keyword-citations.test.ts",
+    "scripts/cr-118-4-life-payment.ts",
+    "scripts/__tests__/cr-118-4-life-payment.test.ts",
     "docs/adr/0098-",
 ];
 
