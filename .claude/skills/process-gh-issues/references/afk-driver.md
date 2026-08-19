@@ -161,6 +161,7 @@ bun run loop:drain \
 | `--max-passes`             | —                           | `0` (unlimited)                    |
 | `--stop-file`              | —                           | `.claude/telemetry/loop-stop`      |
 | `--claude-args`            | —                           | empty (warns; see Permissions)     |
+| `--prompt`                 | —                           | `/process-gh-issues` (scopes it)   |
 | `--max-consecutive-errors` | —                           | `3`                                |
 | `--error-backoff-secs`     | —                           | `60` (doubles per retry)           |
 | `--error-backoff-max-secs` | —                           | `900`                              |

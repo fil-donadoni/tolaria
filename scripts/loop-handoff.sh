@@ -42,12 +42,20 @@ DRIVER="scripts/loop-drain.sh"
 # i.e. it is not an AFK run at all. It is written into the conf file in plain
 # text so the choice is visible and revocable (`--disarm`), never implicit.
 DEFAULT_CLAUDE_ARGS="--dangerously-skip-permissions"
+# The prompt every pass of the armed run executes. The default drains the
+# WHOLE queue by board priority; `--prompt` scopes the run instead
+# (`/process-gh-issues figli di 2405` = only PRD #2405's children). It is
+# recorded in the conf, and printed by --status, precisely because an armed
+# run that LOOKS unscoped but isn't (or vice versa) is a trap for whoever
+# reads the file the next morning.
+DEFAULT_PROMPT="/process-gh-issues"
 # Seconds the driver waits before its first pass: the calling pass is still
 # releasing claims when the handoff fires.
 DEFAULT_START_DELAY=45
 
 MODE=""
 ARG_CLAUDE_ARGS=""
+ARG_PROMPT=""
 ARG_BUDGET=""
 ARG_MAX_PCT=""
 ARG_MAX_PASSES=""
@@ -70,6 +78,9 @@ loop-handoff — start / stop / inspect the detached AFK driver.
 
 Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
   --claude-args <str>          default: --dangerously-skip-permissions
+  --prompt <text>              prompt each pass runs (default: /process-gh-issues).
+                               Use it to SCOPE an unattended run, e.g.
+                               --prompt "/process-gh-issues figli di 2405"
   --budget <n> --max-pct <n>   local-proxy token budget guard (see ADR 0097)
   --max-passes <n>             0 = unlimited
   --max-consecutive-errors <n> crashes tolerated in a row before stopping (default 3)
@@ -91,6 +102,10 @@ while [ $# -gt 0 ]; do
             ;;
         --claude-args)
             ARG_CLAUDE_ARGS="$2"
+            shift 2
+            ;;
+        --prompt)
+            ARG_PROMPT="$2"
             shift 2
             ;;
         --budget)
@@ -135,6 +150,18 @@ done
 
 [ -n "$MODE" ] || MODE="start"
 
+# The conf is a LINE-based KEY=VALUE file (see conf_get below): a value
+# containing a newline would be written as two lines and read back TRUNCATED
+# at the first one — the driver would then run half a prompt for hours with
+# nobody watching, which is precisely the failure this flag exists to
+# prevent. Reject it loudly at arm time instead. Every other character —
+# spaces, `=`, quotes, `$(...)`, backticks — round-trips intact, because the
+# file is parsed and never sourced.
+if [ "$(printf '%s' "$ARG_PROMPT" | wc -l | tr -d ' ')" != "0" ]; then
+    echo "loop-handoff: --prompt must be a single line — a newline in the value would be truncated when $CONF_FILE is read back." >&2
+    exit 2
+fi
+
 mkdir -p "$TELEMETRY_DIR"
 
 # ── conf I/O. KEY=VALUE, one per line, cut at the FIRST `=` so a value may
@@ -164,6 +191,8 @@ driver_pid() {
 write_conf() {
     _claude_args=${ARG_CLAUDE_ARGS:-$(conf_get CLAUDE_ARGS)}
     [ -n "$_claude_args" ] || _claude_args="$DEFAULT_CLAUDE_ARGS"
+    _prompt=${ARG_PROMPT:-$(conf_get PROMPT)}
+    [ -n "$_prompt" ] || _prompt="$DEFAULT_PROMPT"
     _start_delay=${ARG_START_DELAY:-$(conf_get START_DELAY)}
     [ -n "$_start_delay" ] || _start_delay="$DEFAULT_START_DELAY"
     {
@@ -172,6 +201,7 @@ write_conf() {
         echo "# launch the next one. Delete it (bun run loop:afk --disarm) to"
         echo "# go back to one-batch-per-invocation."
         echo "CLAUDE_ARGS=$_claude_args"
+        echo "PROMPT=$_prompt"
         echo "BUDGET=${ARG_BUDGET:-$(conf_get BUDGET)}"
         echo "MAX_PCT=${ARG_MAX_PCT:-$(conf_get MAX_PCT)}"
         echo "MAX_PASSES=${ARG_MAX_PASSES:-$(conf_get MAX_PASSES)}"
@@ -191,6 +221,7 @@ write_conf() {
 #   nohup        — SIGHUP immunity even where setsid is unavailable
 launch_driver() {
     _claude_args=$(conf_get CLAUDE_ARGS)
+    _prompt=$(conf_get PROMPT)
     _budget=$(conf_get BUDGET)
     _max_pct=$(conf_get MAX_PCT)
     _max_passes=$(conf_get MAX_PASSES)
@@ -202,6 +233,9 @@ launch_driver() {
         --pid-file "$PID_FILE" --stop-file "$STOP_FILE" \
         --start-delay "$_start_delay"
     [ -z "$_claude_args" ] || set -- "$@" --claude-args "$_claude_args"
+    # Omitted when the conf carries no PROMPT (a conf armed before this flag
+    # existed) — the driver's own default is then the single authority.
+    [ -z "$_prompt" ] || set -- "$@" --prompt "$_prompt"
     [ -z "$_budget" ] || set -- "$@" --budget "$_budget"
     [ -z "$_max_pct" ] || set -- "$@" --max-pct "$_max_pct"
     [ -z "$_max_passes" ] || set -- "$@" --max-passes "$_max_passes"
@@ -248,6 +282,15 @@ case "$MODE" in
         if [ -f "$CONF_FILE" ]; then
             echo "armed:      yes ($CONF_FILE)"
             sed 's/^/            /' "$CONF_FILE"
+            # Say the SCOPE in one resolved line, not only as a raw conf
+            # row: a run scoped to one lineage that reads as a full-queue
+            # drain (or the reverse) is the trap this line closes.
+            _p=$(conf_get PROMPT)
+            if [ -n "$_p" ]; then
+                echo "prompt:     $_p"
+            else
+                echo "prompt:     $DEFAULT_PROMPT (default — the whole queue, by board priority)"
+            fi
         else
             echo "armed:      no — end-of-pass handoff will not fire"
         fi
@@ -301,6 +344,7 @@ case "$MODE" in
         fi
         write_conf
         echo "loop-handoff: AFK run armed with CLAUDE_ARGS=$(conf_get CLAUDE_ARGS)"
+        echo "loop-handoff: every pass will run: claude -p \"$(conf_get PROMPT)\""
         case "$(conf_get CLAUDE_ARGS)" in
             *--dangerously-skip-permissions*)
                 echo "loop-handoff: WARNING — this run answers every permission prompt automatically." >&2

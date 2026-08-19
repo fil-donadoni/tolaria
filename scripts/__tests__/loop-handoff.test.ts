@@ -238,3 +238,80 @@ describe("stop / resume / status", () => {
         expect(r.stderr).toMatch(/unknown argument/);
     });
 });
+
+describe("--prompt — scoping an unattended run to part of the queue", () => {
+    const SCOPED = "/process-gh-issues figli di 2405";
+
+    /** What the handoff would hand the driver, as one string. */
+    const driverArgv = (): string =>
+        run({ args: ["--from-pass", "--dry-run"] }).stdout;
+
+    it("records the default prompt when --prompt is absent", () => {
+        // The regression that protects every existing armed checkout: no
+        // --prompt must still mean the whole queue, by board priority.
+        run({ args: ["--arm"] });
+        expect(fs.readFileSync(CONF(), "utf8")).toMatch(
+            /^PROMPT=\/process-gh-issues$/m
+        );
+        expect(driverArgv()).toMatch(/--prompt \/process-gh-issues/);
+    });
+
+    it("round-trips a multi-word prompt through the conf into the driver argv", () => {
+        run({ args: ["--arm", "--prompt", SCOPED] });
+        expect(fs.readFileSync(CONF(), "utf8")).toContain(`PROMPT=${SCOPED}`);
+        expect(driverArgv()).toContain(`--prompt ${SCOPED}`);
+    });
+
+    it("round-trips a value containing spaces, `=`, quotes and $(...) without executing or truncating it", () => {
+        // conf_get cuts at the FIRST `=` precisely so a value may contain
+        // more of them; and the file is parsed, never sourced, so a
+        // command substitution in it is inert text. Both properties are
+        // load-bearing for an unattended process that reads this file and
+        // then runs `claude`.
+        const nasty =
+            '/process-gh-issues a=b "quoted" $(touch pwned) `touch pwned2`';
+        const r = run({ args: ["--arm", "--prompt", nasty] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(fs.readFileSync(CONF(), "utf8")).toContain(`PROMPT=${nasty}`);
+        expect(driverArgv()).toContain(`--prompt ${nasty}`);
+        expect(fs.existsSync(path.join(tmp, "pwned"))).toBe(false);
+        expect(fs.existsSync(path.join(tmp, "pwned2"))).toBe(false);
+    });
+
+    it("REJECTS a prompt containing a newline instead of writing a value that reads back truncated", () => {
+        // The conf is line-based KEY=VALUE: a newline would be written as
+        // two lines and read back as the first half only — the driver would
+        // then run a mangled prompt for hours with nobody watching. The
+        // pre-existing conf must survive the rejection untouched.
+        run({ args: ["--arm", "--prompt", SCOPED] });
+        const r = run({
+            args: ["--arm", "--prompt", "/process-gh-issues\nrm -rf /"],
+        });
+        expect(r.status).toBe(2);
+        expect(r.stderr).toMatch(/--prompt must be a single line/);
+        const conf = fs.readFileSync(CONF(), "utf8");
+        expect(conf).toContain(`PROMPT=${SCOPED}`);
+        expect(conf).not.toMatch(/rm -rf/);
+    });
+
+    it("--status says what the armed run is scoped to", () => {
+        // An armed-but-scoped run that LOOKS unscoped is a trap for whoever
+        // reads this the next morning.
+        run({ args: ["--arm", "--prompt", SCOPED] });
+        expect(run({ args: ["--status"] }).stdout).toMatch(
+            /prompt:\s+\/process-gh-issues figli di 2405/
+        );
+    });
+
+    it("--status on a conf armed before this flag existed shows the default, not a blank", () => {
+        fs.writeFileSync(
+            CONF(),
+            "CLAUDE_ARGS=--dangerously-skip-permissions\n"
+        );
+        const out = run({ args: ["--status"] }).stdout;
+        expect(out).toMatch(/prompt:\s+\/process-gh-issues \(default/);
+        // …and the driver is started with no --prompt at all, so its own
+        // default is the single authority for that legacy conf.
+        expect(driverArgv()).not.toMatch(/--prompt/);
+    });
+});

@@ -83,11 +83,22 @@ To abort the pass in flight as well, kill the pid `--status` prints.
 | Flag                           | Default                          | Effect                                                                   |
 | ------------------------------ | -------------------------------- | ------------------------------------------------------------------------ |
 | `--claude-args <str>`          | `--dangerously-skip-permissions` | permission mode for each pass                                            |
+| `--prompt <text>`              | `/process-gh-issues`             | the prompt each pass runs — **scopes** the run (see below)               |
 | `--budget <n>` `--max-pct <n>` | off / 80                         | local-proxy token budget guard (see below)                               |
 | `--max-passes <n>`             | 0 (unlimited)                    | hard cap on passes                                                       |
 | `--max-consecutive-errors <n>` | 3                                | crashes tolerated in a row before stopping                               |
 | `--start-delay <secs>`         | 45                               | grace before the first pass (the calling pass is still releasing claims) |
 | `--no-caffeinate`              | off                              | do not hold the Mac awake — an overnight run needs it awake              |
+
+**`--prompt` scopes an unattended run to part of the queue.**
+`/process-gh-issues` takes free-text args that narrow which issues a pass
+considers, so `--prompt "/process-gh-issues figli di 2405"` drains only PRD
+#2405's children — without it an unattended run can only ever take the global
+queue in board-priority order (`--claude-args` appends CLI _flags_ to `claude`,
+not prompt text). The value is recorded in the conf and printed by `--status`,
+because an armed run that _looks_ unscoped but isn't is a trap. It must be a
+single line: a newline would be truncated when the conf is read back, so it is
+rejected at arm time.
 
 **The budget guard is opt-in and fails closed.** With no `--budget` it is
 disabled and says so once. With one, it reads `bun run usage:window` before every
