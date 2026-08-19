@@ -23,7 +23,7 @@ import { announceCast, confirmTargets, selectTarget } from "../game";
 import { bolassCitadel } from "../cards/sets/war/black";
 import { fireball, lightningBolt } from "../cards/sets/lea/red";
 import { grizzlyBears } from "../cards/sets/lea/green";
-import { mountain } from "../cards/sets/lea/colorless";
+import { island, mountain } from "../cards/sets/lea/colorless";
 import { gush } from "../cards/sets/mmq/blue";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import type { CardInstanceState, GameState } from "../gre/state";
@@ -89,8 +89,15 @@ const runConfirmTargets = (ctx: Parameters<typeof runMutation>[1]) =>
 /** p1 controls a Bolas's Citadel with `topCardId` on top of their library (id
  *  `top`), plus `mountains` untapped Mountains — deliberately ENOUGH mana to
  *  pay several printed costs, so a test that sees a spell cast proves the LIFE
- *  path only if the life total moved. */
-function citadelState(topCardId: string, mountains = 3): GameState {
+ *  path only if the life total moved. `islands` adds untapped Islands, which is
+ *  what makes Gush's "return two Islands" alternative cost genuinely PAYABLE:
+ *  without them `canPayAlternativeCost` rejects the announcement first and the
+ *  CR 601.2b test passes for the wrong reason. */
+function citadelState(
+    topCardId: string,
+    mountains = 3,
+    islands = 0
+): GameState {
     const battlefield: CardInstanceState[] = [
         makeInstance(bolassCitadel.id, {
             id: "citadel",
@@ -100,6 +107,13 @@ function citadelState(topCardId: string, mountains = 3): GameState {
         ...Array.from({ length: mountains }, (_, i) =>
             makeInstance(mountain.id, {
                 id: `mountain-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        ),
+        ...Array.from({ length: islands }, (_, i) =>
+            makeInstance(island.id, {
+                id: `island-${i}`,
                 controllerId: "p1",
                 ownerId: "p1",
             })
@@ -251,8 +265,12 @@ describe("announceCast — CR 107.3b: the only legal choice for X is 0 on a cast
 });
 
 describe("announceCast — CR 601.2b: no alternative cost may ride along with the library-top cast", () => {
-    it("rejects Gush's 'return two Islands' alternative cost off the top of the library", async () => {
-        const state = citadelState(gush.id);
+    it("rejects Gush's 'return two Islands' alternative cost off the top of the library — even though the cost is PAYABLE", async () => {
+        // Two untapped Islands: `canPayAlternativeCost` is satisfied, so the
+        // rejection can only come from the CR 601.2b gate and not from the
+        // affordability check that runs before it. The assertion is on the
+        // specific message for the same reason.
+        const state = citadelState(gush.id, 0, 2);
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await expect(
@@ -260,8 +278,37 @@ describe("announceCast — CR 601.2b: no alternative cost may ride along with th
                 cardInstanceId: "top",
                 alternativeCostId: "return-two-islands",
             })
-        ).rejects.toThrow(/alternative cost/);
+        ).rejects.toThrow(/Can't apply an alternative cost/);
         expect(harness.state().players[0].life).toBe(20);
         expect(harness.state().players[0].library).toHaveLength(1);
+        // The Islands stayed put: nothing was paid on the way to the throw.
+        expect(harness.state().players[0].battlefield).toHaveLength(3);
+    });
+
+    it("the SAME alternative cost is accepted for the same card in HAND (the gate is the replacement, not the card)", async () => {
+        const state = citadelState(grizzlyBears.id, 0, 2);
+        state.players[0].hand = [
+            makeInstance(gush.id, {
+                id: "hand-gush",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            }),
+        ];
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+
+        await runAnnounceCast(harness.ctx, {
+            cardInstanceId: "hand-gush",
+            alternativeCostId: "return-two-islands",
+        });
+
+        // CR 118.9 — the Islands went back to hand and the spell is on the
+        // stack: the new gate did not leak onto an ordinary hand cast.
+        const after = harness.state();
+        expect(after.stack).toHaveLength(1);
+        expect(after.stack[0].id).toBe("hand-gush");
+        expect(
+            after.players[0].battlefield.filter((c) => c.id !== "citadel")
+        ).toHaveLength(0);
     });
 });
