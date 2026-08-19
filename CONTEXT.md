@@ -1036,11 +1036,53 @@ _Avoid_: Auto-pass chain, cascade
 
 **Manual Game**:
 A game played without the **GRE** — no rule is enforced and no action is automated. Players move cards, tap, adjust life and counters by hand, and agree between themselves on legality. Hidden information is still server-enforced (projected per viewer). Every printed card is playable because no **CardDefinition** is ever hydrated — the card image alone is all the client needs.
-_Avoid_: Tabletop game, free-form game, cockatrice
+_Avoid_: Tabletop game, free-form game, cockatrice (as a domain term — the user-facing label of a **Manual Game** IS **Cockatrice Mode**, see Surfaces)
 
 **Manual Deck**:
 A deck built for **Manual Mode**, carrying `format: "manual"`. It is REJECTED by the real engine (fail-closed in `createGame`/`joinGame`/`createSoloGame`) but a real-format deck IS playable in a **Manual Game** — both address cards by the same Scryfall print UUID.
 _Avoid_: Cockatrice deck, free deck
+
+### Surfaces
+
+**Viewport Matrix**:
+The five emulated viewports every UI-affecting change is measured at: phone portrait 390×844×3 touch, phone landscape 844×390×3 touch, tablet portrait 820×1180×2 touch, tablet landscape 1180×820×2 touch, desktop 1440×900×2. Semantic breakpoints align to it; the headless probe reports occlusion / zero-size / stranded per viewport. ADR 0101.
+_Avoid_: Three viewports (the retired rule), responsive check (too vague)
+
+**Shell Mode**:
+Which chrome a route wears. **Browse** (lobby, decks, limited list, profile): top bar on desktop/tablet, bottom nav on phone. **Immersive** (board, **Draft Room**, deckbuilder): no persistent nav, a contextual bar with an explicit Exit and an overflow menu. One `AppShell` decides from the route. ADR 0101.
+_Avoid_: Fullscreen (that is a browser state), header-less
+
+**Draft Room**:
+The immersive surface where a **Player** picks from the current pack: own route `/limited/$eventId/draft`, a thin bar (pack n/3 · pick n/15 · direction · timer · waiting-pack dot · **Table Ring** · pool toggle), the pack grid and the pool. On phone it has exactly two **Snap Stops**. Sealed uses it in reveal mode. ADR 0101.
+_Avoid_: Draft arena (the retired #2404 name), draft page, event page (that is the antechamber)
+
+**Snap Stop**:
+One of the two resting positions of the phone **Draft Room** (`scroll-snap-type: mandatory`, no intermediates): Pack 85 / Pool 15 and Pack 15 / Pool 85 in portrait; Pack 80 / **Sneak-peek Column** 20 and collapsed-pack 20 / pool-columns 80 in landscape. The visible 15–20% of the other pane is its live tab and a drop target. ADR 0101.
+_Avoid_: Tab (it is not a tab switch — the other pane stays visible), page
+
+**Sneak-peek Column**:
+The 20% right column of the landscape **Draft Room** at the pack **Snap Stop**: the picks as one vertical Arena-style pile, the Sideboard count, and the actions bar under it (Pick / → SB / Inspect for the selected card). Dropping a card on it picks it. ADR 0101.
+_Avoid_: Pool strip (that is the portrait form), sidebar
+
+**Peek Panel**:
+The non-modal panel a tap opens on an editing surface (**Draft Room**, deckbuilder, search): the selected card's thumb, name, type, and a 44px CTA row (`→ Side` / `→ Pool` / `Move to…` / `Inspect`, or `Pick` / `→ SB` / `Inspect`). Portrait = bottom sheet, landscape = right rail, tablet = fixed rail. The CTA row is the primary move path on touch; long-press drag is the power-user path. ADR 0101.
+_Avoid_: Action Sheet (that is the board's modal list of legal actions), card menu, toolbar
+
+**Inspect Overlay**:
+The **Card Preview Overlay** as opened from a **Peek Panel** CTA (or hover on desktop) on an editing surface: ≤100dvh, art | scrolling text in landscape, the surface's own actions inside it (builder: `→ Side`, `Move to…`; draft: `Pick`, ‹ › to step). In the **Draft Room** a tap anywhere except `Pick` closes it. Same component as the board's overlay; the trigger differs (no hold-preview on editing surfaces — long-press is drag there).
+_Avoid_: Zoom, preview (say which: board preview vs inspect)
+
+**Table Ring**:
+The Arena-style dialog showing the draft table: seats, names/avatars, queued packs per seat, passing direction, self at the bottom. Opened from the **Draft Room** bar or the antechamber; never a dominant page element.
+_Avoid_: Seat ring, table view, lobby ring
+
+**Arena Mode**:
+The user-facing label of a **Game** run by the **GRE** — rules enforced by the engine (vs Bot, **Solo Mode**, multiplayer). A label in the Play panel's game-mode selector, not a domain term. ADR 0101.
+_Avoid_: Rules enforced, engine mode, classic, real game
+
+**Cockatrice Mode**:
+The user-facing label of a **Manual Game** — a free table, any printed card, the players call the rules. Picking it filters the deck list to **Manual Decks** and swaps the action set (Solo table · Open a table). A label, not a domain term. ADR 0101.
+_Avoid_: Tabletop, manual mode (in UI copy — the domain term stays **Manual Game**), free play
 
 ## Example Dialogue
 
