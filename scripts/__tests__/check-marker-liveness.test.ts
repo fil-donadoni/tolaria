@@ -3,7 +3,9 @@ import {
     inScope,
     isStubContext,
     findRottenMarkers,
+    findUnresolvedMarkers,
     markersBlockingClosure,
+    scanRepoMarkers,
 } from "../check-marker-liveness";
 import type { MarkerRecord } from "../lib/divergence-markers";
 
@@ -37,7 +39,7 @@ describe("inScope — real markers live in compiled TS/JS, never prose (issue #2
         expect(inScope("scripts/legacy.js")).toBe(true);
     });
 
-    it("excludes markdown — a real marker is always a `//`-comment in compiled source; .claude/ and docs/ only ever SHOW that syntax as prose", () => {
+    it("excludes markdown — a real marker is always a comment (`//` or `/** */`) in compiled source; .claude/ and docs/ only ever SHOW that syntax as prose", () => {
         expect(inScope(".claude/rules/gre-development.md")).toBe(false);
         expect(inScope("docs/adr/0098-cr-vendored.md")).toBe(false);
     });
@@ -90,6 +92,75 @@ describe("isStubContext — commented-out card stubs are check-stub-coverage.ts'
     });
 });
 
+describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARKER word (issue #2560 fixup round 1, finding 1)", () => {
+    it("finds a per-card bullet paragraph with no marker word — the actual shape of most inv/white.ts stubs", () => {
+        const sources = [
+            {
+                file: "convex/cards/sets/inv/white.ts",
+                text: [
+                    '// Atalya, Samite Master — "Spend only white mana on X."',
+                    "// tracked-by: #1330 (no color-restricted X payment exists).",
+                    "export {};",
+                ].join("\n"),
+            },
+        ];
+        const hits = scanRepoMarkers(sources);
+        expect(hits).toHaveLength(1);
+        expect(hits[0]).toMatchObject({
+            file: "convex/cards/sets/inv/white.ts",
+            tracked: true,
+            issueNumbers: [1330],
+        });
+    });
+
+    it("finds a tracked-by: inside a /** */ JSDoc block — scanText's `//`-only paragraph walk cannot reach these at all", () => {
+        const sources = [
+            {
+                file: "convex/cards/types.ts",
+                text: [
+                    "/** Describes a field.",
+                    " *  Still needs a follow-up (tracked-by: #2497).",
+                    " */",
+                    "export type Foo = { kind: string };",
+                ].join("\n"),
+            },
+        ];
+        const hits = scanRepoMarkers(sources);
+        expect(hits).toHaveLength(1);
+        expect(hits[0].issueNumbers).toEqual([2497]);
+    });
+
+    it("does not pick up a bare tracked-by-shaped string sitting in actual code (not a comment line)", () => {
+        const sources = [
+            {
+                file: "convex/gre/foo.ts",
+                text: 'const label = "tracked-by: #999"; // not a real disposition line prefix\n',
+            },
+        ];
+        // The line itself IS a `//`-prefixed... no — this fixture's string
+        // literal sits on a CODE line (`const label = …`), which does not
+        // start with `//`/`/*`/`*`, so it must not be picked up even though
+        // it contains the exact substring.
+        expect(scanRepoMarkers(sources)).toEqual([]);
+    });
+
+    it("still drops a stub-context hit even under the widened scan", () => {
+        const sources = [
+            {
+                file: "convex/cards/sets/xyz/white.ts",
+                text: [
+                    "// TODO(issue #676 stub — Boast is unbuilt, tracked-by: #676)",
+                    "// export const broadsideBombardiers: CardDefinition = {",
+                    '//     name: "Broadside Bombardiers",',
+                    "// };",
+                    "export {};",
+                ].join("\n"),
+            },
+        ];
+        expect(scanRepoMarkers(sources)).toEqual([]);
+    });
+});
+
 describe("findRottenMarkers — the liveness verdict (issue #2560)", () => {
     it("flags a tracked marker naming a CLOSED issue", () => {
         const states = new Map<number, "OPEN" | "CLOSED">([[123, "CLOSED"]]);
@@ -132,6 +203,61 @@ describe("findRottenMarkers — the liveness verdict (issue #2560)", () => {
         );
         expect(rotten).toHaveLength(1);
         expect(rotten[0].closedIssues).toEqual([100]);
+    });
+
+    it("does NOT flag a marker whose issue is UNKNOWN (gh could not resolve it) — that is findUnresolvedMarkers's verdict, never rotten (fixup round 1, finding 5)", () => {
+        const states = new Map<number, "OPEN" | "CLOSED" | "UNKNOWN">([
+            [123, "UNKNOWN"],
+        ]);
+        expect(findRottenMarkers([marker()], states)).toEqual([]);
+    });
+});
+
+describe("findUnresolvedMarkers — a broken gh token must not read as rot (issue #2560 fixup round 1, finding 5)", () => {
+    it("flags a tracked marker whose issue gh could not resolve", () => {
+        const states = new Map<number, "OPEN" | "CLOSED" | "UNKNOWN">([
+            [123, "UNKNOWN"],
+        ]);
+        const unresolved = findUnresolvedMarkers([marker()], states);
+        expect(unresolved).toHaveLength(1);
+        expect(unresolved[0]).toMatchObject({
+            file: "convex/gre/foo.ts",
+            line: 10,
+            unknownIssues: [123],
+        });
+    });
+
+    it("does not flag a marker whose issue resolved cleanly, open or closed", () => {
+        const openStates = new Map<number, "OPEN" | "CLOSED" | "UNKNOWN">([
+            [123, "OPEN"],
+        ]);
+        expect(findUnresolvedMarkers([marker()], openStates)).toEqual([]);
+        const closedStates = new Map<number, "OPEN" | "CLOSED" | "UNKNOWN">([
+            [123, "CLOSED"],
+        ]);
+        expect(findUnresolvedMarkers([marker()], closedStates)).toEqual([]);
+    });
+
+    it("reports only the unknown numbers when a marker names several, resolved and unresolved mixed", () => {
+        const states = new Map<number, "OPEN" | "CLOSED" | "UNKNOWN">([
+            [100, "UNKNOWN"],
+            [200, "OPEN"],
+        ]);
+        const unresolved = findUnresolvedMarkers(
+            [marker({ issueNumbers: [100, 200] })],
+            states
+        );
+        expect(unresolved).toHaveLength(1);
+        expect(unresolved[0].unknownIssues).toEqual([100]);
+    });
+
+    it("ignores an untracked marker even when its number is unknown", () => {
+        const states = new Map<number, "OPEN" | "CLOSED" | "UNKNOWN">([
+            [123, "UNKNOWN"],
+        ]);
+        expect(
+            findUnresolvedMarkers([marker({ tracked: false })], states)
+        ).toEqual([]);
     });
 });
 

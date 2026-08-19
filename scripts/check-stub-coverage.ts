@@ -6,7 +6,7 @@
  *
  * A "stub" is a commented-out card definition staged for a later cluster:
  *
- *   // tracked-by: #731
+ *   // tracked-by: #NNN
  *   // export const kjeldoranGuard: CardDefinition = {
  *   //     id: "...",
  *   //     name: "Kjeldoran Guard",

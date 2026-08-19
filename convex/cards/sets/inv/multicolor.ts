@@ -549,12 +549,13 @@ export const armoredGuardian: CardDefinition = {
 // Kangee, Aerie Keeper — {2}{W}{U} Legendary Creature — Bird Wizard, 2/2.
 // "Kicker {X}{2}. Flying. When Kangee enters, if it was kicked, put X
 // feather counters on it. Other Bird creatures get +1/+1 for each feather
-// counter on Kangee." tracked-by: #1097 (same root cause as Verdeloth the
-// Ancient, `inv/green.ts`: `KickerCost.cost` is a FIXED `ManaCost` — there is
-// no VARIABLE-amount kicker where the paid X is chosen once and read back as
-// the kicker count. `entersWith.counters`' `count: "kicker"` reads a 0-or-1
-// paid flag, not an arbitrary chosen X, so it cannot express "put X feather
-// counters" for this shape.)
+// counter on Kangee." tracked-by: #2141 (same root cause as Verdeloth the
+// Ancient, `inv/green.ts`, whose own marker points at the same issue since
+// #1097's 2026-08-04 retirement split it out: `KickerCost.cost` is a FIXED
+// `ManaCost` — there is no VARIABLE-amount kicker where the paid X is chosen
+// once and read back as the kicker count. `entersWith.counters`' `count:
+// "kicker"` reads a 0-or-1 paid flag, not an arbitrary chosen X, so it
+// cannot express "put X feather counters" for this shape.)
 
 // ─────────────────────────────────────────────────────────────────────────
 // lookDistribute destination + bind cluster (issue #1101)
@@ -3653,7 +3654,7 @@ export const thunderscapeMaster: CardDefinition = {
 
 // Nightscape Apprentice — {B} Creature — Zombie Wizard, 1/1. "{U}, {T}: Put
 // target creature you control on top of its owner's library. {R}, {T}:
-// Target creature gains first strike until end of turn." tracked-by: #1086
+// Target creature gains first strike until end of turn." tracked-by: #1332
 // (same root cause as Sunscape Apprentice, `white.ts`, this same five-pair
 // cycle: the `moveZone` Op's `target`-shape, a live battlefield permanent,
 // only supports `to: "hand"` — any other destination including `library`

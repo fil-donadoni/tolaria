@@ -2268,21 +2268,20 @@ export type AsEntersChoice =
      *  `manaValueEquals`, `hasAbility` — fall through to "matches", so a
      *  `filter` declaring only one of those is inert rather than restrictive.
      *
-     *  Not yet read on the BOT side: `nameCardDefaultFor` (`src/lib/ai/
-     *  bot-view.ts`) defaults to the chooser's top library card or "Plains",
-     *  neither of which is filter-aware, so a bot answering a filtered `name`
-     *  choice would be rejected by the check above — and that rejection is a
-     *  STALL, not a retry: a `name-card` head is `ExpectedInputKind: "choice"`,
-     *  and `ESCALATION_POLICY.choice = { decline: null, canPass: false }`
-     *  (`src/lib/ai/owed-input.ts`), so the ladder yields exactly one rung —
-     *  the same rejected name — and the human's `resolveStuck` re-walks it from
-     *  the top and re-submits it. That is the ADR 0047 / #2283 freeze shape.
-     *  Unreachable today (no shipped card populates this union —
-     *  `asEntersUnion.test.ts` fails CI on the first one), and making the
-     *  default filter-aware needs the filter projected into the bot view plus a
-     *  registry scan for a satisfying name; picking a name that merely SATISFIES
-     *  the filter closes the stall, while picking a name worth locking belongs
-     *  with the card that first ships it (#2467). tracked-by: #2497 */
+     *  Read on the BOT side via `isLegalNamedCard`/`nameCardDefaultFor`
+     *  (`src/lib/ai/bot-view.ts`, `convex/gre/pendingChoiceSubmit.ts`) — the
+     *  single admissibility authority both the server's submit check and the
+     *  bot's default now share, so a filtered `name` choice cannot stall the
+     *  escalation ladder (shipped by #2530, closing #2497; that issue's
+     *  freeze analysis — CR 608.2's `choice` has no rung below the minimal-
+     *  legal submission — is the reason both sides route through one
+     *  predicate rather than two that could disagree). Still unreachable via
+     *  the as-enters `filter` leg specifically (no shipped card populates
+     *  this union — `asEntersUnion.test.ts` fails CI on the first one); the
+     *  same predicate is already exercised live via `PendingChoice.
+     *  nameRestriction` (Meddling Mage, Desperate Research). Picking a name
+     *  that merely SATISFIES the filter is what's built; picking a name
+     *  worth locking belongs with the card that first ships it (#2467). */
     | { kind: "name"; filter?: EffectCardFilter }
     /** CR 614.1c — "as this enters, choose N <subtype>s" (Illusionary Terrain);
      *  the answer is written to `CardInstanceState.chosenSubtypes`. */

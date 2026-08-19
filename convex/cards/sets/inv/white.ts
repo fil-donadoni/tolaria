@@ -17,7 +17,12 @@
 // blocked on. The remaining 13 candidates still need engine capabilities
 // that do not exist yet (confirmed by direct code audit, not "didn't look
 // hard enough") and are left as commented-out stubs at the bottom of this
-// file, each tagged `// tracked-by: #1086`. Domain-cluster and
+// file. #1086 itself is CLOSED — decomposed 2026-07-17 into per-cause
+// capability slices, so each stub below carries its own live
+// `tracked-by:` pointing at the specific open slice (#1329
+// dynamically-recomputed characteristics, #1330 mana-color provenance,
+// #1331 damage-prevention shield extensions, #1332 assorted one-offs), not
+// #1086 (issue #2560 fixup, finding 2). Domain-cluster and
 // pile-division-cluster cards are tracked to their own cluster issues
 // (#1066, #1067); the 2 split cards (Stand // Deliver, Wax // Wane) are
 // out-of-scope (ADR 0010/0041, unmodelled `split` layout) and carry no stub.
@@ -1084,26 +1089,29 @@ export const prisonBarricade: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────
 // Deferred stubs (issue #1069) — genuinely missing engine capability, NOT
 // an invented Op/keyword (CLAUDE.md / .claude/rules/gre-development.md
-// "stop-and-issue on an uncensused mechanic"). Tracked collectively at
-// https://github.com/fil-donadoni/tolaria/issues/1086. Each comment below
-// names the specific missing primitive so a follow-up slice can pick it up
-// without re-auditing.
+// "stop-and-issue on an uncensused mechanic"). Originally tracked
+// collectively at https://github.com/fil-donadoni/tolaria/issues/1086,
+// CLOSED 2026-07-17 once decomposed into per-cause capability slices
+// (#1329-#1332, all still open) — each comment below carries its own
+// `tracked-by:` pointing at its specific slice, not #1086 (issue #2560
+// fixup, finding 2). Each comment below names the specific missing
+// primitive so a follow-up slice can pick it up without re-auditing.
 // ─────────────────────────────────────────────────────────────────────────
 
 // Atalya, Samite Master — {3}{W}{W} Legendary Creature, 2/3. "{X}, {T}:
 // Choose one — Prevent the next X damage that would be dealt to target
 // creature this turn. Spend only white mana on X. / You gain X life. Spend
-// only white mana on X." tracked-by: #1086 (no "spend only [color] mana on
+// only white mana on X." tracked-by: #1330 (no "spend only [color] mana on
 // X" cost restriction exists on ManaCost / activation-cost validation).
 
 // Blinding Light — {2}{W} Sorcery. "Tap all nonwhite creatures." tracked-by:
-// #1086 (`EffectCardFilter`, the `forEach` selector's filter shape, has no
+// #1332 (`EffectCardFilter`, the `forEach` selector's filter shape, has no
 // color-EXCLUSION field — only `color?: Color | Color[]`, an OR-match with
 // no NOT).
 
 // Global Ruin — {4}{W} Sorcery. "Each player chooses from the lands they
 // control a land of each basic land type, then sacrifices the rest."
-// tracked-by: #1086 (the underlying "keep N, sacrifice the complement"
+// tracked-by: #1332 (the underlying "keep N, sacrifice the complement"
 // primitive exists — `ctx.requestChoice({kind: "keep-permanents"})`, used by
 // Balance's `resolve()` — but it isn't exposed to the DSL `EffectChoiceKind`
 // union, and Global Ruin's PER-BASIC-TYPE selection needs new per-card
@@ -1148,7 +1156,7 @@ export const glimmeringAngel: CardDefinition = {
 
 // Pledge of Loyalty — {1}{W} Enchantment — Aura. "Enchant creature.
 // Enchanted creature has protection from the colors of permanents you
-// control. This effect doesn't remove this Aura." tracked-by: #1086
+// control. This effect doesn't remove this Aura." tracked-by: #1329
 // (`StaticKeywordGrant.keyword` is a fixed string applied once at attach
 // time, not a continuously-recomputed layer-6 read — no support for a
 // protection SET that changes as the controller's board changes).
@@ -1156,18 +1164,18 @@ export const glimmeringAngel: CardDefinition = {
 // Protective Sphere — {2}{W} Enchantment. "{1}, Pay 1 life: Prevent all
 // damage that would be dealt to you this turn by a source of your choice
 // that shares a color with the mana spent on this activation cost."
-// tracked-by: #1086 (no mechanism tracks "colors of mana spent to pay an
+// tracked-by: #1330 (no mechanism tracks "colors of mana spent to pay an
 // activation cost" for a later color-match gate).
 
 // Pure Reflection — {2}{W} Enchantment. "Whenever a player casts a creature
 // spell, destroy all Reflections. Then that player creates an X/X white
 // Reflection creature token, where X is the mana value of that spell."
-// tracked-by: #1086 (`EffectTokenSpec.power`/`toughness` are literal numbers
+// tracked-by: #1329 (`EffectTokenSpec.power`/`toughness` are literal numbers
 // only, no `EffectValue` — a token sized dynamically off the triggering
 // spell's mana value isn't expressible via `createToken`).
 
 // Rampant Elephant — {3}{W} Creature, 2/2. "{G}: Target creature blocks
-// this creature this turn if able." tracked-by: #1086 (no "must be
+// this creature this turn if able." tracked-by: #1332 (no "must be
 // blocked" / Lure-style forced-block mechanism exists anywhere in the
 // engine).
 
@@ -1211,7 +1219,7 @@ export const rout: CardDefinition = {
 // Samite Ministration — {1}{W} Instant. "Prevent all damage that would be
 // dealt to you this turn by a source of your choice. Whenever damage from a
 // black or red source is prevented this way this turn, you gain that much
-// life." tracked-by: #1086 (the "choose a source, prevent all damage from
+// life." tracked-by: #1331 (the "choose a source, prevent all damage from
 // it this turn" half has a resolve()-only precedent —
 // `ctx.preventNextDamageFromSource`, Circle of Protection — but the LINKED
 // "gain life equal to the amount actually prevented" has no hook: the
@@ -1219,7 +1227,7 @@ export const rout: CardDefinition = {
 
 // Spirit of Resistance — {2}{W} Enchantment. "As long as you control a
 // permanent of each color, prevent all damage that would be dealt to you."
-// tracked-by: #1086 (needs a per-permanent COLOR DERIVATION inside a
+// tracked-by: #1331 (needs a per-permanent COLOR DERIVATION inside a
 // `replacementEffects[].appliesTo` predicate, but that context — unlike
 // `StaticEffectContext.getColors`, only threaded into `staticEffects[]`
 // predicates — has no color field and no ctx; Divine Presence / Harsh
@@ -1228,7 +1236,7 @@ export const rout: CardDefinition = {
 
 // Sunscape Apprentice — {W} Creature, 1/1. "{G}, {T}: Target creature gets
 // +1/+1 until end of turn. {U}, {T}: Put target creature you control on top
-// of its owner's library." tracked-by: #1086 (the `moveZone` Op's
+// of its owner's library." tracked-by: #1332 (the `moveZone` Op's
 // `target`-shape, battlefield permanent, only supports `to: "hand"` — any
 // other destination including `library` from a live permanent is
 // unhandled, confirmed in the interpreter's `moveZone` executor).

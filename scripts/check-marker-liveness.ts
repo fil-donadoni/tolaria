@@ -35,12 +35,18 @@
  * PROSE showing the convention as documentation/example, not a real marker a
  * build ever sees — 305 hits alone live under `.claude/` (skill and rule
  * docs demonstrating the Guard B convention in prose/fenced examples). A real
- * divergence marker is always a `//`-comment INSIDE compiled source — Guard
- * B's own MARKER regex requires the `//` prefix — so this sweep scans only
- * tracked `.ts`/`.tsx`/`.mts`/`.mjs`/`.js` files (never `.md`), which drops
- * the `.claude/` and most-of-`docs/` prose noise without a single allowlist
- * entry. Two further exclusions, both required by the issue's own acceptance
- * criteria:
+ * divergence marker is always a COMMENT inside compiled source — a `//` line
+ * OR a `/** … *\/` / JSDoc block (Guard B's own MARKER regex only ever
+ * required `//` because it was scoped to `convex/cards/sets/**`, where every
+ * marker so far happens to be line-commented; the wider liveness sweep finds
+ * live `tracked-by:` dispositions inside `/** *\/` blocks too — see
+ * `convex/cards/types.ts`, `convex/limited/eventTypes.ts`,
+ * `src/lib/deckViewPrefs.ts`, corrected in issue #2560's fixup round 1,
+ * finding 4, after the false "always `//`" claim here hid 5 real sites) —
+ * so this sweep scans only tracked `.ts`/`.tsx`/`.mts`/`.mjs`/`.js` files
+ * (never `.md`), which drops the `.claude/` and most-of-`docs/` prose noise
+ * without a single allowlist entry. Two further exclusions, both required by
+ * the issue's own acceptance criteria:
  *   - `__tests__/**` and `*.test.*` — test fixtures, including Guard B's own
  *     regression strings (`convex/cards/__tests__/divergenceMarkers.test.ts`
  *     contains `"// DEFERRED: …"` INSIDE string literals to exercise the
@@ -50,9 +56,9 @@
  *   - `docs/findings/**` — draft observations (`docs/findings/README.md`),
  *     explicitly exempt.
  *
- * In one sentence: scan wherever a `//`-marker can actually ship (any
- * tracked TS/JS source), and nowhere a marker can only be prose (`.md`) or a
- * scanner's own test fixture.
+ * In one sentence: scan wherever a real comment can actually ship (any
+ * tracked TS/JS source, `//` or `/** *\/` alike), and nowhere a marker can
+ * only be prose (`.md`) or a scanner's own test fixture.
  *
  * A THIRD exclusion is content, not path: a marker sitting in the same
  * contiguous comment run as a commented-out `// export const … : CardDefinition`
@@ -74,7 +80,7 @@ import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gh } from "./lib/gh";
-import { scanText, type MarkerRecord } from "./lib/divergence-markers";
+import { scanTrackedByRefs, type MarkerRecord } from "./lib/divergence-markers";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -147,16 +153,26 @@ export function isStubContext(lines: string[], i: number): boolean {
     return false;
 }
 
-/** Scan every in-scope source for divergence markers, dropping stub-context
- *  hits. Pure over the source list, so it can be driven with synthetic
- *  content in tests. */
+/** Scan every in-scope source for `tracked-by:` dispositions, dropping
+ *  stub-context hits. Pure over the source list, so it can be driven with
+ *  synthetic content in tests.
+ *
+ *  Uses `scanTrackedByRefs`, NOT Guard B's `scanText` — deliberately (issue
+ *  #2560 fixup round 1, finding 1). `scanText` only emits a record for a line
+ *  matching Guard B's MARKER-word regex, which most per-card divergence
+ *  paragraphs in this repo never do (they open with the card's own name).
+ *  Liveness only ever resolves the `tracked-by:` numbers a record carries —
+ *  `findRottenMarkers`/`markersBlockingClosure` both ignore an untracked
+ *  record — so anchoring directly on `tracked-by:` occurrences, rather than
+ *  on the MARKER word, drops nothing this sweep used and picks up every real
+ *  disposition `scanText`'s narrower gate missed. */
 export function scanRepoMarkers(
     sources: Iterable<{ file: string; text: string }>
 ): MarkerRecord[] {
     const out: MarkerRecord[] = [];
     for (const { file, text } of sources) {
         const lines = text.split("\n");
-        for (const rec of scanText(file, text)) {
+        for (const rec of scanTrackedByRefs(file, text)) {
             if (isStubContext(lines, rec.line - 1)) continue;
             out.push(rec);
         }
@@ -171,16 +187,28 @@ export interface RottenMarker {
     closedIssues: number[];
 }
 
+export interface UnresolvedMarker {
+    file: string;
+    line: number;
+    text: string;
+    unknownIssues: number[];
+}
+
 /**
  * The verdict — a pure function over already-resolved issue states, so it is
  * unit-testable with plain data and needs no `gh` mock (repo convention: see
  * `scripts/__tests__/land.test.ts`'s `refusalReason`). Only TRACKED markers
  * naming at least one `#NNN` are candidates — an "out of scope" disposition
  * or a bare `tracked-by:` with no number has nothing to resolve.
+ *
+ * Only an issue state PROVEN `CLOSED` counts as rotten — `UNKNOWN` (network
+ * failure, rate limit, bad auth: see `resolveIssueStates`) is a SEPARATE
+ * verdict, `findUnresolvedMarkers` below, so a broken token cannot masquerade
+ * as mass rot (issue #2560 fixup round 1, finding 5).
  */
 export function findRottenMarkers(
     markers: readonly MarkerRecord[],
-    issueStates: ReadonlyMap<number, "OPEN" | "CLOSED">
+    issueStates: ReadonlyMap<number, "OPEN" | "CLOSED" | "UNKNOWN">
 ): RottenMarker[] {
     const out: RottenMarker[] = [];
     for (const m of markers) {
@@ -194,6 +222,34 @@ export function findRottenMarkers(
                 line: m.line,
                 text: m.text,
                 closedIssues,
+            });
+        }
+    }
+    return out;
+}
+
+/**
+ * The other half of the same verdict: markers naming an issue `gh` could not
+ * resolve at all. Reported and exit-1'd SEPARATELY from `findRottenMarkers`
+ * — an operator reading "N closed" when the real story is "gh auth expired"
+ * would chase the wrong thing (issue #2560 fixup round 1, finding 5).
+ */
+export function findUnresolvedMarkers(
+    markers: readonly MarkerRecord[],
+    issueStates: ReadonlyMap<number, "OPEN" | "CLOSED" | "UNKNOWN">
+): UnresolvedMarker[] {
+    const out: UnresolvedMarker[] = [];
+    for (const m of markers) {
+        if (!m.tracked || m.issueNumbers.length === 0) continue;
+        const unknownIssues = m.issueNumbers.filter(
+            (n) => issueStates.get(n) === "UNKNOWN"
+        );
+        if (unknownIssues.length > 0) {
+            out.push({
+                file: m.file,
+                line: m.line,
+                text: m.text,
+                unknownIssues,
             });
         }
     }
@@ -218,13 +274,19 @@ export function markersBlockingClosure(
 
 /** Resolve issue state for a batch of numbers, one `gh issue view` per
  *  number — the same per-issue pattern `scripts/queue-lint.ts` already uses
- *  for issue lookups. An issue `gh` cannot find (deleted / no access) cannot
- *  be proven open, so it is treated as CLOSED rather than silently trusted —
- *  fail closed, not open. */
+ *  for issue lookups.
+ *
+ *  A `gh` call that FAILS (deleted issue, no access, expired auth, rate
+ *  limit) cannot be proven either open or closed — it is `UNKNOWN`, never
+ *  silently coerced to `CLOSED`. Issue #2560 fixup round 1, finding 5: the
+ *  original version mapped every `gh` failure to `CLOSED`, so an auth problem
+ *  or a rate limit reds every referenced issue at once and reads
+ *  indistinguishably from mass rot — fail LOUD (still exit non-zero, see
+ *  `findUnresolvedMarkers`), not fail into the wrong verdict. */
 export function resolveIssueStates(
     numbers: Iterable<number>
-): Map<number, "OPEN" | "CLOSED"> {
-    const states = new Map<number, "OPEN" | "CLOSED">();
+): Map<number, "OPEN" | "CLOSED" | "UNKNOWN"> {
+    const states = new Map<number, "OPEN" | "CLOSED" | "UNKNOWN">();
     for (const n of new Set(numbers)) {
         try {
             const raw = JSON.parse(
@@ -232,7 +294,7 @@ export function resolveIssueStates(
             ) as { number: number; state: "OPEN" | "CLOSED" };
             states.set(raw.number, raw.state);
         } catch {
-            states.set(n, "CLOSED");
+            states.set(n, "UNKNOWN");
         }
     }
     return states;
@@ -276,15 +338,29 @@ function main(): number {
     const numbers = markers.flatMap((m) => m.issueNumbers);
     const states = resolveIssueStates(numbers);
     const rotten = findRottenMarkers(markers, states);
+    const unresolved = findUnresolvedMarkers(markers, states);
 
     console.log(
-        `scanned ${markers.length} divergence markers in tracked source, ` +
-            `${new Set(numbers).size} distinct referenced issue(s)`
+        `scanned ${markers.length} divergence markers naming a tracked-by ` +
+            `disposition in tracked source, ${new Set(numbers).size} distinct ` +
+            `referenced issue(s)`
     );
-    if (rotten.length === 0) {
+    if (rotten.length === 0 && unresolved.length === 0) {
         console.log("every tracked divergence marker names an open issue");
         return 0;
     }
+    if (unresolved.length > 0) {
+        console.log(
+            `\n${unresolved.length} marker(s) name an issue \`gh\` could not ` +
+                `resolve (auth or rate limit? NOT proven closed):\n`
+        );
+        for (const u of unresolved) {
+            console.log(
+                `  ${u.file}:${u.line}  unknown #${u.unknownIssues.join(", #")}  ${u.text}`
+            );
+        }
+    }
+    if (rotten.length === 0) return 1;
     console.log(`\n${rotten.length} marker(s) name a CLOSED issue:\n`);
     for (const r of rotten) {
         console.log(

@@ -148,3 +148,51 @@ export function scanText(file: string, text: string): MarkerRecord[] {
 export function scanFile(file: string): MarkerRecord[] {
     return scanText(file, fs.readFileSync(file, "utf8"));
 }
+
+// ── Liveness-only: widened beyond Guard B's MARKER-word gate ───────────────
+//
+// Everything above this line is Guard B's own parser (presence-only,
+// MARKER-word-anchored) and stays untouched — `divergenceMarkers.test.ts`
+// depends on it byte-for-byte. `scanTrackedByRefs` below is a SEPARATE, wider
+// scan the liveness sweep alone uses (issue #2560 fixup round 1, finding 1):
+// measured on `6adb6189`, `scanText`'s MARKER-word requirement (`// Deferred
+// | divergence | not implemented | TODO`) resolved only 31 of 104 in-scope
+// `tracked-by: #NNN` refs, because most per-card divergence paragraphs in
+// this repo open with the CARD's name ("// Atalya, Samite Master — …"), never
+// a marker word — and several live inside a `/** … */` JSDoc block
+// (`convex/cards/types.ts`, `convex/limited/eventTypes.ts`,
+// `src/lib/deckViewPrefs.ts`), which `scanText`'s `//`-only paragraph walk
+// (`isParagraphBreak`) cannot enter at all.
+//
+// `tracked-by:` is itself the disposition (Guard B's own header: "PREFER
+// `tracked-by: #NNN`") — it does not need a marker word next to it to be a
+// live tracking promise, so liveness resolves it wherever a comment can
+// carry it: a `//` line, or an `/*`/`/**`/` * ` block-comment line. Per-line,
+// not per-paragraph (unlike `scanText`) — a `tracked-by:` line already names
+// its own number(s), and there is nothing upstream of it to fold in.
+const COMMENT_LINE = /^\s*(\/\/|\/\*|\*)/;
+const TRACKED_BY_G = /tracked-by:\s*#(\d+)/gi;
+
+/** Every explicit `tracked-by: #NNN` occurrence on a comment line of `text`
+ *  (`//`, `/*`, `/**` or a ` * ` JSDoc continuation) — independent of any
+ *  MARKER word. One record per LINE naming at least one number, numbers
+ *  deduped/ascending. Liveness-only; Guard B never calls this. */
+export function scanTrackedByRefs(file: string, text: string): MarkerRecord[] {
+    const lines = text.split("\n");
+    const out: MarkerRecord[] = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!COMMENT_LINE.test(line)) continue;
+        const numbers = new Set<number>();
+        for (const m of line.matchAll(TRACKED_BY_G)) numbers.add(Number(m[1]));
+        if (numbers.size === 0) continue;
+        out.push({
+            file,
+            line: i + 1,
+            tracked: true,
+            text: line.trim(),
+            issueNumbers: [...numbers].sort((a, b) => a - b),
+        });
+    }
+    return out;
+}
