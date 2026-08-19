@@ -144,6 +144,67 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         expect(scanRepoMarkers(sources)).toEqual([]);
     });
 
+    it("folds a `tracked-by:` that wraps onto the next `//` comment line before matching (issue #2560 fixup round 2, finding: reviewer proved a wrapped CLOSED ref hid from the sweep entirely — cd807cf7's `--umbrella 1086` proof)", () => {
+        const sources = [
+            {
+                file: "convex/cards/sets/inv/multicolor.ts",
+                text: [
+                    "// trigger does not carry the Jacked Rabbit blink divergence (tracked-by:",
+                    "// #2042).",
+                    "export {};",
+                ].join("\n"),
+            },
+        ];
+        const hits = scanRepoMarkers(sources);
+        expect(hits).toHaveLength(1);
+        expect(hits[0]).toMatchObject({ line: 1, issueNumbers: [2042] });
+    });
+
+    it("folds a `tracked-by:` that wraps onto the next `/** */` JSDoc continuation line", () => {
+        const sources = [
+            {
+                file: "convex/cards/types.ts",
+                text: [
+                    "/** Describes a field. Still needs a follow-up (tracked-by:",
+                    " *  #2497).",
+                    " */",
+                    "export type Foo = { kind: string };",
+                ].join("\n"),
+            },
+        ];
+        const hits = scanRepoMarkers(sources);
+        expect(hits).toHaveLength(1);
+        expect(hits[0].issueNumbers).toEqual([2497]);
+    });
+
+    it("accepts a `tracked-by: <prefix>#NNN` form (`tracked-by: tolaria#1324`) that the plain #NNN shape missed even on one line", () => {
+        const sources = [
+            {
+                file: "convex/cards/sets/woe/colorless.ts",
+                text: [
+                    "// TODO(tracked-by: tolaria#1324) — ability-copy mechanism unbuilt.",
+                    "export {};",
+                ].join("\n"),
+            },
+        ];
+        const hits = scanRepoMarkers(sources);
+        expect(hits).toHaveLength(1);
+        expect(hits[0].issueNumbers).toEqual([1324]);
+    });
+
+    it("does NOT fold when the line after a bare `tracked-by:` is not a comment — no phantom cross-boundary match", () => {
+        const sources = [
+            {
+                file: "convex/gre/foo.ts",
+                text: [
+                    "// some prose ending in tracked-by:",
+                    "export const foo = 1; // #4242 is just code, not a fold target",
+                ].join("\n"),
+            },
+        ];
+        expect(scanRepoMarkers(sources)).toEqual([]);
+    });
+
     it("still drops a stub-context hit even under the widened scan", () => {
         const sources = [
             {

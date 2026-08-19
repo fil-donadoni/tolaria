@@ -167,24 +167,54 @@ export function scanFile(file: string): MarkerRecord[] {
 // `tracked-by:` is itself the disposition (Guard B's own header: "PREFER
 // `tracked-by: #NNN`") — it does not need a marker word next to it to be a
 // live tracking promise, so liveness resolves it wherever a comment can
-// carry it: a `//` line, or an `/*`/`/**`/` * ` block-comment line. Per-line,
-// not per-paragraph (unlike `scanText`) — a `tracked-by:` line already names
-// its own number(s), and there is nothing upstream of it to fold in.
+// carry it: a `//` line, or an `/*`/`/**`/` * ` block-comment line.
+//
+// Per-line, WITH ONE FOLD: a `tracked-by:` line already names its own
+// number(s) in the overwhelming majority of cases, but a hand-wrapped
+// comment can still split `tracked-by:` from its `#NNN` across the line
+// break (`// … (tracked-by:\n// #675):`) — the same shape `cr:lint` names as
+// its own blind spot (CLAUDE.md § Rules Implementation Process: "a citation
+// wrapped across two comment lines"). Measured in fixup round 2 (issue
+// #2560): 6 real sites wrapped this way, one of them (`5dn/colorless.ts`)
+// naming a CLOSED issue that a per-line-only scan could not see — the exact
+// auto-close-a-still-referenced-umbrella failure this sweep exists to catch.
+// So a line whose OWN text ends in a bare `tracked-by:` is folded with the
+// next comment line before matching, dropping that line's own `//`/`/*`/`*`
+// prefix first (else the fold string still reads "tracked-by: // #675" and
+// the immediately-following-`#` match fails). `TRACKED_BY_G` also accepts an
+// optional bare word between the colon and the number — a prefixed-repo-slug
+// form (`woe/colorless.ts`'s `TODO(tracked-by: tolaria` + `#1324)`) the
+// plain `#NNN` shape missed even on a single line. (Written split across two
+// literals right here on purpose — this file is itself in-scope tracked
+// source, and an unbroken example would register as a live marker on ITSELF.)
 const COMMENT_LINE = /^\s*(\/\/|\/\*|\*)/;
-const TRACKED_BY_G = /tracked-by:\s*#(\d+)/gi;
+const COMMENT_PREFIX = /^\s*(\/\/|\/\*\*?|\*)\s*/;
+const TRACKED_BY_TAIL = /tracked-by:\s*$/i;
+const TRACKED_BY_G = /tracked-by:\s*(?:[A-Za-z][\w.-]*)?#(\d+)/gi;
 
 /** Every explicit `tracked-by: #NNN` occurrence on a comment line of `text`
  *  (`//`, `/*`, `/**` or a ` * ` JSDoc continuation) — independent of any
  *  MARKER word. One record per LINE naming at least one number, numbers
- *  deduped/ascending. Liveness-only; Guard B never calls this. */
+ *  deduped/ascending. A line ending in a bare `tracked-by:` is folded with
+ *  the following comment line before matching (see the module note above).
+ *  Liveness-only; Guard B never calls this. */
 export function scanTrackedByRefs(file: string, text: string): MarkerRecord[] {
     const lines = text.split("\n");
     const out: MarkerRecord[] = [];
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (!COMMENT_LINE.test(line)) continue;
+        let scanned = line;
+        if (
+            TRACKED_BY_TAIL.test(line) &&
+            i + 1 < lines.length &&
+            COMMENT_LINE.test(lines[i + 1])
+        ) {
+            scanned = `${line} ${lines[i + 1].replace(COMMENT_PREFIX, "")}`;
+        }
         const numbers = new Set<number>();
-        for (const m of line.matchAll(TRACKED_BY_G)) numbers.add(Number(m[1]));
+        for (const m of scanned.matchAll(TRACKED_BY_G))
+            numbers.add(Number(m[1]));
         if (numbers.size === 0) continue;
         out.push({
             file,
