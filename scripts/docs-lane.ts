@@ -82,6 +82,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "lints GitHub issue bodies, which are not files in this repo",
     "scripts/__tests__/queue-plan.test.ts":
         "plans over GitHub issues; the .md mention is an issue-body fixture",
+    "scripts/__tests__/check-marker-liveness.test.ts":
+        "the docs/adr and .md paths are synthetic examples fed to inScope()'s scope filter — the test asserts the filter EXCLUDES them (a real divergence marker is always a COMMENT in compiled source — `//` or `/** */` alike — never prose in a .md file); it reads no repo document",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

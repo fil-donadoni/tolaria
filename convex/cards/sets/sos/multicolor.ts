@@ -257,10 +257,10 @@ export const quandrixCharm: CardDefinition = {
 // gain trample until end of turn." (CR 700.2 modal.) Modes have different
 // target shapes (modes 1 and 3 have none, mode 2 targets a graveyard card) —
 // same cross-mode-target gap as Witherbloom Charm above; uses the legacy
-// `modes` mechanism. UNBLOCKED (was `tracked-by: #920`): that stub predated
-// `EffectCardFilter.isToken` (issue #920 itself shipped the field it cited as
-// missing) — mode 1's "nontoken artifact" filter is exactly
-// `{ type: "Artifact", isToken: false }`, the Sheoldred's Edict precedent
+// `modes` mechanism. UNBLOCKED (this stub's marker previously named #920):
+// that stub predated `EffectCardFilter.isToken` (issue #920 itself shipped
+// the field it cited as missing) — mode 1's "nontoken artifact" filter is
+// exactly `{ type: "Artifact", isToken: false }`, the Sheoldred's Edict precedent
 // (`one/black.ts`). Mode 2's mv-capped graveyard reanimation mirrors Sevinne's
 // Reclamation's `targetRequirement` (`c19/white.ts`) plus the Reanimate
 // `moveZone` reanimation body (`tmp/black.ts`). Mode 3 is a `forEach`-driven

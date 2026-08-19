@@ -312,9 +312,9 @@ Back in the orchestrator (do NOT re-read the diff or re-run tests):
     gh issue view <parent> --json number,title,state,subIssuesSummary
     ```
 
-    Close it only when **all three** hold: the parent carries the **`prd` label**, `subIssuesSummary.total > 0`, and `completed == total`. Then comment the list of children that discharged it and `gh issue close <parent> --reason completed`. An umbrella whose every slice has landed is **done** — leaving it open is how a PRD from three months ago still reads as live work, and how the same spec gets re-audited and re-ticketed by a later intake pass. This is the only place in the loop that closes a `prd`-labelled issue; it never _implements_ one (see §1, `strip-ready`).
+    Close it only when **all four** hold: **`prd` label**, `subIssuesSummary.total > 0`, `completed == total`, and `bun scripts/check-marker-liveness.ts --umbrella <parent>` exits 0 (non-zero: a live `tracked-by:` marker still names it, #2560 — print the sites, leave it open). Then comment the discharging children and `gh issue close <parent> --reason completed`. An umbrella whose every slice has landed is **done** — leaving it open is how a PRD from three months ago still reads as live work. This is the only place in the loop that closes a `prd`-labelled issue; it never _implements_ one (see §1, `strip-ready`).
 
-    **The `prd` guard is load-bearing, not a formality.** A sub-issue edge can legitimately hang off an ordinary work item (a slice split out of a normal issue during an audit), and auto-closing on child completion would then close a ticket whose own implementation has not been written. Only an umbrella is fully discharged by its children; everything else has work of its own.
+    **The `prd` guard is load-bearing, not a formality.** A sub-issue edge can hang off an ordinary work item; auto-closing on child completion would then close a ticket whose own implementation was never written. Only an umbrella is fully discharged by its children — a surviving marker is the same idea applied to code.
 
     Do not close a parent on a partial count, and do not close one whose `total` is 0 — a zero means nobody wired the sub-issue edges, not that there is no work left.
 

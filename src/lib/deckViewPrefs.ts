@@ -47,12 +47,18 @@ export type DeckZone = "main" | "side" | "draft";
 
 /**
  * Column-generation axis (ADR 0075 §2: "a Grouping … that generates
- * predicate-carrying Columns"). Declared here, not in `convex/`, because no
- * shared engine module consumes it yet — ADR 0075's `convex/deckLayout.ts`
- * (the future pure column-identity/claiming-order authority) does not exist
- * as of issue #1620, whose scope is only this localStorage seam. Once that
- * module ships, this alias should move there and be re-exported from here
- * (tracked-by: #1618).
+ * predicate-carrying Columns"). Declared here, not in `convex/`, because
+ * issue #1620's own scope was only this localStorage seam.
+ *
+ * `convex/deckLayout.ts` has since shipped (issue #1618) and now owns the
+ * canonical `GroupingKind`/`OrderingKind` vocabulary this module mirrors —
+ * so the ORIGINAL blocker ("no shared engine module exists yet") is gone,
+ * but the migration itself (move `Grouping`/`GROUPINGS` there, re-export
+ * from here) was never done: this is still a live, un-deduplicated alias.
+ * No open issue currently tracks that migration specifically — #1618 and
+ * #1620 are both closed/shipped — so this is left as an explicit,
+ * untracked out-of-scope note (issue #2560 fixup, finding 2) rather than a
+ * `tracked-by:` naming a closed issue, or an invented one.
  */
 export const GROUPINGS = ["mv", "color", "type", "none"] as const;
 export type Grouping = (typeof GROUPINGS)[number];

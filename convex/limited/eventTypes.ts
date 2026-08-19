@@ -179,10 +179,13 @@ export interface LimitedRound {
  *  `poolIndex` (or the whole array absent/empty) means the card hasn't been
  *  moved yet and defaults to the Maindeck, in its own (auto, mana-value-
  *  derived) column — see `convex/limited/poolArrangement.ts`'s
- *  `resolvePoolPlacements`. The column-override DRAG GESTURE itself is wired
- *  by issue #1248 (tracked-by: #1248); this shape ships now — persistence +
- *  projection only — so that later change needs no further schema
- *  migration. */
+ *  `resolvePoolPlacements`. The column-override DRAG GESTURE itself shipped
+ *  via issue #1248 (`columnOverride`, `poolArrangement.ts`;
+ *  `limitedDraftDrag.ts` for the gesture) — this shape shipped first,
+ *  persistence + projection only, precisely so #1248 needed no further
+ *  schema migration when it landed (issue #2560 fixup, finding 2: #1248 is
+ *  now CLOSED/shipped, so this is a historical citation, not a live
+ *  tracker). */
 export interface PoolArrangementEntry {
     poolIndex: number;
     /** @deprecated Read-only legacy shape (issue #1621) — superseded by
