@@ -17,11 +17,14 @@ Shipping ADR 0101's pointer rung — `--control-h: 44px` under
 `@media (pointer: coarse)` — makes it starved at `820x1180x2` too.
 
 **The mechanism, precisely.** The rung did **not** make the strip's contents
-taller. Its two children are `DeckColumnPile` (a label row plus a box sized
-`height: pileHeight(n)` over absolutely-positioned tiles,
-`deck-column-pile.tsx:84`) and `DeckColumnActions` (bare `<button>`s and an
-`.input-field` that #2581 leaves alone). Nothing in that subtree reads
-`--control-h`, and its tallest child measures **228px before and after**.
+taller. Its DOM children are `DeckColumnPile` elements **only** — `probe.js:80`
+measures `el.children`, and `DeckColumnActions` is not a child of the strip but
+a prop passed into each pile (`deck-zone-surface.tsx:622`). A pile is a label
+row plus a box sized `height: pileHeight(n)` over absolutely-positioned tiles
+(`deck-column-pile.tsx:84`); its `actions` slot holds bare `<button>`s and an
+`.input-field` that #2581 leaves alone. Nothing in that subtree reads
+`--control-h`, and the strip's tallest child measures **228px before and
+after**.
 
 What the rung shrank is the **window**. The chrome ABOVE the strip grew:
 `ZoneCreatureFilterSelect` (`deck-zone-surface.tsx:518`) became a
@@ -46,12 +49,15 @@ is the trigger and the strip is the defect. The ceiling was raised to 1 for
 that one cell in `scripts/ui-gate/budgets.json`, with a `knownDebt` that now
 names the real container.
 
-**Tuning the rung cannot fix this cell.** The probe clears at
-`clientHeight >= 0.9 * 228 = 205px`, so the strip needs **34px of chrome
-height back**. Dropping the coarse rung to the 32px fine height returns only
-~8px per control row — and it returns it by giving up the 44px WCAG 2.5.8
-target that is the whole point of ADR 0101 §2. The height has to come from the
-header disappearing, not from shrinking it.
+**Tuning the rung cannot fix this cell without giving up the touch target.**
+The probe clears at `clientHeight >= 0.9 * 228 = 205px`, so the strip needs
+**34px of chrome height back**. Dropping the coarse rung to the fine height
+returns **12px per control row** (`.segment-pill` `--control-h-sm` 40 → 28px,
+`Button` `--control-h` 44 → 32px) and it does clear the cell — that is the
+isolation above. But it clears it by giving up the 44px WCAG 2.5.8 target that
+is the whole point of ADR 0101 §2, so it is not an available fix: there is no
+tuning of the rung that recovers the 34px _and_ keeps the target. The height
+has to come from the header leaving the band, not from shrinking it.
 
 **Which is exactly what #2585 does.** "Deckbuilder filters: bottom sheet
 (phone) / popover (tablet, desktop) + applied-filters tag row; tablet/desktop
