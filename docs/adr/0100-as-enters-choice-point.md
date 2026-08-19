@@ -404,7 +404,7 @@ like a checkpointed one, so a plain `resolve()` that parked an entry re-ran in
 full and re-committed every side effect it had already made (measured: life
 20 → 21 → 22, a second permanent staged and parked, and so on). The fix is
 site-local and fails closed — `resolutionSuspendedOnChoice(state, shape)` takes
-the shape as a **required argument** at all sixteen call sites, and only the
+the shape as a **required argument** at all seventeen call sites, and only the
 `"completed"` ones exempt a stackless Entry Park. Everything else still suspends
 there: a stack-coupled `requestChoice` the body raised, any other kind, and the
 park itself at every `"checkpointed"` site. The exemption is keyed on

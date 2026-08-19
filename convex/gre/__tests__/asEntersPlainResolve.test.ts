@@ -214,29 +214,36 @@ registerTokenDefinition({
 
 // --- must-NOT fixtures ------------------------------------------------------
 
-/** A plain body that parks AND then raises a REAL stack-coupled choice. The
- *  park is exempt; the `requestChoice` is not, so the site must still suspend
- *  — this is the "ignore as-enters parks blanket-wide" mistake, made visible. */
+/** A plain body that parks AND then raises a REAL stack-coupled choice — one
+ *  that lands in the queue under the SAME `PendingChoiceKind` the park uses.
+ *  `PARKING_TOKEN`'s `payLife` declaration enqueues as `option-pick`
+ *  (`enqueueAsEntersChoice`, `state.ts`), and `ctx.requestOptionChoice` is the
+ *  imperative primitive that produces that identical kind, so after this body
+ *  runs the queue holds two `option-pick` entries distinguishable ONLY by
+ *  `stackItemId` / `asEntersCardId`. The park is exempt; the stack-coupled pick
+ *  is not, so the site must still suspend. This is the collision a `kind ===`
+ *  discriminator swallows, made constructible — replacing
+ *  `isStacklessEntryPark`'s body with `c.kind === "option-pick"` exempts both
+ *  and the test below goes red. */
 const SPELL_PLAIN_PLUS_CHOICE_ID = "test-2570-spell-plain-plus-choice";
 registerTokenDefinition({
     id: SPELL_PLAIN_PLUS_CHOICE_ID,
     rarity: "common",
     name: "Test Plain Spell With Real Choice",
-    oracleText: "Create a token, then sacrifice a creature.",
+    oracleText: "Create a token, then choose one — • Left. • Right.",
     manaCost: { R: 1 },
     types: ["Sorcery"],
     resolve: (ctx) => {
         gainThenPark(ctx);
-        if (ctx.recallChoice("pick") === undefined) {
-            ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: "pick",
-                kind: "sacrifice-permanents",
-                zone: "battlefield",
-                count: 1,
-                prompt: "Choose a creature to sacrifice",
-            });
-        }
+        ctx.requestOptionChoice({
+            playerId: ctx.controller,
+            choiceId: "pick",
+            options: [
+                { id: "left", label: "Left" },
+                { id: "right", label: "Right" },
+            ],
+            prompt: "Choose left or right",
+        });
     },
 });
 
@@ -479,32 +486,35 @@ describe("plain resolve() + as-enters park (CR 608.3, ADR 0100 D5)", () => {
 // --- The must-NOT rows ------------------------------------------------------
 
 describe("the exemption is site- AND shape-local (issue #2570)", () => {
-    it("a plain body with a REAL stack-coupled choice outstanding still suspends", () => {
+    it("a plain body whose stack-coupled choice SHARES the park's kind still suspends", () => {
         const state = board();
-        state.players[0].battlefield.push(
-            makeInstance(SPELL_PLAIN_ID, {
-                id: "victim",
-                controllerId: "p1",
-                ownerId: "p1",
-            })
-        );
         const item = pushSpell(state, SPELL_PLAIN_PLUS_CHOICE_ID, "p1");
 
         resolveTopOfStack(state);
 
         // Two choices are outstanding: the exempt stackless park AND a
-        // stack-coupled `requestChoice`. The second is not exempt, so the
+        // stack-coupled `requestOptionChoice`. The second is not exempt, so the
         // resolution suspends exactly as it does today — the item stays on the
         // stack so `selectResolutionChoice` can find it by `stackItemId`.
         const queue = state.pendingChoices ?? [];
         expect(queue).toHaveLength(2);
-        // Identified by `asEntersCardId`, never by `kind`: a `payLife` park
-        // enqueues as kind `option-pick`, a shape a plain `requestChoice` can
-        // produce too. A `kind ===` exemption would swallow the wrong one.
+        // THE COLLISION, constructed rather than asserted about: both entries
+        // carry kind `option-pick`. A `payLife` as-enters declaration enqueues
+        // under that kind, and so does `ctx.requestOptionChoice` — so `kind`
+        // cannot discriminate here even in principle.
+        expect(queue.map((c) => c.kind)).toEqual([
+            "option-pick",
+            "option-pick",
+        ]);
+        // What DOES discriminate: the explicit `asEntersCardId` field the
+        // as-enters finalize routes on, plus the stackless `stackItemId`.
         expect(
             queue.filter((c) => c.asEntersCardId !== undefined)
         ).toHaveLength(1);
+        expect(queue.filter((c) => c.stackItemId === "")).toHaveLength(1);
         expect(queue.filter((c) => c.stackItemId === item.id)).toHaveLength(1);
+        // The load-bearing assertion: a `kind === "option-pick"` exemption
+        // would exempt BOTH, pop the item, and strand the body's own choice.
         expect(state.stack.map((s) => s.id)).toContain(item.id);
     });
 

@@ -487,9 +487,21 @@ describe("the resolve() producer: Sin, Spira's Punishment (fin/multicolor.ts)", 
                     battlefield: [sin],
                     // TWO copies of the same card, so the random pick is
                     // deterministic in effect AND a replay of the body has a
-                    // second card to exile — which is exactly what the
-                    // run-to-completion marker must prevent. With one card the
-                    // replay finds an empty pool and hides the bug.
+                    // second card to exile. With one card the replay finds an
+                    // empty pool and hides the bug — so the pair is what makes
+                    // a re-entry OBSERVABLE at all.
+                    //
+                    // What guards it is now the ENGINE, not the card (issue
+                    // #2570): Sin's ability is a plain imperative `resolve()`,
+                    // a `"completed"` body, and the triggered-plain site passes
+                    // that shape to `resolutionSuspendedOnChoice`, so the
+                    // stackless Entry Park its token copy raises does not
+                    // suspend the trigger — it pops and never re-enters. This
+                    // fixture is the shipped witness for that exemption at the
+                    // triggered-plain call site; the per-card
+                    // `collectedChoices` run-to-completion marker it used to
+                    // guard was deleted in the same change as a second, silent
+                    // authority over the same invariant.
                     graveyard: [
                         makeInstance(voiceOfAll.id, {
                             id: "gy-voice-a",
