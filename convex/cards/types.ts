@@ -14608,6 +14608,28 @@ export interface CardDefinition {
      *  from that graveyard (CR 702.138a). Functions only while this permanent is
      *  on the battlefield. */
     grantsEscapeToOwnGraveyard?: { exileOtherCount: number };
+    /** CR 702.81 — Retrace, PRINTED on this card ("You may cast this card from
+     *  your graveyard by discarding a land card in addition to paying its other
+     *  costs"). The engine (`convex/gre/retrace.ts`) reads this to make the
+     *  graveyard card castable for its NORMAL mana cost plus the land-discard
+     *  additional cost. Unlike Flashback (CR 702.34a) the card is NOT exiled as
+     *  it resolves — no printed-retrace card is in the pool yet, but the field
+     *  is the keyword's own half of the mechanism (the grant below is the
+     *  other). */
+    retrace?: boolean;
+    /** CR 702.81 — a static ability granting retrace to cards in its
+     *  controller's OWN graveyard (Six: "During your turn, nonland permanent
+     *  cards in your graveyard have retrace"). Functions only while this
+     *  permanent is on the battlefield. The two flags are the printed wording's
+     *  own restrictions, NOT part of CR 702.81 itself (which restricts
+     *  neither): `permanentCardsOnly` limits the grant to permanent cards, and
+     *  `duringControllerTurnOnly` switches it off outside the granting
+     *  permanent's controller's turn. Lands never receive the grant — retrace's
+     *  own cost discards a land, and every shipped granter says "nonland". */
+    grantsRetraceToOwnGraveyard?: {
+        permanentCardsOnly?: boolean;
+        duringControllerTurnOnly?: boolean;
+    };
     /** CR 702.27 — Buyback. An OPTIONAL additional cost the caster may choose
      *  to pay as they cast this spell ("You may pay an additional [cost] as
      *  you cast this spell. If you do, put this card into its owner's hand

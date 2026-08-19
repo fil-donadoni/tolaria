@@ -123,6 +123,7 @@ import {
     getEscapeManaCost,
     hasEscape,
 } from "./gre/escape";
+import { findRetraceCastable, RETRACE_COST_LEGS } from "./gre/retrace";
 import {
     applyGenericOffset,
     buildConvokeCreatureChoice,
@@ -2467,6 +2468,10 @@ type CastFromZone = "hand" | "exile" | "graveyard" | "library";
  *  (Flashback/Escape/the broad permission/a specific grant) already claimed
  *  the card, so the flag unambiguously identifies which permission to debit
  *  its once-per-turn use against at commit (`markGraveyardPermanentCastUsed`).
+ *  `viaRetrace` is the same idea for Retrace (CR 702.81, issue #2377): the
+ *  LAST branch of the chain, so the flag unambiguously says "this cast owes
+ *  the discard-a-land additional cost" and no other mechanism's cast ever
+ *  pays it.
  *  Exported so the flashback integration test can drive the REAL cast-source
  *  resolution (no convex-test harness — issue #944). */
 export function locateCastSource(
@@ -2477,6 +2482,7 @@ export function locateCastSource(
     card?: CardInstanceState;
     zone: CastFromZone;
     viaGraveyardPermanentPermission?: true;
+    viaRetrace?: true;
 } {
     const inHand = player.hand.find((c) => c.id === instanceId);
     if (inHand) return { card: inHand, zone: "hand" };
@@ -2539,6 +2545,15 @@ export function locateCastSource(
         instanceId
     );
     if (libraryTopCast) return { card: libraryTopCast, zone: "library" };
+    // CR 702.81 (issue #2377) — a card castable under RETRACE, printed or
+    // granted (Six). Deliberately last among the GRAVEYARD branches: retrace
+    // pays the card's normal mana cost PLUS an extra land discard, so every
+    // graveyard mechanism above is cheaper for the caster and a card
+    // qualifying for two of them takes the other.
+    const retraceCast = findRetraceCastable(state, player, instanceId);
+    if (retraceCast) {
+        return { card: retraceCast, zone: "graveyard", viaRetrace: true };
+    }
     return { zone: "hand" };
 }
 
@@ -6780,13 +6795,21 @@ export function finalizeTargetSelection(
     // cost, not instead of it. `undefined` for every card without a discard
     // leg, so the merged list is unchanged for them.
     const additionalHandLeg = additionalCostHandLeg(effectiveAdditionalCosts);
+    // CR 702.81a — a RETRACE cast's "discard a land card" additional cost joins
+    // that same picker (issue #2377). It is keyword-derived rather than
+    // declared on the definition, so it cannot come from
+    // `effectiveAdditionalCosts`; `viaRetrace` is set only when retrace is the
+    // mechanism that actually supplied this cast, so no other cast pays it.
     const altHandChoice = buildCastHandCostChoice(
         player,
         chosenAltCost,
         cardDef,
         kickerPayments,
         cardInstanceId,
-        additionalHandLeg ? [additionalHandLeg] : []
+        [
+            ...(additionalHandLeg ? [additionalHandLeg] : []),
+            ...(castSource.viaRetrace ? [RETRACE_COST_LEGS] : []),
+        ]
     );
     // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from your
     // hand" cost (generalized `FlashbackCost.exileFromHand`) also applies to a
