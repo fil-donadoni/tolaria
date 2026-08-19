@@ -397,12 +397,37 @@
 
     /* ── Input field ──
      * Resting edge border-strong (≥3:1, WCAG 1.4.11 — was border-subtle/40 at
-     * 1.19:1); focus gets an accent border + ring (8.2:1 — was 1.41:1). */
+     * 1.19:1); focus gets an accent border + ring (8.2:1 — was 1.41:1).
+     *
+     * DEFERRED, MEASURED: this recipe is deliberately NOT on the `--control-h`
+     * pointer rung (ADR 0101 §2, issue #2581), unlike `<Input>`,
+     * `<InputGroup>`, `<Button>` and `.segment-pill`. The wiring was written
+     * and measured, not skipped — `min-height: var(--control-h)` here pushes
+     * `deck-builder @ 844x390x3` from `ctrlsOcc 2` to `3` on `bun run
+     * check:ui`, because nine of this recipe's users sit in the deck-builder's
+     * clipped, non-growing control row (`deck-zone-surface.tsx`,
+     * `zone-add-column-control.tsx`, `search-bar.tsx`, `format-select.tsx`,
+     * `sort-select.tsx`, `cube-filter.tsx`). An occluded control is a strictly
+     * worse defect than an undersized one, so the rung waits for the slice
+     * that re-homes that row: #2585 (filters into a bottom sheet / popover,
+     * deck ≥60% height). Ship it there, in the same change. */
     .input-field {
         @apply rounded-sm border border-border-strong bg-surface-elevated/20 px-4 py-2 text-sm text-text placeholder:text-text-disabled focus:border-accent focus:bg-surface-elevated/30 focus:ring-2 focus:ring-accent/50 focus:outline-none;
     }
 
-    /* ── Filter chips ── */
+    /* ── Filter chips ──
+       DEFERRED, MEASURED, same reason as `.input-field` above (issue #2581).
+       These are TONE classes only; the geometry lives at the call sites
+       (`h-7 w-7`, `size-8`, `size-6`, `px-2 py-0.5 text-[11px]`), which is
+       20-32px and below the 40px coarse rung the ADR asks for. A shared
+       `.filter-chip` geometry recipe on `min-height/min-width:
+       var(--control-h-sm)` was written and measured: it takes
+       `deck-builder` from `ctrlsStranded 4→5 @ 1440x900x2`, `9→10 @
+       820x1180x2` and `ctrlsOcc 2→3` + `ctrlsStranded 6→7 @ 1180x820x2`.
+       STRANDED means unreachable by any gesture — the taller chips push the
+       tail of the zone control row outside a pane that clips with no scroller.
+       Deferred to #2585 with `.input-field`: once the filters live in a sheet
+       or popover the rung costs nothing, and both recipes go on it together. */
     .filter-chip-active {
         @apply bg-accent-soft/30 ring-2 ring-accent/60;
     }

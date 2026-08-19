@@ -25,7 +25,18 @@ type PanelTone = "neutral" | "accent";
  *  `comfortable` is the phone-aware rung (issue #1817): the pile browser and
  *  the manual peek dialog need the extra grid width below 420px and the full
  *  padding above it. See `PILE_GRID_COMPACT_BREAKPOINT_PX`
- *  (`src/lib/card-layout.ts`) for the breakpoint it must stay in sync with. */
+ *  (`src/lib/card-layout.ts`) for the breakpoint it must stay in sync with.
+ *
+ *  **1:1 is a claim about PADDING, not about the whole Panel.** The internal
+ *  rhythm changes on purpose, and it does reflow every Panel by a few pixels:
+ *  `PanelBody`/`PanelFooter` top margin `mt-4` (a flat 16px) becomes
+ *  `calc(--density-unit * 1.5)` = 12 / 15 / 18px; `PanelBody`'s `gap-3` (12px)
+ *  becomes `var(--density-unit)` = 8 / 10 / 12px; and the header band trades
+ *  `-mx-2 sm:-mx-4` / `px-3` / `py-2` for `-mx-[--panel-pad]` /
+ *  `px-[--panel-header-pad-x]` (20px, the bracket-clearance invariant) /
+ *  `py-[calc(--density-unit * 0.8)]`. Deliberate v3 changes — the point is
+ *  that they are density-derived rather than hard-coded — but not "no
+ *  reflow". */
 type PanelDensity = "compact" | "comfortable" | "roomy";
 
 const SIZE_CLASSES: Record<PanelSize, string> = {
@@ -60,7 +71,6 @@ function Panel({
     ornament = false,
     overlay = false,
     className,
-    frameClassName,
     children,
 }: {
     size?: PanelSize;
@@ -75,10 +85,6 @@ function Panel({
     ornament?: boolean;
     overlay?: boolean;
     className?: string;
-    /** Extra classes merged onto the decorative frame alone (never the panel
-     *  body) — e.g. `compact-chrome:hidden` to drop the frame where a caller
-     *  has decided vertical space is scarce (issue #2515). */
-    frameClassName?: string;
     children?: React.ReactNode;
 }) {
     const frame = ornament ? (
@@ -89,21 +95,16 @@ function Panel({
                 pair of queries `useViewportMode()` discriminates on. */}
             <CornerFiligreeFrame
                 overlay
-                className={cn("z-[1] compact-chrome:hidden", frameClassName)}
+                className="z-[1] compact-chrome:hidden"
             />
-            <CornerBracketFrame
-                className={cn(
-                    "z-[1] hidden compact-chrome:block",
-                    frameClassName
-                )}
-            />
+            <CornerBracketFrame className="z-[1] hidden compact-chrome:block" />
         </>
     ) : (
         // `z-[1]`: the frame is rendered BEFORE `children`, and PanelHeader's
         // band now bleeds to the panel border — without a rung the top two
         // corners paint underneath it. Decorative and `pointer-events-none`,
         // so it steals nothing.
-        <CornerBracketFrame className={cn("z-[1]", frameClassName)} />
+        <CornerBracketFrame className="z-[1]" />
     );
 
     if (overlay) return frame;

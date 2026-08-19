@@ -158,6 +158,23 @@ function ControlHeightSpecimens() {
                 square is a layout change, and belongs to the touch-primitives
                 slice (#2583).
             </p>
+            <p className="text-xs text-text-muted">
+                <strong className="text-text">
+                    Not yet on the rung, and why.
+                </strong>{" "}
+                The <code>.input-field</code> recipe (9 files) and the filter
+                chips (<code>.filter-chip-active/-inactive</code>, 20-32px at
+                their call sites) still size themselves. The wiring was written
+                and <em>measured</em>, not skipped: putting either on the rung
+                regresses the deck-builder on <code>bun run check:ui</code> —
+                chips take <code>ctrlsStranded</code> 4→5 at 1440x900, 9→10 at
+                820x1180 and 6→7 at 1180x820; the input recipe takes{" "}
+                <code>ctrlsOcc</code> 2→3 at 844x390. Both land in the same
+                clipped, non-growing zone control row, and a control stranded
+                outside a pane with no scroller is worse than an undersized one.
+                Deferred to #2585, which re-homes that row into a sheet /
+                popover; both recipes go on the rung there, together.
+            </p>
         </div>
     );
 }
