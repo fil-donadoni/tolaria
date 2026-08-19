@@ -33,6 +33,16 @@ WINDOW_HOURS=5
 MAX_PASSES=0
 STOP_FILE=".claude/telemetry/loop-stop"
 CLAUDE_ARGS=""
+# The prompt each pass runs. Default = the whole queue, drained by board
+# priority — byte-identical to what this driver has always run. `--prompt`
+# SCOPES a run instead: `/process-gh-issues` takes free-text args that narrow
+# which issues a pass considers (e.g. "figli di 2405" = only that PRD's
+# children), and without this flag an unattended run could never express that
+# — `--claude-args` appends CLI FLAGS to the `claude` invocation, not prompt
+# text. Unlike CLAUDE_ARGS this is ONE argument and stays quoted at the call
+# site: word-splitting it would turn "figli di 2405" into three prompts' worth
+# of stray argv.
+PASS_PROMPT="/process-gh-issues"
 DRY_RUN=0
 # A single `claude` crash used to end an overnight run outright. It is now
 # retried with a doubling backoff, bounded by CONSECUTIVE failures — a
@@ -75,6 +85,10 @@ while [ $# -gt 0 ]; do
             ;;
         --claude-args)
             CLAUDE_ARGS="$2"
+            shift 2
+            ;;
+        --prompt)
+            PASS_PROMPT="$2"
             shift 2
             ;;
         --max-consecutive-errors)
@@ -130,6 +144,14 @@ is_number() {
     awk -v s="$1" \
         'BEGIN { exit (s ~ /^-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?$/) ? 0 : 1 }'
 }
+
+# An empty prompt is `claude -p ""` — a pass that does nothing, forever, with
+# nobody watching. Reject it at startup rather than discovering it in the
+# morning's telemetry as N passes of `no-progress`.
+if [ -z "$PASS_PROMPT" ]; then
+    echo "loop-drain: --prompt must not be empty (omit it for the default '/process-gh-issues')" >&2
+    exit 2
+fi
 
 if ! is_uint "$MAX_PASSES"; then
     echo "loop-drain: --max-passes must be a non-negative integer, got: '$MAX_PASSES'" >&2
@@ -363,7 +385,7 @@ while :; do
     total_before=$(count_total_open 2>/dev/null) || total_before=""
 
     if [ "$DRY_RUN" -eq 1 ]; then
-        echo "loop-drain: [dry-run] pass $pass would run: claude -p \"/process-gh-issues\" $CLAUDE_ARGS" >&2
+        echo "loop-drain: [dry-run] pass $pass would run: claude -p \"$PASS_PROMPT\" $CLAUDE_ARGS" >&2
         : >"$pass_log"
         claude_exit=0
     else
@@ -378,9 +400,13 @@ while :; do
             # it, so a driver-launched pass never detaches a second driver.
             # Without it, every pass would fork its own driver and the fan-out
             # would be exponential, not sequential.
+            # "$PASS_PROMPT" stays QUOTED — it is ONE argument that normally
+            # contains spaces ("/process-gh-issues figli di 2405"); splitting
+            # it is the exact opposite of what the unquoted $CLAUDE_ARGS
+            # below deliberately does.
             # shellcheck disable=SC2086  # intentional word-splitting of a
             # user-supplied flag string, documented above.
-            TOLARIA_LOOP_DRAIN=1 claude -p "/process-gh-issues" $CLAUDE_ARGS 2>&1
+            TOLARIA_LOOP_DRAIN=1 claude -p "$PASS_PROMPT" $CLAUDE_ARGS 2>&1
             echo $? >"$rc_file"
         ) | tee "$pass_log"
         set -e

@@ -809,6 +809,104 @@ describe("--claude-args warning", () => {
     });
 });
 
+describe("--prompt — the prompt each pass runs", () => {
+    /** `claude` stub that RECORDS its own argv, one line per element, and
+     * exits 0. This is what makes the quoting assertions real: a dry-run
+     * echo only proves the driver can print the prompt, while the argv file
+     * proves what the process actually received — the difference between
+     * `claude -p "/process-gh-issues figli di 2405"` (one argument) and the
+     * word-split `-p /process-gh-issues figli di 2405` (four), which would
+     * silently drain the wrong queue all night. */
+    const stubClaudeRecordingArgv = (): string => {
+        const argvFile = path.join(tmp, "claude-argv");
+        writeStub(
+            "claude",
+            [
+                `{ echo "argc=$#"; for a in "$@"; do echo "arg=$a"; done; } > "${argvFile}"`,
+                `echo "recorded"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        return argvFile;
+    };
+
+    /** One pass with a real (argv-recording) `claude`, then stop on
+     * max-passes. Returns the argv the driver handed to `claude`. */
+    const argvForOnePass = (extraArgs: string[]): string[] => {
+        stubGhCountingFrom(5);
+        const argvFile = stubClaudeRecordingArgv();
+        const r = run({
+            args: ["--claude-args", "x", "--max-passes", "1", ...extraArgs],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toMatch(/reason=max-passes/);
+        return fs.readFileSync(argvFile, "utf8").trim().split("\n");
+    };
+
+    it("defaults to /process-gh-issues — every existing caller is unchanged", () => {
+        // The regression that protects every invocation predating this flag:
+        // no --prompt must mean byte-identical behaviour.
+        expect(argvForOnePass([])).toEqual([
+            "argc=3",
+            "arg=-p",
+            "arg=/process-gh-issues",
+            "arg=x",
+        ]);
+    });
+
+    it("passes a multi-word prompt as ONE argument, never word-split", () => {
+        expect(
+            argvForOnePass(["--prompt", "/process-gh-issues figli di 2405"])
+        ).toEqual([
+            "argc=3",
+            "arg=-p",
+            "arg=/process-gh-issues figli di 2405",
+            "arg=x",
+        ]);
+    });
+
+    it("treats $(...) / backticks in the prompt as literal text, never as shell", () => {
+        const prompt = "/process-gh-issues $(touch pwned) `touch pwned2` a=b";
+        expect(argvForOnePass(["--prompt", prompt])).toEqual([
+            "argc=3",
+            "arg=-p",
+            `arg=${prompt}`,
+            "arg=x",
+        ]);
+        expect(fs.existsSync(path.join(tmp, "pwned"))).toBe(false);
+        expect(fs.existsSync(path.join(tmp, "pwned2"))).toBe(false);
+    });
+
+    it("prints the prompt actually used in the --dry-run echo", () => {
+        // The dry run is how a human checks a scoped run BEFORE committing a
+        // night to it — echoing the hardcoded default there would be a lie.
+        stubGhCountingFrom(5);
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--max-passes",
+                "1",
+                "--dry-run",
+                "--prompt",
+                "/process-gh-issues figli di 2405",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stderr).toMatch(
+            /would run: claude -p "\/process-gh-issues figli di 2405" x/
+        );
+    });
+
+    it('rejects an empty --prompt instead of running `claude -p ""` forever', () => {
+        stubGhCountingFrom(5);
+        const r = run({ args: ["--claude-args", "x", "--prompt", ""] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(2);
+        expect(r.stderr).toMatch(/--prompt must not be empty/);
+        expect(passLogCount()).toBe(0);
+    });
+});
+
 describe("bad arguments", () => {
     it("rejects an unknown flag", () => {
         const r = run({ args: ["--not-a-real-flag"] });
