@@ -11,7 +11,7 @@
 //   • ZONE — both search sandboxes hard-coded hand/library for a `cast-spell`,
 //     so a graveyard cast would throw "Card <id> not found in hand".
 //   • CHARGE — the sandbox must actually discard the land. This one is not an
-//     accuracy nicety: CR 702.81a exiles nothing, so the spell returns to the
+//     accuracy nicety: retrace exiles nothing (CR 702.81a), so the spell returns to the
 //     graveyard on resolution (CR 608.2m) and is castable again. The discarded
 //     land is the ONLY thing that terminates the line; an uncharged sandbox
 //     models a free, unbounded recast loop.
@@ -163,7 +163,7 @@ describe("Retrace — Bot visibility (CR 702.81a)", () => {
         // gets priority), so the graveyard return is the greedy sandbox's
         // assertion above; what this one owns is that the card left the
         // GRAVEYARD zone (not the hand) and that its stack item is flagged
-        // cast-from-graveyard with NO exile-on-resolve (CR 702.81a).
+        // cast-from-graveyard with NO exile-on-resolve, as retrace (CR 702.81a) requires.
         expect(p1.graveyard.some((c) => c.id === "gyBolt")).toBe(false);
         const item = state.stack.find((s) => s.id === "gyBolt")!;
         expect(item.castFromGraveyard).toBe(true);

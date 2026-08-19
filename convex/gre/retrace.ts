@@ -129,8 +129,10 @@ function grantReaches(grant: RetraceGrant, card: CardInstanceState): boolean {
     return true;
 }
 
-/** CR 702.81 — retrace GRANTED to `card` by any producer (battlefield permanent
- *  or emblem) reaching the graveyard it sits in. */
+/** CR 702.81 — retrace GRANTED to `card` by any producer reaching the graveyard
+ *  it sits in. Today that is exactly one producer, a command-zone emblem
+ *  (`EmblemDefinition.grantsRetraceToOwnGraveyard`); see
+ *  {@link collectRetraceGrants} for why the sweep is shaped for more. */
 export function hasGrantedRetrace(
     state: GameState,
     card: CardInstanceState
