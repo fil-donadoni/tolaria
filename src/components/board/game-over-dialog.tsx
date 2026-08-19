@@ -120,6 +120,12 @@ export default function GameOverDialog({
             title={matchOver ? "Match Over" : "Game Over"}
             icon={<SkullIcon />}
             dismissable={false}
+            // Rich-ornament survivor (ADR 0101 §2). Game Over and Match Result
+            // are the same surface, discriminated by `matchOver`; both are
+            // terminal waiting states where the 40px filigree costs no working
+            // space. The Panel gates it to viewports above 844x390 and falls
+            // back to the v3 brackets below.
+            ornament
         >
             <div className="flex flex-col items-center text-center gap-2 mt-1">
                 <TitleTreatment title={resultTitle} subtitle={resultSubtitle} />

@@ -17,7 +17,7 @@
                     "starved": 2,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                    "knownDebt": "2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0. `cardsOcc 1` is NOT a deck tile: it is the same probe artifact as the `design-system-dialog` row, and it is NONDETERMINISTIC. `LobbyBackground` renders `AmbientPageGround` (`src/components/lobby/lobby-background.tsx:13`), whose decorative full-bleed `<img data-ambient-art aria-hidden>` draws its `src` at random per mount from `AMBIENT_BG_IMAGES` (8 local `/img/lobby-bg/*.webp` + 21 `cards.scryfall.io` art crops); only a Scryfall draw matches `probe.js:137-141`'s `img[src*=\"scryfall\"]`, and it then scores occluded behind the opaque signal panels. Measured on one unchanged tree: `n39/occ1 -> n38/occ0` between consecutive runs; pinning the draw to a local frame gives `n38/occ0` at every viewport. The ceiling is held at 1 so a Scryfall draw does not red the lane. Drafted for #2580's lane owner in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`."
                 },
                 "390x844x3": {
                     "cardsZero": 0,
@@ -29,7 +29,7 @@
                     "starved": 2,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                    "knownDebt": "2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0. `cardsOcc 1` is NOT a deck tile: it is the same probe artifact as the `design-system-dialog` row, and it is NONDETERMINISTIC. `LobbyBackground` renders `AmbientPageGround` (`src/components/lobby/lobby-background.tsx:13`), whose decorative full-bleed `<img data-ambient-art aria-hidden>` draws its `src` at random per mount from `AMBIENT_BG_IMAGES` (8 local `/img/lobby-bg/*.webp` + 21 `cards.scryfall.io` art crops); only a Scryfall draw matches `probe.js:137-141`'s `img[src*=\"scryfall\"]`, and it then scores occluded behind the opaque signal panels. Measured on one unchanged tree: `n39/occ1 -> n38/occ0` between consecutive runs; pinning the draw to a local frame gives `n38/occ0` at every viewport. The ceiling is held at 1 so a Scryfall draw does not red the lane. Drafted for #2580's lane owner in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`."
                 },
                 "844x390x3": {
                     "cardsZero": 0,
@@ -41,7 +41,7 @@
                     "starved": 2,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                    "knownDebt": "2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0. `cardsOcc 1` is NOT a deck tile: it is the same probe artifact as the `design-system-dialog` row, and it is NONDETERMINISTIC. `LobbyBackground` renders `AmbientPageGround` (`src/components/lobby/lobby-background.tsx:13`), whose decorative full-bleed `<img data-ambient-art aria-hidden>` draws its `src` at random per mount from `AMBIENT_BG_IMAGES` (8 local `/img/lobby-bg/*.webp` + 21 `cards.scryfall.io` art crops); only a Scryfall draw matches `probe.js:137-141`'s `img[src*=\"scryfall\"]`, and it then scores occluded behind the opaque signal panels. Measured on one unchanged tree: `n39/occ1 -> n38/occ0` between consecutive runs; pinning the draw to a local frame gives `n38/occ0` at every viewport. The ceiling is held at 1 so a Scryfall draw does not red the lane. Drafted for #2580's lane owner in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`."
                 },
                 "820x1180x2": {
                     "cardsZero": 0,
@@ -53,7 +53,7 @@
                     "starved": 2,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                    "knownDebt": "2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0. `cardsOcc 1` is NOT a deck tile: it is the same probe artifact as the `design-system-dialog` row, and it is NONDETERMINISTIC. `LobbyBackground` renders `AmbientPageGround` (`src/components/lobby/lobby-background.tsx:13`), whose decorative full-bleed `<img data-ambient-art aria-hidden>` draws its `src` at random per mount from `AMBIENT_BG_IMAGES` (8 local `/img/lobby-bg/*.webp` + 21 `cards.scryfall.io` art crops); only a Scryfall draw matches `probe.js:137-141`'s `img[src*=\"scryfall\"]`, and it then scores occluded behind the opaque signal panels. Measured on one unchanged tree: `n39/occ1 -> n38/occ0` between consecutive runs; pinning the draw to a local frame gives `n38/occ0` at every viewport. The ceiling is held at 1 so a Scryfall draw does not red the lane. Drafted for #2580's lane owner in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`."
                 },
                 "1180x820x2": {
                     "cardsZero": 0,
@@ -65,7 +65,7 @@
                     "starved": 2,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "1 occluded card tile, 2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0"
+                    "knownDebt": "2 starved scroll containers and 1 axe serious (nested-interactive) on the deck rows — hard floors are cardsOcc 0 / axeSerious 0. `cardsOcc 1` is NOT a deck tile: it is the same probe artifact as the `design-system-dialog` row, and it is NONDETERMINISTIC. `LobbyBackground` renders `AmbientPageGround` (`src/components/lobby/lobby-background.tsx:13`), whose decorative full-bleed `<img data-ambient-art aria-hidden>` draws its `src` at random per mount from `AMBIENT_BG_IMAGES` (8 local `/img/lobby-bg/*.webp` + 21 `cards.scryfall.io` art crops); only a Scryfall draw matches `probe.js:137-141`'s `img[src*=\"scryfall\"]`, and it then scores occluded behind the opaque signal panels. Measured on one unchanged tree: `n39/occ1 -> n38/occ0` between consecutive runs; pinning the draw to a local frame gives `n38/occ0` at every viewport. The ceiling is held at 1 so a Scryfall draw does not red the lane. Drafted for #2580's lane owner in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`."
                 }
             }
         },
@@ -116,10 +116,10 @@
                     "ctrlsZero": 1,
                     "ctrlsOcc": 4,
                     "ctrlsStranded": 9,
-                    "starved": 0,
+                    "starved": 1,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "worst cell in the matrix: 1 collapsed + 4 occluded controls and 9 STRANDED ones on tablet portrait, plus 1 axe serious (color-contrast)"
+                    "knownDebt": "worst cell in the matrix: 1 collapsed + 4 occluded controls and 9 STRANDED ones on tablet portrait, plus 1 axe serious (color-contrast). starved raised 0 -> 1 by issue #2581. The starved container is the CARD PILE STRIP (`deck-zone-surface.tsx:590`, `flex flex-1 items-start gap-3 overflow-auto`, issue #2511) -- NOT the toolbar, and nothing in #2581 can grow it: its DOM children are `DeckColumnPile` elements ONLY (`probe.js:80` measures `el.children`) — `DeckColumnActions` is NOT a child of the strip, it is passed into each pile as its `actions` prop (`deck-zone-surface.tsx:622`). A pile is a label row plus a `pileHeight(n)` box of absolutely-positioned tiles; its `actions` slot holds bare `<button>`s and an untouched `.input-field`. The strip's tallest child measures 228px before and after. What the ADR 0101 section 2 coarse rung (44px) shrank is the WINDOW: the sibling chrome ABOVE the strip grew -- `ZoneCreatureFilterSelect` (`deck-zone-surface.tsx:518`) is now a `.segment-pill` at `min-height: var(--control-h-sm)` = 40px on a coarse pointer, plus the Button rungs -- leaving the `flex-1` strip 171px of clientHeight. The probe starves at `clientHeight < 0.9 * tallest` (`scripts/ui-gate/probe.js:76-91`), so this cell clears at 205px: it needs 34px of chrome height back. Reverting to the fine rung DOES return it — that is exactly what the isolation below shows, and each row shrinks 12px (`.segment-pill` `--control-h-sm` 40 -> 28px, `Button` `--control-h` 44 -> 32px) — but it returns it by giving up the 44px WCAG 2.5.8 touch target that ADR 0101 section 2 exists for. There is no tuning of the rung that recovers the 34px AND keeps the target: the height has to come from the header leaving the band, not from shrinking it. The SAME container is already starved at 1440x900x2 (157 vs 182) and 1180x820x2 (57 vs 168) on a FINE pointer, so the rung surfaces a pre-existing deck-builder defect one viewport earlier, it does not create one. Isolated by neutralising only the coarse rung, which returns this cell to starved 0 with every other number unchanged. Owned by #2585 (deckbuilder filters into a bottom sheet / popover; tablet+desktop deck >=60% height) -- delete this slack when that slice lands."
                 },
                 "1180x820x2": {
                     "cardsZero": 0,
@@ -132,6 +132,138 @@
                     "axeSerious": 1,
                     "axeCritical": 0,
                     "knownDebt": "1 collapsed + 2 occluded controls, 6 STRANDED, 1 starved container, 1 axe serious (color-contrast)"
+                }
+            }
+        },
+        "design-system": {
+            "label": "Design system census (/admin/design-system)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation."
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 2,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation. Phone portrait adds `scrollable-region-focusable` (a table scroller with no tab stop)."
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation."
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 1,
+                    "axeCritical": 1,
+                    "knownDebt": "PRE-EXISTING census-page debt, measured with the new v3 section removed and identical (#2581): 1 axe critical (`label` — an unlabelled input specimen in section 09) plus `color-contrast` serious, which the palette section renders ON PURPOSE to show a failing ratio, and 1 starved container (a table in its own `overflow-x-auto`). Hard floors are axeSerious/axeCritical 0; this page is the reference surface, so its specimens are the violation."
+                }
+            }
+        },
+        "design-system-dialog": {
+            "label": "GameDialog live demo (/admin/design-system → Open live demo)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 12,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc` on this row is a PROBE ARTIFACT and it is NONDETERMINISTIC — do not read it as a card. The census page renders no card specimen at all: no `<img>` exists anywhere under `src/routes/design-system/`. What `probe.js:137-141` (`img[src*=\"scryfall\"]`) actually catches here is `AmbientPageGround`'s decorative full-bleed backdrop `<img data-ambient-art aria-hidden>` (`src/components/ui/ambient-page-ground.tsx:111-115`, mounted by `src/routes/design-system.route.tsx:36`), whose `src` is drawn AT RANDOM on every mount (`pickRandom`, same file :7-9) from `AMBIENT_BG_IMAGES` (`src/components/ui/ambient-backgrounds.ts:66`) — 8 local `/img/lobby-bg/*.webp` plus 21 `cards.scryfall.io` art crops, and ONLY the latter match the selector. So `cards n` on this surface is 1 on roughly 21/29 of runs and 0 otherwise, and when it is 1 it scores occluded because the backdrop sits behind the scrim. Measured flapping on one unchanged tree (`6b1c944c`): two runs gave `cards n0 occ0` here, `design-system @1440x900x2` went `n1 reach1 -> n0`, and `lobby` went `n39/occ1 -> n38/occ0`; pinning `pickRandom()` to a fixed local frame drove `cards n0` on all ten census/dialog rows. The ceiling is held at 1 rather than lowered to 0 precisely because 0 would red the lane whenever the draw yields a Scryfall frame. The selector hole belongs to #2580's lane — an `aria-hidden` decorative backdrop must not be counted as a card — and is drafted in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`; fixing it re-baselines every `cards*` row in the lane, so it ships in its own PR, not this one. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 10,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc` on this row is a PROBE ARTIFACT and it is NONDETERMINISTIC — do not read it as a card. The census page renders no card specimen at all: no `<img>` exists anywhere under `src/routes/design-system/`. What `probe.js:137-141` (`img[src*=\"scryfall\"]`) actually catches here is `AmbientPageGround`'s decorative full-bleed backdrop `<img data-ambient-art aria-hidden>` (`src/components/ui/ambient-page-ground.tsx:111-115`, mounted by `src/routes/design-system.route.tsx:36`), whose `src` is drawn AT RANDOM on every mount (`pickRandom`, same file :7-9) from `AMBIENT_BG_IMAGES` (`src/components/ui/ambient-backgrounds.ts:66`) — 8 local `/img/lobby-bg/*.webp` plus 21 `cards.scryfall.io` art crops, and ONLY the latter match the selector. So `cards n` on this surface is 1 on roughly 21/29 of runs and 0 otherwise, and when it is 1 it scores occluded because the backdrop sits behind the scrim. Measured flapping on one unchanged tree (`6b1c944c`): two runs gave `cards n0 occ0` here, `design-system @1440x900x2` went `n1 reach1 -> n0`, and `lobby` went `n39/occ1 -> n38/occ0`; pinning `pickRandom()` to a fixed local frame drove `cards n0` on all ten census/dialog rows. The ceiling is held at 1 rather than lowered to 0 precisely because 0 would red the lane whenever the draw yields a Scryfall frame. The selector hole belongs to #2580's lane — an `aria-hidden` decorative backdrop must not be counted as a card — and is drafted in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`; fixing it re-baselines every `cards*` row in the lane, so it ships in its own PR, not this one. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 10,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc` on this row is a PROBE ARTIFACT and it is NONDETERMINISTIC — do not read it as a card. The census page renders no card specimen at all: no `<img>` exists anywhere under `src/routes/design-system/`. What `probe.js:137-141` (`img[src*=\"scryfall\"]`) actually catches here is `AmbientPageGround`'s decorative full-bleed backdrop `<img data-ambient-art aria-hidden>` (`src/components/ui/ambient-page-ground.tsx:111-115`, mounted by `src/routes/design-system.route.tsx:36`), whose `src` is drawn AT RANDOM on every mount (`pickRandom`, same file :7-9) from `AMBIENT_BG_IMAGES` (`src/components/ui/ambient-backgrounds.ts:66`) — 8 local `/img/lobby-bg/*.webp` plus 21 `cards.scryfall.io` art crops, and ONLY the latter match the selector. So `cards n` on this surface is 1 on roughly 21/29 of runs and 0 otherwise, and when it is 1 it scores occluded because the backdrop sits behind the scrim. Measured flapping on one unchanged tree (`6b1c944c`): two runs gave `cards n0 occ0` here, `design-system @1440x900x2` went `n1 reach1 -> n0`, and `lobby` went `n39/occ1 -> n38/occ0`; pinning `pickRandom()` to a fixed local frame drove `cards n0` on all ten census/dialog rows. The ceiling is held at 1 rather than lowered to 0 precisely because 0 would red the lane whenever the draw yields a Scryfall frame. The selector hole belongs to #2580's lane — an `aria-hidden` decorative backdrop must not be counted as a card — and is drafted in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`; fixing it re-baselines every `cards*` row in the lane, so it ships in its own PR, not this one. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 12,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc` on this row is a PROBE ARTIFACT and it is NONDETERMINISTIC — do not read it as a card. The census page renders no card specimen at all: no `<img>` exists anywhere under `src/routes/design-system/`. What `probe.js:137-141` (`img[src*=\"scryfall\"]`) actually catches here is `AmbientPageGround`'s decorative full-bleed backdrop `<img data-ambient-art aria-hidden>` (`src/components/ui/ambient-page-ground.tsx:111-115`, mounted by `src/routes/design-system.route.tsx:36`), whose `src` is drawn AT RANDOM on every mount (`pickRandom`, same file :7-9) from `AMBIENT_BG_IMAGES` (`src/components/ui/ambient-backgrounds.ts:66`) — 8 local `/img/lobby-bg/*.webp` plus 21 `cards.scryfall.io` art crops, and ONLY the latter match the selector. So `cards n` on this surface is 1 on roughly 21/29 of runs and 0 otherwise, and when it is 1 it scores occluded because the backdrop sits behind the scrim. Measured flapping on one unchanged tree (`6b1c944c`): two runs gave `cards n0 occ0` here, `design-system @1440x900x2` went `n1 reach1 -> n0`, and `lobby` went `n39/occ1 -> n38/occ0`; pinning `pickRandom()` to a fixed local frame drove `cards n0` on all ten census/dialog rows. The ceiling is held at 1 rather than lowered to 0 precisely because 0 would red the lane whenever the draw yields a Scryfall frame. The selector hole belongs to #2580's lane — an `aria-hidden` decorative backdrop must not be counted as a card — and is drafted in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`; fixing it re-baselines every `cards*` row in the lane, so it ships in its own PR, not this one. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 12,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "The lane's only MODAL row (#2581): with the GameDialog demo open, 10-12 controls behind the scrim measure as occluded — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors. `cardsOcc` on this row is a PROBE ARTIFACT and it is NONDETERMINISTIC — do not read it as a card. The census page renders no card specimen at all: no `<img>` exists anywhere under `src/routes/design-system/`. What `probe.js:137-141` (`img[src*=\"scryfall\"]`) actually catches here is `AmbientPageGround`'s decorative full-bleed backdrop `<img data-ambient-art aria-hidden>` (`src/components/ui/ambient-page-ground.tsx:111-115`, mounted by `src/routes/design-system.route.tsx:36`), whose `src` is drawn AT RANDOM on every mount (`pickRandom`, same file :7-9) from `AMBIENT_BG_IMAGES` (`src/components/ui/ambient-backgrounds.ts:66`) — 8 local `/img/lobby-bg/*.webp` plus 21 `cards.scryfall.io` art crops, and ONLY the latter match the selector. So `cards n` on this surface is 1 on roughly 21/29 of runs and 0 otherwise, and when it is 1 it scores occluded because the backdrop sits behind the scrim. Measured flapping on one unchanged tree (`6b1c944c`): two runs gave `cards n0 occ0` here, `design-system @1440x900x2` went `n1 reach1 -> n0`, and `lobby` went `n39/occ1 -> n38/occ0`; pinning `pickRandom()` to a fixed local frame drove `cards n0` on all ten census/dialog rows. The ceiling is held at 1 rather than lowered to 0 precisely because 0 would red the lane whenever the draw yields a Scryfall frame. The selector hole belongs to #2580's lane — an `aria-hidden` decorative backdrop must not be counted as a card — and is drafted in `docs/findings/2581-ui-gate-card-probe-counts-ambient-backdrop.md`; fixing it re-baselines every `cards*` row in the lane, so it ships in its own PR, not this one. `starved 1` is the census page's own table scroller, unchanged from the `design-system` row. axe is clean (s0/c0) WITH the dialog open, which is the assertion this row exists for: the Panel v3 frame introduces no violation."
                 }
             }
         },

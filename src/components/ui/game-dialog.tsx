@@ -33,11 +33,16 @@ type GameDialogProps = {
      *  indicator without dismissing the underlying Pending Choice. */
     onMinimize?: () => void;
     /** Panel padding passthrough (issue #1817, opus review round 2). Opt-in —
-     *  defaults to `"default"` (`p-6` at every width, unchanged for the ~10
-     *  other `size="wide"` dialogs). The pile browser passes
-     *  `"compact-mobile"` so its grid gets more room on a phone without
-     *  touching anyone else. See `Panel`'s `PanelDensity` doc. */
+     *  defaults to `"roomy"` (`p-6` at every width, unchanged for the ~10
+     *  other `size="wide"` dialogs). The pile browser passes `"comfortable"`
+     *  so its grid gets more room on a phone without touching anyone else.
+     *  See `Panel`'s `PanelDensity` doc for the v2 → v3 rename. */
     density?: PanelDensity;
+    /** Opt in to the rich corner filigree instead of the v3 brackets
+     *  (ADR 0101 §2). Allowed only in waiting states — Game Over / Match
+     *  Result — and the Panel additionally gates it to viewports above
+     *  844x390. Every other dialog leaves it off and gets v3 brackets. */
+    ornament?: boolean;
     className?: string;
     children: React.ReactNode;
 };
@@ -58,9 +63,11 @@ const sizeClasses: Record<GameDialogSize, string> = {
  * well, bold Beleren title + full-width gold underline rule, optional stat
  * row, body, footer actions, and the Panel's subtle SVG corner filigree.
  *
- * Padding keeps the ornament clear of content — the Panel adds `p-6` all round
- * and the footer carries extra bottom spacing (`pb-1`) so no decoration overlaps
- * the actions, especially at the bottom corners.
+ * Padding keeps the frame clear of content — the Panel adds its density's
+ * padding all round, the title carries `.panel-title-clear`, and the footer
+ * carries extra bottom spacing (`pb-1`) so no decoration overlaps the actions,
+ * especially at the bottom corners. Footer actions stack full-width on a phone
+ * and right-align from `sm` up (ADR 0101 §2).
  */
 export default function GameDialog({
     open,
@@ -74,7 +81,8 @@ export default function GameDialog({
     dismissable = true,
     showCloseButton = false,
     onMinimize,
-    density = "default",
+    density = "roomy",
+    ornament = false,
     className,
     children,
 }: GameDialogProps) {
@@ -107,6 +115,7 @@ export default function GameDialog({
                 <Panel
                     tone="neutral"
                     density={density}
+                    ornament={ornament}
                     className="max-w-full min-w-64 overflow-hidden sm:min-w-80"
                 >
                     <div
@@ -122,7 +131,13 @@ export default function GameDialog({
                         <div className="flex max-h-[80vh] w-full min-w-0 flex-1 flex-col">
                             <DialogTitle
                                 className={cn(
-                                    "heading-panel shrink-0",
+                                    // `.panel-title-clear` keeps the title
+                                    // out of the top-left corner bracket at
+                                    // every density (ADR 0101 §2): the
+                                    // dialog builds its own header instead of
+                                    // using PanelHeader's full-bleed band, so
+                                    // it must pay the clearance itself.
+                                    "heading-panel panel-title-clear shrink-0 text-left",
                                     icon && "sm:text-left",
                                     // keep the title clear of the absolute
                                     // close/minimize controls (top-right)
@@ -162,7 +177,7 @@ export default function GameDialog({
                     </div>
 
                     {footer && (
-                        <div className="mt-5 flex flex-wrap items-center justify-end gap-2 pb-1">
+                        <div className="mt-5 flex flex-col items-stretch gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                             {footer}
                         </div>
                     )}

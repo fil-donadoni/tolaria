@@ -2,6 +2,7 @@
 import { RatioBadge, Section, Specimen, Sub, NextScope } from "./lib";
 import { contrastRatio } from "./contrast";
 import { cn } from "@/lib/utils";
+import { PALETTE_TOKENS, SIGNAL_TOKENS } from "@/lib/design-tokens";
 
 const SURFACES: Array<[string, string]> = [
     ["base", "#0d0b07"],
@@ -9,51 +10,14 @@ const SURFACES: Array<[string, string]> = [
     ["elevated", "#241d12"],
 ];
 
-/** Current semantic palette (index.css @theme) with the role it plays. */
-const TOKENS: Array<{ name: string; hex: string; role: string }> = [
-    { name: "surface-base", hex: "#0d0b07", role: "app ground" },
-    { name: "surface", hex: "#16110a", role: "panel ground" },
-    { name: "surface-elevated", hex: "#241d12", role: "raised plate" },
-    { name: "border-subtle", hex: "#2e2516", role: "hairlines" },
-    { name: "border-accent", hex: "#6b5a36", role: "gold trim" },
-    { name: "accent", hex: "#c9a24b", role: "primary gold" },
-    { name: "accent-strong", hex: "#ecc878", role: "bright gold" },
-    { name: "accent-soft", hex: "#4a3a1c", role: "gold wash" },
-    { name: "secondary-accent", hex: "#5f97a8", role: "cool teal" },
-    { name: "secondary-accent-strong", hex: "#9cc6d4", role: "bright teal" },
-    { name: "secondary-accent-soft", hex: "#234049", role: "teal wash" },
-    { name: "danger", hex: "#b1473a", role: "garnet fill" },
-    { name: "danger-strong", hex: "#e89384", role: "danger text" },
-    { name: "danger-soft", hex: "#4a1a14", role: "danger wash" },
-    { name: "success", hex: "#6fa05a", role: "success fill" },
-    { name: "success-strong", hex: "#a8d292", role: "success text" },
-    { name: "success-soft", hex: "#274a1f", role: "success wash" },
-    { name: "parchment", hex: "#f3ead2", role: "brightest text" },
-    { name: "text", hex: "#e9e0cb", role: "body text" },
-    { name: "text-muted", hex: "#b7a984", role: "secondary text" },
-    { name: "text-disabled", hex: "#6f6244", role: "labels / disabled" },
-];
-
-const NEW_TOKENS: Array<{ name: string; hex: string; role: string }> = [
-    { name: "text-disabled", hex: "#968a68", role: "was #6f6244 (2.78–3.28)" },
-    { name: "border-strong", hex: "#7d6b42", role: "input/control edges" },
-    { name: "signal-self", hex: "#34d399", role: "my turn/priority/selection" },
-    { name: "signal-self-strong", hex: "#6ee7b7", role: "self, bright" },
-    { name: "signal-opponent", hex: "#fb7185", role: "opponent turn" },
-    {
-        name: "signal-opponent-strong",
-        hex: "#fda4af",
-        role: "opponent, bright",
-    },
-    { name: "signal-pending", hex: "#fbbf24", role: "waiting/urgent" },
-    { name: "signal-pending-strong", hex: "#fcd34d", role: "pending, bright" },
-    { name: "signal-target", hex: "#a78bfa", role: "targetable/pickable" },
-    { name: "signal-target-strong", hex: "#c4b5fd", role: "target, bright" },
-    { name: "combat-1", hex: "#ef4444", role: "combat group ring" },
-    { name: "combat-2", hex: "#3b82f6", role: "combat group ring" },
-    { name: "combat-3", hex: "#22c55e", role: "combat group ring" },
-    { name: "combat-4", hex: "#eab308", role: "combat group ring" },
-];
+/** Current semantic palette + the phase-3 additions. Both arrays now come from
+ *  the typed token mirror (`src/lib/design-tokens.ts`) instead of being
+ *  hand-maintained here: `design-tokens.test.ts` asserts every hex against
+ *  `@theme inline`, so this census can no longer describe a palette the
+ *  stylesheet has moved on from. (It did: `text-disabled` was still listed at
+ *  its retired #6f6244 value.) */
+const TOKENS = PALETTE_TOKENS;
+const NEW_TOKENS = SIGNAL_TOKENS;
 
 function Swatch({ hex, name }: { hex: string; name: string }) {
     return (
@@ -71,7 +35,7 @@ function TokenTable({
     note,
 }: {
     title: string;
-    tokens: Array<{ name: string; hex: string; role: string }>;
+    tokens: readonly { name: string; hex: string; role: string }[];
     note?: string;
 }) {
     return (

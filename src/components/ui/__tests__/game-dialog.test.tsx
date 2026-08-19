@@ -64,15 +64,52 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
     });
 
-    it("renders the SVG corner filigree (subtle ornament) around the panel", () => {
+    // ADR 0101 §2 / issue #2581: the default frame is the v3 bracket set, not
+    // the 40px filigree. A dialog that says nothing gets brackets; only an
+    // explicit `ornament` (Game Over / Match Result) brings the filigree back.
+    it("renders the v3 corner brackets around the panel by default", () => {
         const { baseElement } = render(
             <GameDialog open title="Framed">
                 <p>body</p>
             </GameDialog>
         );
         expect(
+            baseElement.querySelectorAll('[data-slot="corner-bracket"]').length
+        ).toBe(4);
+        expect(
+            baseElement.querySelectorAll('[data-slot="corner-filigree"]').length
+        ).toBe(0);
+    });
+
+    it("brings back the filigree only when the caller opts into ornament", () => {
+        const { baseElement } = render(
+            <GameDialog open title="Framed" ornament>
+                <p>body</p>
+            </GameDialog>
+        );
+        expect(
             baseElement.querySelectorAll('[data-slot="corner-filigree"]').length
         ).toBe(4);
+        // The brackets stay mounted as the phone-viewport fallback, hidden by
+        // CSS above 844x390 (`compact-chrome:block`).
+        const brackets = baseElement.querySelector(
+            '[data-slot="corner-bracket-frame"]'
+        )!;
+        expect(brackets.className).toContain("compact-chrome:block");
+    });
+
+    it("keeps the dialog title clear of the corner bracket", () => {
+        render(
+            <GameDialog open title="Framed">
+                <p>body</p>
+            </GameDialog>
+        );
+        const title = screen.getByRole("heading", { name: "Framed" });
+        // Arithmetic clearance, not geometry: happy-dom has no layout engine.
+        // `.panel-title-clear` pays the shortfall between the panel padding at
+        // the current density and `--panel-header-pad-x`; the token arithmetic
+        // itself is asserted in `src/__tests__/design-tokens.test.ts`.
+        expect(title.className).toContain("panel-title-clear");
     });
 
     it("offsets centering by half the right-piles strip so in-game dialogs sit over the play area", () => {
@@ -95,7 +132,11 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
 
     // issue #1817, opus review round 2: Panel already exposed a `density`
     // prop but GameDialog never forwarded it. Opt-in, default unchanged for
-    // the ~10 other `size="wide"` call sites.
+    // the ~10 other `size="wide"` call sites. v3 (#2581) renamed the rungs and
+    // moved the padding onto `--panel-pad`, published as `data-density` — the
+    // rung's actual padding value is asserted against `src/index.css` in
+    // `src/__tests__/design-tokens.test.ts`, which is the only layer that can
+    // resolve a custom property.
     it("forwards density to the inner Panel (opt-in, default unchanged)", () => {
         const { baseElement, rerender } = render(
             <GameDialog open title="Default density">
@@ -103,20 +144,15 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
             </GameDialog>
         );
         const panelDefault = baseElement.querySelector('[data-slot="panel"]')!;
-        expect(panelDefault.className).toContain("p-6");
+        expect(panelDefault.getAttribute("data-density")).toBe("roomy");
 
         rerender(
-            <GameDialog
-                open
-                title="Compact-mobile density"
-                density="compact-mobile"
-            >
+            <GameDialog open title="Comfortable density" density="comfortable">
                 <p>body</p>
             </GameDialog>
         );
         const panelCompact = baseElement.querySelector('[data-slot="panel"]')!;
-        expect(panelCompact.className).toContain("p-3");
-        expect(panelCompact.className).toContain("min-[420px]:p-6");
+        expect(panelCompact.getAttribute("data-density")).toBe("comfortable");
     });
 
     it("does not dismiss on overlay close when not dismissable", () => {

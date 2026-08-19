@@ -214,7 +214,7 @@ export default function LimitedEventDetail({
     };
 
     return (
-        <LimitedEventPageFrame dropOrnamentOnCompact={draftInProgress}>
+        <LimitedEventPageFrame>
             {/* Issue #2515: while a seat is compact-and-drafting, the toolbar's
                 own Back link is folded away with the rest of the chrome below
                 — this is its always-resident replacement, so leaving the

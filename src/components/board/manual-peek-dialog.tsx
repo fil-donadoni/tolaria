@@ -73,7 +73,7 @@ export default function ManualPeekDialog({
                     : "Loading…"
             }
             size="wide"
-            density="compact-mobile"
+            density="comfortable"
         >
             {cards.length === 0 ? (
                 <p className="text-sm text-text-muted">

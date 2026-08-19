@@ -27,7 +27,7 @@ export default function MatchModePills({
                     key={m}
                     onClick={() => onChange(m)}
                     className={cn(
-                        "rounded-sm px-2 py-1 transition",
+                        "segment-pill",
                         mode === m ? "segment-active" : "segment-inactive"
                     )}
                     aria-pressed={mode === m}
