@@ -347,7 +347,7 @@ const STICKY_SITES: Record<
     "components/lobby/deck-builder/results-grid.tsx": {
         ownedBy: {
             rel: "components/deckbuilder/deck-builder-shell.tsx",
-            usage: "{sourcePanel}",
+            usage: "{sourcePanel.content}",
             slottedBy: {
                 rel: "components/lobby/deck-builder/deck-builder.tsx",
                 slot: "sourcePanel",
