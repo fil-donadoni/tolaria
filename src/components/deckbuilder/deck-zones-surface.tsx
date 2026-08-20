@@ -208,7 +208,7 @@ export default function DeckZonesSurface({
 
     // The surface's own CTAs for ONE card, derived from the card itself. Both
     // consumers call it: the Peek Panel (the touch path's selection) and the
-    // Inspect Overlay (which a double-click opens at EVERY viewport, with no
+    // Inspect Overlay (which a right click opens at EVERY viewport, with no
     // selection at all). One builder, so the two rows cannot drift and
     // "★ Featured" cannot exist on one and not the other — PRD #589's picker
     // has no other home since this slice took it off the tile.

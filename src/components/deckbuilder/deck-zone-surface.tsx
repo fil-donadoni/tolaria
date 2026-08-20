@@ -145,8 +145,11 @@ export interface DeckZoneSurfaceProps {
     /** The selected tile's key (`DeckZoneSelection.tileKey`) — draws the
      *  selection ring on exactly the copy that was tapped. */
     selectedTileKey?: string | null;
-    /** Double-click a tile (issue #2584): the POINTER path to the Inspect
-     *  Overlay, now that no tile carries an overlay button.
+    /** Right-click a tile (issue #2584): the POINTER path to the Inspect
+     *  Overlay, now that no tile carries an overlay button. The secondary
+     *  button, not a double-click — the primary click MOVES the card here, so
+     *  a gesture that starts with one cannot also mean "read this"
+     *  (`deck-card-tile.tsx`, PR #2641 review rounds 1-2).
      *
      *  It hands over the SAME {@link DeckZoneSelection} a tap does, not just
      *  the card: the overlay's CTA row is built from it ("→ Side",
@@ -400,7 +403,7 @@ export default function DeckZoneSurface({
                                 const key = `${column.id}:${card.cardId}:${idx}`;
                                 // ONE record per tile, handed to BOTH gesture
                                 // paths — a tap (select → Peek Panel) and a
-                                // double-click (→ Inspect Overlay). The
+                                // right click (→ Inspect Overlay). The
                                 // overlay's CTAs are built from it by the
                                 // pair parent, so they cannot depend on a
                                 // touch-only selection (PR #2641 review,
@@ -442,14 +445,12 @@ export default function DeckZoneSurface({
                                     onClick: onCardSelect
                                         ? () => onCardSelect(selection)
                                         : () => onCardClick(card),
-                                    // Where a click MOVES the card it is
-                                    // destructive, so the tile makes it wait
-                                    // out the double-click window rather than
-                                    // firing before an Inspect; where it only
-                                    // selects, it fires at once (PR #2641
-                                    // review, blocker 1).
-                                    deferClick: !onCardSelect,
-                                    onDoubleClick: onCardInspect
+                                    // A RIGHT click inspects (PR #2641 review
+                                    // rounds 1-2). Bound at every viewport —
+                                    // the tile itself ignores a
+                                    // touch-originated `contextmenu`, so this
+                                    // never has to ask which surface it is on.
+                                    onInspect: onCardInspect
                                         ? () => onCardInspect(selection)
                                         : undefined,
                                     isFeatured:

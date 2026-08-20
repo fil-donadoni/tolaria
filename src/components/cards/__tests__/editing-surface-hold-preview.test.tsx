@@ -321,13 +321,6 @@ describe("editing-surface census closure (issue #2583)", () => {
                 // Thresholds only — dnd-kit's sensors configured FROM the core's
                 // constants, so activation cannot drift between the two paths.
                 "components/deckbuilder/useDeckDragSensors.ts",
-                // Also thresholds only, and NOT the reducer: the deck tile
-                // reads `DOUBLE_CLICK_WINDOW_MS` to keep a destructive single
-                // click from firing ahead of a double-click (PR #2641 review,
-                // blocker 1). The number lives beside the other gesture
-                // timings for the same reason the sensors' do — one home, or
-                // two opinions about what a gesture meant.
-                "components/deckbuilder/deck-card-tile.tsx",
             ].sort()
         );
     });

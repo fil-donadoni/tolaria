@@ -243,14 +243,14 @@ describe("DeckZoneSurface — no per-card overlay buttons (issue #2584)", () => 
         expect(plains.querySelectorAll(".ring-accent")).toHaveLength(0);
     });
 
-    it("a double-click hands the host the same SELECTION a tap does — the pointer path that replaced the overlay buttons", () => {
+    it("a right click hands the host the same SELECTION a tap does — the pointer path that replaced the overlay buttons", () => {
         const onCardInspect = vi.fn();
         const { getByTitle } = renderZone({
             cards: [BOLT],
             onCardInspect,
             onPin: () => {},
         });
-        fireEvent.doubleClick(getByTitle(/Remove Lightning Bolt/));
+        fireEvent.contextMenu(getByTitle(/Remove Lightning Bolt/));
         // Not the bare card: the Inspect Overlay's CTA row ("→ Side",
         // "★ Featured") is built from this record, and building it from the
         // touch-only selection instead is what left Featured unreachable at

@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useDraggable } from "@dnd-kit/react";
 import { cn } from "~/lib/utils";
-import { DOUBLE_CLICK_WINDOW_MS } from "~/lib/gesture/activation";
 import { pileCardTop } from "~/lib/card-layout";
 import CardImage from "~/components/cards/card-image";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
@@ -34,23 +33,16 @@ export interface DeckCardTileProps {
     title: string;
     /** Fired on a plain click — the primary tap gesture (move zone / toggle). */
     onClick: () => void;
-    /** Fired on double-click. Issue #2584 binds it on every deckbuilder
-     *  surface: with the per-card overlay buttons removed, a double-click is
-     *  the POINTER path to the Inspect Overlay (the touch path being tap ->
-     *  Peek Panel -> Inspect), so reading a card and setting it as Featured
-     *  stay reachable with a mouse. */
-    onDoubleClick?: () => void;
-    /** The single-click action MOVES the card (removes a copy, sends it to the
-     *  other zone) rather than merely SELECTING it — so it must not run for
-     *  the first click of a double-click (PR #2641 review, blocker 1: a
-     *  double-click on a Maindeck tile removed two copies before the Inspect
-     *  Overlay opened). Set, a pointer click waits out
-     *  {@link DOUBLE_CLICK_WINDOW_MS} and a `dblclick` inside that window
-     *  cancels it outright; unset, the click acts immediately, which is what
-     *  the touch path wants — there a tap only opens the Peek Panel, nothing
-     *  is lost by doing it twice, and a 300ms lag on the primary phone gesture
-     *  would be felt on every single tap. */
-    deferClick?: boolean;
+    /** Fired on a RIGHT click — the pointer path to the Inspect Overlay (issue
+     *  #2584; the touch path is tap -> Peek Panel -> Inspect). With the
+     *  per-card overlay buttons removed, reading a card and setting it as
+     *  Featured have to stay reachable with a mouse, and the secondary button
+     *  is the one pointer gesture on this surface that is not already spoken
+     *  for: the primary click MOVES the card and a press-and-drag moves it
+     *  too. It is also the vocabulary the draft Pool already ships — click
+     *  selects, right click opens the card's own menu
+     *  (`limited-draft-pack-card.tsx`, ADR 0060 / issue #1248). */
+    onInspect?: () => void;
     /** Position in the overlaid pile — the tile renders `absolute` at the
      *  staggered `top` so only a sliver of each lower card shows and the
      *  topmost reads as the primary target. */
@@ -76,8 +68,7 @@ export default function DeckCardTile({
     dragData,
     title,
     onClick,
-    onDoubleClick,
-    deferClick,
+    onInspect,
     stackIndex,
     isFeatured,
     isSelected,
@@ -86,49 +77,36 @@ export default function DeckCardTile({
     const { ref, isDragging } = useDraggable({ id: dragId, data: dragData });
     const stacked = stackIndex !== undefined;
 
-    // The click/double-click arbitration (PR #2641 review, blocker 1). A
-    // browser delivers a double-click as click(detail 1), click(detail 2),
-    // dblclick — the PAIR arrives first, so a tile that acts on every click
-    // has already fired its single-click action twice by the time the Inspect
-    // Overlay opens. Two rules, in order:
+    // Inspect is the SECONDARY button, never a double-click (PR #2641 review
+    // rounds 1-2). The primary click on this tile MOVES the card — removes a
+    // copy, sends it to the other zone — so any gesture that begins with a
+    // primary click cannot also mean "read this card": a browser delivers a
+    // double-click as click(detail 1), click(detail 2), dblclick, and the PAIR
+    // lands before the `dblclick` does. Round 1 tried to arbitrate that with a
+    // deferred click, which cost more than it bought — a 300ms lag on the
+    // deckbuilder's primary editing gesture, rapid cutting silently swallowed,
+    // and a pending action owned by a component that unmounts as a direct
+    // consequence of the very action it was deferring (removing a card
+    // re-indexes its neighbours). A gesture that shares no prefix with the
+    // click removes the arbitration problem instead of managing it: the click
+    // acts immediately again, exactly as it did before this slice.
     //
-    //  1. `detail > 1` never acts. One gesture is one action, whatever the
-    //     click count — this alone takes the double-click from two to one.
-    //  2. when the action is destructive (`deferClick`) and there IS a
-    //     double-click action, the first click waits out the double-click
-    //     window instead of firing; the `dblclick` cancels it, so a
-    //     double-click performs the read and nothing else.
-    //
-    // `detail === 0` skips the wait: a click with no click count is not part
-    // of a pointer double-click sequence (keyboard activation of a control,
-    // `element.click()`, a dispatched synthetic event), so nothing can follow
-    // it and delaying it would only make the surface feel broken.
-    const pendingClick = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const cancelPendingClick = () => {
-        if (pendingClick.current !== null) {
-            clearTimeout(pendingClick.current);
-            pendingClick.current = null;
-        }
-    };
-    useEffect(() => cancelPendingClick, []);
+    // Touch is excluded by POINTER TYPE, not by viewport (ADR 0009: layout
+    // breakpoints never gate input handling). A long press on a touchscreen
+    // also raises `contextmenu`, and on this surface a long press is the DRAG
+    // (gesture model A, 250ms) — so a finger would open the overlay in the
+    // middle of picking a card up. Touch reaches Inspect through its own path:
+    // tap -> Peek Panel -> `Inspect`. An allowlist rather than a `!== "touch"`
+    // denylist, so pen goes down the touch path too — the same call
+    // `activation.ts` makes for the same reason (a direct-manipulation pointer
+    // on a scrolling surface).
+    const lastPointerType = useRef<string>("mouse");
 
-    const handleClick = (event: React.MouseEvent) => {
-        if (event.detail > 1) return;
-        if (!deferClick || !onDoubleClick || event.detail === 0) {
-            onClick();
-            return;
-        }
-        cancelPendingClick();
-        pendingClick.current = setTimeout(() => {
-            pendingClick.current = null;
-            onClick();
-        }, DOUBLE_CLICK_WINDOW_MS);
-    };
-
-    const handleDoubleClick = onDoubleClick
-        ? () => {
-              cancelPendingClick();
-              onDoubleClick();
+    const handleContextMenu = onInspect
+        ? (event: React.MouseEvent) => {
+              if (lastPointerType.current !== "mouse") return;
+              event.preventDefault();
+              onInspect();
           }
         : undefined;
 
@@ -138,8 +116,11 @@ export default function DeckCardTile({
             role="button"
             tabIndex={0}
             title={title}
-            onClick={handleClick}
-            onDoubleClick={handleDoubleClick}
+            onClick={onClick}
+            onPointerDown={(event) => {
+                lastPointerType.current = event.pointerType;
+            }}
+            onContextMenu={handleContextMenu}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
                 // `touch-pan-x`, not `touch-none` (issue #1633 bundled finding

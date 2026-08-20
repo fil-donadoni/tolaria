@@ -14,9 +14,15 @@
 // media queries, the pattern `compact-chrome.test.tsx` established: the branch
 // under test must be decided by the test, not by an environment that evaluates
 // no media query.
+import { useState } from "react";
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, cleanup, fireEvent, screen } from "@testing-library/react";
-import { DOUBLE_CLICK_WINDOW_MS } from "~/lib/gesture/activation";
+import {
+    act,
+    render,
+    cleanup,
+    fireEvent,
+    screen,
+} from "@testing-library/react";
 import { DragDropManager } from "@dnd-kit/dom";
 import { createDeckColumnLayout } from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
@@ -43,19 +49,39 @@ afterEach(() => {
     mode = "portrait";
 });
 
-/** A REAL pointer click sequence. A browser delivers a double-click as
- *  click(detail 1), click(detail 2), dblclick — `fireEvent.doubleClick` alone
- *  synthesises none of the preceding clicks, which is why the shipped guard
- *  never saw the two removals the sequence caused (PR #2641 review, blocker
- *  1). Everything here goes through the events a browser actually sends. */
+/** A REAL pointer double-click. A browser delivers one as click(detail 1),
+ *  click(detail 2), dblclick — `fireEvent.doubleClick` alone synthesises none
+ *  of the preceding clicks, which is why the first shipped guard never saw the
+ *  two removals the sequence caused (PR #2641 review, blocker 1). */
 function doubleClickLikeABrowser(el: Element) {
     fireEvent.click(el, { detail: 1 });
     fireEvent.click(el, { detail: 2 });
     fireEvent.doubleClick(el, { detail: 2 });
 }
 
+/** Let `ms` of fake time pass the way a browser lets real time pass: every
+ *  callback that comes due is COMMITTED before the next one is. One
+ *  `advanceTimersByTime(2000)` instead runs every pending callback in a single
+ *  synchronous batch with no render between them — which is precisely what
+ *  hides a bug whose mechanism is one action unmounting the component that
+ *  owns the next one. Stepping is the faithful reading, not the fussy one. */
+function letTimePass(ms: number) {
+    for (let elapsed = 0; elapsed < ms; elapsed += 20)
+        act(() => {
+            vi.advanceTimersByTime(20);
+        });
+}
+
+/** A right click, as a mouse delivers it: `pointerdown` (so the tile knows the
+ *  pointer is a MOUSE and not a finger long-pressing) then `contextmenu`. */
+function rightClick(el: Element) {
+    fireEvent.pointerDown(el, { pointerType: "mouse", button: 2 });
+    fireEvent.contextMenu(el);
+}
+
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt (MV 1)
 const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // Plains (land)
+const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // Mountain (land)
 
 function card(id: string, name = id): DeckCard {
     return { cardId: id, cardName: name };
@@ -104,6 +130,52 @@ function renderShell(
             actions={{ ...NO_ACTIONS, ...actions }}
         />
     );
+}
+
+/** The shell with a REAL, STATEFUL deck behind it: clicking a Maindeck tile
+ *  removes that copy from the list the shell is rendering, exactly as the
+ *  Constructed builder's `onMainCardClick` does. `renderShell` above is
+ *  controlled — its `mainCards` never change — so it cannot see anything that
+ *  depends on the tiles RE-RENDERING after a click, which is the whole
+ *  mechanism behind the round-2 blocker (a removal re-indexes its Column, the
+ *  neighbouring tiles' keys change, and they unmount mid-gesture).
+ *
+ *  Returns the removal log, in order. */
+function renderStatefulShell(initial: DeckCard[]): string[] {
+    const removed: string[] = [];
+    function Harness() {
+        const [main, setMain] = useState(initial);
+        return (
+            <DeckBuilderShell
+                title="Edit Deck"
+                onDone={() => {}}
+                mainCards={main}
+                sideCards={[]}
+                layout={createDeckColumnLayout()}
+                view={VIEW}
+                zones={{
+                    mainEmptyMessage: "main empty",
+                    sideEmptyMessage: "side empty",
+                }}
+                actions={{
+                    ...NO_ACTIONS,
+                    onMainCardClick: (clicked) => {
+                        removed.push(clicked.cardName);
+                        setMain((cur) => {
+                            const at = cur.findIndex(
+                                (c) => c.cardId === clicked.cardId
+                            );
+                            return at < 0
+                                ? cur
+                                : [...cur.slice(0, at), ...cur.slice(at + 1)];
+                        });
+                    },
+                }}
+            />
+        );
+    }
+    render(<Harness />);
+    return removed;
 }
 
 const SOURCE_PANE = {
@@ -391,56 +463,107 @@ describe("DeckBuilderShell — the Peek Panel as the move path (issue #2584)", (
         expect(screen.queryByRole("button", { name: "→ Side" })).toBeNull();
     });
 
-    it("a double-click opens the Inspect Overlay at every viewport — the pointer path to the card read", () => {
-        mode = "desktop";
-        renderShell({ mainCards: [card(BOLT_ID, "Lightning Bolt")] });
-        fireEvent.doubleClick(screen.getByTitle(/Remove Lightning Bolt/));
-        expect(document.querySelector("[data-inspect-overlay]")).toBeTruthy();
-    });
-
-    it("a REAL double-click destroys nothing — the click pair never reaches the move handler", () => {
-        // PR #2641 review, blocker 1: the browser's click,click,dblclick left
-        // `onMainCardClick` (Constructed: remove a copy from the deck) called
-        // TWICE before the overlay opened — silent data loss on the primary
-        // desktop gesture.
-        mode = "desktop";
-        const onMainCardClick = vi.fn();
-        renderShell({
-            mainCards: [
-                card(BOLT_ID, "Lightning Bolt"),
-                card(BOLT_ID, "Lightning Bolt"),
-            ],
-            actions: { onMainCardClick },
-        });
-
-        vi.useFakeTimers();
-        doubleClickLikeABrowser(
-            screen.getAllByTitle(/Remove Lightning Bolt/)[0]
-        );
-        // …and still nothing once the deferred single click's window has
-        // elapsed: the `dblclick` CANCELLED it, it is not merely pending.
-        vi.advanceTimersByTime(DOUBLE_CLICK_WINDOW_MS * 2);
-
-        expect(onMainCardClick).not.toHaveBeenCalled();
-        expect(document.querySelector("[data-inspect-overlay]")).toBeTruthy();
-    });
-
-    it("a lone pointer click still moves the card, once the double-click window has passed", () => {
-        // The other half of the guard above: deferring must not silently kill
-        // the desktop click-to-move gesture this slice was to leave unchanged.
+    it("a RIGHT click opens the Inspect Overlay and moves nothing — the pointer path to the card read", () => {
+        // The Inspect gesture is the SECONDARY button, not a double-click (PR
+        // #2641 review rounds 1-2): the primary click on this tile REMOVES a
+        // copy, so a gesture that begins with one can never mean "read this".
         mode = "desktop";
         const onMainCardClick = vi.fn();
         renderShell({
             mainCards: [card(BOLT_ID, "Lightning Bolt")],
             actions: { onMainCardClick },
         });
+        rightClick(screen.getByTitle(/Remove Lightning Bolt/));
+        expect(document.querySelector("[data-inspect-overlay]")).toBeTruthy();
+        expect(onMainCardClick).not.toHaveBeenCalled();
+    });
+
+    it("a TOUCH long-press never inspects — on this surface a long press is the drag", () => {
+        // Android/iOS raise `contextmenu` on a long press, and gesture model A
+        // (ADR 0101, 250ms) makes a long press the DRAG here. The tile
+        // discriminates on POINTER TYPE, not on the viewport (ADR 0009: layout
+        // breakpoints never gate input handling), so a finger picking a card
+        // up cannot open the overlay on top of the drag. Touch reaches Inspect
+        // through its own path: tap -> Peek Panel -> `Inspect`.
+        mode = "desktop";
+        renderShell({ mainCards: [card(BOLT_ID, "Lightning Bolt")] });
+        const tile = screen.getByTitle(/Remove Lightning Bolt/);
+        fireEvent.pointerDown(tile, { pointerType: "touch" });
+        fireEvent.contextMenu(tile);
+        expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
+    });
+
+    it("two quick clicks on two DIFFERENT cards in one Column both land", () => {
+        // PR #2641 review round 2 — the blocker the round-1 remedy introduced.
+        // The deferred single click lived in a per-tile ref that
+        // `useEffect(() => cancelPendingClick, [])` discarded on unmount, and
+        // the tile key carried the card's INDEX in its Column. So the first
+        // click's own removal re-indexed its neighbours, unmounted them, and
+        // silently ate a second click made less than the double-click window
+        // later — a user cutting cards at ~3/sec, with nothing on screen to
+        // say a click had been dropped. Mountain and Plains are both basic
+        // lands, so they share one Column, and Mountain sorts first.
+        mode = "desktop";
+        const removed = renderStatefulShell([
+            card(MOUNTAIN_ID, "Mountain"),
+            card(PLAINS_ID, "Plains"),
+        ]);
 
         vi.useFakeTimers();
-        fireEvent.click(screen.getByTitle(/Remove Lightning Bolt/), {
-            detail: 1,
+        fireEvent.click(screen.getByTitle(/Remove Mountain/), { detail: 1 });
+        letTimePass(120);
+        fireEvent.click(screen.getByTitle(/Remove Plains/), { detail: 1 });
+        letTimePass(2000);
+
+        expect(removed).toEqual(["Mountain", "Plains"]);
+        expect(screen.queryByTitle(/Remove Mountain/)).toBeNull();
+        expect(screen.queryByTitle(/Remove Plains/)).toBeNull();
+    });
+
+    it("...and so do two SLOW ones, 400ms apart", () => {
+        // The far side of the window the round-1 remedy opened: this case
+        // passed even while the fast one silently lost a click, so pinning
+        // only the fast one would leave the pair looking arbitrary.
+        mode = "desktop";
+        const removed = renderStatefulShell([
+            card(MOUNTAIN_ID, "Mountain"),
+            card(PLAINS_ID, "Plains"),
+        ]);
+
+        vi.useFakeTimers();
+        fireEvent.click(screen.getByTitle(/Remove Mountain/), { detail: 1 });
+        letTimePass(400);
+        fireEvent.click(screen.getByTitle(/Remove Plains/), { detail: 1 });
+        letTimePass(2000);
+
+        expect(removed).toEqual(["Mountain", "Plains"]);
+    });
+
+    it("rapid clicks on one card cut one copy each — the pre-#2584 desktop gesture, unchanged", () => {
+        // `main`'s behaviour, restored: three clicks cut three copies. The
+        // round-1 deferred click turned this into ZERO cuts plus an overlay,
+        // because the browser's click,click,dblclick was being arbitrated;
+        // with Inspect on the secondary button there is nothing to arbitrate.
+        mode = "desktop";
+        const removed = renderStatefulShell([
+            card(BOLT_ID, "Lightning Bolt"),
+            card(BOLT_ID, "Lightning Bolt"),
+            card(BOLT_ID, "Lightning Bolt"),
+        ]);
+
+        doubleClickLikeABrowser(
+            screen.getAllByTitle(/Remove Lightning Bolt/)[0]
+        );
+        fireEvent.click(screen.getAllByTitle(/Remove Lightning Bolt/)[0], {
+            detail: 3,
         });
-        vi.advanceTimersByTime(DOUBLE_CLICK_WINDOW_MS + 1);
-        expect(onMainCardClick).toHaveBeenCalledTimes(1);
+
+        expect(removed).toEqual([
+            "Lightning Bolt",
+            "Lightning Bolt",
+            "Lightning Bolt",
+        ]);
+        expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
     });
 
     it("reaches `★ Featured` through the Inspect Overlay at a POINTER viewport — a mouse has no other path to it", () => {
@@ -455,7 +578,7 @@ describe("DeckBuilderShell — the Peek Panel as the move path (issue #2584)", (
             featured: { cardId: null, onSet },
         });
 
-        doubleClickLikeABrowser(screen.getByTitle(/Remove Lightning Bolt/));
+        rightClick(screen.getByTitle(/Remove Lightning Bolt/));
         const overlay = document.querySelector("[data-inspect-overlay]")!;
         expect(overlay).toBeTruthy();
         const featured = [...overlay.querySelectorAll("button")].find(
@@ -469,14 +592,14 @@ describe("DeckBuilderShell — the Peek Panel as the move path (issue #2584)", (
         expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
     });
 
-    it("offers the move CTA in the overlay too, on the copy that was double-clicked", () => {
+    it("offers the move CTA in the overlay too, on the copy that was right-clicked", () => {
         mode = "desktop";
         const onMoveToSideboard = vi.fn();
         renderShell({
             mainCards: [card(BOLT_ID, "Lightning Bolt")],
             actions: { onMoveToSideboard },
         });
-        doubleClickLikeABrowser(screen.getByTitle(/Remove Lightning Bolt/));
+        rightClick(screen.getByTitle(/Remove Lightning Bolt/));
         const overlay = document.querySelector("[data-inspect-overlay]")!;
         fireEvent.click(
             [...overlay.querySelectorAll("button")].find(
