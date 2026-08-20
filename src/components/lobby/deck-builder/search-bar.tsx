@@ -10,7 +10,7 @@ export default function SearchBar({
     placeholder = "Search cards by name or rules text…",
 }: SearchBarProps) {
     return (
-        <div className="relative flex-1">
+        <div className="relative min-w-0 flex-1 overflow-hidden">
             <input
                 type="text"
                 value={value}

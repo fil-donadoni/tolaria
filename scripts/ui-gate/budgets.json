@@ -1,7 +1,7 @@
 {
     "version": 1,
     "recordedOn": "2026-08-20",
-    "note": "Ceilings for `bun run check:ui` (issue #2580). Recorded from a real run on this machine \u2014 see the PR. The floors this lane is FOR are cardsOcc 0, ctrlsStranded 0 and axeSerious/axeCritical 0; where a surface breaks one of those TODAY the entry keeps the measured value and carries a `knownDebt` note naming the defect, printed under every run. A slice that fixes a surface lowers its ceilings in the same PR. A surface nobody can walk yet is `{\"status\":\"unwalked\",\"reason\":\u2026}` \u2014 listed in the output and in the coverage line, never silently green. Issue #2582 (PR #2619) moved the probe's `occ`/`reachable` boundary, and it moved it in BOTH directions. A control is `occ` when the centre of its VISIBLE INTERSECTION with (viewport n its own SCROLL PORT) hit-tests to something else, and `reachable` when that intersection is EMPTY but a gesture can bring it back \u2014 see `probe.js`'s `scrollPort` / `probe`. The old rule tested the element's raw centre against the bare viewport. LOOSER than the old rule: a control lying wholly outside its port's box (the deck-builder's off-strip `Delete column MV n` buttons) is no longer `occ`, and neither is one straddling a port's clip edge with a band below it (the lobby's `Your Events (all)` under the new bottom nav) \u2014 `<main>` paints nothing there, so nothing can be occluding it. STRICTER than the old rule: a control PARTLY clipped by its port is now hit-tested over the strip it still paints, where a raw centre would have been thrown away as out-of-window (`design-system-dialog`'s section-08 Cancel/Confirm specimens), and a `position: fixed` box gets no port at all rather than borrowing an ancestor scroller's rectangle. Rows re-recorded against the corrected probe carry the measurement and its enumeration in their own note. Rows NOT re-recorded (`deck-builder` most of all) now measure below their number and are deliberately left alone: those readings vary with the deployment's own deck/pool data, and the notes on them describe debt the surface's own slice owns.",
+    "note": "Ceilings for `bun run check:ui` (issue #2580). Recorded from a real run on this machine \u2014 see the PR. The floors this lane is FOR are cardsOcc 0, ctrlsStranded 0 and axeSerious/axeCritical 0; where a surface breaks one of those TODAY the entry keeps the measured value and carries a `knownDebt` note naming the defect, printed under every run. A slice that fixes a surface lowers its ceilings in the same PR. A surface nobody can walk yet is `{\"status\":\"unwalked\",\"reason\":\u2026}` \u2014 listed in the output and in the coverage line, never silently green. Issue #2582 (PR #2619) moved the probe's `occ`/`reachable` boundary, and it moved it in BOTH directions. A control is `occ` when the centre of its VISIBLE INTERSECTION with (viewport n its own SCROLL PORT) hit-tests to something else, and `reachable` when that intersection is EMPTY but a gesture can bring it back \u2014 see `probe.js`'s `scrollPort` / `probe`. The old rule tested the element's raw centre against the bare viewport. LOOSER than the old rule: a control lying wholly outside its port's box (the deck-builder's off-strip `Delete column MV n` buttons) is no longer `occ`, and neither is one straddling a port's clip edge with a band below it (the lobby's `Your Events (all)` under the new bottom nav) \u2014 `<main>` paints nothing there, so nothing can be occluding it. STRICTER than the old rule: a control PARTLY clipped by its port is now hit-tested over the strip it still paints, where a raw centre would have been thrown away as out-of-window (`design-system-dialog`'s section-08 Cancel/Confirm specimens), and a `position: fixed` box gets no port at all rather than borrowing an ancestor scroller's rectangle. Rows re-recorded against the corrected probe carry the measurement and its enumeration in their own note. `deck-builder` was re-recorded whole on 2026-08-20 (issue #2585 fixup, PR #2650): the filter controls leaving the header band for a sheet/popover freed real height at every viewport, and a follow-up fixup (search bar `min-w-0 overflow-hidden`, Filters button icon-only under `short-viewport:`) closed a same-day regression at `844x390x3` where the new Filters button wrapped the header onto two full-height rows and pushed the Maindeck's Delete-column row under `SaveDeckBar` (`ctrlsOcc` 2 → 5 mid-fix → 1 final). Rows not re-recorded still measure below their number and are deliberately left alone: those readings vary with the deployment's own deck/pool data, and the notes on them describe debt the surface's own slice owns.",
     "surfaces": {
         "lobby": {
             "label": "Lobby (/)",
@@ -78,60 +78,60 @@
                     "cardsOcc": 0,
                     "cardsStranded": 0,
                     "ctrlsZero": 1,
-                    "ctrlsOcc": 1,
-                    "ctrlsStranded": 4,
-                    "starved": 1,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 3,
+                    "starved": 0,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "1 collapsed + 1 occluded control, 4 STRANDED controls (unreachable by any gesture), 1 starved container, 1 axe serious (color-contrast)"
+                    "knownDebt": "Re-recorded 2026-08-20 (issue #2585 fixup, PR #2650): 1 collapsed + 3 STRANDED controls (unreachable by any gesture), 1 axe serious (color-contrast) -- all pre-existing, not owned by this slice. `ctrlsOcc` (was 1) and `starved` (was 1) are both 0 now that the filter controls left the header band for a popover, handing the deck pane its height back."
                 },
                 "390x844x3": {
                     "cardsZero": 0,
                     "cardsOcc": 0,
                     "cardsStranded": 0,
-                    "ctrlsZero": 1,
-                    "ctrlsOcc": 1,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
                     "ctrlsStranded": 0,
                     "starved": 0,
-                    "axeSerious": 1,
+                    "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "1 collapsed + 1 occluded control, 1 axe serious (scrollable-region-focusable)"
+                    "knownDebt": "Re-recorded 2026-08-20 (issue #2585 fixup, PR #2650): clean at every measured floor. Was 1 collapsed + 1 occluded control + 1 axe serious (scrollable-region-focusable) before the filter controls left the header band for a bottom sheet."
                 },
                 "844x390x3": {
                     "cardsZero": 0,
                     "cardsOcc": 0,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 2,
+                    "ctrlsOcc": 1,
                     "ctrlsStranded": 0,
                     "starved": 0,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "2 occluded controls, 1 axe serious (scrollable-region-focusable)"
+                    "knownDebt": "Re-recorded 2026-08-20 (issue #2585 fixup, PR #2650). Phone LANDSCAPE opens filters as a bottom sheet (`useSurfaceClass` phone branch), so this cell measures the header's own action row, not the sheet. `ctrlsOcc 1`: the search box (`search-bar.tsx`) -- at this width the header row (Back/Import/Export/Format select/Cube filter/Search/Filters) has no spare width left once the Filters button (issue #2585) joins it, so the box's flex item shrinks toward 0 and its `<input>` (whose intrinsic min-content width the browser holds near 34px regardless) would otherwise paint over the Filters button; the wrapper now carries `overflow-hidden` so that clips instead of occluding it. The probe hit-tests the `<input>`'s own layout rect because its `overflow-hidden` ancestor is not a SCROLL port (`scrollPort()` only recognises `auto`/`scroll`) -- a real pointer still reaches Filters cleanly, so this is not stranded. Before this fixup the cell measured `ctrlsOcc 5`: the header's action row wrapped the new Filters button onto a second full-height line (its label was un-collapsed text, unlike its `Stats` sibling), pushing the Maindeck's `Delete column <Lands|MV 0..3>` row down into `SaveDeckBar`'s band -- verified against `origin/main` at the same account/deck state, which measured `ctrlsOcc 0` there, so this was a genuine regression, not a legitimate new count. Fixed by hiding the Filters label under `short-viewport:` (icon-only, matching `Stats`) plus the search-bar clip above. 1 axe serious (scrollable-region-focusable), pre-existing."
                 },
                 "820x1180x2": {
                     "cardsZero": 0,
                     "cardsOcc": 0,
                     "cardsStranded": 0,
                     "ctrlsZero": 1,
-                    "ctrlsOcc": 4,
+                    "ctrlsOcc": 2,
                     "ctrlsStranded": 9,
-                    "starved": 1,
+                    "starved": 0,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "worst cell in the matrix: 1 collapsed + 4 occluded controls and 9 STRANDED ones on tablet portrait, plus 1 axe serious (color-contrast). starved raised 0 -> 1 by issue #2581. The starved container is the CARD PILE STRIP (`deck-zone-surface.tsx:590`, `flex flex-1 items-start gap-3 overflow-auto`, issue #2511) -- NOT the toolbar, and nothing in #2581 can grow it: its DOM children are `DeckColumnPile` elements ONLY (`probe.js:80` measures `el.children`) \u2014 `DeckColumnActions` is NOT a child of the strip, it is passed into each pile as its `actions` prop (`deck-zone-surface.tsx:622`). A pile is a label row plus a `pileHeight(n)` box of absolutely-positioned tiles; its `actions` slot holds bare `<button>`s and an untouched `.input-field`. The strip's tallest child measures 228px before and after. What the ADR 0101 section 2 coarse rung (44px) shrank is the WINDOW: the sibling chrome ABOVE the strip grew -- `ZoneCreatureFilterSelect` (`deck-zone-surface.tsx:518`) is now a `.segment-pill` at `min-height: var(--control-h-sm)` = 40px on a coarse pointer, plus the Button rungs -- leaving the `flex-1` strip 171px of clientHeight. The probe starves at `clientHeight < 0.9 * tallest` (`scripts/ui-gate/probe.js:76-91`), so this cell clears at 205px: it needs 34px of chrome height back. Reverting to the fine rung DOES return it \u2014 that is exactly what the isolation below shows, and each row shrinks 12px (`.segment-pill` `--control-h-sm` 40 -> 28px, `Button` `--control-h` 44 -> 32px) \u2014 but it returns it by giving up the 44px WCAG 2.5.8 touch target that ADR 0101 section 2 exists for. There is no tuning of the rung that recovers the 34px AND keeps the target: the height has to come from the header leaving the band, not from shrinking it. The SAME container is already starved at 1440x900x2 (157 vs 182) and 1180x820x2 (57 vs 168) on a FINE pointer, so the rung surfaces a pre-existing deck-builder defect one viewport earlier, it does not create one. Isolated by neutralising only the coarse rung, which returns this cell to starved 0 with every other number unchanged. Owned by #2585 (deckbuilder filters into a bottom sheet / popover; tablet+desktop deck >=60% height) -- delete this slack when that slice lands."
+                    "knownDebt": "Re-recorded 2026-08-20 (issue #2585 fixup, PR #2650), confirming the prior note's provisional reading: 1 collapsed + 2 occluded controls and 9 STRANDED ones on tablet portrait, plus 1 axe serious (color-contrast), all pre-existing and not owned by this slice. `starved` (was 1) is 0: the filter CONTROLS left the header band entirely (a Filters button opening a popover on tablet/desktop and a bottom sheet on a phone) -- \"the height has to come from the header leaving the band, not from shrinking it\" -- so the ADR 0101 section 2 coarse rung (44px, WCAG 2.5.8) stays intact and the card-pile strip (`deck-zone-surface.tsx`) gets its window back."
                 },
                 "1180x820x2": {
                     "cardsZero": 0,
                     "cardsOcc": 0,
                     "cardsStranded": 0,
                     "ctrlsZero": 1,
-                    "ctrlsOcc": 2,
+                    "ctrlsOcc": 0,
                     "ctrlsStranded": 6,
                     "starved": 1,
                     "axeSerious": 1,
                     "axeCritical": 0,
-                    "knownDebt": "1 collapsed + 2 occluded controls, 6 STRANDED, 1 starved container, 1 axe serious (color-contrast)"
+                    "knownDebt": "Re-recorded 2026-08-20 (issue #2585 fixup, PR #2650): 1 collapsed + 6 STRANDED controls, 1 starved container, 1 axe serious (color-contrast) -- all pre-existing, not owned by this slice. `ctrlsOcc` (was 2) is 0 now that the filter controls left the header band for a popover."
                 }
             }
         },
