@@ -29,6 +29,13 @@ interface SaveDeckBarProps {
      *  button), rendered here so it survives the header band hiding. Omitted
      *  by a caller with no such control. */
     foldableActions?: ReactNode;
+    /** Issue #2584: the deck-level "★ Featured" picker
+     *  (`deck-featured-select.tsx`). It rides in THIS row — not on a card —
+     *  because Featured is deck metadata, exactly like the name beside it, and
+     *  because the per-card overlay button that used to set it is one of the
+     *  overlays this slice removed. Rendered unconditionally (not folded
+     *  behind `short-viewport:`): a mouse has no other path to it. */
+    featured?: ReactNode;
 }
 
 export default function SaveDeckBar({
@@ -41,6 +48,7 @@ export default function SaveDeckBar({
     backLabel = "← Back",
     legality,
     foldableActions,
+    featured,
 }: SaveDeckBarProps) {
     return (
         <form
@@ -72,6 +80,7 @@ export default function SaveDeckBar({
                 </span>
             )}
             <span className="text-label">{cardCount} cards</span>
+            {featured}
             <input
                 type="text"
                 value={name}

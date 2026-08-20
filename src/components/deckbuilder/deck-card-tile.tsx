@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { useDraggable } from "@dnd-kit/react";
 import { cn } from "~/lib/utils";
 import { pileCardTop } from "~/lib/card-layout";
@@ -33,16 +32,6 @@ export interface DeckCardTileProps {
     title: string;
     /** Fired on a plain click — the primary tap gesture (move zone / toggle). */
     onClick: () => void;
-    /** Fired on a RIGHT click — the pointer path to the Inspect Overlay (issue
-     *  #2584; the touch path is tap -> Peek Panel -> Inspect). With the
-     *  per-card overlay buttons removed, reading a card and setting it as
-     *  Featured have to stay reachable with a mouse, and the secondary button
-     *  is the one pointer gesture on this surface that is not already spoken
-     *  for: the primary click MOVES the card and a press-and-drag moves it
-     *  too. It is also the vocabulary the draft Pool already ships — click
-     *  selects, right click opens the card's own menu
-     *  (`limited-draft-pack-card.tsx`, ADR 0060 / issue #1248). */
-    onInspect?: () => void;
     /** Position in the overlaid pile — the tile renders `absolute` at the
      *  staggered `top` so only a sliver of each lower card shows and the
      *  topmost reads as the primary target. */
@@ -68,7 +57,6 @@ export default function DeckCardTile({
     dragData,
     title,
     onClick,
-    onInspect,
     stackIndex,
     isFeatured,
     isSelected,
@@ -77,38 +65,40 @@ export default function DeckCardTile({
     const { ref, isDragging } = useDraggable({ id: dragId, data: dragData });
     const stacked = stackIndex !== undefined;
 
-    // Inspect is the SECONDARY button, never a double-click (PR #2641 review
-    // rounds 1-2). The primary click on this tile MOVES the card — removes a
-    // copy, sends it to the other zone — so any gesture that begins with a
-    // primary click cannot also mean "read this card": a browser delivers a
-    // double-click as click(detail 1), click(detail 2), dblclick, and the PAIR
-    // lands before the `dblclick` does. Round 1 tried to arbitrate that with a
-    // deferred click, which cost more than it bought — a 300ms lag on the
-    // deckbuilder's primary editing gesture, rapid cutting silently swallowed,
-    // and a pending action owned by a component that unmounts as a direct
-    // consequence of the very action it was deferring (removing a card
-    // re-indexes its neighbours). A gesture that shares no prefix with the
-    // click removes the arbitration problem instead of managing it: the click
-    // acts immediately again, exactly as it did before this slice.
+    // THIS TILE BINDS ONE POINTER GESTURE, AND IT IS THE PRIMARY CLICK.
     //
-    // Touch is excluded by POINTER TYPE, not by viewport (ADR 0009: layout
-    // breakpoints never gate input handling). A long press on a touchscreen
-    // also raises `contextmenu`, and on this surface a long press is the DRAG
-    // (gesture model A, 250ms) — so a finger would open the overlay in the
-    // middle of picking a card up. Touch reaches Inspect through its own path:
-    // tap -> Peek Panel -> `Inspect`. An allowlist rather than a `!== "touch"`
-    // denylist, so pen goes down the touch path too — the same call
-    // `activation.ts` makes for the same reason (a direct-manipulation pointer
-    // on a scrolling surface).
-    const lastPointerType = useRef<string>("mouse");
-
-    const handleContextMenu = onInspect
-        ? (event: React.MouseEvent) => {
-              if (lastPointerType.current !== "mouse") return;
-              event.preventDefault();
-              onInspect();
-          }
-        : undefined;
+    // Not a double-click, and not the secondary button either — both were
+    // tried on this slice and both were wrong (PR #2641 review rounds 1-3):
+    //
+    //  - DOUBLE-CLICK shares its prefix with the click that MOVES the card. A
+    //    browser delivers it as click(detail 1), click(detail 2), dblclick,
+    //    so the pair of removals lands before `dblclick` does; arbitrating it
+    //    with a deferred click cost a 300ms lag on the primary editing gesture
+    //    and silently swallowed rapid cuts (a pending action owned by a
+    //    component that unmounts as a consequence of the very action it was
+    //    deferring — removing a card re-indexes its neighbours).
+    //  - THE SECONDARY BUTTON IS ALREADY TAKEN, on this very element. The
+    //    `CardImage` below mounts `CardPreview`, which binds native listeners
+    //    on a DESCENDANT of this div: a button-2 `pointerdown` runs
+    //    `useRightPressPreview`, whose quick-click PINS the anchored 330px
+    //    preview, and `holdPreview={false}` deliberately does not disable it
+    //    (`card-preview.tsx`: "Only the TOUCH gesture is suppressed"). Binding
+    //    Inspect to `contextmenu` here opened BOTH card-reading surfaces at
+    //    once — both body portals at `z-modal`, so which one paints on top is
+    //    decided by document order, i.e. by the platform (Windows/Linux fire
+    //    `contextmenu` on mouse-DOWN, before `pointerup`, inverting the macOS
+    //    order). The repo already settles this the other way round:
+    //    `ui/context-menu.tsx` and `activatable-ability-menu.tsx` move their
+    //    menus to a SYNTHESIZED left click precisely because a genuine right
+    //    click / long press is reserved for the preview.
+    //
+    // So there is no third pointer gesture to spend, and this slice does not
+    // invent one. Card reading already has a path at every viewport: a mouse
+    // gets `CardPreview`'s right-click pin (unchanged from `main`), a finger
+    // gets tap -> Peek Panel -> `Inspect`. `★ Featured`, whose per-card
+    // overlay button this issue removed, is DECK-level metadata and moves to
+    // the deck-detail row (`deck-featured-select.tsx`) — the home issue #2584
+    // names ("Featured moves to the Inspect Overlay / deck detail").
 
     return (
         <div
@@ -117,10 +107,6 @@ export default function DeckCardTile({
             tabIndex={0}
             title={title}
             onClick={onClick}
-            onPointerDown={(event) => {
-                lastPointerType.current = event.pointerType;
-            }}
-            onContextMenu={handleContextMenu}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
                 // `touch-pan-x`, not `touch-none` (issue #1633 bundled finding

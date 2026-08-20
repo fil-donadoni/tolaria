@@ -14,6 +14,7 @@ import DeckBuilderHeader from "./deck-builder-header";
 import DeckZonesSurface from "./deck-zones-surface";
 import DeckPaneTabs from "./deck-pane-tabs";
 import DeckBottomBar from "./deck-bottom-bar";
+import DeckFeaturedSelect from "./deck-featured-select";
 import DeckBasicsSheet from "./deck-basics-sheet";
 import { deckPanes, type DeckPane } from "./deckPanes";
 import {
@@ -429,6 +430,23 @@ export default function DeckBuilderShell({
                         // not silently lose the control at short viewport.
                         foldableActions={
                             saveBar.foldableActions ?? headerFoldableActions
+                        }
+                        // Issue #2584: `★ Featured`'s pointer home. The Peek
+                        // Panel carries the same CTA for a finger, but the
+                        // Peek Panel only ever opens from a TAP — so without
+                        // this the picker would be unreachable with a mouse,
+                        // which is how the per-card overlay button used to be
+                        // reached. A deck-level control for deck-level
+                        // metadata; the tile has no spare gesture to give it
+                        // (`deck-card-tile.tsx`).
+                        featured={
+                            featured && (
+                                <DeckFeaturedSelect
+                                    cards={mainCards}
+                                    explicitCardId={featured.explicitCardId}
+                                    onSet={featured.onSet}
+                                />
+                            )
                         }
                     />
                 </div>

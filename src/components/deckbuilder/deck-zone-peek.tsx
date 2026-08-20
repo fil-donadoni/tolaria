@@ -22,12 +22,9 @@ export interface DeckZonePeekProps {
      *  {@link DeckZoneSelection.columns}) is what offers "Move to…". */
     onPin?: (cardId: string, columnId: ColumnId, pinKey: string) => void;
     /** Card currently open in the Inspect Overlay, if any — as a full
-     *  {@link DeckZoneSelection}, not a bare id. Held by the PARENT because a
-     *  right click opens it with no selection at all (issue #2584's pointer
-     *  path to Inspect), and carried as a selection because the overlay's own
-     *  CTA row is derived from the inspected CARD: deriving it from the
-     *  touch-only selection instead left "★ Featured" unreachable at every
-     *  pointer viewport (PR #2641 review, blocker 2). */
+     *  {@link DeckZoneSelection}, not a bare id. Held by the PARENT (it
+     *  outlives a dismissal of this panel), and carried as a selection because
+     *  the overlay's own CTA row is derived from the inspected CARD. */
     inspecting?: DeckZoneSelection | null;
     /** The surface's CTAs for the INSPECTED card — the same set
      *  {@link DeckZonePeekProps.actions} holds for the selected one, built by

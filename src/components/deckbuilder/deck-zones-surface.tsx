@@ -189,10 +189,10 @@ export default function DeckZonesSurface({
 
     const [selection, setSelection] = useState<DeckZoneSelection | null>(null);
     // The INSPECTED card is a full selection record, not a bare card id: the
-    // overlay's CTA row is derived from it, and deriving that row from
-    // `selection` instead — which only a TOUCH tap ever sets — is what left
-    // "★ Featured" unreachable at every pointer viewport (PR #2641 review,
-    // blocker 2: on desktop the overlay opened with `actions={[]}`).
+    // overlay's CTA row is derived from it. It is set from ONE place — the
+    // Peek Panel's own `Inspect` CTA — because the Peek Panel is the only
+    // entry point this surface has to the overlay (PR #2641 review round 3:
+    // the tile has no pointer gesture left to spend, `deck-card-tile.tsx`).
     const [inspecting, setInspecting] = useState<DeckZoneSelection | null>(
         null
     );
@@ -208,10 +208,13 @@ export default function DeckZonesSurface({
 
     // The surface's own CTAs for ONE card, derived from the card itself. Both
     // consumers call it: the Peek Panel (the touch path's selection) and the
-    // Inspect Overlay (which a right click opens at EVERY viewport, with no
-    // selection at all). One builder, so the two rows cannot drift and
-    // "★ Featured" cannot exist on one and not the other — PRD #589's picker
-    // has no other home since this slice took it off the tile.
+    // Inspect Overlay it opens. One builder, so the two rows cannot drift.
+    //
+    // Both are TOUCH paths. A mouse reaches "★ Featured" through the
+    // deck-detail picker instead (`deck-featured-select.tsx`, in
+    // `SaveDeckBar`'s row): Featured is deck metadata, so a deck-level home is
+    // the one issue #2584 names, and it costs this surface no new gesture —
+    // the secondary button here already belongs to `CardPreview`'s pin.
     const actionsFor = (
         target: DeckZoneSelection
     ): readonly EditingSurfaceAction[] =>
@@ -317,7 +320,6 @@ export default function DeckZonesSurface({
                             ? selection.tileKey
                             : null
                     }
-                    onCardInspect={setInspecting}
                     onAddColumn={onAddColumn}
                     onRenameColumn={onRenameColumn}
                     onDeleteColumn={onDeleteColumn}
@@ -363,7 +365,6 @@ export default function DeckZonesSurface({
                             ? selection.tileKey
                             : null
                     }
-                    onCardInspect={setInspecting}
                     countSuffix={sideCountSuffix}
                     warning={sideWarning}
                     headerRight={

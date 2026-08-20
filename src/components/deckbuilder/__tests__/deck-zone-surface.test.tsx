@@ -243,27 +243,6 @@ describe("DeckZoneSurface — no per-card overlay buttons (issue #2584)", () => 
         expect(plains.querySelectorAll(".ring-accent")).toHaveLength(0);
     });
 
-    it("a right click hands the host the same SELECTION a tap does — the pointer path that replaced the overlay buttons", () => {
-        const onCardInspect = vi.fn();
-        const { getByTitle } = renderZone({
-            cards: [BOLT],
-            onCardInspect,
-            onPin: () => {},
-        });
-        fireEvent.contextMenu(getByTitle(/Remove Lightning Bolt/));
-        // Not the bare card: the Inspect Overlay's CTA row ("→ Side",
-        // "★ Featured") is built from this record, and building it from the
-        // touch-only selection instead is what left Featured unreachable at
-        // every pointer viewport (PR #2641 review, blocker 2).
-        const inspected = onCardInspect.mock.calls[0][0];
-        expect(inspected.zone).toBe("maindeck");
-        expect(inspected.cardId).toBe(BOLT.cardId);
-        expect(inspected.pinKey).toBe(BOLT.cardId);
-        expect(
-            inspected.columns.map((c: { label: string }) => c.label)
-        ).toContain("MV 1");
-    });
-
     it("a click SELECTS instead of moving once the host supplies onCardSelect (the touch path)", () => {
         const onCardClick = vi.fn();
         const onCardSelect = vi.fn();

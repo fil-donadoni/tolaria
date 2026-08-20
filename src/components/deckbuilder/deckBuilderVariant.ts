@@ -161,8 +161,17 @@ export interface DeckZoneActions extends DeckZoneDragHandlers {
 
 /** The Featured Card affordance (PRD #589). Absent = not offered. */
 export interface FeaturedCardSpec {
+    /** The card supplying the deck's art right now — `effectiveFeatured`'s
+     *  resolved value. Drives the tile's indicator ring. */
     cardId: string | null;
-    onSet: (cardId: string) => void;
+    /** The explicit override stored on the working deck, if any. `undefined`
+     *  means the deck is on the automatic pick (first Maindeck card), which is
+     *  a state the deck-detail picker shows as `Auto` and can return to
+     *  (issue #2584). */
+    explicitCardId?: string;
+    /** Pick a card as Featured — or pass `null` to drop the override and hand
+     *  the choice back to the automatic pick. */
+    onSet: (cardId: string | null) => void;
 }
 
 /**

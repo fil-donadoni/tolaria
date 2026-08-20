@@ -134,8 +134,9 @@ export interface DeckZoneSurfaceProps {
     warning?: string | null;
     headerRight?: React.ReactNode;
     /** Resolved Featured Card ID (PRD #589). Constructed Maindeck only. Draws
-     *  the persistent indicator ring; SETTING the Featured Card is a Peek /
-     *  Inspect CTA since issue #2584 removed the per-tile overlay button. */
+     *  the persistent indicator ring; SETTING the Featured Card is the Peek
+     *  Panel's CTA (touch) or the deck-detail picker (pointer) since issue
+     *  #2584 removed the per-tile overlay button. */
     featuredCardId?: string | null;
     /** A card was SELECTED rather than moved (issue #2584). Supplied by the
      *  pair parent only where a tap means "select" — a touch viewport, where
@@ -145,18 +146,6 @@ export interface DeckZoneSurfaceProps {
     /** The selected tile's key (`DeckZoneSelection.tileKey`) — draws the
      *  selection ring on exactly the copy that was tapped. */
     selectedTileKey?: string | null;
-    /** Right-click a tile (issue #2584): the POINTER path to the Inspect
-     *  Overlay, now that no tile carries an overlay button. The secondary
-     *  button, not a double-click — the primary click MOVES the card here, so
-     *  a gesture that starts with one cannot also mean "read this"
-     *  (`deck-card-tile.tsx`, PR #2641 review rounds 1-2).
-     *
-     *  It hands over the SAME {@link DeckZoneSelection} a tap does, not just
-     *  the card: the overlay's CTA row is built from it ("→ Side",
-     *  "★ Featured"), and deriving that row from a touch-only selection is
-     *  what left Featured unreachable at every pointer viewport (PR #2641
-     *  review, blocker 2). One record, both entry points. */
-    onCardInspect?: (selection: DeckZoneSelection) => void;
     /** Manual-Column management (ADR 0075 §2, issue #1626). Supplied as a trio
      *  or not at all; when absent the surface renders no add/rename/delete
      *  affordance, which is the reduced draft-time bar (ADR 0075 §6) and the
@@ -203,7 +192,6 @@ export default function DeckZoneSurface({
     featuredCardId,
     onCardSelect,
     selectedTileKey,
-    onCardInspect,
     onAddColumn,
     onRenameColumn,
     onDeleteColumn,
@@ -401,13 +389,10 @@ export default function DeckZoneSurface({
                         tiles: column.items.map(
                             ({ card, pinKey }, idx): DeckPileTile => {
                                 const key = `${column.id}:${card.cardId}:${idx}`;
-                                // ONE record per tile, handed to BOTH gesture
-                                // paths — a tap (select → Peek Panel) and a
-                                // right click (→ Inspect Overlay). The
-                                // overlay's CTAs are built from it by the
-                                // pair parent, so they cannot depend on a
-                                // touch-only selection (PR #2641 review,
-                                // blocker 2).
+                                // ONE record per tile: which copy of which
+                                // card, in which Column. A tap hands it to
+                                // the pair parent, which builds the Peek
+                                // Panel's CTA row from it.
                                 const selection: DeckZoneSelection = {
                                     zone,
                                     cardId: card.cardId,
@@ -445,14 +430,6 @@ export default function DeckZoneSurface({
                                     onClick: onCardSelect
                                         ? () => onCardSelect(selection)
                                         : () => onCardClick(card),
-                                    // A RIGHT click inspects (PR #2641 review
-                                    // rounds 1-2). Bound at every viewport —
-                                    // the tile itself ignores a
-                                    // touch-originated `contextmenu`, so this
-                                    // never has to ask which surface it is on.
-                                    onInspect: onCardInspect
-                                        ? () => onCardInspect(selection)
-                                        : undefined,
                                     isFeatured:
                                         !!featuredCardId &&
                                         card.cardId === featuredCardId,
@@ -471,7 +448,6 @@ export default function DeckZoneSurface({
             onCardClick,
             onCardSelect,
             selectedTileKey,
-            onCardInspect,
             featuredCardId,
             onPin,
             moveMenuColumns,

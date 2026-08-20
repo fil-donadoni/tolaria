@@ -28,6 +28,7 @@ import { createDeckColumnLayout } from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
 import { cardBase } from "~/lib/cardSizing";
 import type { ViewportMode } from "~/hooks/useViewportMode";
+import { resetPreviewSingleton } from "~/components/cards/card-preview-singleton";
 import { dragOnto, installDndJsdomShims } from "./dragHarness";
 import DeckBuilderShell, {
     type DeckBuilderShellProps,
@@ -47,6 +48,9 @@ afterEach(() => {
     cleanup();
     vi.useRealTimers();
     mode = "portrait";
+    // `CardPreview`'s one-open-at-a-time singleton is module state: a pinned
+    // preview left behind by one test would refuse the next one's open.
+    resetPreviewSingleton();
 });
 
 /** A REAL pointer double-click. A browser delivers one as click(detail 1),
@@ -72,11 +76,39 @@ function letTimePass(ms: number) {
         });
 }
 
-/** A right click, as a mouse delivers it: `pointerdown` (so the tile knows the
- *  pointer is a MOUSE and not a finger long-pressing) then `contextmenu`. */
-function rightClick(el: Element) {
-    fireEvent.pointerDown(el, { pointerType: "mouse", button: 2 });
-    fireEvent.contextMenu(el);
+/** A right click WHERE A BROWSER ACTUALLY DELIVERS ONE: on the innermost
+ *  element under the cursor — the card art `<img>` — not on the tile div that
+ *  wraps it, and with the `pointerup` that `useRightPressPreview` listens for
+ *  on `window`.
+ *
+ *  This distinction is the whole point (PR #2641 review round 3). `CardImage`
+ *  mounts `CardPreview`, which binds the desktop pin gesture on a DESCENDANT
+ *  of the tile, so a dispatch aimed at the tile div never runs those handlers
+ *  and a guard written that way is blind to anything they do. */
+function rightClickTheCardArt(tile: Element) {
+    const art = tile.querySelector("img") ?? tile;
+    act(() => {
+        fireEvent.pointerDown(art, { pointerType: "mouse", button: 2 });
+    });
+    act(() => {
+        fireEvent(window, new Event("pointerup"));
+    });
+    act(() => {
+        fireEvent.contextMenu(art);
+    });
+}
+
+/** The same place, pressed by a FINGER: `pointerdown` with the primary button
+ *  (a touchscreen has no secondary one), held, then the `contextmenu` Android
+ *  and iOS raise off a long press. */
+function longPressTheCardArt(tile: Element) {
+    const art = tile.querySelector("img") ?? tile;
+    act(() => {
+        fireEvent.pointerDown(art, { pointerType: "touch", button: 0 });
+    });
+    act(() => {
+        fireEvent.contextMenu(art);
+    });
 }
 
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt (MV 1)
@@ -463,34 +495,54 @@ describe("DeckBuilderShell — the Peek Panel as the move path (issue #2584)", (
         expect(screen.queryByRole("button", { name: "→ Side" })).toBeNull();
     });
 
-    it("a RIGHT click opens the Inspect Overlay and moves nothing — the pointer path to the card read", () => {
-        // The Inspect gesture is the SECONDARY button, not a double-click (PR
-        // #2641 review rounds 1-2): the primary click on this tile REMOVES a
-        // copy, so a gesture that begins with one can never mean "read this".
+    it("opens exactly ONE card-reading surface on a desktop right click — the tile takes no secondary-button gesture", () => {
+        // PR #2641 review round 3, the blocker rounds 1-2 kept missing: the
+        // secondary button on this tile is ALREADY SPOKEN FOR. `CardImage`
+        // mounts `CardPreview`, whose `useRightPressPreview` pins the anchored
+        // 330px preview on a quick right-click, and `holdPreview={false}`
+        // suppresses only the TOUCH gesture ("Only the TOUCH gesture is
+        // suppressed", card-preview.tsx). While the tile ALSO bound
+        // `contextmenu` -> Inspect, a right click where a browser hit-tests
+        // put BOTH portals in the document at once — both at `z-modal`, so
+        // which one painted on top was decided by document order and
+        // therefore by the PLATFORM (Windows/Linux raise `contextmenu` on
+        // mouse-DOWN, before `pointerup`; macOS after).
+        //
+        // So the invariant is not "the overlay opens" — it is "one surface
+        // opens", and the one that opens is the pre-existing pin.
         mode = "desktop";
         const onMainCardClick = vi.fn();
         renderShell({
             mainCards: [card(BOLT_ID, "Lightning Bolt")],
             actions: { onMainCardClick },
         });
-        rightClick(screen.getByTitle(/Remove Lightning Bolt/));
-        expect(document.querySelector("[data-inspect-overlay]")).toBeTruthy();
+
+        rightClickTheCardArt(screen.getByTitle(/Remove Lightning Bolt/));
+
+        expect(
+            document.querySelectorAll("[data-card-preview-anchored]")
+        ).toHaveLength(1);
+        expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
+        // ...and it moves nothing, exactly as on `main`.
         expect(onMainCardClick).not.toHaveBeenCalled();
     });
 
-    it("a TOUCH long-press never inspects — on this surface a long press is the drag", () => {
+    it("a TOUCH long-press on the art opens NEITHER surface — on this surface a long press is the drag", () => {
         // Android/iOS raise `contextmenu` on a long press, and gesture model A
-        // (ADR 0101, 250ms) makes a long press the DRAG here. The tile
-        // discriminates on POINTER TYPE, not on the viewport (ADR 0009: layout
-        // breakpoints never gate input handling), so a finger picking a card
-        // up cannot open the overlay on top of the drag. Touch reaches Inspect
-        // through its own path: tap -> Peek Panel -> `Inspect`.
+        // (ADR 0101, 250ms) makes a long press the DRAG here, so nothing may
+        // appear under the finger: not the Inspect Overlay, and not the
+        // preview either (which is what `holdPreview={false}` is for, issue
+        // #2583). Touch reaches a card read through its own path:
+        // tap -> Peek Panel -> `Inspect`.
         mode = "desktop";
         renderShell({ mainCards: [card(BOLT_ID, "Lightning Bolt")] });
-        const tile = screen.getByTitle(/Remove Lightning Bolt/);
-        fireEvent.pointerDown(tile, { pointerType: "touch" });
-        fireEvent.contextMenu(tile);
+
+        longPressTheCardArt(screen.getByTitle(/Remove Lightning Bolt/));
+
         expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
+        expect(
+            document.querySelector("[data-card-preview-anchored]")
+        ).toBeNull();
     });
 
     it("two quick clicks on two DIFFERENT cards in one Column both land", () => {
@@ -566,47 +618,87 @@ describe("DeckBuilderShell — the Peek Panel as the move path (issue #2584)", (
         expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
     });
 
-    it("reaches `★ Featured` through the Inspect Overlay at a POINTER viewport — a mouse has no other path to it", () => {
-        // PR #2641 review, blocker 2: `featured-card-button.tsx` is deleted and
-        // the replacement CTA lived in the TOUCH-only selection's action set,
-        // so on desktop/tablet the overlay opened with `actions={[]}` and PRD
-        // #589's Featured Card was unreachable at every pointer viewport.
+    it("reaches `★ Featured` from the DECK-DETAIL row at a pointer viewport — a mouse never opens the Peek Panel", () => {
+        // PR #2641 review, blockers 2 and 3. `featured-card-button.tsx` is
+        // deleted (it was one of the per-card overlay buttons this issue
+        // removes), and the replacement CTA lives in the Peek Panel — which
+        // only a TAP ever opens. On desktop a click MOVES the card, so the
+        // panel never appears and PRD #589's picker needs a home that is not a
+        // card gesture at all. Issue #2584 names one: "Featured moves to the
+        // Inspect Overlay / deck detail".
+        mode = "desktop";
+        const onSet = vi.fn();
+        renderShell({
+            mainCards: [
+                card(BOLT_ID, "Lightning Bolt"),
+                card(BOLT_ID, "Lightning Bolt"),
+                card(PLAINS_ID, "Plains"),
+            ],
+            featured: { cardId: BOLT_ID, onSet },
+            saveBar: { name: "Burn", cardCount: 3, onChangeName: () => {} },
+        });
+
+        // The touch CTA is genuinely out of reach here — the click moved on.
+        fireEvent.click(screen.getAllByTitle(/Remove Lightning Bolt/)[0]);
+        expect(screen.queryByRole("button", { name: "★ Featured" })).toBeNull();
+
+        const select = screen.getByLabelText(
+            "Featured card"
+        ) as HTMLSelectElement;
+        // One entry per DISTINCT card, in deck order, plus `Auto`.
+        expect([...select.options].map((o) => o.textContent)).toEqual([
+            "Featured: Auto",
+            "Lightning Bolt",
+            "Plains",
+        ]);
+
+        fireEvent.change(select, { target: { value: PLAINS_ID } });
+        expect(onSet).toHaveBeenCalledWith(PLAINS_ID);
+    });
+
+    it("offers `Auto` as a real choice — the only way back off an explicit pick", () => {
+        // `toggleFeatured` clears the override by re-picking the featured card,
+        // which a `<select>` cannot do: choosing the value it already shows
+        // fires no `change`. So `Auto` sends `null` and the builder's handler
+        // treats that as the clear (issue #2584).
         mode = "desktop";
         const onSet = vi.fn();
         renderShell({
             mainCards: [card(BOLT_ID, "Lightning Bolt")],
-            featured: { cardId: null, onSet },
+            featured: { cardId: BOLT_ID, explicitCardId: BOLT_ID, onSet },
+            saveBar: { name: "Burn", cardCount: 1, onChangeName: () => {} },
         });
 
-        rightClick(screen.getByTitle(/Remove Lightning Bolt/));
-        const overlay = document.querySelector("[data-inspect-overlay]")!;
-        expect(overlay).toBeTruthy();
-        const featured = [...overlay.querySelectorAll("button")].find(
-            (el) => el.textContent === "★ Featured"
-        )!;
-        expect(featured).toBeTruthy();
-        fireEvent.click(featured);
-        expect(onSet).toHaveBeenCalledWith(BOLT_ID);
-        // Firing a CTA closes the overlay — a read of a card the player just
-        // acted on is not what they are looking at any more.
-        expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
+        const select = screen.getByLabelText(
+            "Featured card"
+        ) as HTMLSelectElement;
+        expect(select.value).toBe(BOLT_ID);
+        fireEvent.change(select, { target: { value: "" } });
+        expect(onSet).toHaveBeenCalledWith(null);
     });
 
-    it("offers the move CTA in the overlay too, on the copy that was right-clicked", () => {
+    it("renders no picker while the Maindeck is empty — nothing to feature yet", () => {
+        // Every new Constructed deck starts here, and an empty `<select>` in
+        // the deck-detail row would be a control that cannot do anything.
         mode = "desktop";
-        const onMoveToSideboard = vi.fn();
+        renderShell({
+            mainCards: [],
+            featured: { cardId: null, onSet: () => {} },
+            saveBar: { name: "New", cardCount: 0, onChangeName: () => {} },
+        });
+        expect(screen.queryByLabelText("Featured card")).toBeNull();
+    });
+
+    it("renders no picker for a variant that declares no Featured affordance", () => {
+        // The Limited builders pass no `featured` spec — the Featured Card is
+        // a Constructed concept, and the deck-detail row must not sprout a
+        // control for it there.
+        mode = "desktop";
         renderShell({
             mainCards: [card(BOLT_ID, "Lightning Bolt")],
-            actions: { onMoveToSideboard },
+            saveBar: { name: "Pool", cardCount: 1, onChangeName: () => {} },
         });
-        rightClick(screen.getByTitle(/Remove Lightning Bolt/));
-        const overlay = document.querySelector("[data-inspect-overlay]")!;
-        fireEvent.click(
-            [...overlay.querySelectorAll("button")].find(
-                (el) => el.textContent === "→ Side"
-            )!
-        );
-        expect(onMoveToSideboard).toHaveBeenCalledWith(BOLT_ID, BOLT_ID);
+        expect(screen.queryByLabelText("Featured card")).toBeNull();
     });
 });
 
