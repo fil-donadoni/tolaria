@@ -9,12 +9,20 @@ import { cn } from "~/lib/utils";
  *
  * This is the Peek Panel's content, inlined into the strip that is already on
  * screen — and the Draft Room mounts the Peek Panel itself only OFF the phone
- * regimes because of it. Two `fixed` panels is the failure mode
- * (`limited-draft-pool.tsx` § "no touch move-to path" records the same
- * collision): the Peek Panel's landscape arrangement is a 224px right rail,
- * and the right of a landscape phone is precisely where the sneak-peek column
- * lives. The strip IS the peek bar here — which is also how ADR 0101 §6 names
- * it ("the pack pane's last 15% is its status / Peek bar").
+ * regimes because of it. The strip IS the peek bar here, which is how issue
+ * #2588 words it: "the pack pane's last 15% is its status / Peek bar".
+ *
+ * That DEVIATES from ADR 0101 §4, which prescribes the Peek Panel as a
+ * portrait bottom sheet and a landscape right rail on every editing surface.
+ * The reason is a collision the ADR did not foresee on this surface: in
+ * landscape the rail is 224px on the right edge, and the right edge of a
+ * landscape phone is exactly where §6's sneak-peek column lives — two `fixed`
+ * surfaces fighting for one edge (`limited-draft-pool.tsx` § "no touch
+ * move-to path" records the same collision). In portrait the bottom sheet was
+ * the MEASURED source of the `cardsOcc 3` budget debt at 390x844, deleted from
+ * `scripts/ui-gate/budgets.json` by this change. What §4 actually asks for —
+ * the 44px CTA row as the primary move path on touch — is preserved: the row
+ * is the same `EditingSurfaceAction[]`, just hosted by the strip.
  *
  * The action SET is not re-derived: it is the same `EditingSurfaceAction[]`
  * the Peek Panel and the Inspect Overlay are handed, built once in

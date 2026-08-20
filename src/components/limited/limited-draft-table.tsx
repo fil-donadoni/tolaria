@@ -346,8 +346,16 @@ export default function LimitedDraftTable({
     // because the Peek Panel's landscape arrangement is a 224px right rail
     // and the right edge of a landscape phone is exactly where the sneak-peek
     // column lives — two `fixed`-ish surfaces fighting for one edge, and a
-    // reserve paid for a panel that is no longer the peek bar. ADR 0101 §6
-    // names the strip "its status / Peek bar"; this is that.
+    // reserve paid for a panel that is no longer the peek bar. Issue #2588
+    // calls the strip "its status / Peek bar"; this is that.
+    //
+    // A DELIBERATE deviation from ADR 0101 §4 (portrait bottom sheet /
+    // landscape right rail on every editing surface), not an oversight: §4
+    // predates §6's sneak-peek column, which claims the same edge, and the
+    // portrait sheet was the measured source of the `cardsOcc 3` debt at
+    // 390x844 that this change deletes from `budgets.json`. §4's actual
+    // requirement — the 44px CTA row as the primary touch move path — still
+    // holds; only its host moves.
     const peekPanel = phoneOrientation === null ? peeked : null;
 
     // The two-stop snap scroller and the pack-arrival recall (ADR 0101 §6).

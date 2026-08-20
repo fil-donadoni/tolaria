@@ -7,8 +7,12 @@ import type { DraftSnapStop } from "./draftSnapStops";
 
 /**
  * The PORTRAIT pack strip (issue #2588, ADR 0101 §6) — "the pack pane's last
- * 15% is its status / Peek bar", and the band that stays on screen at the
- * POOL stop.
+ * 15% is its status / Peek bar" (issue #2588's own wording; §6 specifies the
+ * two snap stops and the strips, not this band's contents), and the band that
+ * stays on screen at the POOL stop.
+ *
+ * Hosting the CTA row here instead of in a Peek Panel deviates from ADR 0101
+ * §4 — see `draft-selection-actions.tsx` for the collision that forces it.
  *
  * That last part is what makes it the answer to "a pack arriving while parked
  * on the pool ... starts the timer": the Pick Timer is mounted HERE, so a
