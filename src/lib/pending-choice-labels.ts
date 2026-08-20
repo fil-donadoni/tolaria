@@ -1,7 +1,7 @@
 import type { PendingChoiceKind } from "@convex/gre/types";
-import type { PendingChoice } from "~/types/game";
+import type { PendingChoice, PendingTarget } from "~/types/game";
 import type { MayPayCost } from "@convex/cards/types";
-import { normalizeMayPayCost } from "~/lib/card-utils";
+import { normalizeMayPayCost, wantsSpellTarget } from "~/lib/card-utils";
 
 /** UI label shown as the source tag on a pending choice prompt
  *  (the bold leading word, e.g. "Sacrifice — choose ...").
@@ -179,4 +179,39 @@ export function pendingChoiceRequiresBoardTap(choice: PendingChoice): boolean {
         pendingChoiceRoutesToBattlefield(choice) ||
         (choice.kind === "may-pay" && mayPayCostHasPayableManaLeg(choice.cost))
     );
+}
+
+/** Issue #1816 review fixup finding 1 (round 3 correction), moved here
+ *  verbatim from `board-portrait-chips.tsx` by issue #2589 (the landscape
+ *  stack panel needs the SAME predicate — a stack overlay auto-collapsing
+ *  for a board-bound flow is not a portrait-only concern once landscape gets
+ *  its own toggled panel). Does the ACTIVE pendingTarget (this viewer's OWN
+ *  target selection, gated on `pendingTarget.playerId === viewerPlayerId`)
+ *  route a click to something on the mid-board? Routes through
+ *  {@link wantsSpellTarget} — the SAME authority `GameStack`'s own
+ *  `canTargetSpell` gate uses to decide whether a stack row is clickable (CR
+ *  114.1 / CR 601.2c) — whenever that authority says the pendingTarget CAN be
+ *  satisfied by something on the stack, the panel must stay open, because it
+ *  may be the only surface with a clickable stack row.
+ *
+ *  A pure `"player"` target is the other carve-out: it resolves on a player
+ *  nameplate, not the mid-board region a stack panel could cover — collapsing
+ *  buys nothing there. */
+export function pendingTargetWantsBoard(
+    pendingTarget: PendingTarget | undefined,
+    viewerPlayerId: string
+): boolean {
+    if (!pendingTarget || pendingTarget.playerId !== viewerPlayerId) {
+        return false;
+    }
+    if (wantsSpellTarget(pendingTarget.targetType)) {
+        return false;
+    }
+    const types = Array.isArray(pendingTarget.targetType)
+        ? pendingTarget.targetType
+        : [pendingTarget.targetType];
+    if (types.length === 1 && types[0] === "player") {
+        return false;
+    }
+    return true;
 }

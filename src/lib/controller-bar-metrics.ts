@@ -53,6 +53,19 @@ export const CONTROLLER_BAR_CLEARANCE_EXPR =
  *  landscape branch, with no consumer branching on the viewport mode itself. */
 export const CONTROLLER_STRIP_WIDTH_VAR = "--controller-strip-w";
 
+/** The strip's own FIXED width, in px (issue #2589 — Tailwind's `w-24`, 6rem
+ *  on the default 4px-step spacing scale). Named here, not just a literal
+ *  class in `controller-landscape-strip.tsx`, so the phone-landscape ≤25%
+ *  width-budget arithmetic (`landscape-board-bands.test.ts`) can reference
+ *  the SAME number the strip actually renders at instead of a second,
+ *  independently-guessed literal. The class itself stays a literal Tailwind
+ *  utility in the component (never built from this constant — Tailwind's JIT
+ *  scanner greps source text, not runtime string composition); a source-text
+ *  guard in `controller-landscape.test.tsx` pins the two together so a
+ *  future resize of one without the other fails loudly instead of silently
+ *  reopening the width budget. */
+export const CONTROLLER_STRIP_FIXED_WIDTH_PX = 96;
+
 /** Anchors a right-edge `fixed` element just LEFT of the landscape-compact
  *  strip, whatever width the strip currently has.
  *

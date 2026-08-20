@@ -432,11 +432,17 @@ export default function BoardSurface({
                     surface (#2165). */}
                         {showPriorityIndicator && <PriorityIndicator />}
                         {/* Portrait toggles the stack behind a
-                    chip (above); landscape/desktop keep
-                    it always-on. */}
-                        {!isPortrait && stackItems.length > 0 && (
-                            <GameStack stack={stackItems} />
-                        )}
+                    chip (above); landscape-compact gets its
+                    OWN chip-triggered right panel, mounted by
+                    `ControllerLandscapeStrip` (issue #2589) —
+                    NOT here, so the two never double-mount.
+                    Only desktop keeps this always-on
+                    center-panel mount. */}
+                        {!isPortrait &&
+                            !landscapeCompact &&
+                            stackItems.length > 0 && (
+                                <GameStack stack={stackItems} />
+                            )}
                         {/* Our own SVG target arrows (#257):
                     endpoints derive from the shared
                     layout placements via the

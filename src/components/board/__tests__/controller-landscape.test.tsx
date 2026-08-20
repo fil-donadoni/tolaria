@@ -19,11 +19,16 @@
 //      fixed size regardless of priority.
 //   7. The strip publishes its measured WIDTH, and the phase panel anchors to
 //      that variable rather than a hard-coded inset.
+//   8. Issue #2589 — a second toggle in the strip opens the SAME `GameStack`
+//      in its `landscape` variant, and the strip's own fixed width matches
+//      the constant the phone-landscape width-budget arithmetic assumes.
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import { GameContext } from "~/hooks/useGameContext";
 import {
     BESIDE_CONTROLLER_STRIP,
+    CONTROLLER_STRIP_FIXED_WIDTH_PX,
     CONTROLLER_STRIP_WIDTH_VAR,
 } from "~/lib/controller-bar-metrics";
 import {
@@ -35,7 +40,7 @@ import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
 import { DEFAULT_SKIP_PREFS, type Side } from "~/lib/skip-phase-prefs";
 import type { ViewportMode } from "~/hooks/useViewportMode";
 import type { Phase } from "@convex/gre/types";
-import type { CardInstance, Player } from "~/types/game";
+import type { CardInstance, Player, StackItem } from "~/types/game";
 
 const calls: { ref: unknown; args: unknown }[] = [];
 
@@ -111,6 +116,27 @@ vi.mock("../../cards/card-back", () => ({
 vi.mock("../../cards/selectable-card", () => ({
     default: ({ cardInstance }: { cardInstance: CardInstance }) => (
         <div data-testid="selectable-card" data-card-id={cardInstance.id} />
+    ),
+}));
+// The stack panel pulls in draggable / arrow-highlight wiring irrelevant to
+// the toggle contract under test here — stub it to a marker exposing the
+// props it was handed, same pattern `board-portrait-chips.test.tsx` uses.
+vi.mock("../game-stack", () => ({
+    default: ({
+        stack,
+        elevated,
+        landscape,
+    }: {
+        stack: StackItem[];
+        elevated?: boolean;
+        landscape?: boolean;
+    }) => (
+        <div
+            data-testid="stack-view"
+            data-count={stack.length}
+            data-elevated={elevated ?? false}
+            data-landscape={landscape ?? false}
+        />
     ),
 }));
 // The real stop dot uses a Base UI Tooltip (flaky in jsdom); stand it in with a
@@ -470,5 +496,66 @@ describe("Strip width seam — the panel anchors to what the strip measures", ()
                 CONTROLLER_STRIP_WIDTH_VAR
             )
         ).toBe("");
+    });
+});
+
+describe("Landscape stack panel (issue #2589, ADR 0101 §8)", () => {
+    const stack = [
+        { id: "s1", card: { id: "def-s1" } },
+    ] as unknown as StackItem[];
+
+    it("mounts no toggle and no panel while the stack is empty", () => {
+        renderController();
+        expect(screen.queryByTestId("chip-stack")).toBeNull();
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("shows the toggle and opens the panel OPEN BY DEFAULT the instant the stack is non-empty, same #1816 contract as portrait", () => {
+        renderController({ stackItems: stack });
+
+        const chip = screen.getByTestId("chip-stack");
+        expect(chip.textContent).toContain("1");
+        const view = screen.getByTestId("stack-view");
+        expect(view.getAttribute("data-count")).toBe("1");
+        // The strip's landscape mount passes `landscape` (never `narrow`) and
+        // `elevated`, the SAME tier rule as the portrait mount.
+        expect(view.getAttribute("data-landscape")).toBe("true");
+        expect(view.getAttribute("data-elevated")).toBe("true");
+
+        fireEvent.click(chip);
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("auto-collapses while the viewer's own pendingTarget lands on a battlefield permanent, mirroring the portrait predicate", () => {
+        renderController({
+            stackItems: stack,
+            pendingTarget: {
+                playerId: "me",
+                cardInstanceId: "s1",
+                targetType: "Creature",
+                count: 1,
+                selected: [],
+            } as never,
+        });
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+        // The chip itself stays mounted (hit-testable) — it never blocks the
+        // board, only the panel collapses.
+        expect(screen.getByTestId("chip-stack")).toBeTruthy();
+    });
+
+    it("the strip's own fixed width matches CONTROLLER_STRIP_FIXED_WIDTH_PX (drift guard, mirrors the game-stack.tsx NARROW_BOTTOM_CLASS pattern)", () => {
+        // 96px == Tailwind's `w-24` (6rem on the default 4px-step scale).
+        expect(CONTROLLER_STRIP_FIXED_WIDTH_PX).toBe(96);
+
+        const moduleUrl = import.meta.url;
+        const stripSrc = readFileSync(
+            new URL("../controller-landscape-strip.tsx", moduleUrl),
+            "utf8"
+        );
+        expect(stripSrc).toContain("w-24");
+        // Never the pre-#2589 width — a regression back to it would still
+        // pass a bare "contains w-24" check if BOTH classes lingered, so
+        // assert the old one is gone too.
+        expect(stripSrc).not.toContain("w-40");
     });
 });

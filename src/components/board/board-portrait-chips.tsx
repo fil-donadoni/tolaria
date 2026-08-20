@@ -1,58 +1,14 @@
 import { useState } from "react";
-import type { PendingTarget, Player, StackItem } from "~/types/game";
+import type { Player, StackItem } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
-import { pendingChoiceRequiresBoardTap } from "~/lib/pending-choice-labels";
-import { wantsSpellTarget } from "~/lib/card-utils";
+import {
+    pendingChoiceRequiresBoardTap,
+    pendingTargetWantsBoard,
+} from "~/lib/pending-choice-labels";
 import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
 import BoardPileChips from "./board-pile-chips";
 import StackChip from "./stack-chip";
 import GameStack from "./game-stack";
-
-/** Issue #1816 review fixup finding 1 (round 3 correction) — does the ACTIVE
- *  pendingTarget (this viewer's OWN target selection, gated on
- *  `pendingTarget.playerId === viewerPlayerId`) route a click to something on
- *  the mid-board? The ROUND 2 predicate (`types.some((t) => t !== "spell")`)
- *  over-collapsed: it treated ANY type other than the bare literal `"spell"`
- *  as board-bound, which wrongly included `"spell-or-permanent"` and a mixed
- *  array like `["Enchantment", "spell"]` — both of which CAN be satisfied by
- *  an item still inside the stack panel (Magical Hack, Sleight of Mind, Blind
- *  Seer, lace instants, Teferi's Care). Auto-collapsing for those made the
- *  panel disappear as the ONLY surface offering a clickable stack row, with
- *  nothing on the board to tap instead — selection became impossible.
- *
- *  The fix routes through {@link wantsSpellTarget} (`card-utils.ts`) — the
- *  SAME authority `GameStack`'s own `canTargetSpell` gate already uses to
- *  decide whether a stack row is clickable (CR 114.1 / CR 601.2c). Whenever
- *  that authority says the pendingTarget CAN be satisfied by something on the
- *  stack, the panel must stay open — full stop, never collapsed — because it
- *  is the only surface with a clickable stack row. Only a target that can
- *  NEVER land on the stack collapses the panel to clear the board.
- *
- *  A pure `"player"` target (`.claude/rules/gre-development.md` § Exhaustive
- *  target-type matching: every union member handled explicitly) is the other
- *  carve-out (review fixup round 3, finding 4): it resolves on a player
- *  nameplate, a region this narrow panel never overlaps (it anchors between
- *  the midline and the viewer battlefield's own bottom inset — see
- *  `GameStack`'s doc comment) — collapsing buys nothing there and only hides
- *  the stack the player may want to glance at while choosing. */
-function pendingTargetWantsBoard(
-    pendingTarget: PendingTarget | undefined,
-    viewerPlayerId: string
-): boolean {
-    if (!pendingTarget || pendingTarget.playerId !== viewerPlayerId) {
-        return false;
-    }
-    if (wantsSpellTarget(pendingTarget.targetType)) {
-        return false;
-    }
-    const types = Array.isArray(pendingTarget.targetType)
-        ? pendingTarget.targetType
-        : [pendingTarget.targetType];
-    if (types.length === 1 && types[0] === "player") {
-        return false;
-    }
-    return true;
-}
 
 type BoardPortraitChipsProps = {
     /** Opponent and viewer, in either order — the opponent is looked up by

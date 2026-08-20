@@ -18,8 +18,9 @@ type PlayerNameplateProps = {
     /** Extra classes appended by the layout (e.g. absolute positioning on the
      *  spatial board). */
     className?: string;
-    /** Portrait-only compact variant (#1814 round-2 fixup) — see the
-     *  dedicated doc block below `PlayerNameplate` for the full account. */
+    /** Compact one-row variant (#1814 round-2 fixup, portrait; widened to
+     *  landscape-compact by #2589) — see the dedicated doc block below
+     *  `PlayerNameplate` for the full account. */
     compact?: boolean;
 };
 
@@ -77,8 +78,12 @@ function nameplateShadow(
  *  three-to-five rows into one is what lets the reserved band shrink from
  *  ~91px to `PORTRAIT_NAMEPLATE_BAND_H` (~26px content + a small rendering
  *  safety margin, see that constant for the exact box math) while still
- *  showing every field the desktop nameplate shows. Desktop/landscape and the
- *  classic `player-life.tsx` never pass `compact` — their box is unchanged. */
+ *  showing every field the desktop nameplate shows. Desktop and the classic
+ *  `player-life.tsx` never pass `compact` — their box is unchanged. Issue
+ *  #2589 widened the second caller: landscape-compact now passes `compact`
+ *  too (`board-player.tsx`), for the same reason portrait originally needed
+ *  it — its own narrowed `LANDSCAPE_SIDE_GUTTER` left rail has no room for
+ *  the multi-row box either. */
 export default function PlayerNameplate({
     player,
     interaction,

@@ -35,6 +35,7 @@ import {
     LANDSCAPE_OPP_HAND_BAND_VAR,
     LANDSCAPE_PILE_TILE_VAR,
     LANDSCAPE_RIGHT_RAIL_VAR,
+    LANDSCAPE_SIDE_GUTTER,
     LANDSCAPE_SIDE_GUTTER_VAR,
     LANDSCAPE_VIEWER_BATTLEFIELD_BAND,
     LANDSCAPE_VIEWER_HAND_BAND,
@@ -215,7 +216,7 @@ describe("landscape-compact board bands (#1768)", () => {
             "54%"
         );
         expect(root.style.getPropertyValue(LANDSCAPE_SIDE_GUTTER_VAR)).toBe(
-            "8rem"
+            LANDSCAPE_SIDE_GUTTER
         );
         // The right rail is derived from the strip's MEASURED width (#1769).
         expect(root.style.getPropertyValue(LANDSCAPE_RIGHT_RAIL_VAR)).toContain(

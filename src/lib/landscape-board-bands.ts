@@ -99,13 +99,26 @@ export const LANDSCAPE_HAND_GAP = 6;
 /** Width of the LEFT rail that holds both seats' chrome (nameplate + life +
  *  mana pool). Every band is inset by it, so seat chrome can never overlap a
  *  card — the acceptance criterion, satisfied by construction rather than by
- *  z-order luck. */
-export const LANDSCAPE_SIDE_GUTTER = "8rem";
+ *  z-order luck.
+ *
+ *  `4rem` (issue #2589, was `8rem`) — the phone-landscape density pass: the
+ *  ADR 0101 §8 acceptance criterion caps nameplates + the control strip at
+ *  ≤25% of an 844px board (`landscape-board-bands.test.ts`'s arithmetic
+ *  guard), and the two rails (this one plus {@link LANDSCAPE_RIGHT_RAIL_VAR})
+ *  no longer fit that budget at their original width. The seat nameplate now
+ *  always renders `compact` here too (`board-player.tsx`, one row instead of
+ *  up to five), which is what makes the narrower rail legible. */
+export const LANDSCAPE_SIDE_GUTTER = "4rem";
 
 /** Pile tiles are rendered at this fraction of the shared card width. The piles
  *  are a browse affordance, not a play surface, so they give their width back
- *  to the board. */
-export const LANDSCAPE_PILE_SCALE = 0.7;
+ *  to the board.
+ *
+ *  `0.5` (issue #2589, was `0.7`) — part of the same ≤25% width budget as
+ *  {@link LANDSCAPE_SIDE_GUTTER} above; the piles are already a scroll-capped
+ *  browse affordance (`LANDSCAPE_OPPONENT_PILES_ANCHOR`), not a play surface,
+ *  so they give back more of their width first. */
+export const LANDSCAPE_PILE_SCALE = 0.5;
 
 // ── Published custom properties ─────────────────────────────────────────────
 

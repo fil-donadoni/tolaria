@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 import {
     BESIDE_CONTROLLER_STRIP,
     CONTROLLER_STRIP_CLEARANCE_EXPR,
+    CONTROLLER_STRIP_FIXED_WIDTH_PX,
 } from "~/lib/controller-bar-metrics";
 import { bandedRowsLayout, BAND_V_PAD } from "~/lib/board-layout";
 import {
@@ -239,14 +240,22 @@ describe("pile columns are capped at the midline (#1768)", () => {
         }
     });
 
-    it("is the FOURTH tile that needed the cap", () => {
+    it("is the FIFTH tile that needed the cap (was the fourth pre-#2589)", () => {
         // The regression's arithmetic: graveyard + library + exile fit inside a
         // seat's half, but a 4th conditional tile (companion / emblems /
-        // monarch / city's blessing) crosses the midline — that overlap is what
-        // the cap + scroll replaces.
+        // monarch / city's blessing) used to cross the midline — that overlap
+        // is what the cap + scroll replaces.
+        //
+        // Issue #2589 shrank `LANDSCAPE_PILE_SCALE` (0.7 → 0.5) as part of the
+        // ≤25% width budget — a smaller tile pushes the crossing point out by
+        // one (4th → 5th), which is an EXPECTED consequence of the density
+        // pass, not a re-opening of the original bug: the mechanism under
+        // test (a column overflows its own half and must scroll, never invade
+        // the other seat) still holds, verified independent of tile count by
+        // the sibling tests in this block.
         const cap = capPx(LANDSCAPE_MIDLINE_FRAC, PHONE_H);
-        expect(columnHeight(3, PHONE_H)).toBeLessThan(cap);
-        expect(columnHeight(4, PHONE_H)).toBeGreaterThan(cap);
+        expect(columnHeight(4, PHONE_H)).toBeLessThan(cap);
+        expect(columnHeight(5, PHONE_H)).toBeGreaterThan(cap);
     });
 });
 
@@ -313,5 +322,54 @@ describe("landscape-compact attacker/blocker lift (#1770)", () => {
         expect(landscapeCombatLiftDirection("-translate-y-8")).toBe(-1);
         expect(landscapeCombatLiftDirection("translate-y-8")).toBe(1);
         expect(landscapeCombatLiftDirection("")).toBe(0);
+    });
+});
+
+// Issue #2589 (ADR 0101 §8) — "the controller column + nameplates (~35% of
+// the width today) compact so battlefield cards stay ≥44px wide with a full
+// board". happy-dom has no layout, so the AC's ≤25% claim is verified as
+// arithmetic against the SAME constants the board's own CSS reads — the same
+// pattern `board-portrait-bands.test.ts` uses for the portrait bar clearance.
+// The contract through real rendered classes (that the bands actually USE
+// these constants) lives in `board-landscape-bands.test.tsx`; this file only
+// asserts the numbers.
+describe("phone-landscape width budget (issue #2589, ADR 0101 §8)", () => {
+    /** The ticket's representative compact viewport WIDTH — pairs with
+     *  `PHONE_H` for the 844x390 landscape emulation the AC measures at. */
+    const BOARD_W = 844;
+    const REM = 16;
+
+    /** Total horizontal reservation: the left seat-chrome rail plus the right
+     *  rail (strip clearance + one pile tile + its own edge gap) — the SAME
+     *  two quantities `--landscape-side-gutter` and `--landscape-right-rail`
+     *  publish to the board root, computed here from the same source
+     *  constants rather than re-measured (no layout engine to measure with). */
+    function totalHorizontalReservationPx(boardHeight: number): number {
+        const gutterPx = Number.parseFloat(LANDSCAPE_SIDE_GUTTER) * REM;
+        const stripClearancePx = CONTROLLER_STRIP_FIXED_WIDTH_PX + 0.75 * REM;
+        const pileTilePx =
+            landscapeCardMetrics(boardHeight).cardWidth * LANDSCAPE_PILE_SCALE;
+        const rightRailPx = stripClearancePx + pileTilePx + 0.5 * REM;
+        return gutterPx + rightRailPx;
+    }
+
+    it("keeps nameplates + the control strip at or under 25% of the board width", () => {
+        const fraction = totalHorizontalReservationPx(PHONE_H) / BOARD_W;
+        expect(fraction).toBeLessThanOrEqual(0.25);
+    });
+
+    it("is a REAL reduction from the pre-#2589 baseline (8rem gutter, w-40 strip, 0.7 pile scale) — not a coincidentally-passing default", () => {
+        const REM_LOCAL = 16;
+        const oldGutterPx = 8 * REM_LOCAL;
+        const oldStripClearancePx = 160 + 0.75 * REM_LOCAL;
+        const oldPileTilePx = landscapeCardMetrics(PHONE_H).cardWidth * 0.7;
+        const oldRightRailPx =
+            oldStripClearancePx + oldPileTilePx + 0.5 * REM_LOCAL;
+        const oldTotalPx = oldGutterPx + oldRightRailPx;
+
+        // The baseline this issue fixes was measurably over budget...
+        expect(oldTotalPx / BOARD_W).toBeGreaterThan(0.25);
+        // ...and the new constants are a genuine cut, not a rounding accident.
+        expect(totalHorizontalReservationPx(PHONE_H)).toBeLessThan(oldTotalPx);
     });
 });

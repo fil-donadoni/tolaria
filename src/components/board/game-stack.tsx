@@ -9,6 +9,7 @@ import { useDraggable } from "~/hooks/useDraggable";
 import { repositionAnchors } from "~/hooks/anchor-reposition";
 import { Panel } from "~/components/ui/panel";
 import { PORTRAIT_STACK_PANEL_TOP } from "~/lib/portrait-board-bands";
+import { BESIDE_CONTROLLER_STRIP } from "~/lib/controller-bar-metrics";
 import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
 
@@ -80,6 +81,21 @@ type GameStackProps = {
      *     band) — both edges pinned, so the browser computes its height as
      *     the gap between them and it can never grow into either. */
     narrow?: boolean;
+    /** Issue #2589 — landscape-compact's chip-triggered right panel (ADR 0101
+     *  §8: "a bottom sheet from the Stack chip in portrait and a right panel
+     *  in landscape"). Toggled from `ControllerLandscapeStrip`, the SAME
+     *  seam `ControllerPhasePanel` already anchors beside — mutually
+     *  exclusive with `narrow` (a viewport is never both portrait and
+     *  landscape-compact at once).
+     *
+     *  Shape: the desktop panel's own vertical-center + `max-h-[80vh]` cap
+     *  (a landscape phone is short too, so the same soft cap fits), just
+     *  narrower (`w-72`, matching `narrow`'s width) and anchored BESIDE the
+     *  control strip via {@link BESIDE_CONTROLLER_STRIP} — the strip's own
+     *  MEASURED width (`--controller-strip-w`) — instead of the desktop's
+     *  fixed `right: 0.5rem`, so the panel slides clear of the strip
+     *  automatically and never hard-codes its neighbour's size. */
+    landscape?: boolean;
 };
 
 /** How many top rows the collapsed list shows before the "N more" expander. */
@@ -94,7 +110,12 @@ const COLLAPSED_ROWS = 3;
  *  Kept from the old cascade: shared-layout flights (hand → stack →
  *  destination, layoutId per item), the draggable panel (re-anchoring arrows
  *  via the shared reposition event), spell-target clicks, arrival glow. */
-export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
+export default function GameStack({
+    stack,
+    elevated,
+    narrow,
+    landscape,
+}: GameStackProps) {
     const {
         gameId,
         playerId,
@@ -166,15 +187,31 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
             // `pointer-events-auto` is restored on the `Panel` below so the
             // drag handle and the clickable stack rows — both DOM
             // descendants of `Panel`, not of this div — stay interactive.
-            // Desktop (`!narrow`) is untouched: its box is centered/vh-capped,
-            // not edge-pinned, so it never grows past its own content.
+            // Desktop (`!narrow`, `!landscape`) is untouched: its box is
+            // centered/vh-capped, not edge-pinned, so it never grows past its
+            // own content.
+            //
+            // `landscape` (issue #2589) reuses the desktop's vertical-center
+            // shape (never edge-pinned, so no `pointer-events-none` trick is
+            // needed either) but anchors its RIGHT edge beside the control
+            // strip via `BESIDE_CONTROLLER_STRIP` instead of the desktop's
+            // fixed `right: 0.5rem` inline style below — see the class list
+            // for why that means omitting the inline `right` for this
+            // branch, not adding a second one.
             className={`absolute ${
                 narrow
                     ? `${PORTRAIT_STACK_PANEL_TOP} ${NARROW_BOTTOM_CLASS} pointer-events-none`
-                    : "top-1/2"
+                    : landscape
+                      ? `${BESIDE_CONTROLLER_STRIP} top-1/2`
+                      : "top-1/2"
             } ${elevated ? "z-stack" : "z-modal"}`}
             style={{
-                right: "0.5rem",
+                // `landscape` gets its `right` from the class above
+                // (`BESIDE_CONTROLLER_STRIP`'s `right-[calc(...)]`) — an
+                // inline `right` here would win the cascade over it (inline
+                // styles beat classes) and pin the panel back under the
+                // strip.
+                right: landscape ? undefined : "0.5rem",
                 transform: narrow
                     ? `translate(${offset.x}px, ${offset.y}px)`
                     : `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
@@ -250,7 +287,9 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
                     className={`${
                         narrow
                             ? "flex max-h-full w-72 flex-col pointer-events-auto"
-                            : "max-h-[80vh] w-96"
+                            : landscape
+                              ? "max-h-[80vh] w-72"
+                              : "max-h-[80vh] w-96"
                     } max-w-[92vw] overflow-visible p-0`}
                 >
                     <DragHandle
