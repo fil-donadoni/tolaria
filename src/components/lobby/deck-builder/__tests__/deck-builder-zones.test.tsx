@@ -177,30 +177,25 @@ describe("DeckBuilder — Constructed zones on the shared surface (issue #1622)"
         ).toBeNull();
     });
 
-    it("still offers Featured Card selection in the Maindeck", () => {
+    it("still marks the resolved Featured Card in the Maindeck — as a ring, not a button (issue #2584)", () => {
+        // The PICKER moved off the tile with every other per-card overlay
+        // button (issue #2584): setting the Featured Card is now a Peek Panel
+        // / Inspect Overlay CTA, exercised through the real zone pair in
+        // `deckbuilder/__tests__/deck-phone-panes.test.tsx`. What this asserts
+        // is that the Constructed builder still RESOLVES a Featured Card and
+        // still shows it — with no override, the first Maindeck card.
         const { container } = renderBuilder(deck([BOLT, SERRA], []));
-        // With no override the resolver features the first Maindeck card.
         const bolt = container.querySelector('[data-column="mv:1"]')!;
         const serra = container.querySelector('[data-column="mv:5"]')!;
+        expect(bolt.querySelectorAll(".ring-accent")).toHaveLength(1);
+        expect(serra.querySelectorAll(".ring-accent")).toHaveLength(0);
+        // …and no TILE carries a button any more (the Column's own
+        // rename/delete control is a column affordance, not a card one).
         expect(
-            within(bolt as HTMLElement).getByTitle(
-                "Featured card — click to clear"
-            )
-        ).toBeTruthy();
-
-        // Picking the other card moves the indicator — the affordance is live,
-        // not merely rendered.
-        fireEvent.click(
-            within(serra as HTMLElement).getByTitle("Set as featured card")
-        );
-        expect(
-            within(serra as HTMLElement).getByTitle(
-                "Featured card — click to clear"
-            )
-        ).toBeTruthy();
-        expect(
-            within(bolt as HTMLElement).getByTitle("Set as featured card")
-        ).toBeTruthy();
+            within(bolt as HTMLElement)
+                .getByTitle(/Remove Lightning Bolt/)
+                .querySelectorAll("button")
+        ).toHaveLength(0);
     });
 });
 

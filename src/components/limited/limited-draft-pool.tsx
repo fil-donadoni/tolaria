@@ -141,16 +141,22 @@ export default function LimitedDraftPool({
         [setPoolArrangementEntry, eventId]
     );
 
-    // The `"move to…"` menu's pin (issue #1633 bundled finding 2) — the SAME
-    // shape `pool-deck-builder-form.tsx`'s own `handlePin` sends for its
-    // Pool/Maindeck zone (the build view's counterpart): `column` only, no
-    // `sideboard` field, so a pin can never itself move a card between the
-    // Pool and the Sideboard as a side effect (this menu only ever renders on
-    // Pool tiles — `dropModel: "columns"` — so the card pinned is always
-    // already main-side). `parseColumnId` mirrors `pinCardToColumn`'s own
-    // fail-closed rule; `DeckZoneSurface`'s `moveMenuColumns` already
+    // A dropped card's Card Pin — the SAME shape `pool-deck-builder-form.tsx`'s
+    // own `handlePin` sends for its Pool/Maindeck zone (the build view's
+    // counterpart): `column` only, no `sideboard` field, so a pin can never
+    // itself move a card between the Pool and the Sideboard as a side effect
+    // (only the Pool zone is `dropModel: "columns"`, so the card pinned is
+    // always already main-side). `parseColumnId` mirrors `pinCardToColumn`'s
+    // own fail-closed rule; `DeckZoneSurface`'s pin-target filter already
     // excludes non-pin-target ids (PR #2333 review, B1), so this is a second,
     // cheap layer rather than the only one.
+    //
+    // Issue #2584 removed the per-tile `"move to…"` overlay menu that used to
+    // be this callback's touch entry point; on THIS surface it was not
+    // replaced by a Peek Panel CTA, because the Draft Room already mounts a
+    // Peek Panel for the Booster pack and two `fixed` panels would paint on
+    // top of each other. A long-press drag onto a Column is the remaining
+    // touch path here (`docs/findings/2584-draft-pool-touch-column-pin.md`).
     const handlePin = useCallback(
         (_cardId: string, columnId: ColumnId, pinKey: string) => {
             if (!parseColumnId(columnId)) return;

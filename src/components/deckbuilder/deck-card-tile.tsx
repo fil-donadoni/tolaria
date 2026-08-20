@@ -1,13 +1,8 @@
 import { useDraggable } from "@dnd-kit/react";
-import type { ColumnId } from "@convex/deckLayout";
 import { cn } from "~/lib/utils";
 import { pileCardTop } from "~/lib/card-layout";
 import CardImage from "~/components/cards/card-image";
-import FeaturedCardButton from "~/components/lobby/deck-builder/featured-card-button";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
-import DeckCardMoveMenu, {
-    type DeckCardMoveMenuColumn,
-} from "./deck-card-move-menu";
 
 /** The ONE deckbuilder card tile (issue #1581, re-homed here by #1632) — a
  *  single draggable + clickable card face rendered by EVERY zone surface:
@@ -37,10 +32,11 @@ export interface DeckCardTileProps {
     title: string;
     /** Fired on a plain click — the primary tap gesture (move zone / toggle). */
     onClick: () => void;
-    /** Fired on double-click. Every current surface omits it — the click
-     *  handlers are idempotent, so a double-click already resolves as the same
-     *  move twice — but it stays a prop rather than being dropped, because a
-     *  tile is the one place a distinct double-click gesture could be bound. */
+    /** Fired on double-click. Issue #2584 binds it on every deckbuilder
+     *  surface: with the per-card overlay buttons removed, a double-click is
+     *  the POINTER path to the Inspect Overlay (the touch path being tap ->
+     *  Peek Panel -> Inspect), so reading a card and setting it as Featured
+     *  stay reachable with a mouse. */
     onDoubleClick?: () => void;
     /** Position in the overlaid pile — the tile renders `absolute` at the
      *  staggered `top` so only a sliver of each lower card shows and the
@@ -50,21 +46,15 @@ export interface DeckCardTileProps {
      *  the persistent indicator ring. Constructed only; the Limited builder
      *  and the draft Pool leave it unset. */
     isFeatured?: boolean;
-    /** Pick this card as the deck's Featured Card. Presence is what renders
-     *  the affordance, so a surface with no Featured Card concept simply omits
-     *  it. Set on the TOPMOST (visible) copy of a card only — a lower copy's
-     *  button would sit behind the next card. */
-    onSetFeatured?: () => void;
-    /** "Move to…" menu (issue #1633): lists this Zone's Columns and pins the
-     *  card to whichever is picked — the touch-friendly analogue of a drag,
-     *  since a precise drop into a narrow column is not a realistic touch
-     *  gesture. Presence renders the affordance; absent on Sideboard tiles
-     *  (whose pane has no Columns to pin into) and wherever the host omits
-     *  `onPin` (`DeckZoneSurface`). */
-    moveMenu?: {
-        columns: readonly DeckCardMoveMenuColumn[];
-        onSelect: (columnId: ColumnId) => void;
-    };
+    /** This card is the SELECTED card of its surface (issue #2584) — the one
+     *  the Peek Panel is showing. Draws a selection ring; purely a cue, the
+     *  panel itself is the parent's. */
+    isSelected?: boolean;
+    /** How many identical copies this tile stands for (issue #2584's MV rows).
+     *  `undefined` or `1` renders no badge; `>1` renders a `×N` badge. The
+     *  badge is `pointer-events-none` — it is a LABEL, not one of the overlay
+     *  buttons this issue removed. */
+    count?: number;
 }
 
 export default function DeckCardTile({
@@ -76,8 +66,8 @@ export default function DeckCardTile({
     onDoubleClick,
     stackIndex,
     isFeatured,
-    onSetFeatured,
-    moveMenu,
+    isSelected,
+    count,
 }: DeckCardTileProps) {
     const { ref, isDragging } = useDraggable({ id: dragId, data: dragData });
     const stacked = stackIndex !== undefined;
@@ -111,7 +101,8 @@ export default function DeckCardTile({
                 // gesture this surface used.
                 "group aspect-5/7 w-(--card-w) shrink-0 cursor-grab touch-pan-x select-none outline-none transition hover:-translate-y-0.5 hover:z-10",
                 stacked ? "absolute left-0" : "relative",
-                isDragging ? "opacity-30" : ""
+                isDragging ? "opacity-30" : "",
+                isSelected ? "z-10 -translate-y-0.5" : ""
             )}
         >
             {/* PRD #2405 / issue #2583: on an editing surface a 250ms touch hold is
@@ -124,22 +115,20 @@ export default function DeckCardTile({
             {isFeatured && (
                 <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-accent" />
             )}
-            {onSetFeatured && (
-                <FeaturedCardButton
-                    isFeatured={!!isFeatured}
-                    onSetFeatured={onSetFeatured}
-                />
+            {isSelected && (
+                <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-accent-soft" />
             )}
-            {moveMenu && (
-                <DeckCardMoveMenu
-                    // The plain card name already rides on the drag payload
-                    // (`dragData.cardName`) — `title` is the tooltip's fuller
-                    // "Remove <name> (drag to move zone)" sentence, wrong shape
-                    // for "Move <name> to…".
-                    cardName={dragData.cardName}
-                    columns={moveMenu.columns}
-                    onSelect={moveMenu.onSelect}
-                />
+            {/* Issue #2584: the `xN` badge of a collapsed MV row tile. A
+                non-interactive LABEL — `pointer-events-none`, no role, no tab
+                stop — so the AC "per-card overlay buttons are gone at every
+                viewport" stays true with it on screen. */}
+            {count !== undefined && count > 1 && (
+                <span
+                    data-card-count
+                    className="pointer-events-none absolute right-0.5 bottom-0.5 rounded-sm border border-border-accent/70 bg-surface-base/90 px-1 text-[0.625rem] font-semibold leading-4 text-parchment"
+                >
+                    x{count}
+                </span>
             )}
         </div>
     );

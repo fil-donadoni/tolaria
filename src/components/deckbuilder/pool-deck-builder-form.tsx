@@ -648,6 +648,11 @@ export default function PoolDeckBuilderForm({
             view={VIEW}
             zones={{
                 sideTitle: "Pool (Sideboard)",
+                // The short name (issue #2584) for this variant's second zone
+                // — its Pane Tab and its Peek Panel CTA both read "Pool",
+                // because that is what the zone is here.
+                sideTabLabel: "Pool",
+                mainTabLabel: "Deck",
                 mainEmptyMessage:
                     "Move Pool cards here (or add Basics above) to build your deck.",
                 sideEmptyMessage:

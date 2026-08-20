@@ -105,6 +105,14 @@ export interface DeckBuilderViewSpec {
 export interface DeckZonePresentation {
     mainTitle?: string;
     sideTitle?: string;
+    /** SHORT names for the phone Pane Tabs and the Peek Panel's "→" CTAs
+     *  (issue #2584). A tab on a 390px screen has room for one word, and
+     *  "→ Pool (Sideboard)" does not fit a CTA button either. Default to
+     *  `Main`/`Side`; the Limited build declares `Pool` for its second zone,
+     *  which is what that zone actually is. Data, never derived from who is
+     *  rendering. */
+    mainTabLabel?: string;
+    sideTabLabel?: string;
     mainEmptyMessage: string;
     sideEmptyMessage: string;
     /** e.g. `/15`. Absent = uncapped. */
@@ -215,13 +223,28 @@ export interface DeckBuilderSlots {
     headerFoldableActions?: ReactNode;
     /** A second, full-width header row (the Constructed search filters). */
     headerFilters?: ReactNode;
-    /** Where new cards come FROM. Absent for a variant whose zones are the
-     *  only source. */
-    sourcePanel?: ReactNode;
+    /** Where new cards come FROM, and how its PANE presents itself (issue
+     *  #2584). Absent for a variant whose zones are the only source — which
+     *  is also what makes that variant's pane strip two panes wide instead of
+     *  three, with no `kind` check anywhere (`deckPanes.ts`). */
+    sourcePanel?: DeckSourcePaneSpec;
     /** The basic-lands bar (generalised to Constructed in a later slice). */
     basicsBar?: ReactNode;
     /** Dialogs the wrapper owns (deck import, delete confirmation). */
     overlays?: ReactNode;
+}
+
+/**
+ * The Source pane (issue #2584) — its content AND the data its Pane Tab
+ * needs. One record rather than a `ReactNode` slot beside two loose fields:
+ * a tab with no pane, or a pane with no tab, are both unrepresentable.
+ */
+export interface DeckSourcePaneSpec {
+    /** Tab text — one short word (`Search`). */
+    label: string;
+    /** Count shown on the tab (how many results are on offer). */
+    count: number;
+    content: ReactNode;
 }
 
 /** The one card tooltip both zones of every variant use. */

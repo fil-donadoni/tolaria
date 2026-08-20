@@ -8,7 +8,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, within } from "@testing-library/react";
 import { DragDropProvider } from "@dnd-kit/react";
 import {
-    addManualColumn,
     createColumnLayout,
     pinCardToColumn,
     setGrouping,
@@ -211,51 +210,77 @@ describe("DeckZoneSurface — the Sideboard drop model (issue #1622)", () => {
     });
 });
 
-// Featured Card picker (PRD #589, issue #599) — ported verbatim in intent from
-// the retired `deck-pile-area.test.tsx`, since the affordance moved onto the
-// shared tile. The Constructed Maindeck wires it; nothing else does.
-describe("DeckZoneSurface — Featured Card picker (issue #599)", () => {
-    it("renders no featured affordance when onSetFeatured is absent", () => {
-        const { queryByTitle } = renderZone({ cards: [BOLT] });
-        expect(queryByTitle(/featured/i)).toBeNull();
+// Issue #2584 removed BOTH per-card overlay buttons from the shared tile — the
+// Featured picker and the "move to…" menu. Their capabilities did not go away:
+// they became CTAs of the Peek Panel / Inspect Overlay, which the pair parent
+// owns (`deck-zones-surface.tsx`, `deck-zone-peek.tsx`), so they are asserted
+// through THAT surface in `deck-phone-panes.test.tsx`. What is asserted here is
+// the removal itself — an AC in its own right ("per-card overlay buttons are
+// gone at every viewport") — plus the one thing that stayed: the Featured
+// INDICATOR, which is a ring, not a button.
+describe("DeckZoneSurface — no per-card overlay buttons (issue #2584)", () => {
+    it("renders no button inside a card tile — not the Featured picker, not `move to…`", () => {
+        const { getAllByTitle } = renderZone({
+            cards: [BOLT, BOLT],
+            featuredCardId: BOLT.cardId,
+            onPin: () => {},
+        });
+        for (const tile of getAllByTitle(/Remove Lightning Bolt/)) {
+            expect(tile.querySelectorAll("button")).toHaveLength(0);
+            expect(tile.querySelectorAll("[role=button]")).toHaveLength(0);
+        }
     });
 
-    it("fires onSetFeatured with the card id when the affordance is clicked", () => {
-        const onSetFeatured = vi.fn();
-        const { getByTitle } = renderZone({ cards: [BOLT], onSetFeatured });
-        fireEvent.click(getByTitle("Set as featured card"));
-        expect(onSetFeatured).toHaveBeenCalledWith(BOLT.cardId);
+    it("still marks the currently-featured card with its indicator ring", () => {
+        const { getByTitle } = renderZone({
+            cards: [BOLT, PLAINS],
+            featuredCardId: BOLT.cardId,
+        });
+        const bolt = getByTitle(/Remove Lightning Bolt/);
+        const plains = getByTitle(/Remove Plains/);
+        expect(bolt.querySelectorAll(".ring-accent")).toHaveLength(1);
+        expect(plains.querySelectorAll(".ring-accent")).toHaveLength(0);
     });
 
-    it("picking the featured card does NOT also remove a copy (stopPropagation)", () => {
+    it("a double-click asks the host to INSPECT the card — the pointer path that replaced the overlay buttons", () => {
+        const onCardInspect = vi.fn();
+        const { getByTitle } = renderZone({ cards: [BOLT], onCardInspect });
+        fireEvent.doubleClick(getByTitle(/Remove Lightning Bolt/));
+        expect(onCardInspect).toHaveBeenCalledWith(BOLT);
+    });
+
+    it("a click SELECTS instead of moving once the host supplies onCardSelect (the touch path)", () => {
         const onCardClick = vi.fn();
-        const onSetFeatured = vi.fn();
+        const onCardSelect = vi.fn();
         const { getByTitle } = renderZone({
             cards: [BOLT],
             onCardClick,
-            onSetFeatured,
+            onCardSelect,
+            onPin: () => {},
         });
-        fireEvent.click(getByTitle("Set as featured card"));
-        expect(onSetFeatured).toHaveBeenCalledTimes(1);
+        fireEvent.click(getByTitle(/Remove Lightning Bolt/));
         expect(onCardClick).not.toHaveBeenCalled();
+        expect(onCardSelect).toHaveBeenCalledTimes(1);
+        const selection = onCardSelect.mock.calls[0][0];
+        expect(selection.zone).toBe("maindeck");
+        expect(selection.cardId).toBe(BOLT.cardId);
+        expect(selection.pinKey).toBe(BOLT.cardId);
+        // The Columns travel WITH the selection: only the zone knows them.
+        const labels = selection.columns.map((c: { label: string }) => c.label);
+        expect(labels).toContain("MV 1");
+        expect(labels).not.toContain("Other");
     });
 
-    it("marks the currently-featured card (persistent indicator across reloads)", () => {
-        const { getByTitle, queryByTitle } = renderZone({
-            cards: [BOLT, PLAINS],
-            featuredCardId: BOLT.cardId,
-            onSetFeatured: vi.fn(),
+    it("offers NO Columns on the `pane` drop model — the Sideboard has none to pin into", () => {
+        const onCardSelect = vi.fn();
+        const { getByTitle } = renderZone({
+            cards: [BOLT],
+            dropModel: "pane",
+            onCardSelect,
+            onPin: () => {},
         });
-        expect(getByTitle("Featured card — click to clear")).toBeTruthy();
-        expect(queryByTitle("Set as featured card")).toBeTruthy();
-    });
-
-    it("offers the affordance on the TOPMOST copy only", () => {
-        const { getAllByTitle } = renderZone({
-            cards: [BOLT, BOLT, BOLT],
-            onSetFeatured: vi.fn(),
-        });
-        expect(getAllByTitle("Set as featured card")).toHaveLength(1);
+        fireEvent.click(getByTitle(/Remove Lightning Bolt/));
+        expect(onCardSelect.mock.calls[0][0].columns).toEqual([]);
     });
 });
 
@@ -806,168 +831,6 @@ describe("DeckZoneSurface — narrow-screen refinements (issue #1633)", () => {
         const classes = tile.className.split(/\s+/);
         expect(classes).toContain("touch-pan-x");
         expect(classes).not.toContain("touch-none");
-    });
-
-    it("renders no `move to…` affordance when the host supplies no `onPin`", () => {
-        const { queryByLabelText } = renderZone({ cards: [BOLT] });
-        expect(queryByLabelText("Move Lightning Bolt to…")).toBeNull();
-    });
-
-    it("renders no `move to…` affordance on the `pane` drop model even with `onPin` supplied — the Sideboard has no Columns to pin into", () => {
-        const { queryByLabelText } = renderZone({
-            cards: [BOLT],
-            dropModel: "pane",
-            onPin: () => {},
-        });
-        expect(queryByLabelText("Move Lightning Bolt to…")).toBeNull();
-    });
-
-    it("the `move to…` menu lists EXACTLY the resolved Columns that are PIN TARGETS — generated and manual, EXCLUDING the Catch-All", () => {
-        const layout = addManualColumn(createColumnLayout(), {
-            id: "custom:removal",
-            label: "Removal",
-        });
-        const rendered = renderZone({ cards: [BOLT], layout, onPin: () => {} });
-        fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
-
-        const menu = rendered.getByRole("menu", {
-            name: "Move Lightning Bolt to…",
-        });
-        const offered = within(menu)
-            .getAllByRole("menuitem")
-            .map((el) => el.textContent);
-        // The full ladder this Zone resolves (`renderZone`'s default `layout`
-        // is Grouping `mv`) plus the manual Column — but NOT the Catch-All,
-        // which is rendered on the board (`columnLabels(container)` — see the
-        // sibling "renders the FULL fixed ladder…" test above — still lists
-        // it) yet is never offered here: `pinCardToColumn` returns the layout
-        // UNCHANGED for the Catch-All's unnamespaced id, so listing it would
-        // be a menu entry that silently does nothing (PR #2333 review, B1).
-        expect(offered).toEqual([
-            "Lands",
-            "MV 0",
-            "MV 1",
-            "MV 2",
-            "MV 3",
-            "MV 4",
-            "MV 5",
-            "MV 6",
-            "MV 7+",
-            "Removal",
-        ]);
-        expect(offered).not.toContain("Catch-All");
-    });
-
-    it("under Grouping `none` the menu is EMPTY — its single Column is not a pin target either", () => {
-        // Grouping `none` resolves to one whole-Zone Column (`all`) plus the
-        // Catch-All, and NEITHER is a pin target (`pinNamespaceForGrouping`
-        // returns `null` for `none`; the Catch-All is never one). Before the
-        // B1 fixup this was the shape where the ENTIRE menu was dead: two
-        // entries, both no-ops.
-        const layout = setGrouping(createColumnLayout(), "none");
-        const rendered = renderZone({ cards: [BOLT], layout, onPin: () => {} });
-        fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
-
-        const menu = rendered.getByRole("menu", {
-            name: "Move Lightning Bolt to…",
-        });
-        expect(within(menu).queryAllByRole("menuitem")).toEqual([]);
-    });
-
-    it("picking EVERY listed entry actually changes the layout — no entry is a reference-identical no-op", () => {
-        // Guards against exactly the defect B1 found: a menu entry whose
-        // `onSelect` -> `onPin` -> `pinCardToColumn` round-trip returns the
-        // SAME layout reference. Folds each captured `onPin` call through the
-        // real engine primitive rather than trusting the call args alone —
-        // the reviewer's own throwaway test for B1 found a menu that folded
-        // to a reference-identical layout; this is the shape that guards
-        // against it.
-        const layout = addManualColumn(createColumnLayout(), {
-            id: "custom:removal",
-            label: "Removal",
-        });
-        // Same fixture (Grouping `mv` + the "Removal" manual Column) as the
-        // "lists EXACTLY…" test above, so this is the SAME offered list —
-        // every generated Column plus the manual one, no Catch-All.
-        const labels = [
-            "Lands",
-            "MV 0",
-            "MV 1",
-            "MV 2",
-            "MV 3",
-            "MV 4",
-            "MV 5",
-            "MV 6",
-            "MV 7+",
-            "Removal",
-        ];
-        const calls: Array<[string, string]> = []; // [columnId, pinKey]
-        const rendered = renderZone({
-            cards: [BOLT],
-            layout,
-            onPin: (_cardId, columnId, pinKey) =>
-                calls.push([columnId, pinKey]),
-        });
-
-        // The popover unmounts its content on close (`onSelect` closes it
-        // after every pick), so each entry is exercised by reopening the
-        // menu fresh and picking it BY NAME rather than clicking a batch of
-        // now-detached `menuitem` nodes.
-        for (const label of labels) {
-            fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
-            fireEvent.click(
-                within(
-                    rendered.getByRole("menu", {
-                        name: "Move Lightning Bolt to…",
-                    })
-                ).getByRole("menuitem", { name: label })
-            );
-        }
-
-        expect(calls.length).toBe(labels.length);
-        for (const [columnId, pinKey] of calls) {
-            const next = pinCardToColumn(layout, pinKey, columnId);
-            expect(next).not.toBe(layout);
-            expect(next.pins[pinKey]).toBeDefined();
-        }
-    });
-
-    it("picking a menu entry calls `onPin` with the SAME (cardId, columnId, pinKey) a drag onto that column would resolve to", () => {
-        const onPin = vi.fn();
-        const rendered = renderZone({
-            cards: [{ ...BOLT, pinKey: "7" }],
-            onPin,
-        });
-        fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
-        fireEvent.click(
-            within(
-                rendered.getByRole("menu", {
-                    name: "Move Lightning Bolt to…",
-                })
-            ).getByRole("menuitem", { name: "MV 6" })
-        );
-
-        // `resolveDeckZoneDragAction` resolves a Maindeck-card-dropped-on-a-
-        // Maindeck-Column drag into `{ type: "pin", cardId, columnId, pinKey }`
-        // — `pinKey` defaulted from the SAME `card.pinKey ?? card.cardId` rule
-        // `DeckZoneSurface` itself applies to build its drag payload
-        // (`ZoneItem.pinKey`), never re-derived here.
-        expect(onPin).toHaveBeenCalledWith(BOLT.cardId, "mv:6", "7");
-    });
-
-    it("closes the menu after a pick", () => {
-        const rendered = renderZone({ cards: [BOLT], onPin: () => {} });
-        fireEvent.click(rendered.getByLabelText("Move Lightning Bolt to…"));
-        fireEvent.click(
-            within(
-                rendered.getByRole("menu", {
-                    name: "Move Lightning Bolt to…",
-                })
-            ).getByRole("menuitem", { name: "MV 6" })
-        );
-        expect(
-            rendered.queryByRole("menu", { name: "Move Lightning Bolt to…" })
-        ).toBeNull();
     });
 });
 

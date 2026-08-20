@@ -884,9 +884,7 @@ describe("DeckBuilderShell — builder pane floor (issue #2056 defect 3 amplific
             join(__dirname, "..", "deck-builder-shell.tsx"),
             "utf8"
         );
-        expect(src).toContain(
-            "minHeight: `calc(${view.cardBase} * 7 / 5 + 3.5rem)`"
-        );
+        expect(src).toContain("`calc(${view.cardBase} * 7 / 5 + 3.5rem)`");
     });
 });
 

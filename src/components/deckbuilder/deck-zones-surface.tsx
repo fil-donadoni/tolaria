@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
     CardLookup,
     ColumnId,
@@ -6,11 +7,28 @@ import type {
     OrderingKind,
 } from "@convex/deckLayout";
 import type { ZoneCard } from "~/types/game";
+import { cn } from "~/lib/utils";
+import { useViewportMode } from "~/hooks/useViewportMode";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import { useSplitRatio } from "~/components/lobby/deck-builder/useSplitRatio";
+import {
+    usePeekPanelLayout,
+    peekPanelReserve,
+    PEEK_PANEL_SHEET_RESERVE,
+} from "~/components/editing/usePeekPanelLayout";
+import type { EditingSurfaceAction } from "~/components/editing/editing-surface-action";
 import DeckZoneSurface from "./deck-zone-surface";
+import DeckZonePeek from "./deck-zone-peek";
 import PoolSplitDivider from "./pool-split-divider";
+import type { DeckZoneSelection } from "./deckZoneSelection";
+
+/** One full-page snap pane of the phone pane strip (issue #2584). The bottom
+ *  padding is the Peek Panel's sheet reserve, `0px` while nothing is selected
+ *  — a custom property because the pane's PARENT is `display: contents` in
+ *  this regime and cannot carry the padding itself. */
+const PORTRAIT_PANE =
+    "h-full w-full shrink-0 snap-start snap-always overflow-hidden pb-[var(--peek-reserve)]";
 
 // Per-zone CSS vars driving `--card-w` / `--card-h` from a zoom multiplier.
 function zoomVars(cardBase: string, mult: number): React.CSSProperties {
@@ -61,6 +79,9 @@ export interface DeckZonesSurfaceProps {
     zoomInitial: number;
     mainTitle?: string;
     sideTitle?: string;
+    /** SHORT zone names (issue #2584) — the Peek Panel's "→" CTA labels. */
+    mainTabLabel: string;
+    sideTabLabel: string;
     mainEmptyMessage: string;
     sideEmptyMessage: string;
     /** Constructed's `0–15` Sideboard cap; Limited leaves both unset (its
@@ -72,7 +93,15 @@ export interface DeckZonesSurfaceProps {
     mainCardTitle: (card: ZoneCard) => string;
     sideCardTitle: (card: ZoneCard) => string;
     featuredCardId?: string | null;
+    /** Presence offers the "★ Featured" CTA on a Maindeck card's Peek Panel /
+     *  Inspect Overlay (issue #2584 — it was a per-tile overlay button until
+     *  this slice removed those). */
     onSetFeatured?: (cardId: string) => void;
+    /** The two zone-to-zone moves, as the Peek Panel's primary CTA. The SAME
+     *  handlers a drag resolves to (`deckZoneDrag.ts`), so tapping "→ Side"
+     *  and dragging onto the Sideboard can never diverge. */
+    onMoveToSideboard: (cardId: string, pinKey?: string) => void;
+    onMoveToMaindeck: (cardId: string, pinKey?: string) => void;
     /** Manual-Column management for the MAINDECK (ADR 0075 §2, issue #1626).
      *  Not offered on the Sideboard: its whole pane is one drop target, so a
      *  manual Column there could never receive a card. */
@@ -102,6 +131,8 @@ export default function DeckZonesSurface({
     zoomInitial,
     mainTitle = "Maindeck",
     sideTitle = "Sideboard",
+    mainTabLabel,
+    sideTabLabel,
     mainEmptyMessage,
     sideEmptyMessage,
     sideCountSuffix,
@@ -112,6 +143,8 @@ export default function DeckZonesSurface({
     sideCardTitle,
     featuredCardId,
     onSetFeatured,
+    onMoveToSideboard,
+    onMoveToMaindeck,
     onAddColumn,
     onRenameColumn,
     onDeleteColumn,
@@ -136,6 +169,66 @@ export default function DeckZonesSurface({
         dividerProps: splitDividerProps,
     } = useSplitRatio(splitZone, splitDefault);
 
+    // Issue #2584. Two regimes, one predicate each, both read in JS rather
+    // than as a `@custom-variant` (the way `compact-chrome:` is): the pane
+    // geometry and `DeckZoneSurface`'s rows-vs-piles branch have to agree, and
+    // the only way to make a class contract and a JS branch agree is to have
+    // one of them. `index.css`'s `compact-chrome` comment is the record of
+    // what the other way costs.
+    //
+    //  - `touch` (= `compact-chrome:`) — a tap SELECTS a card and the Peek
+    //    Panel is the primary move path. On a pointer viewport a click keeps
+    //    meaning what it always did.
+    //  - `portrait` — the two zones become two full-page snap panes of the
+    //    shell's pane strip (`display: contents` hands them straight to it).
+    const viewportMode = useViewportMode();
+    const touch = viewportMode !== "desktop";
+    const portrait = viewportMode === "portrait";
+
+    const [selection, setSelection] = useState<DeckZoneSelection | null>(null);
+    const [inspecting, setInspecting] = useState<string | null>(null);
+    const peekLayout = usePeekPanelLayout();
+
+    // The panel is `fixed`, so the surface underneath reserves the room it
+    // occupies — on the axis the RESOLVED layout actually eats (four of the
+    // five UI-gate viewports get the RAIL, i.e. width). The rail reserve goes
+    // on this container, which is a real box in that regime; the sheet reserve
+    // rides a custom property because in portrait this container is
+    // `display: contents` and has no padding of its own to set.
+    const reserve = selection ? peekPanelReserve(peekLayout) : undefined;
+
+    const peekActions: readonly EditingSurfaceAction[] = !selection
+        ? []
+        : selection.zone === "maindeck"
+          ? [
+                {
+                    label: `→ ${sideTabLabel}`,
+                    primary: true,
+                    onSelect: () => {
+                        onMoveToSideboard(selection.cardId, selection.pinKey);
+                        setSelection(null);
+                    },
+                },
+                ...(onSetFeatured
+                    ? [
+                          {
+                              label: "★ Featured",
+                              onSelect: () => onSetFeatured(selection.cardId),
+                          },
+                      ]
+                    : []),
+            ]
+          : [
+                {
+                    label: `→ ${mainTabLabel}`,
+                    primary: true,
+                    onSelect: () => {
+                        onMoveToMaindeck(selection.cardId, selection.pinKey);
+                        setSelection(null);
+                    },
+                },
+            ];
+
     return (
         <div
             ref={splitContainerRef}
@@ -148,10 +241,23 @@ export default function DeckZonesSurface({
                issue asks for: the chrome scrolls, the card list does not
                shrink. Above `md` on a desktop-shaped viewport this is the
                same fixed-height `--split-main` row it always was. */
-            className="flex min-h-0 flex-1 flex-col overflow-hidden compact-chrome:flex-none compact-chrome:basis-auto compact-chrome:overflow-visible md:flex-row"
+            className={
+                portrait
+                    ? // The pair stops being a box at all: its two zones become
+                      // direct children of the shell's pane strip, so each is a
+                      // full-page snap pane in its own right (issue #2584).
+                      // `display: contents` keeps the custom properties below
+                      // inheriting — they are what size the tiles.
+                      "contents"
+                    : "flex min-h-0 flex-1 flex-col overflow-hidden compact-chrome:flex-none compact-chrome:basis-auto compact-chrome:overflow-visible md:flex-row"
+            }
             style={
                 {
                     "--split-main": `${splitRatio * 100}%`,
+                    "--peek-reserve": selection
+                        ? PEEK_PANEL_SHEET_RESERVE
+                        : "0px",
+                    ...(portrait ? undefined : reserve),
                 } as React.CSSProperties
             }
         >
@@ -165,7 +271,12 @@ export default function DeckZonesSurface({
                    the zone's WIDTH and fight `md:basis-[var(--split-main)]`.
                    Un-clipping is direction-free, so it takes the full
                    phone-shaped predicate. */
-                className="min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible md:flex-none md:shrink-0 md:grow-0 md:basis-[var(--split-main)]"
+                data-deck-pane="maindeck"
+                className={cn(
+                    portrait
+                        ? PORTRAIT_PANE
+                        : "min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible md:flex-none md:shrink-0 md:grow-0 md:basis-[var(--split-main)]"
+                )}
                 style={zoomVars(cardBase, mainZoom.value)}
             >
                 <DeckZoneSurface
@@ -181,7 +292,13 @@ export default function DeckZonesSurface({
                     cardTitle={mainCardTitle}
                     emptyMessage={mainEmptyMessage}
                     featuredCardId={featuredCardId}
-                    onSetFeatured={onSetFeatured}
+                    onCardSelect={touch ? setSelection : undefined}
+                    selectedTileKey={
+                        selection?.zone === "maindeck"
+                            ? selection.tileKey
+                            : null
+                    }
+                    onCardInspect={(card) => setInspecting(card.cardId)}
                     onAddColumn={onAddColumn}
                     onRenameColumn={onRenameColumn}
                     onDeleteColumn={onDeleteColumn}
@@ -197,10 +314,16 @@ export default function DeckZonesSurface({
                     }
                 />
             </div>
-            <PoolSplitDivider {...splitDividerProps} />
+            {/* No split to drag when the zones are separate panes. */}
+            {!portrait && <PoolSplitDivider {...splitDividerProps} />}
             <div
+                data-deck-pane="sideboard"
                 /* Same split as the Maindeck wrapper above (issue #2511). */
-                className="min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible"
+                className={cn(
+                    portrait
+                        ? PORTRAIT_PANE
+                        : "min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible"
+                )}
                 style={zoomVars(cardBase, sideZoom.value)}
             >
                 <DeckZoneSurface
@@ -215,6 +338,13 @@ export default function DeckZonesSurface({
                     onCardClick={onSideCardClick}
                     cardTitle={sideCardTitle}
                     emptyMessage={sideEmptyMessage}
+                    onCardSelect={touch ? setSelection : undefined}
+                    selectedTileKey={
+                        selection?.zone === "sideboard"
+                            ? selection.tileKey
+                            : null
+                    }
+                    onCardInspect={(card) => setInspecting(card.cardId)}
                     countSuffix={sideCountSuffix}
                     warning={sideWarning}
                     headerRight={
@@ -228,6 +358,19 @@ export default function DeckZonesSurface({
                     }
                 />
             </div>
+
+            <DeckZonePeek
+                selection={selection}
+                subtitle={
+                    selection?.zone === "maindeck" ? mainTabLabel : sideTabLabel
+                }
+                onClose={() => setSelection(null)}
+                actions={peekActions}
+                onPin={onPin}
+                inspecting={inspecting}
+                onInspect={setInspecting}
+                onCloseInspect={() => setInspecting(null)}
+            />
         </div>
     );
 }

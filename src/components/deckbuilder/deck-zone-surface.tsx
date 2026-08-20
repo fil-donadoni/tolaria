@@ -11,12 +11,15 @@ import {
     type GroupingKind,
     type OrderingKind,
 } from "@convex/deckLayout";
-import type { DeckCardMoveMenuColumn } from "./deck-card-move-menu";
 import { cn } from "~/lib/utils";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
+import { useViewportMode } from "~/hooks/useViewportMode";
 import type { ZoneCard } from "~/types/game";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import DeckColumnPile, { type DeckPileTile } from "./deck-column-pile";
+import DeckMvRow from "./deck-mv-row";
+import { collapseDuplicateTiles } from "./deckZoneRows";
+import type { DeckColumnChoice, DeckZoneSelection } from "./deckZoneSelection";
 import EmptyState from "~/components/ui/empty-state";
 import {
     DEFAULT_ZONE_FILTER,
@@ -128,11 +131,21 @@ export interface DeckZoneSurfaceProps {
     /** Soft-limit warning shown next to the count. */
     warning?: string | null;
     headerRight?: React.ReactNode;
-    /** Resolved Featured Card ID (PRD #589). Constructed Maindeck only. */
+    /** Resolved Featured Card ID (PRD #589). Constructed Maindeck only. Draws
+     *  the persistent indicator ring; SETTING the Featured Card is a Peek /
+     *  Inspect CTA since issue #2584 removed the per-tile overlay button. */
     featuredCardId?: string | null;
-    /** Presence enables the "Set as featured" affordance on each card's
-     *  topmost copy. Constructed Maindeck only. */
-    onSetFeatured?: (cardId: string) => void;
+    /** A card was SELECTED rather than moved (issue #2584). Supplied by the
+     *  pair parent only where a tap means "select" — a touch viewport, where
+     *  the Peek Panel is the primary move path. Absent ⇒ a click keeps its
+     *  pre-#2584 meaning and fires {@link DeckZoneSurfaceProps.onCardClick}. */
+    onCardSelect?: (selection: DeckZoneSelection) => void;
+    /** The selected tile's key (`DeckZoneSelection.tileKey`) — draws the
+     *  selection ring on exactly the copy that was tapped. */
+    selectedTileKey?: string | null;
+    /** Double-click a tile (issue #2584): the POINTER path to the Inspect
+     *  Overlay, now that no tile carries an overlay button. */
+    onCardInspect?: (card: ZoneCard) => void;
     /** Manual-Column management (ADR 0075 §2, issue #1626). Supplied as a trio
      *  or not at all; when absent the surface renders no add/rename/delete
      *  affordance, which is the reduced draft-time bar (ADR 0075 §6) and the
@@ -142,12 +155,10 @@ export interface DeckZoneSurfaceProps {
     onRenameColumn?: (columnId: ColumnId, label: string) => void;
     onDeleteColumn?: (columnId: ColumnId) => void;
     /** Records a Card Pin (issue #1626, `deckZoneDrag.ts`'s
-     *  `DeckZoneDragHandlers.onPin`). Presence renders each tile's
-     *  `"move to…"` menu (issue #1633) — the touch analogue of dragging the
-     *  card onto a Column, since a precise drop into a narrow, snap-scrolling
-     *  Column is not a realistic touch gesture. The menu dispatches through
-     *  this SAME callback a drop resolves to, so the two gestures can never
-     *  diverge, and only on the `"columns"` drop model — the `"pane"` Zone
+     *  `DeckZoneDragHandlers.onPin`). Presence is what puts this Zone's
+     *  Columns on a {@link DeckZoneSelection} — the "Move to…" CTA of the
+     *  Peek Panel (issue #2584, replacing the per-tile menu of #1633) — and
+     *  only on the `"columns"` drop model, since the `"pane"` Zone
      *  (Sideboard) has no Columns to pin into. */
     onPin?: (cardId: string, columnId: ColumnId, pinKey: string) => void;
 }
@@ -179,7 +190,9 @@ export default function DeckZoneSurface({
     warning,
     headerRight,
     featuredCardId,
-    onSetFeatured,
+    onCardSelect,
+    selectedTileKey,
+    onCardInspect,
     onAddColumn,
     onRenameColumn,
     onDeleteColumn,
@@ -316,7 +329,7 @@ export default function DeckZoneSurface({
     // change, not something `onPin(cardId, columnId, pinKey)` can carry as-is
     // — out of scope for this fixup; excluding the entry is preferred over
     // shipping a dead one.
-    const moveMenuColumns = useMemo<DeckCardMoveMenuColumn[]>(
+    const moveMenuColumns = useMemo<DeckColumnChoice[]>(
         () =>
             dropModel === "columns"
                 ? rawColumns
@@ -348,10 +361,6 @@ export default function DeckZoneSurface({
                     dropModel === "columns" ? true : column.items.length > 0
                 )
                 .map((column) => {
-                    const topIndexByCardId = new Map<string, number>();
-                    column.items.forEach((item, idx) =>
-                        topIndexByCardId.set(item.card.cardId, idx)
-                    );
                     const empty = column.items.length === 0;
                     return {
                         id: column.id,
@@ -379,49 +388,55 @@ export default function DeckZoneSurface({
                             empty &&
                             column.kind !== "catchAll",
                         tiles: column.items.map(
-                            ({ card, pinKey }, idx): DeckPileTile => ({
-                                key: `${column.id}:${card.cardId}:${idx}`,
-                                cardId: card.cardId,
-                                dragId: `${zone}:${column.id}:${card.cardId}:${idx}`,
-                                dragData: {
-                                    kind: zone === "maindeck" ? "main" : "side",
+                            ({ card, pinKey }, idx): DeckPileTile => {
+                                const key = `${column.id}:${card.cardId}:${idx}`;
+                                return {
+                                    key,
                                     cardId: card.cardId,
-                                    cardName: card.cardName,
-                                    // The COPY being dragged (issue #1626) —
-                                    // carried on the payload so the drop
-                                    // resolver never has to re-derive which of
-                                    // several identical cards moved.
-                                    pinKey,
-                                } satisfies CardDragData,
-                                title: cardTitle(card),
-                                onClick: () => onCardClick(card),
-                                isFeatured:
-                                    !!featuredCardId &&
-                                    card.cardId === featuredCardId,
-                                onSetFeatured:
-                                    onSetFeatured &&
-                                    topIndexByCardId.get(card.cardId) === idx
-                                        ? () => onSetFeatured(card.cardId)
+                                    dragId: `${zone}:${column.id}:${card.cardId}:${idx}`,
+                                    dragData: {
+                                        kind:
+                                            zone === "maindeck"
+                                                ? "main"
+                                                : "side",
+                                        cardId: card.cardId,
+                                        cardName: card.cardName,
+                                        // The COPY being dragged (issue #1626) —
+                                        // carried on the payload so the drop
+                                        // resolver never has to re-derive which of
+                                        // several identical cards moved.
+                                        pinKey,
+                                    } satisfies CardDragData,
+                                    title: cardTitle(card),
+                                    // A tap SELECTS where the parent asked for
+                                    // selection (touch, issue #2584) and keeps its
+                                    // pre-#2584 move meaning everywhere else. One
+                                    // branch, on slot presence — the surface never
+                                    // asks which viewport it is on.
+                                    onClick: onCardSelect
+                                        ? () =>
+                                              onCardSelect({
+                                                  zone,
+                                                  cardId: card.cardId,
+                                                  cardName: card.cardName,
+                                                  pinKey,
+                                                  tileKey: key,
+                                                  columns:
+                                                      dropModel === "columns" &&
+                                                      onPin
+                                                          ? moveMenuColumns
+                                                          : [],
+                                              })
+                                        : () => onCardClick(card),
+                                    onDoubleClick: onCardInspect
+                                        ? () => onCardInspect(card)
                                         : undefined,
-                                // "Move to…" (issue #1633): only on the
-                                // `"columns"` model and only when the host
-                                // supplied `onPin` — dispatches through the
-                                // SAME callback a drop resolves to, with the
-                                // SAME `pinKey` derivation, so the menu can
-                                // never diverge from a drag.
-                                moveMenu:
-                                    dropModel === "columns" && onPin
-                                        ? {
-                                              columns: moveMenuColumns,
-                                              onSelect: (columnId: ColumnId) =>
-                                                  onPin(
-                                                      card.cardId,
-                                                      columnId,
-                                                      pinKey
-                                                  ),
-                                          }
-                                        : undefined,
-                            })
+                                    isFeatured:
+                                        !!featuredCardId &&
+                                        card.cardId === featuredCardId,
+                                    isSelected: selectedTileKey === key,
+                                };
+                            }
                         ),
                     };
                 }),
@@ -432,8 +447,10 @@ export default function DeckZoneSurface({
             zone,
             cardTitle,
             onCardClick,
+            onCardSelect,
+            selectedTileKey,
+            onCardInspect,
             featuredCardId,
-            onSetFeatured,
             onPin,
             moveMenuColumns,
         ]
@@ -454,6 +471,16 @@ export default function DeckZoneSurface({
     // `portrait` mode also requires portrait ORIENTATION, so a narrow landscape
     // window would hide the pile in CSS while JS still filled it with buttons.
     const narrowWidth = useViewportWidth() < 768;
+
+    // Issue #2584: a phone held UPRIGHT draws each Column as a horizontal ROW
+    // (`DeckMvRow`) instead of a vertical pile — see that component for why.
+    // `useViewportMode()`, not the width read above, because the arrangement
+    // genuinely depends on ORIENTATION: at 844x390 the same phone is back to
+    // piles (the issue's landscape AC). There is no CSS twin of this branch to
+    // disagree with — the two arrangements are different elements, mounted one
+    // at a time, so `index.css`'s "keep the two in step" warning does not
+    // apply here the way it does to `narrowWidth`.
+    const asRows = useViewportMode() === "portrait";
 
     // The header's count text. The `countSuffix` branch exists because the
     // naive `${visible.length} of ${cards.length}${countSuffix}` reads as
@@ -588,52 +615,75 @@ export default function DeckZoneSurface({
                 bounding the pane under `compact-chrome:`, so the shell's one
                 scroll wrapper absorbs the overflow instead of the cards.
                 Above `md` on a desktop-shaped viewport this is unchanged. */}
-            <div className="flex flex-1 items-start gap-3 overflow-auto p-3 snap-x snap-mandatory compact-chrome:min-h-[calc(var(--card-h)+3.5rem)] compact-chrome:flex-none md:snap-none md:gap-6 md:p-4">
-                {rendered.map((column) => (
-                    <DeckColumnPile
-                        key={column.id}
-                        label={column.label}
-                        dropId={column.dropId}
-                        droppable={dropModel === "columns"}
-                        dataColumn={column.id}
-                        tiles={column.tiles}
-                        hiddenWhenEmpty={column.hiddenWhenEmpty}
-                        actions={
-                            // A Column that is not a pin target is never
-                            // renameable and never deletable (ADR 0075 §2), so
-                            // it gets no controls at all rather than two
-                            // disabled ones. Renaming is offered for MANUAL
-                            // Columns only — a generated Column's label comes
-                            // from its Grouping.
-                            //
-                            // …and a Column the pile is CSS-hiding below `md`
-                            // (`hiddenWhenEmpty`, issue #1633) gets none either
-                            // (issue #2511): the controls inside a
-                            // `display: none` pile are unreachable but still in
-                            // the document, which is 9 zero-size buttons on the
-                            // Limited Maindeck at 390x844 — dead tab stops the
-                            // browser probe counts and a reader cannot see.
-                            // `narrowWidth` is the JS twin of the pile's own
-                            // `hidden md:flex`, read from the SAME `md`
-                            // breakpoint number so the two cannot disagree.
-                            (onRenameColumn || onDeleteColumn) &&
-                            column.pinNamespace !== null &&
-                            !(column.hiddenWhenEmpty && narrowWidth) ? (
-                                <DeckColumnActions
-                                    columnId={column.id}
-                                    label={column.label}
-                                    onRename={
-                                        column.kind === "manual"
-                                            ? onRenameColumn
-                                            : undefined
-                                    }
-                                    onDelete={onDeleteColumn}
-                                    deletable={column.deletable}
-                                />
-                            ) : undefined
-                        }
-                    />
-                ))}
+            <div
+                className={cn(
+                    "flex overflow-auto p-3 md:snap-none md:gap-6 md:p-4",
+                    asRows
+                        ? // Issue #2584: rows stack DOWN the pane and the pane
+                          // itself is what scrolls vertically; each row owns its
+                          // own horizontal scroller with
+                          // `overscroll-behavior-x: contain`.
+                          "flex-col items-stretch gap-2 overscroll-y-contain"
+                        : "flex-1 items-start gap-3 snap-x snap-mandatory compact-chrome:min-h-[calc(var(--card-h)+3.5rem)] compact-chrome:flex-none"
+                )}
+            >
+                {asRows
+                    ? rendered.map((column) => (
+                          <DeckMvRow
+                              key={column.id}
+                              label={column.label}
+                              dropId={column.dropId}
+                              droppable={dropModel === "columns"}
+                              dataColumn={column.id}
+                              tiles={collapseDuplicateTiles(column.tiles)}
+                              hiddenWhenEmpty={column.hiddenWhenEmpty}
+                          />
+                      ))
+                    : rendered.map((column) => (
+                          <DeckColumnPile
+                              key={column.id}
+                              label={column.label}
+                              dropId={column.dropId}
+                              droppable={dropModel === "columns"}
+                              dataColumn={column.id}
+                              tiles={column.tiles}
+                              hiddenWhenEmpty={column.hiddenWhenEmpty}
+                              actions={
+                                  // A Column that is not a pin target is never
+                                  // renameable and never deletable (ADR 0075 §2), so
+                                  // it gets no controls at all rather than two
+                                  // disabled ones. Renaming is offered for MANUAL
+                                  // Columns only — a generated Column's label comes
+                                  // from its Grouping.
+                                  //
+                                  // …and a Column the pile is CSS-hiding below `md`
+                                  // (`hiddenWhenEmpty`, issue #1633) gets none either
+                                  // (issue #2511): the controls inside a
+                                  // `display: none` pile are unreachable but still in
+                                  // the document, which is 9 zero-size buttons on the
+                                  // Limited Maindeck at 390x844 — dead tab stops the
+                                  // browser probe counts and a reader cannot see.
+                                  // `narrowWidth` is the JS twin of the pile's own
+                                  // `hidden md:flex`, read from the SAME `md`
+                                  // breakpoint number so the two cannot disagree.
+                                  (onRenameColumn || onDeleteColumn) &&
+                                  column.pinNamespace !== null &&
+                                  !(column.hiddenWhenEmpty && narrowWidth) ? (
+                                      <DeckColumnActions
+                                          columnId={column.id}
+                                          label={column.label}
+                                          onRename={
+                                              column.kind === "manual"
+                                                  ? onRenameColumn
+                                                  : undefined
+                                          }
+                                          onDelete={onDeleteColumn}
+                                          deletable={column.deletable}
+                                      />
+                                  ) : undefined
+                              }
+                          />
+                      ))}
             </div>
         </div>
     );

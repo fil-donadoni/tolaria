@@ -1058,17 +1058,25 @@ export default function DeckBuilder({
                     </div>
                 </>
             }
-            sourcePanel={
-                <div style={zoomVars(resultsZoom.value)}>
-                    <ResultsGrid
-                        entries={entries}
-                        idle={idle}
-                        activeSets={filters.sets}
-                        enforceAvailability={deck.format !== "manual"}
-                        onAdd={handleAdd}
-                    />
-                </div>
-            }
+            sourcePanel={{
+                // The pane's tab (issue #2584): one short word plus the live
+                // result count. Dropping a deck card on this tab is what
+                // removes it from the deck on a phone, now that a tap opens
+                // the Peek Panel instead of removing.
+                label: "Search",
+                count: entries?.length ?? 0,
+                content: (
+                    <div style={zoomVars(resultsZoom.value)}>
+                        <ResultsGrid
+                            entries={entries}
+                            idle={idle}
+                            activeSets={filters.sets}
+                            enforceAvailability={deck.format !== "manual"}
+                            onAdd={handleAdd}
+                        />
+                    </div>
+                ),
+            }}
             mainCards={deck.cards}
             sideCards={deck.sideboard}
             layout={layout}
@@ -1089,6 +1097,13 @@ export default function DeckBuilder({
                 onMoveToSideboard: handleMoveToSideboard,
                 onMoveToMaindeck: handleMoveToMaindeck,
                 onPin: handlePin,
+                // Dropping a deck card on the Search tab (issue #2584) — it
+                // leaves the deck entirely, the drag analogue of the tap that
+                // used to remove it.
+                onRemoveFromDeck: (cardId, zone) =>
+                    zone === "maindeck"
+                        ? handleRemove(cardId)
+                        : handleRemoveSideboard(cardId),
                 onMainCardClick: (card) => handleRemove(card.cardId),
                 onSideCardClick: (card) => handleRemoveSideboard(card.cardId),
                 onMainGroupingChange: handleMainGroupingChange,
