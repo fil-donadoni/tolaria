@@ -37,3 +37,33 @@ gh issue view N --json labels -q '[.labels[].name]'     # is in-progress ALREADY
 The atomic tiebreak is the branch: even if both sessions pass the probe and both add the label, only one subagent's `git worktree add -b feat/issue-N` succeeds (`references/subagent-brief.md`, step 1) — the other gets `branch already exists` and **must abort as a collision** (not resume it as a WIP). See that brief.
 
 Track **every claimed issue in the batch** — each one, on every exit path (merge, failure, interrupt, dependency-skip), must be released (see SKILL.md § Release). A claim you dropped because another session owns it is **not** yours to release — leave its label/branch/PR untouched.
+
+## Stalled subagents — a silent one is usually alive
+
+If a subagent has written no receipt for `SUBAGENT_STALL_MINUTES`
+(`ls .claude/receipts/<BATCH_ID>/`), do **not** respawn it: a second agent in
+the same worktree corrupts both. Probe for liveness first, cheapest signal
+upward:
+
+```bash
+ls -la ../<repo>-issue-N                      # worktree still there?
+git -C ../<repo>-issue-N status --porcelain   # uncommitted churn = someone is working
+git -C ../<repo>-issue-N log --oneline -1     # recent commit?
+find ../<repo>-issue-N -type f -not -path '*/node_modules/*' -not -path '*/.git/*' \
+  -exec stat -f '%Sm %N' -t '%Y-%m-%d %H:%M' {} + | sort -r | head -1
+```
+
+**That last line used to be `find -newermt '-10 minutes'`, which is a GNU
+extension BSD `find` does not have** — on this machine it returns nothing at
+all, for a live worktree exactly as for a dead one. It is the worst possible
+failure for a liveness probe: silently unanimous "inert", which reads as
+permission to tear down a worktree somebody is still writing to. The `stat`
+form above prints the newest file and its timestamp, so an empty result means
+an empty tree rather than an unsupported flag.
+
+Any file touched in the last ten minutes, or a running test process against
+that path, means it is alive — a long-running gate or a big refactor looks
+exactly like a hang. Only when the worktree is inert **and** no branch was
+pushed do you treat it as dead: release the claim, remove the worktree, and
+leave the issue for a later pass. Never respawn into a worktree you did not
+first prove idle.
