@@ -128,7 +128,24 @@ export default function GameDialog({
                     >
                         {icon && <SunburstIcon>{icon}</SunburstIcon>}
 
-                        <div className="flex max-h-[80vh] w-full min-w-0 flex-1 flex-col">
+                        <div
+                            // 80vh caps only THIS column, not the chrome
+                            // around it — DialogContent's own `p-4` (32px)
+                            // plus the Panel's `roomy` padding (48px) sit
+                            // outside this max-height, so at the cap the
+                            // rendered popup already exceeds an 80px-larger
+                            // viewport than 80vh implies. DialogContent
+                            // centers via `top-1/2 -translate-y-1/2` with no
+                            // height clamp of its own, so any overshoot
+                            // strands the top and clips the bottom equally
+                            // (issue #2586: measured at 844x390, the Stats
+                            // dialog). `short-viewport:` (`max-height:
+                            // 500px`, src/index.css) reserves that ~80px of
+                            // chrome explicitly instead of relying on 80vh
+                            // headroom that stops existing below ~500px
+                            // tall.
+                            className="flex max-h-[80vh] short-viewport:max-h-[calc(100vh-6rem)] w-full min-w-0 flex-1 flex-col"
+                        >
                             <DialogTitle
                                 className={cn(
                                     // `.panel-title-clear` keeps the title

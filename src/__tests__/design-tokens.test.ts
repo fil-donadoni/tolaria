@@ -15,6 +15,7 @@ import {
     DENSITY_RUNGS,
     PALETTE_TOKENS,
     SIGNAL_TOKENS,
+    CHART_CATEGORICAL_TOKENS,
     PANEL_FRAME_TOKENS,
     bracketTitleGapPx,
     pxValue,
@@ -393,10 +394,11 @@ describe("design-system census mirrors the stylesheet", () => {
     // `sections-foundations.tsx`, where they could drift from `src/index.css`
     // unnoticed — a reference page quietly describing a palette that no longer
     // exists. Both now read the same typed mirror, and this is the guard.
-    it.each([...PALETTE_TOKENS, ...SIGNAL_TOKENS].map((t) => [t.name, t.hex]))(
-        "%s matches @theme inline",
-        (name, hex) => {
-            expect(colors[name], `--color-${name} in @theme inline`).toBe(hex);
-        }
-    );
+    it.each(
+        [...PALETTE_TOKENS, ...SIGNAL_TOKENS, ...CHART_CATEGORICAL_TOKENS].map(
+            (t) => [t.name, t.hex]
+        )
+    )("%s matches @theme inline", (name, hex) => {
+        expect(colors[name], `--color-${name} in @theme inline`).toBe(hex);
+    });
 });

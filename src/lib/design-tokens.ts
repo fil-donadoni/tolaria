@@ -304,6 +304,25 @@ export const SIGNAL_TOKENS: readonly ColorTokenSpec[] = [
     { name: "combat-4", hex: "#eab308", role: "combat group ring" },
 ] as const;
 
+/** Categorical chart-series hues (issue #2586, dataviz skill) — identity
+ *  color for a chart series (e.g. deck-stats type band segments), never
+ *  status/signal meaning. Eight-slot FIXED order, validated against this
+ *  app's own dark chart surface (`--color-surface`); see the token's own
+ *  comment in `src/index.css` for the exact `validate_palette.js` command
+ *  and results. Consumers assign slots by presence-order within a fixed
+ *  canonical entity list (never by count/rank) so any two rendered-adjacent
+ *  segments are always a validated adjacent pair. */
+export const CHART_CATEGORICAL_TOKENS: readonly ColorTokenSpec[] = [
+    { name: "chart-cat-1", hex: "#3987e5", role: "chart series 1" },
+    { name: "chart-cat-2", hex: "#d95926", role: "chart series 2" },
+    { name: "chart-cat-3", hex: "#199e70", role: "chart series 3" },
+    { name: "chart-cat-4", hex: "#c98500", role: "chart series 4" },
+    { name: "chart-cat-5", hex: "#d55181", role: "chart series 5" },
+    { name: "chart-cat-6", hex: "#008300", role: "chart series 6" },
+    { name: "chart-cat-7", hex: "#9085e9", role: "chart series 7" },
+    { name: "chart-cat-8", hex: "#e66767", role: "chart series 8" },
+] as const;
+
 /** Parse a `<n>px` token value to a number. Throws on anything else, so a
  *  token that stops being a plain pixel length fails loudly instead of
  *  silently comparing as NaN. */

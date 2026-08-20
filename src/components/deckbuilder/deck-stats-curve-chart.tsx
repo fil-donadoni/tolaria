@@ -1,8 +1,13 @@
 import { CURVE_LABELS } from "~/lib/deckStats";
 
 /** Chart height budget in px — bars scale to a fraction of this, never a raw
- *  chromatic value; only layout arithmetic (PRD #1617, issue #1631). */
+ *  chromatic value; only layout arithmetic (PRD #1617, issue #1631). Read by
+ *  the `--curve-h` custom property below, NOT applied directly — Tailwind
+ *  can't see a runtime template string, so the literal `72px` / `36px`
+ *  pair in the `className` below must be kept in sync with these two
+ *  constants by hand (issue #2586, short-viewport budget for 844x390). */
 const CHART_HEIGHT_PX = 72;
+const CHART_HEIGHT_SHORT_PX = 36;
 
 export interface DeckStatsCurveChartProps {
     /** `DeckStats.curve` as-is — lands already excluded, `{X}` already 0
@@ -33,7 +38,11 @@ export default function DeckStatsCurveChart({
         <div
             role="group"
             aria-label="Mana curve by mana value, lands excluded"
-            className="flex items-end gap-1.5"
+            // `--curve-h`: the bar-height budget as a custom property so a
+            // short viewport can shrink it without touching the per-bar
+            // inline style below (issue #2586). Keep in sync with
+            // CHART_HEIGHT_PX / CHART_HEIGHT_SHORT_PX above.
+            className="flex items-end gap-1.5 [--curve-h:72px] short-viewport:[--curve-h:36px]"
         >
             {curve.map((count, i) => (
                 <div
@@ -45,7 +54,7 @@ export default function DeckStatsCurveChart({
                     <div
                         className="w-full rounded-t-sm bg-accent"
                         style={{
-                            height: `${Math.round((count / max) * CHART_HEIGHT_PX)}px`,
+                            height: `calc(${count} / ${max} * var(--curve-h))`,
                         }}
                     />
                     <span className="text-[10px] tracking-wide text-text-muted">
