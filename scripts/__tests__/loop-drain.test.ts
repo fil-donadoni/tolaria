@@ -196,6 +196,13 @@ const run = (opts: RunOpts = {}) =>
             // Hermetic: never let a real budget configured in the outer
             // shell leak into a test that isn't about the budget guard.
             TOLARIA_LOOP_TOKEN_BUDGET: "",
+            // Hermetic, and load-bearing for #2622: the driver's own fix puts
+            // this var in the pass's environment, so every descendant of a
+            // pass inherits it — including `bun run test` -> vitest -> this
+            // spawned `sh`. Without the reset, the ceiling assertion below
+            // reads the AMBIENT value and stays green with the fix deleted,
+            // precisely when the suite runs inside an AFK pass.
+            CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "",
             ...opts.env,
         },
     });
