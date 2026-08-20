@@ -38,6 +38,7 @@ SUBAGENT rather than by the orchestrator — pass the path, never the contents.
 | `references/priority-rationale.md`    | changing the sort key, or the lineage order looks wrong              | orchestrator     |
 | `references/red-baseline.md`          | the green-main precondition (§0) fails                               | orchestrator     |
 | `references/collisions.md`            | a claim probe trips, a branch/worktree exists, a subagent goes quiet | orchestrator     |
+| `references/stale-claim-sweep.md`     | §1a reports something, or a `staleClaims` entry it did not free      | orchestrator     |
 | `references/subagent-brief.md`        | spawning an implement / fixup subagent                               | **the subagent** |
 | `references/reviewer-brief.md`        | spawning a reviewer subagent                                         | **the reviewer** |
 | `references/merge-train.md`           | picking the gate lane (once per run); `gh pr merge` misbehaves       | orchestrator     |
@@ -53,7 +54,7 @@ drift, and the stale one reads as authoritative.
 - `MAX_PASSES = 1` — batches per process. **One batch, then exit** (see § Running unattended): the loop's durable state lives in GitHub labels and `.claude/telemetry/green-sha`, not in the conversation, so a fresh process per batch costs nothing and caps context growth. Raise only for an interactive run you are watching.
 - `SUBAGENT_STALL_MINUTES = 20` — no receipt and no worktree activity for this long ⇒ probe for liveness (see § Stalled subagents).
 - `BATCH_CAP = 4` — max issues per fan-out batch. Tune here only. **The cap is a CPU budget, not just a context budget**: every concurrent subagent runs targeted tests, a type-check and a lint. If the project enforces a per-process worker cap (Tolaria: 2 vitest workers per light job, see its CLAUDE.md § Quality gates), `BATCH_CAP × workers` should stay at or below the machine's core count. Raising the cap without raising that budget buys queueing, not throughput.
-- `STALE_CLAIM_HOURS = 24` — claim-orphan threshold; the planner applies it and reports orphans as `staleClaims` (§1).
+- `STALE_CLAIM_HOURS = 24` — claim-orphan threshold. `bun run queue:sweep` (§1a) and the planner's `staleClaims` (§1) both apply it through the same `isStaleClaim`, so they cannot drift.
 - `DEFAULT_IMPL_MODEL = sonnet` — implement/fixup subagent model when the issue carries no `model:*` label. **Never omit the `model` parameter**: omitting it inherits the orchestrator's session model, which silently routes every unlabeled issue to whatever tier the session runs on (a Fable/Opus session = most expensive tier on routine work).
 - Reviewer model: **`opus`, fixed** — independent of the issue's `model:*` label (review reads a diff, costs a fraction of implementation; a strong reviewer over a cheap implementer is the asymmetry to exploit).
 
@@ -104,6 +105,17 @@ Each **subagent** repeats this check inside its worktree before implementing —
 
 Each pass of the loop selects a **batch** of issues, fans them out to parallel subagents, then integrates the results serially.
 
+### 1a. Sweep dead claims — ALWAYS, first
+
+```bash
+bun run queue:sweep --release --pretty
+```
+
+**Every pass, unconditionally — including one whose batch you build by hand.**
+A stuck claim is worse than a lost one: the issue reads as taken, so nothing
+ever reselects it. Why it is not the planner's job, and what `--release`
+touches: `references/stale-claim-sweep.md`.
+
 ### 1. Get the batch from the planner
 
 **Do not derive the batch. Run the planner and execute its output.**
@@ -139,12 +151,12 @@ It prints one JSON object (`version: 1`) and makes the `gh` calls itself — one
 
 **Act on each field. None of them is advisory:**
 
-| Field         | What you do                                                                                                                                                                                                                                                                                  |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `staleClaims` | Release each **first**, before claiming anything: `gh issue edit N --remove-label in-progress --remove-assignee <assignee>`. The planner already checked open-PR liveness and `STALE_CLAIM_HOURS`; these are orphans from a crashed process, and an unreleased one hides ready work forever. |
-| `skipped`     | Carry out the declared `action` on each (below), then move on. A skip is **never** claimed.                                                                                                                                                                                                  |
-| `batch`       | Claim (§1b) and fan out (§3). Each entry's `model` is the implement tier — pass it verbatim, never re-decide it. `type` is the branch prefix (`fix/issue-N` / `feat/issue-N`). `hitl: true` means the PR is left for human review instead of auto-merged (§ HITL flag).                      |
-| `deferred`    | Nothing — they stay unclaimed in the pool for a later pass. Report them with their `conflictsWith` so the pass report explains why the batch is the size it is.                                                                                                                              |
+| Field         | What you do                                                                                                                                                                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `staleClaims` | Already freed by §1a. A non-empty list here is a **cross-check**, not a to-do — an entry §1a did not free means the two disagreed, which is a finding for the pass report.                                                                                              |
+| `skipped`     | Carry out the declared `action` on each (below), then move on. A skip is **never** claimed.                                                                                                                                                                             |
+| `batch`       | Claim (§1b) and fan out (§3). Each entry's `model` is the implement tier — pass it verbatim, never re-decide it. `type` is the branch prefix (`fix/issue-N` / `feat/issue-N`). `hitl: true` means the PR is left for human review instead of auto-merged (§ HITL flag). |
+| `deferred`    | Nothing — they stay unclaimed in the pool for a later pass. Report them with their `conflictsWith` so the pass report explains why the batch is the size it is.                                                                                                         |
 
 **Skip actions**, one `gh` call each plus a one-line comment saying why:
 
@@ -220,16 +232,7 @@ The tier governs the **implement-subagent and every follow-up subagent for that 
 
 Every subagent has written its receipt before the train starts (§4 reads them from disk, not from this conversation). Because the batch is file-disjoint (§1), the parallel worktrees cannot collide.
 
-**Stalled subagents — a silent one is usually alive.** If a subagent has written no receipt for `SUBAGENT_STALL_MINUTES` (`ls .claude/receipts/<BATCH_ID>/`), do **not** respawn it: a second agent in the same worktree corrupts both. Probe for liveness first, cheapest signal upward:
-
-```bash
-ls -la ../<repo>-issue-N                      # worktree still there?
-git -C ../<repo>-issue-N status --porcelain   # uncommitted churn = someone is working
-git -C ../<repo>-issue-N log --oneline -1     # recent commit?
-find ../<repo>-issue-N -newermt '-10 minutes' -not -path '*/node_modules/*' -not -path '*/.git/*' | head
-```
-
-Any file touched in the last 10 minutes, or a running test process against that path, means it is alive — a long-running gate or a big refactor looks exactly like a hang. Only when the worktree is inert **and** no branch was pushed do you treat it as dead: release the claim, remove the worktree, and leave the issue for a later pass. Never respawn into a worktree you did not first prove idle.
+**A subagent that has gone quiet is usually alive** — probe before doing anything, never respawn into a worktree you have not proven idle: `references/collisions.md`.
 
 ### 3b. Review fan-out (parallel, receipt-triggered)
 

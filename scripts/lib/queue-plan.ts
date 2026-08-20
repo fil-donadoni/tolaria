@@ -320,6 +320,42 @@ function hoursBetween(fromIso: string, toIso: string): number {
     return (Date.parse(toIso) - Date.parse(fromIso)) / 3_600_000;
 }
 
+/** What `isStaleClaim` needs to judge one claim. */
+export interface StaleClaimContext {
+    /** Issue numbers with an open PR — the liveness signal that protects a
+     *  long-running claim from being swept. */
+    issuesWithOpenPr: number[];
+    /** Injected, never read from the clock — the predicate must be reproducible. */
+    now: string;
+    staleClaimHours: number;
+}
+
+/**
+ * Is this `in-progress` claim an orphan left by a crashed process?
+ *
+ * Exported because the sweep must NOT be reachable only through `planBatch`.
+ * It used to be an inline expression inside the planner's eligibility loop,
+ * which coupled "release dead claims" to "build a batch" — and a pass that
+ * builds its batch by hand (an AFK conf carrying a SCOPE OVERRIDE prompt, say)
+ * skips the planner entirely and therefore never swept anything. Measured
+ * 2026-08-20: eight claims, four of them P0, sat orphaned for 25-36 hours
+ * while an armed driver ran continuously past them. Each was invisible to
+ * every pass precisely BECAUSE it was claimed.
+ *
+ * The caller decides what to do with a `true` — `planBatch` defers it and
+ * reports it under `staleClaims`, `scripts/queue-sweep.ts` releases it.
+ * Neither owns the rule.
+ */
+export function isStaleClaim(
+    issue: Pick<QueueIssue, "number" | "updatedAt">,
+    ctx: StaleClaimContext
+): boolean {
+    return (
+        !ctx.issuesWithOpenPr.includes(issue.number) &&
+        hoursBetween(issue.updatedAt, ctx.now) > ctx.staleClaimHours
+    );
+}
+
 /**
  * The repo root, as a normalized path. A `Target files` list of `- *` — the
  * "this touches everything" the intake skills document — normalizes to this and
@@ -526,10 +562,11 @@ export function planBatch(
         }
 
         if (hasLabel(issue, "in-progress")) {
-            const stale =
-                !port.issuesWithOpenPr.includes(issue.number) &&
-                hoursBetween(issue.updatedAt, config.now) >
-                    config.staleClaimHours;
+            const stale = isStaleClaim(issue, {
+                issuesWithOpenPr: port.issuesWithOpenPr,
+                now: config.now,
+                staleClaimHours: config.staleClaimHours,
+            });
             if (stale) {
                 staleClaims.push(issue.number);
                 deferred.push({
