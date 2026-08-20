@@ -231,7 +231,6 @@ export default function DeckBuilderShell({
                             type="button"
                             variant="ghost"
                             size="xs"
-                            style={{ minHeight: "var(--control-h)" }}
                             onClick={() => setBasicsOpen(true)}
                         >
                             Add Basic
