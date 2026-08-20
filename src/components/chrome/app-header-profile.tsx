@@ -144,11 +144,25 @@ export default function AppHeaderProfile() {
                 `src/components/chrome/**` and is expected to relocate the
                 real entry point (bottom nav "Me" on phone, profile menu on
                 desktop) once it lands. */}
+            {/* min-h-[var(--control-h)] (issue #2595 round-3 fixup): `size="sm"`
+                resolves its height off `--control-h-sm`, the DELIBERATELY
+                dense rung (`--control-h` minus 4px — 40px on a coarse pointer,
+                see `.segment-pill` in index.css) meant for pills and
+                secondary controls that are not themselves the touch target.
+                Settings and Sign out ARE the touch target here, so they need
+                the full pointer-aware rung — same fix EditingActionButton
+                already applies (`src/components/editing/editing-action-button.tsx`)
+                for the same WCAG 2.5.8 reason. `--control-h` is still the
+                token, not a hardcoded 44px, so it stays 32px on a fine
+                pointer and only becomes 44px under `@media (pointer:
+                coarse)`; the `min-h-[...]` utility here wins over the `sm`
+                variant's via `cn()`'s `twMerge` (last conflicting utility
+                wins), so the padding/text-size stay at the `sm` rung. */}
             <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="short-viewport:px-1.5 short-viewport:py-0.5"
+                className="min-h-[var(--control-h)] short-viewport:px-1.5 short-viewport:py-0.5"
                 onClick={() => void navigate({ to: "/settings" })}
                 title="Settings"
             >
@@ -159,7 +173,7 @@ export default function AppHeaderProfile() {
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="short-viewport:px-1.5 short-viewport:py-0.5"
+                className="min-h-[var(--control-h)] short-viewport:px-1.5 short-viewport:py-0.5"
                 onClick={() => void handleSignOut()}
                 disabled={signingOut}
                 title="Sign out"

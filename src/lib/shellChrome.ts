@@ -230,6 +230,11 @@ export const SHELL_ROUTE_RULES: readonly ShellRouteRule[] = [
         mode: "browse",
         why: "The living token/component census — browsed, not edited.",
     },
+    {
+        pattern: "/settings",
+        mode: "browse",
+        why: "The per-user preferences page (density, motion, phase stops, preview default) — edited in place like the admin editors above, not a multi-step editing surface. Reached from AppHeaderProfile's Settings button (desktop header / bottom nav Me popover, issue #2595).",
+    },
 ] as const;
 
 /** `/foo/bar/` and `/foo/bar` are the same route; `/` stays `/`. */
