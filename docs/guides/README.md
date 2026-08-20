@@ -31,11 +31,46 @@ Not every document is a guide. Where to look for the other kinds:
 | What a subagent noticed but was not asked to fix | `docs/findings/` — read with `bun run findings`                                |
 | The workflow skills themselves                   | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                        |
 
+## Every guide carries a glossary
+
+**A reader must be able to resolve an unfamiliar term in zero time, at whatever
+point in the prose they hit it.** So every guide here ends with a `## Glossary`
+section defining its own jargon, and **every occurrence of a defined term in the
+body links to its entry** — not just the first one. Markdown has no footnotes;
+in-page anchors are the mechanism:
+
+```markdown
+The [driver](#g-driver) keeps running after the terminal is gone.
+
+## Glossary
+
+### <a id="g-driver"></a>Driver
+
+`scripts/loop-drain.sh` — the `while` loop that launches one process per pass…
+```
+
+Three rules that make it work rather than decorate:
+
+1. **Explicit `<a id="g-term"></a>` anchors**, prefixed `g-`. Auto-generated
+   heading anchors collide with body headings of the same name; these do not.
+2. **Every instance links**, because a reader who skipped the first mention is
+   exactly the reader who needs the link. Linking only the first occurrence
+   optimises for someone reading top to bottom, which is not how a guide is used
+   at 2am.
+3. **Define the term, not the tool.** A glossary entry says what the thing IS and
+   why it exists in one or two sentences — "the file that records this checkout
+   may run unattended" — never a copy of the command reference above it.
+
+Census the terms when you write the guide, and again when you edit it: a term
+introduced by an edit and never linked is the failure mode this rule exists to
+prevent.
+
 ## Adding a guide
 
 A guide belongs here when a human would otherwise have to reconstruct a
 procedure from a script's source or a skill file. Write it, add its row to the
-table above, and ship it through the documentation lane:
+table above, give it a glossary per the section above, and ship it through the
+documentation lane:
 
 ```bash
 bun run wt:docs <slug>     # worktree + branch off origin/main
