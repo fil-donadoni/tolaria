@@ -114,7 +114,10 @@ export default function DeckCardTile({
                 isDragging ? "opacity-30" : ""
             )}
         >
-            <CardImage card={{ id: cardId }} />
+            {/* PRD #2405 / issue #2583: on an editing surface a 250ms touch hold is
+                the DRAG (gesture model A), so the hold-preview is off — the
+                card is read through the Peek Panel's Inspect CTA instead. */}
+            <CardImage card={{ id: cardId }} holdPreview={false} />
             {/* A "removable" hover cue (parity with the pre-#1581 deckbuilder
                 tile), keyed off the group so it only lights the hovered card. */}
             <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-danger-strong/70" />

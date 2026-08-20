@@ -219,3 +219,93 @@ describe("LimitedDraftTable pick gestures through projectLimitedEvent (ADR 0060,
         expect(getByRole("timer").textContent).toMatch(/left|Auto-picking/);
     });
 });
+
+// The Draft Room is the FIRST adopter of the editing-surface gesture
+// primitives (PRD #2405 D16, issue #2583), and it is the adopter because its
+// tap ALREADY means "select" (ADR 0060 above) — the gesture core's `tap →
+// select → Peek Panel` needs no change of meaning here. These run the full
+// path — real projection → real table → real PeekPanel → real mutation mock —
+// because the panel being correct in isolation says nothing about whether the
+// surface ever renders it.
+describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
+    const panel = () => document.querySelector("[data-peek-panel]");
+    const actionEls = () =>
+        [
+            ...document.querySelectorAll("[data-editing-action]"),
+        ] as HTMLElement[];
+
+    it("shows no panel until a card is selected", () => {
+        renderTable({});
+        expect(panel()).toBeNull();
+    });
+
+    it("a selected card opens the panel with the Draft Room's CTA row", () => {
+        renderTable({ selectedPickId: "r0-p0-c1" });
+        expect(panel()).toBeTruthy();
+        expect(panel()!.getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+        expect(actionEls().map((el) => el.dataset.editingAction)).toEqual([
+            "Pick",
+            "→ Side",
+            "Inspect",
+        ]);
+    });
+
+    it("the panel's primary CTA commits the SELECTED pick", async () => {
+        renderTable({ selectedPickId: "r0-p0-c1" });
+        fireEvent.click(actionEls()[0]);
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c1",
+            })
+        );
+    });
+
+    it('the panel\'s "→ Side" CTA commits the Pick AND sideboards it', async () => {
+        renderTable({ selectedPickId: "r0-p0-c0", poolLength: 2 });
+        fireEvent.click(actionEls()[1]);
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c0",
+            })
+        );
+        await waitFor(() =>
+            expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                poolIndex: 2,
+                sideboard: true,
+            })
+        );
+    });
+
+    it('the panel\'s "Inspect" CTA opens the Inspect Overlay', () => {
+        renderTable({ selectedPickId: "r0-p0-c0" });
+        expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
+        fireEvent.click(actionEls()[2]);
+        const overlay = document.querySelector("[data-inspect-panel]");
+        expect(overlay).toBeTruthy();
+        expect((overlay as HTMLElement).style.maxHeight).toBe("100dvh");
+    });
+
+    it("reserves room for the sheet so it never covers the Pool", () => {
+        const { container } = renderTable({ selectedPickId: "r0-p0-c0" });
+        const surface = container.querySelector(
+            "div.mt-4.flex.flex-col"
+        ) as HTMLElement;
+        expect(surface.style.paddingBottom).toBe("9rem");
+    });
+
+    it("closing the panel leaves the card selected but the panel gone", () => {
+        renderTable({ selectedPickId: "r0-p0-c0" });
+        fireEvent.click(
+            document.querySelector('[aria-label="Close Lightning Bolt panel"]')!
+        );
+        expect(panel()).toBeNull();
+        // Closing is a dismissal, not a deselection: the Selected Card is what
+        // a timer expiry auto-picks (issue #1249) and must survive it.
+        expect(selectDraftPickMock).not.toHaveBeenCalled();
+    });
+});

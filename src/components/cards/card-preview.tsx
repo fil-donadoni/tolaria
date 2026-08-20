@@ -33,6 +33,17 @@ type CardPreviewProps = {
      *  #1221), built via `buildEmblemPreviewBody`. When set, this is the
      *  CURRENT face verbatim (never a copy, so no second/original face). */
     bodyOverride?: PreviewBodyContent;
+    /** Touch long-press opens the centered preview overlay (ADR 0009). TRUE
+     *  everywhere by default — the board, the piles, the lobby — and FALSE on
+     *  the EDITING surfaces (deckbuilder tiles, draft pack cards, search
+     *  results), where a 250ms hold is the DRAG (PRD #2405 gesture model A,
+     *  issue #2583) and a preview opening under the finger would fight it.
+     *  Those surfaces read a card through the Peek Panel's Inspect CTA
+     *  instead (`~/components/editing/inspect-overlay.tsx`).
+     *
+     *  Only the TOUCH gesture is suppressed: the desktop right-click pin and
+     *  the board-only hover dock are mouse paths and keep working. */
+    holdPreview?: boolean;
     children: React.ReactNode;
 };
 
@@ -42,6 +53,7 @@ export default function CardPreview({
     cardInstance,
     showCopyBadge,
     bodyOverride,
+    holdPreview = true,
     children,
 }: CardPreviewProps) {
     // Desktop preview (phase 2): HOVER-INTENT is the discoverable trigger —
@@ -67,7 +79,8 @@ export default function CardPreview({
     // Preview is visible during the peek window and once locked; only `idle`
     // and `pressing` keep it hidden (ADR 0009 peek/lock).
     const showOverlay =
-        longPress.phase === "longPressed" || longPress.phase === "locked";
+        holdPreview &&
+        (longPress.phase === "longPressed" || longPress.phase === "locked");
     const sawTouchRef = useRef(false);
 
     // Latest close handle, read by the singleton (one-open-at-a-time) from a
@@ -218,15 +231,27 @@ export default function CardPreview({
         const cardEl =
             container.closest<HTMLElement>("[data-card-tilt-root]") ??
             container;
+        // `sawTouchRef` is set even with the hold-preview off: it is what
+        // suppresses the MOUSE preview paths on a touch device, and an
+        // editing surface must not start hover-previewing because its own
+        // long-press was disabled.
         const onTouchStart = (e: TouchEvent) => {
             sawTouchRef.current = true;
+            if (!holdPreview) return;
             longPress.handlers.onTouchStart(e as unknown as React.TouchEvent);
         };
-        const onTouchMove = (e: TouchEvent) =>
+        const onTouchMove = (e: TouchEvent) => {
+            if (!holdPreview) return;
             longPress.handlers.onTouchMove(e as unknown as React.TouchEvent);
-        const onTouchEnd = (e: TouchEvent) =>
+        };
+        const onTouchEnd = (e: TouchEvent) => {
+            if (!holdPreview) return;
             longPress.handlers.onTouchEnd(e as unknown as React.TouchEvent);
-        const onTouchCancel = () => longPress.handlers.onTouchCancel();
+        };
+        const onTouchCancel = () => {
+            if (!holdPreview) return;
+            longPress.handlers.onTouchCancel();
+        };
         // touchend calls `preventDefault()` (peek dismiss / lock) — needs a
         // non-passive listener or the browser ignores the call and warns.
         cardEl.addEventListener("touchstart", onTouchStart, {
@@ -257,6 +282,7 @@ export default function CardPreview({
         longPress.handlers.onTouchEnd,
         longPress.handlers.onTouchCancel,
         cardInstance?.isTapped,
+        holdPreview,
     ]);
 
     // Close grace shared by the card's own pointerleave and the dock's (hovering
@@ -385,7 +411,7 @@ export default function CardPreview({
                         }}
                     >
                         <div
-                            className="flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden max-h-[90vh] max-w-[90vw]"
+                            className="flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden max-h-[100dvh] max-w-[90vw]"
                             style={{ width: OVERLAY_WIDTH * overlayFactor }}
                             onTouchEnd={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}

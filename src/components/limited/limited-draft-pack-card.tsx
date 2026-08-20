@@ -85,7 +85,15 @@ export default function LimitedDraftPackCard({
                 isDragging ? "opacity-30" : ""
             )}
         >
-            <CardImage card={{ id: card.cardId }} lazy sizes="180px" />
+            {/* PRD #2405 / issue #2583: on an editing surface a 250ms touch hold is
+                the DRAG (gesture model A), so the hold-preview is off — the
+                card is read through the Peek Panel's Inspect CTA instead. */}
+            <CardImage
+                card={{ id: card.cardId }}
+                lazy
+                sizes="180px"
+                holdPreview={false}
+            />
         </div>
     );
 }

@@ -107,7 +107,7 @@ export default function CardPreviewAnchored({
                 top: position.top,
                 left: position.left,
                 width,
-                maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,
+                maxHeight: `calc(100dvh - ${VIEWPORT_PAD * 2}px)`,
                 opacity: measured ? 1 : 0,
             }}
         >

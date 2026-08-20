@@ -1,15 +1,10 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
     DragDropProvider,
     DragOverlay,
-    KeyboardSensor,
-    PointerSensor,
     type DragEndEvent,
 } from "@dnd-kit/react";
-import {
-    PointerActivationConstraints,
-    type DragDropManager,
-} from "@dnd-kit/dom";
+import { type DragDropManager } from "@dnd-kit/dom";
 import type { Id } from "@convex/_generated/dataModel";
 import {
     useLimitedEventMutations,
@@ -19,6 +14,10 @@ import CardImage from "~/components/cards/card-image";
 import { Banner } from "@/components/ui/banner";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
+import { useDeckDragSensors } from "~/components/deckbuilder/useDeckDragSensors";
+import PeekPanel from "~/components/editing/peek-panel";
+import InspectOverlay from "~/components/editing/inspect-overlay";
+import type { EditingSurfaceAction } from "~/components/editing/editing-surface-action";
 import { cardBase } from "~/lib/cardSizing";
 import LimitedDraftPack from "./limited-draft-pack";
 import LimitedDraftTimer from "./limited-draft-timer";
@@ -199,27 +198,44 @@ export default function LimitedDraftTable({
         }
     };
 
-    const sensors = useMemo(
-        () => [
-            PointerSensor.configure({
-                activationConstraints: (e: PointerEvent) =>
-                    e.pointerType === "touch"
-                        ? [
-                              new PointerActivationConstraints.Delay({
-                                  value: 250,
-                                  tolerance: 10,
-                              }),
-                          ]
-                        : [
-                              new PointerActivationConstraints.Distance({
-                                  value: 8,
-                              }),
-                          ],
-            }),
-            KeyboardSensor,
-        ],
-        []
-    );
+    // The SAME sensor configuration the deckbuilder surfaces use, which since
+    // issue #2583 reads its three thresholds from `~/lib/gesture/activation`.
+    // This screen used to carry its own copy of the literals (250/10/8) — a
+    // second opinion about activation that the gesture core exists to abolish.
+    const sensors = useDeckDragSensors();
+
+    // The Peek Panel (PRD #2405 D16, issue #2583) is the Draft Room's touch
+    // read path, and it is wired HERE rather than left as an unused primitive
+    // because this screen's tap already MEANS "select" (ADR 0060, issue
+    // #1248) — the one editing surface whose existing gesture semantics are
+    // exactly the gesture core's `tap -> select`. `holdPreview={false}` on the
+    // pack card removed the long-press preview; this is what replaces it.
+    const [peekClosedFor, setPeekClosedFor] = useState<string | null>(null);
+    const [inspecting, setInspecting] = useState<string | null>(null);
+    const selectedPickId = seat.selectedPickId ?? null;
+    const peeked =
+        selectedPickId && peekClosedFor !== selectedPickId
+            ? (pack.find((c) => c.pickId === selectedPickId) ?? null)
+            : null;
+    const peekActions: readonly EditingSurfaceAction[] = peeked
+        ? [
+              {
+                  label: "Pick",
+                  primary: true,
+                  disabled: pending,
+                  onSelect: () => void handlePick(peeked.pickId),
+              },
+              {
+                  label: "→ Side",
+                  disabled: pending,
+                  onSelect: () => void handlePickToSideboard(peeked.pickId),
+              },
+              {
+                  label: "Inspect",
+                  onSelect: () => setInspecting(peeked.cardId),
+              },
+          ]
+        : [];
 
     return (
         <DragDropProvider
@@ -227,7 +243,14 @@ export default function LimitedDraftTable({
             sensors={sensors}
             onDragEnd={handleDragEnd}
         >
-            <div className="mt-4 flex flex-col gap-3 border-t border-border-accent/20 pt-4">
+            {/* The Peek Panel is `fixed`, so the surface underneath has to
+                reserve the room it occupies — a bottom sheet that COVERS the
+                last row of the Pool is the occlusion the five-viewport probe
+                exists to catch. */}
+            <div
+                className="mt-4 flex flex-col gap-3 border-t border-border-accent/20 pt-4"
+                style={peeked ? { paddingBottom: "9rem" } : undefined}
+            >
                 <div className="flex items-center justify-between text-xs text-text-muted">
                     <span>
                         Booster {round + 1} of {totalRounds}
@@ -295,11 +318,35 @@ export default function LimitedDraftTable({
                                 width: `calc(${CARD_BASE} * 1.1)`,
                             }}
                         >
-                            <CardImage card={{ id: d.cardId }} />
+                            <CardImage
+                                card={{ id: d.cardId }}
+                                holdPreview={false}
+                            />
                         </div>
                     );
                 }}
             </DragOverlay>
+
+            {peeked && (
+                <PeekPanel
+                    cardId={peeked.cardId}
+                    name={peeked.cardName}
+                    subtitle={`Booster ${round + 1} · ${pack.length} left`}
+                    actions={peekActions}
+                    onClose={() => setPeekClosedFor(peeked.pickId)}
+                />
+            )}
+
+            {inspecting && (
+                <InspectOverlay
+                    cardId={inspecting}
+                    actions={peekActions}
+                    // PRD #2405 D15: in the Draft Room a tap anywhere closes,
+                    // so read -> back to picking is one tap. "Pick" is exempt.
+                    tapAnywhereCloses
+                    onClose={() => setInspecting(null)}
+                />
+            )}
 
             {menu && (
                 <LimitedPickContextMenu

@@ -17,6 +17,20 @@ export type CardPreviewFaceProps = PreviewBodyContent & {
     size: "sm" | "md";
     onImageLoaded?: () => void;
     imageLoaded?: boolean;
+    /** How the face arranges its two halves inside the host's flex container.
+     *
+     *  `"stacked"` (default, every board/lobby surface — unchanged) is a
+     *  COLUMN host: full-width art box on its fixed `ART_CROP_RATIO`, rules
+     *  text below.
+     *
+     *  `"split"` is a ROW host — the Inspect Overlay in landscape (PRD #2405,
+     *  issue #2583): the art takes a fixed share of the width at full height
+     *  and the text takes the rest and scrolls, so a long oracle text never
+     *  crops the art and the art never pushes the text off a 390px-tall
+     *  screen. The face stays ONE component across both because everything
+     *  between the two halves — oracle paragraphs, P/T, counters, noted mana,
+     *  owner — is identical; only the two wrappers' classes differ. */
+    layout?: "stacked" | "split";
 };
 
 export default function CardPreviewFace({
@@ -48,7 +62,9 @@ export default function CardPreviewFace({
     size,
     onImageLoaded,
     imageLoaded = true,
+    layout = "stacked",
 }: CardPreviewFaceProps) {
+    const split = layout === "split";
     const compact = size === "sm";
     const textPad = compact ? "p-3" : "p-4";
     const textBase = compact ? "text-xs" : "text-sm";
@@ -87,8 +103,16 @@ export default function CardPreviewFace({
                 `object-cover` centre-crops whatever aspect the source has.
                 Same shape as `stack-row.tsx`, which already had it right. */}
             <div
-                className="relative w-full overflow-hidden"
-                style={{ aspectRatio: ART_CROP_RATIO }}
+                className={
+                    split
+                        ? "relative w-[45%] shrink-0 self-stretch overflow-hidden"
+                        : "relative w-full overflow-hidden"
+                }
+                // In `split` the host row's height is authoritative, so the
+                // ratio must NOT also constrain the box (it would fight
+                // `self-stretch` and reintroduce the overflow this layout
+                // exists to remove).
+                style={split ? undefined : { aspectRatio: ART_CROP_RATIO }}
             >
                 {imageSrc ? (
                     <>
@@ -130,7 +154,9 @@ export default function CardPreviewFace({
                 )}
             </div>
             <div
-                className={`${textPad} ${textBase} text-text space-y-2 overflow-y-auto`}
+                className={`${textPad} ${textBase} text-text space-y-2 overflow-y-auto ${
+                    split ? "min-h-0 min-w-0 flex-1" : ""
+                }`}
             >
                 <div className="flex items-baseline justify-between gap-2">
                     <span className={`font-semibold ${nameSize} truncate`}>
