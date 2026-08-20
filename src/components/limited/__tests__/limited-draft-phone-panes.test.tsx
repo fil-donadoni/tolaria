@@ -424,10 +424,14 @@ describe("the single-mount primitives survive the layout fork (issue #2588)", ()
             // the same provider renders a second card and goes red here.
             const booster = [...manager.registry.draggables].find((d) =>
                 String(d.id).startsWith("booster-")
-            )!;
+            );
+            expect(
+                booster,
+                "no Booster draggable registered in the injected manager"
+            ).toBeTruthy();
             act(() => {
                 void manager.actions.start({
-                    source: booster.id,
+                    source: booster!.id,
                     coordinates: { x: 0, y: 0 },
                 });
             });
