@@ -421,3 +421,16 @@ describe("design-system census mirrors the stylesheet", () => {
         expect(colors[name], `--color-${name} in @theme inline`).toBe(hex);
     });
 });
+
+describe("index.html pins the roomy density default (issue #2595, PR #2620 round-2 review)", () => {
+    // The sign-in screen renders outside AuthGate's <Authenticated> branch,
+    // where UserPreferencesEffect never mounts — so nothing ever sets
+    // `[data-density]` on <html> for it. `index.html` hard-codes the roomy
+    // default itself so the unauthenticated screen keeps Panel's roomy rhythm
+    // instead of falling through to `comfortable` (no `[data-density]` match).
+    // happy-dom never loads index.html, so this is a plain text read.
+    it('<html> carries data-density="roomy"', () => {
+        const html = readFileSync(resolve(process.cwd(), "index.html"), "utf8");
+        expect(html).toMatch(/<html[^>]*\bdata-density="roomy"/);
+    });
+});
