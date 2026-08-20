@@ -1,15 +1,10 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
     DragDropProvider,
     DragOverlay,
-    KeyboardSensor,
-    PointerSensor,
     type DragEndEvent,
 } from "@dnd-kit/react";
-import {
-    PointerActivationConstraints,
-    type DragDropManager,
-} from "@dnd-kit/dom";
+import { type DragDropManager } from "@dnd-kit/dom";
 import type { Id } from "@convex/_generated/dataModel";
 import {
     useLimitedEventMutations,
@@ -19,6 +14,14 @@ import CardImage from "~/components/cards/card-image";
 import { Banner } from "@/components/ui/banner";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
+import { useDeckDragSensors } from "~/components/deckbuilder/useDeckDragSensors";
+import PeekPanel from "~/components/editing/peek-panel";
+import InspectOverlay from "~/components/editing/inspect-overlay";
+import {
+    usePeekPanelLayout,
+    peekPanelReserve,
+} from "~/components/editing/usePeekPanelLayout";
+import type { EditingSurfaceAction } from "~/components/editing/editing-surface-action";
 import { cardBase } from "~/lib/cardSizing";
 import LimitedDraftPack from "./limited-draft-pack";
 import LimitedDraftTimer from "./limited-draft-timer";
@@ -84,6 +87,12 @@ export default function LimitedDraftTable({
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [menu, setMenu] = useState<LimitedPickContextMenuState | null>(null);
+    // Peek Panel / Inspect Overlay state (PRD #2405 D16, issue #2583) —
+    // declared with the rest of the component's state because `handleSelect`
+    // below clears the dismissal. What they mean is documented at the
+    // derivation site further down.
+    const [peekClosedFor, setPeekClosedFor] = useState<string | null>(null);
+    const [inspecting, setInspecting] = useState<string | null>(null);
     // Booster zoom slider (ADR 0060, issue #1247, PRD #1107 story 21) —
     // mirrors the deckbuilder's per-zone `useCardZoom`/`CardZoomSlider`
     // wiring, its own "booster" zone so it persists independently of the
@@ -120,6 +129,13 @@ export default function LimitedDraftTable({
     // comment), so failures are swallowed rather than surfaced as an error
     // banner.
     const handleSelect = (pickId: string) => {
+        // A fresh select SUPERSEDES an earlier dismissal (issue #2583
+        // review): `peekClosedFor` is remembered per pick id, so without
+        // this a card whose Peek Panel was closed once could never reopen it
+        // — and since `holdPreview={false}` removed the long press from the
+        // pack card, that card would have no touch read path left at all for
+        // the rest of the draft.
+        setPeekClosedFor(null);
         void selectDraftPick({ eventId, pickId }).catch(() => {});
     };
 
@@ -199,27 +215,69 @@ export default function LimitedDraftTable({
         }
     };
 
-    const sensors = useMemo(
-        () => [
-            PointerSensor.configure({
-                activationConstraints: (e: PointerEvent) =>
-                    e.pointerType === "touch"
-                        ? [
-                              new PointerActivationConstraints.Delay({
-                                  value: 250,
-                                  tolerance: 10,
-                              }),
-                          ]
-                        : [
-                              new PointerActivationConstraints.Distance({
-                                  value: 8,
-                              }),
-                          ],
-            }),
-            KeyboardSensor,
-        ],
-        []
-    );
+    // The SAME sensor configuration the deckbuilder surfaces use, which since
+    // issue #2583 reads its three thresholds from `~/lib/gesture/activation`.
+    // This screen used to carry its own copy of the literals (250/10/8) — a
+    // second opinion about activation that the gesture core exists to abolish.
+    const sensors = useDeckDragSensors();
+
+    // The Peek Panel (PRD #2405 D16, issue #2583) is the Draft Room's touch
+    // read path, and it is wired HERE rather than left as an unused primitive
+    // because this screen's tap already MEANS "select" (ADR 0060, issue
+    // #1248) — the one editing surface whose existing gesture semantics are
+    // exactly the gesture core's `tap -> select`. `holdPreview={false}` on the
+    // pack card removed the long-press preview; this is what replaces it.
+    //
+    // `peekClosedFor` is a per-pick DISMISSAL, not a deselection: closing the
+    // panel must leave the Selected Card selected (a timer expiry auto-picks
+    // it, issue #1249) while hiding the panel. `handleSelect` clears it, so
+    // re-tapping the card brings the panel back.
+    const selectedPickId = seat.selectedPickId ?? null;
+    const peeked =
+        selectedPickId && peekClosedFor !== selectedPickId
+            ? (pack.find((c) => c.pickId === selectedPickId) ?? null)
+            : null;
+    const peekActions: readonly EditingSurfaceAction[] = peeked
+        ? [
+              {
+                  label: "Pick",
+                  primary: true,
+                  disabled: pending,
+                  onSelect: () => void handlePick(peeked.pickId),
+              },
+              {
+                  label: "→ Side",
+                  disabled: pending,
+                  onSelect: () => void handlePickToSideboard(peeked.pickId),
+              },
+              {
+                  label: "Inspect",
+                  onSelect: () => setInspecting(peeked.cardId),
+              },
+          ]
+        : [];
+
+    // The Inspect Overlay's OWN CTA row is the Peek Panel's minus "Inspect"
+    // (already inspecting — that CTA would set `inspecting` and then be
+    // cancelled by the overlay's own dismiss, a silent no-op), and each
+    // remaining CTA closes the overlay after firing. Without the close, a tap
+    // on "Pick" commits the pick and leaves a full-screen card over the NEXT
+    // pack with no CTA row (once the pick lands `peeked` is null, so
+    // `peekActions` collapses to `[]`). Issue #2583 review.
+    const inspectActions: readonly EditingSurfaceAction[] = peekActions
+        .filter((action) => action.label !== "Inspect")
+        .map((action) => ({
+            ...action,
+            onSelect: () => {
+                action.onSelect();
+                setInspecting(null);
+            },
+        }));
+
+    // The panel is `fixed`, so the surface underneath reserves the room it
+    // occupies — on the axis the RESOLVED layout actually eats. At four of
+    // the five UI-gate viewports that is WIDTH (the rail), not height.
+    const peekLayout = usePeekPanelLayout();
 
     return (
         <DragDropProvider
@@ -227,7 +285,15 @@ export default function LimitedDraftTable({
             sensors={sensors}
             onDragEnd={handleDragEnd}
         >
-            <div className="mt-4 flex flex-col gap-3 border-t border-border-accent/20 pt-4">
+            {/* The Peek Panel is `fixed`, so the surface underneath has to
+                reserve the room it occupies — a bottom sheet that COVERS the
+                last row of the Pool, or a right rail that covers the right
+                224px of the Booster grid, is the occlusion the five-viewport
+                probe exists to catch. */}
+            <div
+                className="mt-4 flex flex-col gap-3 border-t border-border-accent/20 pt-4"
+                style={peeked ? peekPanelReserve(peekLayout) : undefined}
+            >
                 <div className="flex items-center justify-between text-xs text-text-muted">
                     <span>
                         Booster {round + 1} of {totalRounds}
@@ -295,11 +361,35 @@ export default function LimitedDraftTable({
                                 width: `calc(${CARD_BASE} * 1.1)`,
                             }}
                         >
-                            <CardImage card={{ id: d.cardId }} />
+                            <CardImage
+                                card={{ id: d.cardId }}
+                                holdPreview={false}
+                            />
                         </div>
                     );
                 }}
             </DragOverlay>
+
+            {peeked && (
+                <PeekPanel
+                    cardId={peeked.cardId}
+                    name={peeked.cardName}
+                    subtitle={`Booster ${round + 1} · ${pack.length} left`}
+                    actions={peekActions}
+                    onClose={() => setPeekClosedFor(peeked.pickId)}
+                />
+            )}
+
+            {inspecting && (
+                <InspectOverlay
+                    cardId={inspecting}
+                    actions={inspectActions}
+                    // PRD #2405 D15: in the Draft Room a tap anywhere closes,
+                    // so read -> back to picking is one tap. "Pick" is exempt.
+                    tapAnywhereCloses
+                    onClose={() => setInspecting(null)}
+                />
+            )}
 
             {menu && (
                 <LimitedPickContextMenu

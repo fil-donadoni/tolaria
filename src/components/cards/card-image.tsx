@@ -80,6 +80,13 @@ type CardImageProps = {
      * ancestors — see {@link CONTAINED_LAYER} for what over-promotion costs.
      */
     promoteLayer?: boolean;
+    /**
+     * Forwarded to {@link CardPreview}: pass `false` on an EDITING surface
+     * (deckbuilder tile, draft pack card, search result) where a 250ms touch
+     * hold is the DRAG, not a preview (PRD #2405 gesture model A, issue
+     * #2583). Defaults to `true` — every board/pile/lobby usage is unchanged.
+     */
+    holdPreview?: boolean;
 };
 
 function isCardInstance(
@@ -99,6 +106,7 @@ function CardImageImpl({
     sizes = DEFAULT_CARD_IMAGE_SIZES,
     includeThumb = true,
     promoteLayer = true,
+    holdPreview = true,
 }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
@@ -134,6 +142,7 @@ function CardImageImpl({
             cardName={name}
             cardInstance={cardInstance}
             showCopyBadge={showCopyBadge}
+            holdPreview={holdPreview}
         >
             <div
                 className="relative w-full h-full rounded-[7%] overflow-hidden"
@@ -200,6 +209,7 @@ const CardImage = memo(
         prev.sizes === next.sizes &&
         prev.includeThumb === next.includeThumb &&
         prev.promoteLayer === next.promoteLayer &&
+        prev.holdPreview === next.holdPreview &&
         cardImageSignature(prev.card) === cardImageSignature(next.card)
 );
 export default CardImage;

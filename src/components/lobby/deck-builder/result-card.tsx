@@ -82,6 +82,7 @@ export default function ResultCard({
                         card={{ id: selected }}
                         lazy
                         promoteLayer={false}
+                        holdPreview={false}
                     />
                 </div>
                 {renderFooter(
@@ -118,6 +119,7 @@ export default function ResultCard({
                         card={{ id: selected }}
                         lazy
                         promoteLayer={false}
+                        holdPreview={false}
                     />
                 </div>
                 <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-accent/60" />

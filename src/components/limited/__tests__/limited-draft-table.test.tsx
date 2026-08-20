@@ -9,6 +9,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import {
+    PEEK_PANEL_RAIL_WIDTH,
+    PEEK_PANEL_SHEET_RESERVE,
+} from "~/components/editing/usePeekPanelLayout";
+import {
     projectLimitedEvent,
     type LimitedEventRow,
 } from "@convex/limited/eventProjection";
@@ -217,5 +221,203 @@ describe("LimitedDraftTable pick gestures through projectLimitedEvent (ADR 0060,
     it("mounts the Pick Timer above the Booster when the seat has a pickDeadline", () => {
         const { getByRole } = renderTable({ pickDeadline: Date.now() + 5000 });
         expect(getByRole("timer").textContent).toMatch(/left|Auto-picking/);
+    });
+});
+
+// The Draft Room is the FIRST adopter of the editing-surface gesture
+// primitives (PRD #2405 D16, issue #2583), and it is the adopter because its
+// tap ALREADY means "select" (ADR 0060 above) — the gesture core's `tap →
+// select → Peek Panel` needs no change of meaning here. These run the full
+// path — real projection → real table → real PeekPanel → real mutation mock —
+// because the panel being correct in isolation says nothing about whether the
+// surface ever renders it.
+describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
+    const panel = () => document.querySelector("[data-peek-panel]");
+    const actionEls = () =>
+        [
+            ...document.querySelectorAll("[data-editing-action]"),
+        ] as HTMLElement[];
+    const overlayActionEls = () =>
+        [
+            ...document.querySelectorAll(
+                "[data-inspect-panel] [data-editing-action]"
+            ),
+        ] as HTMLElement[];
+
+    /** `useViewportMode` reads two media queries and happy-dom has no
+     *  `matchMedia` at all, so every test here runs in whichever regime the
+     *  fallback happens to pick — which is `"desktop"`, i.e. the RAIL. That is
+     *  exactly how the reserve shipped on the wrong axis: the one test named
+     *  "reserves room for the sheet" ran in the configuration where it does
+     *  nothing. Stub the queries so both branches are reachable. */
+    function stubViewport(mode: "portrait" | "landscape") {
+        vi.stubGlobal("matchMedia", (query: string) => ({
+            matches:
+                mode === "portrait"
+                    ? query.includes("orientation: portrait")
+                    : query.includes("max-height: 500px"),
+            addEventListener() {},
+            removeEventListener() {},
+        }));
+    }
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    const surfaceOf = (container: HTMLElement) =>
+        container.querySelector("div.mt-4.flex.flex-col") as HTMLElement;
+
+    it("shows no panel until a card is selected", () => {
+        renderTable({});
+        expect(panel()).toBeNull();
+    });
+
+    it("a selected card opens the panel with the Draft Room's CTA row", () => {
+        renderTable({ selectedPickId: "r0-p0-c1" });
+        expect(panel()).toBeTruthy();
+        expect(panel()!.getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+        expect(actionEls().map((el) => el.dataset.editingAction)).toEqual([
+            "Pick",
+            "→ Side",
+            "Inspect",
+        ]);
+    });
+
+    it("the panel's primary CTA commits the SELECTED pick", async () => {
+        renderTable({ selectedPickId: "r0-p0-c1" });
+        fireEvent.click(actionEls()[0]);
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c1",
+            })
+        );
+    });
+
+    it('the panel\'s "→ Side" CTA commits the Pick AND sideboards it', async () => {
+        renderTable({ selectedPickId: "r0-p0-c0", poolLength: 2 });
+        fireEvent.click(actionEls()[1]);
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c0",
+            })
+        );
+        await waitFor(() =>
+            expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                poolIndex: 2,
+                sideboard: true,
+            })
+        );
+    });
+
+    it('the panel\'s "Inspect" CTA opens the Inspect Overlay', () => {
+        renderTable({ selectedPickId: "r0-p0-c0" });
+        expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
+        fireEvent.click(actionEls()[2]);
+        const overlay = document.querySelector("[data-inspect-panel]");
+        expect(overlay).toBeTruthy();
+        expect((overlay as HTMLElement).style.maxHeight).toBe(
+            "calc(100dvh - 1.5rem)"
+        );
+    });
+
+    // The reserve has to be on the axis the RESOLVED panel layout eats. Both
+    // branches, because only ONE of the five UI-gate viewports resolves to
+    // the sheet: `useViewportMode`'s `"portrait"` is `(orientation: portrait)
+    // and (max-width: 767px)`, so 1440×900, 844×390, 820×1180 and 1180×820
+    // all render the RAIL — a `fixed top-0 right-0 bottom-0` strip that
+    // occludes the right edge of the Booster grid and the Pool unless the
+    // surface reserves WIDTH for it.
+    it("reserves the sheet's HEIGHT in portrait, so it never covers the Pool", () => {
+        stubViewport("portrait");
+        const { container } = renderTable({ selectedPickId: "r0-p0-c0" });
+        expect(panel()!.getAttribute("data-peek-panel")).toBe("sheet");
+        expect(surfaceOf(container).style.paddingBottom).toBe(
+            PEEK_PANEL_SHEET_RESERVE
+        );
+        expect(surfaceOf(container).style.paddingRight).toBe("");
+    });
+
+    it("reserves the rail's WIDTH in landscape, so it never covers the Booster grid", () => {
+        stubViewport("landscape");
+        const { container } = renderTable({ selectedPickId: "r0-p0-c0" });
+        expect(panel()!.getAttribute("data-peek-panel")).toBe("rail");
+        expect(surfaceOf(container).style.paddingRight).toBe(
+            PEEK_PANEL_RAIL_WIDTH
+        );
+        expect(surfaceOf(container).style.paddingBottom).toBe("");
+    });
+
+    it("reserves the rail's WIDTH on desktop too — the default regime", () => {
+        // No `matchMedia` at all: `useViewportMode` falls back to "desktop",
+        // which is the rail. This is the configuration the ORIGINAL guarding
+        // test ran in while asserting a bottom reserve.
+        const { container } = renderTable({ selectedPickId: "r0-p0-c0" });
+        expect(panel()!.getAttribute("data-peek-panel")).toBe("rail");
+        expect(surfaceOf(container).style.paddingRight).toBe(
+            PEEK_PANEL_RAIL_WIDTH
+        );
+    });
+
+    it("reserves nothing at all while no card is selected", () => {
+        const { container } = renderTable({});
+        expect(surfaceOf(container).style.paddingRight).toBe("");
+        expect(surfaceOf(container).style.paddingBottom).toBe("");
+    });
+
+    it("closing the panel leaves the card selected but the panel gone", () => {
+        renderTable({ selectedPickId: "r0-p0-c0" });
+        fireEvent.click(
+            document.querySelector('[aria-label="Close Lightning Bolt panel"]')!
+        );
+        expect(panel()).toBeNull();
+        // Closing is a dismissal, not a deselection: the Selected Card is what
+        // a timer expiry auto-picks (issue #1249) and must survive it.
+        expect(selectDraftPickMock).not.toHaveBeenCalled();
+    });
+
+    // The dismissal is remembered per pick id; a fresh select must supersede
+    // it. Without that, tapping the SAME card again leaves
+    // `peekClosedFor === selectedPickId` forever — and since this slice sets
+    // `holdPreview={false}` on the pack card, that card would have no touch
+    // read path left for the rest of the draft.
+    it("re-tapping a card whose panel was dismissed brings the panel BACK", () => {
+        const { getAllByRole } = renderTable({ selectedPickId: "r0-p0-c0" });
+        fireEvent.click(
+            document.querySelector('[aria-label="Close Lightning Bolt panel"]')!
+        );
+        expect(panel()).toBeNull();
+
+        const cards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(cards[0]); // the same card — pickId r0-p0-c0
+        expect(selectDraftPickMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            pickId: "r0-p0-c0",
+        });
+        expect(panel()).toBeTruthy();
+    });
+
+    // The overlay's own CTA row is NOT the panel's: "Inspect" would be a
+    // silent no-op inside the thing it opens, and a "Pick" that does not
+    // dismiss leaves a full-screen card over the next pack.
+    it("the Inspect Overlay drops the Inspect CTA and closes after the primary fires", async () => {
+        renderTable({ selectedPickId: "r0-p0-c0" });
+        fireEvent.click(actionEls()[2]); // "Inspect"
+        expect(document.querySelector("[data-inspect-panel]")).toBeTruthy();
+        expect(
+            overlayActionEls().map((el) => el.dataset.editingAction)
+        ).toEqual(["Pick", "→ Side"]);
+
+        fireEvent.click(overlayActionEls()[0]);
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c0",
+            })
+        );
+        expect(document.querySelector("[data-inspect-panel]")).toBeNull();
     });
 });

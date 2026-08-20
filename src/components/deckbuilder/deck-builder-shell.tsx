@@ -224,7 +224,10 @@ export default function DeckBuilderShell({
                                         width: `calc(${view.cardBase} * 1.1)`,
                                     }}
                                 >
-                                    <CardImage card={{ id: dragged.cardId }} />
+                                    <CardImage
+                                        card={{ id: dragged.cardId }}
+                                        holdPreview={false}
+                                    />
                                 </div>
                             );
                         }}
