@@ -23,7 +23,7 @@
 //     rendering no band that could ever show either. The second scans the fat
 //     `limitedEvents` table and re-runs on every draft pick anywhere in the
 //     app; this repo bills a read by the whole document.
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import type { ReactNode } from "react";
 
@@ -34,6 +34,12 @@ const h = vi.hoisted(() => ({
      *  was subscribed to, `args` is `"skip"` when it was NOT subscribed. */
     calls: [] as { path: string; args: unknown }[],
     results: {} as Record<string, unknown>,
+    /** What `useCurrentUser` answers — `undefined` is the frame where its own
+     *  subscription has not resolved yet, which is NOT the same thing as
+     *  "signed out". */
+    user: undefined as
+        | { _id: string; nickname: string; email: string }
+        | undefined,
     navigate: vi.fn(),
 }));
 
@@ -89,11 +95,7 @@ vi.mock("~/hooks/useViewportMode", () => ({
     useViewportMode: () => "desktop" as const,
 }));
 vi.mock("~/hooks/useCurrentUser", () => ({
-    useCurrentUser: () => ({
-        _id: "user-1",
-        nickname: "Tester",
-        email: "tester@example.com",
-    }),
+    useCurrentUser: () => h.user,
 }));
 vi.mock("@convex-dev/auth/react", () => ({
     useAuthActions: () => ({ signOut: vi.fn() }),
@@ -118,6 +120,16 @@ const RUNNING_GAME: ActiveGame = {
     vsAi: true,
     mode: null,
 };
+
+const SIGNED_IN = {
+    _id: "user-1",
+    nickname: "Tester",
+    email: "tester@example.com",
+};
+
+beforeEach(() => {
+    h.user = SIGNED_IN;
+});
 
 afterEach(() => {
     cleanup();
@@ -233,5 +245,60 @@ describe("no dead subscriptions on the board (#2619 review)", () => {
         expect(
             container.querySelector('[data-slot="app-return-banner"]')
         ).not.toBeNull();
+    });
+});
+
+describe("the band the shell reserved is the band it renders (#2619 review)", () => {
+    /** The precedence `AppReturnBanner` shows by has to be the one
+     *  `shellShowsReturnBanner` mounted it by and `shellBands` charged 36px
+     *  for — `shellReturnAffordance`, once, not re-derived per consumer. The
+     *  two used to disagree for one frame, because `useCurrentUser` is its own
+     *  subscription and resolves independently of the game read. */
+    it("renders the game band with its action disabled while the user read is still in flight", () => {
+        h.pathname = "/decks/goblins";
+        h.results[GAME_QUERY] = RUNNING_GAME;
+        h.results[EVENTS_QUERY] = [];
+        h.user = undefined;
+
+        const { container } = render(<AppShell />);
+
+        const banner = container.querySelector(
+            '[data-slot="app-return-banner"]'
+        );
+        expect(banner).not.toBeNull();
+        expect(banner!.textContent).toContain("A game is in progress.");
+        const button = banner!.querySelector("button")!;
+        expect(button.textContent?.trim()).toBe("Return to game");
+        expect(button.disabled).toBe(true);
+    });
+
+    it("enables the action once the user read lands", () => {
+        h.pathname = "/decks/goblins";
+        h.results[GAME_QUERY] = RUNNING_GAME;
+        h.results[EVENTS_QUERY] = [];
+
+        const { container } = render(<AppShell />);
+
+        const button = container
+            .querySelector('[data-slot="app-return-banner"]')!
+            .querySelector("button")!;
+        expect(button.disabled).toBe(false);
+    });
+
+    it("keeps a game ahead of an event, whoever asks", () => {
+        // The precedence itself, through the composition: both in flight, one
+        // band, and it is the game's — the answer `shellReturnAffordance`
+        // gives `shellShowsReturnBanner` and `shellBands` at the same time.
+        h.pathname = "/decks/goblins";
+        h.results[GAME_QUERY] = RUNNING_GAME;
+        h.results[EVENTS_QUERY] = [{ _id: "e1", type: "draft" }];
+
+        const { container } = render(<AppShell />);
+
+        const banners = container.querySelectorAll(
+            '[data-slot="app-return-banner"]'
+        );
+        expect(banners).toHaveLength(1);
+        expect(banners[0].textContent).toContain("A game is in progress.");
     });
 });
