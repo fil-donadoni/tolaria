@@ -39,7 +39,15 @@ function TokenTable({
     note?: string;
 }) {
     return (
-        <div className="overflow-x-auto">
+        // A horizontal scroller needs its own tab stop, or a keyboard user
+        // cannot reach the columns past the fold (axe
+        // `scrollable-region-focusable`, WCAG 2.1.1) — issue #2593.
+        <div
+            tabIndex={0}
+            role="region"
+            aria-label={`${title} tokens (scrollable)`}
+            className="overflow-x-auto"
+        >
             <table className="w-full min-w-[560px] text-left text-xs">
                 <thead>
                     <tr className="text-[10px] tracking-wider text-text-disabled uppercase">
@@ -151,7 +159,16 @@ export function FoundationsSections() {
                             <p className="mt-3 text-xs text-text-muted">
                                 Side-by-side on a panel:{" "}
                                 <span className="rounded-sm bg-surface px-2 py-0.5">
-                                    <span style={{ color: "#6f6244" }}>
+                                    {/* The RETIRED hex, rendered so the page
+                                        shows the before/after side by side.
+                                        Failing 4.5:1 is the point of it — the
+                                        exemption attribute below is what keeps
+                                        the gate's floor honest anyway, see
+                                        `scripts/ui-gate/index.ts`. */}
+                                    <span
+                                        data-axe-exempt="Retired token #6f6244, rendered as the failing half of a before/after contrast comparison (issue #2593)."
+                                        style={{ color: "#6f6244" }}
+                                    >
                                         Old disabled label (3.13)
                                     </span>
                                     <span className="mx-2 text-border-accent">
@@ -167,7 +184,10 @@ export function FoundationsSections() {
                                     </span>
                                 </span>{" "}
                                 <span className="rounded-sm bg-surface px-2 py-0.5">
-                                    <span style={{ color: "#b1473a" }}>
+                                    <span
+                                        data-axe-exempt="Retired token #b1473a, rendered as the failing half of a before/after contrast comparison (issue #2593)."
+                                        style={{ color: "#b1473a" }}
+                                    >
                                         Old error text (3.43)
                                     </span>
                                     <span className="mx-2 text-border-accent">

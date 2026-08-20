@@ -23,6 +23,7 @@ export function InputsChipsSections() {
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <Specimen label=".input-field (current)" tone="now">
                         <input
+                            aria-label=".input-field specimen"
                             className="input-field w-full"
                             placeholder="border-border-subtle/40 — 1.19:1"
                         />
@@ -32,7 +33,10 @@ export function InputsChipsSections() {
                         </Where>
                     </Specimen>
                     <Specimen label="shadcn Input (current)" tone="now">
-                        <Input placeholder="border-input — near-invisible" />
+                        <Input
+                            aria-label="shadcn Input specimen"
+                            placeholder="border-input — near-invisible"
+                        />
                         <Where>
                             bug-report ×3 · create-limited-event ×2 ·
                             dashboard-top-bar · pick-rating ×2
@@ -40,6 +44,7 @@ export function InputsChipsSections() {
                     </Specimen>
                     <Specimen label="debug black-glass (stays)" tone="now">
                         <input
+                            aria-label="Debug black-glass field specimen"
                             className="w-full rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-white outline-none placeholder:text-white/30"
                             placeholder="debug only"
                         />
@@ -54,20 +59,24 @@ export function InputsChipsSections() {
                     >
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <input
+                                aria-label="Proposed field — resting"
                                 className="w-full rounded-sm border border-border-strong bg-surface-elevated/20 px-3 py-2 text-sm text-text placeholder:text-text-disabled focus:border-accent focus:ring-2 focus:ring-accent/50 focus:outline-none"
                                 placeholder="Resting — border-strong 3.6:1"
                             />
                             <input
+                                aria-label="Proposed field — focused"
                                 className="w-full rounded-sm border border-accent bg-surface-elevated/30 px-3 py-2 text-sm text-text ring-2 ring-accent/50 outline-none"
                                 defaultValue="Focused (simulated)"
                             />
                             <input
+                                aria-label="Proposed field — disabled"
                                 className="w-full rounded-sm border border-border-subtle bg-surface px-3 py-2 text-sm text-text-disabled"
                                 disabled
                                 value="Disabled"
                                 readOnly
                             />
                             <input
+                                aria-label="Proposed field — invalid"
                                 className="w-full rounded-sm border border-danger bg-surface-elevated/20 px-3 py-2 text-sm text-text ring-2 ring-danger/40 outline-none"
                                 defaultValue="Invalid — danger ring"
                                 readOnly
@@ -119,7 +128,17 @@ export function InputsChipsSections() {
                         tone="now"
                         note="QA: counter UI to align — raw emerald/red/amber fills, white text ≤3:1"
                     >
-                        <div className="flex flex-wrap items-center gap-2">
+                        {/* The specimen IS the failing ratio the note names —
+                            the board's raw Tailwind counter fills, reproduced
+                            so the page can be read against them. Exempted from
+                            the gate's axe run by attribute; the real fix
+                            belongs to whichever slice re-tones the board's
+                            counter badges, not to the census page that
+                            documents them (issue #2593). */}
+                        <div
+                            data-axe-exempt="Board counter badges reproduced verbatim as the failing specimen this Specimen's own note describes (issue #2593)."
+                            className="flex flex-wrap items-center gap-2"
+                        >
                             <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
                                 +1/+1
                             </span>

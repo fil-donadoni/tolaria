@@ -1,5 +1,6 @@
 import { useDraggable } from "@dnd-kit/react";
 import { cn } from "~/lib/utils";
+import { activateTileOnKey } from "~/lib/card-tile-keyboard";
 import type { CardDragData } from "./dnd-types";
 
 interface DraggableCardProps {
@@ -36,8 +37,19 @@ export default function DraggableCard({
             title={title}
             style={style}
             onClick={onClick}
+            // The same ARIA-role-with-no-keyboard gap `DeckCardTile` carried
+            // (issue #2593): `role="button" tabIndex={0}` promises an
+            // activation, so Enter and Space have to deliver one. Shared
+            // helper, not a second copy — this tile and the deckbuilder's must
+            // not drift on what counts as an activation.
+            onKeyDown={(e) => {
+                if (onClick) activateTileOnKey(e, onClick);
+            }}
             className={cn(
-                "cursor-grab touch-none select-none outline-none transition",
+                // No `outline-none`: this is a tab stop, and the global
+                // `:focus-visible` outline (src/index.css) is what shows a
+                // keyboard user where they are.
+                "cursor-grab touch-none select-none transition",
                 isDragging ? "opacity-30" : "",
                 className
             )}

@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { X } from "lucide-react";
+import { acceptsShortcut } from "~/lib/keyboard-shortcuts";
 import { getImageUrl, resolveCardImageId } from "~/lib/images";
 import EditingActionButton from "./editing-action-button";
 import {
@@ -54,6 +56,26 @@ export default function PeekPanel({
     const resolved: PeekPanelLayout = usePeekPanelLayout(layout);
     const printId = resolveCardImageId(cardId);
     const thumb = printId ? getImageUrl(printId) : null;
+
+    // ESCAPE DISMISSES THE SELECTION (issue #2593). The panel is non-modal by
+    // construction — no scrim, no focus trap — so there is no outside-click to
+    // dismiss it with and, before this, no keyboard dismissal either: a
+    // keyboard user who selected a card was stuck with the panel until they
+    // tabbed to its Close button.
+    //
+    // Plain `acceptsShortcut` (no `whileDialogOpen`) is what orders it against
+    // the Inspect Overlay one of its own CTAs opens: while that dialog is up it
+    // owns Escape, and the panel underneath must not close out from under it.
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            if (!acceptsShortcut(event)) return;
+            event.preventDefault();
+            onClose();
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [onClose]);
 
     const close = (
         <button

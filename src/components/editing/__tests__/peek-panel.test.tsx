@@ -192,3 +192,41 @@ describe("PeekPanel (issue #2583)", () => {
         expect(onPick).not.toHaveBeenCalled();
     });
 });
+
+// The Peek Panel is non-modal by construction — no scrim, so there is no
+// outside-click to dismiss it with, and before this issue no keyboard
+// dismissal either. Issue #2593.
+describe("PeekPanel keyboard dismissal (issue #2593)", () => {
+    beforeEach(() => stubViewport("portrait"));
+    afterEach(() => {
+        cleanup();
+        vi.unstubAllGlobals();
+        document.body.innerHTML = "";
+    });
+
+    it("Escape closes it", () => {
+        const onClose = vi.fn();
+        renderPanel({ onClose });
+        fireEvent.keyDown(window, { key: "Escape" });
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("defers to an open dialog — the Inspect Overlay owns Escape first", () => {
+        const onClose = vi.fn();
+        renderPanel({ onClose });
+        // Stand in for the Inspect Overlay one of the panel's own CTAs opens.
+        const dialog = document.createElement("div");
+        dialog.setAttribute("role", "dialog");
+        document.body.append(dialog);
+        fireEvent.keyDown(window, { key: "Escape" });
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("Escape does nothing once the panel has unmounted", () => {
+        const onClose = vi.fn();
+        const { unmount } = renderPanel({ onClose });
+        unmount();
+        fireEvent.keyDown(window, { key: "Escape" });
+        expect(onClose).not.toHaveBeenCalled();
+    });
+});

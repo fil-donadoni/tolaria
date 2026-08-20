@@ -164,3 +164,45 @@ describe("InspectOverlay (issue #2583)", () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 });
+
+// This overlay shipped as `role="dialog" aria-modal="true"` with no Escape
+// handler at all (#2583): a keyboard user who opened it had no way out that
+// did not involve tabbing blind, and `aria-modal` tells assistive tech the
+// rest of the page is inert, so "tab back to the surface" is wrong as well as
+// unpleasant. Issue #2593.
+describe("InspectOverlay keyboard dismissal (issue #2593)", () => {
+    beforeEach(() => stubViewport("portrait"));
+    afterEach(() => {
+        cleanup();
+        vi.unstubAllGlobals();
+    });
+
+    it("Escape closes it", () => {
+        const onClose = vi.fn();
+        renderOverlay({ onClose });
+        fireEvent.keyDown(window, { key: "Escape" });
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("Escape does nothing once the overlay has unmounted", () => {
+        const onClose = vi.fn();
+        const { unmount } = renderOverlay({ onClose });
+        unmount();
+        fireEvent.keyDown(window, { key: "Escape" });
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("ignores a modifier chord and other keys", () => {
+        const onClose = vi.fn();
+        renderOverlay({ onClose });
+        fireEvent.keyDown(window, { key: "Escape", metaKey: true });
+        fireEvent.keyDown(window, { key: "Enter" });
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("takes focus into the panel on open", () => {
+        renderOverlay();
+        expect(document.activeElement).toBe(panel());
+        expect(panel().getAttribute("tabindex")).toBe("-1");
+    });
+});

@@ -274,6 +274,26 @@
     }
 }
 
+/* ── Visible focus, everywhere (issue #2593, WCAG 2.2 AA / 2.4.7 + 2.4.11) ──
+ *
+ * DELIBERATELY UNLAYERED. Cascade layers rank BELOW unlayered rules, so this
+ * one declaration outranks every Tailwind utility — including the
+ * `outline-none` that half the interactive surfaces in this repo carry to kill
+ * the UA ring (`deck-card-tile.tsx`, the `input-field` recipe, the shadcn
+ * primitives). Putting it in `@layer base` instead would have lost to every one
+ * of them, which is how the tree ended up with ZERO `:focus-visible` rules and
+ * a keyboard user with no idea where they were.
+ *
+ * `:focus-visible`, not `:focus`: a pointer press must not paint a ring. The
+ * outline (not a ring/box-shadow) is what survives `overflow: hidden` clipping
+ * and forced-colors mode, and it costs no layout. A component that wants a
+ * different-looking focus still gets one — its own `focus-visible:ring-*`
+ * paints on top of, not instead of, this outline. */
+:focus-visible {
+    outline: 2px solid var(--color-accent-strong);
+    outline-offset: 2px;
+}
+
 @layer components {
     button {
         @apply cursor-pointer;
@@ -752,11 +772,38 @@
 }
 
 /* Hover-lift base: deck rows opt in by carrying `data-deck-row`. The lift is a
-   transform (no layout shift) plus a shadow; the transition itself is safe even
-   under reduced motion (it's an interaction response, not ambient motion), but
-   we keep it inside the gate to honour the setting strictly. */
+   transform (no layout shift) plus a shadow.
+
+   Issue #2593 moved the TRANSITION out of the `no-preference` gate below and
+   onto the motion tokens: `--motion-fast` already collapses to 1ms under
+   `prefers-reduced-motion: reduce` AND under the user's explicit
+   `[data-motion="reduced"]` Settings choice, so a token-driven duration honours
+   BOTH switches where a hand-written `160ms` inside a media query honoured only
+   the OS one. The `:hover` transform stays gated — that is the ambient half. */
 .deck-row-liftable {
     will-change: transform;
+    transition:
+        transform var(--motion-fast) var(--motion-ease-standard),
+        box-shadow var(--motion-fast) var(--motion-ease-standard),
+        border-color var(--motion-fast) var(--motion-ease-standard),
+        background-color var(--motion-fast) var(--motion-ease-standard);
+}
+
+/* The touch drag ghost (`editing/drag-ghost.tsx`, PRD #2405 / issue #2583).
+   Issue #2593: its POSITION is never transitioned — the ghost has to sit
+   exactly under the finger, and an interpolated `left`/`top` would lag it and
+   desync `document.elementFromPoint`, which is how the engine resolves the drop
+   target. What IS transitioned is the drop-target response: the ghost rides at
+   92% opacity and goes solid the moment `data-over` names a target it can be
+   dropped on. The duration is `--motion-fast`, so reduced motion (OS media
+   query OR the `[data-motion="reduced"]` Settings choice) collapses it to 1ms
+   without a media query of its own — that is the whole point of the token. */
+[data-drag-ghost] {
+    opacity: 0.92;
+    transition: opacity var(--motion-fast) var(--motion-ease-standard);
+}
+[data-drag-ghost][data-over] {
+    opacity: 1;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -786,12 +833,8 @@
         animation: selectedPulse 3.2s ease-in-out infinite;
     }
 
-    /* 5. Hover-lift on deck rows. */
-    .deck-row-liftable {
-        transition:
-            transform 160ms ease-out,
-            box-shadow 160ms ease-out;
-    }
+    /* 5. Hover-lift on deck rows — the ambient half only; the transition
+       itself is token-driven and unconditional (see `.deck-row-liftable`). */
     .deck-row-liftable:hover {
         transform: translateY(-2px);
     }

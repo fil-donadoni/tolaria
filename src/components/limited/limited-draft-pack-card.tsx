@@ -77,7 +77,15 @@ export default function LimitedDraftPackCard({
                 onOpenMenu(card.pickId, e.clientX, e.clientY);
             }}
             className={cn(
-                "group relative block aspect-5/7 w-full cursor-grab touch-none rounded-[7%] outline-none ring-accent transition select-none",
+                // No `outline-none` (issue #2593). This tile is the Draft
+                // Room's tab stop — `useDraftKeyboardPicks` (#2587) steps the
+                // selection through it with the arrows — and killing the
+                // outline left the keyboard user with no cursor at all on the
+                // one surface that has a keyboard model. The global
+                // `:focus-visible` rule (src/index.css, unlayered) paints it;
+                // `ring-accent` stays what the SELECTED ring is drawn in, a
+                // different state that must remain distinguishable from focus.
+                "group relative block aspect-5/7 w-full cursor-grab touch-none rounded-[7%] ring-accent transition select-none",
                 pending
                     ? "cursor-not-allowed opacity-60"
                     : "hover:-translate-y-0.5",

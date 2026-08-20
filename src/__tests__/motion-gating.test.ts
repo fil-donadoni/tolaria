@@ -88,3 +88,80 @@ describe("micro-motion is reduced-motion gated (issue #598)", () => {
         expect(gated).toMatch(/\.deck-row-liftable:hover\s*\{[^}]*translateY/);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Motion TOKENS (issue #2593, ADR 0101 §2).
+//
+// #598 gated micro-motion behind a media query. That covers ambient animation
+// but not the other half of the acceptance criterion: an ordinary transition
+// written as `160ms ease-out` inside a `no-preference` block honours the OS
+// switch and IGNORES the user's explicit Settings choice (`[data-motion=
+// "reduced"]`, #2595), because the media query never matches for them. A
+// duration read from `--motion-*` honours both, with no media query of its
+// own, which is what "test through the motion tokens" asks for.
+//
+// Read from the stylesheet text for the same reason as everything above:
+// happy-dom evaluates no media queries and has no cascade to interrogate.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("motion tokens drive reduced motion (issue #2593)", () => {
+    const DURATIONS = ["--motion-fast", "--motion-base", "--motion-slow"];
+
+    /** The body of `@media (prefers-reduced-motion: reduce)` — the collapse
+     *  block, as opposed to the `no-preference` gate above. */
+    function reduceBlock(): string {
+        const marker = "@media (prefers-reduced-motion: reduce)";
+        const start = css.indexOf(marker);
+        expect(start, "reduce media query is present").toBeGreaterThan(-1);
+        const open = css.indexOf("{", start);
+        let depth = 0;
+        for (let i = open; i < css.length; i++) {
+            if (css[i] === "{") depth++;
+            else if (css[i] === "}") {
+                depth--;
+                if (depth === 0) return css.slice(open + 1, i);
+            }
+        }
+        throw new Error("unterminated reduce media block");
+    }
+
+    it("collapses every named duration under the OS reduce switch", () => {
+        const block = reduceBlock();
+        for (const token of DURATIONS)
+            expect(
+                block,
+                `${token} must collapse under prefers-reduced-motion: reduce`
+            ).toMatch(new RegExp(`${token}:\\s*1ms`));
+    });
+
+    it("collapses them again for the explicit Settings choice (#2595)", () => {
+        const start = css.indexOf('[data-motion="reduced"] {');
+        expect(start, "the Settings override rule is present").toBeGreaterThan(
+            -1
+        );
+        const block = css.slice(start, css.indexOf("}", start));
+        for (const token of DURATIONS)
+            expect(block).toMatch(new RegExp(`${token}:\\s*1ms`));
+    });
+
+    it("the deck-row lift transition reads the tokens, not a literal", () => {
+        const start = css.indexOf(".deck-row-liftable {");
+        expect(start).toBeGreaterThan(-1);
+        const rule = css.slice(start, css.indexOf("}", start));
+        expect(rule).toContain("var(--motion-fast)");
+        expect(rule).toContain("var(--motion-ease-standard)");
+        expect(rule).not.toMatch(/\d+ms(?!\))/);
+    });
+
+    it("the drag ghost's only transition is token-driven", () => {
+        // The ghost's POSITION is never transitioned — it has to sit exactly
+        // under the finger, and `document.elementFromPoint` resolves the drop
+        // target there. What is transitioned is its drop-target response, and
+        // that duration is a token so reduced motion collapses it.
+        const start = css.indexOf("[data-drag-ghost] {");
+        expect(start, "the drag-ghost rule is present").toBeGreaterThan(-1);
+        const rule = css.slice(start, css.indexOf("}", start));
+        expect(rule).toContain("transition: opacity var(--motion-fast)");
+        for (const property of ["left", "top", "transform"])
+            expect(rule).not.toContain(`transition: ${property}`);
+    });
+});
