@@ -196,6 +196,13 @@ const run = (opts: RunOpts = {}) =>
             // Hermetic: never let a real budget configured in the outer
             // shell leak into a test that isn't about the budget guard.
             TOLARIA_LOOP_TOKEN_BUDGET: "",
+            // Hermetic, and load-bearing for #2622: the driver's own fix puts
+            // this var in the pass's environment, so every descendant of a
+            // pass inherits it — including `bun run test` -> vitest -> this
+            // spawned `sh`. Without the reset, the ceiling assertion below
+            // reads the AMBIENT value and stays green with the fix deleted,
+            // precisely when the suite runs inside an AFK pass.
+            CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "",
             ...opts.env,
         },
     });
@@ -639,6 +646,49 @@ describe("driver identity — pid file and single-instance", () => {
     });
 });
 
+describe("background-wait ceiling — a pass runs to completion (#2622)", () => {
+    /** `claude -p` kills any still-running background tasks
+     * `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` (default 600000ms/600s) after
+     * the main turn ends — a wall-clock guillotine on the pass's OWN
+     * subagents, unrelated to this driver's budget/pct guards. `0` is the
+     * verified sentinel for "no ceiling": the installed CLI's ceiling check
+     * is `XS>0 && ...` (`XS` = this env var, `??`-defaulted to 600000), so
+     * `0` makes it permanently false and the CLI's own stderr message says
+     * exactly this ("Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 to wait
+     * indefinitely."). This asserts the env var the STUBBED `claude`
+     * PROCESS actually sees — not a var read back in the test's own shell,
+     * which would pass even if the driver never exported it. */
+    it("exports CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 into the pass's own environment", () => {
+        const envFile = path.join(tmp, "seen-ceiling-env");
+        stubGhCountingFrom(1);
+        writeStub(
+            "claude",
+            [
+                `echo "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=[$CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS]" > "${envFile}"`,
+                `q=$(cat "${queueFile}"); echo $((q - 1)) > "${queueFile}"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        run({ args: ["--claude-args", "x"] });
+        expect(fs.readFileSync(envFile, "utf8").trim()).toBe(
+            "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=[0]"
+        );
+    });
+
+    it("the --dry-run echo carries the same ceiling override as the real invocation", () => {
+        // A dry-run line that omits what the real invocation sets is exactly
+        // how this class of bug hides (#2622) — assert the two stay in sync.
+        stubGhCountingFrom(5);
+        const r = run({
+            args: ["--claude-args", "x", "--max-passes", "1", "--dry-run"],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stderr).toMatch(
+            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p/
+        );
+    });
+});
+
 describe("no-progress", () => {
     it("stops after exactly 2 consecutive passes with neither queue nor green-sha moving", () => {
         stubGhCountingFrom(5);
@@ -894,7 +944,7 @@ describe("--prompt — the prompt each pass runs", () => {
         });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stderr).toMatch(
-            /would run: claude -p "\/process-gh-issues figli di 2405" x/
+            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p "\/process-gh-issues figli di 2405" x/
         );
     });
 
