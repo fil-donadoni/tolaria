@@ -67,12 +67,18 @@ export default function LimitedEventsPage({
     // Union by id — `myEvents` wins on overlap (it carries the viewer's own
     // match record; `openEvents` never does, since an open event has no play
     // phase yet anyway, but this keeps the merge rule obvious either way).
+    // The two source queries are differently ordered (`openEvents` is
+    // `by_status` index order — ascending creation; `myEvents` is
+    // `.order("desc")`), so Map insertion order is not a display order —
+    // sort explicitly, newest first, matching what the page this merged list
+    // replaces documented (`limited-your-events-page.tsx` on main before
+    // issue #2590).
     const merged = useMemo((): LimitedEventSummaryView[] => {
         if (openEvents === undefined || myEvents === undefined) return [];
         const byId = new Map<string, LimitedEventSummaryView>();
         for (const event of openEvents) byId.set(event._id, event);
         for (const event of myEvents) byId.set(event._id, event);
-        return [...byId.values()];
+        return [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);
     }, [openEvents, myEvents]);
 
     const filtered = useMemo(() => {

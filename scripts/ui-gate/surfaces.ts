@@ -435,8 +435,15 @@ export const SURFACES: readonly Surface[] = [
         label: "Your Limited events redirect (/limited/events → /limited?mine=1)",
         async walk(page, ctx) {
             await goto(page, ctx, "/limited/events");
+            // The redirect target's query string is `?mine=true`, not
+            // `?mine=1` — `stringifySearch` serializes the boolean, it never
+            // emits the numeric literal a hand-typed/bookmarked URL would use
+            // (see `src/router.tsx`'s `validateSearch`, which accepts both on
+            // the way IN). A pattern anchored to `?mine=1` can never match
+            // this navigation, so it always burned the full NAV_TIMEOUT
+            // before falling through to the weaker substring check below.
             await page
-                .waitForURL(/\/limited(\?mine=1)?$/, { timeout: NAV_TIMEOUT })
+                .waitForURL(/\/limited(\?.*)?$/, { timeout: NAV_TIMEOUT })
                 .catch(() => {});
             if (!page.url().includes("/limited")) {
                 throw new Unreachable(

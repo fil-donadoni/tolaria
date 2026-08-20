@@ -133,6 +133,49 @@ describe("LimitedEventsPage — merged list (issue #2590)", () => {
         expect(screen.getAllByText("View")).toHaveLength(1);
     });
 
+    it("sorts the merged list newest-first, regardless of the two source queries' own order (round-2 review finding)", () => {
+        // `listOpenLimitedEvents` returns `by_status` index order (ascending
+        // creation) and `myLimitedEvents` returns `.order("desc")` — neither
+        // matches "newest first" once merged, so Map insertion order alone
+        // would render the oldest event first. Three distinct `packSlots`
+        // give each event a distinct, orderable name (`limitedEventName`)
+        // without depending on `_id`.
+        openEventsMock.mockReturnValue([
+            makeEvent({
+                _id: "event-oldest",
+                status: "open",
+                seats: [],
+                packSlots: ["arn"],
+                createdAt: 100,
+            }),
+        ]);
+        myEventsMock.mockReturnValue([
+            makeEvent({
+                _id: "event-newest",
+                status: "started",
+                packSlots: ["lea"],
+                createdAt: 900,
+            }),
+            makeEvent({
+                _id: "event-middle",
+                status: "started",
+                packSlots: ["leb"],
+                createdAt: 500,
+            }),
+        ]);
+
+        renderPage();
+
+        const names = screen
+            .getAllByText(/Sealed$/)
+            .map((el) => el.textContent);
+        expect(names).toEqual([
+            "Limited Edition Alpha Sealed",
+            "Limited Edition Beta Sealed",
+            "Arabian Nights Sealed",
+        ]);
+    });
+
     it("mine=true narrows to only events the viewer occupies a Seat in", () => {
         openEventsMock.mockReturnValue([
             makeEvent({ _id: "event-open", status: "open", seats: [] }),

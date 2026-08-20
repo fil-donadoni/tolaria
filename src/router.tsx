@@ -131,7 +131,15 @@ const limitedEventsRoute = createRoute({
     path: "/limited",
     validateSearch: (search): LimitedEventsSearch => {
         const out: LimitedEventsSearch = {};
-        if (search.mine === true || search.mine === "1") out.mine = true;
+        // Three shapes accepted, not two: TanStack's default `parseSearch`
+        // JSON-parses each query-string value, so the literal bookmarkable
+        // URL `?mine=1` arrives here as the NUMBER 1, not the string "1" —
+        // only `stringifySearch`'s own `?mine=true` output round-trips to
+        // the boolean. Dropping the number branch silently turns off the
+        // filter for the exact URL this route's doc comment promises.
+        if (search.mine === true || search.mine === "1" || search.mine === 1) {
+            out.mine = true;
+        }
         if (isLimitedEventStatusChip(search.status)) {
             out.status = search.status;
         }

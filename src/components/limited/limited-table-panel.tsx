@@ -11,13 +11,13 @@ import LimitedTableRing from "./limited-table-ring";
  *  Draft Room). The full per-seat detail (`LimitedTableRing`, ADR 0101 §6,
  *  issue #2587) opens as a dialog via "View Table" — it already existed and
  *  was only ever mounted from the Draft Room; this wires it into the
- *  antechamber too, unchanged.
+ *  antechamber too.
  *
- *  `round` is passed as `event.currentRound ?? 0`: the Ring's "packs passing"
- *  subtitle is meaningful mid-draft (its original context) and reads as inert
- *  copy for a Sealed/finished event here — a wiring choice, not a rewrite of
- *  the Ring's content (see the PR description / `docs/findings/` for the
- *  follow-up note).
+ *  `round` is passed as `event.currentRound ?? 0` — the Ring itself gates its
+ *  "packs passing" subtitle clause on the event's phase
+ *  (`limitedEventStatusHint(event) === "drafting"`), so a Sealed/open/
+ *  deckbuilding/finished event here renders just the seat count instead of
+ *  inert pack-passing copy.
  *
  *  `showProgress` mirrors `LimitedEventDetail`'s `isPoolFinal` (issue #1580):
  *  a deck cannot exist before the Pool is final, so before that point the
