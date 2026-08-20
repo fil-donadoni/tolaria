@@ -545,6 +545,44 @@ describe("DeckBuilderShell — the Peek Panel as the move path (issue #2584)", (
         ).toBeNull();
     });
 
+    it("a TOUCH tap opens the overlay through the panel's `Inspect` CTA, carrying the surface's own actions — `★ Featured` included", () => {
+        // Round 3 removed the desktop right-click gesture (correctly — the
+        // secondary button is `CardPreview`'s pin), but the tests it deleted
+        // were the Inspect Overlay's ONLY coverage: `inspectActions=[]` left
+        // 312/312 green, and nothing else in the repo clicks `Inspect` at
+        // all. That is exactly the shape review round 1 already found once
+        // — `★ Featured` unreachable because the overlay opened with
+        // `actions=[]` behind a green suite — regressing silently through a
+        // different door. This goes through the real tap -> Peek Panel ->
+        // `Inspect` path, not a hand-mounted overlay.
+        const onSet = vi.fn();
+        renderShell({
+            mainCards: [card(BOLT_ID, "Lightning Bolt")],
+            featured: { cardId: null, onSet },
+        });
+
+        fireEvent.click(screen.getByTitle(/Remove Lightning Bolt/));
+        fireEvent.click(screen.getByRole("button", { name: "Inspect" }));
+
+        const overlay = document.querySelector("[data-inspect-overlay]");
+        expect(overlay).toBeTruthy();
+        const overlayLabels = [...overlay!.querySelectorAll("button")].map(
+            (el) => el.textContent
+        );
+        expect(overlayLabels).toContain("★ Featured");
+        expect(overlayLabels).toContain("→ Side");
+
+        // The overlay's OWN `★ Featured` reaches the same handler as the
+        // panel's, and firing it closes the overlay (PR #2641 round 1).
+        fireEvent.click(
+            [...overlay!.querySelectorAll("button")].find(
+                (el) => el.textContent === "★ Featured"
+            )!
+        );
+        expect(onSet).toHaveBeenCalledWith(BOLT_ID);
+        expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
+    });
+
     it("two quick clicks on two DIFFERENT cards in one Column both land", () => {
         // PR #2641 review round 2 — the blocker the round-1 remedy introduced.
         // The deferred single click lived in a per-tile ref that
