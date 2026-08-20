@@ -105,7 +105,7 @@ function ModePickerPortal({
             >
                 <Panel
                     density="compact"
-                    className="flex min-w-64 max-h-[calc(100vh-16px)] flex-col gap-1 overflow-y-auto p-4"
+                    className="flex min-w-64 max-h-[calc(100dvh-16px)] flex-col gap-1 overflow-y-auto p-4"
                 >
                     <p className="text-sm font-beleren tracking-wide text-parchment mb-1 px-2">
                         {cardName}

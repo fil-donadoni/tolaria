@@ -13,8 +13,10 @@ import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
 import DevPanelRail from "~/components/debug/dev-panel-rail";
 import LoadingScreen from "~/components/ui/loading-screen";
 import WaitingForOpponent from "~/components/board/waiting-for-opponent";
+import OrientationHint from "~/components/ui/orientation-hint";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import { usePageVisible } from "~/hooks/usePageVisible";
+import { useViewportMode } from "~/hooks/useViewportMode";
 import { clearSession, getStoredSession } from "~/lib/session";
 
 type GameStatus = NonNullable<
@@ -33,6 +35,11 @@ const GAME_STATUS_TITLE: Record<GameStatus, string> = {
 
 export default function GameRoute() {
     const navigate = useNavigate();
+    // The GRE board's own layout hint (issue #2594): a portrait phone gets a
+    // fully-designed layout already (the bottom bar + sheet), so this is
+    // discoverability for the wide landscape stack-right-panel layout
+    // (#2639), never a broken-state warning.
+    const viewportMode = useViewportMode();
     const [session, setSession] = useState(() => getStoredSession());
     const [showAllCards, setShowAllCards] = useState(false);
     const [debugAllActions, setDebugAllActions] = useState(false);
@@ -129,22 +136,39 @@ export default function GameRoute() {
 
         return (
             <div className="flex h-dvh flex-col">
-                <Board
-                    // Key by gameId: switching games (Restart Solo / rematch /
-                    // Switch Game) reuses this route, so without a key the board
-                    // subtree keeps every per-game client ref from the prior game
-                    // (driver dedupe guards, auto-pass seq, zone anchors). Remount
-                    // on game change for a clean slate (fixes the bot freezing on
-                    // the new game's mulligan after a restart).
-                    key={gameId}
-                    gameId={gameId}
-                    playerId={playerId}
-                    solo={game.solo === true}
-                    vsAi={game.vsAi === true}
-                    showAllCards={showAllCards}
-                    debugAllActions={debugAllActions}
-                    onSwitchGame={handleSwitchGame}
-                />
+                {viewportMode === "portrait" && (
+                    <OrientationHint
+                        surfaceId="game-board"
+                        message="Rotate for the wide landscape board layout."
+                    />
+                )}
+                {/* `flex-1 min-h-0`, not a bare wrapper (issue #2594): Board's
+                    OWN root is `h-full` — with the hint band above sharing
+                    this flex column, `h-full` must resolve against a sibling
+                    with a DEFINITE remaining-space height, the same
+                    `flex-1 min-h-0` contract `<main>` uses in
+                    `app-shell.tsx`, not against the column's full `h-dvh`
+                    (which would make the two siblings compete for space via
+                    flex-shrink instead of the hint band simply taking its own
+                    content height off the top). */}
+                <div className="flex-1 min-h-0">
+                    <Board
+                        // Key by gameId: switching games (Restart Solo / rematch /
+                        // Switch Game) reuses this route, so without a key the board
+                        // subtree keeps every per-game client ref from the prior game
+                        // (driver dedupe guards, auto-pass seq, zone anchors). Remount
+                        // on game change for a clean slate (fixes the bot freezing on
+                        // the new game's mulligan after a restart).
+                        key={gameId}
+                        gameId={gameId}
+                        playerId={playerId}
+                        solo={game.solo === true}
+                        vsAi={game.vsAi === true}
+                        showAllCards={showAllCards}
+                        debugAllActions={debugAllActions}
+                        onSwitchGame={handleSwitchGame}
+                    />
+                </div>
                 {/* One left rail for every DEV overlay — it owns the anchoring
                     so the panels stack instead of overlapping. */}
                 {import.meta.env.DEV && (

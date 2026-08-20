@@ -153,7 +153,13 @@ export default function GameDialog({
                             // tall — deliberately more than the 48px actually
                             // spent, so the reserve stays safe even if a
                             // future Panel density adds padding back.
-                            className="flex max-h-[80vh] short-viewport:max-h-[calc(100vh-6rem)] w-full min-w-0 flex-1 flex-col"
+                            // `100dvh`, not `100vh` (issue #2594): `vh` is
+                            // the LARGE viewport, so on a short mobile
+                            // landscape viewport with retracting browser
+                            // chrome the 96px reserve is measured against a
+                            // taller-than-actual box and can still overflow;
+                            // `dvh` tracks the viewport as it actually is.
+                            className="flex max-h-[80vh] short-viewport:max-h-[calc(100dvh-6rem)] w-full min-w-0 flex-1 flex-col"
                         >
                             <DialogTitle
                                 className={cn(

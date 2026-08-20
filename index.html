@@ -16,8 +16,24 @@
             href="/apple-touch-icon.png"
         />
         <meta name="apple-mobile-web-app-title" content="Tolaria" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#9491a8" />
         <link rel="manifest" href="/site.webmanifest" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <!-- `viewport-fit=cover` (issue #2594) is the precondition every
+             `env(safe-area-inset-*)` value in this app depends on — WITHOUT
+             it, the safe-area insets are defined to be 0 (the browser never
+             lets content under the notch/home-indicator in the first place),
+             so the bottom nav's/action-sheet's/peek-panel's existing
+             `env(safe-area-inset-bottom)` padding was measuring a
+             permanently-zero variable. `cover` extends the viewport under the
+             system UI (required for a standalone PWA launch to look
+             edge-to-edge rather than letterboxed) and is what makes those
+             insets non-zero on a notched/home-indicator device. -->
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+        />
         <!-- Initial value only. Every page sets its own via `useDocumentTitle`
          (`src/hooks/useDocumentTitle.ts`); this is what shows before React
          mounts. -->

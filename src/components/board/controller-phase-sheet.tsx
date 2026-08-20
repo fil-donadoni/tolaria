@@ -160,7 +160,13 @@ export default function ControllerPhaseSheet({
                 className="absolute inset-0 bg-black/50"
             />
             <div
-                className="relative flex max-h-[70vh] w-full flex-col animate-[sheetUp_0.2s_ease-out] overflow-hidden rounded-t-2xl border-t border-border-subtle bg-surface shadow-2xl backdrop-blur-md"
+                // `pb-[env(safe-area-inset-bottom)]` (issue #2594): this
+                // sheet docks flush to the physical bottom edge (`fixed
+                // inset-0 … justify-end`), same as `action-sheet.tsx`'s
+                // pattern — without it the home-indicator strip on a
+                // notched phone sits on top of the last phase row instead of
+                // below the sheet's own padding.
+                className="relative flex max-h-[70vh] w-full flex-col animate-[sheetUp_0.2s_ease-out] overflow-hidden rounded-t-2xl border-t border-border-subtle bg-surface shadow-2xl backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
                 style={{
                     transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
                     transition: dragging

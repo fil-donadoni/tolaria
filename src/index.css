@@ -1158,7 +1158,7 @@
     /* The sheet shell (not this dialog) owns the height cap — `max-h-[70vh]
      * overflow-hidden` on the flex-column wrapper above. `flex: 1` lets this
      * panel stretch to fill the remaining space under the grab handle instead
-     * of sizing to its own `calc(100vh - 24px)` inline max-height (the
+     * of sizing to its own `calc(100dvh - 24px)` inline max-height (the
      * desktop panel's bound, irrelevant once nested here), and `min-height: 0`
      * is the flex-item override that lets it actually SHRINK below its
      * content size — without it `ControllerPhaseList`'s internal

@@ -53,7 +53,7 @@ import GameStack from "./game-stack";
  *  the wrong fix anyway — a bottom sheet is `max-h-[70vh]`, i.e. ~70% of the one
  *  dimension this mode is short of. {@link ControllerPhasePanel} is already the
  *  right shape: right-edge, vertically centred, non-modal (the board stays live
- *  behind it), and its list is capped at `100vh - 24px` with internal scroll, so
+ *  behind it), and its list is capped at `100dvh - 24px` with internal scroll, so
  *  it fits a 320px-tall viewport unchanged. It anchors BESIDE the strip via the
  *  published `--controller-strip-w` seam, so neither surface hard-codes the
  *  other's size.

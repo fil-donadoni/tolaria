@@ -36,7 +36,19 @@ export default function AppContextBar({
     return (
         <div
             data-slot="app-context-bar"
-            className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-surface-raised px-2"
+            // `min-h-11`, not `h-11` (issue #2594): this bar is the FIRST
+            // thing rendered in Immersive mode — flush against the shell's
+            // own top edge, with nothing above it, so in a standalone PWA
+            // launch (no browser chrome already clearing the notch) it needs
+            // `pt-[env(safe-area-inset-top)]` to keep Exit/title/overflow
+            // out from under a notch/dynamic island. A FIXED `h-11` would
+            // squeeze that same content into a shorter box on a device where
+            // the inset is nonzero; `min-h-11` lets the bar grow by exactly
+            // the inset instead. `<main>`'s sibling `flex-1 min-h-0` (not a
+            // hardcoded subtraction) already fills whatever's actually left,
+            // so this never needs `SHELL_CONTEXTUAL_BAND_PX` to change — that
+            // constant is, and remains, the zero-inset case.
+            className="flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-surface-raised px-2 pt-[env(safe-area-inset-top)]"
         >
             {exitTo ? (
                 <Link

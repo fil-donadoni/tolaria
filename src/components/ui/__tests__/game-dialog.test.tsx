@@ -232,7 +232,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         }).parentElement!;
         expect(column.className).toContain("max-h-[80vh]");
         expect(column.className).toContain(
-            "short-viewport:max-h-[calc(100vh-6rem)]"
+            "short-viewport:max-h-[calc(100dvh-6rem)]"
         );
 
         const bodyScroller = screen.getByText("body").parentElement!;

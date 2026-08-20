@@ -387,7 +387,7 @@ describe("Landscape phase surface — the panel, not the md:hidden sheet (#1769)
     // A landscape phone is ≥768px WIDE, so `ControllerPhaseSheet`'s `md:hidden`
     // would render it invisible; and a `max-h-[70vh]` bottom sheet would spend
     // 70% of the one dimension this mode is short of. The panel is right-edge,
-    // vertically centred and capped at `100vh - 24px` with internal scroll.
+    // vertically centred and capped at `100dvh - 24px` with internal scroll.
     it("opens from the phase label and toggles a YOU stop via useSkipPhasePreferences", () => {
         const toggle = vi.fn();
         const { container } = renderController({}, toggle);
