@@ -50,11 +50,7 @@ work, not a re-open of #2585.
 
 ---
 
-## Addendum (round-2 fixup, PR #2653): dropping `shrink-0` outright trades
-
-## stranding for a NEW starve at 820×1180 — the lane cannot see it because
-
-## `/decks/create` walks an empty Sideboard
+## Addendum (round-2 fixup, PR #2653): dropping `shrink-0` outright trades stranding for a NEW starve at 820×1180 — the lane cannot see it because `/decks/create` walks an empty Sideboard
 
 Round 1 of this PR's review rejected the literal suggestion to delete
 `deck-zone-surface.tsx:535`'s `md:` gate (that would have pinned the cluster
