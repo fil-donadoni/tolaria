@@ -197,8 +197,14 @@ describe("Immersive mode — Exit and overflow (PRD #2405 story 7)", () => {
     });
 });
 
+// Every case below is set somewhere OTHER than `/`: the lobby owns both
+// returns in full (`ownsReturn` in `SHELL_ROUTE_RULES`) and the shell stands
+// down there, which `app-shell-session.test.tsx` asserts against the real
+// `ActiveGameNotice`. What this block is for is everywhere else — the routes
+// where the lobby's notice was simply never reachable.
 describe("Return banner + nav badge (PRD #2405 story 8)", () => {
     it("offers a way back to a running game from an ordinary Browse route", () => {
+        pathname = "/decks/goblins";
         session = RUNNING_GAME;
         const { getByRole, getByText } = render(<AppShell />);
         expect(getByText(/game is in progress/i)).not.toBeNull();
@@ -213,6 +219,7 @@ describe("Return banner + nav badge (PRD #2405 story 8)", () => {
     });
 
     it("offers a way back to a running draft", () => {
+        pathname = "/decks/goblins";
         session = RUNNING_DRAFT;
         const { getByText, getByRole } = render(<AppShell />);
         expect(getByText(/draft is in progress/i)).not.toBeNull();

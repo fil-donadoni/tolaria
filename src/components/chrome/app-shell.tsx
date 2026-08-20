@@ -37,7 +37,13 @@ export default function AppShell() {
     });
     const chrome = resolveShellChrome(pathname);
     const viewport = useViewportMode();
-    const session = useActiveSession();
+    // Gated on the mode this file already resolved: a route that draws its own
+    // chrome renders none of the four bands below, so every consumer of
+    // `session` is suppressed there and the two Convex subscriptions behind it
+    // would be dead reactive load on the board — the hottest surface in the
+    // app (issue #2582 review). The shell knowing its own mode is exactly what
+    // makes this a gate and not a guess.
+    const session = useActiveSession(!chrome.ownChrome);
 
     const phonePortrait = viewport === "portrait";
     const showsBottomNav =

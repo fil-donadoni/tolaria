@@ -77,13 +77,23 @@ export function useMyLimitedEvents(): LimitedEventSummaryView[] | undefined {
  *  page's own seated-events section ("Your Current Events"). Narrower than
  *  `useMyLimitedEvents`: a concluded event drops off this one but stays on
  *  `/limited/events`. */
-export function useMyCurrentLimitedEvents():
-    | LimitedEventSummaryView[]
-    | undefined {
+export function useMyCurrentLimitedEvents(
+    /**
+     * `false` skips the subscription outright, for a caller that is mounted
+     * where its own result is discarded (issue #2582 review: `AppShell` mounts
+     * on EVERY route including the board, where no band that could show an
+     * event is rendered). This query scans the `limitedEvents` table — whose
+     * documents embed `seats[].pool`, `currentPack` and `rounds` — and
+     * re-executes for every subscribed client on every write to any of them,
+     * i.e. on every draft pick anywhere in the app. An always-live subscriber
+     * that throws the answer away is not free.
+     */
+    enabled = true
+): LimitedEventSummaryView[] | undefined {
     const pageVisible = usePageVisible();
     return useQuery(
         api.limitedEvents.myCurrentLimitedEvents,
-        pageVisible ? {} : "skip"
+        enabled && pageVisible ? {} : "skip"
     );
 }
 

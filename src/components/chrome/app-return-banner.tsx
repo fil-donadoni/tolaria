@@ -12,6 +12,12 @@
 // manual table) and belongs where a user goes to deal with the game. Chrome
 // offers exactly one verb: go back to it. Abandoning stays on the lobby.
 //
+// Which is also why the lobby does NOT get this band: a route that already
+// offers the same return in full owns it, and the shell stands down rather
+// than stacking a weaker second copy (ADR 0069 "one banner"). That is declared
+// per route as `ownsReturn` in `SHELL_ROUTE_RULES`, not decided here — this
+// component renders whatever `shellShowsReturnBanner` let through.
+//
 // HEIGHT CONTRACT: `h-9` (`SHELL_RETURN_BANNER_PX`), `shrink-0`, inside the
 // shell's TOP band in every mode — so `shellBands` adds it to
 // `headerBandHeightPx` and `<main>` shrinks by exactly this much. A banner

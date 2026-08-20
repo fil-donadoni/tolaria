@@ -229,7 +229,10 @@ describe("shellShowsReturnBanner (issue #2582)", () => {
 
     it("shows an event-only banner away from that event's own pages", () => {
         expect(
-            shellShowsReturnBanner("/", { hasGame: false, eventId: "e1" })
+            shellShowsReturnBanner("/limited", {
+                hasGame: false,
+                eventId: "e1",
+            })
         ).toBe(true);
         expect(
             shellShowsReturnBanner("/decks/goblins/edit", {
@@ -270,5 +273,79 @@ describe("shellShowsReturnBanner (issue #2582)", () => {
                 eventId: "e1",
             })
         ).toBe(true);
+    });
+
+    // #2619 review (blocking): the lobby has resumed a game since #155 and
+    // listed live events since #2357. Adding the shell band on top put TWO
+    // resume affordances for the SAME session on the app's primary route.
+    it("stands down on the lobby, which owns both returns in full", () => {
+        expect(
+            shellShowsReturnBanner("/", { hasGame: true, eventId: null })
+        ).toBe(false);
+        expect(
+            shellShowsReturnBanner("/", { hasGame: false, eventId: "e1" })
+        ).toBe(false);
+        expect(
+            shellShowsReturnBanner("/", { hasGame: true, eventId: "e1" })
+        ).toBe(false);
+    });
+
+    it("still shows the banner one route away from the lobby", () => {
+        // Ownership is per ROUTE, never "anything lobby-ish": walking into the
+        // deck list is exactly the case the band exists for.
+        expect(
+            shellShowsReturnBanner("/decks/goblins", {
+                hasGame: true,
+                eventId: null,
+            })
+        ).toBe(true);
+    });
+
+    it("shows the banner on an unregistered path — nothing there owns a return", () => {
+        // The 404 page. Fail-open, like the `browse` mode default: a page with
+        // no nav and no banner is a dead end.
+        expect(
+            shellShowsReturnBanner("/nope/nowhere", {
+                hasGame: true,
+                eventId: null,
+            })
+        ).toBe(true);
+    });
+});
+
+describe("return-affordance ownership census (issue #2582, #2619 review)", () => {
+    it("never declares ownsReturn on a route that renders no band anyway", () => {
+        // `ownChrome` already silences the banner. A row claiming both would
+        // be two reasons for one outcome — the shape that rots into one of
+        // them being quietly wrong.
+        for (const rule of SHELL_ROUTE_RULES) {
+            if (!rule.ownChrome) continue;
+            expect(rule.ownsReturn, rule.pattern).toBeUndefined();
+        }
+    });
+
+    it("declares a non-empty, well-formed claim wherever it declares one", () => {
+        for (const rule of SHELL_ROUTE_RULES) {
+            if (!rule.ownsReturn) continue;
+            expect(rule.ownsReturn.length, rule.pattern).toBeGreaterThan(0);
+            expect(new Set(rule.ownsReturn).size, rule.pattern).toBe(
+                rule.ownsReturn.length
+            );
+        }
+    });
+
+    it("keeps the owning routes to the ones that really render a return", () => {
+        // The census's job: a route added tomorrow cannot silently acquire (or
+        // silently lose) ownership. `/` is `ActiveGameNotice` +
+        // `DashboardLimitedBox`; the two `/limited/$eventId*` rows are the
+        // event's own pages.
+        const owners = SHELL_ROUTE_RULES.filter((rule) => rule.ownsReturn).map(
+            (rule) => rule.pattern
+        );
+        expect(owners.sort()).toEqual([
+            "/",
+            "/limited/$eventId",
+            "/limited/$eventId/build",
+        ]);
     });
 });

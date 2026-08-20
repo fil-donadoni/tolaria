@@ -417,7 +417,9 @@ describe("AppShell — the return banner is a BAND, not an overlay (issue #2582)
     } as never;
 
     it("mounts above <main> on a Browse route with a game running", () => {
-        pathname = "/";
+        // NOT `/`: the lobby owns the return in full and the shell stands down
+        // there (`ownsReturn`). Any other Browse route is where the band lives.
+        pathname = "/decks/goblins";
         session = RUNNING;
         const { queryByTestId, getByTestId } = render(<AppShell />);
         const banner = queryByTestId("app-return-banner");

@@ -37,6 +37,17 @@
 /** The two shell modes of ADR 0101. */
 export type ShellMode = "browse" | "immersive";
 
+/**
+ * A piece of in-flight work the shell's return banner can point back at.
+ *
+ * The banner offers exactly ONE verb ("go back to it"), which is what makes it
+ * chrome rather than a surface. A route that already offers the SAME return in
+ * full — resume plus whatever else that session needs — owns the affordance,
+ * and the shell must not stack a second, weaker copy of it on top: see
+ * `ShellRouteRule.ownsReturn`.
+ */
+export type ReturnAffordance = "game" | "event";
+
 /** What the shell renders around a route. */
 export interface ShellRouteChrome {
     mode: ShellMode;
@@ -72,6 +83,26 @@ export interface ShellRouteRule {
      * exits back to the event the seat belongs to.
      */
     exitTo?: string;
+    /**
+     * Return affordances this route ALREADY offers in full, so the shell's
+     * one-verb band would be a second copy of the same thing.
+     *
+     * OWNERSHIP, NOT A ROUTE CHECK. The shell banner is a POINTER to work
+     * happening somewhere else; a surface that manages that work itself is not
+     * "somewhere else". The lobby's `ActiveGameNotice` (#155) resumes a game
+     * AND leaves/concedes it, and offers the per-seat resume a manual table
+     * needs; the lobby's `DashboardLimitedBox` (#2357) lists every live event
+     * with its own re-entry. Both are strictly richer than the band, so the
+     * band stands down there rather than the surface losing its destructive
+     * half. Declaring it here — beside `mode` and `ownChrome`, in the census
+     * the route-set test already pins — is what keeps it from decaying into a
+     * hardcoded `pathname === "/"` in `shellShowsReturnBanner`: a new route
+     * that duplicates a return says so in its own row.
+     *
+     * An `"event"` claim on a pattern containing `$eventId` is scoped to THAT
+     * event — `/limited/e2` still points you back at the running `e1`.
+     */
+    ownsReturn?: readonly ReturnAffordance[];
     /** Why this route is classified the way it is — read by the census test. */
     why: string;
 }
@@ -88,7 +119,8 @@ export const SHELL_ROUTE_RULES: readonly ShellRouteRule[] = [
     {
         pattern: "/",
         mode: "browse",
-        why: "Lobby — the app's primary destination; nav is the point of it.",
+        ownsReturn: ["game", "event"],
+        why: "Lobby — the app's primary destination; nav is the point of it. It also OWNS both returns: `ActiveGameNotice` (resume + leave/concede) and `DashboardLimitedBox` (live events with re-entry).",
     },
     {
         pattern: "/decks/create",
@@ -147,14 +179,16 @@ export const SHELL_ROUTE_RULES: readonly ShellRouteRule[] = [
     {
         pattern: "/limited/$eventId",
         mode: "browse",
-        why: "Event detail / antechamber. The immersive Draft Room is its OWN route in issue #2587, not this one.",
+        ownsReturn: ["event"],
+        why: "Event detail / antechamber — and the event's own page, so it owns that event's return. The immersive Draft Room is its OWN route in issue #2587, not this one.",
     },
     {
         pattern: "/limited/$eventId/build",
         mode: "immersive",
         title: "Build your deck",
         exitTo: "/limited/$eventId",
-        why: "The pool-scoped deck builder — immersive like the constructed one.",
+        ownsReturn: ["event"],
+        why: "The pool-scoped deck builder — immersive like the constructed one, and inside the event it would point back at.",
     },
     {
         pattern: "/admin",
@@ -214,6 +248,26 @@ function matches(patternSegments: string[], pathSegments: string[]): boolean {
     );
 }
 
+/** The rule `pathname` resolves to, with the segments both halves need. */
+interface ShellRouteMatch {
+    rule: ShellRouteRule;
+    patternSegments: string[];
+    pathSegments: string[];
+}
+
+/** The single matcher: `resolveShellChrome` and `shellShowsReturnBanner` read
+ *  the SAME row for a pathname, so a rule can never be in force for the mode
+ *  and out of force for the banner. */
+function matchRule(pathname: string): ShellRouteMatch | null {
+    const pathSegments = segmentsOf(pathname);
+    for (const rule of SHELL_ROUTE_RULES) {
+        const patternSegments = segmentsOf(rule.pattern);
+        if (matches(patternSegments, pathSegments))
+            return { rule, patternSegments, pathSegments };
+    }
+    return null;
+}
+
 /** Substitute a rule's `$param` segments from the concrete pathname. */
 function concreteExit(
     exitTo: string,
@@ -230,28 +284,57 @@ function concreteExit(
 
 /** The chrome the shell wraps `pathname` in. */
 export function resolveShellChrome(pathname: string): ShellRouteChrome {
-    const pathSegments = segmentsOf(pathname);
-    for (const rule of SHELL_ROUTE_RULES) {
-        const patternSegments = segmentsOf(rule.pattern);
-        if (!matches(patternSegments, pathSegments)) continue;
-        return {
-            mode: rule.mode,
-            ownChrome: rule.ownChrome === true,
-            title: rule.title ?? null,
-            exitTo: rule.exitTo
-                ? concreteExit(rule.exitTo, patternSegments, pathSegments)
-                : null,
-        };
-    }
+    const match = matchRule(pathname);
     // Unregistered: the 404 page, or a route someone added without classifying
     // it (which `shellChrome.test.ts` fails on). Browse is the right runtime
     // default — a not-found page with no way out is a trap.
-    return { mode: "browse", ownChrome: false, title: null, exitTo: null };
+    if (!match)
+        return { mode: "browse", ownChrome: false, title: null, exitTo: null };
+    const { rule, patternSegments, pathSegments } = match;
+    return {
+        mode: rule.mode,
+        ownChrome: rule.ownChrome === true,
+        title: rule.title ?? null,
+        exitTo: rule.exitTo
+            ? concreteExit(rule.exitTo, patternSegments, pathSegments)
+            : null,
+    };
 }
 
 /** Convenience for call sites that only care about the mode. */
 export function resolveShellMode(pathname: string): ShellMode {
     return resolveShellChrome(pathname).mode;
+}
+
+/**
+ * Which return the banner would offer, given what is in flight.
+ *
+ * A game outranks an event — it is the one that can time out on you — and this
+ * is the SAME precedence `AppReturnBanner` renders by. Exported so the
+ * component and the predicate cannot drift into disagreeing about which of the
+ * two a route is being asked to suppress.
+ */
+export function shellReturnAffordance(session: {
+    hasGame: boolean;
+    eventId: string | null;
+}): ReturnAffordance | null {
+    if (session.hasGame) return "game";
+    if (session.eventId !== null) return "event";
+    return null;
+}
+
+/** Whether `match`'s route already offers `affordance` in full. */
+function routeOwnsReturn(
+    match: ShellRouteMatch,
+    affordance: ReturnAffordance,
+    eventId: string | null
+): boolean {
+    if (!(match.rule.ownsReturn ?? []).includes(affordance)) return false;
+    if (affordance !== "event") return true;
+    // A route that NAMES an event in its path owns only THAT event's return;
+    // one that lists them (the lobby) owns whichever is running.
+    const at = match.patternSegments.indexOf("$eventId");
+    return at === -1 || match.pathSegments[at] === eventId;
 }
 
 /**
@@ -262,6 +345,13 @@ export function resolveShellMode(pathname: string): ShellMode {
  * answer, so the band the model subtracts from `<main>` and the element the
  * shell actually mounts can never disagree. Two independent conditions would
  * be the #2274 shape again — a height nobody owns.
+ *
+ * Two things silence it, and they are different reasons. `ownChrome` (the
+ * board) means the shell draws NO band here at all. `ownsReturn` means the
+ * route already offers this exact return, in full — see that field: stacking
+ * the band on top would be two resume affordances on one screen, which is the
+ * ADR 0069 "one banner" rule and, at 390x844, 36px of the viewport this PRD
+ * exists to reclaim.
  */
 export function shellShowsReturnBanner(
     pathname: string,
@@ -271,14 +361,12 @@ export function shellShowsReturnBanner(
         eventId: string | null;
     }
 ): boolean {
-    if (!session.hasGame && session.eventId === null) return false;
-    // On the board you ARE the thing the banner points at, and the surface
-    // renders no shell chrome at all.
-    if (resolveShellChrome(pathname).ownChrome) return false;
-    // An event-only banner is noise on the event's own pages (detail, build).
-    if (!session.hasGame && session.eventId !== null) {
-        const here = segmentsOf(pathname);
-        if (here[0] === "limited" && here[1] === session.eventId) return false;
-    }
-    return true;
+    const affordance = shellReturnAffordance(session);
+    if (affordance === null) return false;
+    const match = matchRule(pathname);
+    // Unregistered (the 404 page): nothing there owns anything, so the banner
+    // is the only way back — the same fail-open the mode default takes.
+    if (!match) return true;
+    if (match.rule.ownChrome === true) return false;
+    return !routeOwnsReturn(match, affordance, session.eventId);
 }

@@ -53,6 +53,10 @@ export interface ActiveSession {
 
 const NOTHING: ActiveSession = { game: null, event: null, loading: true };
 
+/** Nothing was ASKED, so nothing is loading — `loading: true` would be a lie
+ *  that keeps a caller waiting for a read that will never arrive. */
+const NOT_ASKED: ActiveSession = { game: null, event: null, loading: false };
+
 /**
  * The viewer's active game + Limited event.
  *
@@ -60,15 +64,24 @@ const NOTHING: ActiveSession = { game: null, event: null, loading: true };
  * and both are skipped while the tab is hidden (`usePageVisible`) exactly as
  * the lobby already skips them — the shell is mounted on every route, so a
  * background tab would otherwise hold two live subscriptions forever.
+ *
+ * `enabled` is the same argument in the space dimension rather than time.
+ * `AppShell` mounts on EVERY route, but a route with `ownChrome` (the board)
+ * renders no header, no bottom nav, no contextual bar and no return banner —
+ * every consumer of this value is suppressed there, so subscribing would be
+ * two live Convex subscriptions held open on the app's hottest surface for an
+ * answer nothing can read. `myCurrentLimitedEvents` in particular scans the
+ * fat `limitedEvents` table and re-runs on every draft pick anywhere in the
+ * app (issue #2582 review). Passing `false` skips BOTH reads: this repo bills
+ * a read by the whole document, so an unused subscription is cost, not style.
  */
-export function useActiveSession(): ActiveSession {
+export function useActiveSession(enabled: boolean): ActiveSession {
     const pageVisible = usePageVisible();
-    const activeGame = useQuery(
-        api.game.myActiveGame,
-        pageVisible ? {} : "skip"
-    );
-    const events = useMyCurrentLimitedEvents();
+    const live = enabled && pageVisible;
+    const activeGame = useQuery(api.game.myActiveGame, live ? {} : "skip");
+    const events = useMyCurrentLimitedEvents(enabled);
 
+    if (!enabled) return NOT_ASKED;
     if (activeGame === undefined || events === undefined) return NOTHING;
 
     // A finished game is history, not something to return to: `myActiveGame`
