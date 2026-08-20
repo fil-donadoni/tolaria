@@ -255,10 +255,15 @@ exactly `{0, max}` rest.
 
 **Fixture requirement for `draft-pool-stop`: the seat needs a non-empty pool.**
 `LimitedDraftPool` renders an `EmptyState` at `pool.length === 0` — no
-`[data-slot=draft-pool]`, so the walk reports UNWALKED and the run is red. Make
-a few picks in the room first (select a tile, `[data-editing-action="Pick"]`);
-the lane itself never picks, because a pick is not reversible and this lane is
-non-destructive by construction.
+`[data-slot=draft-pool]`, so the walk reports UNWALKED and the run is red. That
+guard now covers **both** branches: the phone branch asserts the pool pane after
+it confirms `data-stop="pool"`, not just the stop (until PR #2652 round 3 it
+returned on the stop alone, so a Pick #1 seat measured an empty pane at 390×844
+and passed green — `probe.js` has no card-count floor and `budgets.ts` no
+minimum-`n` rule, so nothing else would have caught it). Make a few picks in the
+room first (select a tile, `[data-editing-action="Pick"]`); the lane itself
+never picks, because a pick is not reversible and this lane is non-destructive
+by construction.
 
 A Sealed event opens the same route in **reveal mode**: no pack, no counters,
 the dealt Pool plus `Build your deck →`.

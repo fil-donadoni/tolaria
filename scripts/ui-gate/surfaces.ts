@@ -521,12 +521,26 @@ export const SURFACES: readonly Surface[] = [
                         `tapping the pool strip left the Draft Room at data-stop="${stop ?? "null"}" instead of "pool"`
                     );
                 }
+                // Reaching the stop is NOT reaching the pool. `pool.length === 0`
+                // makes `LimitedDraftPool` return an `EmptyState` with no
+                // `[data-slot=draft-pool]` at all, and neither `probe.js` (no
+                // card-count floor) nor `budgets.ts` (no minimum-n rule) can
+                // tell an empty pane from a healthy one: a Pick #1 seat would
+                // score `zero0 occ0 stranded0 starved0` and pass GREEN, making
+                // the one measurement that discharges the pool pane's layout
+                // claims silently vacuous. Same guard the split branch below
+                // runs — the fixture, not the stop, is what must be asserted.
+                if (!(await visible(page, DRAFT_POOL, 4000))) {
+                    throw new Unreachable(
+                        'the phone Draft Room reached the pool stop but rendered no pool pane — this surface needs a seat with a NON-EMPTY pool (make a few picks in the room first: select a tile, then [data-editing-action="Pick"])'
+                    );
+                }
                 return;
             }
 
             if (!(await visible(page, DRAFT_POOL, 4000))) {
                 throw new Unreachable(
-                    "the Draft Room rendered no pool pane — this seat's pool toggle may be off"
+                    "the Draft Room rendered no pool pane — this seat's pool toggle may be off, or the pool is empty (this surface needs a NON-EMPTY pool: make a few picks first)"
                 );
             }
             await page.evaluate(`(() => {
