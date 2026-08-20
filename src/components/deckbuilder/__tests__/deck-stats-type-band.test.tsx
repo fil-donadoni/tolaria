@@ -47,6 +47,42 @@ describe("DeckStatsTypeBand (issue #2586)", () => {
         expect(screen.getByText("Land")).toBeTruthy();
     });
 
+    it("paints each type's FIXED categorical colour class on both the segment and its legend dot (issue #2586 review: colorClass must be a literal Tailwind class Tailwind's scanner can see, never a runtime-built `bg-chart-cat-${i}` string)", () => {
+        // Two Mountains (Land) outnumber the single Grizzly Bears (Creature)
+        // and Mox Ruby (Artifact), but colour is keyed by each type's FIXED
+        // slot in `TYPE_BAND_ORDER` (Artifact=1st, Creature=3rd, Land=6th),
+        // never by count/order — same invariant as the DOM-order test above,
+        // asserted on the actual painted class this time. Mutating
+        // `colorClass` to `""` in the component must fail this test; a test
+        // that only reads title/order text (as this file did before) stays
+        // green even with every segment colourless.
+        const stats = computeDeckStats(
+            deckOf(MOUNTAIN, MOUNTAIN, GRIZZLY_BEARS, MOX_RUBY)
+        );
+        render(<DeckStatsTypeBand counts={stats.types} />);
+
+        const band = screen.getByRole("group", {
+            name: "Card types, share of type tags",
+        });
+        expect(within(band).getByTitle(/^Artifact:/).className).toContain(
+            "bg-chart-cat-1"
+        );
+        expect(within(band).getByTitle(/^Creature:/).className).toContain(
+            "bg-chart-cat-3"
+        );
+        expect(within(band).getByTitle(/^Land:/).className).toContain(
+            "bg-chart-cat-6"
+        );
+
+        // Legend swatches (the `<span>` dots) carry the SAME class as their
+        // segment — colour identity travels with the entity, not just the
+        // bar.
+        const artifactSwatch = screen
+            .getByText("Artifact")
+            .parentElement!.querySelector("span")!;
+        expect(artifactSwatch.className).toContain("bg-chart-cat-1");
+    });
+
     it("assigns segment DOM order by each type's FIXED catalogue slot, not by count", () => {
         // Two Mountains (Land: 2) outnumber the single Grizzly Bears
         // (Creature: 1), but Creature's fixed slot precedes Land's — a

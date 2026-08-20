@@ -25,6 +25,27 @@ const TYPE_BAND_ORDER: readonly CardType[] = [
     "Sorcery",
 ];
 
+/** LITERAL class strings, one per {@link TYPE_BAND_ORDER} slot — Tailwind v4
+ *  scans source text statically, so a runtime-built `` `bg-chart-cat-${i}` ``
+ *  template string is invisible to the scanner and the class (and the
+ *  `--color-chart-cat-*` custom property it references, `src/index.css`)
+ *  gets tree-shaken out of the emitted CSS entirely (issue #2586 review
+ *  finding: `bunx vite build` + grep the bundle for `chart-cat` — zero hits
+ *  before this array existed). Same hazard `deck-stats-curve-chart.tsx`
+ *  documents for its `--curve-h` custom property; this is its counterpart
+ *  for literal utility classes — index by {@link TYPE_BAND_ORDER} position,
+ *  never generate the suffix. */
+const CHART_CAT_BG: readonly string[] = [
+    "bg-chart-cat-1",
+    "bg-chart-cat-2",
+    "bg-chart-cat-3",
+    "bg-chart-cat-4",
+    "bg-chart-cat-5",
+    "bg-chart-cat-6",
+    "bg-chart-cat-7",
+    "bg-chart-cat-8",
+];
+
 interface TypeBandSegment {
     label: string;
     count: number;
@@ -54,7 +75,7 @@ export default function DeckStatsTypeBand({ counts }: DeckStatsTypeBandProps) {
     const known: TypeBandSegment[] = TYPE_BAND_ORDER.map((type, i) => ({
         label: type,
         count: counts[type] ?? 0,
-        colorClass: `bg-chart-cat-${i + 1}`,
+        colorClass: CHART_CAT_BG[i],
     })).filter((s) => s.count > 0);
 
     const otherCount = Object.entries(counts).reduce(

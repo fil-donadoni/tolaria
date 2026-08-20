@@ -12,7 +12,8 @@ import DeckStatsButton from "../deck-stats-button";
 // Real registry ids, reused from `deck-builder-shell.test.tsx`.
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt — {R}, Instant
 const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // Mountain — land, produces R
-const SERRA_ID = "f8ac5006-91bd-4803-93da-f87cf196dd2f"; // Serra Angel — Creature
+const SERRA_ID = "f8ac5006-91bd-4803-93da-f87cf196dd2f"; // Serra Angel — Creature, subtype Angel
+const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // Grizzly Bears — Creature, subtype Bear
 
 function card(cardId: string, cardName = cardId): ZoneCard {
     return { cardId, cardName };
@@ -114,6 +115,50 @@ describe("DeckStatsButton — Stats dialog (issue #1631)", () => {
             .getAllByTitle(/^(Creature|Instant|Land): \d+$/)
             .map((el) => el.getAttribute("title"));
         expect(segmentTitles).toEqual(["Creature: 1", "Instant: 1", "Land: 2"]);
+
+        // The title says "colors" — actually assert the colour, not just DOM
+        // order (issue #2586 review: a `colorClass: ""` mutation left this
+        // test green under the old title-only assertion). Creature/Instant/
+        // Land sit at slots 3/5/6 of `TYPE_BAND_ORDER`, independent of Land
+        // having the highest count here.
+        expect(within(band).getByTitle("Creature: 1").className).toContain(
+            "bg-chart-cat-3"
+        );
+        expect(within(band).getByTitle("Instant: 1").className).toContain(
+            "bg-chart-cat-5"
+        );
+        expect(within(band).getByTitle("Land: 2").className).toContain(
+            "bg-chart-cat-6"
+        );
+    });
+
+    it("orders Subtypes by count descending, then alphabetically on a tie (issue #1631 fixup F4, re-pointed by the issue #2586 review — this PR moved the card-Type list to the colour band above and left DeckStatsTypeList's comparator, still live for Subtypes, with no test asserting order)", () => {
+        // Two Mountains (subtype Mountain: 2), one Grizzly Bears (subtype
+        // Bear: 1), one Serra Angel (subtype Angel: 1) — Bear and Angel tie
+        // at count 1, so the expected order (Mountain, Angel, Bear) can only
+        // come from BOTH comparator terms: count-descending puts Mountain
+        // first, and alphabetical tie-break puts Angel ahead of Bear.
+        // Inverting either term in `DeckStatsTypeList`'s comparator breaks
+        // this.
+        render(
+            <DeckStatsButton
+                mainCards={[
+                    card(MOUNTAIN_ID, "Mountain"),
+                    card(MOUNTAIN_ID, "Mountain"),
+                    card(GRIZZLY_BEARS_ID, "Grizzly Bears"),
+                    card(SERRA_ID, "Serra Angel"),
+                ]}
+            />
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Stats" }));
+
+        const subtypesSection = screen
+            .getByText("Subtypes")
+            .closest("section")!;
+        const names = within(subtypesSection)
+            .getAllByRole("listitem")
+            .map((li) => li.querySelector("span")!.textContent);
+        expect(names).toEqual(["Mountain", "Angel", "Bear"]);
     });
 
     it("exposes the curve's per-bucket counts inside an accessible group, not a pruned img (issue #1631 fixup F5)", () => {
