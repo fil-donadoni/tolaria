@@ -412,7 +412,7 @@
             "viewports": {
                 "1440x900x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 0,
+                    "cardsOcc": 1,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
                     "ctrlsOcc": 4,
@@ -420,35 +420,33 @@
                     "starved": 0,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`ctrlsOcc 4` is the Peek Panel rail over controls that sit OUTSIDE the reserve. `LimitedDraftTable` reserves the rail's 224px on its own surface (`peekPanelReserve`), but the floating bug-report button and the zoom slider's end caps are not inside it \u2014 the shape already drafted in `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`, unchanged by issue #2587 (the panel and its reserve moved route, not behaviour). Recorded with a live pack AND a Selected Card, which is the only state that mounts the panel at all."
+                    "knownDebt": "`cardsOcc 1` is the MTGO PILE overlap inside the split's pool column (`DeckColumnPile`, ADR 0101 \u00a77): two copies in one Mana-Value Column are drawn stacked, so the lower one's centre hit-tests to the one on top. It appeared the moment this seat's Pool stopped being empty \u2014 nothing in issue #2588 touches this arm, which renders the tablet/desktop SPLIT \u2014 and it is by design: `cardsStranded 0`, every copy is one hover or one drag away. `ctrlsOcc 4` is the Peek Panel rail over controls that sit OUTSIDE the reserve. `LimitedDraftTable` reserves the rail's 224px on its own surface (`peekPanelReserve`), but the floating bug-report button and the zoom slider's end caps are not inside it \u2014 the shape already drafted in `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`, unchanged by issue #2587 or #2588 (the panel and its reserve moved route, then stopped mounting on a PHONE; this is the desktop rail). Recorded with a live pack AND a Selected Card, which is the only state that mounts the panel at all."
                 },
                 "390x844x3": {
                     "cardsZero": 0,
-                    "cardsOcc": 3,
-                    "cardsStranded": 0,
-                    "ctrlsZero": 0,
-                    "ctrlsOcc": 3,
-                    "ctrlsStranded": 0,
-                    "starved": 0,
-                    "axeSerious": 0,
-                    "axeCritical": 0,
-                    "knownDebt": "`cardsOcc 3` is the bottom row of the Booster under the Peek Panel BOTTOM SHEET (portrait is the one viewport that resolves to `sheet`, not `rail`). The surface reserves the sheet's 9rem, so every card is reachable by scrolling \u2014 the probe measures the CURRENT scroll position, and a fixed sheet always covers something below it there. Phone portrait's real layout (two snap stops, Pack 85 / Pool 15) is PRD #2405 slice 9; this row is the stacked layout #2587 deliberately did not touch. `ctrlsOcc 3` is the Peek Panel rail over controls that sit OUTSIDE the reserve. `LimitedDraftTable` reserves the rail's 224px on its own surface (`peekPanelReserve`), but the floating bug-report button and the zoom slider's end caps are not inside it \u2014 the shape already drafted in `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`, unchanged by issue #2587 (the panel and its reserve moved route, not behaviour). Recorded with a live pack AND a Selected Card, which is the only state that mounts the panel at all."
-                },
-                "844x390x3": {
-                    "cardsZero": 1,
                     "cardsOcc": 0,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 4,
+                    "ctrlsOcc": 0,
                     "ctrlsStranded": 0,
-                    "starved": 1,
+                    "starved": 0,
                     "axeSerious": 0,
-                    "axeCritical": 0,
-                    "knownDebt": "`cardsZero 1` is the Peek Panel's own thumbnail `<img>`, which measures 0x0 until its Scryfall art loads; the lane runs with no warm image cache, so every card tile on this surface renders its loading placeholder (see the screenshot). It is not a collapsed pack tile: `cards n16` = 15 pack tiles + that thumbnail, and `cardsStranded 0` at every viewport. `starved 1` is the Booster grid inside the room's body scroller: on a SHORT viewport one `<ul>` of 15 tiles is taller than the container, which is what a scroller is for \u2014 nothing is unreachable (`cardsStranded 0`, `reach` clean). The phone-landscape and tablet-portrait layouts are PRD #2405 slice 9, which owns making this a pile/split rather than a scroll. `ctrlsOcc 4` is the Peek Panel rail over controls that sit OUTSIDE the reserve. `LimitedDraftTable` reserves the rail's 224px on its own surface (`peekPanelReserve`), but the floating bug-report button and the zoom slider's end caps are not inside it \u2014 the shape already drafted in `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`, unchanged by issue #2587 (the panel and its reserve moved route, not behaviour). Recorded with a live pack AND a Selected Card, which is the only state that mounts the panel at all."
+                    "axeCritical": 0
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
                 },
                 "820x1180x2": {
                     "cardsZero": 1,
-                    "cardsOcc": 0,
+                    "cardsOcc": 1,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
                     "ctrlsOcc": 4,
@@ -456,11 +454,11 @@
                     "starved": 1,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`cardsZero 1` is the Peek Panel's own thumbnail `<img>`, which measures 0x0 until its Scryfall art loads; the lane runs with no warm image cache, so every card tile on this surface renders its loading placeholder (see the screenshot). It is not a collapsed pack tile: `cards n16` = 15 pack tiles + that thumbnail, and `cardsStranded 0` at every viewport. `starved 1` is the Booster grid inside the room's body scroller: on a SHORT viewport one `<ul>` of 15 tiles is taller than the container, which is what a scroller is for \u2014 nothing is unreachable (`cardsStranded 0`, `reach` clean). The phone-landscape and tablet-portrait layouts are PRD #2405 slice 9, which owns making this a pile/split rather than a scroll. `ctrlsOcc 4` is the Peek Panel rail over controls that sit OUTSIDE the reserve. `LimitedDraftTable` reserves the rail's 224px on its own surface (`peekPanelReserve`), but the floating bug-report button and the zoom slider's end caps are not inside it \u2014 the shape already drafted in `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`, unchanged by issue #2587 (the panel and its reserve moved route, not behaviour). Recorded with a live pack AND a Selected Card, which is the only state that mounts the panel at all."
+                    "knownDebt": "`cardsOcc 1` is the MTGO PILE overlap inside the split's pool column (`DeckColumnPile`, ADR 0101 \u00a77): two copies in one Mana-Value Column are drawn stacked, so the lower one's centre hit-tests to the one on top. It appeared the moment this seat's Pool stopped being empty \u2014 nothing in issue #2588 touches this arm, which renders the tablet/desktop SPLIT \u2014 and it is by design: `cardsStranded 0`, every copy is one hover or one drag away. `cardsZero 1` is the Peek Panel's own thumbnail `<img>`, which measures 0x0 until its Scryfall art loads; the lane runs with no warm image cache, so a cold run can catch it before the placeholder resolves (the 2026-08-20 run measured 0 \u2014 the ceiling is kept at 1 because it is a load-timing artifact, not a layout fact). `starved 1` is the Booster grid inside the room's body scroller: a tablet renders the tablet/desktop SPLIT (ADR 0101 \u00a76 \u2014 `useViewportMode` calls 820x1180 `desktop`), whose pack column scrolls a 15-tile `<ul>`, which is what a scroller is for; nothing is unreachable (`cardsStranded 0`, `reach` clean). Issue #2588 deliberately did NOT change this viewport: it owns the two PHONE regimes, and both of those now measure clean at every key. `ctrlsOcc 4` is the Peek Panel rail over controls that sit OUTSIDE the reserve. `LimitedDraftTable` reserves the rail's 224px on its own surface (`peekPanelReserve`), but the floating bug-report button and the zoom slider's end caps are not inside it \u2014 the shape already drafted in `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`. Recorded with a live pack AND a Selected Card, which is the only state that mounts the panel at all."
                 },
                 "1180x820x2": {
                     "cardsZero": 1,
-                    "cardsOcc": 0,
+                    "cardsOcc": 1,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
                     "ctrlsOcc": 4,
@@ -468,7 +466,72 @@
                     "starved": 0,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`cardsZero 1` is the Peek Panel's own thumbnail `<img>`, which measures 0x0 until its Scryfall art loads; the lane runs with no warm image cache, so every card tile on this surface renders its loading placeholder (see the screenshot). It is not a collapsed pack tile: `cards n16` = 15 pack tiles + that thumbnail, and `cardsStranded 0` at every viewport. `ctrlsOcc 4` is the Peek Panel rail over controls that sit OUTSIDE the reserve. `LimitedDraftTable` reserves the rail's 224px on its own surface (`peekPanelReserve`), but the floating bug-report button and the zoom slider's end caps are not inside it \u2014 the shape already drafted in `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`, unchanged by issue #2587 (the panel and its reserve moved route, not behaviour). Recorded with a live pack AND a Selected Card, which is the only state that mounts the panel at all."
+                    "knownDebt": "`cardsOcc 1` is the MTGO PILE overlap inside the split's pool column (`DeckColumnPile`, ADR 0101 \u00a77): two copies in one Mana-Value Column are drawn stacked, so the lower one's centre hit-tests to the one on top. It appeared the moment this seat's Pool stopped being empty \u2014 nothing in issue #2588 touches this arm, which renders the tablet/desktop SPLIT \u2014 and it is by design: `cardsStranded 0`, every copy is one hover or one drag away. `cardsZero 1` is the Peek Panel's own thumbnail `<img>`, which measures 0x0 until its Scryfall art loads; the lane runs with no warm image cache, so every card tile on this surface renders its loading placeholder (see the screenshot). It is not a collapsed pack tile: `cards n16` = 15 pack tiles + that thumbnail, and `cardsStranded 0` at every viewport. `ctrlsOcc 4` is the Peek Panel rail over controls that sit OUTSIDE the reserve. `LimitedDraftTable` reserves the rail's 224px on its own surface (`peekPanelReserve`), but the floating bug-report button and the zoom slider's end caps are not inside it \u2014 the shape already drafted in `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`, unchanged by issue #2587 or #2588 (the panel and its reserve moved route, then stopped mounting on a PHONE; this is a tablet). Recorded with a live pack AND a Selected Card, which is the only state that mounts the panel at all."
+                }
+            }
+        },
+        "draft-pool-stop": {
+            "label": "Draft Room, pool stop (/limited/<id>/draft, swiped)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 1,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "`cardsOcc 1` / `ctrlsOcc 1` are the MTGO PILE overlap in the split's pool column (`DeckColumnPile`, ADR 0101 \u00a77) \u2014 the same pair `draft-pick` records at this viewport, from the same cause, and by design: `cardsStranded 0`. Recorded with NO Selected Card, so the Peek Panel is not mounted here; a run whose seat has one will also measure the rail's `ctrlsOcc` (see `draft-pick`'s note) and needs a re-record rather than a code change."
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 2,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 2,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "`cardsOcc 2` / `ctrlsOcc 2` are two DIFFERENT things, both benign, both measured (2026-08-20, `elementFromPoint` on each element's visible slice). ONE is the pool's own pile overlap (two lands in one Mana-Value Column \u2014 `DeckColumnPile`, ADR 0101 \u00a77). The OTHER is a Booster tile of the parked pack: at the pool stop `draft-landscape-panes.tsx` keeps the grid mounted under `visibility: hidden` (15 remote images that would otherwise repaint from empty on every swipe), and the scroller still shows the pane's last 20%, where the collapsed pack column is painted over it. The probe skips a `visibility: hidden` element as an OCCLUDER but still counts it as occludED, so an invisible tile scores `occ` \u2014 nothing a player can see is covered, and `cardsStranded 0` at every viewport."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 2,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "`cardsOcc 1` is the MTGO PILE overlap in the split's pool column (`DeckColumnPile`, ADR 0101 \u00a77), by design: `cardsStranded 0`. `ctrlsOcc 2` is that pile's own tile plus the floating bug-report button, which sits outside every reserve (`docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`). Recorded with NO Selected Card, so the Peek Panel is not mounted here; a run whose seat has one needs a re-record rather than a code change."
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 1,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "`cardsOcc 1` / `ctrlsOcc 1` are the MTGO PILE overlap in the split's pool column (`DeckColumnPile`, ADR 0101 \u00a77) \u2014 the same pair `draft-pick` records at this viewport, from the same cause, and by design: `cardsStranded 0`. Recorded with NO Selected Card, so the Peek Panel is not mounted here; a run whose seat has one will also measure the rail's `ctrlsOcc` (see `draft-pick`'s note) and needs a re-record rather than a code change."
                 }
             }
         }

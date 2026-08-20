@@ -14,6 +14,8 @@ import {
 } from "~/components/deckbuilder/deckZoneDrag";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import {
+    draftStripDropId,
+    parseDraftStripDropId,
     poolArrangementPatch,
     resolveDraftDragAction,
     type BoosterDragData,
@@ -153,6 +155,66 @@ describe("resolveDraftDragAction (ADR 0060 issue #1248; shared ids, issue #1632)
         }
         ids.add(zoneColumnDropId("maindeck", "mv:lands"));
         expect(ids.size).toBe(9);
+    });
+});
+
+describe("the phone snap strip's drop targets (issue #2588, ADR 0101 §6)", () => {
+    const STRIP_MAIN = draftStripDropId("maindeck");
+    const STRIP_SIDE = draftStripDropId("sideboard");
+
+    it("mints ids that do NOT collide with the pane ids they stand for", () => {
+        // The Pool pane and the strip that stands for it are mounted at the
+        // SAME time on a phone (the pane is merely scrolled out of view), and
+        // dnd-kit keys its droppable registry by id.
+        expect(STRIP_MAIN).not.toBe(zonePaneDropId("maindeck"));
+        expect(STRIP_SIDE).not.toBe(SIDEBOARD);
+        expect(new Set([STRIP_MAIN, STRIP_SIDE]).size).toBe(2);
+    });
+
+    it("Booster → the strip's Pool half is a plain Pick, naming no Column", () => {
+        expect(resolveDraftDragAction(booster, STRIP_MAIN)).toEqual({
+            type: "commitPick",
+            pickId: "r0-p0-c1",
+            sideboard: false,
+            columnId: null,
+        });
+    });
+
+    it("Booster → the strip's SB half picks straight to the Sideboard", () => {
+        expect(resolveDraftDragAction(booster, STRIP_SIDE)).toEqual({
+            type: "commitPick",
+            pickId: "r0-p0-c1",
+            sideboard: true,
+            columnId: null,
+        });
+    });
+
+    it("an ALREADY-picked Pool card dropped on the strip moves between the two Zones", () => {
+        // The strip is not booster-only: it is the one drop target a pool
+        // card can reach while the Pool pane is off screen.
+        expect(resolveDraftDragAction(poolCard, STRIP_SIDE)).toEqual({
+            type: "moveArrangement",
+            poolIndex: 3,
+            sideboard: true,
+            columnId: null,
+        });
+        expect(resolveDraftDragAction(poolCard, STRIP_MAIN)).toEqual({
+            type: "moveArrangement",
+            poolIndex: 3,
+            sideboard: false,
+            columnId: null,
+        });
+    });
+
+    it("parses only its OWN prefix — a foreign or malformed id resolves to nothing", () => {
+        expect(parseDraftStripDropId(STRIP_MAIN)).toBe("maindeck");
+        expect(parseDraftStripDropId(STRIP_SIDE)).toBe("sideboard");
+        expect(parseDraftStripDropId(undefined)).toBeNull();
+        expect(parseDraftStripDropId(SIDEBOARD)).toBeNull();
+        // Fails CLOSED on a zone name the deck engine does not own, rather
+        // than falling through to the Pool.
+        expect(parseDraftStripDropId("draft-strip:pack")).toBeNull();
+        expect(resolveDraftDragAction(booster, "draft-strip:pack")).toBeNull();
     });
 });
 

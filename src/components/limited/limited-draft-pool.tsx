@@ -25,6 +25,7 @@ import {
 } from "~/components/deckbuilder/deckZoneColumnView";
 import { toZoneCards } from "~/components/deckbuilder/poolZoneCards";
 import EmptyState from "~/components/ui/empty-state";
+import { cn } from "~/lib/utils";
 
 /**
  * The draft-time Pool (ADR 0060 issues #1247/#1248; ADR 0075 §6 / PRD #1617
@@ -84,10 +85,21 @@ export default function LimitedDraftPool({
     eventId,
     pool,
     arrangement,
+    arrange = "row",
 }: {
     eventId: Id<"limitedEvents">;
     pool: LimitedPoolCard[];
     arrangement: PoolArrangementEntry[] | null;
+    /** Where the Sideboard sits (issue #2588, ADR 0101 §6: "the portrait pool
+     *  pane splits Main / Sideboard").
+     *
+     *  `"row"` is the desktop/landscape arrangement this surface has always
+     *  had — a 160px Sideboard rail beside the Pool. `"column"` stacks them,
+     *  which is the only shape that fits a 390px-wide phone: a rail there
+     *  would leave the Pool 230px, i.e. one and a half card columns. Purely a
+     *  BOX question — both arrangements mount the same two `DeckZoneSurface`s
+     *  with the same drop models, so a Pin made in either is the same datum. */
+    arrange?: "row" | "column";
 }) {
     const { setPoolArrangementEntry } = useLimitedEventMutations();
 
@@ -170,7 +182,14 @@ export default function LimitedDraftPool({
         // its siblings out of the viewport. A flex child defaults to
         // `min-height: auto` (its content), which is exactly the shape that
         // does the pushing.
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div
+            data-slot="draft-pool"
+            data-arrange={arrange}
+            className={cn(
+                "flex min-h-0 flex-1 overflow-hidden",
+                arrange === "column" && "flex-col"
+            )}
+        >
             <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
                 <DeckZoneSurface
                     zone="maindeck"
@@ -188,7 +207,16 @@ export default function LimitedDraftPool({
                     emptyMessage="Every card you pick lands here."
                 />
             </div>
-            <div className="w-40 shrink-0 overflow-y-auto border-l border-border-subtle/30">
+            <div
+                className={cn(
+                    "shrink-0 overflow-y-auto border-border-subtle/30",
+                    arrange === "column"
+                        ? // A third of the pane, floored so a single row of
+                          // tiles is always legible rather than clipped.
+                          "max-h-[38%] min-h-24 border-t"
+                        : "w-40 border-l"
+                )}
+            >
                 <DeckZoneSurface
                     zone="sideboard"
                     title="Sideboard"

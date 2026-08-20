@@ -113,6 +113,124 @@ const EVENT_VIEW = "button:has-text('View'), a:has-text('View')";
  *    does not exist (issue #2587). */
 const DRAFT_PICK_TILE = "[role=button][aria-label^='Draft pick:']";
 
+/** The phone-only snap surface and its two strip halves (issue #2588). Absent
+ *  at desktop/tablet widths, where the room renders the split instead. */
+const DRAFT_SNAP_SCROLLER = "[data-slot=draft-snap-scroller]";
+const DRAFT_STRIP_DROP = "[data-slot=draft-strip-drop]";
+const DRAFT_POOL = "[data-slot=draft-pool]";
+
+/**
+ * Land on `/limited/<id>/draft` with a live pack for this seat.
+ *
+ * Issue #2587 moved the pick screen OFF the event page onto its own immersive
+ * route. Two ways in, and the walk takes whichever the deployment offers: the
+ * event page redirects a seated player while a Pick is pending (one-shot per
+ * tab), and once that shot is spent the event page offers "Enter the Draft
+ * Room". Shared by both draft surfaces, so the two can never drift apart
+ * about what "the room" means.
+ */
+async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
+    const count = await limitedEventCount(page, ctx);
+    if (count === 0) {
+        throw new Unreachable(
+            "no Limited event on this deployment — create one from /limited (+ Create Event) and re-run"
+        );
+    }
+    for (let i = 0; i < Math.min(count, 3); i++) {
+        const landed = await openLimitedEvent(page, ctx, i);
+        if (landed === null) continue;
+        if (landed === "event") {
+            if (
+                !(await clickIfVisible(
+                    page,
+                    "a:has-text('Enter the Draft Room')",
+                    4000
+                ))
+            ) {
+                continue;
+            }
+            await page
+                .waitForURL(/\/draft$/, { timeout: NAV_TIMEOUT })
+                .catch(() => {});
+            await settle(page);
+        }
+        if (!page.url().endsWith("/draft")) continue;
+        // The room renders for a Sealed seat too (reveal mode), so reaching
+        // the URL is not enough: the surface these rows budget is the PICK
+        // screen, and its tiles are the proof.
+        if (await visible(page, DRAFT_PICK_TILE, 4000)) return;
+    }
+    throw new Unreachable(
+        "no Limited event is in the drafting phase with a live pack for this seat (the pick screen is /limited/<id>/draft since issue #2587)"
+    );
+}
+
+/**
+ * Issue #2588 AC 1/2: on a phone the room is ONE scroller with
+ * `scroll-snap-type: y mandatory` holding two 85% panes, so exactly two
+ * offsets rest — `0` and the scroller's own maximum. Nothing in between is a
+ * resting position, which is what makes each strip a stable tab rather than a
+ * band that drifts half off screen.
+ *
+ * `draftSnapStops.test.ts` proves the arithmetic that produces the
+ * percentages, but it runs on happy-dom, which has no scroller and no
+ * snapping — so it cannot prove the RESTING BEHAVIOUR, and until this helper
+ * existed nothing did (review finding 1 on PR #2652). Sample offsets across
+ * the range, let each settle, collect the distinct values it comes to rest at.
+ *
+ * A no-op off a phone: the split has no snap scroller.
+ */
+async function assertTwoSnapStops(page: Page): Promise<void> {
+    if (!(await visible(page, DRAFT_SNAP_SCROLLER, 2000))) return;
+    // Passed as a STRING, like `runProbe`'s call in `index.ts`: this file is
+    // compiled by `tsconfig.node.json`, which carries no `dom` lib, so an
+    // inline browser closure would not type-check.
+    const result = (await page.evaluate(`(async () => {
+        const s = document.querySelector("${DRAFT_SNAP_SCROLLER}");
+        if (!s) return null;
+        // The AXIS is the one thing the orientation changes (see
+        // \`useDraftSnapStops\`): portrait swipes down, landscape sideways.
+        // Reading scrollTop on the landscape scroller measures a range of 0
+        // and reports the panes "did not lay out" on a screen that is fine.
+        const x = s.getAttribute("data-orientation") === "landscape";
+        const max = Math.round(
+            x ? s.scrollWidth - s.clientWidth : s.scrollHeight - s.clientHeight
+        );
+        if (max < 8) return { axis: x ? "x" : "y", max: max, rested: [], note: "no scrollable range" };
+        const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 120)));
+        const to = (v) => s.scrollTo(x ? { left: v, behavior: "instant" } : { top: v, behavior: "instant" });
+        const rested = [];
+        for (let i = 0; i <= 10; i++) {
+            to((max * i) / 10);
+            await frame();
+            const at = Math.round(x ? s.scrollLeft : s.scrollTop);
+            const snapped = at <= 2 ? 0 : Math.abs(at - max) <= 2 ? max : at;
+            if (rested.indexOf(snapped) === -1) rested.push(snapped);
+        }
+        to(0);
+        await frame();
+        return { axis: x ? "x" : "y", max: max, rested: rested, note: "" };
+    })()`)) as {
+        axis: string;
+        max: number;
+        rested: number[];
+        note: string;
+    } | null;
+
+    if (result === null) return;
+    if (result.note !== "") {
+        throw new Unreachable(
+            `the phone Draft Room's snap scroller has no scrollable range on its ${result.axis} axis (max ${result.max}px) — the two panes did not lay out`
+        );
+    }
+    const unexpected = result.rested.filter((v) => v !== 0 && v !== result.max);
+    if (unexpected.length > 0 || result.rested.length !== 2) {
+        throw new Unreachable(
+            `the phone Draft Room rests at ${result.rested.length} ${result.axis}-offsets [${result.rested.join(", ")}], not exactly the two AC 1 requires ([0, ${result.max}])`
+        );
+    }
+}
+
 async function limitedEventCount(
     page: Page,
     ctx: WalkContext
@@ -354,44 +472,87 @@ export const SURFACES: readonly Surface[] = [
         id: "draft-pick",
         label: "Draft Room (/limited/<id>/draft)",
         async walk(page, ctx) {
-            // Issue #2587 moved the pick screen OFF the event page onto its
-            // own immersive route. Two ways in, and the walk takes whichever
-            // the deployment offers: the event page redirects a seated player
-            // while a Pick is pending (one-shot per tab), and once that shot
-            // is spent the event page offers "Enter the Draft Room".
-            const count = await limitedEventCount(page, ctx);
-            if (count === 0) {
+            await reachDraftRoom(page, ctx);
+            // AC 1/2 of issue #2588 ("exactly two scroll positions are
+            // reachable") is a LAYOUT claim, and happy-dom cannot make it.
+            // This is the only place it is asserted against a real scroller.
+            await assertTwoSnapStops(page);
+        },
+    },
+    {
+        id: "draft-pool-stop",
+        label: "Draft Room, pool stop (/limited/<id>/draft, swiped)",
+        async walk(page, ctx) {
+            // The SECOND state of the same route, and the biggest new surface
+            // issue #2588 shipped. The `draft-pick` walk returns as soon as a
+            // pack tile is visible, so it always measures the PACK stop — the
+            // pool pane went in with no browser measurement at all (review
+            // finding 1 on PR #2652), which is exactly the #2511 shape: in
+            // portrait `LimitedDraftPool` runs `arrange="column"`, so two
+            // `DeckZoneSurface`s share ~70% of a 390x844 screen, and a
+            // collapsed MV row passes every happy-dom test there is.
+            //
+            // Off a phone there is no snap surface (`useViewportMode` calls
+            // both tablets "desktop"), so the equivalent state is the split's
+            // pool column scrolled to its end — still the pool at its far
+            // extent, still a state `draft-pick` never probes.
+            await reachDraftRoom(page, ctx);
+            await assertTwoSnapStops(page);
+
+            if (await visible(page, DRAFT_SNAP_SCROLLER, 2000)) {
+                if (
+                    !(await clickIfVisible(
+                        page,
+                        `${DRAFT_STRIP_DROP}[data-zone=maindeck]`,
+                        4000
+                    ))
+                ) {
+                    throw new Unreachable(
+                        "the phone Draft Room rendered a snap scroller but no pool strip drop target to swipe with"
+                    );
+                }
+                await page.waitForTimeout(700);
+                const stop = await page
+                    .locator(DRAFT_SNAP_SCROLLER)
+                    .first()
+                    .getAttribute("data-stop");
+                if (stop !== "pool") {
+                    throw new Unreachable(
+                        `tapping the pool strip left the Draft Room at data-stop="${stop ?? "null"}" instead of "pool"`
+                    );
+                }
+                // Reaching the stop is NOT reaching the pool. `pool.length === 0`
+                // makes `LimitedDraftPool` return an `EmptyState` with no
+                // `[data-slot=draft-pool]` at all, and neither `probe.js` (no
+                // card-count floor) nor `budgets.ts` (no minimum-n rule) can
+                // tell an empty pane from a healthy one: a Pick #1 seat would
+                // score `zero0 occ0 stranded0 starved0` and pass GREEN, making
+                // the one measurement that discharges the pool pane's layout
+                // claims silently vacuous. Same guard the split branch below
+                // runs — the fixture, not the stop, is what must be asserted.
+                if (!(await visible(page, DRAFT_POOL, 4000))) {
+                    throw new Unreachable(
+                        'the phone Draft Room reached the pool stop but rendered no pool pane — this surface needs a seat with a NON-EMPTY pool (make a few picks in the room first: select a tile, then [data-editing-action="Pick"])'
+                    );
+                }
+                return;
+            }
+
+            if (!(await visible(page, DRAFT_POOL, 4000))) {
                 throw new Unreachable(
-                    "no Limited event on this deployment — create one from /limited (+ Create Event) and re-run"
+                    "the Draft Room rendered no pool pane — this seat's pool toggle may be off, or the pool is empty (this surface needs a NON-EMPTY pool: make a few picks first)"
                 );
             }
-            for (let i = 0; i < Math.min(count, 3); i++) {
-                const landed = await openLimitedEvent(page, ctx, i);
-                if (landed === null) continue;
-                if (landed === "event") {
-                    if (
-                        !(await clickIfVisible(
-                            page,
-                            "a:has-text('Enter the Draft Room')",
-                            4000
-                        ))
-                    ) {
-                        continue;
+            await page.evaluate(`(() => {
+                const pool = document.querySelector("${DRAFT_POOL}");
+                for (let p = pool && pool.parentElement; p; p = p.parentElement) {
+                    if (p.scrollHeight > p.clientHeight + 2) {
+                        p.scrollTop = p.scrollHeight;
+                        return;
                     }
-                    await page
-                        .waitForURL(/\/draft$/, { timeout: NAV_TIMEOUT })
-                        .catch(() => {});
-                    await settle(page);
                 }
-                if (!page.url().endsWith("/draft")) continue;
-                // The room renders for a Sealed seat too (reveal mode), so
-                // reaching the URL is not enough: the surface this row
-                // budgets is the PICK screen, and its tiles are the proof.
-                if (await visible(page, DRAFT_PICK_TILE, 4000)) return;
-            }
-            throw new Unreachable(
-                "no Limited event is in the drafting phase with a live pack for this seat (the pick screen is /limited/<id>/draft since issue #2587)"
-            );
+            })()`);
+            await page.waitForTimeout(400);
         },
     },
     {

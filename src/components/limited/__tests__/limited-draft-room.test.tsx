@@ -74,7 +74,10 @@ beforeEach(() => {
     vi.clearAllMocks();
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+});
 
 function draftRow(overrides: Partial<LimitedEventRow> = {}): LimitedEventRow {
     return {
@@ -125,6 +128,20 @@ function draftRow(overrides: Partial<LimitedEventRow> = {}): LimitedEventRow {
 function mountRoom(row: LimitedEventRow) {
     eventMock.mockReturnValue(projectLimitedEvent(row, "user1"));
     return render(<LimitedDraftRoom eventId={"event-1" as never} />);
+}
+
+/** `useViewportMode` reads two media queries and happy-dom has no
+ *  `matchMedia`, so the fallback regime is `"desktop"` — every test in this
+ *  file that does not call this runs there. */
+function stubViewport(mode: "portrait" | "landscape") {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+        matches:
+            mode === "portrait"
+                ? query.includes("orientation: portrait")
+                : query.includes("max-height: 500px"),
+        addEventListener() {},
+        removeEventListener() {},
+    }));
 }
 
 describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue #2587)", () => {
@@ -202,6 +219,55 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
         expect(screen.getByText(/Your Sealed Pool \(1\)/)).toBeTruthy();
         expect(screen.getByText(/Build your deck/)).toBeTruthy();
         expect(navigateMock).not.toHaveBeenCalled();
+    });
+
+    it("resolves the layout regime for the table — one branch, three arrangements (issue #2588)", () => {
+        // Issue #2587 shipped this as a binary (desktop split vs
+        // everything-else stacked), which folded the two phone regimes
+        // together. This is the assertion that they are no longer the same
+        // arrangement.
+        mountRoom(draftRow());
+        expect(document.querySelector("[data-slot=draft-split]")).toBeTruthy();
+        expect(
+            document.querySelector("[data-slot=draft-snap-scroller]")
+        ).toBeNull();
+
+        cleanup();
+        stubViewport("portrait");
+        mountRoom(draftRow());
+        expect(
+            document
+                .querySelector("[data-slot=draft-snap-scroller]")!
+                .getAttribute("data-orientation")
+        ).toBe("portrait");
+        expect(document.querySelector("[data-slot=draft-split]")).toBeNull();
+
+        cleanup();
+        stubViewport("landscape");
+        mountRoom(draftRow());
+        expect(
+            document
+                .querySelector("[data-slot=draft-snap-scroller]")!
+                .getAttribute("data-orientation")
+        ).toBe("landscape");
+    });
+
+    it("gives the phone body a FIXED box, not a scroller — a snap pane needs a definite height", () => {
+        // A pane that is 85% of a container which is free to grow is 85% of
+        // nothing. The desktop body keeps the scroller issue #2587 gave it.
+        stubViewport("portrait");
+        const { container } = mountRoom(draftRow());
+        const body = container.querySelector("[data-slot=draft-room-body]")!;
+        expect(body.className).toContain("overflow-hidden");
+        expect(body.className).not.toContain("overflow-y-auto");
+
+        cleanup();
+        vi.unstubAllGlobals();
+        const desktop = mountRoom(draftRow());
+        const desktopBody = desktop.container.querySelector(
+            "[data-slot=draft-room-body]"
+        )!;
+        expect(desktopBody.className).toContain("overflow-y-auto");
     });
 
     it("leaves for the event page once the draft is over — the builder is what comes next, not an empty room", () => {
