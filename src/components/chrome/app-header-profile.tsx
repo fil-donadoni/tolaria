@@ -150,14 +150,18 @@ export default function AppHeaderProfile() {
                 see `.segment-pill` in index.css) meant for pills and
                 secondary controls that are not themselves the touch target.
                 Settings and Sign out ARE the touch target here, so they need
-                the full pointer-aware rung — same fix EditingActionButton
-                already applies (`src/components/editing/editing-action-button.tsx`)
-                for the same WCAG 2.5.8 reason. `--control-h` is still the
-                token, not a hardcoded 44px, so it stays 32px on a fine
-                pointer and only becomes 44px under `@media (pointer:
-                coarse)`; the `min-h-[...]` utility here wins over the `sm`
+                the full pointer-aware rung. EditingActionButton
+                (`src/components/editing/editing-action-button.tsx`) makes the
+                same WCAG 2.5.8 call, though by a different mechanism — an
+                inline style on a bare button with no rung to beat. `--control-h`
+                is still the token, not a hardcoded 44px, so it stays 32px on a
+                fine pointer and only becomes 44px under `@media (pointer:
+                coarse)`; the min-height utility below wins over the `sm`
                 variant's via `cn()`'s `twMerge` (last conflicting utility
-                wins), so the padding/text-size stay at the `sm` rung. */}
+                wins), so the padding/text-size stay at the `sm` rung.
+                Written without the bracket literal on purpose: Tailwind scans
+                comments too, and spelling the utility here emitted a junk rule
+                into the shipped CSS. */}
             <Button
                 type="button"
                 variant="secondary"
