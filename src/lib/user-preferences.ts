@@ -13,9 +13,16 @@
  * writes through the SAME hook the board pod uses, never a copy.
  */
 
-export type DensityPreference = "compact" | "comfortable" | "roomy";
-export type MotionPreference = "system" | "reduced";
-export type PreviewPreference = "computed" | "printed";
+// Re-exported from `convex/userSettings.ts` (single source of truth, CLAUDE.md
+// § Code Organization) rather than restated here — a type-only import is
+// erased at compile time (`verbatimModuleSyntax`), so this pulls in no
+// server-only runtime code, same pattern as `src/types/game.ts`.
+import type {
+    DensityPreference,
+    MotionPreference,
+    PreviewPreference,
+} from "@convex/userSettings";
+export type { DensityPreference, MotionPreference, PreviewPreference };
 
 export const DENSITY_PREFERENCE_OPTIONS: readonly {
     value: DensityPreference;

@@ -983,7 +983,8 @@
        SOURCE ORDER, hence it is declared after. "system" sets no rule here on
        purpose: the media query alone keeps deciding, which is the whole
        point of that choice. `data-motion` is set once, on `<html>`, by
-       `useApplyUserPreferences` — never per-subtree like `data-density`. */
+       `applyDocumentPreferences` (called from `UserPreferencesEffect`) —
+       never per-subtree like `data-density`. */
     [data-motion="reduced"] {
         --motion-fast: 1ms;
         --motion-base: 1ms;
