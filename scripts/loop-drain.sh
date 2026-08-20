@@ -385,7 +385,7 @@ while :; do
     total_before=$(count_total_open 2>/dev/null) || total_before=""
 
     if [ "$DRY_RUN" -eq 1 ]; then
-        echo "loop-drain: [dry-run] pass $pass would run: claude -p \"$PASS_PROMPT\" $CLAUDE_ARGS" >&2
+        echo "loop-drain: [dry-run] pass $pass would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p \"$PASS_PROMPT\" $CLAUDE_ARGS" >&2
         : >"$pass_log"
         claude_exit=0
     else
@@ -400,13 +400,28 @@ while :; do
             # it, so a driver-launched pass never detaches a second driver.
             # Without it, every pass would fork its own driver and the fan-out
             # would be exponential, not sequential.
+            #
+            # CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 disables `claude -p`'s
+            # own background-wait ceiling (default 600000ms/600s — the CLI
+            # terminates any still-running background tasks once print mode's
+            # main turn ends and this ceiling elapses). Verified against the
+            # installed CLI bundle (2.1.237): the ceiling check is
+            # `XS>0 && ...` where `XS` is this env var (falling back to the
+            # 600000 default via `??`) — `0` makes that comparison always
+            # false, so the sweep never fires, matching the CLI's own
+            # stderr message ("Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 to
+            # wait indefinitely."). A pass is already bounded by this
+            # driver's own budget/pct ceilings (see the guard above) — a
+            # wall-clock cutoff on background subagents is not one of them
+            # (#2622); it killed subagents mid-edit (18 of ~34 recorded
+            # passes on 2026-08-19).
             # "$PASS_PROMPT" stays QUOTED — it is ONE argument that normally
             # contains spaces ("/process-gh-issues figli di 2405"); splitting
             # it is the exact opposite of what the unquoted $CLAUDE_ARGS
             # below deliberately does.
             # shellcheck disable=SC2086  # intentional word-splitting of a
             # user-supplied flag string, documented above.
-            TOLARIA_LOOP_DRAIN=1 claude -p "$PASS_PROMPT" $CLAUDE_ARGS 2>&1
+            TOLARIA_LOOP_DRAIN=1 CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p "$PASS_PROMPT" $CLAUDE_ARGS 2>&1
             echo $? >"$rc_file"
         ) | tee "$pass_log"
         set -e
