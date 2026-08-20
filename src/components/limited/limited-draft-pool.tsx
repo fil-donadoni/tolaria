@@ -26,6 +26,7 @@ import {
     seededColumnView,
 } from "~/components/deckbuilder/deckZoneColumnView";
 import { toZoneCards } from "~/components/deckbuilder/poolZoneCards";
+import EmptyState from "~/components/ui/empty-state";
 
 /**
  * The draft-time Pool (ADR 0060 issues #1247/#1248; ADR 0075 §6 / PRD #1617
@@ -175,9 +176,7 @@ export default function LimitedDraftPool({
 
     if (pool.length === 0) {
         return (
-            <p className="text-sm text-text-muted">
-                No Pool has been generated for your seat yet.
-            </p>
+            <EmptyState message="No Pool has been generated for your seat yet." />
         );
     }
 

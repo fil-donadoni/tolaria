@@ -13,6 +13,7 @@ import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import LoadingScreen from "~/components/ui/loading-screen";
+import ErrorState from "~/components/ui/error-state";
 import ActionButton from "~/components/board/action-button";
 import CompactChromeDisclosure from "~/components/deckbuilder/compact-chrome-disclosure";
 import LimitedTablePanel from "./limited-table-panel";
@@ -97,24 +98,28 @@ export default function LimitedEventDetail({
     // The creator cancelling out from under a live viewer (issue #1579) —
     // `getLimitedEvent` returns `null` rather than throwing precisely so this
     // page can offer a graceful way back instead of crashing (no app-wide
-    // ErrorBoundary exists to catch a thrown error).
+    // ErrorBoundary exists to catch a thrown error). An ERROR state (the
+    // event this route names is gone), not the info-tone note it used to be
+    // — same "subject is gone" shape `pool-deck-builder.tsx` hits (issue
+    // #2592).
     if (event === null) {
         return (
             <LimitedEventPageFrame>
                 <PanelHeader title="Limited Event" />
                 <PanelBody>
-                    <Banner tone="info">
-                        This event no longer exists — it may have been
-                        cancelled.
-                    </Banner>
-                    <Button
-                        variant="link"
-                        size="sm"
-                        onClick={handleBack}
-                        className="self-start"
-                    >
-                        ← Back to Limited Events
-                    </Button>
+                    <ErrorState
+                        message="This event no longer exists — it may have been cancelled."
+                        action={
+                            <Button
+                                variant="link"
+                                size="sm"
+                                onClick={handleBack}
+                                className="self-start"
+                            >
+                                ← Back to Limited Events
+                            </Button>
+                        }
+                    />
                 </PanelBody>
             </LimitedEventPageFrame>
         );

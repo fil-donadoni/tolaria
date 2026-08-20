@@ -4,6 +4,7 @@ import { useMyLimitedEvents } from "~/hooks/useLimitedEvent";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
+import EmptyState from "~/components/ui/empty-state";
 import LimitedEventListItem from "./limited-event-list-item";
 
 /** `/limited/events` (issue #2357): every Limited Event the viewer has ever
@@ -49,9 +50,7 @@ export default function LimitedYourEventsPage() {
                     </Button>
 
                     {events.length === 0 ? (
-                        <p className="text-sm text-text-muted">
-                            You haven't sat at a Limited Event yet.
-                        </p>
+                        <EmptyState message="You haven't sat at a Limited Event yet." />
                     ) : (
                         <div className="flex flex-col gap-2">
                             {events.map((event) => {

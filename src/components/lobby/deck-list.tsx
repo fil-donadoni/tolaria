@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { LobbyDeck } from "~/lib/deckTypes";
+import EmptyState from "~/components/ui/empty-state";
 import DeckListItem from "./deck-list-item";
 
 interface DeckListProps {
@@ -37,9 +38,10 @@ export default function DeckList({
             )}
             {decks.length === 0
                 ? emptyLabel && (
-                      <p className="rounded-sm border border-dashed border-border-subtle/30 px-4 py-3 text-xs text-text-disabled">
-                          {emptyLabel}
-                      </p>
+                      <EmptyState
+                          message={emptyLabel}
+                          className="rounded-sm border border-dashed border-border-subtle/30 px-4 py-3 text-xs text-text-disabled"
+                      />
                   )
                 : decks.map((deck) => (
                       <DeckListItem

@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { FormatId } from "@convex/formats";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
+import EmptyState from "~/components/ui/empty-state";
 
 interface DeckBanlistPanelProps {
     format: FormatId;
@@ -67,9 +68,7 @@ export default function DeckBanlistPanel({ format }: DeckBanlistPanelProps) {
                 {entries === undefined ? (
                     <p className="text-sm text-text-muted">Loading…</p>
                 ) : entries.length === 0 ? (
-                    <p className="text-sm text-text-muted">
-                        No cards are banned or restricted.
-                    </p>
+                    <EmptyState message="No cards are banned or restricted." />
                 ) : (
                     <ul className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto">
                         {entries.map((entry) => (

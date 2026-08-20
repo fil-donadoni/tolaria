@@ -1,5 +1,6 @@
 import type { Id } from "@convex/_generated/dataModel";
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
+import EmptyState from "~/components/ui/empty-state";
 import LimitedEventListItem from "./limited-event-list-item";
 
 /** The open-events lobby list (PRD #1107 story 7). */
@@ -17,11 +18,7 @@ export default function LimitedEventList({
     joinPendingEventId: Id<"limitedEvents"> | null;
 }) {
     if (events.length === 0) {
-        return (
-            <p className="text-sm text-text-muted">
-                No open Limited Events right now.
-            </p>
-        );
+        return <EmptyState message="No open Limited Events right now." />;
     }
 
     return (

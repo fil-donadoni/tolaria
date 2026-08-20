@@ -8,6 +8,7 @@ import {
     PanelFooter,
 } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
+import EmptyState from "~/components/ui/empty-state";
 import { copyText } from "~/lib/clipboard";
 
 type WaitingForOpponentProps = {
@@ -47,19 +48,26 @@ export default function WaitingForOpponent({
             <Panel className="relative z-10 w-full max-w-sm">
                 <PanelHeader title="Waiting for opponent" />
                 <PanelBody className="items-center text-center">
-                    <p className="text-sm text-text-muted">
-                        Share this game ID so a friend can join.
-                    </p>
-                    <p className="font-mono text-sm text-text-muted">
-                        Game ID: {gameId}
-                    </p>
+                    {/* The literal "waiting for opponent" moment the issue
+                        names (#2592): nothing else on this surface until a
+                        second player joins, offered with the one action that
+                        fills the empty space. */}
+                    <EmptyState
+                        className="text-center"
+                        message="Share this game ID so a friend can join."
+                        description={
+                            <span className="font-mono">Game ID: {gameId}</span>
+                        }
+                        action={
+                            <Button onClick={handleShare}>
+                                {copied ? "Link copied!" : "Share invite link"}
+                            </Button>
+                        }
+                    />
                 </PanelBody>
                 <PanelFooter className="justify-center">
                     <Button variant="secondary" onClick={onLeave}>
                         Leave
-                    </Button>
-                    <Button onClick={handleShare}>
-                        {copied ? "Link copied!" : "Share invite link"}
                     </Button>
                 </PanelFooter>
             </Panel>
