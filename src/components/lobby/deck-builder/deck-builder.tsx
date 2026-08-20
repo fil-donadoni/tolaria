@@ -62,8 +62,10 @@ import type { ParsedDecklist } from "~/lib/deckImport";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
+import AppliedFilterTags from "./applied-filter-tags";
 import CardZoomSlider from "./card-zoom-slider";
 import ColorFilter from "./color-filter";
+import DeckFiltersButton from "./deck-filters-button";
 import DeckExportButton from "./deck-export-button";
 import DeckImportDialog from "./deck-import-dialog";
 import ManaValueFilter from "./mana-value-filter";
@@ -77,6 +79,11 @@ import CubeFilter from "./cube-filter";
 import SortSelect from "./sort-select";
 import { type SortDirection, type SortKey } from "./cardSort";
 import { useCardZoom } from "./useCardZoom";
+import {
+    clearAllFilters,
+    describeActiveFilters,
+    type FilterTag,
+} from "./filterTags";
 import { useFilterSearchParams } from "./useFilterSearchParams";
 import { type ColorMode, type MatchMode, useCardSearch } from "./useCardSearch";
 import { useDebouncedValue } from "~/hooks/useDebouncedValue";
@@ -772,6 +779,44 @@ export default function DeckBuilder({
         setRawText(text);
     }, []);
 
+    // ── Applied-filter tag row (issue #2585) ────────────────────────────────
+    // A VIEW of the same URL-backed filter set, derived — never a second copy.
+    // `describeActiveFilters` mirrors `hasAnyFilter`'s field list, so the badge
+    // count and the chips can never disagree about what "a filter" is.
+    const filterTags = useMemo(() => describeActiveFilters(filters), [filters]);
+
+    // Two fields do NOT round-trip through a plain `setFilters`:
+    //  - `text`  — the search box keeps its own un-debounced copy (`rawText`).
+    //              Clearing only `filters.text` would leave the box showing a
+    //              query that is no longer applied, and the debounce effect
+    //              would never re-fire to correct it.
+    //  - `cube`  — a cube pins the deck's Format to Freeform (`handleSetCube`),
+    //              so clearing it has to go back through that one writer.
+    const handleRemoveTag = useCallback(
+        (tag: FilterTag) => {
+            if (tag.field === "text") {
+                setText("");
+                return;
+            }
+            if (tag.field === "cube") {
+                handleSetCube("");
+                return;
+            }
+            setFilters(tag.remove);
+        },
+        [setText, handleSetCube, setFilters]
+    );
+
+    // ONE navigation, deliberately. `updateSearch` derives its payload from the
+    // current render's search object, so two writes in the same tick race and
+    // the second wins (the hook's own doc comment). `clearAllFilters` already
+    // folds the cube in, and clearing a cube never touches the deck's Format —
+    // only SELECTING one does — so the single `setFilters` is complete.
+    const handleClearAllFilters = useCallback(() => {
+        setText("");
+        setFilters(clearAllFilters);
+    }, [setText, setFilters]);
+
     // Propagate the settled (debounced) query into the URL-backed filter set,
     // which in turn drives the filter pass and `encodeFilters`. Guarded so an
     // unchanged value doesn't re-navigate.
@@ -990,76 +1035,93 @@ export default function DeckBuilder({
                     />
                     <DeckBanlistPanel format={deck.format} />
                     <SearchBar value={rawText} onChange={setText} />
+                    {/* Issue #2585: the filter CONTROLS live behind this one
+                        button — a bottom sheet on a phone, a popover on tablet
+                        and desktop. They used to be a permanent second header
+                        row at every viewport a phone-shaped media query did not
+                        match, which is precisely the band the deck pane needed
+                        back (`scripts/ui-gate/budgets.json` §deck-builder). */}
+                    <DeckFiltersButton
+                        activeCount={filterTags.length}
+                        resultCount={entries?.length ?? 0}
+                    >
+                        <ColorFilter
+                            selectedColors={filters.colors}
+                            includeColorless={filters.includeColorless}
+                            mode={filters.colorMode}
+                            onToggleColor={toggleColor}
+                            onToggleColorless={toggleColorless}
+                            onChangeMode={setColorMode}
+                        />
+                        <TypeFilter
+                            selected={filters.types}
+                            onToggle={toggleType}
+                            mode={filters.typeMode}
+                            onChangeMode={setTypeMode}
+                        />
+                        <SetFilter
+                            selected={filters.sets}
+                            onToggle={toggleSet}
+                            mode={filters.setMode}
+                            onChangeMode={setSetMode}
+                        />
+                        <ManaValueFilter
+                            selected={filters.manaValues}
+                            onToggle={toggleManaValue}
+                        />
+                        <SortSelect
+                            value={filters.sort}
+                            onChange={setSort}
+                            direction={filters.sortDirection}
+                            onDirectionChange={setSortDirection}
+                        />
+                        {deck.format !== "manual" && fullCatalogue?.rows && (
+                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.hideUnavailable}
+                                    onChange={toggleHideUnavailable}
+                                    className="size-4 accent-accent"
+                                />
+                                <span className="text-text-muted">
+                                    Hide unavailable
+                                </span>
+                            </label>
+                        )}
+                        {deck.format === "manual" && fullCatalogue?.rows && (
+                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showTokens}
+                                    onChange={toggleShowTokens}
+                                    className="size-4 accent-accent"
+                                />
+                                <span className="text-text-muted">Tokens</span>
+                            </label>
+                        )}
+                        {/* Not a filter — it never changes WHICH cards match —
+                            but it is a results control, and the only band it
+                            used to have is gone. */}
+                        <div className="flex items-center gap-2 text-xs text-text-muted">
+                            <span className="tracking-wide">Results</span>
+                            <CardZoomSlider
+                                value={resultsZoom.value}
+                                min={resultsZoom.min}
+                                max={resultsZoom.max}
+                                onChange={resultsZoom.set}
+                                label="Results card size"
+                            />
+                        </div>
+                    </DeckFiltersButton>
                     <DeckStatsButton mainCards={deck.cards} />
                 </>
             }
             headerFilters={
-                <>
-                    <ColorFilter
-                        selectedColors={filters.colors}
-                        includeColorless={filters.includeColorless}
-                        mode={filters.colorMode}
-                        onToggleColor={toggleColor}
-                        onToggleColorless={toggleColorless}
-                        onChangeMode={setColorMode}
-                    />
-                    <TypeFilter
-                        selected={filters.types}
-                        onToggle={toggleType}
-                        mode={filters.typeMode}
-                        onChangeMode={setTypeMode}
-                    />
-                    <SetFilter
-                        selected={filters.sets}
-                        onToggle={toggleSet}
-                        mode={filters.setMode}
-                        onChangeMode={setSetMode}
-                    />
-                    <ManaValueFilter
-                        selected={filters.manaValues}
-                        onToggle={toggleManaValue}
-                    />
-                    <SortSelect
-                        value={filters.sort}
-                        onChange={setSort}
-                        direction={filters.sortDirection}
-                        onDirectionChange={setSortDirection}
-                    />
-                    {deck.format !== "manual" && fullCatalogue?.rows && (
-                        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                checked={filters.hideUnavailable}
-                                onChange={toggleHideUnavailable}
-                                className="size-4 accent-accent"
-                            />
-                            <span className="text-text-muted">
-                                Hide unavailable
-                            </span>
-                        </label>
-                    )}
-                    {deck.format === "manual" && fullCatalogue?.rows && (
-                        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                checked={filters.showTokens}
-                                onChange={toggleShowTokens}
-                                className="size-4 accent-accent"
-                            />
-                            <span className="text-text-muted">Tokens</span>
-                        </label>
-                    )}
-                    <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
-                        <span className="tracking-wide">Results</span>
-                        <CardZoomSlider
-                            value={resultsZoom.value}
-                            min={resultsZoom.min}
-                            max={resultsZoom.max}
-                            onChange={resultsZoom.set}
-                            label="Results card size"
-                        />
-                    </div>
-                </>
+                <AppliedFilterTags
+                    tags={filterTags}
+                    onRemove={handleRemoveTag}
+                    onClearAll={handleClearAllFilters}
+                />
             }
             sourcePanel={{
                 // The pane's tab (issue #2584): one short word plus the live

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
-import CompactChromeDisclosure from "./compact-chrome-disclosure";
 
 export interface DeckBuilderHeaderProps {
     title: string;
@@ -24,7 +23,9 @@ export interface DeckBuilderHeaderProps {
      *  budget to the card zones (measured with ~4px of slack), so a control
      *  that forced the band to stay visible would reopen that regression. */
     foldableActions?: ReactNode;
-    /** A full-width second row (the Constructed search filters). */
+    /** A full-width second row (the Constructed applied-filter tag row). Must
+     *  carry `basis-full` itself and render `null` when it has nothing to say —
+     *  this band adds no wrapper, so an empty node costs no height (#2585). */
     filters?: ReactNode;
 }
 
@@ -52,6 +53,10 @@ export interface DeckBuilderHeaderProps {
  * The band is a single wrapping flex row so the title's parent element IS the
  * band — the element whose short-viewport treatment the height tests assert.
  * `filters` takes `basis-full`, so it wraps onto its own line beneath.
+ *
+ * Since issue #2585 that second line is the applied-filter TAG ROW, not the
+ * filter controls: it renders nothing while no filter is active, so the default
+ * state of this band is one row, at every viewport.
  */
 export default function DeckBuilderHeader({
     title,
@@ -80,19 +85,18 @@ export default function DeckBuilderHeader({
             </h1>
             {actions}
             {foldableActions}
-            {/* Issue #2511: the filter row is the single tallest band on this
-                screen at 390px wide — it wrapped to 287px of the 446px header,
-                on a viewport whose chrome already exceeded 844px. On a
-                phone-shaped viewport it folds behind its own toggle; on a
-                desktop-shaped one `CompactChromeDisclosure` renders the row
-                verbatim, with no toggle and no extra element. */}
-            {filters && (
-                <CompactChromeDisclosure label="Filters">
-                    <div className="flex basis-full flex-wrap items-center gap-4">
-                        {filters}
-                    </div>
-                </CompactChromeDisclosure>
-            )}
+            {/* Issue #2585: this row no longer carries the filter CONTROLS —
+                they moved behind the Filters button in `actions` (a bottom
+                sheet on a phone, a popover on tablet/desktop). What is left is
+                the applied-filter tag row, which renders nothing at all while
+                no filter is active. That is the height the deck pane gets back
+                at tablet and desktop: not a band trimmed, a band gone.
+                `CompactChromeDisclosure` (issue #2511) is deliberately NOT
+                wrapped around it — a fold would hide the only remaining
+                indication of what is being filtered, and its viewport
+                predicate calls a tablet a desktop anyway (see
+                `useSurfaceClass`). */}
+            {filters}
         </div>
     );
 }

@@ -16,7 +16,7 @@ export type ViewportMode = "portrait" | "landscape-compact" | "desktop";
  *  strictly BELOW it; at/above it we are in "reduced desktop" territory even on
  *  a touch device held in landscape. Unchanged since #335 — `useIsPortrait` is
  *  now defined as `mode === "portrait"`, so this query alone still decides it. */
-const PORTRAIT_QUERY = "(orientation: portrait) and (max-width: 767px)";
+export const PORTRAIT_QUERY = "(orientation: portrait) and (max-width: 767px)";
 
 /** Landscape phones. The discriminator is HEIGHT, not width: a sideways phone
  *  is wide (typically 667–932px, i.e. above the `md:` width breakpoint) but
@@ -30,7 +30,7 @@ const PORTRAIT_QUERY = "(orientation: portrait) and (max-width: 767px)";
  *  paired with a width bound: a landscape phone must not fall back to desktop
  *  just because it is wide, which is the exact bug (#1758) this hook exists to
  *  make fixable. */
-const LANDSCAPE_COMPACT_QUERY =
+export const LANDSCAPE_COMPACT_QUERY =
     "(orientation: landscape) and (max-height: 500px)";
 
 /** Both queries are read on every snapshot, so a single subscription covering
