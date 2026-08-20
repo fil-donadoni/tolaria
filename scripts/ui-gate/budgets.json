@@ -9,7 +9,7 @@
             "viewports": {
                 "1440x900x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 0,
+                    "cardsOcc": 1,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
                     "ctrlsOcc": 0,
@@ -21,7 +21,7 @@
                 },
                 "390x844x3": {
                     "cardsZero": 0,
-                    "cardsOcc": 0,
+                    "cardsOcc": 1,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
                     "ctrlsOcc": 0,
@@ -33,7 +33,7 @@
                 },
                 "844x390x3": {
                     "cardsZero": 0,
-                    "cardsOcc": 0,
+                    "cardsOcc": 1,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
                     "ctrlsOcc": 0,
@@ -45,7 +45,7 @@
                 },
                 "820x1180x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 0,
+                    "cardsOcc": 1,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
                     "ctrlsOcc": 0,
@@ -57,7 +57,7 @@
                 },
                 "1180x820x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 0,
+                    "cardsOcc": 1,
                     "cardsStranded": 0,
                     "ctrlsZero": 0,
                     "ctrlsOcc": 0,
