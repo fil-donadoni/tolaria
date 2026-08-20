@@ -1,6 +1,11 @@
+import { useMemo } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import { limitedEventName } from "~/lib/limitedEventName";
+import {
+    limitedEventDashboardRank,
+    limitedEventStatusHint,
+} from "~/lib/limitedEventStatus";
 import { cn } from "~/lib/utils";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import ActionButton from "~/components/board/action-button";
@@ -29,8 +34,22 @@ export default function DashboardLimitedBox({
     onOpen: (eventId: Id<"limitedEvents">) => void;
     onViewAllEvents: () => void;
 }) {
+    // The live strip surfaces the viewer's own IN-PROGRESS event first (ADR
+    // 0101 §9, issue #2591) rather than showing them in query order — a
+    // seated event mid-round is what the player almost certainly came back
+    // to finish. `Array.prototype.sort` is stable, so ties (several events at
+    // the same phase) keep the query's own order.
+    const sortedEvents = useMemo(
+        () =>
+            [...events].sort(
+                (a, b) =>
+                    limitedEventDashboardRank(a) - limitedEventDashboardRank(b)
+            ),
+        [events]
+    );
+
     return (
-        <Panel tone="accent" className="flex flex-col">
+        <Panel tone="accent" className="flex w-full flex-col">
             <PanelHeader title="Limited" />
             <PanelBody>
                 <p className="text-sm text-text-muted">
@@ -51,27 +70,49 @@ export default function DashboardLimitedBox({
                     />
                 </div>
 
-                {events.length > 0 ? (
+                {sortedEvents.length > 0 ? (
                     <div className="flex flex-col gap-2">
                         <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                             Your Current Events
                         </p>
                         <div className="flex flex-col gap-2">
-                            {events.map((event) => {
+                            {sortedEvents.map((event, i) => {
                                 const id = event._id as Id<"limitedEvents">;
+                                // The primary CTA (ADR 0101 §9): the TOP row,
+                                // only when it's genuinely in progress — not
+                                // merely first alphabetically/by query order.
+                                const isPrimary =
+                                    i === 0 &&
+                                    limitedEventStatusHint(event) === "playing";
                                 return (
                                     <button
                                         key={event._id}
                                         onClick={() => onOpen(id)}
                                         className={cn(
                                             "flex items-center justify-between rounded-sm border px-4 py-2 text-sm transition",
-                                            "border-border-subtle bg-surface-elevated text-text hover:border-border-accent/60"
+                                            isPrimary
+                                                ? "border-accent bg-accent/10 text-text hover:border-accent"
+                                                : "border-border-subtle bg-surface-elevated text-text hover:border-border-accent/60"
                                         )}
                                     >
                                         <span className="flex items-center gap-2 font-medium">
+                                            {isPrimary && (
+                                                <span
+                                                    aria-hidden
+                                                    data-live-dot
+                                                    className="size-2 shrink-0 animate-pulse rounded-full bg-danger"
+                                                />
+                                            )}
                                             {limitedEventName(event)}
                                         </span>
-                                        <LimitedStatusBadge event={event} />
+                                        <span className="flex items-center gap-2">
+                                            <LimitedStatusBadge event={event} />
+                                            {isPrimary && (
+                                                <span className="rounded-sm bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-surface-base">
+                                                    Continue →
+                                                </span>
+                                            )}
+                                        </span>
                                     </button>
                                 );
                             })}

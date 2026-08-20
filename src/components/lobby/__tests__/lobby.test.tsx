@@ -74,14 +74,37 @@ vi.mock("~/hooks/useCurrentUser", () => ({
 
 vi.mock("~/hooks/usePageVisible", () => ({ usePageVisible: () => true }));
 
+// Controllable per-test: most tests want the pre-existing `[]` (My Decks
+// empty), but the mode-filtering / renderUserActions tests below need a real
+// user deck to filter and to render Edit/Delete actions on.
+const useUserDecksMock = vi.fn<(...args: unknown[]) => unknown[]>(() => []);
+const removeUserDeck = vi.fn().mockResolvedValue(undefined);
 vi.mock("~/hooks/useUserDecks", () => ({
-    useUserDecks: () => [],
+    useUserDecks: (...args: unknown[]) => useUserDecksMock(...args),
     useUserDeckMutations: () => ({
         create: vi.fn(),
         update: vi.fn(),
-        remove: vi.fn(),
+        remove: removeUserDeck,
     }),
 }));
+
+// A Manual Deck user deck (issue #2591): the mode selector's filtering hides
+// it in Arena mode and shows it in Cockatrice mode — the inverse of the two
+// preset decks above (`format: "old-school"`, non-manual).
+const MANUAL_USER_DECK = {
+    kind: "user" as const,
+    userDeckId: "userdeck-manual-1",
+    presetId: "userdeck-manual-1",
+    name: "My Manual Deck",
+    format: "manual" as const,
+    description: "Manual",
+    colors: ["U"],
+    cards: [{ id: "card-c", quantity: 4 }],
+    sideboard: [],
+    featuredCardId: null,
+    isLegal: true,
+    reasons: [],
+};
 
 vi.mock("~/lib/adminGating", () => ({ canEditPresets: () => false }));
 
@@ -95,6 +118,10 @@ vi.mock("../lobby-background", () => ({ default: () => null }));
 // Persisted lobby state: start with a known hero deck selected, Bo3 format.
 beforeEach(() => {
     vi.clearAllMocks();
+    // `clearAllMocks` resets call history only, not a prior test's
+    // `mockImplementation` override — re-pin the default explicitly so one
+    // test's fixture never leaks into the next.
+    useUserDecksMock.mockImplementation(() => []);
     localStorage.clear();
     localStorage.setItem("tolaria:selectedDeckId", "mono-red-burn");
     localStorage.setItem("tolaria:matchFormat", "3");
@@ -138,32 +165,33 @@ async function renderLobby(myLimitedEvents: unknown[] = []) {
 }
 
 describe("Lobby vs-AI two-step flow", () => {
-    it("clicking 'Play vs AI' opens the dialog without firing the mutation", async () => {
+    it("clicking 'Play vs Bot' opens the dialog without firing the mutation", async () => {
         const { getByText, getAllByText, getByLabelText } = await renderLobby();
-        // The Play panel button. Before opening, no create mutation.
-        fireEvent.click(getByText("Play vs AI"));
+        // The Play panel button (issue #2591: "Play vs AI" → "Play vs Bot",
+        // ADR 0101 §10). Before opening, no create mutation.
+        fireEvent.click(getByText("Play vs Bot"));
         expect(createSoloGame).not.toHaveBeenCalled();
         // Dialog content is now present (the two vs-AI selectors). Match
         // Format is not among them — it governs Solo / Multiplayer too
-        // and is picked in the Play box, so exactly one instance exists.
+        // and is picked in the Play box, so exactly one instance exists. The
+        // dialog itself keeps its own "Play vs AI" title/confirm wording
+        // (`vs-ai-setup-dialog.tsx` — out of this slice's scope): both now
+        // present (title + confirm button).
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
         expect(getByLabelText("AI Opponent Deck")).toBeTruthy();
         expect(getByLabelText("Match Format")).toBeTruthy();
-        // Two "Play vs AI" labels now exist: the panel button + the dialog
-        // confirm button.
         expect(getAllByText("Play vs AI").length).toBeGreaterThanOrEqual(2);
     });
 
     it("Confirm fires createSoloGame with the chosen bestOf and deck2", async () => {
         const { getByText, getAllByText, getByLabelText } = await renderLobby();
-        fireEvent.click(getByText("Play vs AI"));
+        fireEvent.click(getByText("Play vs Bot"));
         // Pick White Weenie as the AI opponent deck (deck2).
         fireEvent.change(getByLabelText("AI Opponent Deck"), {
             target: { value: "white-weenie" },
         });
         // Confirm — the dialog footer's "Play vs AI" button. Filter to actual
-        // buttons (the dialog title is an <h2>, not a button) and click the
-        // last one, which is the footer confirm.
+        // buttons (the dialog title is an <h2>, not a button).
         const buttons = getAllByText("Play vs AI")
             .map((n) => n.closest("button"))
             .filter((b): b is HTMLButtonElement => b !== null);
@@ -179,7 +207,7 @@ describe("Lobby vs-AI two-step flow", () => {
 
     it("Cancel closes the dialog without firing the mutation", async () => {
         const { getByText, queryByLabelText } = await renderLobby();
-        fireEvent.click(getByText("Play vs AI"));
+        fireEvent.click(getByText("Play vs Bot"));
         expect(queryByLabelText("AI Difficulty")).toBeTruthy();
         fireEvent.click(getByText("Cancel"));
         expect(createSoloGame).not.toHaveBeenCalled();
@@ -195,7 +223,7 @@ describe("Lobby vs-AI two-step flow", () => {
     // jsdom project relies on for cross-file isolation.
     it("leaves no residual dialog portal in document.body after teardown", async () => {
         const { getByText, getByLabelText } = await renderLobby();
-        fireEvent.click(getByText("Play vs AI"));
+        fireEvent.click(getByText("Play vs Bot"));
         // The portal is live while the dialog is open.
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
         expect(
@@ -213,24 +241,16 @@ describe("Lobby vs-AI two-step flow", () => {
     });
 });
 
-// First-class Limited dashboard box (issue #1582): a Limited box sits
-// alongside the constructed Play box with equal visual weight (both render
-// through the same shared Panel), the old secondary "Limited Events" button
-// is gone, and a seated event's status hint reaches the box through
-// `useMyLimitedEvents` — the real hook wiring, not a hand-built prop.
+// First-class Limited dashboard box (issue #1582, restyled to a full-width
+// live strip by #2591 / ADR 0101 §9): a seated event's status hint reaches
+// the box through `useMyLimitedEvents` — the real hook wiring, not a
+// hand-built prop. The old secondary "Limited Events" button is gone.
 describe("Lobby dashboard Limited box (issue #1582)", () => {
-    it("renders the Limited box alongside the Play box, stacked via a responsive grid", async () => {
-        const { getByText, getByRole, container } = await renderLobby();
+    it("renders the Limited strip and the Play box, each full width", async () => {
+        const { getByText, getByRole } = await renderLobby();
         expect(getByText("Play")).toBeTruthy();
         expect(getByRole("heading", { name: "Limited" })).toBeTruthy();
         expect(getByText("Browse / Create Events")).toBeTruthy();
-        // Same grid wrapper drives the narrow-viewport stack (grid-cols-1)
-        // and the wide side-by-side layout (lg:grid-cols-2).
-        const grid = container.querySelector(
-            ".grid.grid-cols-1.lg\\:grid-cols-2"
-        );
-        expect(grid).toBeTruthy();
-        expect(grid?.children.length).toBe(2);
     });
 
     it("removes the old secondary 'Limited Events' button (no duplicate entry point)", async () => {
@@ -269,6 +289,99 @@ describe("Lobby dashboard Limited box (issue #1582)", () => {
         expect(navigate).toHaveBeenCalledWith({
             to: "/limited/$eventId",
             params: { eventId: "event-1" },
+        });
+    });
+});
+
+// Explicit game-mode selector (issue #2591, ADR 0101 §10): the mode DRIVES
+// deck filtering (AC1) and clears an incompatible selection on toggle. Both
+// halves were proven unguarded by review — deleting either the `.filter()`
+// in `filteredUserDecks`/`filteredPresetDecks` or the `!stillCompatible`
+// branch in `handlePlayModeChange` left this file's prior suite green.
+describe("Lobby game-mode selector drives deck filtering (issue #2591)", () => {
+    it("swaps which decks are listed when the mode toggles (My Decks + Preset Decks)", async () => {
+        useUserDecksMock.mockReturnValue([MANUAL_USER_DECK]);
+        // No stored selection here — isolates the LIST filter from the
+        // Play box's selection-clearing behaviour (covered separately
+        // below), and keeps "Mono Red Burn" a single DOM match (the deck
+        // row only, not also the Play box hero name).
+        localStorage.removeItem("tolaria:selectedDeckId");
+        const { getByRole, queryByText, getByText } = await renderLobby();
+
+        // Arena mode (default): the two non-manual preset decks are listed,
+        // the Manual Deck is not.
+        expect(getByText("Mono Red Burn")).toBeTruthy();
+        expect(getByText("White Weenie")).toBeTruthy();
+        expect(queryByText("My Manual Deck")).toBeNull();
+
+        fireEvent.click(getByRole("radio", { name: "Cockatrice mode" }));
+
+        // Cockatrice mode: the mode filter inverts — only the Manual Deck is
+        // listed, the two non-manual presets disappear from both panels.
+        expect(getByText("My Manual Deck")).toBeTruthy();
+        expect(queryByText("Mono Red Burn")).toBeNull();
+        expect(queryByText("White Weenie")).toBeNull();
+    });
+
+    it("clears an incompatible selection when the mode toggles (stale-selection guard)", async () => {
+        // Stored selection is `mono-red-burn` (non-manual, via beforeEach) —
+        // compatible with the default Arena mode. It renders twice while
+        // selected (the deck row AND the Play box hero name).
+        const { getByRole, getAllByText, getByText, queryByText } =
+            await renderLobby();
+        expect(getAllByText("Mono Red Burn").length).toBeGreaterThanOrEqual(2);
+
+        fireEvent.click(getByRole("radio", { name: "Cockatrice mode" }));
+
+        // The selected deck is no longer offered under Cockatrice mode, so
+        // the stale selection must be cleared rather than silently carried
+        // across the toggle (the Play box falls back to "No deck selected") —
+        // if `handlePlayModeChange`'s `!stillCompatible` branch were removed,
+        // the Play box would still show "Mono Red Burn" here even though the
+        // filtered list no longer offers it.
+        expect(queryByText("Mono Red Burn")).toBeNull();
+        expect(getByText("No deck selected")).toBeTruthy();
+    });
+});
+
+// Compact deck rows (PRD #2405 D15 / ADR 0101 §9, issue #2591): Delete moved
+// behind DeckRowMenu's "⋯" overflow for both My Decks and Preset Decks. This
+// exercises `renderUserActions` (a *real* user deck row, not the empty `[]`
+// every other test in this file uses) end-to-end through the confirm dialog —
+// restoring the old always-visible destructive Button here left the prior
+// suite green because no test ever rendered a non-empty My Decks list.
+describe("Lobby compact deck row actions (issue #2591)", () => {
+    it("renders Edit + the '⋯' overflow (not an inline Delete button) and deletes through it", async () => {
+        useUserDecksMock.mockReturnValue([MANUAL_USER_DECK]);
+        localStorage.setItem("tolaria:playMode", "cockatrice");
+        const { getByRole, queryByRole, getByText } = await renderLobby();
+
+        expect(getByText("My Manual Deck")).toBeTruthy();
+        // Edit stays a visible single tap.
+        expect(getByRole("button", { name: "Edit" })).toBeTruthy();
+        // No always-visible inline Delete button (the mutation the review
+        // caught: restoring `<Button variant="destructive">Delete</Button>`
+        // inline left the prior suite green because it was never rendered
+        // against a non-empty deck list).
+        expect(queryByRole("button", { name: "Delete" })).toBeNull();
+        // Delete lives behind the overflow trigger, hidden until opened.
+        expect(queryByRole("menuitem", { name: "Delete" })).toBeNull();
+
+        fireEvent.click(
+            getByRole("button", { name: "More actions for My Manual Deck" })
+        );
+        fireEvent.click(getByRole("menuitem", { name: "Delete" }));
+
+        // The confirm dialog (GameDialog) — never a native confirm().
+        expect(
+            getByRole("heading", { name: 'Delete "My Manual Deck"?' })
+        ).toBeTruthy();
+        fireEvent.click(getByRole("button", { name: "Delete" }));
+
+        await vi.waitFor(() => {
+            expect(removeUserDeck).toHaveBeenCalledWith({
+                id: "userdeck-manual-1",
+            });
         });
     });
 });

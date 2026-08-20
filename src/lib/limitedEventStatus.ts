@@ -117,6 +117,33 @@ export function limitedEventStatusChip(
     }
 }
 
+/** Dashboard display priority for `LimitedEventStatusHint` (issue #2591): the
+ *  lobby's live Limited strip shows the viewer's own in-progress event
+ *  FIRST, ahead of one merely awaiting the viewer's next action, ahead of an
+ *  earlier lifecycle stage. `"finished"` sorts last as a matter of
+ *  completeness — `useMyCurrentLimitedEvents` already excludes concluded
+ *  events from this box's input, so it's never actually reached here. */
+const DASHBOARD_STATUS_PRIORITY: Record<LimitedEventStatusHint, number> = {
+    playing: 0,
+    "ready to play": 1,
+    deckbuilding: 2,
+    drafting: 3,
+    open: 4,
+    finished: 5,
+};
+
+/** Sort key for the dashboard's "Your Current Events" list — lower sorts
+ *  first. Pure derivation of `limitedEventStatusHint`; `Array.prototype.sort`
+ *  is stable (ES2019+), so events sharing a rank keep their query order. */
+export function limitedEventDashboardRank(
+    event: Pick<
+        LimitedEventView,
+        "status" | "type" | "draftCompletedAt" | "completed"
+    >
+): number {
+    return DASHBOARD_STATUS_PRIORITY[limitedEventStatusHint(event)];
+}
+
 /** The viewer's own match record for a list row (issue #2357), formatted
  *  the standard "wins-losses[-draws]" way — draws appended only when there
  *  ARE any (a `0`-draw event never shows the trailing `-0`). `null` (render

@@ -23,14 +23,17 @@ import {
     getStoredDeckPresetId,
     getStoredDifficulty,
     getStoredMatchFormat,
+    getStoredPlayMode,
     storeAiDeckId,
     storeDeckFormatFilter,
     storeDeckPresetId,
     storeDifficulty,
     storeMatchFormat,
+    storePlayMode,
     storeSession,
     type DeckFormatFilter as DeckFormatFilterValue,
     type MatchFormat,
+    type PlayMode,
 } from "~/lib/session";
 import type { Difficulty } from "@convex/gre";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
@@ -44,6 +47,7 @@ import DashboardPlayBox from "./dashboard-play-box";
 import DashboardLimitedBox from "./dashboard-limited-box";
 import VsAiSetupDialog from "./vs-ai-setup-dialog";
 import DeckList from "./deck-list";
+import DeckRowMenu from "./deck-row-menu";
 import DeckFormatFilter from "./deck-format-filter";
 import LobbyBackground from "./lobby-background";
 import ActiveGameNotice from "./active-game-notice";
@@ -72,6 +76,18 @@ function Lobby() {
     // survives a reload. Shared by both deck panels; default "all".
     const [deckFormatFilter, setDeckFormatFilter] =
         useState<DeckFormatFilterValue>(() => getStoredDeckFormatFilter());
+    // Explicit game-mode selector (ADR 0101 §10, issue #2591): Arena mode |
+    // Cockatrice mode. DRIVES deck filtering (My Decks / Preset Decks below
+    // only show decks compatible with the current mode) and the Play box's
+    // action set — the inverse of the pre-#2591 flow, which derived
+    // "manual or not" from whichever deck happened to be selected. Kept
+    // deliberately separate from `deckFormatFilter` above (trap flagged by
+    // the investigator): the Format filter narrows WHICH format among the
+    // mode-compatible ones, the mode decides compatible-or-not in the first
+    // place.
+    const [playMode, setPlayMode] = useState<PlayMode>(() =>
+        getStoredPlayMode()
+    );
     const [isBusy, setIsBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const userDecks = useUserDecks();
@@ -117,13 +133,34 @@ function Lobby() {
     // The Format filter narrows what's *listed* only (#513). Selection
     // resolution still keys off `allDecks` so a stored selection of a now-
     // hidden deck is unaffected by the filter.
+    //
+    // The game-mode selector (issue #2591) narrows the SAME lists a second,
+    // orthogonal way, applied FIRST: Cockatrice mode shows only Manual
+    // Decks, Arena mode shows every non-Manual deck. The Format filter then
+    // slices further within whichever set the mode already picked (an
+    // Arena-mode "Manual Game" Format filter can only ever show zero decks —
+    // correct: switch to Cockatrice mode instead of fighting the filter).
     const filteredUserDecks = useMemo<LobbyDeck[]>(
-        () => filterDecksByFormat(userLobbyDecks, deckFormatFilter),
-        [userLobbyDecks, deckFormatFilter]
+        () =>
+            filterDecksByFormat(
+                userLobbyDecks.filter(
+                    (d) =>
+                        (d.format === "manual") === (playMode === "cockatrice")
+                ),
+                deckFormatFilter
+            ),
+        [userLobbyDecks, deckFormatFilter, playMode]
     );
     const filteredPresetDecks = useMemo<LobbyDeck[]>(
-        () => filterDecksByFormat(presetLobbyDecks, deckFormatFilter),
-        [presetLobbyDecks, deckFormatFilter]
+        () =>
+            filterDecksByFormat(
+                presetLobbyDecks.filter(
+                    (d) =>
+                        (d.format === "manual") === (playMode === "cockatrice")
+                ),
+                deckFormatFilter
+            ),
+        [presetLobbyDecks, deckFormatFilter, playMode]
     );
 
     // Null-safe: a stale stored id (e.g. an admin deleted the preset it pointed
@@ -179,17 +216,19 @@ function Lobby() {
         }
     };
 
-    // One "Multiplayer" action, two backends: a Tabletop-format deck
-    // opens a Tabletop table, anything else a real game. The mode is a property
-    // of the DECK, never a separate button — the two are mutually exclusive
-    // server-side anyway (ADR 0080), so a second button could only ever be the
-    // wrong one half the time.
+    // One "Open a table" action, two backends: a Manual (Cockatrice-mode)
+    // deck opens a Manual Game, anything else a real (Arena-mode) game. The
+    // mode is a property of the DECK here (server-dispatched, ADR 0080),
+    // never a separate button — the two are mutually exclusive server-side
+    // anyway, so a second button could only ever be the wrong one half the
+    // time. (The lobby's own game-mode SELECTOR, issue #2591, is a separate,
+    // earlier decision: it drives which decks are even offered here.)
     const handleCreate = () =>
         enterGame(async ({ user, deck }) => {
             const id =
                 deck.format === "manual"
                     ? await createManualGame({
-                          name: `${user.nickname}'s Tabletop`,
+                          name: `${user.nickname}'s Manual Game`,
                           deck: deckPayload(deck),
                           bestOf: matchFormat,
                       })
@@ -229,7 +268,7 @@ function Lobby() {
     const handleCreateTabletop = () =>
         enterGame(async ({ user, deck }) => {
             const id = await createManualSoloGame({
-                name: `${user.nickname}'s Tabletop`,
+                name: `${user.nickname}'s Manual Game`,
                 deck: deckPayload(deck),
                 bestOf: matchFormat,
             });
@@ -298,6 +337,25 @@ function Lobby() {
     const handleDeckFormatFilterChange = (next: DeckFormatFilterValue) => {
         setDeckFormatFilter(next);
         storeDeckFormatFilter(next);
+    };
+
+    // Toggling the game-mode selector (issue #2591) can strand the current
+    // selection: a real deck stays selected while Cockatrice mode filters the
+    // panels down to Manual Decks only (or vice versa), so `selectedDeck`
+    // would point at a deck no longer offered anywhere in the UI. Mirrors the
+    // null-safety pattern above (the stale-stored-preset-id effect): clear the
+    // stored selection eagerly rather than let `DashboardPlayBox` carry a
+    // mismatched deck across the toggle.
+    const handlePlayModeChange = (next: PlayMode) => {
+        setPlayMode(next);
+        storePlayMode(next);
+        const isManualDeck = selectedDeck?.format === "manual";
+        const stillCompatible =
+            !selectedDeck || isManualDeck === (next === "cockatrice");
+        if (!stillCompatible) {
+            setStoredPresetId(null);
+            clearDeckPresetId();
+        }
     };
 
     const handleAiDeckChange = (next: string | null) => {
@@ -396,6 +454,9 @@ function Lobby() {
         return <LoadingScreen />;
     }
 
+    // Compact deck rows (PRD #2405 D15 / ADR 0101 §9, issue #2591): Delete
+    // moves behind the "⋯" overflow (`DeckRowMenu`), Edit stays an
+    // always-visible single tap.
     const renderUserActions = (deck: LobbyDeck) => (
         <>
             <Button
@@ -406,14 +467,10 @@ function Lobby() {
             >
                 Edit
             </Button>
-            <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => handleDeleteDeck(deck.presetId)}
-                title="Delete deck"
-            >
-                Delete
-            </Button>
+            <DeckRowMenu
+                deckName={deck.name}
+                onDelete={() => handleDeleteDeck(deck.presetId)}
+            />
         </>
     );
 
@@ -428,14 +485,10 @@ function Lobby() {
                   >
                       Edit
                   </Button>
-                  <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDeletePreset(deck.presetId)}
-                      title="Delete preset (admin)"
-                  >
-                      Delete
-                  </Button>
+                  <DeckRowMenu
+                      deckName={deck.name}
+                      onDelete={() => handleDeletePreset(deck.presetId)}
+                  />
               </>
           )
         : undefined;
@@ -477,31 +530,34 @@ function Lobby() {
 
                 {actionError && <Banner tone="danger">{actionError}</Banner>}
 
-                {/* Constructed + Limited play boxes, equal visual weight,
-                    same shared Panel language (issue #1582). One column on
-                    narrow viewports, side-by-side from `lg` up. */}
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <DashboardPlayBox
-                        selectedDeck={selectedDeck}
-                        openGames={openGames}
-                        onCreateVsAi={() => setVsAiOpen(true)}
-                        onCreateSolo={handleCreateSolo}
-                        onCreateManual={handleCreateTabletop}
-                        onCreateMultiplayer={handleCreate}
-                        onJoin={handleJoin}
-                        onChangeDeck={handleChangeDeck}
-                        matchFormat={matchFormat}
-                        onMatchFormatChange={handleMatchFormatChange}
-                        busy={isBusy}
-                        hasActiveGame={!!activeGame}
-                    />
-                    <DashboardLimitedBox
-                        events={myLimitedEvents}
-                        onBrowse={handleBrowseLimitedEvents}
-                        onOpen={handleOpenLimitedEvent}
-                        onViewAllEvents={handleViewAllLimitedEvents}
-                    />
-                </div>
+                {/* Live Limited strip (ADR 0101 §9 / issue #2591) — full
+                    width, no longer paired 2-up with the Play box: a seated
+                    event's status can change independently of whatever the
+                    Play panel is doing, and pairing them implied equal
+                    weight/rhythm that a live strip doesn't need. */}
+                <DashboardLimitedBox
+                    events={myLimitedEvents}
+                    onBrowse={handleBrowseLimitedEvents}
+                    onOpen={handleOpenLimitedEvent}
+                    onViewAllEvents={handleViewAllLimitedEvents}
+                />
+
+                <DashboardPlayBox
+                    selectedDeck={selectedDeck}
+                    openGames={openGames}
+                    mode={playMode}
+                    onModeChange={handlePlayModeChange}
+                    onCreateVsAi={() => setVsAiOpen(true)}
+                    onCreateSolo={handleCreateSolo}
+                    onCreateManual={handleCreateTabletop}
+                    onCreateMultiplayer={handleCreate}
+                    onJoin={handleJoin}
+                    onChangeDeck={handleChangeDeck}
+                    matchFormat={matchFormat}
+                    onMatchFormatChange={handleMatchFormatChange}
+                    busy={isBusy}
+                    hasActiveGame={!!activeGame}
+                />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <Panel className="flex max-h-[28rem] flex-col">

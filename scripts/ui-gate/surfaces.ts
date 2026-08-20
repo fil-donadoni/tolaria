@@ -356,6 +356,28 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "deck-detail",
+        label: "Deck detail (/decks/mono-red-burn)",
+        async walk(page, ctx) {
+            // `mono-red-burn` is a code-defined preset (`convex/deckPresets.ts`)
+            // seeded into the `presetDecks` table on every deployment — always
+            // present, unlike a user deck, so the walk needs no prior create
+            // step (issue #2591: curve + legality + Edit/Play). `findDeckBySlug`
+            // (`src/lib/deckLookup.ts`) matches `presetId === slug` exactly, so
+            // the slug here MUST be a real entry in `deckPresets.ts` — a
+            // deployment-only slug (e.g. a manually renamed row) throws
+            // Unreachable on any other deployment.
+            await goto(page, ctx, "/decks/mono-red-burn");
+            if (
+                !(await visible(page, "h1:has-text('Mono Red Burn')", 10_000))
+            ) {
+                throw new Unreachable(
+                    "/decks/mono-red-burn did not render the deck detail heading"
+                );
+            }
+        },
+    },
+    {
         id: "design-system",
         label: "Design system census (/admin/design-system)",
         async walk(page, ctx) {

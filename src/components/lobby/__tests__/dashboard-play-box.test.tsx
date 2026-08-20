@@ -45,6 +45,8 @@ function renderBox(openGames: OpenGame[], onJoin = vi.fn()) {
             <DashboardPlayBox
                 selectedDeck={DECK}
                 openGames={openGames}
+                mode="arena"
+                onModeChange={vi.fn()}
                 onCreateSolo={vi.fn()}
                 onCreateManual={vi.fn()}
                 onCreateVsAi={vi.fn()}
@@ -93,7 +95,7 @@ describe("DashboardPlayBox join format (issue #397)", () => {
     });
 });
 
-describe("DashboardPlayBox featured-art hero splash (PRD #589, issue #600)", () => {
+describe("DashboardPlayBox compact selected-deck tile (ADR 0101 §10, issue #2591)", () => {
     const REAL_CARD_ID = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
 
     function renderWith(selectedDeck: LobbyDeck | null) {
@@ -101,6 +103,8 @@ describe("DashboardPlayBox featured-art hero splash (PRD #589, issue #600)", () 
             <DashboardPlayBox
                 selectedDeck={selectedDeck}
                 openGames={[]}
+                mode="arena"
+                onModeChange={vi.fn()}
                 onCreateSolo={vi.fn()}
                 onCreateManual={vi.fn()}
                 onCreateVsAi={vi.fn()}
@@ -113,7 +117,7 @@ describe("DashboardPlayBox featured-art hero splash (PRD #589, issue #600)", () 
         );
     }
 
-    it("renders the selected deck's Featured Card art in the hero splash", () => {
+    it("renders the selected deck's Featured Card art in the compact tile", () => {
         const { container } = renderWith({
             ...DECK,
             featuredCardId: REAL_CARD_ID,
@@ -155,6 +159,8 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
                 <DashboardPlayBox
                     selectedDeck={selectedDeck}
                     openGames={[]}
+                    mode="arena"
+                    onModeChange={vi.fn()}
                     onCreateSolo={handlers.onCreateSolo}
                     onCreateManual={handlers.onCreateManual}
                     onCreateVsAi={handlers.onCreateVsAi}
@@ -172,12 +178,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
         const { getByText, handlers } = renderWith(ILLEGAL);
         expect(getByText(/not legal for its format/i)).toBeTruthy();
         expect(getByText(/minimum is 60/)).toBeTruthy();
-        for (const label of [
-            "Play vs AI",
-            "Solo Game",
-            "Multiplayer",
-            "Tabletop",
-        ]) {
+        for (const label of ["Play vs Bot", "Solo game", "Open a table"]) {
             const btn = getByText(label).closest("button") as HTMLButtonElement;
             expect(btn.disabled).toBe(true);
             fireEvent.click(btn);
@@ -185,12 +186,11 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
         expect(handlers.onCreateVsAi).not.toHaveBeenCalled();
         expect(handlers.onCreateSolo).not.toHaveBeenCalled();
         expect(handlers.onCreateMultiplayer).not.toHaveBeenCalled();
-        expect(handlers.onCreateManual).not.toHaveBeenCalled();
     });
 
     it("enables Play for a legal selected deck", () => {
         const { getByText } = renderWith(DECK);
-        const btn = getByText("Solo Game").closest(
+        const btn = getByText("Solo game").closest(
             "button"
         ) as HTMLButtonElement;
         expect(btn.disabled).toBe(false);
@@ -205,6 +205,8 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
                 <DashboardPlayBox
                     selectedDeck={DECK}
                     openGames={[]}
+                    mode="arena"
+                    onModeChange={vi.fn()}
                     onCreateSolo={vi.fn()}
                     onCreateManual={vi.fn()}
                     onCreateVsAi={onCreateVsAi}
@@ -227,10 +229,10 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
         expect(queryByLabelText("Match Format")).toBeTruthy();
     });
 
-    it("clicking 'Play vs AI' fires the open-dialog callback", () => {
+    it("clicking 'Play vs Bot' fires the open-dialog callback", () => {
         const onCreateVsAi = vi.fn();
         const { getByText } = renderBox(onCreateVsAi);
-        fireEvent.click(getByText("Play vs AI"));
+        fireEvent.click(getByText("Play vs Bot"));
         expect(onCreateVsAi).toHaveBeenCalledTimes(1);
     });
 });
@@ -247,6 +249,8 @@ describe("DashboardPlayBox match format selector", () => {
                 <DashboardPlayBox
                     selectedDeck={DECK}
                     openGames={[]}
+                    mode="arena"
+                    onModeChange={vi.fn()}
                     onCreateSolo={vi.fn()}
                     onCreateManual={vi.fn()}
                     onCreateVsAi={vi.fn()}
@@ -278,22 +282,23 @@ describe("DashboardPlayBox match format selector", () => {
 });
 
 /**
- * Tabletop (manual) decks and the real engine are mutually exclusive by
- * construction (ADR 0080, PRD #2023): `createGame` / `joinGame` /
- * `createSoloGame` reject a manual-format deck and `createManualSoloGame`
- * rejects a real one. Before this split every mode button was enabled for
- * every deck, so half of them could only ever produce a server error.
+ * Explicit game-mode selector (ADR 0101 §10, issue #2591): Arena mode |
+ * Cockatrice mode. The mode now DRIVES the action set and deck compatibility
+ * — the inverse of the pre-#2591 flow, which derived "manual or not" from
+ * whichever deck happened to be selected. Manual Decks and the real engine
+ * stay mutually exclusive by construction (ADR 0080), but the gate now keys
+ * off the explicit `mode` prop, not `selectedDeck.format` alone.
  */
-describe("DashboardPlayBox mode gating by deck format (ADR 0080)", () => {
+describe("DashboardPlayBox mode gating (ADR 0101 §10, issue #2591)", () => {
     const MANUAL: LobbyDeck = {
         ...DECK,
-        presetId: "tabletop-deck",
-        name: "Tabletop Deck",
+        presetId: "manual-deck",
+        name: "Manual Deck",
         format: "manual",
         cards: [{ cardId: "print-1", cardName: "Sliver Queen" }],
     };
 
-    function renderWith(selectedDeck: LobbyDeck) {
+    function renderWith(mode: "arena" | "cockatrice", selectedDeck: LobbyDeck) {
         const handlers = {
             onCreateSolo: vi.fn(),
             onCreateManual: vi.fn(),
@@ -306,6 +311,8 @@ describe("DashboardPlayBox mode gating by deck format (ADR 0080)", () => {
                 <DashboardPlayBox
                     selectedDeck={selectedDeck}
                     openGames={[]}
+                    mode={mode}
+                    onModeChange={vi.fn()}
                     onCreateSolo={handlers.onCreateSolo}
                     onCreateManual={handlers.onCreateManual}
                     onCreateVsAi={handlers.onCreateVsAi}
@@ -322,31 +329,54 @@ describe("DashboardPlayBox mode gating by deck format (ADR 0080)", () => {
     const button = (getByText: (t: string) => HTMLElement, label: string) =>
         getByText(label).closest("button") as HTMLButtonElement;
 
-    it("offers Tabletop + Multiplayer, but no engine mode, for a Tabletop deck", () => {
-        const { getByText } = renderWith(MANUAL);
-        // "Multiplayer" is mode-agnostic — it opens a table of whatever
-        // kind the deck implies (the lobby dispatches createGame vs
-        // createManualGame).
-        expect(button(getByText, "Tabletop").disabled).toBe(false);
-        expect(button(getByText, "Multiplayer").disabled).toBe(false);
-        for (const label of ["Play vs AI", "Solo Game"]) {
+    it("Arena mode renders only the Arena action set", () => {
+        const { getByText, queryByText } = renderWith("arena", DECK);
+        expect(getByText("Play vs Bot")).toBeTruthy();
+        expect(getByText("Solo game")).toBeTruthy();
+        expect(getByText("Open a table")).toBeTruthy();
+        expect(queryByText("Solo table")).toBeNull();
+    });
+
+    it("Cockatrice mode renders only the Cockatrice action set", () => {
+        const { getByText, queryByText } = renderWith("cockatrice", MANUAL);
+        expect(getByText("Solo table")).toBeTruthy();
+        expect(getByText("Open a table")).toBeTruthy();
+        expect(queryByText("Play vs Bot")).toBeNull();
+        expect(queryByText("Solo game")).toBeNull();
+    });
+
+    it("a real deck under Cockatrice mode is not offered — actions disabled", () => {
+        const { getByText, handlers } = renderWith("cockatrice", DECK);
+        for (const label of ["Solo table", "Open a table"]) {
             expect(button(getByText, label).disabled).toBe(true);
         }
+        fireEvent.click(button(getByText, "Solo table"));
+        expect(handlers.onCreateManual).not.toHaveBeenCalled();
+        expect(getByText(/isn't a Manual Deck/i)).toBeTruthy();
     });
 
-    it("offers only the real modes for a real deck", () => {
-        const { getByText } = renderWith({ ...DECK, cards: [] });
-        expect(button(getByText, "Tabletop").disabled).toBe(true);
-        for (const label of ["Play vs AI", "Solo Game", "Multiplayer"]) {
-            expect(button(getByText, label).disabled).toBe(false);
+    it("a manual deck under Arena mode is not offered — actions disabled", () => {
+        const { getByText, handlers } = renderWith("arena", MANUAL);
+        for (const label of ["Play vs Bot", "Solo game", "Open a table"]) {
+            expect(button(getByText, label).disabled).toBe(true);
         }
+        fireEvent.click(button(getByText, "Solo game"));
+        expect(handlers.onCreateSolo).not.toHaveBeenCalled();
+        expect(getByText(/is a Manual Deck/i)).toBeTruthy();
     });
 
-    it("blocks Tabletop for an empty Tabletop deck", () => {
-        // The manual Format validates nothing (ADR 0080), so an empty deck is
-        // "legal" — the emptiness gate has to live here and in the mutation.
-        const { getByText } = renderWith({ ...MANUAL, cards: [] });
-        expect(button(getByText, "Tabletop").disabled).toBe(true);
+    it("Cockatrice mode blocks Solo table for an empty Manual Deck", () => {
+        const { getByText } = renderWith("cockatrice", {
+            ...MANUAL,
+            cards: [],
+        });
+        expect(button(getByText, "Solo table").disabled).toBe(true);
         expect(getByText(/empty/i)).toBeTruthy();
+    });
+
+    it("enables the Cockatrice action set for a matching Manual Deck", () => {
+        const { getByText } = renderWith("cockatrice", MANUAL);
+        expect(button(getByText, "Solo table").disabled).toBe(false);
+        expect(button(getByText, "Open a table").disabled).toBe(false);
     });
 });

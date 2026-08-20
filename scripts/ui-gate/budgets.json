@@ -596,6 +596,72 @@
                     "knownDebt": "`cardsOcc 1` / `ctrlsOcc 1` are the MTGO PILE overlap in the split's pool column (`DeckColumnPile`, ADR 0101 \u00a77) \u2014 the same pair `draft-pick` records at this viewport, from the same cause, and by design: `cardsStranded 0`. Recorded with NO Selected Card, so the Peek Panel is not mounted here; a run whose seat has one will also measure the rail's `ctrlsOcc` (see `draft-pick`'s note) and needs a re-record rather than a code change."
                 }
             }
+        },
+        "deck-detail": {
+            "label": "Deck detail (/decks/mono-red-burn)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 35,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "RE-RECORDED (issue #2591 review round 2, PR #2647): the row now walks the code-defined preset `mono-red-burn` (40 cards) instead of a deployment-only `the-deck` slug (H1 \u2014 reproducibility), so the counts here are lower than the prior round's (54->35 etc). cardsOcc 35/40 is the deck's own Mana Pile View (`mana-pile.tsx`), pre-existing and unchanged by issue #2591. Each pile fans its cards `OFFSET_Y_REM` (1.4rem) apart absolutely-positioned top-down (`mana-pile.tsx:12-34`); at a `--card-h` well over 1.4rem, every card but the last N in a pile has its centre covered by the one after it, so the probe's centre-point occlusion check reads it as occluded \u2014 a DIFFERENT height formula from the deckbuilder's own `DeckColumnPile` (`pileHeight(n)`, `cardsOcc 0` on the `deck-builder` row above), which staggers just enough to keep each centre clear. Tracked as a candidate follow-up, not fixed here: docs/findings/2591-deck-detail-manapileview-occlusion.md."
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 32,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 1,
+                    "axeCritical": 0,
+                    "knownDebt": "RE-RECORDED against `mono-red-burn` (see 1440x900x2's note for why). Same Mana Pile View fan-stacking, pre-existing. `starved` cleared 1->0 against this deck's card count; 1 axe serious (scrollable-region-focusable) mirrors the SAME shape already carried on `deck-builder`'s phone-portrait row."
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 15,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "RE-RECORDED against `mono-red-burn` (see 1440x900x2's note for why) \u2014 occ15 is unchanged from the prior round at this viewport. Same Mana Pile View fan-stacking as 1440x900x2; fewer piles fit the shorter viewport so occ is lower (15) with more genuinely reachable via scroll. 1 starved container mirrors `deck-builder`'s own phone-landscape row."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 35,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "RE-RECORDED against `mono-red-burn` (see 1440x900x2's note for why). Same Mana Pile View fan-stacking, pre-existing. `axeSerious` cleared 1->0 against this deck's card count."
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 35,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "RE-RECORDED against `mono-red-burn` (see 1440x900x2's note for why). Same Mana Pile View fan-stacking, pre-existing. `starved` cleared 1->0 against this deck's card count."
+                }
+            }
         }
     }
 }
