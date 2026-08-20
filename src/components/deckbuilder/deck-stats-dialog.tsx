@@ -4,6 +4,7 @@ import { computeDeckStats } from "~/lib/deckStats";
 import type { ZoneCard } from "~/types/game";
 import DeckStatsCurveChart from "./deck-stats-curve-chart";
 import DeckStatsManaSection from "./deck-stats-mana-section";
+import DeckStatsTypeBand from "./deck-stats-type-band";
 import DeckStatsTypeList from "./deck-stats-type-list";
 
 export interface DeckStatsDialogProps {
@@ -23,8 +24,9 @@ export interface DeckStatsDialogProps {
  *
  * Every number comes from `computeDeckStats` (`src/lib/deckStats.ts`) —
  * this component and its children (`DeckStatsCurveChart`,
- * `DeckStatsManaSection`, `DeckStatsTypeList`) do no counting of their own,
- * only sorting and bar-size layout arithmetic on numbers already computed.
+ * `DeckStatsManaSection`, `DeckStatsTypeBand`, `DeckStatsTypeList`) do no
+ * counting of their own, only sorting and bar-size layout arithmetic on
+ * numbers already computed.
  */
 export default function DeckStatsDialog({
     open,
@@ -55,17 +57,20 @@ export default function DeckStatsDialog({
 
                 <DeckStatsManaSection stats={stats} />
 
-                <div className="grid gap-6 sm:grid-cols-2">
-                    <DeckStatsTypeList
-                        title="Types"
-                        counts={stats.types}
-                        note="A card with several types (e.g. an Artifact Creature) is counted once in EACH of its types, so these totals can exceed the number of cards in the deck."
-                    />
-                    <DeckStatsTypeList
-                        title="Subtypes"
-                        counts={stats.subtypes}
-                    />
-                </div>
+                <section className="flex flex-col gap-2">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-text-muted">
+                        Card Types
+                    </h3>
+                    <p className="text-xs text-text-muted">
+                        A card with several types (e.g. an Artifact Creature) is
+                        counted once in EACH of its types, so the band's
+                        segments can sum to more than the number of cards in the
+                        deck.
+                    </p>
+                    <DeckStatsTypeBand counts={stats.types} />
+                </section>
+
+                <DeckStatsTypeList title="Subtypes" counts={stats.subtypes} />
             </div>
         </GameDialog>
     );

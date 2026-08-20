@@ -84,13 +84,17 @@ describe("DeckStatsButton — Stats dialog (issue #1631)", () => {
         expect(screen.getByText("Land")).toBeTruthy();
     });
 
-    it("orders Types by count descending, then alphabetically on a tie (issue #1631 fixup F4)", () => {
+    it("colors card types by their FIXED position, never by count (issue #2586 — categorical identity never rank)", () => {
         // Two Mountains (Land: 2), one Serra Angel (Creature: 1), one
-        // Lightning Bolt (Instant: 1) — Creature and Instant tie at count 1,
-        // so the expected order (Land, Creature, Instant) can only come from
-        // BOTH comparator terms: count-descending puts Land first, and
-        // alphabetical tie-break puts Creature ahead of Instant. Inverting
-        // either term in `DeckStatsTypeList`'s comparator breaks this.
+        // Lightning Bolt (Instant: 1) — Land has the highest count but must
+        // NOT lead: `DeckStatsTypeBand` assigns each type's band segment
+        // (and colour) by its FIXED slot in `TYPE_BAND_ORDER`
+        // (Artifact/Battle/Creature/Enchantment/Instant/Land/Planeswalker/
+        // Sorcery), never by count — the dataviz skill's "color follows the
+        // entity, never its rank". A count-sorted band (Land, Creature,
+        // Instant) would mean a type's colour depends on the OTHER types'
+        // counts in that particular deck; this asserts the real DOM segment
+        // order computeDeckStats + DeckStatsTypeBand actually produce.
         render(
             <DeckStatsButton
                 mainCards={[
@@ -103,11 +107,13 @@ describe("DeckStatsButton — Stats dialog (issue #1631)", () => {
         );
         fireEvent.click(screen.getByRole("button", { name: "Stats" }));
 
-        const typesSection = screen.getByText("Types").closest("section")!;
-        const names = within(typesSection)
-            .getAllByRole("listitem")
-            .map((li) => li.querySelector("span")!.textContent);
-        expect(names).toEqual(["Land", "Creature", "Instant"]);
+        const band = screen.getByRole("group", {
+            name: "Card types, share of type tags",
+        });
+        const segmentTitles = within(band)
+            .getAllByTitle(/^(Creature|Instant|Land): \d+$/)
+            .map((el) => el.getAttribute("title"));
+        expect(segmentTitles).toEqual(["Creature: 1", "Instant: 1", "Land: 2"]);
     });
 
     it("exposes the curve's per-bucket counts inside an accessible group, not a pruned img (issue #1631 fixup F5)", () => {

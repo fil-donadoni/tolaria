@@ -9,11 +9,13 @@ export interface DeckStatsTypeListProps {
 }
 
 /**
- * One count list in the Stats dialog (PRD #1617 § "Stats dialog", issue
- * #1631) — used for BOTH Types and Subtypes, since the ordering rule is
- * identical: count-descending, then alphabetical for ties. Sorting is
- * presentation, not statistics — `computeDeckStats` hands back a plain
- * `Record<string, number>` and never orders it.
+ * A plain count list in the Stats dialog (PRD #1617 § "Stats dialog", issue
+ * #1631) — used for Subtypes, whose cardinality is too high (dozens of
+ * creature types alone) to fit the 8-slot categorical chart palette the
+ * card-Type band uses (`DeckStatsTypeBand`, issue #2586). Ordering:
+ * count-descending, then alphabetical for ties. Sorting is presentation, not
+ * statistics — `computeDeckStats` hands back a plain `Record<string, number>`
+ * and never orders it.
  */
 export default function DeckStatsTypeList({
     title,
