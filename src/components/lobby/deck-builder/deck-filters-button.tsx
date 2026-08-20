@@ -12,8 +12,17 @@ import { cn } from "~/lib/utils";
 export interface DeckFiltersButtonProps {
     /** How many filters are applied — the badge, and `0` means no badge. */
     activeCount: number;
-    /** Live result count, for the sheet's footer CTA. */
-    resultCount: number;
+    /** Live result count for the sheet's footer CTA, or `null` when there is no
+     *  count to promise.
+     *
+     *  `null` is the IDLE search (`useCardSearch`'s `idle`): with no filter
+     *  applied the hook returns `entries: []` and `ResultsGrid` renders "Search
+     *  or pick a filter to see cards", so closing the sheet shows no cards at
+     *  all. A CTA reading "Show 0 cards" there is not a live count of anything —
+     *  it is the first thing a phone user sees on opening Filters, and it is
+     *  false: there are cards, none of them are being withheld by a filter.
+     *  The null branch says what the results pane is actually about to say. */
+    resultCount: number | null;
     /** The filter controls themselves. Laid out as a COLUMN by this component;
      *  the caller supplies the same nodes it used to hand to the header band. */
     children: ReactNode;
@@ -34,16 +43,19 @@ const TRIGGER_CLASS =
  *    URL-backed filter set as it is touched, so there is no draft state to
  *    commit and the CTA is a dismiss, not a submit. (A staged copy would be a
  *    second source of truth for the same filters — see `useFilterSearchParams`.)
- *  - **tablet / desktop → popover** anchored under the button. Esc and an
+ *  - **anything roomier → popover** anchored under the button. Esc and an
  *    outside tap close it; both come from the base-ui primitive.
  *
- * **The split is `useSurfaceClass()`, NOT `useViewportMode()`** — and that
- * distinction is the whole point of the slice. `useViewportMode()` files tablet
- * portrait (820×1180, wider than its 767px bound) under `"desktop"`, so reusing
- * it would have given a phone a sheet and a tablet a popover *by accident*,
- * while leaving the same conflation in place for the next caller. `useSurfaceClass`
- * asks the question this component actually has ("is there room to anchor, and
- * is the pointer coarse?") and answers it in one place.
+ * The split reads `useSurfaceClass()` rather than `useViewportMode()`, and the
+ * honest account of what that buys TODAY (issue #2585 review finding 4) is: not
+ * this component's behaviour. Only the `"phone"` branch is read here, and
+ * `surface === "phone"` is currently IDENTICAL to `useViewportMode() !== "desktop"`
+ * — the two phone queries are re-exported verbatim. So the shipped sheet/popover
+ * split is exactly what reusing the old hook would have produced. What the new
+ * hook adds is the `roomy-coarse` / `roomy-fine` seam, which nothing reads yet;
+ * its intended first consumer is the deferred "zone toolbar collapses into the
+ * bar" half of #2585 (`docs/findings/2585-deck-pane-60-percent-needs-the-pane-split.md`).
+ * It is a capability ahead of its consumer, recorded as one.
  */
 export default function DeckFiltersButton({
     activeCount,
@@ -102,8 +114,11 @@ export default function DeckFiltersButton({
                                 style={{ minHeight: "var(--control-h)" }}
                                 className="w-full rounded-md bg-accent px-3 font-semibold text-surface-base"
                             >
-                                Show {resultCount}{" "}
-                                {resultCount === 1 ? "card" : "cards"}
+                                {resultCount === null
+                                    ? "Pick a filter to see cards"
+                                    : `Show ${resultCount} ${
+                                          resultCount === 1 ? "card" : "cards"
+                                      }`}
                             </button>
                         </div>
                     }

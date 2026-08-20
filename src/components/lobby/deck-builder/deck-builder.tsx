@@ -785,26 +785,32 @@ export default function DeckBuilder({
     // count and the chips can never disagree about what "a filter" is.
     const filterTags = useMemo(() => describeActiveFilters(filters), [filters]);
 
-    // Two fields do NOT round-trip through a plain `setFilters`:
-    //  - `text`  — the search box keeps its own un-debounced copy (`rawText`).
-    //              Clearing only `filters.text` would leave the box showing a
-    //              query that is no longer applied, and the debounce effect
-    //              would never re-fire to correct it.
-    //  - `cube`  — a cube pins the deck's Format to Freeform (`handleSetCube`),
-    //              so clearing it has to go back through that one writer.
+    // ONE field does not round-trip through a plain `setFilters`: `text`. The
+    // search box keeps its own un-debounced copy (`rawText`), and clearing only
+    // `filters.text` leaves the box showing a query that is no longer applied —
+    // worse, the debounce effect below then re-applies `rawText` on the very
+    // next render, so the chip comes straight back. Clearing the box is what
+    // clears the filter.
+    //
+    // `cube` used to have a branch here too, routing through `handleSetCube` on
+    // the theory that "a cube pins the Format, so clearing it must go back
+    // through that one writer". It does not: `handleSetCube("")` calls
+    // `updateSearch({ filters, format: undefined })`, and `buildSearch` reads
+    // `patch.format ?? decodeFormat(search)` — so an empty cube writes exactly
+    // the same search object `setFilters(tag.remove)` writes, and its
+    // `updateDeck` is behind an `if (cube)`. The branch was a comment claiming a
+    // distinction the code did not have, and no test could tell the two paths
+    // apart (issue #2585 review finding 3). The Format LOCK releases either way
+    // — `cubeActive` is derived from `filters.cube`, which both paths clear.
     const handleRemoveTag = useCallback(
         (tag: FilterTag) => {
             if (tag.field === "text") {
                 setText("");
                 return;
             }
-            if (tag.field === "cube") {
-                handleSetCube("");
-                return;
-            }
             setFilters(tag.remove);
         },
-        [setText, handleSetCube, setFilters]
+        [setText, setFilters]
     );
 
     // ONE navigation, deliberately. `updateSearch` derives its payload from the
@@ -1043,7 +1049,13 @@ export default function DeckBuilder({
                         back (`scripts/ui-gate/budgets.json` §deck-builder). */}
                     <DeckFiltersButton
                         activeCount={filterTags.length}
-                        resultCount={entries?.length ?? 0}
+                        // `null` while the search is IDLE. With no filter
+                        // applied `useCardSearch` returns `entries: []` and
+                        // `ResultsGrid` renders its "pick a filter" prompt, so
+                        // a CTA reading "Show 0 cards" would be the first thing
+                        // a phone user sees on opening Filters — and it would
+                        // be false.
+                        resultCount={idle ? null : (entries?.length ?? 0)}
                     >
                         <ColorFilter
                             selectedColors={filters.colors}

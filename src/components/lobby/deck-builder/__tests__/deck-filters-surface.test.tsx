@@ -1,5 +1,5 @@
-// Issue #2585 — the deckbuilder's filters as a SHEET (phone) / POPOVER
-// (tablet, desktop), plus the applied-filter tag row.
+// Issue #2585 — the deckbuilder's filters as a SHEET (phone) / POPOVER (any
+// roomier surface), plus the applied-filter tag row.
 //
 // Mounted on the REAL `DeckBuilder` for the reason `deck-builder-columns.test.tsx`
 // gives: the tag row is a VIEW of the URL-backed filter set, so a test that
@@ -23,7 +23,7 @@ const h = vi.hoisted(() => ({
     search: {} as Record<string, unknown>,
     listeners: new Set<() => void>(),
     resolveQuery: (() => undefined) as (ref: unknown) => unknown,
-    surface: "desktop" as SurfaceClass,
+    surface: "roomy-fine" as SurfaceClass,
 }));
 
 // A REAL search-param store: `useSearch` subscribes to it and `useNavigate`
@@ -137,12 +137,29 @@ function renderBuilder() {
     );
 }
 
+/** CREATE mode. The deck's Format is immutable once it exists (ADR 0036), so
+ *  the cube's own Format LOCK — the thing clearing a cube has to release — is
+ *  only observable on a deck that does not exist yet. */
+function renderNewBuilder() {
+    return render(
+        <DeckBuilder
+            kind="user"
+            mode="create"
+            initialDeck={null}
+            initialIdentity={null}
+            initialDeckList={[]}
+            sinks={sinks as never}
+            onClose={() => {}}
+        />
+    );
+}
+
 beforeAll(installDndJsdomShims);
 beforeEach(() => {
     window.localStorage.clear();
     h.search = {};
     h.listeners.clear();
-    h.surface = "desktop";
+    h.surface = "roomy-fine";
     // Convex's generated `api` is a PROXY — `api.cardIndex.list` is a fresh
     // object on every access, so identity comparison silently never matches and
     // every query reads as loading. Compare the resolved function NAME instead.
@@ -168,7 +185,7 @@ function tagRow(container: HTMLElement): HTMLElement | null {
 }
 
 describe("the filter band is GONE from the header (#2585)", () => {
-    for (const surface of ["phone", "tablet", "desktop"] as const) {
+    for (const surface of ["phone", "roomy-coarse", "roomy-fine"] as const) {
         it(`renders no filter control inline on ${surface} — only the Filters button`, () => {
             h.surface = surface;
             const { container } = renderBuilder();
@@ -195,9 +212,18 @@ describe("sheet on a phone, popover elsewhere (#2585)", () => {
             "[data-filters-sheet]"
         ) as HTMLElement;
         expect(sheet).toBeTruthy();
-        // Idle (no filter) — the real `useCardSearch` returns no entries.
+        // IDLE (no filter). The real `useCardSearch` returns `entries: []`
+        // there and `ResultsGrid` renders "Search or pick a filter to see
+        // cards" — so the CTA must NOT promise a count. Review finding 2: the
+        // first version of this test asserted "Show 0 cards", pinning the
+        // defect as correct behaviour.
         expect(
-            within(sheet).getByRole("button", { name: /^Show 0 cards$/ })
+            within(sheet).queryByRole("button", { name: /^Show \d+ cards?$/ })
+        ).toBeNull();
+        expect(
+            within(sheet).getByRole("button", {
+                name: /^Pick a filter to see cards$/,
+            })
         ).toBeTruthy();
 
         // Pick White INSIDE the sheet — three white cards in the index.
@@ -214,7 +240,7 @@ describe("sheet on a phone, popover elsewhere (#2585)", () => {
         expect(tagRow(container)!.textContent).toContain("White");
     });
 
-    for (const surface of ["tablet", "desktop"] as const) {
+    for (const surface of ["roomy-coarse", "roomy-fine"] as const) {
         it(`${surface}: the trigger opens an anchored POPOVER, never a sheet`, () => {
             h.surface = surface;
             const { container } = renderBuilder();
@@ -232,7 +258,7 @@ describe("sheet on a phone, popover elsewhere (#2585)", () => {
 });
 
 describe("the applied-filter tag row (#2585)", () => {
-    for (const surface of ["phone", "tablet", "desktop"] as const) {
+    for (const surface of ["phone", "roomy-coarse", "roomy-fine"] as const) {
         it(`reflects the active filters on ${surface}`, () => {
             h.surface = surface;
             const { container } = renderBuilder();
@@ -283,8 +309,71 @@ describe("the applied-filter tag row (#2585)", () => {
         ).toBeTruthy();
     });
 
+    // The two removals the container used to hand-branch (review finding 3).
+    // Both were uncovered: no case in this file removed a text or a cube chip,
+    // so `handleRemoveTag`'s branches could be no-opped with the whole
+    // deckbuilder suite staying green.
+
+    it("× on the TEXT chip clears the search BOX too, so the query does not come straight back", () => {
+        // Seeded through the search params, so `rawText` and `filters.text`
+        // start in step exactly as they do on a shared/reloaded URL.
+        h.search = { q: "Serra" };
+        h.surface = "roomy-fine";
+        const { container } = renderBuilder();
+
+        const box = within(container).getByPlaceholderText(
+            /^Search cards by name/
+        ) as HTMLInputElement;
+        expect(box.value).toBe("Serra");
+        expect(tagRow(container)!.textContent).toContain("Serra");
+
+        fireEvent.click(
+            within(tagRow(container)!).getByLabelText(
+                "Remove text search Serra"
+            )
+        );
+
+        // Both halves, and the second is the load-bearing one: the box keeps an
+        // un-debounced copy of the query, and the debounce effect re-applies it
+        // on the next render. Clear `filters.text` alone and the chip returns
+        // while the box still shows a query the user thought they removed.
+        expect(
+            (
+                within(container).getByPlaceholderText(
+                    /^Search cards by name/
+                ) as HTMLInputElement
+            ).value
+        ).toBe("");
+        expect(tagRow(container)).toBeNull();
+    });
+
+    it("× on the CUBE chip clears the cube and releases the Format lock", () => {
+        h.search = { cube: "vintage-cube" };
+        h.surface = "roomy-coarse";
+        const { container } = renderNewBuilder();
+
+        const row = tagRow(container)!;
+        expect(row.textContent).toContain("Vintage Cube");
+        // Cube and Format are mutually exclusive scopes: while a cube is
+        // selected the Format select is replaced by a locked label.
+        expect(within(container).queryByLabelText("Deck format")).toBeNull();
+        expect(
+            within(container).getByText("Freeform").getAttribute("title")
+        ).toMatch(/forced to Freeform while a cube is selected/);
+
+        fireEvent.click(within(row).getByLabelText("Remove cube Vintage Cube"));
+
+        expect(tagRow(container)).toBeNull();
+        expect(
+            filtersTrigger(container).querySelector("[data-filter-count]")
+        ).toBeNull();
+        // The control is back — the chip's × really went through the writer
+        // that owns the cube/Format exclusion, not just through the chip.
+        expect(within(container).getByLabelText("Deck format")).toBeTruthy();
+    });
+
     it("Clear all empties the row and returns the search to idle", () => {
-        h.surface = "desktop";
+        h.surface = "roomy-fine";
         const { container } = renderBuilder();
         fireEvent.click(filtersTrigger(container));
         const popover = document.body.querySelector(

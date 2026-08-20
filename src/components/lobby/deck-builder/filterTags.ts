@@ -6,10 +6,11 @@ import {
 
 /**
  * Which filter a tag speaks for. The container needs this to route a removal:
- * `text` and `cube` are NOT plain `setFilters` writes (the search box keeps its
- * own un-debounced copy of the text, and clearing a cube also frees the deck's
- * Format), so they get their own branch at the call site. Everything else goes
- * through `remove()` unchanged.
+ * `text` is NOT a plain `setFilters` write — the search box keeps its own
+ * un-debounced copy, which re-applies the query on the next render unless the
+ * BOX is cleared — so it gets its own branch at the call site. Everything else,
+ * `cube` included, goes through `remove()` unchanged (`deck-builder.tsx`
+ * records why the cube branch that used to sit beside it was not real).
  */
 export type FilterTagField =
     | "text"
