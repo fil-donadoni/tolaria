@@ -200,7 +200,14 @@ export function BoardDeadSections() {
                 blurb="Where the unification lands once the page is validated. Every area, one pass."
             >
                 <Specimen label="Rollout" tone="next">
-                    <div className="overflow-x-auto">
+                    {/* Tab stop on the scroller — axe
+                        `scrollable-region-focusable` (issue #2593). */}
+                    <div
+                        tabIndex={0}
+                        role="region"
+                        aria-label="Application map (scrollable)"
+                        className="overflow-x-auto"
+                    >
                         <table className="w-full min-w-[640px] text-left text-xs">
                             <thead>
                                 <tr className="text-[10px] tracking-wider text-text-disabled uppercase">

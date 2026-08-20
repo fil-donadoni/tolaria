@@ -239,6 +239,19 @@ export default function DeckBuilderShell({
                         {sourcePanel && (
                             <div
                                 data-deck-pane="source"
+                                // A scroll port needs a keyboard way to scroll
+                                // it (axe `scrollable-region-focusable`, WCAG
+                                // 2.1.1): the pane's tiles are focusable when
+                                // the pool has cards, but at phone landscape
+                                // the visible band held none and the region
+                                // became unreachable without a pointer. A tab
+                                // stop on the port itself is unconditional and
+                                // is what the rule asks for. `role="region"` +
+                                // a name so the stop announces as something
+                                // rather than as a bare group (issue #2593).
+                                tabIndex={0}
+                                role="region"
+                                aria-label="Card source"
                                 className={
                                     portrait
                                         ? "h-full w-full shrink-0 snap-start snap-always overflow-y-auto"

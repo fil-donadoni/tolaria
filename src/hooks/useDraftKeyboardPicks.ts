@@ -1,17 +1,6 @@
 import { useEffect } from "react";
 import type { DraftPackCard } from "@convex/limited/eventTypes";
-
-/** Where a key event came from — a typing context swallows the shortcut. */
-function isTypingTarget(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) return false;
-    const tag = target.tagName;
-    return (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        tag === "SELECT" ||
-        target.isContentEditable
-    );
-}
+import { acceptsShortcut } from "~/lib/keyboard-shortcuts";
 
 /**
  * Keyboard picking in the Draft Room (ADR 0101 §6, issue #2587): arrows step
@@ -50,12 +39,11 @@ export function useDraftKeyboardPicks({
         if (!enabled || pack.length === 0) return;
 
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.defaultPrevented) return;
-            if (event.metaKey || event.ctrlKey || event.altKey) return;
-            if (isTypingTarget(event.target)) return;
-            // A dialog (Table Ring, Inspect Overlay) owns the keyboard while
-            // it is open — picking blind behind a modal is never intended.
-            if (document.querySelector("[role=dialog]")) return;
+            // `acceptsShortcut` (issue #2593) is the shared admission test:
+            // already handled, a modifier chord, a key typed into a field, or a
+            // dialog (Table Ring, Inspect Overlay) owning the keyboard while it
+            // is open — picking blind behind a modal is never intended.
+            if (!acceptsShortcut(event)) return;
 
             const at = pack.findIndex((c) => c.pickId === selectedPickId);
             const step = (delta: number) => {

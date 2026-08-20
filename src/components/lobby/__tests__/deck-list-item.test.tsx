@@ -115,3 +115,86 @@ describe("DeckListItem legality (issue #512)", () => {
         expect(onSelect).not.toHaveBeenCalled();
     });
 });
+
+// axe `nested-interactive`, serious, 52 nodes on the lobby at every one of the
+// five viewports — the single violation that held `scripts/ui-gate/budgets.json`
+// above its own `axeSerious 0` floor for this surface. The row was
+// `<div role="button" tabIndex={0}>` wrapped around a real `<button>`: an
+// interactive role may not contain focusable descendants, because assistive
+// tech flattens it to one control and the buttons inside become unreachable.
+// Issue #2593 replaced it with the stretched-link pattern.
+describe("DeckListItem is not a nested interactive (issue #2593)", () => {
+    it("the row itself is inert — no role, no tab stop", () => {
+        const { container } = render(
+            <DeckListItem
+                deck={deck()}
+                isSelected={false}
+                onFocus={vi.fn()}
+                onSelect={vi.fn()}
+            />
+        );
+        const row = container.querySelector("[data-deck-row]")!;
+        expect(row.getAttribute("role")).toBeNull();
+        expect(row.getAttribute("tabindex")).toBeNull();
+    });
+
+    it("no interactive element contains another one", () => {
+        const { container } = render(
+            <DeckListItem
+                deck={deck()}
+                isSelected={false}
+                onFocus={vi.fn()}
+                onSelect={vi.fn()}
+                extraActions={<button type="button">Edit</button>}
+            />
+        );
+        // The rule axe applies, restated: nothing focusable inside anything
+        // that is itself exposed as a control.
+        const interactive =
+            "button,a[href],input,select,textarea,[role=button],[tabindex]";
+        for (const el of container.querySelectorAll(interactive))
+            expect(el.querySelector(interactive)).toBeNull();
+    });
+
+    it("the row-wide gesture is a real button sized from the ROW, named by the deck", () => {
+        const onFocus = vi.fn();
+        const { container, getByText } = render(
+            <DeckListItem
+                deck={deck()}
+                isSelected={false}
+                onFocus={onFocus}
+                onSelect={vi.fn()}
+            />
+        );
+        const row = container.querySelector("[data-deck-row]")!;
+        const overlay = row.querySelector("button")! as HTMLButtonElement;
+        // Sized from the row, not from the label: the deck name is a
+        // `truncate` flex item and squeezes to sub-4px on a phone, which is
+        // how the first cut of this scored `ctrlsZero 52` at 390x844x3.
+        expect(overlay.className).toContain("absolute");
+        expect(overlay.className).toContain("inset-0");
+        expect(row.className).toContain("relative");
+        // The pointer path and the keyboard path are the same control, which is
+        // what keeps them from drifting.
+        fireEvent.click(overlay);
+        expect(onFocus).toHaveBeenCalledWith("p1");
+        // ...and it is announced as the deck, borrowing the visible text.
+        const name = getByText("Test Deck");
+        expect(overlay.getAttribute("aria-labelledby")).toBe(name.id);
+        expect(name.id).not.toBe("");
+    });
+
+    it("keeps the actions cluster above the overlay", () => {
+        const { container } = render(
+            <DeckListItem
+                deck={deck()}
+                isSelected={false}
+                onFocus={vi.fn()}
+                onSelect={vi.fn()}
+            />
+        );
+        const select = container.querySelector("button:not([class*=inset-0])")!;
+        expect(select.textContent).toContain("Select");
+        expect(select.parentElement!.className).toContain("z-10");
+    });
+});

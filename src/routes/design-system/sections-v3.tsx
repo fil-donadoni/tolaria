@@ -26,7 +26,14 @@ import {
 
 function TokenRows({ group }: { group: TokenGroup }) {
     return (
-        <div className="overflow-x-auto">
+        // Tab stop on the scroller — axe `scrollable-region-focusable`
+        // (issue #2593).
+        <div
+            tabIndex={0}
+            role="region"
+            aria-label={`${group.title} tokens (scrollable)`}
+            className="overflow-x-auto"
+        >
             <table className="w-full min-w-[560px] text-left text-xs">
                 <thead>
                     <tr className="text-text-disabled">

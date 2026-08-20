@@ -1,6 +1,12 @@
 import { useDraggable } from "@dnd-kit/react";
 import { cn } from "~/lib/utils";
 import { pileCardTop } from "~/lib/card-layout";
+import {
+    activateTileOnKey,
+    CARD_TILE_ATTR,
+    isTileNavKey,
+    moveCardTileFocus,
+} from "~/lib/card-tile-keyboard";
 import CardImage from "~/components/cards/card-image";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 
@@ -100,13 +106,37 @@ export default function DeckCardTile({
     // the deck-detail row (`deck-featured-select.tsx`) — the home issue #2584
     // names ("Featured moves to the Inspect Overlay / deck detail").
 
+    // KEYBOARD OPERATION IS PART OF THE ROLE, NOT AN EXTRA (issue #2593).
+    //
+    // This element has carried `role="button" tabIndex={0}` since #1581 with no
+    // `onKeyDown` at all: an ARIA role that PROMISES an activation a keyboard
+    // could never fire (WCAG 2.1.1). Enter and Space are what a native
+    // `<button>` would have done for free; the arrows are the grid navigation
+    // (`lib/card-tile-keyboard.ts`), which is the only way to reach the tile
+    // AFTER this one without tabbing through every card in the deck.
+    //
+    // `e.target !== e.currentTarget` bails on a key pressed inside a
+    // descendant, matching `deck-list-item.tsx` — nothing focusable renders in
+    // here today, and the guard is what keeps that true if something does.
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (activateTileOnKey(e, onClick)) return;
+        if (e.target !== e.currentTarget) return;
+        if (e.altKey || e.ctrlKey || e.metaKey) return;
+        if (!isTileNavKey(e.key)) return;
+        // Only swallow the key when focus actually moved: at the edge of the
+        // grid the arrow must fall through and scroll the pane as usual.
+        if (moveCardTileFocus(e.currentTarget, e.key)) e.preventDefault();
+    };
+
     return (
         <div
             ref={ref}
             role="button"
             tabIndex={0}
+            {...{ [CARD_TILE_ATTR]: "" }}
             title={title}
             onClick={onClick}
+            onKeyDown={handleKeyDown}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
                 // `touch-pan-x`, not `touch-none` (issue #1633 bundled finding
@@ -127,7 +157,14 @@ export default function DeckCardTile({
                 // hand (issue #1994). `pan-x` (not `auto`) still blocks native
                 // vertical panning starting on a card, which was never a
                 // gesture this surface used.
-                "group aspect-5/7 w-(--card-w) shrink-0 cursor-grab touch-pan-x select-none outline-none transition hover:-translate-y-0.5 hover:z-10",
+                // No `outline-none` (issue #2593): this tile is a tab stop, so
+                // killing the ring left a keyboard user with no cursor at all.
+                // `focus-visible:z-20` lifts the focused tile clear of the
+                // pile-mates overlapping it — a buried tile shows a ~20px
+                // sliver, and a ring on a sliver is not a visible focus
+                // indicator (WCAG 2.4.11).
+                "group aspect-5/7 w-(--card-w) shrink-0 cursor-grab touch-pan-x select-none transition hover:-translate-y-0.5 hover:z-10",
+                "focus-visible:z-20 focus-visible:-translate-y-0.5",
                 stacked ? "absolute left-0" : "relative",
                 isDragging ? "opacity-30" : "",
                 isSelected ? "z-10 -translate-y-0.5" : ""

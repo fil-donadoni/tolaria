@@ -88,7 +88,13 @@ export default function SaveDeckBar({
                 placeholder="Deck name"
                 className="input-field min-w-0 flex-1 basis-40 px-3 short-viewport:py-1 short-viewport:text-xs md:max-w-md"
             />
-            <span className="text-label text-accent/70 hidden md:inline short-viewport:hidden">
+            {/* `/85`, not `/70` (issue #2593): at 10px on `--color-surface-base`
+                the 70% mix resolves to #927637, which axe measures at 4.43:1 —
+                just under the 4.5:1 WCAG 1.4.3 floor, and the single
+                `color-contrast` serious that held the deck-builder budget above
+                zero at desktop and both tablet viewports. 85% measures 6.04:1
+                and is visually indistinguishable at this size. */}
+            <span className="text-label text-accent/85 hidden md:inline short-viewport:hidden">
                 Auto-saved
             </span>
             <div className="flex items-center gap-2 ml-auto">

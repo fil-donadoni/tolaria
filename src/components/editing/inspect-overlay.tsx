@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { buildPreviewBody } from "~/lib/preview-body";
@@ -7,6 +7,7 @@ import CardPreviewFace from "~/components/cards/card-preview-face";
 import CardPreviewModeToggle, {
     type CardPreviewMode,
 } from "~/components/cards/card-preview-mode-toggle";
+import { acceptsShortcut } from "~/lib/keyboard-shortcuts";
 import EditingActionButton from "./editing-action-button";
 import type { EditingSurfaceAction } from "./editing-surface-action";
 
@@ -63,6 +64,39 @@ export default function InspectOverlay({
 }: InspectOverlayProps) {
     const viewportMode = useViewportMode();
     const [mode, setMode] = useState<CardPreviewMode>("computed");
+    const panelRef = useRef<HTMLDivElement>(null);
+
+    // ESCAPE CLOSES, AND FOCUS COMES IN WITH THE OVERLAY (issue #2593).
+    //
+    // This is `role="dialog" aria-modal="true"` and it shipped (#2583) with
+    // neither: dismissal was a scrim TAP or the Close button, so a keyboard
+    // user who opened it had no way out that did not involve finding a button
+    // they could not see — `aria-modal` tells a screen reader the rest of the
+    // page is inert, which makes "just tab back to the surface" wrong as well
+    // as unpleasant. Bound on `window` (capture-free) rather than on the panel
+    // because focus may legitimately sit on the scrim or on a portalled child.
+    //
+    // `whileDialogOpen` is the point of the option: every OTHER window
+    // shortcut in the app defers to an open dialog, and this binding IS the
+    // open dialog's.
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            if (!acceptsShortcut(event, { whileDialogOpen: true })) return;
+            event.preventDefault();
+            onClose();
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [onClose]);
+
+    // Move focus into the panel on open so the first Tab lands on the
+    // overlay's own controls rather than continuing from wherever the surface
+    // underneath left it. `-1` tab stop: the panel takes focus, it is not part
+    // of the tab ring afterwards.
+    useEffect(() => {
+        panelRef.current?.focus();
+    }, []);
     // No `CardInstance`, no `GameContext`: an editing surface holds card
     // IDENTITIES, never permanents, so the face is the printed/oracle card.
     const body = buildPreviewBody(cardId);
@@ -80,6 +114,8 @@ export default function InspectOverlay({
             onClick={onClose}
         >
             <div
+                ref={panelRef}
+                tabIndex={-1}
                 data-inspect-panel
                 className="flex w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-accent/50 bg-surface shadow-2xl"
                 // The whole contract of this component in one declaration.
@@ -104,7 +140,11 @@ export default function InspectOverlay({
                                 e.stopPropagation();
                                 onStep.previous?.();
                             }}
-                            className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted disabled:opacity-30"
+                            style={{
+                                minHeight: "var(--control-h)",
+                                minWidth: "var(--control-h)",
+                            }}
+                            className="flex shrink-0 items-center justify-center rounded-full text-text-muted disabled:opacity-30"
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </button>
@@ -130,7 +170,11 @@ export default function InspectOverlay({
                                 e.stopPropagation();
                                 onStep.next?.();
                             }}
-                            className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted disabled:opacity-30"
+                            style={{
+                                minHeight: "var(--control-h)",
+                                minWidth: "var(--control-h)",
+                            }}
+                            className="flex shrink-0 items-center justify-center rounded-full text-text-muted disabled:opacity-30"
                         >
                             <ChevronRight className="h-4 w-4" />
                         </button>
@@ -139,7 +183,11 @@ export default function InspectOverlay({
                         type="button"
                         aria-label="Close inspect overlay"
                         onClick={onClose}
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted"
+                        style={{
+                            minHeight: "var(--control-h)",
+                            minWidth: "var(--control-h)",
+                        }}
+                        className="flex shrink-0 items-center justify-center rounded-full text-text-muted"
                     >
                         <X className="h-4 w-4" />
                     </button>

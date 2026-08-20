@@ -276,7 +276,30 @@ interface AxeCount {
     serious: number;
     critical: number;
     ids: string[];
+    /** How many `[data-axe-exempt]` subtrees the run skipped (issue #2593). */
+    exempt: number;
 }
+
+/**
+ * THE ONE AXE EXEMPTION, AND IT IS AN ATTRIBUTE, NOT A NUMBER (issue #2593).
+ *
+ * The hard floor is `axeSerious`/`axeCritical` 0 on every walked surface. One
+ * surface cannot honour it as written: `/admin/design-system` is the reference
+ * page, and part of what it documents is what a FAILING token looks like — the
+ * retired `#6f6244` disabled label beside its replacement, the retired
+ * danger-as-text hex beside `danger-strong`, the board's raw counter fills
+ * whose own Specimen note reads "white text ≤3:1". Deleting those deletes the
+ * comparison; carrying a nonzero budget row instead makes the surface's floor a
+ * standing lie that a REAL regression could then hide behind.
+ *
+ * So the exemption is expressed where the violation is: `data-axe-exempt="<why>"`
+ * on the smallest element containing the specimen. It names the exact node, it
+ * is reviewable in the diff that adds it, and it cannot silently widen — the
+ * count of exempted subtrees is printed on the surface's own line of every run,
+ * and `design-system-axe-exemptions.test.ts` fails when the attribute appears
+ * outside the reference page.
+ */
+const AXE_EXEMPT_SELECTOR = "[data-axe-exempt]";
 
 const PROBE_SOURCE = fs.readFileSync(PROBE_PATH, "utf8");
 
@@ -287,18 +310,36 @@ async function runProbe(page: Page): Promise<ProbeResult> {
 
 async function runAxe(page: Page): Promise<AxeCount> {
     await page.addScriptTag({ path: AXE_PATH });
-    const violations = (await page.evaluate(
+    const result = (await page.evaluate(
         `(async () => {
-            const r = await window.axe.run(document, { resultTypes: ["violations"] });
-            return r.violations.map((v) => ({ id: v.id, impact: v.impact }));
+            const exempt = document.querySelectorAll(${JSON.stringify(AXE_EXEMPT_SELECTOR)}).length;
+            const r = await window.axe.run(
+                { exclude: [[${JSON.stringify(AXE_EXEMPT_SELECTOR)}]] },
+                { resultTypes: ["violations"] }
+            );
+            return {
+                exempt,
+                violations: r.violations.map((v) => ({
+                    id: v.id,
+                    impact: v.impact,
+                    // Kept for the operator, not for the budget: a red line
+                    // that only names a rule id sends the reader back to a
+                    // browser to find the node.
+                    node: (v.nodes[0] && v.nodes[0].html || "").slice(0, 120),
+                })),
+            };
         })()`
-    )) as { id: string; impact: string | null }[];
-    const serious = violations.filter((v) => v.impact === "serious");
-    const critical = violations.filter((v) => v.impact === "critical");
+    )) as {
+        exempt: number;
+        violations: { id: string; impact: string | null; node: string }[];
+    };
+    const serious = result.violations.filter((v) => v.impact === "serious");
+    const critical = result.violations.filter((v) => v.impact === "critical");
     return {
         serious: serious.length,
         critical: critical.length,
         ids: [...new Set([...critical, ...serious].map((v) => v.id))],
+        exempt: result.exempt,
     };
 }
 
@@ -500,7 +541,8 @@ async function main(): Promise<number> {
                     `stranded${probe.cards.stranded} reach${probe.cards.reachable} | ` +
                     `ctrls n${probe.ctrls.n} zero${probe.ctrls.zero} occ${probe.ctrls.occ} ` +
                     `stranded${probe.ctrls.stranded} | starved${probe.starvedN} | ` +
-                    `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""} | ` +
+                    `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +
+                    `${axe.exempt ? ` exempt${axe.exempt}` : ""} | ` +
                     `small${probe.smallN} tiny${probe.tinyText} hOverflow${probe.hOverflow}`;
                 log(
                     `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}`

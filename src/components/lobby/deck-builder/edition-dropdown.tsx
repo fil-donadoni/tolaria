@@ -25,7 +25,7 @@ export default function EditionDropdown({
                 onChange={(e) => onChange(e.target.value)}
                 onFocus={() => onOpen?.()}
                 aria-label="Edition"
-                className="w-full appearance-none rounded-sm border border-border-subtle/40 bg-surface-elevated/40 py-0.5 pl-2 pr-5 text-[10px] uppercase tracking-wide text-text-muted transition hover:text-parchment focus:outline-none"
+                className="w-full appearance-none rounded-sm border border-border-subtle/40 bg-surface-elevated/40 py-0.5 pl-2 pr-5 text-[10px] uppercase tracking-wide text-text-muted transition hover:text-parchment"
             >
                 {options.map((opt) => (
                     <option key={opt.printId} value={opt.printId}>
