@@ -127,6 +127,11 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
                 // overflow, at the cost of the ≤25% width AC this issue
                 // tightens the rail to satisfy.
                 compact={isPortrait || landscapeCompact}
+                // Round-3 review finding 1 — the compact box drops the name
+                // span ONLY in landscape (its rail is width-capped; portrait
+                // isn't), so the nameplate needs to know WHICH seam gave it
+                // `compact`, not just that it did.
+                landscapeCompact={landscapeCompact}
             />
         </div>
     );

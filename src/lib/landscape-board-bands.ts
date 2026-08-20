@@ -173,8 +173,17 @@ export function landscapePileTilePx(boardHeight: number): number {
  *  {@link landscapePileTilePx}'s JS consumers. `0.25rem` (was a bare
  *  `0.5rem`, round-2 review finding 4) — trimmed to help buy back the
  *  ≤25% width-budget room the pile-tile floor spends; still a real,
- *  non-zero gap between the battlefield and the piles. */
-const LANDSCAPE_PILE_EDGE_GAP_REM = 0.25;
+ *  non-zero gap between the battlefield and the piles.
+ *
+ *  Exported (round-3 review finding 3) so `right-piles-width.ts`'s
+ *  `rightPilesWidth` — a THIRD spelling of this same gap, for the portal'd
+ *  dialog centering reservation its own doc comment says "must track the
+ *  SAME rendered width `LANDSCAPE_RIGHT_RAIL_VAR` reserves" — can read this
+ *  constant instead of an untracked literal. That function sets a plain
+ *  runtime `calc()` string (inline style, never a Tailwind class), so
+ *  interpolating this constant there carries none of
+ *  {@link BESIDE_CONTROLLER_STRIP}'s JIT-scanning restriction. */
+export const LANDSCAPE_PILE_EDGE_GAP_REM = 0.25;
 /** {@link LANDSCAPE_PILE_EDGE_GAP_REM} in px, at the browser default root
  *  size (16px) — the same conversion `src/lib/__tests__/landscape-board-bands.test.ts`
  *  uses for every other rem constant in this module. */

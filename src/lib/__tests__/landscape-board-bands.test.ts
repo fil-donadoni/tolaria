@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 import {
     BESIDE_CONTROLLER_STRIP,
     CONTROLLER_STRIP_CLEARANCE_EXPR,
+    CONTROLLER_STRIP_CLEARANCE_REM,
     CONTROLLER_STRIP_FIXED_WIDTH_PX,
 } from "~/lib/controller-bar-metrics";
 import { bandedRowsLayout, BAND_V_PAD } from "~/lib/board-layout";
@@ -355,10 +356,20 @@ describe("phone-landscape width budget (issue #2589, ADR 0101 §8)", () => {
      *  scale) since round-2 review finding 4 — the tile is floored at
      *  {@link LANDSCAPE_PILE_TILE_MIN_PX} px WIDTH, and the edge gap is
      *  {@link LANDSCAPE_PILE_EDGE_GAP_PX} (was a bare `0.5rem`, trimmed to
-     *  help pay for the floor). */
+     *  help pay for the floor).
+     *
+     *  `stripClearancePx` reads {@link CONTROLLER_STRIP_CLEARANCE_REM}
+     *  (round-3 review finding 2, was a bare `0.75 * REM` — an untracked
+     *  duplicate of the SAME number `CONTROLLER_STRIP_CLEARANCE_EXPR` and
+     *  `BESIDE_CONTROLLER_STRIP` spell in `controller-bar-metrics.ts`. A
+     *  mutation of that pair to `1.5rem` left this test green — the ≤25%
+     *  budget's only evidence had a blind spot exactly where its headroom is
+     *  smallest — because it never read the shared constant.) */
     function totalHorizontalReservationPx(boardHeight: number): number {
         const gutterPx = Number.parseFloat(LANDSCAPE_SIDE_GUTTER) * REM;
-        const stripClearancePx = CONTROLLER_STRIP_FIXED_WIDTH_PX + 0.75 * REM;
+        const stripClearancePx =
+            CONTROLLER_STRIP_FIXED_WIDTH_PX +
+            CONTROLLER_STRIP_CLEARANCE_REM * REM;
         const pileTilePx = landscapePileTilePx(boardHeight);
         const rightRailPx =
             stripClearancePx + pileTilePx + LANDSCAPE_PILE_EDGE_GAP_PX;
