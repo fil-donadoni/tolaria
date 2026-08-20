@@ -68,10 +68,18 @@ describe("Panel", () => {
     // asserted against the stylesheet in `src/__tests__/design-tokens.test.ts`
     // — happy-dom cannot resolve a custom property, so the class here is all
     // this layer can prove, and the stylesheet parse is what proves the rest.
-    it("defaults to the roomy rung", () => {
+    //
+    // No explicit `density` prop (issue #2595): Panel renders NO
+    // `data-density` attribute of its own — it inherits the ambient rung
+    // from the nearest ancestor that sets one, which since #2595 is
+    // `<html data-density>` (the user's Settings preference, defaulting to
+    // "roomy" there so a page with no Settings row still renders exactly as
+    // it always did). See `applyDocumentPreferences`
+    // (`src/lib/user-preferences.ts`) for the mechanism.
+    it("renders no data-density attribute when the prop is omitted — inherits the ambient rung", () => {
         const { container } = render(<Panel>x</Panel>);
         const panel = container.querySelector('[data-slot="panel"]')!;
-        expect(panel.getAttribute("data-density")).toBe("roomy");
+        expect(panel.hasAttribute("data-density")).toBe(false);
         expect(panel.className).toContain("p-[var(--panel-pad)]");
     });
 

@@ -137,6 +137,12 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
     // rung's actual padding value is asserted against `src/index.css` in
     // `src/__tests__/design-tokens.test.ts`, which is the only layer that can
     // resolve a custom property.
+    //
+    // No explicit `density` prop (issue #2595): GameDialog forwards
+    // `undefined` to Panel by default, which then renders NO `data-density`
+    // attribute of its own and inherits the ambient rung from `<html
+    // data-density>` (the user's Settings preference) — see `Panel`'s own
+    // "renders no data-density attribute" test.
     it("forwards density to the inner Panel (opt-in, default unchanged)", () => {
         const { baseElement, rerender } = render(
             <GameDialog open title="Default density">
@@ -144,7 +150,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
             </GameDialog>
         );
         const panelDefault = baseElement.querySelector('[data-slot="panel"]')!;
-        expect(panelDefault.getAttribute("data-density")).toBe("roomy");
+        expect(panelDefault.hasAttribute("data-density")).toBe(false);
 
         rerender(
             <GameDialog open title="Comfortable density" density="comfortable">

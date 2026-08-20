@@ -4,6 +4,7 @@ import CardPreviewModeToggle, {
     type CardPreviewMode,
 } from "./card-preview-mode-toggle";
 import type { PreviewBodyContent } from "~/lib/preview-body";
+import { getPreviewPreferenceDefault } from "~/lib/preview-preference-store";
 
 // Composes the card-preview content shown by all three surfaces (desktop
 // anchored dock, hover/hold dock, mobile overlay). Normally one face; for a copy
@@ -34,7 +35,14 @@ export default function CardPreviewBody({
     showCopyBadge,
     ...content
 }: CardPreviewBodyProps) {
-    const [toggledMode, setToggledMode] = useState<CardPreviewMode>("computed");
+    // Seeded from the user's saved Settings default (issue #2595,
+    // `~/lib/preview-preference-store`), NOT a live binding — the lazy
+    // `useState` initializer reads it exactly once, at mount. A preview
+    // already open when the Settings value changes elsewhere keeps whatever
+    // the viewer toggled it to (see `SettingsPreviewSection`'s docblock).
+    const [toggledMode, setToggledMode] = useState<CardPreviewMode>(
+        getPreviewPreferenceDefault
+    );
     // Manual Game (issue #2346): every computed field is genuinely empty for
     // a manual card (ADR 0080 — no hydrated CardDefinition, no oracle text,
     // no granted abilities, no effective P/T), so the live-text face is never

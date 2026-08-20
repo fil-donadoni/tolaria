@@ -288,6 +288,25 @@ describe("design tokens v3 — CSS ↔ typed mirror", () => {
         }
     });
 
+    it('[data-motion="reduced"] (issue #2595) collapses every duration to the same non-zero tick as the OS media query', () => {
+        // The user's explicit Settings choice — same collapse as
+        // `prefers-reduced-motion: reduce` above, but forced regardless of
+        // what the OS reports.
+        const decls = declarations(
+            ruleBody(baseLayer, '[data-motion="reduced"]')
+        );
+        for (const name of [
+            "--motion-fast",
+            "--motion-base",
+            "--motion-slow",
+        ]) {
+            expect(decls[name], `${name} overridden`).toBeDefined();
+            const ms = Number(/^(\d+)ms$/.exec(decls[name]!.trim())?.[1]);
+            expect(ms).toBeGreaterThan(0);
+            expect(ms).toBeLessThanOrEqual(1);
+        }
+    });
+
     it.each(DENSITY_RUNGS.map((r) => [r.density, r] as const))(
         "the %s density rung resolves to the unit and padding the mirror claims",
         (density, rung) => {
@@ -400,5 +419,18 @@ describe("design-system census mirrors the stylesheet", () => {
         )
     )("%s matches @theme inline", (name, hex) => {
         expect(colors[name], `--color-${name} in @theme inline`).toBe(hex);
+    });
+});
+
+describe("index.html pins the roomy density default (issue #2595, PR #2620 round-2 review)", () => {
+    // The sign-in screen renders outside AuthGate's <Authenticated> branch,
+    // where UserPreferencesEffect never mounts — so nothing ever sets
+    // `[data-density]` on <html> for it. `index.html` hard-codes the roomy
+    // default itself so the unauthenticated screen keeps Panel's roomy rhythm
+    // instead of falling through to `comfortable` (no `[data-density]` match).
+    // happy-dom never loads index.html, so this is a plain text read.
+    it('<html> carries data-density="roomy"', () => {
+        const html = readFileSync(resolve(process.cwd(), "index.html"), "utf8");
+        expect(html).toMatch(/<html[^>]*\bdata-density="roomy"/);
     });
 });

@@ -32,11 +32,14 @@ type GameDialogProps = {
      *  blocking library-pick modal so the chooser can collapse it to the board
      *  indicator without dismissing the underlying Pending Choice. */
     onMinimize?: () => void;
-    /** Panel padding passthrough (issue #1817, opus review round 2). Opt-in —
-     *  defaults to `"roomy"` (`p-6` at every width, unchanged for the ~10
-     *  other `size="wide"` dialogs). The pile browser passes `"comfortable"`
-     *  so its grid gets more room on a phone without touching anyone else.
-     *  See `Panel`'s `PanelDensity` doc for the v2 → v3 rename. */
+    /** Panel padding passthrough (issue #1817, opus review round 2). Opt-in
+     *  override — omitted (the default for the ~30 other call sites) forwards
+     *  `undefined` to `Panel`, which then inherits the ambient `[data-density]`
+     *  rung from `<html>` (the user's Settings density preference, issue
+     *  #2595) instead of a hard-coded rung. The pile browser passes
+     *  `"comfortable"` so its grid gets more room on a phone regardless of
+     *  that preference. See `Panel`'s `PanelDensity` doc for the v2 → v3
+     *  rename. */
     density?: PanelDensity;
     /** Opt in to the rich corner filigree instead of the v3 brackets
      *  (ADR 0101 §2). Allowed only in waiting states — Game Over / Match
@@ -81,7 +84,7 @@ export default function GameDialog({
     dismissable = true,
     showCloseButton = false,
     onMinimize,
-    density = "roomy",
+    density,
     ornament = false,
     className,
     children,

@@ -1098,4 +1098,34 @@ export default defineSchema({
         schemaVersion: v.optional(v.number()),
         createdAt: v.number(),
     }).index("by_user", ["userId"]),
+    // Per-user Settings (issue #2595, PRD #2405 slice 16/16, ADR 0101). The
+    // v3 tokens (density/motion) and the phase-stop store were device-local
+    // (`localStorage` / CSS attribute default) until this table; unlike the
+    // deck-view prefs the `userDecks` comment above deliberately keeps
+    // client-side (grouping/ordering/zoom — genuinely per-DEVICE, follow
+    // nothing), these are per-USER preferences meant to follow the account
+    // across devices, so they get a real table rather than another
+    // `localStorage` key. One row per user (`by_user` unique in practice —
+    // `getUserSettings`/`updateUserSettings` upsert against it, never insert
+    // a second row). Every field optional: an absent field means "no
+    // preference set yet", and the client applies the same default it always
+    // hard-coded (`roomy` / `system` / `computed`) — no migration, no crash,
+    // no flash of the wrong density on a user who predates this table.
+    userSettings: defineTable({
+        userId: v.id("users"),
+        density: v.optional(
+            v.union(
+                v.literal("compact"),
+                v.literal("comfortable"),
+                v.literal("roomy")
+            )
+        ),
+        motion: v.optional(v.union(v.literal("system"), v.literal("reduced"))),
+        // Oracle/Printed default for `CardPreviewBody` (issue #2595). Manual
+        // Game forces `"printed"` and hides the toggle regardless of this
+        // value — unrelated to the user's general preference.
+        previewPreference: v.optional(
+            v.union(v.literal("computed"), v.literal("printed"))
+        ),
+    }).index("by_user", ["userId"]),
 });
