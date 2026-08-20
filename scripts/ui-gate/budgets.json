@@ -393,8 +393,65 @@
         },
         "limited-antechamber": {
             "label": "Limited event antechamber (/limited/<id>)",
-            "status": "unwalked",
-            "reason": "new surface added by issue #2590 (compact avatar row + Table Ring dialog wiring, replacing the seat-tile grid). The only Limited event on this shared dev deployment is in the DRAFTING phase, so the seated dev account redirects straight into the Draft Room (useDraftRoomRedirect) and never lands on the antechamber \u2014 the same blocker limited-build records below. Recording this row needs a SEALED event (which never drafts, so it lands on the antechamber immediately) or a Draft event past draftCompletedAt. ROUND 2 (fixup pass, 2026-08-20): retried across the review\u2019s ~10-minute backoff window plus additional retries \u2014 the chrome-devtools-mcp browser profile (/Users/filippo/.cache/chrome-devtools-mcp/chrome-profile) stayed held by a concurrent session (issue #2588) for the entire pass, so this row could not be closed this round either. Re-record once idle: create a Sealed event from /limited (+ Create Event), flip this row off unwalked first (recordBudgets skips unwalked rows), then bun run check:ui -- --record --surface=limited-antechamber."
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "starved 1 at phone LANDSCAPE only, and it is the shared `<main>`-as-page-scroller shape (issue #2582's finding, docs/findings/2582-ui-gate-main-scroller-starved.md), not a defect this issue introduced. `LimitedEventDetail` sits inside the same `LimitedEventPageFrame` / `<main>` shell as `limited-list`, whose 844x390x3 row carries the identical note; verified directly (clientHeight 314 vs scrollHeight 546, same 314px window) rather than assumed. Clearing it needs a 546px window out of 390px of viewport, which is the app shell's job, not this surface's."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                }
+            }
         },
         "game-board": {
             "label": "Game board (/game)",
