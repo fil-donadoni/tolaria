@@ -9,12 +9,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import type { Player } from "~/types/game";
+import type { ViewportMode } from "~/hooks/useViewportMode";
 import { GameContext } from "~/hooks/useGameContext";
 import { PORTRAIT_VIEWER_NAMEPLATE_BOTTOM } from "~/lib/portrait-board-bands";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
+import { PlayerInteractionProvider } from "~/hooks/usePlayerInteractionContext";
 
 // Capture the selectTarget mutation so we can compare classic vs spatial args.
 const selectTargetSpy = vi.fn();
@@ -27,6 +29,14 @@ vi.mock("convex/react", () => ({
 let portrait = false;
 vi.mock("~/hooks/useIsPortrait", () => ({
     useIsPortrait: () => portrait,
+}));
+
+// Same seam `board-landscape-bands.test.tsx` drives, needed here (round-3
+// review finding 1) to exercise `BoardPlayer`'s `landscapeCompact` branch —
+// `useIsPortrait` alone can't select landscape-compact.
+const viewportHolder = vi.hoisted(() => ({ mode: "desktop" as ViewportMode }));
+vi.mock("~/hooks/useViewportMode", () => ({
+    useViewportMode: () => viewportHolder.mode,
 }));
 
 import PlayerLife from "../player-life";
@@ -113,6 +123,7 @@ function renderSpatial(
 beforeEach(() => {
     selectTargetSpy.mockClear();
     portrait = false;
+    viewportHolder.mode = "desktop";
     cleanup();
 });
 
@@ -214,6 +225,31 @@ describe("compact nameplate variant follows the portrait seam (#1814 round-3 fix
         expect(lifeNode.className).toContain("text-lg");
     });
 
+    it("compact box trims horizontal padding and clips overflow (issue #2589 round-2 fixup finding 7)", () => {
+        // Landscape-compact's seat rail (`LANDSCAPE_SIDE_GUTTER`, 4rem) gives
+        // this box a ~48px max-width; the old `px-3` (24px) + border (2px)
+        // left only ~22px for life + name + poison/energy, so the badges had
+        // nowhere to go but past the box's own edge — into the battlefield
+        // band, contradicting the rail's own "chrome can never overlap a
+        // card" invariant. `px-1.5` buys back width at zero budget cost (it
+        // only changes how the SAME gutter is spent); `overflow-hidden` is
+        // what makes the invariant true BY CONSTRUCTION even for content the
+        // narrowed padding still can't fit (e.g. both poison AND energy
+        // counters live at once).
+        portrait = true;
+        const { container } = renderSpatial(
+            makePlayer("p2", { life: 20 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const plate = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-player="p2"]'
+        )!;
+        expect(plate.className).toContain("overflow-hidden");
+        expect(plate.className).toContain("px-1.5");
+        expect(plate.className).not.toContain("px-3");
+    });
+
     it("landscape/desktop renders the full box (py-2, text-3xl life total)", () => {
         portrait = false;
         const { container } = renderSpatial(
@@ -228,6 +264,139 @@ describe("compact nameplate variant follows the portrait seam (#1814 round-3 fix
         expect(plate.className).not.toContain("py-0.5");
         const lifeNode = plate.querySelector(".font-bold.tabular-nums")!;
         expect(lifeNode.className).toContain("text-3xl");
+    });
+});
+
+describe("landscape-compact nameplate never clips the life total (round-3 review finding 1)", () => {
+    // Round-2's `overflow-hidden` fix for finding 7 made "chrome can never
+    // overlap a card" true by construction — but the compact row it clips
+    // used `justify-center`, which overflows UNSAFELY at BOTH ends. At the
+    // landscape-compact seat rail's ~34px content box, a poison OR energy
+    // badge alone pushes the row past that width, and centering clipped the
+    // LEADING edge — the life total, always the row's first child (a life
+    // of 20 rendered as `0`). The fix: `justify-start` (life is then never
+    // the clipped end) + dropping the name span in landscape-compact, where
+    // it already renders unreadable (~8px after `truncate`) the moment a
+    // badge is live. Portrait's box is unconstrained, so it keeps the name.
+    function findCompactRow(container: HTMLElement) {
+        return container.querySelector<HTMLElement>(
+            ".flex.flex-nowrap.items-center"
+        )!;
+    }
+
+    it("landscape-compact: the row is justify-start, never justify-center", () => {
+        viewportHolder.mode = "landscape-compact";
+        portrait = false;
+        const { container } = renderSpatial(
+            makePlayer("p2", { life: 20, poisonCounters: 3 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const row = findCompactRow(container);
+        expect(row.className).toContain("justify-start");
+        expect(row.className).not.toContain("justify-center");
+    });
+
+    it("landscape-compact: drops the name span entirely — no room for it once a badge is live", () => {
+        viewportHolder.mode = "landscape-compact";
+        portrait = false;
+        const { container, queryByText } = renderSpatial(
+            makePlayer("p2", { name: "Urza", life: 20, poisonCounters: 3 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        expect(queryByText("Urza")).toBeNull();
+        // The life total and the poison badge still render — only the name
+        // is cut, not the whole row.
+        const plate = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-player="p2"]'
+        )!;
+        expect(plate.querySelector(".font-bold.tabular-nums")).not.toBeNull();
+        expect(plate.textContent).toContain("3");
+    });
+
+    it("landscape-compact: the life total is the row's FIRST child (never clipped by justify-start + overflow-hidden)", () => {
+        viewportHolder.mode = "landscape-compact";
+        portrait = false;
+        const { container } = renderSpatial(
+            makePlayer("p2", {
+                life: 20,
+                poisonCounters: 3,
+                energyCounters: 2,
+            }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const row = findCompactRow(container);
+        const firstChild = row.firstElementChild!;
+        expect(
+            firstChild.querySelector(".font-bold.tabular-nums")
+        ).not.toBeNull();
+    });
+
+    it("portrait-compact: keeps the name span (its box is unconstrained — dropping it would cost nothing back)", () => {
+        viewportHolder.mode = "desktop";
+        portrait = true;
+        const { queryByText } = renderSpatial(
+            makePlayer("p2", { name: "Urza", life: 20, poisonCounters: 3 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        expect(queryByText("Urza")).not.toBeNull();
+    });
+
+    it("Manual Board (lifeStepButton −/+ affordances live too): the life total STILL renders as the row's first child, not pushed out by the steppers", () => {
+        // Manual Board injects `onLifeStep` via `PlayerInteractionProvider`
+        // (PRD #2162 / issue #2169) — the shape the review flagged as
+        // "worse" than the plain badge case, since `lifeRow` then wraps the
+        // life total between two extra buttons. `justify-start` protects
+        // the row's first CHILD (the whole lifeRow span), which is what
+        // keeps it flush against the box's left edge instead of centered
+        // and clipped from both sides.
+        viewportHolder.mode = "landscape-compact";
+        portrait = false;
+        // Not a React hook — mirrors `makeManualPlayerInteraction`
+        // (`~/lib/manual-player-interaction.ts`), the real Manual Board
+        // interaction value, which also calls no hooks.
+        const injectedHook =
+            (): import("~/hooks/usePlayerInteraction").PlayerInteraction => ({
+                isMe: true,
+                hasPriority: false,
+                isTargetable: false,
+                isDamageTargetPickable: false,
+                isPlayerPicked: false,
+                isDivideTarget: false,
+                divideAssigned: 0,
+                divideCanPlus: false,
+                incDivide: () => {},
+                decDivide: () => {},
+                handleClick: () => {},
+                onLifeStep: vi.fn(),
+            });
+        const { container } = render(
+            <GameContext value={makeContext({ playerId: "p2" })}>
+                <PendingChoiceBufferContext value={makeBuffer()}>
+                    <PlayerInteractionProvider value={injectedHook}>
+                        <BoardPlayer
+                            player={makePlayer("p2", {
+                                life: 20,
+                                poisonCounters: 3,
+                            })}
+                            side="bottom"
+                        />
+                    </PlayerInteractionProvider>
+                </PendingChoiceBufferContext>
+            </GameContext>
+        );
+        const row = findCompactRow(container);
+        expect(row.className).toContain("justify-start");
+        const firstChild = row.firstElementChild!;
+        expect(
+            firstChild.querySelector(".font-bold.tabular-nums")
+        ).not.toBeNull();
+        expect(
+            firstChild.querySelector('[data-life-step="p2:-"]')
+        ).not.toBeNull();
     });
 });
 

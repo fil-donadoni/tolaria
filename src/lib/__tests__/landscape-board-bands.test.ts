@@ -13,6 +13,8 @@ import { describe, it, expect } from "vitest";
 import {
     BESIDE_CONTROLLER_STRIP,
     CONTROLLER_STRIP_CLEARANCE_EXPR,
+    CONTROLLER_STRIP_CLEARANCE_REM,
+    CONTROLLER_STRIP_FIXED_WIDTH_PX,
 } from "~/lib/controller-bar-metrics";
 import { bandedRowsLayout, BAND_V_PAD } from "~/lib/board-layout";
 import {
@@ -29,7 +31,9 @@ import {
     LANDSCAPE_OPPONENT_PILES_ANCHOR,
     LANDSCAPE_OPP_HAND_BAND_VAR,
     LANDSCAPE_OPP_HAND_FRAC,
+    LANDSCAPE_PILE_EDGE_GAP_PX,
     LANDSCAPE_PILE_SCALE,
+    LANDSCAPE_PILE_TILE_MIN_PX,
     LANDSCAPE_PILE_TILE_VAR,
     LANDSCAPE_RIGHT_RAIL_VAR,
     LANDSCAPE_SIDE_GUTTER,
@@ -40,6 +44,7 @@ import {
     landscapeBandVars,
     landscapeCardMetrics,
     landscapeCombatLiftDirection,
+    landscapePileTilePx,
     landscapePileVars,
     makeLandscapeHandLayout,
 } from "~/lib/landscape-board-bands";
@@ -197,10 +202,11 @@ describe("pile columns are capped at the midline (#1768)", () => {
     const PILE_GAP = 4;
     const REM = 16;
 
-    /** One pile tile's rendered height: `--card-w-sm` (the compact tile width)
-     *  at the shared 5:7 box. */
+    /** One pile tile's rendered height: `--card-w-sm` (the compact tile width,
+     *  {@link landscapePileTilePx} — floored, round-2 review finding 4, NOT
+     *  the raw `LANDSCAPE_PILE_SCALE` fraction) at the shared 5:7 box. */
     const tileHeight = (boardH: number) =>
-        (landscapeCardMetrics(boardH).cardWidth * LANDSCAPE_PILE_SCALE * 7) / 5;
+        (landscapePileTilePx(boardH) * 7) / 5;
     /** An UNCAPPED column of `n` tiles, in px. */
     const columnHeight = (n: number, boardH: number) =>
         n * tileHeight(boardH) + (n - 1) * PILE_GAP;
@@ -239,11 +245,22 @@ describe("pile columns are capped at the midline (#1768)", () => {
         }
     });
 
-    it("is the FOURTH tile that needed the cap", () => {
+    it("is back to the FOURTH tile that needs the cap (round-2 review finding 4 restored it)", () => {
         // The regression's arithmetic: graveyard + library + exile fit inside a
         // seat's half, but a 4th conditional tile (companion / emblems /
-        // monarch / city's blessing) crosses the midline — that overlap is what
-        // the cap + scroll replaces.
+        // monarch / city's blessing) used to cross the midline — that overlap
+        // is what the cap + scroll replaces.
+        //
+        // History: issue #2589 shrank `LANDSCAPE_PILE_SCALE` (0.7 → 0.5) as
+        // part of the ≤25% width budget, which pushed the crossing point out
+        // by one (4th → 5th) as an EXPECTED consequence of the density pass.
+        // Round-2 review finding 4 then floored the tile at
+        // `LANDSCAPE_PILE_TILE_MIN_PX` (32px wide) to fix a touch-target
+        // regression — restoring the tile to near its pre-#2589 size also
+        // restores the pre-#2589 crossing point. Either way the MECHANISM
+        // under test (a column overflows its own half and must scroll, never
+        // invade the other seat) holds, verified independent of tile count
+        // by the sibling tests in this block.
         const cap = capPx(LANDSCAPE_MIDLINE_FRAC, PHONE_H);
         expect(columnHeight(3, PHONE_H)).toBeLessThan(cap);
         expect(columnHeight(4, PHONE_H)).toBeGreaterThan(cap);
@@ -313,5 +330,91 @@ describe("landscape-compact attacker/blocker lift (#1770)", () => {
         expect(landscapeCombatLiftDirection("-translate-y-8")).toBe(-1);
         expect(landscapeCombatLiftDirection("translate-y-8")).toBe(1);
         expect(landscapeCombatLiftDirection("")).toBe(0);
+    });
+});
+
+// Issue #2589 (ADR 0101 §8) — "the controller column + nameplates (~35% of
+// the width today) compact so battlefield cards stay ≥44px wide with a full
+// board". happy-dom has no layout, so the AC's ≤25% claim is verified as
+// arithmetic against the SAME constants the board's own CSS reads — the same
+// pattern `board-portrait-bands.test.ts` uses for the portrait bar clearance.
+// The contract through real rendered classes (that the bands actually USE
+// these constants) lives in `board-landscape-bands.test.tsx`; this file only
+// asserts the numbers.
+describe("phone-landscape width budget (issue #2589, ADR 0101 §8)", () => {
+    /** The ticket's representative compact viewport WIDTH — pairs with
+     *  `PHONE_H` for the 844x390 landscape emulation the AC measures at. */
+    const BOARD_W = 844;
+    const REM = 16;
+
+    /** Total horizontal reservation: the left seat-chrome rail plus the right
+     *  rail (strip clearance + one pile tile + its own edge gap) — the SAME
+     *  two quantities `--landscape-side-gutter` and `--landscape-right-rail`
+     *  publish to the board root, computed here from the same source
+     *  constants rather than re-measured (no layout engine to measure with).
+     *  `pileTilePx` goes through {@link landscapePileTilePx} (not the raw
+     *  scale) since round-2 review finding 4 — the tile is floored at
+     *  {@link LANDSCAPE_PILE_TILE_MIN_PX} px WIDTH, and the edge gap is
+     *  {@link LANDSCAPE_PILE_EDGE_GAP_PX} (was a bare `0.5rem`, trimmed to
+     *  help pay for the floor).
+     *
+     *  `stripClearancePx` reads {@link CONTROLLER_STRIP_CLEARANCE_REM}
+     *  (round-3 review finding 2, was a bare `0.75 * REM` — an untracked
+     *  duplicate of the SAME number `CONTROLLER_STRIP_CLEARANCE_EXPR` and
+     *  `BESIDE_CONTROLLER_STRIP` spell in `controller-bar-metrics.ts`. A
+     *  mutation of that pair to `1.5rem` left this test green — the ≤25%
+     *  budget's only evidence had a blind spot exactly where its headroom is
+     *  smallest — because it never read the shared constant.) */
+    function totalHorizontalReservationPx(boardHeight: number): number {
+        const gutterPx = Number.parseFloat(LANDSCAPE_SIDE_GUTTER) * REM;
+        const stripClearancePx =
+            CONTROLLER_STRIP_FIXED_WIDTH_PX +
+            CONTROLLER_STRIP_CLEARANCE_REM * REM;
+        const pileTilePx = landscapePileTilePx(boardHeight);
+        const rightRailPx =
+            stripClearancePx + pileTilePx + LANDSCAPE_PILE_EDGE_GAP_PX;
+        return gutterPx + rightRailPx;
+    }
+
+    it("keeps nameplates + the control strip at or under 25% of the board width", () => {
+        const fraction = totalHorizontalReservationPx(PHONE_H) / BOARD_W;
+        expect(fraction).toBeLessThanOrEqual(0.25);
+    });
+
+    it("floors the pile tile at LANDSCAPE_PILE_TILE_MIN_PX (round-2 review finding 4 — was 23px wide / 32.2px tall at PHONE_H, a HEIGHT regression from the pre-#2589 32.2 × 45.1)", () => {
+        const raw =
+            landscapeCardMetrics(PHONE_H).cardWidth * LANDSCAPE_PILE_SCALE;
+        // The raw fraction alone would still be under the floor at this
+        // viewport — otherwise this test would pass even with the floor
+        // deleted (a vacuous guard).
+        expect(raw).toBeLessThan(LANDSCAPE_PILE_TILE_MIN_PX);
+
+        const tileWidthPx = landscapePileTilePx(PHONE_H);
+        expect(tileWidthPx).toBe(LANDSCAPE_PILE_TILE_MIN_PX);
+        const tileHeightPx = (tileWidthPx * 7) / 5;
+        expect(tileHeightPx).toBeGreaterThanOrEqual(44);
+
+        // The CSS `max(…)` expression and this JS twin must agree — they're
+        // two separate spellings of the same formula (one for a CSS var
+        // consumer, one for a plain-number consumer that isn't a descendant
+        // of the var's scope; see `landscapePileTilePx`'s doc comment).
+        expect(vars(PHONE_H)[LANDSCAPE_PILE_TILE_VAR]).toBe(
+            `max(${LANDSCAPE_PILE_TILE_MIN_PX}px, calc(var(${LANDSCAPE_CARD_W_VAR}) * ${LANDSCAPE_PILE_SCALE}))`
+        );
+    });
+
+    it("is a REAL reduction from the pre-#2589 baseline (8rem gutter, w-40 strip, 0.7 pile scale) — not a coincidentally-passing default", () => {
+        const REM_LOCAL = 16;
+        const oldGutterPx = 8 * REM_LOCAL;
+        const oldStripClearancePx = 160 + 0.75 * REM_LOCAL;
+        const oldPileTilePx = landscapeCardMetrics(PHONE_H).cardWidth * 0.7;
+        const oldRightRailPx =
+            oldStripClearancePx + oldPileTilePx + 0.5 * REM_LOCAL;
+        const oldTotalPx = oldGutterPx + oldRightRailPx;
+
+        // The baseline this issue fixes was measurably over budget...
+        expect(oldTotalPx / BOARD_W).toBeGreaterThan(0.25);
+        // ...and the new constants are a genuine cut, not a rounding accident.
+        expect(totalHorizontalReservationPx(PHONE_H)).toBeLessThan(oldTotalPx);
     });
 });

@@ -118,7 +118,20 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
             <PlayerNameplate
                 player={player}
                 interaction={interaction}
-                compact={isPortrait}
+                // Issue #2589 — landscape-compact now gets the SAME one-row
+                // compact nameplate portrait uses (previously only
+                // `isPortrait`): the seat chrome lives in the narrowed
+                // `LANDSCAPE_SIDE_GUTTER` left rail, and the full ~91px
+                // multi-row box never fit that budget — it only "worked"
+                // because the rail used to be wide enough to hide the
+                // overflow, at the cost of the ≤25% width AC this issue
+                // tightens the rail to satisfy.
+                compact={isPortrait || landscapeCompact}
+                // Round-3 review finding 1 — the compact box drops the name
+                // span ONLY in landscape (its rail is width-capped; portrait
+                // isn't), so the nameplate needs to know WHICH seam gave it
+                // `compact`, not just that it did.
+                landscapeCompact={landscapeCompact}
             />
         </div>
     );

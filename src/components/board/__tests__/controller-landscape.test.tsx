@@ -19,13 +19,21 @@
 //      fixed size regardless of priority.
 //   7. The strip publishes its measured WIDTH, and the phase panel anchors to
 //      that variable rather than a hard-coded inset.
+//   8. Issue #2589 — a second toggle in the strip opens the SAME `GameStack`
+//      in its `landscape` variant, and the strip's own fixed width matches
+//      the constant the phone-landscape width-budget arithmetic assumes.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import { GameContext } from "~/hooks/useGameContext";
 import {
     BESIDE_CONTROLLER_STRIP,
+    CONTROLLER_STRIP_FIXED_WIDTH_PX,
     CONTROLLER_STRIP_WIDTH_VAR,
 } from "~/lib/controller-bar-metrics";
+import {
+    LANDSCAPE_PILE_EDGE_GAP_PX,
+    landscapePileTilePx,
+} from "~/lib/landscape-board-bands";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
@@ -35,7 +43,7 @@ import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
 import { DEFAULT_SKIP_PREFS, type Side } from "~/lib/skip-phase-prefs";
 import type { ViewportMode } from "~/hooks/useViewportMode";
 import type { Phase } from "@convex/gre/types";
-import type { CardInstance, Player } from "~/types/game";
+import type { CardInstance, Player, StackItem } from "~/types/game";
 
 const calls: { ref: unknown; args: unknown }[] = [];
 
@@ -113,6 +121,30 @@ vi.mock("../../cards/selectable-card", () => ({
         <div data-testid="selectable-card" data-card-id={cardInstance.id} />
     ),
 }));
+// The stack panel pulls in draggable / arrow-highlight wiring irrelevant to
+// the toggle contract under test here — stub it to a marker exposing the
+// props it was handed, same pattern `board-portrait-chips.test.tsx` uses.
+vi.mock("../game-stack", () => ({
+    default: ({
+        stack,
+        elevated,
+        landscape,
+        landscapePileClearancePx,
+    }: {
+        stack: StackItem[];
+        elevated?: boolean;
+        landscape?: boolean;
+        landscapePileClearancePx?: number;
+    }) => (
+        <div
+            data-testid="stack-view"
+            data-count={stack.length}
+            data-elevated={elevated ?? false}
+            data-landscape={landscape ?? false}
+            data-pile-clearance-px={landscapePileClearancePx ?? ""}
+        />
+    ),
+}));
 // The real stop dot uses a Base UI Tooltip (flaky in jsdom); stand it in with a
 // plain button that surfaces the aria-label + click — same contract.
 vi.mock("../phase-stop-dot", () => ({
@@ -171,7 +203,13 @@ const noopBuffer: PendingChoiceBuffer = {
 
 type CtxOverrides = Partial<React.ContextType<typeof GameContext>>;
 
-function renderController(
+/** The JSX `renderController` mounts, factored out so a test that needs to
+ *  `rerender` with a NEW `ctx` (the reopen-on-new-push / auto-collapse
+ *  transitions, round-2 fixup) can build the identical tree a second time
+ *  instead of hand-rolling a divergent copy — same pattern
+ *  `board-portrait-chips.test.tsx`'s `chipsElement` uses for the SAME #1816
+ *  contract on the portrait chip. */
+function controllerElement(
     ctx: CtxOverrides = {},
     toggle: (phase: Phase, side: Side) => void = () => {}
 ) {
@@ -190,7 +228,7 @@ function renderController(
         debugAllActions: false,
         ...ctx,
     } as React.ContextType<typeof GameContext>;
-    return render(
+    return (
         <GameContext value={value}>
             <SkipPhasePrefsContext
                 value={{ prefs: DEFAULT_SKIP_PREFS, toggle, reset: () => {} }}
@@ -203,6 +241,13 @@ function renderController(
             </SkipPhasePrefsContext>
         </GameContext>
     );
+}
+
+function renderController(
+    ctx: CtxOverrides = {},
+    toggle: (phase: Phase, side: Side) => void = () => {}
+) {
+    return render(controllerElement(ctx, toggle));
 }
 
 const SURFACES = {
@@ -470,5 +515,162 @@ describe("Strip width seam — the panel anchors to what the strip measures", ()
                 CONTROLLER_STRIP_WIDTH_VAR
             )
         ).toBe("");
+    });
+});
+
+describe("Landscape stack panel (issue #2589, ADR 0101 §8)", () => {
+    const stack = [
+        { id: "s1", card: { id: "def-s1" } },
+    ] as unknown as StackItem[];
+
+    it("mounts no toggle and no panel while the stack is empty", () => {
+        renderController();
+        expect(screen.queryByTestId("chip-stack")).toBeNull();
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("shows the toggle and opens the panel OPEN BY DEFAULT the instant the stack is non-empty, same #1816 contract as portrait", () => {
+        renderController({ stackItems: stack });
+
+        const chip = screen.getByTestId("chip-stack");
+        expect(chip.textContent).toContain("1");
+        const view = screen.getByTestId("stack-view");
+        expect(view.getAttribute("data-count")).toBe("1");
+        // The strip's landscape mount passes `landscape` (never `narrow`) and
+        // `elevated`, the SAME tier rule as the portrait mount.
+        expect(view.getAttribute("data-landscape")).toBe("true");
+        expect(view.getAttribute("data-elevated")).toBe("true");
+
+        fireEvent.click(chip);
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("passes a pile clearance offset to GameStack, so the panel doesn't paint over the pile column (round-2 review finding 6)", () => {
+        const originalHeight = window.innerHeight;
+        window.innerHeight = 390;
+        try {
+            renderController({ stackItems: stack });
+            const view = screen.getByTestId("stack-view");
+            const expected =
+                landscapePileTilePx(390) + LANDSCAPE_PILE_EDGE_GAP_PX;
+            // Sanity: the expected offset is a real, positive number — a
+            // test asserting against `NaN` or `0` would pass vacuously.
+            expect(expected).toBeGreaterThan(0);
+            expect(view.getAttribute("data-pile-clearance-px")).toBe(
+                String(expected)
+            );
+        } finally {
+            window.innerHeight = originalHeight;
+        }
+    });
+
+    it("auto-collapses while the viewer's own pendingTarget lands on a battlefield permanent, mirroring the portrait predicate", () => {
+        renderController({
+            stackItems: stack,
+            pendingTarget: {
+                playerId: "me",
+                cardInstanceId: "s1",
+                targetType: "Creature",
+                count: 1,
+                selected: [],
+            } as never,
+        });
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+        // The chip itself stays mounted (hit-testable) — it never blocks the
+        // board, only the panel collapses.
+        expect(screen.getByTestId("chip-stack")).toBeTruthy();
+    });
+
+    it("reopens when a NEW item pushes onto a collapsed stack (round-2 fixup finding 3 — the #1816 contract this strip duplicates was untested here)", () => {
+        // The behaviour `hasNewStackPush` exists for: an opponent's
+        // counterspell answering a spell the player already collapsed the
+        // panel on MUST reopen it, or the player could pass priority without
+        // ever seeing the counter. Deleting
+        // `if (hasNewStackPush) setStackUserClosed(false);` from the strip
+        // left this file green (24/24) pre-fixup — nothing exercised it.
+        const mySpell = [
+            { id: "my-spell", card: { id: "def-my-spell" } },
+        ] as unknown as StackItem[];
+        const { rerender } = renderController({ stackItems: mySpell });
+
+        fireEvent.click(screen.getByTestId("chip-stack"));
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        const withCounterspell = [
+            { id: "counterspell", card: { id: "def-counterspell" } },
+            { id: "my-spell", card: { id: "def-my-spell" } },
+        ] as unknown as StackItem[];
+        rerender(controllerElement({ stackItems: withCounterspell }));
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("2");
+    });
+
+    it("a tap during board-tap auto-collapse is a no-op — it must not silently flip stackUserClosed (round-2 fixup finding 3)", () => {
+        // The guard under test: `onClick={() => { if
+        // (stackAutoCollapsedForBoardTap) return; setStackUserClosed(...) }}`.
+        // Without it, a tap on the chip WHILE auto-collapsed still flips
+        // `stackUserClosed` even though nothing visibly changes (the panel
+        // was already closed either way) — corrupting the preference so that
+        // once the auto-collapse condition clears, the panel wrongly stays
+        // closed instead of reverting to "open" (its actual, untouched
+        // preference).
+        const boardTapTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: "Creature",
+            count: 1,
+            selected: [],
+        } as never;
+        const { rerender } = renderController({
+            stackItems: stack,
+            pendingTarget: boardTapTarget,
+        });
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // Tap while auto-collapsed — should be swallowed.
+        fireEvent.click(screen.getByTestId("chip-stack"));
+
+        // The auto-collapse condition clears; if the tap above had wrongly
+        // flipped `stackUserClosed` to true, the panel would stay closed
+        // here instead of reverting to its untouched "open" default.
+        rerender(controllerElement({ stackItems: stack }));
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it("the strip's RENDERED className carries the width utility CONTROLLER_STRIP_FIXED_WIDTH_PX derives (drift guard, round-2 fixup)", () => {
+        // Round-1's guard read the FILE's source text for the substring
+        // "w-24" — which is also satisfied by the doc COMMENT a few lines
+        // above the className (`` `w-24` (issue #2589 …) ``), not by the
+        // class itself. Proven by mutation: changing the class from `w-24`
+        // to `w-32` while leaving `CONTROLLER_STRIP_FIXED_WIDTH_PX` at 96
+        // left the doc comment (still literally "w-24") and the old guard
+        // both green — the real rendered budget silently grew to 235/844 =
+        // 27.8%, over the AC's 25%, while the arithmetic test still read 24%
+        // off the untouched constant.
+        //
+        // Fix: render the real component and read the width utility off the
+        // ACTUAL DOM className (immune to prose anywhere in the file), then
+        // derive the expected utility from the constant instead of a second
+        // hardcoded literal — Tailwind's spacing step is 0.25rem (4px), so
+        // `w-<n>` == `n * 4`px.
+        const expectedWidthClass = `w-${CONTROLLER_STRIP_FIXED_WIDTH_PX / 4}`;
+        expect(expectedWidthClass).toBe("w-24"); // 96px / 4 == 24.
+
+        const { container } = renderController();
+        const strip = container.querySelector(
+            "[data-controller-landscape-strip]"
+        );
+        expect(strip).toBeTruthy();
+        const classes = strip!.className.split(/\s+/);
+        expect(classes).toContain(expectedWidthClass);
+        // No OTHER width utility on the same element — a regression that
+        // left both `w-24` and a second `w-*` class (e.g. a drive-by
+        // `w-32` alongside it) would still pass a bare `toContain` check.
+        const widthUtilities = classes.filter((c) => /^w-\d+$/.test(c));
+        expect(widthUtilities).toEqual([expectedWidthClass]);
     });
 });

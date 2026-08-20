@@ -411,7 +411,19 @@ export default function CardPreview({
                         }}
                     >
                         <div
-                            className="flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden max-h-[90vh] max-w-[90vw]"
+                            // `max-h-[100dvh]`, not `-[90vh]` (round-2 review
+                            // finding 5, #2589): `vh` is the LARGE viewport
+                            // unit — on a phone with retracting browser
+                            // chrome, `90vh` can EXCEED `100dvh` (e.g. lvh
+                            // 844 / dvh 740 gives `0.9*844=759.6px >
+                            // 740px`). ADR 0101 §5 mandates
+                            // `max-height: 100dvh` always; `100dvh` alone
+                            // (no `90%` shrink) is the correct translation —
+                            // the surrounding `fixed inset-0` wrapper is
+                            // already the 100dvh viewport, so this box need
+                            // only cap itself at that same height, not a
+                            // fraction smaller than it.
+                            className="flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden max-h-[100dvh] max-w-[90vw]"
                             style={{ width: OVERLAY_WIDTH * overlayFactor }}
                             onTouchEnd={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}

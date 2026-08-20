@@ -10,8 +10,8 @@ import { render, cleanup } from "@testing-library/react";
 import type { Player } from "~/types/game";
 import type { ViewportMode } from "~/hooks/useViewportMode";
 import {
-    LANDSCAPE_PILE_SCALE,
-    landscapeCardMetrics,
+    landscapePileTilePx,
+    LANDSCAPE_PILE_EDGE_GAP_REM,
 } from "~/lib/landscape-board-bands";
 import { CONTROLLER_STRIP_CLEARANCE_EXPR } from "~/lib/controller-bar-metrics";
 
@@ -167,22 +167,35 @@ describe("landscape-compact reserves the SAME width as the board's own right rai
         setState();
         render(boardEl());
         const published = document.documentElement.style.getPropertyValue(VAR);
-        const pileWidth =
-            landscapeCardMetrics(390).cardWidth * LANDSCAPE_PILE_SCALE;
+        // `landscapePileTilePx` (round-2 review finding 4), not the raw
+        // scale fraction — this reservation must track the SAME floored
+        // width `LANDSCAPE_RIGHT_RAIL_VAR` reserves. The edge-gap term reads
+        // `LANDSCAPE_PILE_EDGE_GAP_REM` (round-3 review finding 3, was a
+        // stale hardcoded `0.5rem` here after round 2 trimmed the rail's own
+        // gap to `0.25rem` and exported it) — pinning to the SAME constant
+        // `rightPilesWidth` now reads is what catches a future drift between
+        // the two spellings again.
+        const pileWidth = landscapePileTilePx(390);
         expect(published).toBe(
-            `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + ${pileWidth}px + 0.5rem)`
+            `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + ${pileWidth}px + ${LANDSCAPE_PILE_EDGE_GAP_REM}rem)`
         );
         // The regression: a strip-only reservation with no tile term.
         expect(published).not.toBe(`calc${CONTROLLER_STRIP_CLEARANCE_EXPR}`);
     });
 
     it("re-derives the pile width on a different board height", () => {
-        window.innerHeight = 320;
+        // 600, not 320 — round-2 review finding 4's floor makes 320 and 390
+        // coincide at the SAME floored 32px, which would make this
+        // assertion pass even if re-derivation were broken (a vacuous
+        // check). 600 is tall enough that the raw fraction clears the
+        // floor, so the published value genuinely differs from the 390
+        // case above.
+        window.innerHeight = 600;
         setState();
         render(boardEl());
         const published = document.documentElement.style.getPropertyValue(VAR);
-        const pileWidth =
-            landscapeCardMetrics(320).cardWidth * LANDSCAPE_PILE_SCALE;
+        const pileWidth = landscapePileTilePx(600);
+        expect(pileWidth).toBeGreaterThan(landscapePileTilePx(390));
         expect(published).toContain(`${pileWidth}px`);
     });
 });

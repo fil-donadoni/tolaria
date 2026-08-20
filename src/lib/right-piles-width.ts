@@ -1,6 +1,6 @@
 import {
-    LANDSCAPE_PILE_SCALE,
-    landscapeCardMetrics,
+    landscapePileTilePx,
+    LANDSCAPE_PILE_EDGE_GAP_REM,
 } from "~/lib/landscape-board-bands";
 import { CONTROLLER_STRIP_CLEARANCE_EXPR } from "~/lib/controller-bar-metrics";
 
@@ -27,10 +27,22 @@ export function rightPilesWidth(
 ): string {
     if (isPortrait) return "0px";
     if (landscapeCompact) {
-        const pileWidth =
-            landscapeCardMetrics(viewportHeight).cardWidth *
-            LANDSCAPE_PILE_SCALE;
-        return `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + ${pileWidth}px + 0.5rem)`;
+        // `landscapePileTilePx` (round-2 review finding 4), not the raw
+        // `LANDSCAPE_PILE_SCALE` fraction — the pile tile is floored below a
+        // certain board height, and this reservation must track the SAME
+        // rendered width `LANDSCAPE_RIGHT_RAIL_VAR` reserves, or a portal'd
+        // dialog centers on a play area narrower than the board actually
+        // reserves (the exact #1770 bug this function's own doc comment
+        // describes, just from the opposite direction).
+        //
+        // `LANDSCAPE_PILE_EDGE_GAP_REM` (round-3 review finding 3, was a
+        // bare `0.5rem` literal): round 2 trimmed the rail's own edge gap to
+        // `0.25rem` and exported it but left THIS reservation on the old
+        // number — a same-round self-contradiction of the doc comment above,
+        // caught by a mutation that changed the rail's gap without this one
+        // moving. Reading the constant is what makes that impossible again.
+        const pileWidth = landscapePileTilePx(viewportHeight);
+        return `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + ${pileWidth}px + ${LANDSCAPE_PILE_EDGE_GAP_REM}rem)`;
     }
     return "calc(1.75rem + 3 * var(--card-w-sm))";
 }

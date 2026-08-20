@@ -9,6 +9,10 @@ import { useDraggable } from "~/hooks/useDraggable";
 import { repositionAnchors } from "~/hooks/anchor-reposition";
 import { Panel } from "~/components/ui/panel";
 import { PORTRAIT_STACK_PANEL_TOP } from "~/lib/portrait-board-bands";
+import {
+    BESIDE_CONTROLLER_STRIP,
+    CONTROLLER_STRIP_CLEARANCE_EXPR,
+} from "~/lib/controller-bar-metrics";
 import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
 
@@ -80,6 +84,38 @@ type GameStackProps = {
      *     band) — both edges pinned, so the browser computes its height as
      *     the gap between them and it can never grow into either. */
     narrow?: boolean;
+    /** Issue #2589 — landscape-compact's chip-triggered right panel (ADR 0101
+     *  §8: "a bottom sheet from the Stack chip in portrait and a right panel
+     *  in landscape"). Toggled from `ControllerLandscapeStrip`, the SAME
+     *  seam `ControllerPhasePanel` already anchors beside — mutually
+     *  exclusive with `narrow` (a viewport is never both portrait and
+     *  landscape-compact at once).
+     *
+     *  Shape: the desktop panel's own vertical-center + `max-h-[80vh]` cap
+     *  (a landscape phone is short too, so the same soft cap fits), just
+     *  narrower (`w-72`, matching `narrow`'s width) and anchored BESIDE the
+     *  control strip via {@link BESIDE_CONTROLLER_STRIP} — the strip's own
+     *  MEASURED width (`--controller-strip-w`) — instead of the desktop's
+     *  fixed `right: 0.5rem`, so the panel slides clear of the strip
+     *  automatically and never hard-codes its neighbour's size. */
+    landscape?: boolean;
+    /** Round-2 review finding 6 (issue #2589) — how much FURTHER left the
+     *  `landscape` panel must sit, beyond the control strip clearance alone,
+     *  to clear the pile column (`LANDSCAPE_OPPONENT_PILES_ANCHOR` /
+     *  `LANDSCAPE_VIEWER_PILES_ANCHOR`) that docks at the SAME
+     *  `BESIDE_CONTROLLER_STRIP` seam. Without it the panel — open by
+     *  DEFAULT whenever the stack is non-empty, at a higher z-index than the
+     *  piles — painted directly over graveyard/library/exile, making both
+     *  seats' pile chips unclickable for as long as anything sat on the
+     *  stack. Pass `landscapePileTilePx(viewportHeight) +
+     *  LANDSCAPE_PILE_EDGE_GAP_PX` (`~/lib/landscape-board-bands`) — the
+     *  caller's job, not this component's, since it isn't a DOM descendant
+     *  of the board root the CSS var equivalent (`--landscape-right-rail`)
+     *  is scoped to (`ControllerLandscapeStrip` mounts as board-surface's
+     *  SIBLING under `board.tsx`'s `<main>`, so CSS custom property
+     *  inheritance — which follows the DOM tree, not the React tree — never
+     *  reaches it). Ignored when `landscape` is falsy. */
+    landscapePileClearancePx?: number;
 };
 
 /** How many top rows the collapsed list shows before the "N more" expander. */
@@ -94,7 +130,13 @@ const COLLAPSED_ROWS = 3;
  *  Kept from the old cascade: shared-layout flights (hand → stack →
  *  destination, layoutId per item), the draggable panel (re-anchoring arrows
  *  via the shared reposition event), spell-target clicks, arrival glow. */
-export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
+export default function GameStack({
+    stack,
+    elevated,
+    narrow,
+    landscape,
+    landscapePileClearancePx,
+}: GameStackProps) {
     const {
         gameId,
         playerId,
@@ -166,15 +208,41 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
             // `pointer-events-auto` is restored on the `Panel` below so the
             // drag handle and the clickable stack rows — both DOM
             // descendants of `Panel`, not of this div — stay interactive.
-            // Desktop (`!narrow`) is untouched: its box is centered/vh-capped,
-            // not edge-pinned, so it never grows past its own content.
+            // Desktop (`!narrow`, `!landscape`) is untouched: its box is
+            // centered/vh-capped, not edge-pinned, so it never grows past its
+            // own content.
+            //
+            // `landscape` (issue #2589) reuses the desktop's vertical-center
+            // shape (never edge-pinned, so no `pointer-events-none` trick is
+            // needed either) but anchors its RIGHT edge beside the control
+            // strip via `BESIDE_CONTROLLER_STRIP` instead of the desktop's
+            // fixed `right: 0.5rem` inline style below — see the class list
+            // for why that means omitting the inline `right` for this
+            // branch, not adding a second one.
             className={`absolute ${
                 narrow
                     ? `${PORTRAIT_STACK_PANEL_TOP} ${NARROW_BOTTOM_CLASS} pointer-events-none`
-                    : "top-1/2"
+                    : landscape
+                      ? `${BESIDE_CONTROLLER_STRIP} top-1/2`
+                      : "top-1/2"
             } ${elevated ? "z-stack" : "z-modal"}`}
             style={{
-                right: "0.5rem",
+                // `landscape` gets its `right` from the class above
+                // (`BESIDE_CONTROLLER_STRIP`'s `right-[calc(...)]`) UNLESS
+                // the caller passed `landscapePileClearancePx` (round-2
+                // review finding 6), in which case an inline `right` here
+                // WINS the cascade over the class (inline styles beat
+                // classes) and pushes the panel further left, clear of the
+                // pile column that docks at the SAME `BESIDE_CONTROLLER_STRIP`
+                // seam — without this, the two constants happening to be
+                // the same offset means the panel's own extending width
+                // paints directly over the piles.
+                right:
+                    landscape && landscapePileClearancePx != null
+                        ? `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + ${landscapePileClearancePx}px)`
+                        : landscape
+                          ? undefined
+                          : "0.5rem",
                 transform: narrow
                     ? `translate(${offset.x}px, ${offset.y}px)`
                     : `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
@@ -250,7 +318,9 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
                     className={`${
                         narrow
                             ? "flex max-h-full w-72 flex-col pointer-events-auto"
-                            : "max-h-[80vh] w-96"
+                            : landscape
+                              ? "max-h-[80vh] w-72"
+                              : "max-h-[80vh] w-96"
                     } max-w-[92vw] overflow-visible p-0`}
                 >
                     <DragHandle

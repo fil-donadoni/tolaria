@@ -18,9 +18,20 @@ type PlayerNameplateProps = {
     /** Extra classes appended by the layout (e.g. absolute positioning on the
      *  spatial board). */
     className?: string;
-    /** Portrait-only compact variant (#1814 round-2 fixup) — see the
-     *  dedicated doc block below `PlayerNameplate` for the full account. */
+    /** Compact one-row variant (#1814 round-2 fixup, portrait; widened to
+     *  landscape-compact by #2589) — see the dedicated doc block below
+     *  `PlayerNameplate` for the full account. */
     compact?: boolean;
+    /** True when `compact` is set BECAUSE of the landscape-compact rail
+     *  (`LANDSCAPE_SIDE_GUTTER`), as opposed to the portrait seam — the two
+     *  share the same one-row markup but not the same width budget: portrait's
+     *  box is unconstrained (shrink-to-fit, no `max-w`), landscape's is capped
+     *  at `calc(var(--landscape-side-gutter)-1rem)` (~48px, ~34px of content
+     *  after padding+border). Round-2 review finding 1: at that width the name
+     *  span already renders unreadable (~8px after `truncate`) the moment a
+     *  poison OR energy badge is live, so landscape drops it outright rather
+     *  than spend width on it. Portrait keeps the name — it has the room. */
+    landscapeCompact?: boolean;
 };
 
 /** Box-shadow ring/glow for the nameplate, by interaction state, using only
@@ -77,13 +88,18 @@ function nameplateShadow(
  *  three-to-five rows into one is what lets the reserved band shrink from
  *  ~91px to `PORTRAIT_NAMEPLATE_BAND_H` (~26px content + a small rendering
  *  safety margin, see that constant for the exact box math) while still
- *  showing every field the desktop nameplate shows. Desktop/landscape and the
- *  classic `player-life.tsx` never pass `compact` — their box is unchanged. */
+ *  showing every field the desktop nameplate shows. Desktop and the classic
+ *  `player-life.tsx` never pass `compact` — their box is unchanged. Issue
+ *  #2589 widened the second caller: landscape-compact now passes `compact`
+ *  too (`board-player.tsx`), for the same reason portrait originally needed
+ *  it — its own narrowed `LANDSCAPE_SIDE_GUTTER` left rail has no room for
+ *  the multi-row box either. */
 export default function PlayerNameplate({
     player,
     interaction,
     className = "",
     compact = false,
+    landscapeCompact = false,
 }: PlayerNameplateProps) {
     const { hasPriority, isTargetable, isDamageTargetPickable } = interaction;
 
@@ -221,8 +237,45 @@ export default function PlayerNameplate({
             // ("compact nameplate variant follows the portrait seam") pins
             // both class strings verbatim — that test is the mechanical
             // guard: a rename here fails it immediately instead of drifting.
-            className={`relative shrink-0 rounded-sm bg-surface/90 border border-border-subtle/80 text-center backdrop-blur-md transition-shadow duration-200 ${
-                compact ? "px-3 py-0.5" : "px-5 py-2"
+            // Only `py-0.5` is pinned there — the HORIZONTAL `px-*` is free
+            // to change without touching that guard.
+            //
+            // `px-1.5` (was `px-3`, round-2 review finding 7): landscape-
+            // compact's seat rail (`LANDSCAPE_SIDE_GUTTER`, `4rem`) gives
+            // this box a ~48px max-width, of which `px-3` (24px) + the
+            // border (2px) left only ~22px for life + name + poison/energy
+            // — the name collapsed to nothing and the badges had nowhere to
+            // go but past the box's own edge, into the battlefield band
+            // (contradicting the rail's "chrome can never overlap a card"
+            // invariant). `px-1.5` (12px) buys 12px of that back at ZERO
+            // width-budget cost (it only changes how the EXISTING gutter is
+            // spent, not the gutter itself) — portrait's compact box, which
+            // isn't width-constrained the same way, is unaffected by the
+            // extra 12px it also picks up here (same class, both variants).
+            //
+            // `overflow-hidden` (round-2 review finding 7): the arithmetic
+            // above still doesn't guarantee content fits — a player WITH
+            // either poison or energy counters live is a real, reachable
+            // case (poison: mbs/colorless, c13/black, onc/multicolor;
+            // energy: onc/multicolor, mh3, m3c) that can still exceed even
+            // the freed-up width. `overflow-hidden` is what makes "chrome
+            // can never overlap a card" true BY CONSTRUCTION regardless of
+            // content, matching the rest of this module's own philosophy
+            // (`landscape-board-bands.ts`'s "make the overlap arithmetically
+            // impossible" framing) instead of resting on a budget
+            // calculation that a future badge could invalidate again.
+            //
+            // Round-2 REGRESSED by this same `overflow-hidden`: the compact
+            // row below used `justify-center`, which overflows UNSAFELY at
+            // BOTH ends when content exceeds the box — so the badge case
+            // this comment describes clipped off the LEADING edge instead of
+            // the trailing one, eating the life total itself (a life of 20
+            // rendered as `0`). Round-3 review finding 1: `justify-start`
+            // below is what makes the life total — always the FIRST child —
+            // safe from `overflow-hidden` by construction; only content
+            // AFTER it can ever be clipped.
+            className={`relative shrink-0 overflow-hidden rounded-sm bg-surface/90 border border-border-subtle/80 text-center backdrop-blur-md transition-shadow duration-200 ${
+                compact ? "px-1.5 py-0.5" : "px-5 py-2"
             } ${interactive ? "cursor-pointer" : ""} ${className}`}
         >
             {/* Nit (#1814 round-3 review): the compact box is a 24px-tall
@@ -241,11 +294,31 @@ export default function PlayerNameplate({
                 // would blow the reserved band's exact height budget); a name
                 // that doesn't fit truncates instead via `truncate` + a max
                 // width, not by growing taller.
-                <div className="flex flex-nowrap items-center justify-center gap-1.5">
+                //
+                // `justify-start` (round-3 review finding 1, was
+                // `justify-center`): with `overflow-hidden` on the parent box,
+                // centering overflows unsafely at BOTH ends, so a badge
+                // pushing the row past the box's content width used to clip
+                // the LEADING edge — the life total, always the row's first
+                // child. `justify-start` pins content flush left, so the life
+                // total sits at x=0 and only what comes AFTER it can ever be
+                // clipped.
+                <div className="flex flex-nowrap items-center justify-start gap-1.5">
                     {lifeRow(true)}
-                    <span className="max-w-16 truncate text-[9px] leading-none uppercase tracking-[0.15em] text-text-muted">
-                        {player.name}
-                    </span>
+                    {!landscapeCompact && (
+                        // Landscape-only drop (round-3 review finding 1): the
+                        // ~34px content box (48px anchor − 12px `px-1.5` −
+                        // 2px border) has no room for life + name + a live
+                        // badge — the name already renders unreadable
+                        // (~8px after `truncate`) whenever one is live, so
+                        // landscape spends the width on the badge instead.
+                        // Portrait's box is unconstrained (no `max-w`), so it
+                        // keeps the name — dropping it there would cost
+                        // nothing back.
+                        <span className="max-w-16 truncate text-[9px] leading-none uppercase tracking-[0.15em] text-text-muted">
+                            {player.name}
+                        </span>
+                    )}
                     <PlayerPoisonCounters
                         count={player.poisonCounters}
                         compact

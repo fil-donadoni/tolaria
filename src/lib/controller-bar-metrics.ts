@@ -53,6 +53,33 @@ export const CONTROLLER_BAR_CLEARANCE_EXPR =
  *  landscape branch, with no consumer branching on the viewport mode itself. */
 export const CONTROLLER_STRIP_WIDTH_VAR = "--controller-strip-w";
 
+/** The strip's own FIXED width, in px (issue #2589 — Tailwind's `w-24`, 6rem
+ *  on the default 4px-step spacing scale). Named here, not just a literal
+ *  class in `controller-landscape-strip.tsx`, so the phone-landscape ≤25%
+ *  width-budget arithmetic (`landscape-board-bands.test.ts`) can reference
+ *  the SAME number the strip actually renders at instead of a second,
+ *  independently-guessed literal. The class itself stays a literal Tailwind
+ *  utility in the component (never built from this constant — Tailwind's JIT
+ *  scanner greps source text, not runtime string composition); a source-text
+ *  guard in `controller-landscape.test.tsx` pins the two together so a
+ *  future resize of one without the other fails loudly instead of silently
+ *  reopening the width budget. */
+export const CONTROLLER_STRIP_FIXED_WIDTH_PX = 96;
+
+/** The strip clearance's rem quantity — the ONE numeric source of truth for
+ *  the `0.75rem` that both {@link BESIDE_CONTROLLER_STRIP} and
+ *  {@link CONTROLLER_STRIP_CLEARANCE_EXPR} spell (round-3 review finding 2).
+ *  `CONTROLLER_STRIP_CLEARANCE_EXPR` is built FROM this constant below —
+ *  {@link BESIDE_CONTROLLER_STRIP} itself cannot be (see its own doc comment
+ *  for why), but every other consumer of the clearance, including the
+ *  ≤25%-width-budget arithmetic in
+ *  `src/lib/__tests__/landscape-board-bands.test.ts`, reads THIS export
+ *  rather than re-typing `0.75`. A mutation of this one number is what the
+ *  budget test must now catch: round-2 review changed `0.75rem` to `1.5rem`
+ *  in both the class literal and the expr and the budget test stayed green,
+ *  because it had its own untracked `0.75 * REM` copy. */
+export const CONTROLLER_STRIP_CLEARANCE_REM = 0.75;
+
 /** Anchors a right-edge `fixed` element just LEFT of the landscape-compact
  *  strip, whatever width the strip currently has.
  *
@@ -60,7 +87,18 @@ export const CONTROLLER_STRIP_WIDTH_VAR = "--controller-strip-w";
  *  (desktop, portrait) this evaluates to `calc(0px + 0.75rem)` = 12px, i.e.
  *  exactly the `right-3` the phase panel has always used — so the desktop pod's
  *  phase panel keeps its pixel position while the landscape panel slides clear
- *  of the strip automatically. */
+ *  of the strip automatically.
+ *
+ *  Stays a LITERAL string, not built from {@link CONTROLLER_STRIP_CLEARANCE_REM}
+ *  by template interpolation: this constant IS a Tailwind arbitrary-value
+ *  class, and Tailwind's v4 scanner extracts candidates by grepping raw
+ *  SOURCE TEXT for a complete `utility-[value]` token, not by evaluating JS —
+ *  a build with this string template-interpolated confirmed the scanner emits
+ *  a dead rule for the literal `${…}` text and never generates CSS for the
+ *  real runtime class, silently dropping the strip clearance (same
+ *  constraint {@link CONTROLLER_STRIP_FIXED_WIDTH_PX}'s doc comment already
+ *  documents for the strip's own `w-24`). The pinning test below is what
+ *  keeps this literal from drifting instead. */
 export const BESIDE_CONTROLLER_STRIP =
     "right-[calc(var(--controller-strip-w,0px)+0.75rem)]";
 
@@ -72,9 +110,15 @@ export const BESIDE_CONTROLLER_STRIP =
  *  before BOTH, so the strip's measured width propagates all the way across the
  *  board.
  *
+ *  Built from {@link CONTROLLER_STRIP_CLEARANCE_REM} — safe to interpolate
+ *  here, unlike {@link BESIDE_CONTROLLER_STRIP} above, because this constant
+ *  is never itself consumed as a Tailwind class token; every consumer either
+ *  composes it into a `calc()` set at RUNTIME via an inline `style` (no JIT
+ *  scan involved) or, in the pinning test below, compares it as a plain
+ *  string.
+ *
  *  The two spellings are pinned together by
  *  `src/lib/__tests__/landscape-board-bands.test.ts` —
  *  {@link BESIDE_CONTROLLER_STRIP} must stay `right-[calc<EXPR>]` with
  *  whitespace removed, so neither can drift from the other. */
-export const CONTROLLER_STRIP_CLEARANCE_EXPR =
-    "(var(--controller-strip-w, 0px) + 0.75rem)";
+export const CONTROLLER_STRIP_CLEARANCE_EXPR = `(var(--controller-strip-w, 0px) + ${CONTROLLER_STRIP_CLEARANCE_REM}rem)`;
