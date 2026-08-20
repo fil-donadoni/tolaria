@@ -64,7 +64,7 @@ export default function PlayModeSelector({
                                 disabled={disabled}
                                 onClick={() => onChange(opt.value)}
                                 className={cn(
-                                    "px-3 py-1 text-xs font-medium transition",
+                                    "segment-pill text-xs font-medium",
                                     "disabled:cursor-not-allowed disabled:opacity-40",
                                     selected
                                         ? "bg-accent text-surface-base"

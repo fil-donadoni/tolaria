@@ -357,20 +357,22 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "deck-detail",
-        label: "Deck detail (/decks/the-deck)",
+        label: "Deck detail (/decks/mono-red-burn)",
         async walk(page, ctx) {
-            // `the-deck` is a DB-seeded preset — always present, unlike a
-            // user deck, so the walk needs no prior create step (issue
-            // #2591: curve + legality + Edit/Play). Presets are DB-backed
-            // (`convex/decks.ts`'s `list` reads the `presetDecks` table, not
-            // the code-side seed array in `deckPresets.ts` directly), and
-            // this deployment's row carries this slug — verified live rather
-            // than assumed from the code array, whose `presetId`s can drift
-            // from what's actually seeded.
-            await goto(page, ctx, "/decks/the-deck");
-            if (!(await visible(page, "h1:has-text('The Deck')", 10_000))) {
+            // `mono-red-burn` is a code-defined preset (`convex/deckPresets.ts`)
+            // seeded into the `presetDecks` table on every deployment — always
+            // present, unlike a user deck, so the walk needs no prior create
+            // step (issue #2591: curve + legality + Edit/Play). `findDeckBySlug`
+            // (`src/lib/deckLookup.ts`) matches `presetId === slug` exactly, so
+            // the slug here MUST be a real entry in `deckPresets.ts` — a
+            // deployment-only slug (e.g. a manually renamed row) throws
+            // Unreachable on any other deployment.
+            await goto(page, ctx, "/decks/mono-red-burn");
+            if (
+                !(await visible(page, "h1:has-text('Mono Red Burn')", 10_000))
+            ) {
                 throw new Unreachable(
-                    "/decks/the-deck did not render the deck detail heading"
+                    "/decks/mono-red-burn did not render the deck detail heading"
                 );
             }
         },

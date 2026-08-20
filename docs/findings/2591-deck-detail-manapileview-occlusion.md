@@ -6,11 +6,15 @@ confidence: medium
 ---
 
 **What is wrong.** `/decks/$slug`'s deck detail page (issue #2591 gave it its
-first `check:ui` budget) measures `cardsOcc` 54/60 cards at desktop and both
-tablet viewports — most of every pile is occluded by the card stacked in front
-of it. This is pre-existing behaviour (unchanged by #2591; the page already
-rendered `ManaPileView` before this slice, which only added the curve chart,
-legality section and Edit/Play above it), not a regression.
+first `check:ui` budget) measures `cardsOcc` 35/40 cards at desktop and both
+tablet viewports (re-recorded in review round 2, PR #2647, against the
+code-defined `mono-red-burn` preset — the original budget row walked a
+deployment-only `the-deck` slug that did not exist in `convex/deckPresets.ts`
+and was not reproducible on another deployment) — most of every pile is
+occluded by the card stacked in front of it. This is pre-existing behaviour
+(unchanged by #2591; the page already rendered `ManaPileView` before this
+slice, which only added the curve chart, legality section and Edit/Play above
+it), not a regression.
 
 **Evidence.** `src/components/lobby/mana-pile.tsx:9-34`: each card in a pile is
 absolutely positioned `idx * OFFSET_Y_REM` (1.4rem) below the previous one,

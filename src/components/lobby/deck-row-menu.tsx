@@ -4,6 +4,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "~/components/ui/popover";
+import { Button } from "~/components/ui/button";
 
 interface DeckRowMenuProps {
     /** For the trigger's accessible name only. */
@@ -29,11 +30,10 @@ export default function DeckRowMenu({ deckName, onDelete }: DeckRowMenuProps) {
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger
-                type="button"
+                render={<Button variant="ghost" size="icon-sm" />}
                 onClick={(e) => e.stopPropagation()}
                 aria-label={`More actions for ${deckName}`}
                 title="More actions"
-                className="flex size-7 shrink-0 items-center justify-center rounded-sm border border-border-subtle text-text-muted transition hover:border-border-accent/60 hover:text-text"
             >
                 <span aria-hidden>⋯</span>
             </PopoverTrigger>
@@ -48,17 +48,18 @@ export default function DeckRowMenu({ deckName, onDelete }: DeckRowMenuProps) {
                     aria-label={`More actions for ${deckName}`}
                     className="flex flex-col gap-0.5"
                 >
-                    <button
-                        type="button"
+                    <Button
+                        variant="destructive"
+                        size="sm"
                         role="menuitem"
                         onClick={() => {
                             setOpen(false);
                             onDelete();
                         }}
-                        className="rounded-sm px-2 py-1 text-left text-xs text-danger-strong hover:bg-danger/10"
+                        className="w-full justify-start"
                     >
                         Delete
-                    </button>
+                    </Button>
                 </div>
             </PopoverContent>
         </Popover>

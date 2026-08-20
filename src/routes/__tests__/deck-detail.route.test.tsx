@@ -49,8 +49,21 @@ const USER_DECK = {
     reasons: [],
 };
 
+const MANUAL_USER_DECK = {
+    kind: "user" as const,
+    presetId: "my-manual-deck",
+    userDeckId: "userdeck-manual-1",
+    name: "My Manual Deck",
+    format: "manual" as const,
+    colors: ["U"],
+    cards: [],
+    featuredCardId: null,
+    isLegal: true,
+    reasons: [],
+};
+
 vi.mock("~/hooks/useUserDecks", () => ({
-    useUserDecks: () => [USER_DECK],
+    useUserDecks: () => [USER_DECK, MANUAL_USER_DECK],
     useUserDeckMutations: () => ({ remove: vi.fn() }),
 }));
 
@@ -71,6 +84,7 @@ beforeEach(() => {
     currentUser = null;
     routeSlug = "mono-red-burn";
     useQueryMock.mockImplementation(() => [PRESET_DECK]);
+    localStorage.clear();
 });
 
 afterEach(() => cleanup());
@@ -100,5 +114,29 @@ describe("DeckDetailRoute Edit wiring (issue #2591)", () => {
         currentUser = { _id: "user-1", nickname: "Player" };
         render(<DeckDetailRoute />);
         expect(screen.queryByText("Edit")).toBeNull();
+    });
+});
+
+// L6 (issue #2591 review, PR #2647): "Play" stored a preset id without
+// reconciling the lobby's game-mode selector — a Manual Deck selected while
+// the stored mode was Arena (or vice versa) landed back on a lobby where
+// the deck was filtered out of every list and every Play action disabled
+// (fail-closed, but silently). `onSelect` must set `tolaria:playMode` to
+// match the deck's OWN format, not just store its id.
+describe("DeckDetailRoute 'Play' reconciles game mode (issue #2591 L6)", () => {
+    it("switches the stored mode to Arena when Playing a non-manual deck from Cockatrice mode", () => {
+        localStorage.setItem("tolaria:playMode", "cockatrice");
+        routeSlug = "mono-red-burn"; // preset deck, format: old-school
+        render(<DeckDetailRoute />);
+        fireEvent.click(screen.getByText("Play"));
+        expect(localStorage.getItem("tolaria:playMode")).toBe("arena");
+    });
+
+    it("switches the stored mode to Cockatrice when Playing a Manual Deck from Arena mode", () => {
+        localStorage.setItem("tolaria:playMode", "arena");
+        routeSlug = "my-manual-deck";
+        render(<DeckDetailRoute />);
+        fireEvent.click(screen.getByText("Play"));
+        expect(localStorage.getItem("tolaria:playMode")).toBe("cockatrice");
     });
 });

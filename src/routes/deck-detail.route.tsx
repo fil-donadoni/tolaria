@@ -14,6 +14,7 @@ import {
     clearDeckPresetId,
     getStoredDeckPresetId,
     storeDeckPresetId,
+    storePlayMode,
 } from "~/lib/session";
 
 export default function DeckDetailRoute() {
@@ -95,6 +96,17 @@ export default function DeckDetailRoute() {
             onBack={() => void navigate({ to: "/" })}
             onSelect={() => {
                 storeDeckPresetId(deck.presetId);
+                // Reconcile the lobby's game-mode selector to match THIS
+                // deck (issue #2591 review, L6): the lobby's own toggle
+                // clears a mismatched selection on mode change
+                // (`handlePlayModeChange`), but arriving here from
+                // `/decks/$slug` bypasses that — without this, selecting a
+                // Manual Deck while the stored mode is Arena (or vice versa)
+                // lands back on a lobby where the deck is filtered out of
+                // every list and every Play action is disabled.
+                storePlayMode(
+                    deck.format === "manual" ? "cockatrice" : "arena"
+                );
                 void navigate({ to: "/" });
             }}
             onDelete={handleDelete}
