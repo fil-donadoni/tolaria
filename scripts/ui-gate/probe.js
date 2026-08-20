@@ -19,6 +19,12 @@
  * before hit-testing, so anything below the fold hit whatever happened to sit
  * at the clamp point and counted as occluded: it reported 90 of 95 on a screen
  * whose real count was 25. Never hit-test a point the element does not occupy.
+ * The same rule, one level down (issue #2582): never hit-test a point the
+ * element's own SCROLL PORT does not show either — but do still hit-test one
+ * it DOES show, even when the element's raw centre has been clipped away. The
+ * point tested is the centre of the element's visible intersection with
+ * (viewport ∩ port), which is always inside the element and always painted —
+ * see `scrollPort` / `probe` below.
  *
  * The whole file must stay evaluatable as a single expression: no imports, no
  * closures over module scope, no optional chaining on globals that older
@@ -38,13 +44,45 @@ window.__tolariaProbe = () => {
     const canScroll = (e) =>
         e.scrollHeight > e.clientHeight + 2 ||
         e.scrollWidth > e.clientWidth + 2;
-    const scrollableAncestor = (e) => {
-        for (let p = e.parentElement; p; p = p.parentElement) {
+    /**
+     * The nearest ancestor that can actually scroll `e` into view, or `null`.
+     *
+     * Returns the ELEMENT rather than a boolean because its box is also the
+     * window the element is visible through — see `probe` below. `auto|scroll`
+     * only, never `hidden`/`clip`: a clipped-hidden element is not reachable
+     * by any gesture, which is the `stranded` case.
+     *
+     * The walk STOPS at a `position: fixed` box and reports no port, whether
+     * that box is the element itself or an ancestor of it. A fixed subtree is
+     * laid out against the viewport: nothing above it clips it and no gesture
+     * on anything above it moves it. Handing back a scroller from higher up
+     * would clip the hit test below to a rectangle the element does not live
+     * in, so a fixed control (or anything inside a fixed overlay) painted
+     * outside that scroller's box would be skipped and scored `reachable`
+     * while sitting under an overlay in plain sight. This app's every modal is
+     * a `div.z-modal.fixed.inset-0` rendered INSIDE `<main>`, which is the
+     * scroller — so the ancestor case is the live one, not a hypothetical.
+     *
+     * Order matters: a scroller BELOW the fixed box (`<div fixed><div
+     * overflow-auto>…`) is returned before the walk ever reaches the fixed
+     * box, which is correct — that scroller does clip its own descendants.
+     *
+     * (One exception the CSS spec allows and this app does not currently
+     * produce: a transformed / filtered / `will-change` ancestor becomes a
+     * fixed descendant's containing block and does clip it.)
+     */
+    const scrollPort = (e) => {
+        for (let p = e; p; p = p.parentElement) {
             const cs = getComputedStyle(p);
-            if (/auto|scroll/.test(cs.overflowY + cs.overflowX) && canScroll(p))
-                return true;
+            if (cs.position === "fixed") return null;
+            if (
+                p !== e &&
+                /auto|scroll/.test(cs.overflowY + cs.overflowX) &&
+                canScroll(p)
+            )
+                return p;
         }
-        return false;
+        return null;
     };
     const probe = (list) => {
         const o = {
@@ -60,12 +98,72 @@ window.__tolariaProbe = () => {
                 o.zero++;
                 continue;
             }
-            const cx = r.left + r.width / 2,
-                cy = r.top + r.height / 2;
-            if (cx >= 0 && cx <= V - 1 && cy >= 0 && cy <= H - 1) {
-                const t = document.elementFromPoint(cx, cy);
+            // Hit-test the centre of the element's VISIBLE INTERSECTION with
+            // the window it is seen through — the viewport, further clipped by
+            // its scroll port's box when it has one. Not its raw centre, and
+            // never a point clamped OUTSIDE its own box (see the header).
+            //
+            // Why the window is clipped to the port. Hit-testing against the
+            // bare viewport was correct only while `<main>` ran to the bottom
+            // of the screen: an element clipped by `<main>`'s own scroller was
+            // then clipped by the viewport too, so its centre fell outside and
+            // it scored `reachable` — "below the fold, one gesture away",
+            // which is what it is. Issue #2582's bottom nav is the first band
+            // this app has ever had BELOW `<main>`, and it moves `<main>`'s
+            // clip edge above the viewport edge. Everything in the gap then
+            // hit-tested to the nav and scored `occ` — the nav "occluding"
+            // content it cannot overlap, because `<main>` never paints there.
+            // Browser-measured on the lobby at 390x844x3: `<main>` 0-788, nav
+            // 788-844, the `Your Events (all)` button at y 773-817 —
+            // `occ 1` on `feat/issue-2582`, `occ 0` on `origin/main` where
+            // `<main>` ran to 844, same button, same page, no difference a
+            // user could see.
+            //
+            // Why the INTERSECTION centre and not the raw centre. A control
+            // can be PARTLY inside its port and partly clipped away, and the
+            // part still painted is exactly the part a user can see and an
+            // overlay can cover. Testing the raw centre throws that case away
+            // in both directions, and the failing direction is the dangerous
+            // one: browser-measured on `design-system-dialog` @1440x900x2,
+            // `<main>` starts at y=92 and the dialog's Cancel [543,76,606,106]
+            // and Confirm [614,76,687,106] each have 14px painted below that
+            // edge and covered by the modal scrim, yet their raw centres
+            // (y=91) sit 1px above the port — so a raw-centre port clip scores
+            // both `reachable` while `elementFromPoint` over their painted
+            // pixels returns `DIV.z-modal fixed inset-0`. The same shape on a
+            // card — half-clipped by its scroll port, covered by an overlay —
+            // would read `cardsOcc 0`, and `cardsOcc 0` is one of this lane's
+            // HARD FLOORS. The intersection centre is always a point the
+            // element itself occupies AND the window shows, so it keeps `occ`
+            // meaning what it has to mean: PAINTED and covered by something on
+            // top. An empty intersection means nothing of the element is on
+            // screen — `reachable` if a gesture can bring it back, `stranded`
+            // if none can.
+            const port = scrollPort(e);
+            const pr = port ? port.getBoundingClientRect() : null;
+            // `elementFromPoint` is only defined inside the viewport, hence
+            // the `V - 1` / `H - 1` edges rather than `V` / `H`.
+            let wl = 0,
+                wt = 0,
+                wr = V - 1,
+                wb = H - 1;
+            if (pr) {
+                wl = Math.max(wl, pr.left);
+                wt = Math.max(wt, pr.top);
+                wr = Math.min(wr, pr.right - 1);
+                wb = Math.min(wb, pr.bottom - 1);
+            }
+            const il = Math.max(r.left, wl),
+                it = Math.max(r.top, wt),
+                ir = Math.min(r.right, wr),
+                ib = Math.min(r.bottom, wb);
+            if (ir >= il && ib >= it) {
+                const t = document.elementFromPoint(
+                    (il + ir) / 2,
+                    (it + ib) / 2
+                );
                 if (t && !e.contains(t) && !t.contains(e)) o.occ++;
-            } else if (scrollableAncestor(e)) o.reachable++;
+            } else if (port) o.reachable++;
             else o.stranded++;
         }
         return o;

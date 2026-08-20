@@ -18,11 +18,26 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 
 vi.mock("@tanstack/react-router", () => ({
-    useRouterState: () => "/decks/create",
+    useRouterState: () => "/",
     Outlet: () => <div data-testid="outlet" />,
+}));
+vi.mock("~/hooks/useViewportMode", () => ({
+    useViewportMode: () => "desktop",
+}));
+vi.mock("~/hooks/useActiveSession", () => ({
+    useActiveSession: () => ({ game: null, event: null, loading: false }),
 }));
 vi.mock("../app-header", () => ({
     default: () => <div data-testid="app-header" />,
+}));
+vi.mock("../app-bottom-nav", () => ({
+    default: () => <div data-testid="app-bottom-nav" />,
+}));
+vi.mock("../app-context-bar", () => ({
+    default: () => <div data-testid="app-context-bar" />,
+}));
+vi.mock("../app-return-banner", () => ({
+    default: () => <div data-testid="app-return-banner" />,
 }));
 
 import AppShell from "../app-shell";
@@ -74,15 +89,26 @@ describe("AppShell (issue #2056 defect 3)", () => {
     });
 });
 
-// Issue #2056 defect 3 amplification: the coordinator's browser measurement
-// found the header wrapper's `pt-6` (24px) plus AppHeader's own band at
-// 112px total — the largest single term in the still-failing chrome budget,
-// and OUTSIDE the original short-viewport treatment entirely since it lives
-// here, above `<main>`, not inside any of the deckbuilder route surfaces.
-describe("AppShell — nav wrapper short-viewport treatment (issue #2056 defect 3 amplification)", () => {
-    it("drops the header wrapper's top padding under short-viewport", () => {
+// Issue #2056 defect 3 amplification found the header wrapper's `pt-6` (24px)
+// plus AppHeader's own band at 112px total, and answered it with a
+// `short-viewport:pt-0` override. v3 (issue #2582) answers it structurally
+// instead: the wrapper has NO vertical padding at any viewport, so the band is
+// the bar's own height and `SHELL_BROWSE_BAND_PX` can be ONE number rather than
+// a sum nobody can check. A padding override would put the sum back.
+describe("AppShell — the top band is the bar's own height (issue #2582)", () => {
+    it("gives the header wrapper no vertical padding at any viewport", () => {
         const { getByTestId } = render(<AppShell />);
         const wrapper = getByTestId("app-header").parentElement as HTMLElement;
-        expect(wrapper.className.split(/\s+/)).toContain("short-viewport:pt-0");
+        const classes = wrapper.className.split(/\s+/);
+        expect(
+            classes.filter((c) => /(^|:)(p|pt|pb|py)-/.test(c)),
+            "vertical padding on the header wrapper makes the band a sum, not a height"
+        ).toEqual([]);
+    });
+
+    it("keeps the header wrapper shrink-0 — the band must not be squeezed", () => {
+        const { getByTestId } = render(<AppShell />);
+        const wrapper = getByTestId("app-header").parentElement as HTMLElement;
+        expect(wrapper.className.split(/\s+/)).toContain("shrink-0");
     });
 });

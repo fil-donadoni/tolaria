@@ -14,11 +14,16 @@
 // shape the arithmetic assumes".
 import { describe, it, expect } from "vitest";
 import {
-    SHELL_HEADER_BAND_PX,
+    SHELL_BOTTOM_NAV_BAND_PX,
+    SHELL_BROWSE_BAND_PX,
+    SHELL_BROWSE_COMPACT_BAND_PX,
+    SHELL_CONTEXTUAL_BAND_PX,
+    SHELL_RETURN_BANNER_PX,
     VIEWPORT_HEIGHT_CLASSES,
     deriveHeightClaim,
     deriveShellModel,
     resolveShellLayout,
+    shellBands,
     type RouteRootOverflow,
     type ShellHeightClaim,
     type ShellHeightClaimKind,
@@ -29,6 +34,7 @@ import {
 const SHIPPED: ShellModel = {
     rootBounded: true,
     headerPinned: true,
+    bottomPinned: true,
     mainCanShrink: true,
     mainScrolls: true,
 };
@@ -59,12 +65,13 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
                 SHIPPED,
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("remaining", "scrolls", viewportHeightPx * 3)
             );
             expect(layout.mainHeightPx).toBe(
-                viewportHeightPx - SHELL_HEADER_BAND_PX
+                viewportHeightPx - SHELL_BROWSE_BAND_PX
             );
             expect(layout.mainOverflowPx).toBe(0);
             expect(layout.clippedPx).toBe(0);
@@ -81,7 +88,8 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
                 SHIPPED,
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("intrinsic", "spills", contentPx)
             );
@@ -104,7 +112,8 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
                 SHIPPED,
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("viewport", "spills")
             );
@@ -113,7 +122,7 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
             // number is the header band, at EVERY height — which is why it was
             // invisible to a measurement taken only under 300px, where the band
             // had already been shrunk by the short-viewport treatment.
-            expect(layout.mainOverflowPx).toBe(SHELL_HEADER_BAND_PX);
+            expect(layout.mainOverflowPx).toBe(SHELL_BROWSE_BAND_PX);
             expect(layout.scrollers).toEqual(["main"]);
         }
     );
@@ -125,7 +134,8 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
                 SHIPPED,
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("atLeastRemaining", "spills", 240)
             );
@@ -138,7 +148,11 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
     it("`min-h-full` is a FLOOR, not a cap — content taller than the remainder still reaches its bottom through <main>", () => {
         const layout = resolveShellLayout(
             SHIPPED,
-            { viewportHeightPx: 900, headerBandHeightPx: SHELL_HEADER_BAND_PX },
+            {
+                viewportHeightPx: 900,
+                headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                bottomBandHeightPx: 0,
+            },
             claim("atLeastRemaining", "spills", 2000)
         );
         expect(layout.contentHeightPx).toBe(2000);
@@ -150,7 +164,11 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
     it("a route with NO shared header (`/game`) gets the whole viewport, and the arithmetic is unchanged", () => {
         const layout = resolveShellLayout(
             SHIPPED,
-            { viewportHeightPx: 1080, headerBandHeightPx: 0 },
+            {
+                viewportHeightPx: 1080,
+                headerBandHeightPx: 0,
+                bottomBandHeightPx: 0,
+            },
             claim("remaining", "scrolls", 3000)
         );
         expect(layout.mainHeightPx).toBe(1080);
@@ -183,11 +201,12 @@ describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2
                 SHIPPED,
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("remaining", "clips", LOBBY_COLUMN_PX)
             );
-            const mainHeightPx = viewportHeightPx - SHELL_HEADER_BAND_PX;
+            const mainHeightPx = viewportHeightPx - SHELL_BROWSE_BAND_PX;
             // The box is EXACTLY the remainder — the excess is hidden, not
             // handed to `<main>`, so `<main>` sees nothing to scroll.
             expect(layout.mainHeightPx).toBe(mainHeightPx);
@@ -207,7 +226,8 @@ describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2
             SHIPPED,
             {
                 viewportHeightPx: 1440,
-                headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                bottomBandHeightPx: 0,
             },
             claim("remaining", "clips", 400)
         );
@@ -222,7 +242,8 @@ describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2
                 SHIPPED,
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("remaining", "spills", viewportHeightPx * 3)
             );
@@ -241,7 +262,8 @@ describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2
                 SHIPPED,
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("atLeastRemaining", "spills", LOBBY_COLUMN_PX)
             );
@@ -280,10 +302,14 @@ describe("a clipping route root hides its bottom whatever height it claims (issu
         (kind, viewportHeightPx) => {
             const layout = resolveShellLayout(
                 SHIPPED,
-                { viewportHeightPx, headerBandHeightPx: SHELL_HEADER_BAND_PX },
+                {
+                    viewportHeightPx,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
+                },
                 claim(kind, "clips", LOBBY_COLUMN_PX)
             );
-            const mainHeightPx = viewportHeightPx - SHELL_HEADER_BAND_PX;
+            const mainHeightPx = viewportHeightPx - SHELL_BROWSE_BAND_PX;
             expect(layout.clippedPx).toBe(LOBBY_COLUMN_PX - mainHeightPx);
             expect(layout.scrollers).toEqual([]);
             expect(layout.bottomReachable).toBe(false);
@@ -302,7 +328,11 @@ describe("a clipping route root hides its bottom whatever height it claims (issu
         (kind, viewportHeightPx) => {
             const layout = resolveShellLayout(
                 SHIPPED,
-                { viewportHeightPx, headerBandHeightPx: SHELL_HEADER_BAND_PX },
+                {
+                    viewportHeightPx,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
+                },
                 claim(kind, "spills", LOBBY_COLUMN_PX)
             );
             expect(layout.clippedPx).toBe(0);
@@ -317,7 +347,11 @@ describe("a clipping route root hides its bottom whatever height it claims (issu
     it("a whole-viewport root that CLIPS loses everything past the viewport, header band or no", () => {
         const layout = resolveShellLayout(
             SHIPPED,
-            { viewportHeightPx: 900, headerBandHeightPx: 0 },
+            {
+                viewportHeightPx: 900,
+                headerBandHeightPx: 0,
+                bottomBandHeightPx: 0,
+            },
             claim("viewport", "clips", 4000)
         );
         expect(layout.clippedPx).toBe(4000 - 900);
@@ -330,7 +364,11 @@ describe("a clipping route root hides its bottom whatever height it claims (issu
         // 788. This is why `shrinks` is an input and not an assumption.
         const layout = resolveShellLayout(
             SHIPPED,
-            { viewportHeightPx: 900, headerBandHeightPx: SHELL_HEADER_BAND_PX },
+            {
+                viewportHeightPx: 900,
+                headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                bottomBandHeightPx: 0,
+            },
             claim("atLeastRemaining", "clips", 3212, false)
         );
         expect(layout.clippedPx).toBe(0);
@@ -352,7 +390,8 @@ describe("resolveShellLayout — the shapes the contract rules out (issue #2056 
                 { ...SHIPPED, rootBounded: false },
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("intrinsic", "spills", contentPx)
             );
@@ -374,13 +413,14 @@ describe("resolveShellLayout — the shapes the contract rules out (issue #2056 
                 { ...SHIPPED, mainCanShrink: false, headerPinned: false },
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("intrinsic", "spills", contentPx)
             );
             expect(layout.mainHeightPx).toBe(contentPx);
             expect(layout.documentMaxScrollTopPx).toBeGreaterThan(0);
-            expect(layout.headerHeightPx).toBeLessThan(SHELL_HEADER_BAND_PX);
+            expect(layout.headerHeightPx).toBeLessThan(SHELL_BROWSE_BAND_PX);
         }
     );
 
@@ -392,7 +432,8 @@ describe("resolveShellLayout — the shapes the contract rules out (issue #2056 
                 { ...SHIPPED, mainScrolls: false },
                 {
                     viewportHeightPx,
-                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("intrinsic", "spills", contentPx)
             );
@@ -404,10 +445,14 @@ describe("resolveShellLayout — the shapes the contract rules out (issue #2056 
     it("a pinned header keeps its full band even when <main> refuses to shrink", () => {
         const layout = resolveShellLayout(
             { ...SHIPPED, mainCanShrink: false },
-            { viewportHeightPx: 900, headerBandHeightPx: SHELL_HEADER_BAND_PX },
+            {
+                viewportHeightPx: 900,
+                headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+                bottomBandHeightPx: 0,
+            },
             claim("intrinsic", "spills", 3000)
         );
-        expect(layout.headerHeightPx).toBe(SHELL_HEADER_BAND_PX);
+        expect(layout.headerHeightPx).toBe(SHELL_BROWSE_BAND_PX);
     });
 });
 
@@ -423,6 +468,7 @@ describe("deriveShellModel / deriveHeightClaim (issue #2274)", () => {
         ).toEqual({
             rootBounded: true,
             headerPinned: true,
+            bottomPinned: true,
             mainCanShrink: true,
             mainScrolls: true,
         });
@@ -610,5 +656,283 @@ describe("deriveShellModel / deriveHeightClaim (issue #2274)", () => {
             overflow: "spills",
             shrinks: true,
         });
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// The v3 bands (issue #2582, ADR 0101). `shellBands` is the ONE place the
+// (mode × viewport × banner) matrix turns into numbers, and the reason the
+// bottom nav is in this module at all: it costs `<main>` height exactly as a
+// header does, and the pre-v3 model had no axis for a band below `<main>`.
+// ────────────────────────────────────────────────────────────────────────────
+describe("shellBands — mode x viewport (issue #2582)", () => {
+    it("gives the board no band at all: <main> IS the viewport", () => {
+        for (const viewport of [
+            "portrait",
+            "landscape-compact",
+            "desktop",
+        ] as const) {
+            expect(
+                shellBands({
+                    mode: "immersive",
+                    ownChrome: true,
+                    viewport,
+                    returnBanner: false,
+                }),
+                viewport
+            ).toEqual({ headerBandHeightPx: 0, bottomBandHeightPx: 0 });
+        }
+    });
+
+    it("charges the board nothing even when a banner would otherwise show", () => {
+        // Belt and braces with `shellShowsReturnBanner`, which already refuses
+        // the banner on an `ownChrome` route: the two must not be able to
+        // disagree about a height (the #2274 shape).
+        expect(
+            shellBands({
+                mode: "immersive",
+                ownChrome: true,
+                viewport: "desktop",
+                returnBanner: true,
+            })
+        ).toEqual({ headerBandHeightPx: 0, bottomBandHeightPx: 0 });
+    });
+
+    it("gives Browse the 56px top bar on desktop and no bottom band", () => {
+        expect(
+            shellBands({
+                mode: "browse",
+                ownChrome: false,
+                viewport: "desktop",
+                returnBanner: false,
+            })
+        ).toEqual({
+            headerBandHeightPx: SHELL_BROWSE_BAND_PX,
+            bottomBandHeightPx: 0,
+        });
+    });
+
+    it("cuts the Browse bar to 40px on a landscape phone instead of adding a bottom nav", () => {
+        // A landscape phone has 375-430px of height in total: two bands would
+        // spend a quarter of it on chrome.
+        expect(
+            shellBands({
+                mode: "browse",
+                ownChrome: false,
+                viewport: "landscape-compact",
+                returnBanner: false,
+            })
+        ).toEqual({
+            headerBandHeightPx: SHELL_BROWSE_COMPACT_BAND_PX,
+            bottomBandHeightPx: 0,
+        });
+    });
+
+    it("moves phone-portrait Browse navigation to the BOTTOM band and drops the top bar", () => {
+        expect(
+            shellBands({
+                mode: "browse",
+                ownChrome: false,
+                viewport: "portrait",
+                returnBanner: false,
+            })
+        ).toEqual({
+            headerBandHeightPx: 0,
+            bottomBandHeightPx: SHELL_BOTTOM_NAV_BAND_PX,
+        });
+    });
+
+    it("adds the home indicator's safe-area inset ON TOP of the bottom nav's own height", () => {
+        // `min-h-14` + `pb-[env(safe-area-inset-bottom)]`: border-box padding
+        // GROWS the band rather than eating the items, so the model must add
+        // the inset, not absorb it.
+        expect(
+            shellBands({
+                mode: "browse",
+                ownChrome: false,
+                viewport: "portrait",
+                returnBanner: false,
+                safeAreaBottomPx: 34,
+            }).bottomBandHeightPx
+        ).toBe(SHELL_BOTTOM_NAV_BAND_PX + 34);
+    });
+
+    it("never charges the safe-area inset to a band that is not the bottom nav", () => {
+        for (const viewport of ["landscape-compact", "desktop"] as const) {
+            expect(
+                shellBands({
+                    mode: "browse",
+                    ownChrome: false,
+                    viewport,
+                    returnBanner: false,
+                    safeAreaBottomPx: 34,
+                }).bottomBandHeightPx,
+                viewport
+            ).toBe(0);
+        }
+    });
+
+    it("gives every immersive non-board route the 44px contextual bar, in every viewport", () => {
+        for (const viewport of [
+            "portrait",
+            "landscape-compact",
+            "desktop",
+        ] as const) {
+            expect(
+                shellBands({
+                    mode: "immersive",
+                    ownChrome: false,
+                    viewport,
+                    returnBanner: false,
+                }),
+                viewport
+            ).toEqual({
+                headerBandHeightPx: SHELL_CONTEXTUAL_BAND_PX,
+                bottomBandHeightPx: 0,
+            });
+        }
+    });
+
+    it("adds the return banner to the TOP band in every mode and viewport", () => {
+        const cases = [
+            ["browse", false, "desktop", SHELL_BROWSE_BAND_PX],
+            [
+                "browse",
+                false,
+                "landscape-compact",
+                SHELL_BROWSE_COMPACT_BAND_PX,
+            ],
+            ["browse", false, "portrait", 0],
+            ["immersive", false, "desktop", SHELL_CONTEXTUAL_BAND_PX],
+        ] as const;
+        for (const [mode, ownChrome, viewport, base] of cases) {
+            expect(
+                shellBands({
+                    mode,
+                    ownChrome,
+                    viewport,
+                    returnBanner: true,
+                }).headerBandHeightPx,
+                `${mode}/${viewport}`
+            ).toBe(base + SHELL_RETURN_BANNER_PX);
+        }
+    });
+});
+
+describe("resolveShellLayout — the BOTTOM band costs <main> height (issue #2582)", () => {
+    it("subtracts the bottom nav from <main> exactly as it subtracts a header", () => {
+        // The bug this guards is the whole reason the bottom nav entered this
+        // module: a band the model does not know about leaves `<main>` sized
+        // against the full viewport, so the last row of every page sits UNDER
+        // the nav, unreachable.
+        const withBottom = resolveShellLayout(
+            SHIPPED,
+            {
+                viewportHeightPx: 844,
+                headerBandHeightPx: 0,
+                bottomBandHeightPx: SHELL_BOTTOM_NAV_BAND_PX + 34,
+            },
+            claim("remaining", "scrolls")
+        );
+        const withHeaderOfTheSameSize = resolveShellLayout(
+            SHIPPED,
+            {
+                viewportHeightPx: 844,
+                headerBandHeightPx: SHELL_BOTTOM_NAV_BAND_PX + 34,
+                bottomBandHeightPx: 0,
+            },
+            claim("remaining", "scrolls")
+        );
+        expect(withBottom.mainHeightPx).toBe(844 - (56 + 34));
+        expect(withBottom.mainHeightPx).toBe(
+            withHeaderOfTheSameSize.mainHeightPx
+        );
+    });
+
+    it("keeps the document unscrollable with BOTH bands showing", () => {
+        // Both bands + `<main>` must still add up to the viewport, or the page
+        // grows a document scrollbar (#2056) with chrome pinned at both ends.
+        const layout = resolveShellLayout(
+            SHIPPED,
+            {
+                viewportHeightPx: 844,
+                headerBandHeightPx: SHELL_RETURN_BANNER_PX,
+                bottomBandHeightPx: SHELL_BOTTOM_NAV_BAND_PX,
+            },
+            claim("remaining", "scrolls")
+        );
+        expect(layout.documentMaxScrollTopPx).toBe(0);
+        expect(
+            layout.headerHeightPx + layout.mainHeightPx + layout.bottomHeightPx
+        ).toBe(844);
+        expect(layout.bottomReachable).toBe(true);
+    });
+
+    it("reports the bottom band squeezed when it is NOT pinned", () => {
+        // `shrink-0` on the nav is what stops a stubborn page from eating it;
+        // dropping that class must be visible in the model, not silent.
+        const unpinned: ShellModel = {
+            ...SHIPPED,
+            bottomPinned: false,
+            mainCanShrink: false,
+        };
+        const layout = resolveShellLayout(
+            unpinned,
+            {
+                viewportHeightPx: 400,
+                headerBandHeightPx: 0,
+                bottomBandHeightPx: SHELL_BOTTOM_NAV_BAND_PX,
+            },
+            claim("intrinsic", "spills", 900)
+        );
+        expect(layout.bottomHeightPx).toBeLessThan(SHELL_BOTTOM_NAV_BAND_PX);
+    });
+
+    it("keeps the bottom band at full height when it IS pinned, however long the page", () => {
+        const layout = resolveShellLayout(
+            SHIPPED,
+            {
+                viewportHeightPx: 400,
+                headerBandHeightPx: 0,
+                bottomBandHeightPx: SHELL_BOTTOM_NAV_BAND_PX,
+            },
+            claim("intrinsic", "spills", 4000)
+        );
+        expect(layout.bottomHeightPx).toBe(SHELL_BOTTOM_NAV_BAND_PX);
+    });
+});
+
+describe("deriveShellModel — the bottom band's pin (issue #2582)", () => {
+    it("reads `shrink-0` off the bottom band element", () => {
+        expect(
+            deriveShellModel({
+                root: "flex h-dvh flex-col",
+                headerWrapper: null,
+                main: "flex flex-1 min-h-0 flex-col overflow-y-auto",
+                bottomBand: "flex min-h-14 shrink-0 items-stretch",
+            }).bottomPinned
+        ).toBe(true);
+    });
+
+    it("flags a bottom band that can be squeezed", () => {
+        expect(
+            deriveShellModel({
+                root: "flex h-dvh flex-col",
+                headerWrapper: null,
+                main: "flex flex-1 min-h-0 flex-col overflow-y-auto",
+                bottomBand: "flex min-h-14 items-stretch",
+            }).bottomPinned
+        ).toBe(false);
+    });
+
+    it("treats a route with no bottom band as pinned — there is nothing to squeeze", () => {
+        expect(
+            deriveShellModel({
+                root: "flex h-dvh flex-col",
+                headerWrapper: "shrink-0",
+                main: "flex flex-1 min-h-0 flex-col overflow-y-auto",
+                bottomBand: null,
+            }).bottomPinned
+        ).toBe(true);
     });
 });
