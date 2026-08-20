@@ -172,19 +172,35 @@ name field and `Done`.
 No event in the list? A new one is `+ Create Event` on `/limited` — that flow
 is not written up yet.
 
-## Reach the draft pick screen (2026-08-17)
+## Reach the Draft Room (2026-08-20)
 
-While an event's status is `drafting`, the event detail route IS the pick
-screen — there is no separate `/draft` route to navigate to.
+Since issue #2587 the pick screen is its OWN immersive route,
+`/limited/<eventId>/draft` — it is no longer part of the event detail page.
 
-1. `navigate_page` → `http://localhost:5173/limited/<eventId>`
+1. `navigate_page` → `http://localhost:5173/limited/<eventId>`. While a Pick
+   is pending, a seated player is redirected straight to
+   `/limited/<eventId>/draft`. That redirect is **one-shot per event per tab**
+   (`sessionStorage` key `tolaria:limited:draftRoom:<eventId>` — clear it to
+   get the redirect back), so on a second visit the event page stays put and
+   offers `Enter the Draft Room →` instead. Either way you end up on the same
+   route; you can also navigate to it directly.
 2. `snapshot`. The pack renders as buttons labelled
    `Draft pick: <card name>`, each `roledescription="draggable"` (drag or
-   keyboard: space to lift, arrows to move, space to drop).
+   keyboard: space to lift, arrows to move, space to drop). Arrows / Enter /
+   `S` also pick without touching a tile: arrows move the Selected Card,
+   Enter picks it, `S` picks it to the sideboard.
 
-The header carries `Booster N of M` and the queued-pack count; a
-`Booster card size` slider resizes the tiles. `Your Pool (N)` sits below the
-pack and holds what this seat has taken.
+The room's own thin bar (`[data-slot=draft-room-bar]`) is the only chrome —
+the route is registered `ownChrome`, so there is no shell header and no Event
+back-link. It carries `Pack n/N`, `Pick #n · N left`, the passing direction, a
+waiting-pack dot, `Table` (the Table Ring dialog: seats, picks made, passing
+arrows, you at the bottom), `Pool` (the pool toggle) and an overflow with
+`Leave the draft` / `Settings`. The Pick Timer is the full-width bar directly
+under it. At tablet/desktop widths the body is a `[data-slot=draft-split]`
+pack | pool split; both phone regimes keep the stacked layout.
+
+A Sealed event opens the same route in **reveal mode**: no pack, no counters,
+the dealt Pool plus `Build your deck →`.
 
 An event whose status is `playing` shows the table, pairings and
 `Build Deck` instead — the runbook above.

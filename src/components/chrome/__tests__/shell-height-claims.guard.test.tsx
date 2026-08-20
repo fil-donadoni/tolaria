@@ -641,6 +641,23 @@ const ROUTE_ROOTS: Record<
             { rel: "components/ui/loading-screen.tsx" },
         ],
     },
+    LimitedDraftRoomRoute: {
+        // The Draft Room (issue #2587). `ownChrome`, so `<main>` IS the
+        // viewport here — same as `/game` — and the room absorbs its own
+        // deficit in the scroller below the thin bar.
+        routePath: "/limited/abc123/draft",
+        files: [
+            {
+                rel: "components/limited/limited-draft-room.tsx",
+                ownScroller: {
+                    at: "the `flex min-h-0 flex-1 flex-col overflow-y-auto` body under the thin bar",
+                    why: "The bar is a `shrink-0` sibling and the body takes the remainder; the split layout's two halves then scroll inside it, so a long Pool never pushes the Booster off-screen.",
+                },
+            },
+            { rel: "components/limited/limited-event-page-frame.tsx" },
+            { rel: "components/ui/loading-screen.tsx" },
+        ],
+    },
     LimitedDeckBuilderRoute: {
         routePath: "/limited/abc123/build",
         files: [

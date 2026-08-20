@@ -131,7 +131,6 @@ function renderDraft(
             eventId={"event-1" as never}
             seat={{ ...seat, autoBuiltDeck: null }}
             round={0}
-            totalRounds={3}
             manager={manager}
         />
     );

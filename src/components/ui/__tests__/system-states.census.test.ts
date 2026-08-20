@@ -101,8 +101,13 @@ const SURFACES: SurfaceRow[] = [
         requires: ["LoadingScreen", "ErrorState"],
     },
     {
-        surface: "Draft Room — event shell",
+        surface: "Draft Room — event shell (the event page it is entered from)",
         file: "src/components/limited/limited-event-detail.tsx",
+        requires: ["LoadingScreen", "ErrorState"],
+    },
+    {
+        surface: "Draft Room — room (/limited/$eventId/draft)",
+        file: "src/components/limited/limited-draft-room.tsx",
         requires: ["LoadingScreen", "ErrorState"],
     },
     {

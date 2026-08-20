@@ -99,12 +99,19 @@ describe("shell route census: every router route is classified (issue #2582)", (
         }
     });
 
-    it("gives the board, and only the board, its own chrome", () => {
+    it("gives own chrome to exactly the two surfaces that draw their own bar", () => {
+        // A CLOSED list, not a spot-check: `ownChrome` suppresses the shell
+        // band AND the return banner AND `useActiveSession`, so a route that
+        // takes it without drawing a bar of its own is a surface with no way
+        // out. The board has its pause menu and dev rail; the Draft Room has
+        // `LimitedDraftBar` (issue #2587), whose overflow is the only exit —
+        // ADR 0101 §6 forbids an Event back-link during a pick, which is
+        // exactly what a shell contextual bar would put back.
         expect(
             SHELL_ROUTE_RULES.filter((rule) => rule.ownChrome).map(
                 (rule) => rule.pattern
             )
-        ).toEqual(["/game"]);
+        ).toEqual(["/game", "/limited/$eventId/draft"]);
     });
 });
 

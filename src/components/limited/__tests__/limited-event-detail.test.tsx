@@ -5,7 +5,7 @@
 // through the real `LimitedEventDetail` render, mirroring
 // `limited-vs-ai-panel.test.tsx`'s mocking discipline.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { render, cleanup, screen } from "@testing-library/react";
 import {
     projectLimitedEvent,
     type LimitedEventRow,
@@ -13,17 +13,38 @@ import {
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import LimitedEventDetail from "../limited-event-detail";
 
-// `LimitedDraftTable` (mounted while drafting) pulls in `LimitedDraftTimer`,
-// which reads `useReducedMotion` from `motion/react` — happy-dom has no
-// `matchMedia` by default, and the chrome-collapse tests below stub one that
-// only answers `useViewportMode`'s two queries, so this needs its own stub
-// (mirrors `limited-draft-table.test.tsx`'s discipline).
+// `motion/react`'s `useReducedMotion` reads `matchMedia`, which happy-dom
+// does not provide by default. The pick screen itself moved out of this page
+// in issue #2587, but the stub stays: other panels on the page animate too,
+// and a missing `matchMedia` is a crash, not a degraded render.
 vi.mock("motion/react", () => ({
     useReducedMotion: () => false,
 }));
 
+const navigateMock = vi.fn();
+
 vi.mock("@tanstack/react-router", () => ({
-    useNavigate: () => vi.fn(),
+    useNavigate: () => navigateMock,
+    Link: ({
+        children,
+        to,
+        params,
+        ...rest
+    }: {
+        children: React.ReactNode;
+        to: string;
+        params?: Record<string, string>;
+    } & Record<string, unknown>) => (
+        <a
+            href={Object.entries(params ?? {}).reduce(
+                (path, [key, value]) => path.replace(`$${key}`, value),
+                to
+            )}
+            {...rest}
+        >
+            {children}
+        </a>
+    ),
 }));
 
 vi.mock("~/hooks/useCurrentUser", () => ({
@@ -66,6 +87,10 @@ vi.mock("~/hooks/useLimitedEvent", () => ({
 beforeEach(() => {
     vi.clearAllMocks();
     userDecksMock = [];
+    // `useDraftRoomRedirect` / `useAutoOpenLimitedBuilder` are one-shot per
+    // tab via `sessionStorage`; a marker left by an earlier test would make
+    // the next one's redirect silently disappear.
+    sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -466,179 +491,85 @@ function projectedChallengeableEvent(
     };
 }
 
-// Issue #2515: on a compact viewport the event's own chrome (title, badges,
-// Seats, Close Event, the decorative frame) pushed the first pack card to 86%
-// of a landscape phone screen while drafting. The collapse is gated on BOTH
-// `draftInProgress` AND a compact viewport — get either alone wrong and an
-// acceptance criterion breaks (viewport-only strips chrome off a
-// non-drafting event; drafting-only changes desktop). happy-dom's
-// `useViewportMode()` falls back to "desktop" with no `matchMedia`
-// (`src/hooks/useViewportMode.ts`), which is exactly why every test ABOVE
-// this block keeps passing unchanged — none of them reach the compact
-// branch. Reaching it here requires an explicit `matchMedia` stub that
-// answers the hook's own two queries (mirrors
-// `src/hooks/__tests__/useViewportMode.test.ts`'s discipline), not a mock of
-// the hook itself — a hook-level mock would prove the component reads SOME
-// boolean, not that it reads the REAL media query the CSS `compact-chrome:`
-// variant also keys on.
-describe("chrome collapses while drafting on a compact viewport (issue #2515)", () => {
-    function stubLandscapeCompactViewport() {
-        vi.stubGlobal(
-            "matchMedia",
-            (query: string) =>
-                ({
-                    media: query,
-                    // Only the landscape-phone query matches — exactly
-                    // `useViewportMode()`'s "landscape-compact" mode, i.e.
-                    // `mode !== "desktop"`.
-                    matches: query.includes("orientation: landscape"),
-                    addEventListener: () => {},
-                    removeEventListener: () => {},
-                    addListener: () => {},
-                    removeListener: () => {},
-                    onchange: null,
-                    dispatchEvent: () => true,
-                }) as MediaQueryList
-        );
+// Issue #2587 supersedes issue #2515. That issue folded this page's chrome
+// away on a compact viewport so the Booster underneath it could fit; the
+// Booster is not underneath it any more — it is the Draft Room, on its own
+// immersive route — so the fold is gone and what this page owes a drafting
+// seat is a REDIRECT plus a way back in.
+//
+// The `matchMedia` stub the #2515 suite needed is gone with it: nothing on
+// this page branches on the viewport now, which is the point.
+describe("the event page hands a drafting seat to the Draft Room (issue #2587)", () => {
+    function draftingEvent() {
+        return makeEvent({
+            type: "draft",
+            status: "started",
+            createdBy: "user-1",
+            packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
+        });
     }
 
     afterEach(() => {
-        vi.unstubAllGlobals();
+        sessionStorage.clear();
     });
 
-    it("folds title/badges/Seats/Close Event behind a toggle while drafting, keeping the Booster meta row and a way back", () => {
-        stubLandscapeCompactViewport();
-        eventMock.mockReturnValue(
-            makeEvent({
-                type: "draft",
-                status: "started",
-                createdBy: "user-1",
-                packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
-            })
-        );
+    it("redirects to /limited/$eventId/draft while a Pick is pending", () => {
+        eventMock.mockReturnValue(draftingEvent());
 
         render(<LimitedEventDetail eventId={"event-1" as never} />);
 
-        expect(screen.queryByText("Vintage Cube Draft")).toBeNull();
-        expect(screen.queryByText("drafting")).toBeNull();
-        expect(screen.queryByText(/Seats ·/)).toBeNull();
-        expect(screen.queryByText("Close Event")).toBeNull();
+        expect(navigateMock).toHaveBeenCalledWith({
+            to: "/limited/$eventId/draft",
+            params: { eventId: "event-1" },
+        });
+    });
 
-        // The Booster meta row — the whole point of the collapse — stays
-        // resident, and a way back is reachable without opening the
-        // disclosure.
-        expect(screen.getByText(/Booster 1 of/)).toBeTruthy();
-        expect(screen.getByText("← Back to Limited Events")).toBeTruthy();
+    it("does NOT redirect a second time in the same tab — leaving the room has to stick", () => {
+        // The room's overflow leaves to this page. A standing redirect would
+        // bounce the player straight back in and make the event page
+        // unreachable for the whole draft; the one-shot marker is what stops
+        // that, and it is set by the redirect itself.
+        eventMock.mockReturnValue(draftingEvent());
+        const first = render(
+            <LimitedEventDetail eventId={"event-1" as never} />
+        );
+        expect(navigateMock).toHaveBeenCalledTimes(1);
+        first.unmount();
+        navigateMock.mockClear();
 
-        // Reachable, not removed: the toggle expands the folded band back.
-        const toggle = screen.getByRole("button", { name: /Event Details/ });
-        fireEvent.click(toggle);
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(navigateMock).not.toHaveBeenCalled();
+        // ...and the way back in is on the page, not lost.
+        expect(screen.getByText(/Enter the Draft Room/)).toBeTruthy();
+    });
+
+    it("never mounts the pick screen in the page any more, at any viewport", () => {
+        eventMock.mockReturnValue(draftingEvent());
+
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(
+            document.querySelector("[role=button][aria-label^='Draft pick:']")
+        ).toBeNull();
+        // The chrome the #2515 fold used to hide renders unconditionally
+        // again: the page is a page, not a cramped host for the Booster.
         expect(screen.getByText("Vintage Cube Draft")).toBeTruthy();
         expect(screen.getByText("Close Event")).toBeTruthy();
+        expect(
+            screen.queryByRole("button", { name: /Event Details/ })
+        ).toBeNull();
     });
 
-    // Review round 1, finding 1 (medium, blocking): happy-dom has no layout
-    // engine, so it cannot see the ~16px occlusion itself (that's why round 1
-    // shipped with no test or probe covering this state at all — the browser
-    // probe below is the geometric evidence). What happy-dom CAN see is the
-    // structural cause: `PanelHeader`'s `.panel-header-band` (`panel.tsx`)
-    // carries `-mt-2 sm:-mt-4` — built to climb to a Panel's TOP edge — and at
-    // >=640px (which includes the 844x390 landscape-phone target viewport)
-    // that 16px climbed back over the persistent Back link + this toggle,
-    // covering ~16 of their ~22px and capturing their clicks. This asserts
-    // the fix's actual mechanism: the EXPANDED folded band never renders that
-    // flush-top wrapper mid-panel, and both controls above it stay reachable
-    // (present, not `disabled`, no `aria-hidden`) once expanded.
-    //
-    // Proof of failure: reverting the fix in `limited-event-detail.tsx`
-    // (rendering `<PanelHeader title={limitedEventName(event)} />`
-    // unconditionally instead of branching on `collapseChrome`) makes the
-    // `.panel-header-band` assertion below fail — `document.querySelector`
-    // finds the band's div instead of `null`.
-    it("renders the expanded folded band as a plain heading, not a flush-top PanelHeader band, so the Back link and toggle above it stay reachable", () => {
-        stubLandscapeCompactViewport();
-        eventMock.mockReturnValue(
-            makeEvent({
-                type: "draft",
-                status: "started",
-                createdBy: "user-1",
-                packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
-            })
-        );
-
-        render(<LimitedEventDetail eventId={"event-1" as never} />);
-
-        const backLink = screen.getByText("← Back to Limited Events");
-        const backButton = backLink.closest("button");
-        const toggle = screen.getByRole("button", { name: /Event Details/ });
-        expect(backButton?.disabled).toBe(false);
-        expect((toggle as HTMLButtonElement).disabled).toBe(false);
-
-        fireEvent.click(toggle);
-
-        // The would-be-occluding wrapper must not exist at all in this state.
-        expect(document.querySelector(".panel-header-band")).toBeNull();
-
-        // Both controls above the (now-plain) heading remain present and
-        // reachable — not removed, not disabled, not hidden from a11y.
-        expect(backLink.isConnected).toBe(true);
-        expect(backLink.closest("button")?.disabled).toBe(false);
-        expect(backLink.closest("[aria-hidden='true']")).toBeNull();
-        const reopenedToggle = screen.getByRole("button", {
-            name: /Event Details/,
-        });
-        expect((reopenedToggle as HTMLButtonElement).disabled).toBe(false);
-        expect(reopenedToggle.closest("[aria-hidden='true']")).toBeNull();
-
-        // The title itself must still be showing, just via the plain heading.
-        expect(screen.getByText("Vintage Cube Draft")).toBeTruthy();
-    });
-
-    it("keeps the full chrome on the SAME compact viewport when the event is NOT drafting", () => {
-        stubLandscapeCompactViewport();
+    it("leaves a NON-drafting event alone — no redirect, no room link", () => {
         eventMock.mockReturnValue(
             makeEvent({ type: "sealed", status: "open", createdBy: "user-1" })
         );
 
         render(<LimitedEventDetail eventId={"event-1" as never} />);
 
-        // Never folded: no toggle exists at all off a Draft.
-        expect(
-            screen.queryByRole("button", { name: /Event Details/ })
-        ).toBeNull();
-        // The event name, seatingOpen's own "Cancel Event" label (creator,
-        // still open) and the toolbar's own Back link all render exactly as
-        // the non-drafting suites above already prove they do on desktop.
-        expect(screen.getByText("Limited Edition Alpha Sealed")).toBeTruthy();
-        expect(screen.getByText("Cancel Event")).toBeTruthy();
-        expect(screen.getByText("← Back to Limited Events")).toBeTruthy();
-    });
-
-    // The other half of the AND-gate. The two tests above both stub a compact
-    // viewport, so they pin `draftInProgress` while leaving the viewport term
-    // free: narrowing the collapse condition to `draftInProgress` alone keeps
-    // all of them green while stripping the flush-top `PanelHeader` band off
-    // DESKTOP mid-draft — the one thing the issue's "1440x900 unchanged"
-    // criterion forbids. No `matchMedia` stub here on purpose: that IS the
-    // desktop case (`useViewportMode()` falls back to "desktop" without one).
-    it("keeps the flush-top PanelHeader band while drafting on DESKTOP, where nothing collapses", () => {
-        eventMock.mockReturnValue(
-            makeEvent({
-                type: "draft",
-                status: "started",
-                createdBy: "user-1",
-                packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
-            })
-        );
-
-        render(<LimitedEventDetail eventId={"event-1" as never} />);
-
-        expect(document.querySelector(".panel-header-band")).not.toBeNull();
-        // Nothing is folded away, so no toggle and no second Back link.
-        expect(
-            screen.queryByRole("button", { name: /Event Details/ })
-        ).toBeNull();
-        expect(screen.getByText("Vintage Cube Draft")).toBeTruthy();
+        expect(navigateMock).not.toHaveBeenCalled();
+        expect(screen.queryByText(/Enter the Draft Room/)).toBeNull();
     });
 });
 
