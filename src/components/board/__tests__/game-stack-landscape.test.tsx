@@ -9,7 +9,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import type { StackItem } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
-import { BESIDE_CONTROLLER_STRIP } from "~/lib/controller-bar-metrics";
+import {
+    BESIDE_CONTROLLER_STRIP,
+    CONTROLLER_STRIP_CLEARANCE_EXPR,
+} from "~/lib/controller-bar-metrics";
 
 vi.mock("convex/react", () => ({ useMutation: () => vi.fn() }));
 vi.mock("~/hooks/useDraggable", () => ({
@@ -40,7 +43,12 @@ function makeStackItem(id: string): StackItem {
 
 function renderStack(
     stack: StackItem[],
-    props: { elevated?: boolean; narrow?: boolean; landscape?: boolean } = {}
+    props: {
+        elevated?: boolean;
+        narrow?: boolean;
+        landscape?: boolean;
+        landscapePileClearancePx?: number;
+    } = {}
 ) {
     const value = {
         gameId: "game-id" as never,
@@ -106,6 +114,26 @@ describe("GameStack landscape variant (issue #2589)", () => {
         // BESIDE_CONTROLLER_STRIP's class supplies `right` instead, and an
         // inline style would win the cascade over it.
         expect(outer.style.right).toBe("");
+    });
+
+    it("clears the pile column when landscapePileClearancePx is given (round-2 review finding 6)", () => {
+        // Without this, the panel anchors at the SAME `BESIDE_CONTROLLER_STRIP`
+        // seam the pile column docks at, and — being wider and higher
+        // z-index — paints directly over graveyard/library/exile, making
+        // them unclickable for as long as anything sits on the stack.
+        const { container } = renderStack([makeStackItem("only")], {
+            landscape: true,
+            landscapePileClearancePx: 36,
+        });
+        const outer = container.firstElementChild as HTMLElement;
+
+        // The inline style now WINS the cascade over BESIDE_CONTROLLER_STRIP's
+        // class-supplied `right` — the class stays present (harmless, just
+        // overridden), but the computed offset includes the extra 36px.
+        expect(outer.className).toContain(BESIDE_CONTROLLER_STRIP);
+        expect(outer.style.right).toBe(
+            `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + 36px)`
+        );
     });
 
     it("`elevated` and `landscape` compose independently, same tier rule as `narrow`", () => {

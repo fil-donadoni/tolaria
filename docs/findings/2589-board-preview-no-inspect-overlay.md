@@ -41,11 +41,22 @@ recorded in that PR's receipt:
    about legal actions. The issue's own investigator-authored map flagged this
    exact gap and said to "decide deliberately" rather than assuming a shape.
 
-**What #2589 DID verify:** the existing mobile overlay is already
-`max-h-[90vh]` inside a `fixed inset-0` (100dvh) wrapper — so the ≤100dvh size
-constraint is met today; only the "Cast/Activate inside" behavioral upgrade is
-open. ADR 0025's portrait contract is untouched (no portrait band file was
-touched by #2589).
+**Correction (round-2 review, #2589):** the claim above that the ≤100dvh size
+constraint was "already met today" was FALSE. The pre-fixup overlay was
+`max-h-[90vh]` inside a `fixed inset-0` wrapper — `vh` is the LARGE viewport
+unit, so on a phone with retracting browser chrome `90vh` can EXCEED `100dvh`
+(e.g. `lvh` 844 / `dvh` 740 gives `0.9 * 844 = 759.6px > 740px`). ADR 0101 §5
+mandates `max-height: 100dvh` always, so the size half of AC #3 was unmet too,
+not just the Cast/Activate half — the round-2 fixup landed the one-line
+`max-h-[90vh]` → `max-h-[100dvh]` correction (`card-preview.tsx`). ADR 0025's
+portrait contract remains untouched (no portrait band file touched by
+#2589 or this fixup).
+
+**What remains unshipped:** the Cast/Activate wiring of `InspectOverlay` onto
+the board's card preview, per the two reasons below. That gap is real product
+work with a recorded design decision needed (see "Why this was left out"), not
+a bug this PR introduced — the orchestrator is tracking it as a follow-up
+outside this fixup's scope.
 
 **Why it may not deserve its own issue yet.** It might be more naturally the
 next slice of PRD #2405 (mirroring how #2583 shipped the primitives before any

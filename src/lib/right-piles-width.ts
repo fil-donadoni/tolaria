@@ -1,7 +1,4 @@
-import {
-    LANDSCAPE_PILE_SCALE,
-    landscapeCardMetrics,
-} from "~/lib/landscape-board-bands";
+import { landscapePileTilePx } from "~/lib/landscape-board-bands";
 import { CONTROLLER_STRIP_CLEARANCE_EXPR } from "~/lib/controller-bar-metrics";
 
 /** Horizontal band reserved on the right edge by the pile columns
@@ -27,9 +24,14 @@ export function rightPilesWidth(
 ): string {
     if (isPortrait) return "0px";
     if (landscapeCompact) {
-        const pileWidth =
-            landscapeCardMetrics(viewportHeight).cardWidth *
-            LANDSCAPE_PILE_SCALE;
+        // `landscapePileTilePx` (round-2 review finding 4), not the raw
+        // `LANDSCAPE_PILE_SCALE` fraction — the pile tile is floored below a
+        // certain board height, and this reservation must track the SAME
+        // rendered width `LANDSCAPE_RIGHT_RAIL_VAR` reserves, or a portal'd
+        // dialog centers on a play area narrower than the board actually
+        // reserves (the exact #1770 bug this function's own doc comment
+        // describes, just from the opposite direction).
+        const pileWidth = landscapePileTilePx(viewportHeight);
         return `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + ${pileWidth}px + 0.5rem)`;
     }
     return "calc(1.75rem + 3 * var(--card-w-sm))";

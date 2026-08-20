@@ -214,6 +214,31 @@ describe("compact nameplate variant follows the portrait seam (#1814 round-3 fix
         expect(lifeNode.className).toContain("text-lg");
     });
 
+    it("compact box trims horizontal padding and clips overflow (issue #2589 round-2 fixup finding 7)", () => {
+        // Landscape-compact's seat rail (`LANDSCAPE_SIDE_GUTTER`, 4rem) gives
+        // this box a ~48px max-width; the old `px-3` (24px) + border (2px)
+        // left only ~22px for life + name + poison/energy, so the badges had
+        // nowhere to go but past the box's own edge — into the battlefield
+        // band, contradicting the rail's own "chrome can never overlap a
+        // card" invariant. `px-1.5` buys back width at zero budget cost (it
+        // only changes how the SAME gutter is spent); `overflow-hidden` is
+        // what makes the invariant true BY CONSTRUCTION even for content the
+        // narrowed padding still can't fit (e.g. both poison AND energy
+        // counters live at once).
+        portrait = true;
+        const { container } = renderSpatial(
+            makePlayer("p2", { life: 20 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const plate = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-player="p2"]'
+        )!;
+        expect(plate.className).toContain("overflow-hidden");
+        expect(plate.className).toContain("px-1.5");
+        expect(plate.className).not.toContain("px-3");
+    });
+
     it("landscape/desktop renders the full box (py-2, text-3xl life total)", () => {
         portrait = false;
         const { container } = renderSpatial(

@@ -30,7 +30,9 @@ import {
     LANDSCAPE_OPPONENT_PILES_ANCHOR,
     LANDSCAPE_OPP_HAND_BAND_VAR,
     LANDSCAPE_OPP_HAND_FRAC,
+    LANDSCAPE_PILE_EDGE_GAP_PX,
     LANDSCAPE_PILE_SCALE,
+    LANDSCAPE_PILE_TILE_MIN_PX,
     LANDSCAPE_PILE_TILE_VAR,
     LANDSCAPE_RIGHT_RAIL_VAR,
     LANDSCAPE_SIDE_GUTTER,
@@ -41,6 +43,7 @@ import {
     landscapeBandVars,
     landscapeCardMetrics,
     landscapeCombatLiftDirection,
+    landscapePileTilePx,
     landscapePileVars,
     makeLandscapeHandLayout,
 } from "~/lib/landscape-board-bands";
@@ -198,10 +201,11 @@ describe("pile columns are capped at the midline (#1768)", () => {
     const PILE_GAP = 4;
     const REM = 16;
 
-    /** One pile tile's rendered height: `--card-w-sm` (the compact tile width)
-     *  at the shared 5:7 box. */
+    /** One pile tile's rendered height: `--card-w-sm` (the compact tile width,
+     *  {@link landscapePileTilePx} — floored, round-2 review finding 4, NOT
+     *  the raw `LANDSCAPE_PILE_SCALE` fraction) at the shared 5:7 box. */
     const tileHeight = (boardH: number) =>
-        (landscapeCardMetrics(boardH).cardWidth * LANDSCAPE_PILE_SCALE * 7) / 5;
+        (landscapePileTilePx(boardH) * 7) / 5;
     /** An UNCAPPED column of `n` tiles, in px. */
     const columnHeight = (n: number, boardH: number) =>
         n * tileHeight(boardH) + (n - 1) * PILE_GAP;
@@ -240,22 +244,25 @@ describe("pile columns are capped at the midline (#1768)", () => {
         }
     });
 
-    it("is the FIFTH tile that needed the cap (was the fourth pre-#2589)", () => {
+    it("is back to the FOURTH tile that needs the cap (round-2 review finding 4 restored it)", () => {
         // The regression's arithmetic: graveyard + library + exile fit inside a
         // seat's half, but a 4th conditional tile (companion / emblems /
         // monarch / city's blessing) used to cross the midline — that overlap
         // is what the cap + scroll replaces.
         //
-        // Issue #2589 shrank `LANDSCAPE_PILE_SCALE` (0.7 → 0.5) as part of the
-        // ≤25% width budget — a smaller tile pushes the crossing point out by
-        // one (4th → 5th), which is an EXPECTED consequence of the density
-        // pass, not a re-opening of the original bug: the mechanism under
-        // test (a column overflows its own half and must scroll, never invade
-        // the other seat) still holds, verified independent of tile count by
-        // the sibling tests in this block.
+        // History: issue #2589 shrank `LANDSCAPE_PILE_SCALE` (0.7 → 0.5) as
+        // part of the ≤25% width budget, which pushed the crossing point out
+        // by one (4th → 5th) as an EXPECTED consequence of the density pass.
+        // Round-2 review finding 4 then floored the tile at
+        // `LANDSCAPE_PILE_TILE_MIN_PX` (32px wide) to fix a touch-target
+        // regression — restoring the tile to near its pre-#2589 size also
+        // restores the pre-#2589 crossing point. Either way the MECHANISM
+        // under test (a column overflows its own half and must scroll, never
+        // invade the other seat) holds, verified independent of tile count
+        // by the sibling tests in this block.
         const cap = capPx(LANDSCAPE_MIDLINE_FRAC, PHONE_H);
-        expect(columnHeight(4, PHONE_H)).toBeLessThan(cap);
-        expect(columnHeight(5, PHONE_H)).toBeGreaterThan(cap);
+        expect(columnHeight(3, PHONE_H)).toBeLessThan(cap);
+        expect(columnHeight(4, PHONE_H)).toBeGreaterThan(cap);
     });
 });
 
@@ -343,19 +350,46 @@ describe("phone-landscape width budget (issue #2589, ADR 0101 §8)", () => {
      *  rail (strip clearance + one pile tile + its own edge gap) — the SAME
      *  two quantities `--landscape-side-gutter` and `--landscape-right-rail`
      *  publish to the board root, computed here from the same source
-     *  constants rather than re-measured (no layout engine to measure with). */
+     *  constants rather than re-measured (no layout engine to measure with).
+     *  `pileTilePx` goes through {@link landscapePileTilePx} (not the raw
+     *  scale) since round-2 review finding 4 — the tile is floored at
+     *  {@link LANDSCAPE_PILE_TILE_MIN_PX} px WIDTH, and the edge gap is
+     *  {@link LANDSCAPE_PILE_EDGE_GAP_PX} (was a bare `0.5rem`, trimmed to
+     *  help pay for the floor). */
     function totalHorizontalReservationPx(boardHeight: number): number {
         const gutterPx = Number.parseFloat(LANDSCAPE_SIDE_GUTTER) * REM;
         const stripClearancePx = CONTROLLER_STRIP_FIXED_WIDTH_PX + 0.75 * REM;
-        const pileTilePx =
-            landscapeCardMetrics(boardHeight).cardWidth * LANDSCAPE_PILE_SCALE;
-        const rightRailPx = stripClearancePx + pileTilePx + 0.5 * REM;
+        const pileTilePx = landscapePileTilePx(boardHeight);
+        const rightRailPx =
+            stripClearancePx + pileTilePx + LANDSCAPE_PILE_EDGE_GAP_PX;
         return gutterPx + rightRailPx;
     }
 
     it("keeps nameplates + the control strip at or under 25% of the board width", () => {
         const fraction = totalHorizontalReservationPx(PHONE_H) / BOARD_W;
         expect(fraction).toBeLessThanOrEqual(0.25);
+    });
+
+    it("floors the pile tile at LANDSCAPE_PILE_TILE_MIN_PX (round-2 review finding 4 — was 23px wide / 32.2px tall at PHONE_H, a HEIGHT regression from the pre-#2589 32.2 × 45.1)", () => {
+        const raw =
+            landscapeCardMetrics(PHONE_H).cardWidth * LANDSCAPE_PILE_SCALE;
+        // The raw fraction alone would still be under the floor at this
+        // viewport — otherwise this test would pass even with the floor
+        // deleted (a vacuous guard).
+        expect(raw).toBeLessThan(LANDSCAPE_PILE_TILE_MIN_PX);
+
+        const tileWidthPx = landscapePileTilePx(PHONE_H);
+        expect(tileWidthPx).toBe(LANDSCAPE_PILE_TILE_MIN_PX);
+        const tileHeightPx = (tileWidthPx * 7) / 5;
+        expect(tileHeightPx).toBeGreaterThanOrEqual(44);
+
+        // The CSS `max(…)` expression and this JS twin must agree — they're
+        // two separate spellings of the same formula (one for a CSS var
+        // consumer, one for a plain-number consumer that isn't a descendant
+        // of the var's scope; see `landscapePileTilePx`'s doc comment).
+        expect(vars(PHONE_H)[LANDSCAPE_PILE_TILE_VAR]).toBe(
+            `max(${LANDSCAPE_PILE_TILE_MIN_PX}px, calc(var(${LANDSCAPE_CARD_W_VAR}) * ${LANDSCAPE_PILE_SCALE}))`
+        );
     });
 
     it("is a REAL reduction from the pre-#2589 baseline (8rem gutter, w-40 strip, 0.7 pile scale) — not a coincidentally-passing default", () => {

@@ -101,7 +101,14 @@ vi.mock("../pause-menu-dialog", () => ({ default: () => null }));
 vi.mock("../error-toast", () => ({ default: () => null }));
 vi.mock("../board-background", () => ({ default: () => null }));
 vi.mock("../vs-ai-driver", () => ({ default: () => null }));
-vi.mock("../game-stack", () => ({ default: () => null }));
+// Round-2 fixup finding 2 — a marker, not `() => null`: the mount GUARD
+// itself is what's under test below ("board-surface never double-mounts
+// GameStack"), so the mock must be observable rather than inert.
+vi.mock("../game-stack", () => ({
+    default: (p: { stack: unknown[] }) => (
+        <div data-testid="game-stack-mock" data-count={p.stack.length} />
+    ),
+}));
 vi.mock("../priority-indicator", () => ({ default: () => null }));
 vi.mock("../board-arrows", () => ({ default: () => null }));
 vi.mock("../board-hand-portrait", () => ({
@@ -135,7 +142,7 @@ function makePlayer(id: string, handSize = 0, graveyard = 0): Player {
     };
 }
 
-function renderBoard(handSize = 0, graveyard = 0) {
+function renderBoard(handSize = 0, graveyard = 0, stack: unknown[] = []) {
     h.state = {
         players: [
             makePlayer("opp", handSize, graveyard),
@@ -145,7 +152,7 @@ function renderBoard(handSize = 0, graveyard = 0) {
         priorityPlayerId: "me",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
-        stack: [],
+        stack,
     };
     return render(
         <Board
@@ -282,6 +289,26 @@ describe("landscape-compact board bands (#1768)", () => {
         expect(
             screen.getByTestId("zone-player-battlefield").dataset.cardW
         ).toBe(String(expected.cardWidth));
+    });
+
+    it("never double-mounts GameStack from board-surface itself in landscape-compact (issue #2589 round-2 fixup finding 2)", () => {
+        // `board-surface.tsx`'s central structural change for #2589: the
+        // always-on desktop `GameStack` mount (`!isPortrait &&
+        // stackItems.length > 0`) gained a `&& !landscapeCompact` guard,
+        // because `ControllerLandscapeStrip` now owns a SECOND toggled
+        // mount of the SAME component for this mode — two live mounts would
+        // double the panel (and its draggable/arrow-highlight wiring).
+        //
+        // `../controller` is mocked to `() => null` in this file (see the
+        // top of the file), so `ControllerLandscapeStrip` never renders
+        // here — the ONLY possible source of a `game-stack-mock` in this
+        // tree is board-surface's own guard. Reverting that guard to the
+        // pre-#2589 `{!isPortrait && stackItems.length > 0 && <GameStack
+        // .../>}` left the entire board+lib dom suite green (120 files /
+        // 901 tests) — nothing asserted board-surface's half of the split.
+        const stack = [{ id: "s1", card: { id: "def-s1" } }];
+        renderBoard(0, 0, stack);
+        expect(screen.queryByTestId("game-stack-mock")).toBeNull();
     });
 });
 

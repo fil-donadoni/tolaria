@@ -226,8 +226,33 @@ export default function PlayerNameplate({
             // ("compact nameplate variant follows the portrait seam") pins
             // both class strings verbatim — that test is the mechanical
             // guard: a rename here fails it immediately instead of drifting.
-            className={`relative shrink-0 rounded-sm bg-surface/90 border border-border-subtle/80 text-center backdrop-blur-md transition-shadow duration-200 ${
-                compact ? "px-3 py-0.5" : "px-5 py-2"
+            // Only `py-0.5` is pinned there — the HORIZONTAL `px-*` is free
+            // to change without touching that guard.
+            //
+            // `px-1.5` (was `px-3`, round-2 review finding 7): landscape-
+            // compact's seat rail (`LANDSCAPE_SIDE_GUTTER`, `4rem`) gives
+            // this box a ~48px max-width, of which `px-3` (24px) + the
+            // border (2px) left only ~22px for life + name + poison/energy
+            // — the name collapsed to nothing and the badges had nowhere to
+            // go but past the box's own edge, into the battlefield band
+            // (contradicting the rail's "chrome can never overlap a card"
+            // invariant). `px-1.5` (12px) buys 12px of that back at ZERO
+            // width-budget cost (it only changes how the EXISTING gutter is
+            // spent, not the gutter itself) — portrait's compact box, which
+            // isn't width-constrained the same way, is unaffected by the
+            // extra 12px it also picks up here (same class, both variants).
+            //
+            // `overflow-hidden` (new): the arithmetic above still doesn't
+            // guarantee content fits — a player WITH both poison and
+            // energy counters live is a real, if rare, case that can still
+            // exceed even the freed-up width. `overflow-hidden` is what
+            // makes "chrome can never overlap a card" true BY CONSTRUCTION
+            // regardless of content, matching the rest of this module's own
+            // philosophy (`landscape-board-bands.ts`'s "make the overlap
+            // arithmetically impossible" framing) instead of resting on a
+            // budget calculation that a future badge could invalidate again.
+            className={`relative shrink-0 overflow-hidden rounded-sm bg-surface/90 border border-border-subtle/80 text-center backdrop-blur-md transition-shadow duration-200 ${
+                compact ? "px-1.5 py-0.5" : "px-5 py-2"
             } ${interactive ? "cursor-pointer" : ""} ${className}`}
         >
             {/* Nit (#1814 round-3 review): the compact box is a 24px-tall

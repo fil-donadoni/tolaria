@@ -117,8 +117,68 @@ export const LANDSCAPE_SIDE_GUTTER = "4rem";
  *  `0.5` (issue #2589, was `0.7`) — part of the same ≤25% width budget as
  *  {@link LANDSCAPE_SIDE_GUTTER} above; the piles are already a scroll-capped
  *  browse affordance (`LANDSCAPE_OPPONENT_PILES_ANCHOR`), not a play surface,
- *  so they give back more of their width first. */
+ *  so they give back more of their width first. Floored by
+ *  {@link LANDSCAPE_PILE_TILE_MIN_PX} below at small board heights — this
+ *  scale alone is what regressed the coarse-pointer target (round-2 review
+ *  finding 4). */
 export const LANDSCAPE_PILE_SCALE = 0.5;
+
+/** Floor under the pile tile's WIDTH (px), independent of
+ *  {@link LANDSCAPE_PILE_SCALE} — round-2 review finding 4. At the ADR 0101
+ *  §8 representative viewport (844×390) the raw `0.5` scale renders a
+ *  23.0 × 32.2px tile: both axes are under the design system's 44px
+ *  coarse-pointer control size (ADR 0101 §2), and the HEIGHT is a genuine
+ *  REGRESSION — the pre-#2589 `0.7` scale rendered 32.2 × 45.1, i.e. height
+ *  alone was compliant before this issue.
+ *
+ *  `32` restores the tile to (very close to) that pre-#2589 width — so the
+ *  height regression is fixed (32 × 7/5 = 44.8px, back over the floor) —
+ *  without paying for a full 44px-WIDE tile, which the smaller-of-two-axes
+ *  convention this codebase otherwise uses for touch targets
+ *  (`pile-chip.tsx`'s "governed by the SMALLER of an element's two axes")
+ *  would actually call for. A true 44px-wide floor costs +21px of the ≤25%
+ *  right-rail budget on top of the 44px LEFT-rail fix this same review round
+ *  needs (finding 7) — arithmetically impossible to buy both inside the
+ *  budget's ~9px of slack. Width thus stays a KNOWN, PRE-EXISTING gap (not
+ *  something this PR regressed) — see
+ *  `docs/findings/2589-pile-tile-width-below-44px.md`. A `max()` floor (not a
+ *  raised scale) so it only engages at small board heights; the shared card
+ *  scale still governs everywhere the raw fraction already clears it. */
+export const LANDSCAPE_PILE_TILE_MIN_PX = 32;
+
+/** The pile tile's rendered WIDTH in px for a board of `boardHeight` — the
+ *  JS twin of the `max(…)` CSS expression {@link landscapeBandVars} publishes
+ *  for {@link LANDSCAPE_PILE_TILE_VAR}. Needed as a plain number (not a CSS
+ *  var) by any consumer that isn't a DOM descendant of the board root the CSS
+ *  var is scoped to — `controller-landscape-strip.tsx`'s stack panel
+ *  (round-2 fixup finding 6) is the first: it mounts as a SIBLING of
+ *  `board-surface.tsx`'s `data-board-root` div (`board.tsx`), so CSS custom
+ *  property inheritance (which follows the DOM tree, not the React tree)
+ *  never reaches it — only `--controller-strip-w`, published on
+ *  `document.documentElement`, does. Same formula, same
+ *  {@link LANDSCAPE_PILE_TILE_MIN_PX} floor; kept in sync by
+ *  `src/lib/__tests__/landscape-board-bands.test.ts`. */
+export function landscapePileTilePx(boardHeight: number): number {
+    return Math.max(
+        LANDSCAPE_PILE_TILE_MIN_PX,
+        landscapeCardMetrics(boardHeight).cardWidth * LANDSCAPE_PILE_SCALE
+    );
+}
+
+/** The gap between the pile column and the battlefield's own right edge, in
+ *  rem — the SAME number spelled two ways: as a literal inside
+ *  {@link landscapeBandVars}'s `LANDSCAPE_RIGHT_RAIL_VAR` calc (Tailwind's
+ *  arbitrary-value classes need the literal text, not an interpolated var),
+ *  and as {@link LANDSCAPE_PILE_EDGE_GAP_PX} below for
+ *  {@link landscapePileTilePx}'s JS consumers. `0.25rem` (was a bare
+ *  `0.5rem`, round-2 review finding 4) — trimmed to help buy back the
+ *  ≤25% width-budget room the pile-tile floor spends; still a real,
+ *  non-zero gap between the battlefield and the piles. */
+const LANDSCAPE_PILE_EDGE_GAP_REM = 0.25;
+/** {@link LANDSCAPE_PILE_EDGE_GAP_REM} in px, at the browser default root
+ *  size (16px) — the same conversion `src/lib/__tests__/landscape-board-bands.test.ts`
+ *  uses for every other rem constant in this module. */
+export const LANDSCAPE_PILE_EDGE_GAP_PX = LANDSCAPE_PILE_EDGE_GAP_REM * 16;
 
 // ── Published custom properties ─────────────────────────────────────────────
 
@@ -234,10 +294,24 @@ export function landscapeBandVars(boardHeight: number): CSSProperties {
         [LANDSCAPE_SIDE_GUTTER_VAR]: LANDSCAPE_SIDE_GUTTER,
         [LANDSCAPE_CARD_W_VAR]: `${cardWidth}px`,
         [LANDSCAPE_CARD_H_VAR]: `${cardHeight}px`,
-        [LANDSCAPE_PILE_TILE_VAR]: `calc(var(${LANDSCAPE_CARD_W_VAR}) * ${LANDSCAPE_PILE_SCALE})`,
+        // `max(…)` (round-2 review finding 4): floors the tile at
+        // {@link LANDSCAPE_PILE_TILE_MIN_PX} — see that constant's doc for
+        // why this is a WIDTH floor, not a full 44px one. Below the floor's
+        // crossing point the raw fraction still drives it, so one scale
+        // continues to govern hand/battlefield/piles together everywhere the
+        // floor doesn't engage.
+        [LANDSCAPE_PILE_TILE_VAR]: `max(${LANDSCAPE_PILE_TILE_MIN_PX}px, calc(var(${LANDSCAPE_CARD_W_VAR}) * ${LANDSCAPE_PILE_SCALE}))`,
         // The strip publishes its own MEASURED width (#1769), so the board never
         // hard-codes it — the same seam the phase panel anchors to.
-        [LANDSCAPE_RIGHT_RAIL_VAR]: `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + var(${LANDSCAPE_PILE_TILE_VAR}) + 0.5rem)`,
+        //
+        // `${LANDSCAPE_PILE_EDGE_GAP_REM}rem` (was a bare `0.5rem` literal,
+        // round-2 review finding 4): trimmed from 0.5rem to 0.25rem to help
+        // buy back the ≤25% width-budget room the pile-tile floor above
+        // spends — still a real, visible gap between the battlefield and the
+        // pile column, just a smaller one. Named so
+        // {@link landscapePileTilePx}'s JS twin (finding 6) can add the
+        // IDENTICAL px value rather than a second guessed literal.
+        [LANDSCAPE_RIGHT_RAIL_VAR]: `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + var(${LANDSCAPE_PILE_TILE_VAR}) + ${LANDSCAPE_PILE_EDGE_GAP_REM}rem)`,
     } as CSSProperties;
 }
 

@@ -9,7 +9,10 @@ import { useDraggable } from "~/hooks/useDraggable";
 import { repositionAnchors } from "~/hooks/anchor-reposition";
 import { Panel } from "~/components/ui/panel";
 import { PORTRAIT_STACK_PANEL_TOP } from "~/lib/portrait-board-bands";
-import { BESIDE_CONTROLLER_STRIP } from "~/lib/controller-bar-metrics";
+import {
+    BESIDE_CONTROLLER_STRIP,
+    CONTROLLER_STRIP_CLEARANCE_EXPR,
+} from "~/lib/controller-bar-metrics";
 import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
 
@@ -96,6 +99,23 @@ type GameStackProps = {
      *  fixed `right: 0.5rem`, so the panel slides clear of the strip
      *  automatically and never hard-codes its neighbour's size. */
     landscape?: boolean;
+    /** Round-2 review finding 6 (issue #2589) — how much FURTHER left the
+     *  `landscape` panel must sit, beyond the control strip clearance alone,
+     *  to clear the pile column (`LANDSCAPE_OPPONENT_PILES_ANCHOR` /
+     *  `LANDSCAPE_VIEWER_PILES_ANCHOR`) that docks at the SAME
+     *  `BESIDE_CONTROLLER_STRIP` seam. Without it the panel — open by
+     *  DEFAULT whenever the stack is non-empty, at a higher z-index than the
+     *  piles — painted directly over graveyard/library/exile, making both
+     *  seats' pile chips unclickable for as long as anything sat on the
+     *  stack. Pass `landscapePileTilePx(viewportHeight) +
+     *  LANDSCAPE_PILE_EDGE_GAP_PX` (`~/lib/landscape-board-bands`) — the
+     *  caller's job, not this component's, since it isn't a DOM descendant
+     *  of the board root the CSS var equivalent (`--landscape-right-rail`)
+     *  is scoped to (`ControllerLandscapeStrip` mounts as board-surface's
+     *  SIBLING under `board.tsx`'s `<main>`, so CSS custom property
+     *  inheritance — which follows the DOM tree, not the React tree — never
+     *  reaches it). Ignored when `landscape` is falsy. */
+    landscapePileClearancePx?: number;
 };
 
 /** How many top rows the collapsed list shows before the "N more" expander. */
@@ -115,6 +135,7 @@ export default function GameStack({
     elevated,
     narrow,
     landscape,
+    landscapePileClearancePx,
 }: GameStackProps) {
     const {
         gameId,
@@ -207,11 +228,21 @@ export default function GameStack({
             } ${elevated ? "z-stack" : "z-modal"}`}
             style={{
                 // `landscape` gets its `right` from the class above
-                // (`BESIDE_CONTROLLER_STRIP`'s `right-[calc(...)]`) — an
-                // inline `right` here would win the cascade over it (inline
-                // styles beat classes) and pin the panel back under the
-                // strip.
-                right: landscape ? undefined : "0.5rem",
+                // (`BESIDE_CONTROLLER_STRIP`'s `right-[calc(...)]`) UNLESS
+                // the caller passed `landscapePileClearancePx` (round-2
+                // review finding 6), in which case an inline `right` here
+                // WINS the cascade over the class (inline styles beat
+                // classes) and pushes the panel further left, clear of the
+                // pile column that docks at the SAME `BESIDE_CONTROLLER_STRIP`
+                // seam — without this, the two constants happening to be
+                // the same offset means the panel's own extending width
+                // paints directly over the piles.
+                right:
+                    landscape && landscapePileClearancePx != null
+                        ? `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + ${landscapePileClearancePx}px)`
+                        : landscape
+                          ? undefined
+                          : "0.5rem",
                 transform: narrow
                     ? `translate(${offset.x}px, ${offset.y}px)`
                     : `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,

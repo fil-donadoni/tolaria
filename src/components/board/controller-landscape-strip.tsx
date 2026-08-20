@@ -3,8 +3,13 @@ import { Flag, Layers, Menu } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
 import { useControllerStripWidth } from "~/hooks/useControllerStripWidth";
+import { useViewportHeight } from "~/hooks/useViewportHeight";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
 import { phaseGroupLabel } from "~/lib/phase-labels";
+import {
+    LANDSCAPE_PILE_EDGE_GAP_PX,
+    landscapePileTilePx,
+} from "~/lib/landscape-board-bands";
 import {
     pendingChoiceRequiresBoardTap,
     pendingTargetWantsBoard,
@@ -134,6 +139,17 @@ export default function ControllerLandscapeStrip({
         !stackUserClosed &&
         !stackAutoCollapsedForBoardTap;
 
+    // Round-2 review finding 6 — how far past the control-strip clearance
+    // the stack panel must additionally sit to clear the pile column, which
+    // docks at the SAME `BESIDE_CONTROLLER_STRIP` seam
+    // (`LANDSCAPE_OPPONENT_PILES_ANCHOR` / `LANDSCAPE_VIEWER_PILES_ANCHOR`,
+    // `landscape-board-bands.ts`). See `GameStack`'s
+    // `landscapePileClearancePx` doc comment for why this has to be computed
+    // HERE (a plain number) rather than read off a CSS var.
+    const viewportHeight = useViewportHeight();
+    const landscapePileClearancePx =
+        landscapePileTilePx(viewportHeight) + LANDSCAPE_PILE_EDGE_GAP_PX;
+
     return (
         <>
             <div
@@ -221,7 +237,12 @@ export default function ControllerLandscapeStrip({
             )}
 
             {stackOpen && stackItems.length > 0 && (
-                <GameStack stack={stackItems} elevated landscape />
+                <GameStack
+                    stack={stackItems}
+                    elevated
+                    landscape
+                    landscapePileClearancePx={landscapePileClearancePx}
+                />
             )}
 
             <AttackAllConfirmDialog confirm={attackAllConfirm} />
