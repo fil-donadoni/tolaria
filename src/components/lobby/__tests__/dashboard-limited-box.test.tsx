@@ -171,3 +171,87 @@ describe("DashboardLimitedBox (issue #1582)", () => {
         );
     });
 });
+
+// Live Limited strip ordering (ADR 0101 §9, issue #2591): the viewer's own
+// IN-PROGRESS event sorts first, with a live dot and a primary "Continue"
+// CTA — regardless of query order.
+describe("DashboardLimitedBox live strip ordering (issue #2591)", () => {
+    it("sorts a 'playing' event ahead of an 'open' one even when queried last", () => {
+        render(
+            <DashboardLimitedBox
+                events={[
+                    makeEvent({
+                        _id: "event-open",
+                        status: "open",
+                        type: "draft",
+                    }),
+                    makeEvent({
+                        _id: "event-playing",
+                        status: "playing",
+                        type: "sealed",
+                        completed: true,
+                    }),
+                ]}
+                onBrowse={vi.fn()}
+                onOpen={vi.fn()}
+                onViewAllEvents={vi.fn()}
+            />
+        );
+        const rows = screen.getAllByRole("button", {
+            name: /Limited Edition Alpha/,
+        });
+        expect(rows[0].textContent).toContain("Sealed");
+        expect(rows[1].textContent).toContain("Draft");
+    });
+
+    it("renders a live dot and a primary 'Continue' CTA on the top in-progress event only", () => {
+        render(
+            <DashboardLimitedBox
+                events={[
+                    makeEvent({
+                        _id: "event-playing",
+                        status: "playing",
+                        type: "sealed",
+                        completed: true,
+                    }),
+                    makeEvent({
+                        _id: "event-ready",
+                        status: "started",
+                        type: "draft",
+                        completed: true,
+                    }),
+                ]}
+                onBrowse={vi.fn()}
+                onOpen={vi.fn()}
+                onViewAllEvents={vi.fn()}
+            />
+        );
+        const rows = screen.getAllByRole("button", {
+            name: /Limited Edition Alpha/,
+        });
+        expect(rows[0].querySelector("[data-live-dot]")).not.toBeNull();
+        expect(rows[0].textContent).toContain("Continue");
+        expect(rows[1].querySelector("[data-live-dot]")).toBeNull();
+        expect(rows[1].textContent).not.toContain("Continue");
+    });
+
+    it("does not show a primary CTA when no event is actually in progress", () => {
+        render(
+            <DashboardLimitedBox
+                events={[
+                    makeEvent({
+                        _id: "event-ready",
+                        status: "started",
+                        type: "draft",
+                        completed: true,
+                    }),
+                ]}
+                onBrowse={vi.fn()}
+                onOpen={vi.fn()}
+                onViewAllEvents={vi.fn()}
+            />
+        );
+        expect(screen.queryByText("Continue →")).toBeNull();
+        expect(document.querySelector("[data-live-dot]")).toBeNull();
+    });
+});

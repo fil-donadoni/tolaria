@@ -3,9 +3,11 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import DeckDetail from "~/components/lobby/deck-detail";
+import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
+import { canEditPresets } from "~/lib/adminGating";
 import { findDeckBySlug } from "~/lib/deckLookup";
 import { toPresetLobbyDeck, type LobbyDeck } from "~/lib/deckTypes";
 import {
@@ -23,6 +25,8 @@ export default function DeckDetailRoute() {
     const userDecks = useUserDecks();
     const { remove } = useUserDeckMutations();
     const selectedPresetId = getStoredDeckPresetId();
+    const user = useCurrentUser();
+    const isAdmin = canEditPresets(user);
 
     const allDecks = useMemo<LobbyDeck[]>(() => {
         const presets = (presetDecks ?? []).map((d) => toPresetLobbyDeck(d));
@@ -65,6 +69,25 @@ export default function DeckDetailRoute() {
               }
             : undefined;
 
+    // Edit routes to the same two destinations the "My Decks"/"Preset Decks"
+    // panels use (`lobby.tsx`'s `handleEditDeck`/`handleEditPreset`, issue
+    // #2591): a user deck always edits; a preset edits only for an admin —
+    // the server re-gates via `assertIsAdmin` regardless, this is cosmetic.
+    const handleEdit =
+        deck.kind === "user"
+            ? () =>
+                  void navigate({
+                      to: "/decks/$slug/edit",
+                      params: { slug: deck.presetId },
+                  })
+            : isAdmin
+              ? () =>
+                    void navigate({
+                        to: "/presets/$slug/edit",
+                        params: { slug: deck.presetId },
+                    })
+              : undefined;
+
     return (
         <DeckDetail
             deck={deck}
@@ -75,6 +98,7 @@ export default function DeckDetailRoute() {
                 void navigate({ to: "/" });
             }}
             onDelete={handleDelete}
+            onEdit={handleEdit}
         />
     );
 }

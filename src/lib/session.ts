@@ -9,6 +9,7 @@ const AI_DECK_KEY = "tolaria:aiDeckId";
 const DIFFICULTY_KEY = "tolaria:aiDifficulty";
 const MATCH_FORMAT_KEY = "tolaria:matchFormat";
 const DECK_FORMAT_FILTER_KEY = "tolaria:deckFormatFilter";
+const PLAY_MODE_KEY = "tolaria:playMode";
 
 /** Best-of-N match format (PRD #387). Bo1 (single Game) or Bo3 (first to two).
  *  Maps to the `bestOf` numeric the Match is created with. */
@@ -106,4 +107,29 @@ export function getStoredDeckFormatFilter(): DeckFormatFilter {
 
 export function storeDeckFormatFilter(filter: DeckFormatFilter) {
     localStorage.setItem(DECK_FORMAT_FILTER_KEY, filter);
+}
+
+/** The lobby's Play-panel game-mode selector (ADR 0101 §10, issue #2591):
+ *  **Arena mode** (the GRE enforces the rules — vs Bot, Solo Mode,
+ *  multiplayer) or **Cockatrice mode** (a Manual Game — free table, any
+ *  printed card). This DRIVES deck filtering and the action set — the
+ *  inverse of the pre-#2591 flow, which derived the mode from
+ *  `selectedDeck.format === "manual"`. Persisted client-side like the three
+ *  sibling lobby toggles above (match format, difficulty, deck-format
+ *  filter) rather than in the Convex-backed `userSettings` table: it is a
+ *  per-device "what am I about to do" toggle, not a cross-device profile
+ *  preference (contrast the density/motion/phase-stop settings in
+ *  `useUserPreferences`, which ARE meant to follow the user across
+ *  devices) — see the PR for #2591. */
+export type PlayMode = "arena" | "cockatrice";
+export const DEFAULT_PLAY_MODE: PlayMode = "arena";
+
+export function getStoredPlayMode(): PlayMode {
+    const stored = localStorage.getItem(PLAY_MODE_KEY);
+    if (stored === "arena" || stored === "cockatrice") return stored;
+    return DEFAULT_PLAY_MODE;
+}
+
+export function storePlayMode(mode: PlayMode) {
+    localStorage.setItem(PLAY_MODE_KEY, mode);
 }

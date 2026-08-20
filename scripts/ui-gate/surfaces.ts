@@ -356,6 +356,26 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "deck-detail",
+        label: "Deck detail (/decks/the-deck)",
+        async walk(page, ctx) {
+            // `the-deck` is a DB-seeded preset — always present, unlike a
+            // user deck, so the walk needs no prior create step (issue
+            // #2591: curve + legality + Edit/Play). Presets are DB-backed
+            // (`convex/decks.ts`'s `list` reads the `presetDecks` table, not
+            // the code-side seed array in `deckPresets.ts` directly), and
+            // this deployment's row carries this slug — verified live rather
+            // than assumed from the code array, whose `presetId`s can drift
+            // from what's actually seeded.
+            await goto(page, ctx, "/decks/the-deck");
+            if (!(await visible(page, "h1:has-text('The Deck')", 10_000))) {
+                throw new Unreachable(
+                    "/decks/the-deck did not render the deck detail heading"
+                );
+            }
+        },
+    },
+    {
         id: "design-system",
         label: "Design system census (/admin/design-system)",
         async walk(page, ctx) {

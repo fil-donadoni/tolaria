@@ -8,7 +8,8 @@ import ActionButton from "~/components/board/action-button";
 import ManaSymbol from "../cards/mana-symbol";
 import FeaturedDeckArt from "./featured-deck-art";
 import MatchFormatSelector from "./match-format-selector";
-import type { MatchFormat } from "~/lib/session";
+import PlayModeSelector from "./play-mode-selector";
+import type { MatchFormat, PlayMode } from "~/lib/session";
 
 /** An open (waiting) game enriched with its owning Match's format (PRD #387 /
  *  #397). The joiner inherits the creator's `bestOf`, so the format is shown in
@@ -18,6 +19,16 @@ export type OpenGame = Doc<"games"> & { bestOf: 1 | 3 };
 interface DashboardPlayBoxProps {
     selectedDeck: LobbyDeck | null;
     openGames: Array<OpenGame> | undefined;
+    /** The explicit game-mode selector (ADR 0101 §10, issue #2591): Arena
+     *  mode | Cockatrice mode. This DRIVES which action set renders and
+     *  which decks are compatible — the inverse of the pre-#2591 flow, which
+     *  derived "manual or not" from `selectedDeck.format`. The lobby is
+     *  responsible for clearing an incompatible `selectedDeck` when the mode
+     *  toggles (see `lobby.tsx`'s `handlePlayModeChange`); this component
+     *  only has to cope with a stale mismatch defensively (a persisted mode
+     *  from before this deck existed, a race on first load). */
+    mode: PlayMode;
+    onModeChange: (mode: PlayMode) => void;
     /** Opens the two-step vs-AI setup dialog (difficulty + match format + AI
      *  opponent deck). The match only starts once the dialog is confirmed. */
     onCreateVsAi: () => void;
@@ -40,6 +51,8 @@ interface DashboardPlayBoxProps {
 export default function DashboardPlayBox({
     selectedDeck,
     openGames,
+    mode,
+    onModeChange,
     onCreateVsAi,
     onCreateSolo,
     onCreateManual,
@@ -55,23 +68,35 @@ export default function DashboardPlayBox({
     // server re-validates authoritatively; this disables Play up front so the
     // user can't fire a mutation that will only be rejected.
     const deckLegal = !selectedDeck || selectedDeck.isLegal;
-    const canPlay = !!selectedDeck && deckLegal && !busy && !hasActiveGame;
 
-    // Manual (Tabletop) decks and the real engine are mutually exclusive by
-    // construction (ADR 0080): `createGame` / `joinGame` / `createSoloGame`
-    // reject a manual-format deck, and `createManualSoloGame` rejects a real
-    // one. Without this split every button was enabled for every deck, so half
-    // the choices could only ever produce a server error.
-    const isManualDeck = selectedDeck?.format === "manual";
+    const isCockatrice = mode === "cockatrice";
+    // Manual Decks and the real engine are mutually exclusive by construction
+    // (ADR 0080): `createGame` / `joinGame` / `createSoloGame` reject a
+    // manual-format deck, and `createManualSoloGame` rejects a real one. The
+    // MODE is now the explicit driver (issue #2591) — the lobby filters the
+    // deck lists so a mismatch shouldn't normally reach here, but a stale
+    // selection (mode toggled, or persisted from before this slice) is
+    // handled fail-closed: the action set for the CURRENT mode is disabled
+    // rather than silently dispatching the wrong mutation.
+    const deckMatchesMode = !selectedDeck
+        ? true
+        : isCockatrice
+          ? selectedDeck.format === "manual"
+          : selectedDeck.format !== "manual";
     // The manual Format deliberately validates nothing (ADR 0080), so an empty
-    // deck is "legal" — but a Tabletop game with no cards is not a game.
+    // deck is "legal" — but a Manual Game with no cards is not a game.
     const manualDeckHasCards = (selectedDeck?.cards.length ?? 0) > 0;
-    const canPlayReal = canPlay && !isManualDeck;
-    const canPlayManual = canPlay && isManualDeck && manualDeckHasCards;
-    // "Multiplayer" is mode-agnostic: it opens a table of whatever kind
-    // the selected deck implies (the lobby dispatches createGame vs
-    // createManualGame). A Tabletop table is still a two-human table.
-    const canCreateMultiplayer = canPlayReal || canPlayManual;
+    const emptyManualDeck = isCockatrice && !manualDeckHasCards;
+    // One gate for every action in the CURRENT mode's set: a legal, mode-
+    // matching, non-empty-if-manual deck, no other action in flight, no
+    // active game already held (#155).
+    const canAct =
+        !!selectedDeck &&
+        deckLegal &&
+        deckMatchesMode &&
+        !emptyManualDeck &&
+        !busy &&
+        !hasActiveGame;
 
     return (
         // Rich-ornament survivor (ADR 0101 §2): the "lobby hero". The ADR and
@@ -83,64 +108,60 @@ export default function DashboardPlayBox({
         <Panel tone="accent" ornament>
             <PanelHeader title="Play" />
             <PanelBody>
-                {/* Featured-art HERO SPLASH of the selected deck (PRD #589,
-                    issue #600): the resolved Featured Card's art under a bottom
-                    fade that keeps the name + mana legible. A graceful fallback
-                    paints when the deck has no resolvable art. */}
-                <div className="relative h-40 w-full overflow-hidden rounded-md ring-1 ring-border-accent/40 sm:h-48">
+                <PlayModeSelector
+                    value={mode}
+                    onChange={onModeChange}
+                    disabled={busy}
+                />
+
+                {/* Compact selected-deck tile (ADR 0101 §10 / PRD #2405 D15:
+                    "no big grainy art") — replaces the pre-#2591 full-bleed
+                    hero splash with the same small-art row language the deck
+                    list uses (`DeckListItem`), so a deck reads the same size
+                    everywhere it's shown. */}
+                <div className="flex items-center gap-3 rounded-sm border border-border-subtle bg-surface-elevated px-3 py-2.5">
                     <FeaturedDeckArt
                         featuredCardId={selectedDeck?.featuredCardId ?? null}
-                        objectPosition="object-[center_30%]"
-                        className="h-full w-full"
+                        dim
+                        className="h-12 w-12 shrink-0 rounded ring-1 ring-black/40"
                     />
-                    <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-surface-base via-surface-base/50 to-transparent" />
-                    <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 p-3 sm:p-4">
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                                <span className="truncate font-beleren text-xl tracking-wide text-parchment drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] sm:text-2xl">
-                                    {selectedDeck?.name ?? "No deck selected"}
+                    <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate font-beleren text-sm tracking-wide text-parchment">
+                                {selectedDeck?.name ?? "No deck selected"}
+                            </span>
+                            {selectedDeck && (
+                                <div className="flex shrink-0 items-center gap-0.5 text-base">
+                                    {selectedDeck.colors.map((c) => (
+                                        <ManaSymbol
+                                            key={c}
+                                            symbol={c}
+                                            className="size-4"
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                            {selectedDeck && !selectedDeck.isLegal && (
+                                <span className="rounded-sm bg-danger/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger-strong">
+                                    Illegal
                                 </span>
-                                {selectedDeck && (
-                                    <div className="flex shrink-0 items-center gap-0.5 text-lg">
-                                        {selectedDeck.colors.map((c) => (
-                                            <ManaSymbol
-                                                key={c}
-                                                symbol={c}
-                                                className="size-5"
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="text-sm text-text drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-                                {selectedDeck ? (
-                                    <span className="flex items-center gap-2">
-                                        {
-                                            FORMAT_RULES[selectedDeck.format]
-                                                .label
-                                        }{" "}
-                                        · {selectedDeck.cards.length} cards
-                                        {selectedDeck.kind === "user" && (
-                                            <span className="rounded-sm bg-accent-soft/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-strong">
-                                                Custom
-                                            </span>
-                                        )}
-                                    </span>
-                                ) : (
-                                    "Pick a deck from the lists below"
-                                )}
-                            </div>
+                            )}
                         </div>
-                        {selectedDeck && (
-                            <div className="shrink-0">
-                                <ActionButton
-                                    onClick={onChangeDeck}
-                                    label="Change deck"
-                                    tone="secondary"
-                                />
-                            </div>
-                        )}
+                        <span className="text-[10px] uppercase tracking-wide text-text-disabled">
+                            {selectedDeck
+                                ? `${FORMAT_RULES[selectedDeck.format].label} · ${selectedDeck.cards.length} cards`
+                                : "Pick a deck from the lists below"}
+                        </span>
                     </div>
+                    {selectedDeck && (
+                        <div className="shrink-0">
+                            <ActionButton
+                                onClick={onChangeDeck}
+                                label="Change deck"
+                                tone="secondary"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {selectedDeck && !selectedDeck.isLegal && (
@@ -168,40 +189,68 @@ export default function DashboardPlayBox({
                     disabled={busy}
                 />
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <ActionButton
-                        onClick={onCreateVsAi}
-                        disabled={!canPlayReal}
-                        label="Play vs AI"
-                        tone={isManualDeck ? "secondary" : "primary"}
-                    />
-                    <ActionButton
-                        onClick={onCreateSolo}
-                        disabled={!canPlayReal}
-                        label="Solo Game"
-                        tone="secondary"
-                    />
-                    <ActionButton
-                        onClick={onCreateManual}
-                        disabled={!canPlayManual}
-                        label="Tabletop"
-                        tone={isManualDeck ? "primary" : "secondary"}
-                    />
-                    <ActionButton
-                        onClick={onCreateMultiplayer}
-                        disabled={!canCreateMultiplayer}
-                        label="Multiplayer"
-                        tone="secondary"
-                    />
+                {/* The action set is swapped by mode (ADR 0101 §10), not
+                    merely gated per-button: Cockatrice offers only Solo table
+                    / Open a table, Arena only Play vs Bot / Solo game / Open
+                    a table — the OTHER mode's actions don't render at all,
+                    so "not offered" (issue #2591 AC) means absent from the
+                    DOM, not just disabled. */}
+                <div
+                    className={cn(
+                        "grid gap-3",
+                        isCockatrice ? "grid-cols-2" : "grid-cols-3"
+                    )}
+                >
+                    {isCockatrice ? (
+                        <>
+                            <ActionButton
+                                onClick={onCreateManual}
+                                disabled={!canAct}
+                                label="Solo table"
+                                tone="primary"
+                            />
+                            <ActionButton
+                                onClick={onCreateMultiplayer}
+                                disabled={!canAct}
+                                label="Open a table"
+                                tone="secondary"
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <ActionButton
+                                onClick={onCreateVsAi}
+                                disabled={!canAct}
+                                label="Play vs Bot"
+                                tone="primary"
+                            />
+                            <ActionButton
+                                onClick={onCreateSolo}
+                                disabled={!canAct}
+                                label="Solo game"
+                                tone="secondary"
+                            />
+                            <ActionButton
+                                onClick={onCreateMultiplayer}
+                                disabled={!canAct}
+                                label="Open a table"
+                                tone="secondary"
+                            />
+                        </>
+                    )}
                 </div>
 
                 {selectedDeck && (
                     <p className="text-xs text-text-muted" role="note">
-                        {isManualDeck
-                            ? manualDeckHasCards
-                                ? "Tabletop: no rules enforced, every printed card available. Play solo, or open a table for another player with Multiplayer."
-                                : "This Tabletop deck is empty — add cards before starting a game."
-                            : "Tabletop needs a Tabletop-format deck. Create one from the deck builder."}
+                        {!deckMatchesMode
+                            ? isCockatrice
+                                ? "This deck isn't a Manual Deck — pick one, or switch to Arena mode."
+                                : "This is a Manual Deck — switch to Cockatrice mode to play it, or pick a different deck."
+                            : isCockatrice
+                              ? manualDeckHasCards
+                                  ? "Cockatrice mode: no rules enforced, every printed card available."
+                                  : "This Manual Deck is empty — add cards before starting a game."
+                              : "Arena mode: every rule is enforced by the engine."}
                     </p>
                 )}
 
@@ -214,26 +263,23 @@ export default function DashboardPlayBox({
                             {openGames.map((g) => {
                                 // A table's mode is fixed at creation and the
                                 // join mutations are mode-exclusive (ADR 0080),
-                                // so a deck of the wrong kind can only produce a
+                                // so a deck/mode mismatch can only produce a
                                 // server rejection — disable the row instead.
                                 const tableIsManual = g.mode === "manual";
-                                const deckFitsTable =
-                                    tableIsManual === !!isManualDeck;
-                                const canJoin =
-                                    canPlay &&
-                                    deckFitsTable &&
-                                    (!tableIsManual || manualDeckHasCards);
+                                const rowMatchesMode =
+                                    tableIsManual === isCockatrice;
+                                const canJoin = canAct && rowMatchesMode;
                                 return (
                                     <button
                                         key={g._id}
                                         onClick={() => onJoin(g._id)}
                                         disabled={!canJoin}
                                         title={
-                                            deckFitsTable
+                                            rowMatchesMode
                                                 ? undefined
                                                 : tableIsManual
-                                                  ? "This is a Tabletop table — join it with a Tabletop deck."
-                                                  : "This is a real game — join it with a real deck."
+                                                  ? "This is a Manual Game — switch to Cockatrice mode to join."
+                                                  : "This is an Arena game — switch to Arena mode to join."
                                         }
                                         className={cn(
                                             "flex items-center justify-between rounded-sm border px-4 py-2 text-sm transition",
@@ -249,7 +295,7 @@ export default function DashboardPlayBox({
                                             </span>
                                             {tableIsManual && (
                                                 <span className="rounded-sm border border-border-subtle px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                                                    Tabletop
+                                                    Manual Game
                                                 </span>
                                             )}
                                         </span>

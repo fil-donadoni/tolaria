@@ -138,32 +138,33 @@ async function renderLobby(myLimitedEvents: unknown[] = []) {
 }
 
 describe("Lobby vs-AI two-step flow", () => {
-    it("clicking 'Play vs AI' opens the dialog without firing the mutation", async () => {
+    it("clicking 'Play vs Bot' opens the dialog without firing the mutation", async () => {
         const { getByText, getAllByText, getByLabelText } = await renderLobby();
-        // The Play panel button. Before opening, no create mutation.
-        fireEvent.click(getByText("Play vs AI"));
+        // The Play panel button (issue #2591: "Play vs AI" → "Play vs Bot",
+        // ADR 0101 §10). Before opening, no create mutation.
+        fireEvent.click(getByText("Play vs Bot"));
         expect(createSoloGame).not.toHaveBeenCalled();
         // Dialog content is now present (the two vs-AI selectors). Match
         // Format is not among them — it governs Solo / Multiplayer too
-        // and is picked in the Play box, so exactly one instance exists.
+        // and is picked in the Play box, so exactly one instance exists. The
+        // dialog itself keeps its own "Play vs AI" title/confirm wording
+        // (`vs-ai-setup-dialog.tsx` — out of this slice's scope): both now
+        // present (title + confirm button).
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
         expect(getByLabelText("AI Opponent Deck")).toBeTruthy();
         expect(getByLabelText("Match Format")).toBeTruthy();
-        // Two "Play vs AI" labels now exist: the panel button + the dialog
-        // confirm button.
         expect(getAllByText("Play vs AI").length).toBeGreaterThanOrEqual(2);
     });
 
     it("Confirm fires createSoloGame with the chosen bestOf and deck2", async () => {
         const { getByText, getAllByText, getByLabelText } = await renderLobby();
-        fireEvent.click(getByText("Play vs AI"));
+        fireEvent.click(getByText("Play vs Bot"));
         // Pick White Weenie as the AI opponent deck (deck2).
         fireEvent.change(getByLabelText("AI Opponent Deck"), {
             target: { value: "white-weenie" },
         });
         // Confirm — the dialog footer's "Play vs AI" button. Filter to actual
-        // buttons (the dialog title is an <h2>, not a button) and click the
-        // last one, which is the footer confirm.
+        // buttons (the dialog title is an <h2>, not a button).
         const buttons = getAllByText("Play vs AI")
             .map((n) => n.closest("button"))
             .filter((b): b is HTMLButtonElement => b !== null);
@@ -179,7 +180,7 @@ describe("Lobby vs-AI two-step flow", () => {
 
     it("Cancel closes the dialog without firing the mutation", async () => {
         const { getByText, queryByLabelText } = await renderLobby();
-        fireEvent.click(getByText("Play vs AI"));
+        fireEvent.click(getByText("Play vs Bot"));
         expect(queryByLabelText("AI Difficulty")).toBeTruthy();
         fireEvent.click(getByText("Cancel"));
         expect(createSoloGame).not.toHaveBeenCalled();
@@ -195,7 +196,7 @@ describe("Lobby vs-AI two-step flow", () => {
     // jsdom project relies on for cross-file isolation.
     it("leaves no residual dialog portal in document.body after teardown", async () => {
         const { getByText, getByLabelText } = await renderLobby();
-        fireEvent.click(getByText("Play vs AI"));
+        fireEvent.click(getByText("Play vs Bot"));
         // The portal is live while the dialog is open.
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
         expect(
@@ -213,24 +214,16 @@ describe("Lobby vs-AI two-step flow", () => {
     });
 });
 
-// First-class Limited dashboard box (issue #1582): a Limited box sits
-// alongside the constructed Play box with equal visual weight (both render
-// through the same shared Panel), the old secondary "Limited Events" button
-// is gone, and a seated event's status hint reaches the box through
-// `useMyLimitedEvents` — the real hook wiring, not a hand-built prop.
+// First-class Limited dashboard box (issue #1582, restyled to a full-width
+// live strip by #2591 / ADR 0101 §9): a seated event's status hint reaches
+// the box through `useMyLimitedEvents` — the real hook wiring, not a
+// hand-built prop. The old secondary "Limited Events" button is gone.
 describe("Lobby dashboard Limited box (issue #1582)", () => {
-    it("renders the Limited box alongside the Play box, stacked via a responsive grid", async () => {
-        const { getByText, getByRole, container } = await renderLobby();
+    it("renders the Limited strip and the Play box, each full width", async () => {
+        const { getByText, getByRole } = await renderLobby();
         expect(getByText("Play")).toBeTruthy();
         expect(getByRole("heading", { name: "Limited" })).toBeTruthy();
         expect(getByText("Browse / Create Events")).toBeTruthy();
-        // Same grid wrapper drives the narrow-viewport stack (grid-cols-1)
-        // and the wide side-by-side layout (lg:grid-cols-2).
-        const grid = container.querySelector(
-            ".grid.grid-cols-1.lg\\:grid-cols-2"
-        );
-        expect(grid).toBeTruthy();
-        expect(grid?.children.length).toBe(2);
     });
 
     it("removes the old secondary 'Limited Events' button (no duplicate entry point)", async () => {
