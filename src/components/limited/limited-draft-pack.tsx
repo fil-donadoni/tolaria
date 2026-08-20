@@ -1,5 +1,6 @@
 import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
 import { cardBase } from "~/lib/cardSizing";
+import EmptyState from "~/components/ui/empty-state";
 import LimitedDraftPackCard from "./limited-draft-pack-card";
 
 type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
@@ -41,11 +42,7 @@ export default function LimitedDraftPack({
     zoom?: number;
 }) {
     if (pack.length === 0) {
-        return (
-            <p className="text-sm text-text-muted">
-                Waiting for the next pack…
-            </p>
-        );
+        return <EmptyState message="Waiting for the next pack…" />;
     }
 
     const sorted = [...pack].sort((a, b) =>

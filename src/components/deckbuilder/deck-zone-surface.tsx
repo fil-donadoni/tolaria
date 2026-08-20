@@ -17,6 +17,7 @@ import { useViewportWidth } from "~/hooks/useViewportWidth";
 import type { ZoneCard } from "~/types/game";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import DeckColumnPile, { type DeckPileTile } from "./deck-column-pile";
+import EmptyState from "~/components/ui/empty-state";
 import {
     DEFAULT_ZONE_FILTER,
     filterZoneCards,
@@ -558,13 +559,13 @@ export default function DeckZoneSurface({
                 </div>
             </div>
             {cards.length === 0 && (
-                <div className="px-3 pt-2 text-sm text-text-muted md:px-4">
-                    {emptyMessage}
+                <div className="px-3 pt-2 md:px-4">
+                    <EmptyState message={emptyMessage} />
                 </div>
             )}
             {cards.length > 0 && visible.length === 0 && (
-                <div className="px-3 pt-2 text-sm text-text-muted md:px-4">
-                    No cards match this filter.
+                <div className="px-3 pt-2 md:px-4">
+                    <EmptyState message="No cards match this filter." />
                 </div>
             )}
             {/* THE floor (issue #2511). This strip is the scroll container the

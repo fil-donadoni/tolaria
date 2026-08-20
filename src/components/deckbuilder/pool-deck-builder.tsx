@@ -3,6 +3,10 @@ import { arePoolsDealt } from "@convex/limited/eventStatus";
 import { useLimitedEvent } from "~/hooks/useLimitedEvent";
 import { useUserDecks } from "~/hooks/useUserDecks";
 import LoadingScreen from "~/components/ui/loading-screen";
+import EmptyState from "~/components/ui/empty-state";
+import ErrorState from "~/components/ui/error-state";
+import AmbientPageGround from "~/components/ui/ambient-page-ground";
+import { Panel } from "~/components/ui/panel";
 import PoolDeckBuilderForm from "./pool-deck-builder-form";
 
 /**
@@ -22,21 +26,40 @@ export default function PoolDeckBuilder({
     const event = useLimitedEvent(eventId);
     const userDecks = useUserDecks();
 
+    // TRUE loading: both queries are still in flight (`undefined`).
     if (event === undefined || userDecks === undefined) {
         return <LoadingScreen message="Loading your Pool..." />;
     }
 
     // A started event (the only way this route is reachable — it needs a
     // dealt Pool) can never be `cancelLimitedEvent`'d (issue #1579's
-    // open-status guard), so `null` here only means a stale/bad id.
+    // open-status guard), so `null` here only means a stale/bad id — an
+    // ERROR (the event this route names is gone), not a loading state that
+    // would eventually resolve on its own (issue #2592).
     if (event === null) {
-        return <LoadingScreen message="This event no longer exists." />;
+        return (
+            <div className="relative flex min-h-full flex-col items-center justify-center bg-surface-base px-4 text-text">
+                <AmbientPageGround ring />
+                <Panel className="relative z-10 w-full max-w-md">
+                    <ErrorState message="This event no longer exists." />
+                </Panel>
+            </div>
+        );
     }
 
+    // EMPTY: the event and the viewer both resolved, but there is nothing to
+    // build yet (seat not found, Pool not dealt, or dealt with no cards) —
+    // not an error, and not something a loading spinner would ever resolve
+    // by itself (issue #2592).
     const viewerSeat = event.seats.find((s) => s.isViewer);
     if (!viewerSeat || !arePoolsDealt(event.status) || !viewerSeat.pool) {
         return (
-            <LoadingScreen message="No Pool has been generated for your seat yet." />
+            <div className="relative flex min-h-full flex-col items-center justify-center bg-surface-base px-4 text-text">
+                <AmbientPageGround ring />
+                <Panel className="relative z-10 w-full max-w-md">
+                    <EmptyState message="No Pool has been generated for your seat yet." />
+                </Panel>
+            </div>
         );
     }
 

@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import type { CardIndexEntry } from "./useCardSearch";
+import EmptyState from "~/components/ui/empty-state";
 import ResultCard from "./result-card";
 import { useGridWindow } from "./useGridWindow";
 
@@ -50,19 +51,20 @@ export default function ResultsGrid({
 
     if (idle) {
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-text-muted">
-                <p>Search or pick a filter to see cards.</p>
-                <p className="text-xs text-text-disabled">
-                    Name, color, type, or mana value all narrow the list.
-                </p>
+            <div className="flex h-full items-center justify-center">
+                <EmptyState
+                    message="Search or pick a filter to see cards."
+                    description="Name, color, type, or mana value all narrow the list."
+                    className="text-center"
+                />
             </div>
         );
     }
 
     if (entries.length === 0) {
         return (
-            <div className="flex h-full items-center justify-center text-sm text-text-muted">
-                No cards match these filters.
+            <div className="flex h-full items-center justify-center">
+                <EmptyState message="No cards match these filters." />
             </div>
         );
     }

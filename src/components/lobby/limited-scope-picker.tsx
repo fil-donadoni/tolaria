@@ -1,4 +1,5 @@
 import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
+import EmptyState from "~/components/ui/empty-state";
 
 /** Human-facing scope label — mirrors
  *  `create-limited-event-dialog.tsx`'s `packSourceLabel`: the Vintage Cube
@@ -40,9 +41,10 @@ export default function LimitedScopePicker({
 }: LimitedScopePickerProps) {
     if (scopes.length === 0) {
         return (
-            <p className="text-xs text-text-muted">
-                No Draftable Sets available yet.
-            </p>
+            <EmptyState
+                message="No Draftable Sets available yet."
+                className="text-xs"
+            />
         );
     }
 

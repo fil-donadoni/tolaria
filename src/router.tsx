@@ -26,6 +26,7 @@ import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
 import AdminBugReportsRoute from "./routes/admin/admin-bug-reports.route";
 import AppShell from "./components/chrome/app-shell";
 import NotFoundPage from "./components/ui/not-found-page";
+import OfflineBanner from "./components/ui/offline-banner";
 
 // Root: auth first, then the shell, which mounts the shared header on every
 // route except the fullscreen board. `AppShell` owns the `Outlet`.
@@ -34,6 +35,7 @@ const rootRoute = createRootRoute({
         <AuthGate>
             <AppShell />
             <BugReportButton />
+            <OfflineBanner />
         </AuthGate>
     ),
 });

@@ -2,6 +2,7 @@ import type {
     LimitedEventSeatView,
     LimitedEventView,
 } from "~/hooks/useLimitedEvent";
+import EmptyState from "~/components/ui/empty-state";
 import { groupPoolCards } from "./limitedPoolGrouping";
 
 /** One Seat's row in the compact "Review the Table" summary (PRD #1107 story
@@ -90,9 +91,7 @@ export default function LimitedReviewSeat({
                             ))}
                         </ul>
                     ) : (
-                        <p className="text-sm text-text-muted">
-                            No deck submitted.
-                        </p>
+                        <EmptyState message="No deck submitted." />
                     )}
                 </div>
 
@@ -103,7 +102,7 @@ export default function LimitedReviewSeat({
                             : `Pool (${pool.length})`}
                     </h4>
                     {pool.length === 0 ? (
-                        <p className="text-sm text-text-muted">No Pool.</p>
+                        <EmptyState message="No Pool." />
                     ) : isDraft ? (
                         <ol className="grid list-inside list-decimal grid-cols-1 gap-x-4 gap-y-0.5 text-sm sm:grid-cols-2">
                             {pool.map((card, i) => (

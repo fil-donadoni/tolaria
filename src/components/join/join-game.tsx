@@ -14,15 +14,11 @@ import {
     type LobbyDeck,
 } from "~/lib/deckTypes";
 import { storeSession } from "~/lib/session";
-import {
-    Panel,
-    PanelHeader,
-    PanelBody,
-    PanelFooter,
-} from "~/components/ui/panel";
+import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
+import ErrorState from "~/components/ui/error-state";
 import AmbientPageGround from "~/components/ui/ambient-page-ground";
 import DeckList from "~/components/lobby/deck-list";
 import JoinAntechamberShell from "./join-antechamber-shell";
@@ -110,7 +106,9 @@ export default function JoinGame({ gameId }: JoinGameProps) {
 
     if (info === undefined) return <LoadingScreen message="Loading game…" />;
 
-    // Not joinable: unknown id, already started/full, or the caller's own game.
+    // Not joinable: unknown id, already started/full, or the caller's own game
+    // — an ERROR (the subject this route names is gone or unreachable), not a
+    // loading state a re-fetch would ever resolve on its own (issue #2592).
     if (info === null || !info.joinable) {
         const reason =
             info === null
@@ -125,13 +123,19 @@ export default function JoinGame({ gameId }: JoinGameProps) {
                 <Panel className="relative z-10 w-full max-w-sm">
                     <PanelHeader title="Can’t join game" />
                     <PanelBody className="items-center text-center">
-                        <p className="text-sm text-text-muted">{reason}</p>
+                        <ErrorState
+                            className="w-full"
+                            message={reason}
+                            action={
+                                <Button
+                                    variant="secondary"
+                                    onClick={backToLobby}
+                                >
+                                    Back to lobby
+                                </Button>
+                            }
+                        />
                     </PanelBody>
-                    <PanelFooter className="justify-center">
-                        <Button variant="secondary" onClick={backToLobby}>
-                            Back to lobby
-                        </Button>
-                    </PanelFooter>
                 </Panel>
             </JoinAntechamberShell>
         );

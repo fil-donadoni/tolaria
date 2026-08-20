@@ -6,6 +6,10 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import DeckBuilder from "~/components/lobby/deck-builder/deck-builder";
 import { Button } from "~/components/ui/button";
+import LoadingScreen from "~/components/ui/loading-screen";
+import ErrorState from "~/components/ui/error-state";
+import AmbientPageGround from "~/components/ui/ambient-page-ground";
+import { Panel } from "~/components/ui/panel";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import {
     useUserDecks,
@@ -117,22 +121,27 @@ export default function DeckBuilderRoute({
     if (mode === "edit") {
         if (kind === "preset") {
             if (editingPreset === undefined) {
-                return (
-                    <div className="flex min-h-full items-center justify-center text-text">
-                        Loading...
-                    </div>
-                );
+                return <LoadingScreen />;
             }
             if (editingPreset === null) {
                 return (
-                    <div className="flex min-h-full flex-col items-center justify-center gap-4 text-text bg-surface-base">
-                        <p>Preset not found.</p>
-                        <Button
-                            variant="secondary"
-                            onClick={() => void navigate({ to: "/" })}
-                        >
-                            Back to lobby
-                        </Button>
+                    <div className="relative flex min-h-full flex-col items-center justify-center bg-surface-base px-4 text-text">
+                        <AmbientPageGround ring />
+                        <Panel className="relative z-10 w-full max-w-md">
+                            <ErrorState
+                                message="Preset not found."
+                                action={
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() =>
+                                            void navigate({ to: "/" })
+                                        }
+                                    >
+                                        Back to lobby
+                                    </Button>
+                                }
+                            />
+                        </Panel>
                     </div>
                 );
             }
@@ -151,22 +160,25 @@ export default function DeckBuilderRoute({
         }
 
         if (editingUserDeck === undefined || userDecks === undefined) {
-            return (
-                <div className="flex min-h-full items-center justify-center text-text">
-                    Loading...
-                </div>
-            );
+            return <LoadingScreen />;
         }
         if (editingUserDeck === null) {
             return (
-                <div className="flex min-h-full flex-col items-center justify-center gap-4 text-text bg-surface-base">
-                    <p>Deck not found.</p>
-                    <Button
-                        variant="secondary"
-                        onClick={() => void navigate({ to: "/" })}
-                    >
-                        Back to lobby
-                    </Button>
+                <div className="relative flex min-h-full flex-col items-center justify-center bg-surface-base px-4 text-text">
+                    <AmbientPageGround ring />
+                    <Panel className="relative z-10 w-full max-w-md">
+                        <ErrorState
+                            message="Deck not found."
+                            action={
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => void navigate({ to: "/" })}
+                                >
+                                    Back to lobby
+                                </Button>
+                            }
+                        />
+                    </Panel>
                 </div>
             );
         }
@@ -218,11 +230,7 @@ export default function DeckBuilderRoute({
     }
 
     if (userDecks === undefined) {
-        return (
-            <div className="flex min-h-full items-center justify-center text-text">
-                Loading...
-            </div>
-        );
+        return <LoadingScreen />;
     }
 
     return (
