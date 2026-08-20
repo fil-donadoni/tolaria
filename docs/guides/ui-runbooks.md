@@ -195,9 +195,55 @@ the route is registered `ownChrome`, so there is no shell header and no Event
 back-link. It carries `Pack n/N`, `Pick #n · N left`, the passing direction, a
 waiting-pack dot, `Table` (the Table Ring dialog: seats, picks made, passing
 arrows, you at the bottom), `Pool` (the pool toggle) and an overflow with
-`Leave the draft` / `Settings`. The Pick Timer is the full-width bar directly
-under it. At tablet/desktop widths the body is a `[data-slot=draft-split]`
-pack | pool split; both phone regimes keep the stacked layout.
+`Leave the draft` / `Settings`. At tablet/desktop widths the body is a
+`[data-slot=draft-split]` pack | pool split and the Pick Timer is the
+full-width bar directly above the Booster grid.
+
+### The two phone snap stops (issue #2588)
+
+On a phone the body is `[data-slot=draft-snap-scroller]` — one scroller,
+`scroll-snap-type: mandatory`, holding the two `[data-slot=draft-pane]`
+elements (`data-pane="pack"` then `data-pane="pool"`). Its
+`data-orientation` is `portrait` or `landscape` and its `data-stop` is
+`pack` or `pool` — read `data-stop` rather than guessing from a screenshot.
+
+**Exactly two scroll positions are reachable**, `0` and the scroller's own
+maximum. Assert it rather than eyeballing it:
+
+```js
+const s = document.querySelector("[data-slot=draft-snap-scroller]");
+// portrait: two 85% panes ⇒ max = 0.7 × clientHeight
+[s.scrollTop, s.scrollHeight - s.clientHeight, s.clientHeight];
+```
+
+Click sequences, both orientations:
+
+1. **Swipe to the pool** — click `[data-slot=draft-strip-drop][data-zone=maindeck]`
+   (portrait: the left half of the pool strip along the bottom edge;
+   landscape: the sneak-peek column on the right). `data-stop` becomes
+   `pool`. Programmatic scrolling works too (`s.scrollTo({top: max})`), but
+   the tap is what a player does.
+2. **Back to the pack** — `[data-slot=draft-back-to-pack]`, in the pack's
+   status bar (portrait) or the collapsed pack column (landscape).
+3. **Pick to the sideboard by drag** —
+   `[data-slot=draft-strip-drop][data-zone=sideboard]` is the SB half of the
+   strip / the SB box under the sneak-peek pile. A drop there commits the
+   Pick and parks it in the Sideboard in one gesture.
+4. **The CTA row** — tap a pack tile to select it, then
+   `[data-editing-action="Pick"]` / `"→ Side"` / `"Inspect"` inside
+   `[data-slot=draft-pack-status]` (portrait) or
+   `[data-slot=draft-sneak-peek]` (landscape). The Peek Panel is deliberately
+   NOT mounted on a phone — the strip is the peek bar, so
+   `[data-peek-panel]` is absent there and the surface reserves nothing.
+5. **Grid density** — `[data-slot=draft-density-toggle]` flips the Booster
+   between `3×5` / `8×2` and `4×4`; the grid's own `data-columns` follows.
+
+Other landmarks: `[data-slot=draft-pool-count]` / `-sideboard-count` (the
+strip's live counts), `[data-slot=draft-card-pile]` with `data-count` (the
+Arena-style pile — `aria-hidden`, so it is excluded from the probe's card
+census by design), `[data-slot=draft-pack-status][data-pulsing=true]` (a pack
+landed while the player was parked on the pool), and `[data-draft-chevron]`
+with `data-animated` (absent under `prefers-reduced-motion: reduce`).
 
 A Sealed event opens the same route in **reveal mode**: no pack, no counters,
 the dealt Pool plus `Build your deck →`.

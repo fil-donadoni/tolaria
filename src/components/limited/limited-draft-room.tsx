@@ -7,6 +7,7 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { useLimitedEvent } from "~/hooks/useLimitedEvent";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import { limitedEventName } from "~/lib/limitedEventName";
+import { cn } from "~/lib/utils";
 import { PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
@@ -33,11 +34,13 @@ import LimitedTableRing from "./limited-table-ring";
  *    the shell renders NO band at all and `LimitedDraftBar` is the only bar.
  *    That is what makes ADR 0101's "no Event back-link during a pick" true
  *    rather than aspirational: leaving is in the bar's overflow.
- *  - the split. Tablet/desktop get pack | pool side by side (the Peek Panel
- *    supplies the preview rail — it is `fixed`, and `LimitedDraftTable`
- *    reserves its width). Phone portrait and phone landscape keep the stacked
- *    layout verbatim: their dedicated layouts are the NEXT slice, and this one
- *    must not regress them.
+ *  - the layout regime. Tablet/desktop get pack | pool side by side (the Peek
+ *    Panel supplies the preview rail — it is `fixed`, and `LimitedDraftTable`
+ *    reserves its width). Phone portrait and phone landscape each get their
+ *    own two-stop snap arrangement (issue #2588, ADR 0101 §6): the room
+ *    RESOLVES which one and hands it down as a layout, and gives the phone
+ *    body a fixed box instead of a scroller so a snap pane can be a definite
+ *    fraction of it.
  *
  * SEALED USES THE ROOM IN REVEAL MODE (ADR 0101 §6): there is no pack and no
  * pass, so the bar drops its counters and the body is the dealt Pool with the
@@ -134,6 +137,21 @@ export default function LimitedDraftRoom({
         return <LoadingScreen />;
     }
 
+    // The room's ONE viewport branch (ADR 0101 §6). Issue #2587 shipped it as
+    // a binary — desktop split vs everything-else stacked — which folded the
+    // two phone regimes together; issue #2588 gives each its own arrangement.
+    // Resolved HERE and passed down: `LimitedDraftTable` forks on the LAYOUT
+    // it is told, never on a media query of its own, so a test can drive
+    // either arrangement and the room stays the single place the regime is
+    // decided.
+    const draftTableLayout =
+        viewport === "desktop"
+            ? "split"
+            : viewport === "portrait"
+              ? "phone-portrait"
+              : "phone-landscape";
+    const draftPhone = draftLive && viewport !== "desktop";
+
     const round = event.draftRound ?? 0;
     const pack = viewerSeat.currentPack ?? [];
     const pool = viewerSeat.pool ?? [];
@@ -160,13 +178,25 @@ export default function LimitedDraftRoom({
                 onOpenTable={() => setTableOpen(true)}
             />
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+            {/* The body is a SCROLLER off the phone regimes and a fixed box on
+                them (issue #2588). A snap pane has to be exactly its share of
+                a definite height, so the surface underneath cannot also be
+                free to grow — and the 12px of padding a scrolling body wants
+                is 12px the two panes would be measured against. Every other
+                regime keeps the scroller #2587 gave it verbatim. */}
+            <div
+                data-slot="draft-room-body"
+                className={cn(
+                    "flex min-h-0 flex-1 flex-col",
+                    draftPhone ? "overflow-hidden" : "overflow-y-auto p-3"
+                )}
+            >
                 {draftLive ? (
                     <LimitedDraftTable
                         eventId={eventId}
                         seat={viewerSeat}
                         round={round}
-                        layout={viewport === "desktop" ? "split" : "stacked"}
+                        layout={draftTableLayout}
                         showPool={poolVisible}
                     />
                 ) : (

@@ -22,8 +22,45 @@
 // `setPoolArrangementEntry`) the shared `resolveDeckZoneDragAction` has no
 // vocabulary for and should not grow one.
 import { parseDeckZoneDropId } from "~/components/deckbuilder/deckZoneDrag";
+import type { DeckZone } from "@convex/deckLayout";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import { parseColumnId, type ColumnId } from "@convex/deckLayout";
+
+/** Prefix for the PHONE SNAP STRIP's drop targets (issue #2588, ADR 0101 §6).
+ *
+ *  On a phone the Pool is mostly off screen: portrait parks it behind a 15%
+ *  strip, landscape behind a 20% sneak-peek column. That strip is a drop
+ *  target for the card in hand, and it means exactly what a drop on the pane
+ *  it stands for means — which is why it is parsed HERE, into the same
+ *  `{ zone, columnId }` shape `parseDeckZoneDropId` returns, rather than
+ *  handled by a second `onDragEnd` bolted onto the phone panes.
+ *
+ *  It cannot reuse the pane's own `deck-zone:` id: dnd-kit keys its droppable
+ *  registry by id, and the Pool pane is MOUNTED at the same time as the strip
+ *  that stands for it (both live in the snap scroller, one of them merely
+ *  scrolled out of view). Two mounted droppables sharing one id collide. Same
+ *  reasoning, same shape, as the deckbuilder's `deck-tab:` prefix
+ *  (`deckZoneDrag.ts` § `TAB_PREFIX`).
+ *
+ *  Portrait and landscape mint the SAME two ids and never collide with each
+ *  other: `LimitedDraftTable` renders one orientation's panes or the other's,
+ *  never both (`useViewportMode` is a 3-way discriminant, not a pair of
+ *  independent booleans). */
+const STRIP_PREFIX = "draft-strip:";
+
+/** Drop-target id for one half of the phone strip — the Pool half
+ *  (`"maindeck"`) or the Sideboard half (`"sideboard"`, the "pick to SB"
+ *  gesture ADR 0101 §6 asks for). */
+export function draftStripDropId(zone: DeckZone): string {
+    return `${STRIP_PREFIX}${zone}`;
+}
+
+/** The Zone a strip drop-target id names, or `null` for any other id. */
+export function parseDraftStripDropId(id: string | undefined): DeckZone | null {
+    if (!id || !id.startsWith(STRIP_PREFIX)) return null;
+    const zone = id.slice(STRIP_PREFIX.length);
+    return zone === "maindeck" || zone === "sideboard" ? zone : null;
+}
 
 /** A booster card being dragged (Booster → Pool column / Sideboard commits
  *  the Pick — ADR 0060). */
@@ -74,7 +111,15 @@ export function resolveDraftDragAction(
 ): DraftDragAction | null {
     if (!data) return null;
 
-    const target = parseDeckZoneDropId(dest);
+    // ONE parser for both vocabularies (issue #2588): the shared `deck-zone:`
+    // ids the Pool's own panes and Columns mint, and the phone strip's
+    // `draft-strip:` ids. A strip names a Zone and no Column — exactly a
+    // whole-pane drop — so everything below is unchanged by its arrival.
+    const stripZone = parseDraftStripDropId(dest);
+    const target =
+        stripZone !== null
+            ? { zone: stripZone, columnId: null }
+            : parseDeckZoneDropId(dest);
     if (target === null) return null;
 
     const sideboard = target.zone === "sideboard";

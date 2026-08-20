@@ -801,6 +801,45 @@
     .arrival-glow {
         animation: arrivalGlow 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
+
+    /* 7. Swipe hint on the Draft Room's phone panes (#2588, ADR 0101 §6:
+       "a very subtle animated chevron, 1.8s, opacity .45 -> .9, 3px travel").
+       Also gated JS-side: `DraftSwipeChevron` only sets `data-animated` when
+       `useReducedMotion()` is false, which is the half a dom test can assert.
+       The chevron itself still renders under reduced motion — it is an
+       affordance (there is a second pane that way), not decoration. */
+    [data-draft-chevron][data-animated="true"] {
+        animation: draftSwipeNudge 1.8s ease-in-out infinite;
+    }
+    [data-draft-chevron="left"][data-animated="true"] {
+        animation-name: draftSwipeNudgeX;
+    }
+}
+
+/* Travel is 3px toward the pane the chevron points at: up the scroller in
+   portrait, left of it in landscape. */
+@keyframes draftSwipeNudge {
+    0%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.45;
+    }
+    50% {
+        transform: translateY(-3px);
+        opacity: 0.9;
+    }
+}
+
+@keyframes draftSwipeNudgeX {
+    0%,
+    100% {
+        transform: translateX(0);
+        opacity: 0.45;
+    }
+    50% {
+        transform: translateX(-3px);
+        opacity: 0.9;
+    }
 }
 
 @layer base {

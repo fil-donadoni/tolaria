@@ -30,6 +30,7 @@ export default function LimitedDraftPack({
     onOpenMenu,
     pending,
     zoom,
+    columns,
 }: {
     pack: DraftPackCard[];
     selectedPickId: string | null;
@@ -40,6 +41,13 @@ export default function LimitedDraftPack({
     /** Zoom multiplier from the caller's `useCardZoom` (default 1 if the
      *  caller doesn't wire a slider). */
     zoom?: number;
+    /** A FIXED column count (issue #2588, ADR 0101 §6: "pack grid 3×5
+     *  portrait / 8×2 landscape with a density toggle"). The phone
+     *  arrangements lay the Booster out in a known grid so a 15-card pack
+     *  fits a pane, rather than in `auto-fill` tracks sized from a card
+     *  width; `zoom` is then irrelevant and the phone surfaces mount no
+     *  slider. Absent = the desktop `auto-fill` grid, unchanged. */
+    columns?: number;
 }) {
     if (pack.length === 0) {
         return <EmptyState message="Waiting for the next pack…" />;
@@ -51,10 +59,28 @@ export default function LimitedDraftPack({
 
     return (
         <ul
-            className="grid gap-3"
+            className={
+                columns === undefined
+                    ? "grid gap-3"
+                    : // The grid IS the scroller in the fixed-column
+                      // arrangement (issue #2588) — no wrapper. A wrapper
+                      // whose single child is this whole `<ul>` is a scroll
+                      // container shorter than its tallest child, which is
+                      // what the UI gate's `starved` probe counts (and it
+                      // cannot tell that shape apart from the deck-builder
+                      // bug it exists to catch, a 66px window around a 101px
+                      // tile). Scrolling the tiles themselves measures
+                      // honestly: the tallest child is one card.
+                      "grid min-h-0 flex-1 content-start gap-1.5 overflow-x-hidden overflow-y-auto overscroll-contain"
+            }
+            data-slot="draft-pack-grid"
+            data-columns={columns}
             style={
                 {
-                    gridTemplateColumns: `repeat(auto-fill, minmax(calc(${CARD_BASE} * ${zoom ?? 1}), 1fr))`,
+                    gridTemplateColumns:
+                        columns === undefined
+                            ? `repeat(auto-fill, minmax(calc(${CARD_BASE} * ${zoom ?? 1}), 1fr))`
+                            : `repeat(${columns}, minmax(0, 1fr))`,
                 } as React.CSSProperties
             }
         >

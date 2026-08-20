@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
     DragDropProvider,
     DragOverlay,
@@ -36,6 +36,22 @@ import {
     type DraftDragData,
 } from "./limitedDraftDrag";
 import type { ColumnId } from "@convex/deckLayout";
+import { splitPoolByArrangement } from "@convex/limited/poolArrangement";
+import DraftLandscapePanes from "./draft-room/draft-landscape-panes";
+import DraftPackDensityToggle from "./draft-room/draft-pack-density-toggle";
+import DraftPortraitPanes from "./draft-room/draft-portrait-panes";
+import {
+    draftPackColumns,
+    nextDraftPackDensity,
+    type DraftPackDensity,
+} from "./draft-room/draftPackGrid";
+import {
+    draftPackIdentity,
+    type DraftPhoneOrientation,
+} from "./draft-room/draftSnapStops";
+import type { DraftPhonePanesProps } from "./draft-room/draftPhonePanes";
+import { useDraftPackRecall } from "./draft-room/useDraftPackRecall";
+import { useDraftSnapStops } from "./draft-room/useDraftSnapStops";
 
 // Same responsive base size as the shared pool deckbuilder surface / draft
 // pack (`CARD_BASE` in `pool-deck-builder-form.tsx` / `limited-draft-pack.tsx`),
@@ -85,11 +101,22 @@ export default function LimitedDraftTable({
      *  never resolve a drop target there. Same escape hatch `DeckBuilder` and
      *  `PoolDeckBuilderForm` already carry. */
     manager?: DragDropManager;
-    /** `"split"` (tablet/desktop, ADR 0101 §6) puts the Booster and the Pool
-     *  side by side; `"stacked"` keeps them one above the other, which is the
-     *  pre-#2587 arrangement and what both phone regimes still get until
-     *  their own slice lands. */
-    layout?: "stacked" | "split";
+    /** Which arrangement of the Booster and the Pool to draw (ADR 0101 §6).
+     *
+     *  - `"split"` — tablet / desktop: side by side, the Peek Panel supplying
+     *    the preview rail.
+     *  - `"phone-portrait"` / `"phone-landscape"` — the two-stop snap surface
+     *    (issue #2588). These are the fork this component exists to keep
+     *    HONEST: they change the panes only. The `DragDropProvider`, the
+     *    `DragOverlay`, the Inspect Overlay and the pick context menu are
+     *    mounted ONCE, below, outside every branch — two providers or two
+     *    overlays on different arms is a bug that passes every unit test.
+     *  - `"stacked"` — one above the other. The pre-#2587 arrangement and the
+     *    neutral default: no host selects it now (the room resolves one of
+     *    the three above), and it is what this component renders when the
+     *    caller expresses no preference, which is the configuration its own
+     *    gesture tests use because those gestures are layout-independent. */
+    layout?: "stacked" | "split" | "phone-portrait" | "phone-landscape";
     /** The Draft Room's pool toggle. The Pool pane is unmounted, not hidden:
      *  it renders every pooled card through `DeckZoneSurface`, and a
      *  `display:none` copy of that would keep paying for images the player
@@ -118,8 +145,20 @@ export default function LimitedDraftTable({
         initial: 1.2,
     });
 
+    // The PHONE fork (issue #2588). One derivation, read by everything below,
+    // so "are we on a phone" is never asked twice with two different answers.
+    const phoneOrientation: DraftPhoneOrientation | null =
+        layout === "phone-portrait"
+            ? "portrait"
+            : layout === "phone-landscape"
+              ? "landscape"
+              : null;
+    const [density, setDensity] = useState<DraftPackDensity>("fit");
+
     const pack = seat.currentPack ?? [];
-    const pool = seat.pool ?? [];
+    // Memoised on the seat's own array: `?? []` mints a fresh empty array on
+    // every render, which would re-run the Pool split below every time.
+    const pool = useMemo(() => seat.pool ?? [], [seat.pool]);
 
     const handlePick = async (pickId: string) => {
         if (pending) return;
@@ -246,26 +285,36 @@ export default function LimitedDraftTable({
     // it, issue #1249) while hiding the panel. `handleSelect` clears it, so
     // re-tapping the card brings the panel back.
     const selectedPickId = seat.selectedPickId ?? null;
+    /** The Selected Card itself (ADR 0060) — the seat's own selection, with
+     *  no notion of a dismissal. The CTA SET hangs off this rather than off
+     *  the panel below, because on a phone the CTAs are not IN the panel:
+     *  they are inlined into the strip (issue #2588), where "close" is not a
+     *  gesture that exists and a dismissal must not silently empty the row. */
+    const selectedCard = selectedPickId
+        ? (pack.find((c) => c.pickId === selectedPickId) ?? null)
+        : null;
+    /** What the Peek Panel shows: the selection MINUS a dismissal. */
     const peeked =
-        selectedPickId && peekClosedFor !== selectedPickId
-            ? (pack.find((c) => c.pickId === selectedPickId) ?? null)
+        selectedCard && peekClosedFor !== selectedCard.pickId
+            ? selectedCard
             : null;
-    const peekActions: readonly EditingSurfaceAction[] = peeked
+    const peekActions: readonly EditingSurfaceAction[] = selectedCard
         ? [
               {
                   label: "Pick",
                   primary: true,
                   disabled: pending,
-                  onSelect: () => void handlePick(peeked.pickId),
+                  onSelect: () => void handlePick(selectedCard.pickId),
               },
               {
                   label: "→ Side",
                   disabled: pending,
-                  onSelect: () => void handlePickToSideboard(peeked.pickId),
+                  onSelect: () =>
+                      void handlePickToSideboard(selectedCard.pickId),
               },
               {
                   label: "Inspect",
-                  onSelect: () => setInspecting(peeked.cardId),
+                  onSelect: () => setInspecting(selectedCard.cardId),
               },
           ]
         : [];
@@ -292,6 +341,28 @@ export default function LimitedDraftTable({
     // the five UI-gate viewports that is WIDTH (the rail), not height.
     const peekLayout = usePeekPanelLayout();
 
+    // ...but NOT on a phone (issue #2588). There the CTA row is inlined into
+    // the strip that is already on screen (`draft-selection-actions.tsx`),
+    // because the Peek Panel's landscape arrangement is a 224px right rail
+    // and the right edge of a landscape phone is exactly where the sneak-peek
+    // column lives — two `fixed`-ish surfaces fighting for one edge, and a
+    // reserve paid for a panel that is no longer the peek bar. ADR 0101 §6
+    // names the strip "its status / Peek bar"; this is that.
+    const peekPanel = phoneOrientation === null ? peeked : null;
+
+    // The two-stop snap scroller and the pack-arrival recall (ADR 0101 §6).
+    // Called unconditionally — hooks cannot live behind the layout fork — and
+    // inert off a phone: nothing reads `stop`, and the recall's interval only
+    // ever starts while the player is parked on the pool.
+    const scrollerRef = useRef<HTMLDivElement | null>(null);
+    const snap = useDraftSnapStops(scrollerRef, phoneOrientation ?? "portrait");
+    const { pulsing } = useDraftPackRecall({
+        packIdentity: draftPackIdentity(pack),
+        stop: snap.stop,
+        pickDeadline: seat.pickDeadline,
+        onRecall: () => snap.snapTo("pack"),
+    });
+
     // Arrows / Enter / S (ADR 0101 §6). Wired to the SAME three handlers the
     // click, the context menu, the Peek Panel CTA row and the drag use — see
     // `useDraftKeyboardPicks` for why that is the whole point of the hook.
@@ -304,30 +375,46 @@ export default function LimitedDraftTable({
         onPickToSideboard: (pickId) => void handlePickToSideboard(pickId),
     });
 
+    /* Full-width, mounted directly above the Booster grid (issue #2238) — a
+     * 12px badge sharing a meta row's text-xs muted tone was not findable
+     * under time pressure, which is also why the Draft Room's thin bar
+     * deliberately carries no second copy of the countdown. `pack.length` is
+     * the SAME cards-remaining count the server used to look up this Pick's
+     * allowance (`assignFreshPack`), which is how the bar derives its own
+     * denominator without a second server-written field.
+     *
+     * ONE element, handed to whichever arrangement is drawn — the phone panes
+     * mount it in the band that survives BOTH snap stops, which is what "a
+     * pack arriving while parked on the pool starts the timer" (ADR 0101 §6)
+     * amounts to once the countdown is server-stamped. */
+    const timer = (
+        <LimitedDraftTimer
+            pickDeadline={seat.pickDeadline}
+            cardsRemaining={pack.length}
+        />
+    );
+
+    const packGrid = (
+        <LimitedDraftPack
+            pack={pack}
+            selectedPickId={seat.selectedPickId ?? null}
+            onSelect={handleSelect}
+            onPick={(pickId) => void handlePick(pickId)}
+            onOpenMenu={(pickId, x, y) => setMenu({ pickId, x, y })}
+            pending={pending}
+            zoom={phoneOrientation === null ? boosterZoom.value : undefined}
+            columns={
+                phoneOrientation === null
+                    ? undefined
+                    : draftPackColumns(phoneOrientation, density)
+            }
+        />
+    );
+
     const packPane = (
         <>
-            {/* Full-width, mounted directly above the Booster grid (issue
-             *  #2238) — a 12px badge sharing a meta row's text-xs muted tone
-             *  was not findable under time pressure, which is also why the
-             *  Draft Room's thin bar deliberately carries no second copy of
-             *  the countdown. `pack.length` is the SAME cards-remaining count
-             *  the server used to look up this Pick's allowance
-             *  (`assignFreshPack`), which is how the bar derives its own
-             *  denominator without a second server-written field. */}
-            <LimitedDraftTimer
-                pickDeadline={seat.pickDeadline}
-                cardsRemaining={pack.length}
-            />
-
-            <LimitedDraftPack
-                pack={pack}
-                selectedPickId={seat.selectedPickId ?? null}
-                onSelect={handleSelect}
-                onPick={(pickId) => void handlePick(pickId)}
-                onOpenMenu={(pickId, x, y) => setMenu({ pickId, x, y })}
-                pending={pending}
-                zoom={boosterZoom.value}
-            />
+            {timer}
+            {packGrid}
         </>
     );
 
@@ -343,6 +430,62 @@ export default function LimitedDraftTable({
             />
         </>
     );
+
+    // The Pool split by the seat's own Arrangement — the SAME pure function
+    // `LimitedDraftPool` renders from, so the strip's counts and the pane's
+    // contents can never disagree. Only the phone strips read it.
+    const poolSplit = useMemo(
+        () => splitPoolByArrangement(pool, seat.poolArrangement ?? undefined),
+        [pool, seat.poolArrangement]
+    );
+    const phonePanes: DraftPhonePanesProps = {
+        scrollerRef,
+        snap,
+        packGrid,
+        timer,
+        pool: (
+            <LimitedDraftPool
+                eventId={eventId}
+                pool={pool}
+                arrangement={seat.poolArrangement}
+                arrange={phoneOrientation === "portrait" ? "column" : "row"}
+            />
+        ),
+        densityToggle: (
+            <DraftPackDensityToggle
+                orientation={phoneOrientation ?? "portrait"}
+                density={density}
+                packSize={pack.length}
+                onToggle={() => setDensity(nextDraftPackDensity)}
+            />
+        ),
+        packPile: pack.map((card) => ({
+            key: card.pickId,
+            cardId: card.cardId,
+        })),
+        pickPile: [
+            ...poolSplit.cards.map((card) => ({
+                key: `pool-${card.poolIndex}`,
+                cardId: card.cardId,
+            })),
+            ...poolSplit.sideboard.map((card) => ({
+                key: `pool-${card.poolIndex}`,
+                cardId: card.cardId,
+                highlight: true,
+            })),
+        ],
+        mainCount: poolSplit.cards.length,
+        sideCount: poolSplit.sideboard.length,
+        // The same n the room's thin bar shows: the pool is append-only, so
+        // the number of picks made is its length.
+        pickNumber: pool.length + 1,
+        packLeft: pack.length,
+        selected: selectedCard
+            ? { cardId: selectedCard.cardId, cardName: selectedCard.cardName }
+            : null,
+        actions: peekActions,
+        pulsing,
+    };
 
     return (
         <DragDropProvider
@@ -361,22 +504,43 @@ export default function LimitedDraftTable({
                 and there is nothing above the Booster to separate from. */}
             <div
                 data-slot="draft-surface"
+                data-layout={layout}
                 className="flex min-h-0 flex-1 flex-col gap-3"
-                style={peeked ? peekPanelReserve(peekLayout) : undefined}
+                style={peekPanel ? peekPanelReserve(peekLayout) : undefined}
             >
-                <div className="flex items-center justify-end gap-2 text-xs text-text-muted">
-                    <CardZoomSlider
-                        value={boosterZoom.value}
-                        min={boosterZoom.min}
-                        max={boosterZoom.max}
-                        onChange={boosterZoom.set}
-                        label="Booster card size"
-                    />
-                </div>
+                {/* The zoom SLIDER is a desktop control: a phone gets the
+                    two-rung density toggle instead, mounted inside the pane
+                    that owns the grid (issue #2588). A drag-to-scrub control
+                    on a surface where every drag moves a card is the wrong
+                    affordance, and this row is 40px the 85% pane cannot
+                    spare. */}
+                {phoneOrientation === null && (
+                    <div className="flex items-center justify-end gap-2 text-xs text-text-muted">
+                        <CardZoomSlider
+                            value={boosterZoom.value}
+                            min={boosterZoom.min}
+                            max={boosterZoom.max}
+                            onChange={boosterZoom.set}
+                            label="Booster card size"
+                        />
+                    </div>
+                )}
 
                 {error && <Banner tone="danger">{error}</Banner>}
 
-                {layout === "split" ? (
+                {!showPool && phoneOrientation !== null ? (
+                    // The bar's pool toggle is OFF: there is no second pane,
+                    // so there is nothing to snap between. The Booster takes
+                    // the whole surface at the phone's own grid density.
+                    <>
+                        {timer}
+                        {packGrid}
+                    </>
+                ) : phoneOrientation === "portrait" ? (
+                    <DraftPortraitPanes {...phonePanes} />
+                ) : phoneOrientation === "landscape" ? (
+                    <DraftLandscapePanes {...phonePanes} />
+                ) : layout === "split" ? (
                     // Tablet / desktop (ADR 0101 §6): a vertical split, pack
                     // beside pool. Each half scrolls on its own so a long
                     // Pool never pushes the Booster off the screen — the
@@ -428,13 +592,13 @@ export default function LimitedDraftTable({
                 }}
             </DragOverlay>
 
-            {peeked && (
+            {peekPanel && (
                 <PeekPanel
-                    cardId={peeked.cardId}
-                    name={peeked.cardName}
+                    cardId={peekPanel.cardId}
+                    name={peekPanel.cardName}
                     subtitle={`Booster ${round + 1} · ${pack.length} left`}
                     actions={peekActions}
-                    onClose={() => setPeekClosedFor(peeked.pickId)}
+                    onClose={() => setPeekClosedFor(peekPanel.pickId)}
                 />
             )}
 
