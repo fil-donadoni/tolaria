@@ -18,6 +18,16 @@ vi.mock("motion/react", () => ({
     useReducedMotion: () => false,
 }));
 
+// Driven explicitly (pattern shared with `controller-portrait.test.tsx`)
+// rather than trusting happy-dom's `matchMedia` — the hook's own SSR/no-
+// `matchMedia` fallback already defaults to "desktop", which is what every
+// pre-existing test in this file implicitly relied on before this mock
+// existed; only the orientation-hint tests below override it.
+let viewportMode: "portrait" | "landscape-compact" | "desktop" = "desktop";
+vi.mock("~/hooks/useViewportMode", () => ({
+    useViewportMode: () => viewportMode,
+}));
+
 const navigateMock = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
@@ -72,6 +82,8 @@ const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
 
 beforeEach(() => {
     vi.clearAllMocks();
+    viewportMode = "desktop";
+    sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -128,20 +140,6 @@ function draftRow(overrides: Partial<LimitedEventRow> = {}): LimitedEventRow {
 function mountRoom(row: LimitedEventRow) {
     eventMock.mockReturnValue(projectLimitedEvent(row, "user1"));
     return render(<LimitedDraftRoom eventId={"event-1" as never} />);
-}
-
-/** `useViewportMode` reads two media queries and happy-dom has no
- *  `matchMedia`, so the fallback regime is `"desktop"` — every test in this
- *  file that does not call this runs there. */
-function stubViewport(mode: "portrait" | "landscape") {
-    vi.stubGlobal("matchMedia", (query: string) => ({
-        matches:
-            mode === "portrait"
-                ? query.includes("orientation: portrait")
-                : query.includes("max-height: 500px"),
-        addEventListener() {},
-        removeEventListener() {},
-    }));
 }
 
 describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue #2587)", () => {
@@ -233,7 +231,7 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
         ).toBeNull();
 
         cleanup();
-        stubViewport("portrait");
+        viewportMode = "portrait";
         mountRoom(draftRow());
         expect(
             document
@@ -243,7 +241,7 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
         expect(document.querySelector("[data-slot=draft-split]")).toBeNull();
 
         cleanup();
-        stubViewport("landscape");
+        viewportMode = "landscape-compact";
         mountRoom(draftRow());
         expect(
             document
@@ -255,14 +253,14 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
     it("gives the phone body a FIXED box, not a scroller — a snap pane needs a definite height", () => {
         // A pane that is 85% of a container which is free to grow is 85% of
         // nothing. The desktop body keeps the scroller issue #2587 gave it.
-        stubViewport("portrait");
+        viewportMode = "portrait";
         const { container } = mountRoom(draftRow());
         const body = container.querySelector("[data-slot=draft-room-body]")!;
         expect(body.className).toContain("overflow-hidden");
         expect(body.className).not.toContain("overflow-y-auto");
 
         cleanup();
-        vi.unstubAllGlobals();
+        viewportMode = "desktop";
         const desktop = mountRoom(draftRow());
         const desktopBody = desktop.container.querySelector(
             "[data-slot=draft-room-body]"
@@ -292,5 +290,30 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
             params: { eventId: "event-1" },
             replace: true,
         });
+    });
+});
+
+describe("LimitedDraftRoom — OrientationHint mount (issue #2594, round-3 review on PR #2645)", () => {
+    // The rebase onto #2646 silently dropped this mount (it used to live in
+    // `limited-event-detail.tsx`, superseded by this component), and NEITHER
+    // Draft Room mount nor the board's was ever guarded by a test that
+    // renders the real surface — see `game.route.orientation-hint.test.tsx`
+    // for the sibling guard and the proof-of-failure receipt in the PR body.
+    it("shows the draft-room hint in portrait while a pack is live", () => {
+        viewportMode = "portrait";
+        mountRoom(draftRow());
+
+        expect(
+            document.querySelector('[data-orientation-hint="draft-room"]')
+        ).toBeTruthy();
+    });
+
+    it("does NOT show the hint on desktop", () => {
+        viewportMode = "desktop";
+        mountRoom(draftRow());
+
+        expect(
+            document.querySelector('[data-orientation-hint="draft-room"]')
+        ).toBeFalsy();
     });
 });

@@ -12,6 +12,7 @@ import { PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
 import ErrorState from "~/components/ui/error-state";
+import OrientationHint from "~/components/ui/orientation-hint";
 import LimitedEventPageFrame from "./limited-event-page-frame";
 import LimitedDraftBar from "./limited-draft-bar";
 import LimitedDraftTable from "./limited-draft-table";
@@ -192,13 +193,36 @@ export default function LimitedDraftRoom({
                 )}
             >
                 {draftLive ? (
-                    <LimitedDraftTable
-                        eventId={eventId}
-                        seat={viewerSeat}
-                        round={round}
-                        layout={draftTableLayout}
-                        showPool={poolVisible}
-                    />
+                    <>
+                        {/* Portrait phone specifically (issue #2594): pack/pool
+                            are both width-driven, and landscape gives them more
+                            of it — a discoverability nudge for the layout the
+                            room already renders (narrower), never a
+                            broken-state warning. Mirrors the board's mount in
+                            `game.route.tsx`; dropped here by the #2646 rebase
+                            when that PR moved the Draft Room out of
+                            `limited-event-detail.tsx` into this component.
+                            Survives the #2652 phone-panes restructure: the
+                            hint is `shrink-0` and sits ABOVE the `flex-1`
+                            `<LimitedDraftTable>` root, so it still just eats
+                            its own height out of `draft-room-body` — the
+                            same reduction it always made — and the snap
+                            panes' percentages (computed against their own
+                            scroller box, not the viewport) are unaffected. */}
+                        {viewport === "portrait" && (
+                            <OrientationHint
+                                surfaceId="draft-room"
+                                message="Rotate for more room to see your pack and pool side by side."
+                            />
+                        )}
+                        <LimitedDraftTable
+                            eventId={eventId}
+                            seat={viewerSeat}
+                            round={round}
+                            layout={draftTableLayout}
+                            showPool={poolVisible}
+                        />
+                    </>
                 ) : (
                     <div className="flex min-h-0 flex-1 flex-col gap-3">
                         <div className="flex items-center justify-between gap-2">
