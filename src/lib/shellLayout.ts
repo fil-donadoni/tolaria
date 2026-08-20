@@ -1,5 +1,16 @@
 /**
- * Layout arithmetic for the app shell's scroll contract (issue #2274).
+ * Layout arithmetic for the app shell's scroll contract (issue #2274), widened
+ * to the v3 shell's two modes and TWO bands (issue #2582, ADR 0101).
+ *
+ * The v3 widening in one sentence: the shell no longer has "a header or no
+ * header" — it has a TOP band whose height depends on the route's shell mode
+ * and the viewport regime (56px Browse bar / 40px landscape-compact bar / 44px
+ * Immersive contextual bar / 0 on the board), and a BOTTOM band that exists
+ * only in phone-portrait Browse (the 56px bottom nav plus its safe-area
+ * inset). Both are `shrink-0` siblings of `<main>` in the same flex column, so
+ * both are subtracted from `<main>` identically — which is precisely why the
+ * bottom nav had to enter THIS module rather than be added beside it. See
+ * `shellBands`.
  *
  * Issue #2056 moved the app's scroll container from the DOCUMENT to `<main>`
  * for EVERY route — the shell root took a hard `h-dvh` bound and `<main>` took
@@ -156,8 +167,25 @@ export interface ShellHeightClaim {
 /** The chrome a route is rendered into. */
 export interface ShellChrome {
     viewportHeightPx: number;
-    /** The header band's height, or 0 when `shellShowsHeader()` is false. */
+    /**
+     * The TOP band's height: the Browse top bar, or the Immersive contextual
+     * bar, plus the return banner when one is showing. 0 when the route owns
+     * its chrome (`/game`) or when the phone-portrait Browse layout has moved
+     * its navigation to the bottom. Produced by `shellBands`.
+     */
     headerBandHeightPx: number;
+    /**
+     * The BOTTOM band's height — the phone-portrait Browse nav, including its
+     * safe-area inset. 0 everywhere else.
+     *
+     * This field is REQUIRED, not optional-defaulting-to-0, and that is the
+     * whole point of issue #2582 touching this module at all: a bottom nav
+     * costs `<main>` exactly as much height as a header does, and an optional
+     * field would let every existing call site keep certifying a layout that
+     * silently lost 56px + the home-indicator inset. Same fail-closed argument
+     * `RouteRootOverflow` records for `ShellHeightClaim`.
+     */
+    bottomBandHeightPx: number;
 }
 
 /**
@@ -170,6 +198,9 @@ export interface ShellModel {
     rootBounded: boolean;
     /** The header band is `shrink-0`, so it keeps its height. */
     headerPinned: boolean;
+    /** The bottom band (phone Browse nav) is `shrink-0`, so it keeps its
+     *  height. `true` when there is no bottom band at all. */
+    bottomPinned: boolean;
     /** `<main>` carries `min-h-0`, so it may shrink below its content. */
     mainCanShrink: boolean;
     /** `<main>` carries `overflow-y-auto`, so it is the app-level scroller. */
@@ -179,6 +210,8 @@ export interface ShellModel {
 export interface ShellLayout {
     rootHeightPx: number;
     headerHeightPx: number;
+    /** The bottom band's realised height (squeezed only if it is unpinned). */
+    bottomHeightPx: number;
     mainHeightPx: number;
     contentHeightPx: number;
     /** How far the route's content outgrows `<main>`'s box (0 when it fits). */
@@ -207,13 +240,100 @@ export interface ShellLayout {
     bottomReachable: boolean;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// The shell's BANDS (issue #2582, ADR 0101).
+//
+// Before v3 there was one band and one number: the shared header, measured in
+// the browser during issue #2056 at 112px (`AppHeader`'s own ~88px plus the
+// shell wrapper's `pt-6`). v3 replaces it with a mode/viewport-dependent pair —
+// a top band and a BOTTOM band — because a phone-portrait bottom nav costs
+// `<main>` height without being a header at all, and the 112px model has no
+// axis for that. Each constant matches a Tailwind height class on the element
+// that produces it, named beside it; `design-tokens.test.ts` owns the tokens,
+// these own the shell's own boxes.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Browse top bar on desktop/tablet — `AppHeader`'s `h-14`. */
+export const SHELL_BROWSE_BAND_PX = 56;
+
 /**
- * The shared header band, measured in the browser during issue #2056 (852x277):
- * `AppHeader`'s own ~88px plus the shell wrapper's `pt-6` (24px). Used as the
- * representative value in sweeps; every function here takes the band as a
- * parameter, so nothing depends on it being exactly right.
+ * Browse top bar on a landscape phone — `AppHeader`'s `short-viewport:h-10`.
+ * A landscape phone has 375-430px of height in total (see `useViewportMode`),
+ * so the bar is cut rather than supplemented with a bottom nav.
  */
-export const SHELL_HEADER_BAND_PX = 112;
+export const SHELL_BROWSE_COMPACT_BAND_PX = 40;
+
+/** Immersive contextual bar (Exit + title + overflow) — `AppContextBar`'s
+ *  `h-11`, i.e. the 44px coarse control height of `--control-h-coarse`. */
+export const SHELL_CONTEXTUAL_BAND_PX = 44;
+
+/**
+ * Phone-portrait Browse bottom nav — `AppBottomNav`'s `h-14`, EXCLUDING the
+ * safe-area inset, which is a device fact and therefore an input to
+ * `shellBands` rather than a constant.
+ */
+export const SHELL_BOTTOM_NAV_BAND_PX = 56;
+
+/** The global return banner (`AppReturnBanner`) — `h-9`. It sits in the TOP
+ *  band in every mode, above `<main>`, so it is added to the header band. */
+export const SHELL_RETURN_BANNER_PX = 36;
+
+/** The three layout regimes `useViewportMode` reports, restated here so this
+ *  module stays importable from a test that mounts no React at all. */
+export type ShellViewportMode = "portrait" | "landscape-compact" | "desktop";
+
+export interface ShellBandInputs {
+    mode: "browse" | "immersive";
+    /** The route draws its own chrome — the shell contributes no band. */
+    ownChrome: boolean;
+    viewport: ShellViewportMode;
+    /** Whether the global return banner is showing. */
+    returnBanner: boolean;
+    /** `env(safe-area-inset-bottom)` in px; only the bottom nav pays it. */
+    safeAreaBottomPx?: number;
+}
+
+/**
+ * The heights the shell's own chrome takes from `<main>`, for one route in one
+ * viewport regime. This is the ONE place the mode/viewport matrix turns into
+ * numbers — `AppShell` renders the bands, this function says what they cost,
+ * and every height sweep in the repo asks it rather than a literal.
+ */
+export function shellBands(inputs: ShellBandInputs): {
+    headerBandHeightPx: number;
+    bottomBandHeightPx: number;
+} {
+    if (inputs.ownChrome) {
+        // `/game`: no bar, no nav, no banner. `<main>` IS the viewport.
+        return { headerBandHeightPx: 0, bottomBandHeightPx: 0 };
+    }
+    const banner = inputs.returnBanner ? SHELL_RETURN_BANNER_PX : 0;
+    if (inputs.mode === "immersive") {
+        return {
+            headerBandHeightPx: SHELL_CONTEXTUAL_BAND_PX + banner,
+            bottomBandHeightPx: 0,
+        };
+    }
+    switch (inputs.viewport) {
+        case "portrait":
+            // The destinations move under the thumb; no top bar at all.
+            return {
+                headerBandHeightPx: banner,
+                bottomBandHeightPx:
+                    SHELL_BOTTOM_NAV_BAND_PX + (inputs.safeAreaBottomPx ?? 0),
+            };
+        case "landscape-compact":
+            return {
+                headerBandHeightPx: SHELL_BROWSE_COMPACT_BAND_PX + banner,
+                bottomBandHeightPx: 0,
+            };
+        case "desktop":
+            return {
+                headerBandHeightPx: SHELL_BROWSE_BAND_PX + banner,
+                bottomBandHeightPx: 0,
+            };
+    }
+}
 
 /**
  * Tailwind height utilities that claim a WHOLE viewport. A component rendered
@@ -294,10 +414,14 @@ export function arbitraryViewportClaims(source: string): string[] {
  */
 export function deriveShellModel(elements: {
     root: string;
-    /** `null` for a route with no shared header (`shellShowsHeader()` false). */
+    /** `null` for a route the shell renders no top band for. */
     headerWrapper: string | null;
     main: string;
+    /** `null` for a route the shell renders no bottom band for — i.e.
+     *  everything except phone-portrait Browse. */
+    bottomBand?: string | null;
 }): ShellModel {
+    const bottomBand = elements.bottomBand ?? null;
     return {
         rootBounded:
             hasClass(elements.root, "h-dvh") ||
@@ -305,6 +429,7 @@ export function deriveShellModel(elements: {
         headerPinned:
             elements.headerWrapper === null ||
             hasClass(elements.headerWrapper, "shrink-0"),
+        bottomPinned: bottomBand === null || hasClass(bottomBand, "shrink-0"),
         mainCanShrink: hasClass(elements.main, "min-h-0"),
         mainScrolls:
             hasClass(elements.main, "overflow-y-auto") ||
@@ -383,29 +508,38 @@ export function resolveShellLayout(
     chrome: ShellChrome,
     claim: ShellHeightClaim
 ): ShellLayout {
-    const { viewportHeightPx, headerBandHeightPx } = chrome;
+    const { viewportHeightPx, headerBandHeightPx, bottomBandHeightPx } = chrome;
     const natural = naturalContentPx(claim, chrome);
+
+    // Both bands are siblings of `<main>` in the same flex column, so they cost
+    // the same thing: a phone-portrait bottom nav takes 56px + the home
+    // indicator's inset off `<main>` exactly as a header takes 56px off it.
+    const bandsHeightPx = headerBandHeightPx + bottomBandHeightPx;
 
     // An unbounded root grows with its content — that is exactly why `flex-1`
     // then resolves against content instead of the viewport (#2056 defect 3).
     const rootHeightPx = model.rootBounded
         ? viewportHeightPx
-        : Math.max(viewportHeightPx, headerBandHeightPx + natural);
+        : Math.max(viewportHeightPx, bandsHeightPx + natural);
 
-    const availableForMain = Math.max(0, rootHeightPx - headerBandHeightPx);
+    const availableForMain = Math.max(0, rootHeightPx - bandsHeightPx);
     // Without `min-h-0` a flex item cannot shrink below its content.
     const mainHeightPx = model.mainCanShrink
         ? availableForMain
         : Math.max(availableForMain, natural);
 
-    // A main that refuses to shrink squashes an unpinned header band.
-    const overshoot = Math.max(
-        0,
-        headerBandHeightPx + mainHeightPx - rootHeightPx
-    );
+    // A main that refuses to shrink squashes an unpinned band. Each band is
+    // charged the WHOLE overshoot rather than a share of it: the model's job
+    // here is to make an unpinned band's loss loud, and a proportional split
+    // would report a band as "mostly fine" in exactly the configuration
+    // `shrink-0` exists to prevent.
+    const overshoot = Math.max(0, bandsHeightPx + mainHeightPx - rootHeightPx);
     const headerHeightPx = model.headerPinned
         ? headerBandHeightPx
         : Math.max(0, headerBandHeightPx - overshoot);
+    const bottomHeightPx = model.bottomPinned
+        ? bottomBandHeightPx
+        : Math.max(0, bottomBandHeightPx - overshoot);
 
     // The floor the root's own height CLAIM puts under its box, before any
     // content is taken into account.
@@ -458,11 +592,12 @@ export function resolveShellLayout(
     const mainOverflowPx = Math.max(0, contentHeightPx - mainHeightPx);
     const mainMaxScrollTopPx = model.mainScrolls ? mainOverflowPx : 0;
 
-    // What the document has to lay out: the header band, `<main>`'s own box,
-    // and — only when `<main>` does NOT scroll — the overflow spilling past it.
+    // What the document has to lay out: both bands, `<main>`'s own box, and —
+    // only when `<main>` does NOT scroll — the overflow spilling past it.
     const documentContentHeightPx =
         headerHeightPx +
         mainHeightPx +
+        bottomHeightPx +
         (model.mainScrolls ? 0 : mainOverflowPx);
     const documentMaxScrollTopPx = Math.max(
         0,
@@ -496,6 +631,7 @@ export function resolveShellLayout(
     return {
         rootHeightPx,
         headerHeightPx,
+        bottomHeightPx,
         mainHeightPx,
         contentHeightPx,
         mainOverflowPx,

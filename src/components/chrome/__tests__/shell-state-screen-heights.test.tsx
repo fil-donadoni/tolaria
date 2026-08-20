@@ -19,7 +19,8 @@ import { render, cleanup } from "@testing-library/react";
 import LoadingScreen from "@/components/ui/loading-screen";
 import JoinAntechamberShell from "@/components/join/join-antechamber-shell";
 import {
-    SHELL_HEADER_BAND_PX,
+    SHELL_BOTTOM_NAV_BAND_PX,
+    SHELL_BROWSE_BAND_PX,
     deriveHeightClaim,
     resolveShellLayout,
     type ShellModel,
@@ -32,9 +33,13 @@ afterEach(() => cleanup());
 const SHELL: ShellModel = {
     rootBounded: true,
     headerPinned: true,
+    bottomPinned: true,
     mainCanShrink: true,
     mainScrolls: true,
 };
+
+/** The Browse top bar — the band these screens actually render under. */
+const SHELL_HEADER_BAND_PX = SHELL_BROWSE_BAND_PX;
 
 const DESKTOP_HEIGHTS_PX = [500, 600, 720, 768, 800, 900, 1080, 1200, 1440];
 
@@ -78,6 +83,7 @@ describe.each(SCREENS)(
                     {
                         viewportHeightPx,
                         headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                        bottomBandHeightPx: 0,
                     },
                     deriveHeightClaim(root.className, PANEL_CONTENT_PX)
                 );
@@ -95,6 +101,7 @@ describe.each(SCREENS)(
                 {
                     viewportHeightPx: 500,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 deriveHeightClaim(root.className, 2000)
             );
@@ -107,11 +114,39 @@ describe.each(SCREENS)(
             const root = renderScreen();
             const layout = resolveShellLayout(
                 SHELL,
-                { viewportHeightPx: 1080, headerBandHeightPx: 0 },
+                {
+                    viewportHeightPx: 1080,
+                    headerBandHeightPx: 0,
+                    bottomBandHeightPx: 0,
+                },
                 deriveHeightClaim(root.className, PANEL_CONTENT_PX)
             );
             expect(layout.contentHeightPx).toBe(1080);
             expect(layout.mainOverflowPx).toBe(0);
+        });
+
+        it("on a portrait phone the same claim stops ABOVE the bottom nav (issue #2582)", () => {
+            // The v3 regression this adds: these screens claim the shell's
+            // REMAINDER, and on a portrait phone the remainder is short by the
+            // bottom nav as well as the banner. A claim resolved against the
+            // full viewport would put the loading spinner's footer under the
+            // nav — invisible, and unreachable because the root does not
+            // scroll.
+            const root = renderScreen();
+            const layout = resolveShellLayout(
+                SHELL,
+                {
+                    viewportHeightPx: 844,
+                    headerBandHeightPx: 0,
+                    bottomBandHeightPx: SHELL_BOTTOM_NAV_BAND_PX + 34,
+                },
+                deriveHeightClaim(root.className, PANEL_CONTENT_PX)
+            );
+            expect(layout.contentHeightPx).toBe(
+                844 - SHELL_BOTTOM_NAV_BAND_PX - 34
+            );
+            expect(layout.mainOverflowPx).toBe(0);
+            expect(layout.scrollers).toEqual([]);
         });
     }
 );

@@ -27,15 +27,16 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { render } from "@testing-library/react";
-import { shellShowsHeader } from "@/lib/shellChrome";
+import { resolveShellChrome } from "@/lib/shellChrome";
 import {
-    SHELL_HEADER_BAND_PX,
     SCROLLER_CLASSES,
     VIEWPORT_HEIGHT_CLASSES,
     arbitraryViewportClaims,
     deriveHeightClaim,
     resolveShellLayout,
+    shellBands,
     type ShellModel,
+    type ShellViewportMode,
 } from "@/lib/shellLayout";
 import GameDialog from "@/components/ui/game-dialog";
 
@@ -84,9 +85,11 @@ const SOURCE_FILES = walkSourceFiles(SRC_ROOT).map((path) => ({
 
 /**
  * The only files allowed to claim a whole viewport height, each with the reason
- * it is exempt. `routePath`, where given, is checked against `shellShowsHeader`
- * so the exemption's premise ("this never renders under the header") is
- * verified rather than asserted.
+ * it is exempt. `routePath`, where given, is resolved through `shellChrome`
+ * so the exemption's premise ("this never renders under a shell band") is
+ * verified rather than asserted. Post-#2582 the premise is stronger than "no
+ * header": an exempt surface must own its chrome outright, because a route in
+ * either shell MODE now pays a band.
  */
 const VIEWPORT_HEIGHT_ALLOWLIST: Record<
     string,
@@ -97,15 +100,15 @@ const VIEWPORT_HEIGHT_ALLOWLIST: Record<
     },
     "routes/game.route.tsx": {
         why: "The board is the fullscreen play surface — no shared header, so `<main>` IS the viewport.",
-        routePath: "/game/abc123",
+        routePath: "/game",
     },
     "components/board/manual-board-container.tsx": {
         why: "Board-only machinery, reachable solely from `/game` (out of scope per issue #2274).",
-        routePath: "/game/abc123",
+        routePath: "/game",
     },
     "components/board/waiting-for-opponent.tsx": {
         why: "Rendered only by `game.route.tsx` while an opponent is awaited — `/game`, no header band.",
-        routePath: "/game/abc123",
+        routePath: "/game",
     },
     // The auth screens render OUTSIDE `AppShell` entirely — `router.tsx` wraps
     // the shell in `<AuthGate>`, so neither is ever a descendant of `<main>`.
@@ -153,13 +156,30 @@ describe("no component under the shared header claims a whole viewport height (i
         }
     });
 
-    it("every allowlisted route really is a route the shared header skips", () => {
+    it("every allowlisted route really is a route the shell renders no band for", () => {
         for (const [rel, entry] of Object.entries(VIEWPORT_HEIGHT_ALLOWLIST)) {
             if (!entry.routePath) continue;
+            const chrome = resolveShellChrome(entry.routePath);
             expect(
-                shellShowsHeader(entry.routePath),
-                `${rel} claims a viewport height but ${entry.routePath} DOES wear the shared header`
-            ).toBe(false);
+                chrome.ownChrome,
+                `${rel} claims a viewport height but ${entry.routePath} wears shell chrome (${chrome.mode}) — <main> is the viewport MINUS that band`
+            ).toBe(true);
+            // Belt and braces: `ownChrome` must actually cost nothing.
+            for (const viewport of [
+                "portrait",
+                "landscape-compact",
+                "desktop",
+            ] as const) {
+                expect(
+                    shellBands({
+                        mode: chrome.mode,
+                        ownChrome: chrome.ownChrome,
+                        viewport,
+                        returnBanner: true,
+                    }),
+                    `${rel} @ ${viewport}`
+                ).toEqual({ headerBandHeightPx: 0, bottomBandHeightPx: 0 });
+            }
         }
     });
 
@@ -495,9 +515,23 @@ const DESKTOP_HEIGHTS_PX = [500, 600, 720, 768, 800, 900, 1080, 1200, 1440];
 const SHELL: ShellModel = {
     rootBounded: true,
     headerPinned: true,
+    bottomPinned: true,
     mainCanShrink: true,
     mainScrolls: true,
 };
+
+/**
+ * The viewport regimes the census sweeps (issue #2582). `portrait` is not a
+ * duplicate of `desktop` with smaller numbers: it is the ONLY regime with a
+ * band BELOW `<main>`, so a route root that reaches its bottom on desktop can
+ * still hide its last row under the bottom nav. Heights come from the sweep
+ * below; the regime decides which bands are charged.
+ */
+const VIEWPORT_REGIMES: ShellViewportMode[] = [
+    "desktop",
+    "landscape-compact",
+    "portrait",
+];
 
 /**
  * A content demand taller than any desktop viewport in the sweep. The question
@@ -658,7 +692,7 @@ const ROUTE_ROOTS: Record<
     },
     GameRoute: {
         // The one route with no header band — `<main>` IS the viewport there.
-        routePath: "/game/abc123",
+        routePath: "/game",
         files: [
             { rel: "routes/game.route.tsx" },
             { rel: "components/board/waiting-for-opponent.tsx" },
@@ -804,13 +838,25 @@ describe("every route root reaches its own bottom, at every desktop height (issu
         ).toEqual([]);
     });
 
-    it.each(DESKTOP_HEIGHTS_PX)(
-        "at %ipx: no route root clips its content, and every one of them reaches its bottom",
-        (viewportHeightPx) => {
+    it.each(
+        DESKTOP_HEIGHTS_PX.flatMap((h) =>
+            VIEWPORT_REGIMES.map((v) => [h, v] as const)
+        )
+    )(
+        "at %ipx / %s: no route root clips its content, and every one of them reaches its bottom",
+        (viewportHeightPx, viewport) => {
             for (const [component, entry] of Object.entries(ROUTE_ROOTS)) {
-                const headerBandHeightPx = shellShowsHeader(entry.routePath)
-                    ? SHELL_HEADER_BAND_PX
-                    : 0;
+                const chrome = resolveShellChrome(entry.routePath);
+                // The bands the SHELL would charge this route in this regime —
+                // asked of `shellBands`, never restated, so the census can
+                // never certify a layout against a band model the shell has
+                // stopped using (the #2274 shape).
+                const bands = shellBands({
+                    mode: chrome.mode,
+                    ownChrome: chrome.ownChrome,
+                    viewport,
+                    returnBanner: false,
+                });
                 for (const file of entry.files) {
                     const src = SOURCE_FILES.find((f) => f.rel === file.rel)!;
                     for (const root of returnedRoots(src.code)) {
@@ -823,10 +869,10 @@ describe("every route root reaches its own bottom, at every desktop height (issu
                         );
                         const layout = resolveShellLayout(
                             SHELL,
-                            { viewportHeightPx, headerBandHeightPx },
+                            { viewportHeightPx, ...bands },
                             claim
                         );
-                        const where = `${component} → ${file.rel}:${root.line} (${className})`;
+                        const where = `${component} → ${file.rel}:${root.line} (${className}) @ ${viewport}`;
                         expect(
                             layout.clippedPx,
                             `${where} CLIPS ${layout.clippedPx}px — a shrinkable flex child of <main> that hides its overflow, so <main> sees nothing to scroll and there is no scrollbar anywhere. DROP the clipping class (\`overflow-hidden\`/\`-clip\`) — changing the HEIGHT claim does not help, that was measured as a no-op. Otherwise: give the route its own whole-column scroller and declare it here, or make the root \`shrink-0\`.`

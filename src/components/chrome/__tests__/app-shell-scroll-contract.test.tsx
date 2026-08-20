@@ -16,34 +16,72 @@
 // `app-shell.tsx` and the derived model changes, so the arithmetic's verdict
 // changes with it — which is what makes this a behavioural assertion rather
 // than a class-name snapshot.
+//
+// v3 (issue #2582) widened the shell from one band to FOUR — the Browse top
+// bar, the Immersive contextual bar, the return banner, and the phone-portrait
+// bottom nav. Every one of them is a `shrink-0` sibling of `<main>` in the same
+// flex column, and every one is read off the real DOM below. The bottom nav is
+// the one that makes this widening load-bearing rather than cosmetic: it is the
+// first band this app has ever had BELOW `<main>`, and a band the height model
+// does not know about leaves the last row of every page under the nav.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
+import type { ViewportMode } from "~/hooks/useViewportMode";
 
 let pathname = "/decks/create";
+let viewport: ViewportMode = "desktop";
+let session = { game: null, event: null, loading: false };
 
 vi.mock("@tanstack/react-router", () => ({
     useRouterState: () => pathname,
     Outlet: () => <div data-testid="outlet" />,
 }));
+vi.mock("~/hooks/useViewportMode", () => ({
+    useViewportMode: () => viewport,
+}));
+vi.mock("~/hooks/useActiveSession", () => ({
+    useActiveSession: () => session,
+}));
+// The four bands are mocked to bare markers on purpose: what this file tests
+// is the SHELL's box chain — which bands it mounts and what flex classes it
+// puts on them — not what each band renders inside itself. Each band's own
+// contents have their own test file.
 vi.mock("../app-header", () => ({
     default: () => <div data-testid="app-header" />,
 }));
+vi.mock("../app-bottom-nav", () => ({
+    default: () => <div data-testid="app-bottom-nav" />,
+}));
+vi.mock("../app-context-bar", () => ({
+    default: () => <div data-testid="app-context-bar" />,
+}));
+vi.mock("../app-return-banner", () => ({
+    default: () => <div data-testid="app-return-banner" />,
+}));
 
 import AppShell from "../app-shell";
-import { shellShowsHeader } from "@/lib/shellChrome";
+import { resolveShellChrome } from "@/lib/shellChrome";
 import {
-    SHELL_HEADER_BAND_PX,
+    SHELL_BOTTOM_NAV_BAND_PX,
+    SHELL_BROWSE_BAND_PX,
+    SHELL_CONTEXTUAL_BAND_PX,
     deriveShellModel,
     resolveShellLayout,
+    shellBands,
     type RouteRootOverflow,
     type ShellHeightClaim,
     type ShellHeightClaimKind,
     type ShellModel,
 } from "@/lib/shellLayout";
 
+/** The representative top band for the sweeps below (Browse, desktop). */
+const SHELL_HEADER_BAND_PX = SHELL_BROWSE_BAND_PX;
+
 afterEach(() => {
     cleanup();
     pathname = "/decks/create";
+    viewport = "desktop";
+    session = { game: null, event: null, loading: false };
 });
 /**
  * A route root's height claim. `overflow` and `shrinks` are stated at every
@@ -71,13 +109,23 @@ function renderedShellModel(): ShellModel {
     const { getByTestId, container } = render(<AppShell />);
     const main = getByTestId("outlet").closest("main") as HTMLElement;
     const root = container.firstElementChild as HTMLElement;
-    const headerWrapper = container.querySelector(
-        '[data-testid="app-header"]'
-    )?.parentElement;
+    // The TOP band is whichever bar the mode produced — the Browse header or
+    // the Immersive contextual bar. Reading "whichever is there" rather than
+    // hard-coding the header is what lets the Immersive sweeps below run the
+    // same contract as the Browse ones.
+    const topBand =
+        container.querySelector('[data-testid="app-header"]')?.parentElement ??
+        container.querySelector('[data-testid="app-context-bar"]')
+            ?.parentElement ??
+        null;
+    const bottomBand =
+        container.querySelector('[data-testid="app-bottom-nav"]')
+            ?.parentElement ?? null;
     return deriveShellModel({
         root: root.className,
-        headerWrapper: headerWrapper ? headerWrapper.className : null,
+        headerWrapper: topBand ? topBand.className : null,
         main: main.className,
+        bottomBand: bottomBand ? bottomBand.className : null,
     });
 }
 
@@ -89,6 +137,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
         expect(renderedShellModel()).toEqual({
             rootBounded: true,
             headerPinned: true,
+            bottomPinned: true,
             mainCanShrink: true,
             mainScrolls: true,
         });
@@ -104,6 +153,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                 {
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("intrinsic", "spills", contentPx)
             );
@@ -132,6 +182,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                 {
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("remaining", "scrolls", viewportHeightPx * 3)
             );
@@ -161,6 +212,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                 {
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("intrinsic", "spills", viewportHeightPx * 4)
             );
@@ -173,6 +225,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                     {
                         viewportHeightPx,
                         headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                        bottomBandHeightPx: 0,
                     },
                     claim("intrinsic", "spills", viewportHeightPx * 4)
                 ).headerHeightPx
@@ -188,6 +241,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                 {
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    bottomBandHeightPx: 0,
                 },
                 claim("intrinsic", "spills", viewportHeightPx * 4)
             );
@@ -197,28 +251,235 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
 });
 
 describe("AppShell scroll contract — the fullscreen route (issue #2274)", () => {
-    it("`/game` renders no header band, and the same contract still holds with the whole viewport", () => {
-        pathname = "/game/abc123";
-        expect(shellShowsHeader(pathname)).toBe(false);
+    it("`/game` renders no band at all, and the same contract still holds with the whole viewport", () => {
+        pathname = "/game";
+        expect(resolveShellChrome(pathname).ownChrome).toBe(true);
         const model = renderedShellModel();
         expect(model).toEqual({
             rootBounded: true,
             headerPinned: true,
+            bottomPinned: true,
             mainCanShrink: true,
             mainScrolls: true,
         });
         const layout = resolveShellLayout(
             model,
-            { viewportHeightPx: 1080, headerBandHeightPx: 0 },
+            {
+                viewportHeightPx: 1080,
+                headerBandHeightPx: 0,
+                bottomBandHeightPx: 0,
+            },
             claim("remaining", "scrolls", 3000)
         );
         expect(layout.mainHeightPx).toBe(1080);
         expect(layout.scrollers).toEqual([]);
     });
 
-    it("the header band really is absent from the DOM on /game (so the 0px band above is the shell's, not the test's assumption)", () => {
-        pathname = "/game/abc123";
+    it("no band is in the DOM on /game (so the 0px bands above are the shell's, not the test's assumption)", () => {
+        pathname = "/game";
         const { queryByTestId } = render(<AppShell />);
         expect(queryByTestId("app-header")).toBeNull();
+        expect(queryByTestId("app-context-bar")).toBeNull();
+        expect(queryByTestId("app-bottom-nav")).toBeNull();
+        expect(queryByTestId("app-return-banner")).toBeNull();
+    });
+
+    it("keeps the board bandless even on a portrait phone with a game running", () => {
+        // The one configuration where every OTHER route grows two bands.
+        pathname = "/game";
+        viewport = "portrait";
+        session = {
+            game: { gameId: "g1", name: "n", status: "playing", solo: true },
+            event: { eventId: "e1", type: "draft" },
+            loading: false,
+        } as never;
+        const { queryByTestId } = render(<AppShell />);
+        expect(queryByTestId("app-bottom-nav")).toBeNull();
+        expect(queryByTestId("app-return-banner")).toBeNull();
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// The v3 shell modes (issue #2582). Each case renders the REAL `<AppShell>` at
+// a route + viewport and checks two things together: which bands it mounted,
+// and whether the shell's own arithmetic (`shellBands` → `resolveShellLayout`)
+// still leaves `<main>` the exact remainder. Neither half alone is evidence —
+// a band the DOM has and the model doesn't is precisely issues #2056/#2274.
+// ────────────────────────────────────────────────────────────────────────────
+describe("AppShell — Browse mode bands (issue #2582)", () => {
+    it("mounts the top bar and NO bottom nav on desktop", () => {
+        pathname = "/";
+        viewport = "desktop";
+        const { queryByTestId } = render(<AppShell />);
+        expect(queryByTestId("app-header")).not.toBeNull();
+        expect(queryByTestId("app-bottom-nav")).toBeNull();
+        expect(queryByTestId("app-context-bar")).toBeNull();
+    });
+
+    it("mounts the top bar and NO bottom nav on a landscape phone", () => {
+        // A landscape phone has ~390px of height: the bar is CUT to 40px, not
+        // supplemented with a second band.
+        pathname = "/";
+        viewport = "landscape-compact";
+        const { queryByTestId } = render(<AppShell />);
+        expect(queryByTestId("app-header")).not.toBeNull();
+        expect(queryByTestId("app-bottom-nav")).toBeNull();
+    });
+
+    it("swaps the top bar for the bottom nav on a portrait phone", () => {
+        pathname = "/";
+        viewport = "portrait";
+        const { queryByTestId } = render(<AppShell />);
+        expect(queryByTestId("app-header")).toBeNull();
+        expect(queryByTestId("app-bottom-nav")).not.toBeNull();
+    });
+
+    it("pins the phone-portrait bottom nav, so a long page cannot squeeze it away", () => {
+        pathname = "/";
+        viewport = "portrait";
+        expect(renderedShellModel().bottomPinned).toBe(true);
+    });
+
+    it("leaves <main> exactly the remainder on a portrait phone, so the last row is not under the nav", () => {
+        pathname = "/";
+        viewport = "portrait";
+        const bands = shellBands({
+            mode: "browse",
+            ownChrome: false,
+            viewport: "portrait",
+            returnBanner: false,
+            safeAreaBottomPx: 34,
+        });
+        const layout = resolveShellLayout(
+            renderedShellModel(),
+            { viewportHeightPx: 844, ...bands },
+            claim("intrinsic", "spills", 3000)
+        );
+        expect(layout.mainHeightPx).toBe(844 - SHELL_BOTTOM_NAV_BAND_PX - 34);
+        expect(layout.scrollers).toEqual(["main"]);
+        expect(layout.documentMaxScrollTopPx).toBe(0);
+        expect(layout.bottomReachable).toBe(true);
+    });
+});
+
+describe("AppShell — Immersive mode bands (issue #2582)", () => {
+    it.each([
+        "/decks/create",
+        "/decks/goblins/edit",
+        "/presets/create",
+        "/presets/burn/edit",
+        "/limited/e123/build",
+    ])("mounts the contextual bar and no navigation on %s", (path) => {
+        pathname = path;
+        viewport = "desktop";
+        const { queryByTestId } = render(<AppShell />);
+        expect(queryByTestId("app-context-bar")).not.toBeNull();
+        expect(queryByTestId("app-header")).toBeNull();
+        expect(queryByTestId("app-bottom-nav")).toBeNull();
+    });
+
+    it("keeps Immersive bandless of a bottom nav even on a portrait phone", () => {
+        // The mode, not the viewport, decides: a bottom nav on the deck
+        // builder would be exactly the space this mode exists to reclaim.
+        pathname = "/decks/goblins/edit";
+        viewport = "portrait";
+        const { queryByTestId } = render(<AppShell />);
+        expect(queryByTestId("app-bottom-nav")).toBeNull();
+        expect(queryByTestId("app-context-bar")).not.toBeNull();
+    });
+
+    it("leaves <main> the viewport minus the 44px contextual bar", () => {
+        pathname = "/decks/goblins/edit";
+        viewport = "desktop";
+        const layout = resolveShellLayout(
+            renderedShellModel(),
+            {
+                viewportHeightPx: 900,
+                ...shellBands({
+                    mode: "immersive",
+                    ownChrome: false,
+                    viewport: "desktop",
+                    returnBanner: false,
+                }),
+            },
+            claim("remaining", "scrolls", 3000)
+        );
+        expect(layout.mainHeightPx).toBe(900 - SHELL_CONTEXTUAL_BAND_PX);
+        expect(layout.scrollers).toEqual([]);
+    });
+});
+
+describe("AppShell — the return banner is a BAND, not an overlay (issue #2582)", () => {
+    const RUNNING = {
+        game: { gameId: "g1", name: "Solo", status: "playing", solo: true },
+        event: null,
+        loading: false,
+    } as never;
+
+    it("mounts above <main> on a Browse route with a game running", () => {
+        pathname = "/";
+        session = RUNNING;
+        const { queryByTestId, getByTestId } = render(<AppShell />);
+        const banner = queryByTestId("app-return-banner");
+        expect(banner).not.toBeNull();
+        // Above `<main>` in document order — an overlay would occlude a card
+        // row instead of costing height, which is a probe `occ` failure.
+        const main = getByTestId("outlet").closest("main") as HTMLElement;
+        expect(
+            banner!.parentElement!.compareDocumentPosition(main) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
+    });
+
+    it("mounts on an Immersive route too — the surfaces the lobby notice never reached", () => {
+        pathname = "/decks/goblins/edit";
+        session = RUNNING;
+        const { queryByTestId } = render(<AppShell />);
+        expect(queryByTestId("app-return-banner")).not.toBeNull();
+    });
+
+    it("is absent when nothing is in flight", () => {
+        pathname = "/";
+        const { queryByTestId } = render(<AppShell />);
+        expect(queryByTestId("app-return-banner")).toBeNull();
+    });
+
+    it("costs <main> exactly its own height, in both modes", () => {
+        for (const mode of ["browse", "immersive"] as const) {
+            pathname = mode === "browse" ? "/" : "/decks/goblins/edit";
+            session = RUNNING;
+            cleanup();
+            const model = renderedShellModel();
+            const withBanner = resolveShellLayout(
+                model,
+                {
+                    viewportHeightPx: 900,
+                    ...shellBands({
+                        mode,
+                        ownChrome: false,
+                        viewport: "desktop",
+                        returnBanner: true,
+                    }),
+                },
+                claim("remaining", "scrolls", 3000)
+            );
+            const withoutBanner = resolveShellLayout(
+                model,
+                {
+                    viewportHeightPx: 900,
+                    ...shellBands({
+                        mode,
+                        ownChrome: false,
+                        viewport: "desktop",
+                        returnBanner: false,
+                    }),
+                },
+                claim("remaining", "scrolls", 3000)
+            );
+            expect(
+                withoutBanner.mainHeightPx - withBanner.mainHeightPx,
+                mode
+            ).toBe(36);
+        }
     });
 });
