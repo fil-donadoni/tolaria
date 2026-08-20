@@ -628,11 +628,13 @@ const ROUTE_ROOTS: Record<
         ],
     },
     LimitedYourEventsRoute: {
+        // Redirect stub (issue #2590): the your-events page was absorbed
+        // into the merged `/limited` list behind the `mine` filter, so this
+        // route renders NOTHING of its own — just `LoadingScreen` while a
+        // `useEffect` redirects to `/limited?mine=1`
+        // (`limited-your-events.route.tsx`).
         routePath: "/limited/events",
-        files: [
-            { rel: "components/limited/limited-your-events-page.tsx" },
-            { rel: "components/ui/loading-screen.tsx" },
-        ],
+        files: [{ rel: "components/ui/loading-screen.tsx" }],
     },
     LimitedEventDetailRoute: {
         routePath: "/limited/abc123",

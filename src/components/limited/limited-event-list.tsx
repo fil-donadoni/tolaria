@@ -3,22 +3,29 @@ import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import EmptyState from "~/components/ui/empty-state";
 import LimitedEventListItem from "./limited-event-list-item";
 
-/** The open-events lobby list (PRD #1107 story 7). */
+/** The Limited Events list (PRD #1107 story 7; merged with the open-only cut
+ *  in issue #2590). `emptyMessage` is a passthrough because the caller now
+ *  filters this same list several ways (status chip, mine) and each empty
+ *  result means something different — "no open events" reads wrong once the
+ *  viewer has narrowed to a status/mine combination that legitimately has no
+ *  matches. */
 export default function LimitedEventList({
     events,
     viewerId,
     onJoin,
     onOpen,
     joinPendingEventId,
+    emptyMessage = "No open Limited Events right now.",
 }: {
     events: LimitedEventSummaryView[];
     viewerId: string;
     onJoin: (eventId: Id<"limitedEvents">) => void;
     onOpen: (eventId: Id<"limitedEvents">) => void;
     joinPendingEventId: Id<"limitedEvents"> | null;
+    emptyMessage?: string;
 }) {
     if (events.length === 0) {
-        return <EmptyState message="No open Limited Events right now." />;
+        return <EmptyState message={emptyMessage} />;
     }
 
     return (

@@ -54,6 +54,69 @@ export function limitedEventStatusHint(
     return event.completed ? "ready to play" : "deckbuilding";
 }
 
+/** The FILTER-granularity phase (issue #2590): the merged `/limited` list's
+ *  status chips (open / drafting / building / playing / done) — coarser than
+ *  `LimitedEventStatusHint`'s six values, which stays the per-row display
+ *  granularity (`LimitedEventListItem` still shows "deckbuilding" vs "ready
+ *  to play" verbatim). The collapse is deliberate: `"ready to play"` folds
+ *  into `"building"` rather than `"playing"`, because at the DB level it is
+ *  still `status: "started"` (`convex/limited/eventStatus.ts` —
+ *  `areRoundsRunning` is false) — the event's rounds have not started, the
+ *  seat is just done with its own deck. `"playing"` is reserved for the
+ *  phase where `areRoundsRunning` is actually true. */
+export type LimitedEventStatusChip =
+    | "open"
+    | "drafting"
+    | "building"
+    | "playing"
+    | "done";
+
+/** Every chip, in filter-bar order — the source of the union for the type
+ *  guard below (mirrors `LIMITED_EVENT_STATUSES`' array-as-source pattern in
+ *  `convex/limited/eventStatus.ts`). */
+export const LIMITED_EVENT_STATUS_CHIPS = [
+    "open",
+    "drafting",
+    "building",
+    "playing",
+    "done",
+] as const satisfies readonly LimitedEventStatusChip[];
+
+/** Runtime guard for a value coming off the URL (`?status=`), which is an
+ *  untyped string until proven otherwise. */
+export function isLimitedEventStatusChip(
+    value: unknown
+): value is LimitedEventStatusChip {
+    return (
+        typeof value === "string" &&
+        (LIMITED_EVENT_STATUS_CHIPS as readonly string[]).includes(value)
+    );
+}
+
+/** Collapses the six-value display hint down to the five-value filter chip —
+ *  see the type doc above for where `"ready to play"` lands and why. */
+export function limitedEventStatusChip(
+    event: Pick<
+        LimitedEventView,
+        "status" | "type" | "draftCompletedAt" | "completed"
+    >
+): LimitedEventStatusChip {
+    const hint = limitedEventStatusHint(event);
+    switch (hint) {
+        case "open":
+            return "open";
+        case "drafting":
+            return "drafting";
+        case "deckbuilding":
+        case "ready to play":
+            return "building";
+        case "playing":
+            return "playing";
+        case "finished":
+            return "done";
+    }
+}
+
 /** The viewer's own match record for a list row (issue #2357), formatted
  *  the standard "wins-losses[-draws]" way — draws appended only when there
  *  ARE any (a `0`-draw event never shows the trailing `-0`). `null` (render

@@ -330,7 +330,7 @@
             }
         },
         "limited-your-events": {
-            "label": "Your Limited events (/limited/events)",
+            "label": "Your Limited events redirect (/limited/events \u2192 /limited?mine=1)",
             "status": "budgeted",
             "viewports": {
                 "1440x900x2": {
@@ -365,7 +365,7 @@
                     "starved": 1,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`starved 1` at phone LANDSCAPE only, and it is `<main>` itself \u2014 NOT a component's window. The route renders one child, `div.mx-auto.flex.max-w-3xl.flex-col.gap-6.px-6`, which at 844 wide is 639px of event rows; `<main>` is the app's page scroller (issue #2056), so at 844x390 it is a 314px window onto a 639px column and `probe.js:76-91` starves at `clientHeight < 0.9 * tallest`. That is what page scrolling IS on a 390px-tall screen, and no shell height buys it off: clearing the threshold needs a 576px window out of 390px of viewport. MEASURED PRE-EXISTING, not introduced by issue #2582 \u2014 the same probe run against `origin/main`'s `src` on this tree and this deployment reports the same single starved `<main>` at this viewport (340px window, 639px column). What #2582 changes is only the window: the top bar goes 50px -> 40px (a WIN) and the return banner adds 36px while a game or event is in flight, so 340 -> 314. The recorded 0 dates from 2026-08-19, when this deployment's event list was short enough to fit \u2014 the row is data-dependent, which is the deeper reason it reads as debt. The `<main>`-as-starved false positive belongs to #2580's lane (the heuristic is for a 66px window around a 101px card tile, not for a scrolling page) and is drafted in `docs/findings/2582-ui-gate-main-scroller-starved.md`."
+                    "knownDebt": "RE-RECORDED by issue #2590: `/limited/events` is now a redirect stub to `/limited?mine=1` (`limited-your-events.route.tsx`) \u2014 the your-events page this row used to measure no longer exists, and a visit here now lands on the SAME page `limited-list` measures, just filtered. `starved 1` at phone LANDSCAPE only is therefore the identical `<main>`-as-page-scroller shape `limited-list` carries at this viewport: the route renders one child column taller than the 314px window `<main>` gives it at 844x390 (top bar 40px + the return banner while a game/event is in flight), and `probe.js:76-91` starves at `clientHeight < 0.9 * tallest`. Not introduced by this issue \u2014 the same probe run against `origin/main`'s `src` on this tree and deployment reports the same single starved `<main>` here. The `<main>`-as-starved false positive belongs to #2580's lane (the heuristic is for a 66px window around a 101px card tile, not for a scrolling page) and is drafted in `docs/findings/2582-ui-gate-main-scroller-starved.md`."
                 },
                 "820x1180x2": {
                     "cardsZero": 0,
@@ -390,6 +390,11 @@
                     "axeCritical": 0
                 }
             }
+        },
+        "limited-antechamber": {
+            "label": "Limited event antechamber (/limited/<id>)",
+            "status": "unwalked",
+            "reason": "new surface added by issue #2590 (compact avatar row + Table Ring dialog wiring, replacing the seat-tile grid). The only Limited event on this shared dev deployment is in the DRAFTING phase, so the seated dev account redirects straight into the Draft Room (useDraftRoomRedirect) and never lands on the antechamber \u2014 the same blocker limited-build records below. Recording this row needs a SEALED event (which never drafts, so it lands on the antechamber immediately) or a Draft event past draftCompletedAt; creating one was intentionally not done headlessly in this pass because a second agent (issue #2588) held the only available chrome-devtools-mcp browser profile on this machine concurrently, and writing a second event into the shared Convex deployment mid-flight risked confusing its own Draft Room work. Re-record once idle: create a Sealed event from /limited (+ Create Event), then bun run check:ui -- --record --surface=limited-antechamber."
         },
         "game-board": {
             "label": "Game board (/game)",

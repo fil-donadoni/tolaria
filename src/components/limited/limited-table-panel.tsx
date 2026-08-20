@@ -1,14 +1,23 @@
+import { useState } from "react";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
-import LimitedEventSeatList from "./limited-event-seat-list";
+import { Button } from "@/components/ui/button";
+import LimitedTableAvatarRow from "./limited-table-avatar-row";
+import LimitedTableRing from "./limited-table-ring";
 
 /** The table at a glance: who is sitting where, and how far the table is
- *  through deck building.
+ *  through deck building — a compact avatar row, never the full seat grid
+ *  (issue #2590; ADR 0101's "an Arena-style dialog, never a dominant page
+ *  element" for the Ring applies to the whole roster now, not just the
+ *  Draft Room). The full per-seat detail (`LimitedTableRing`, ADR 0101 §6,
+ *  issue #2587) opens as a dialog via "View Table" — it already existed and
+ *  was only ever mounted from the Draft Room; this wires it into the
+ *  antechamber too, unchanged.
  *
- *  Replaces the old "seat list + a loose `N/seatCount decks in.` sentence"
- *  pair. Once every Pool is final, the deck-in count is the single number the
- *  event is waiting on — so it renders as a labelled progress bar over the
- *  seat grid (each tile carrying its own ready dot), which is the visual
- *  build-state summary a player wants after submitting their own deck.
+ *  `round` is passed as `event.currentRound ?? 0`: the Ring's "packs passing"
+ *  subtitle is meaningful mid-draft (its original context) and reads as inert
+ *  copy for a Sealed/finished event here — a wiring choice, not a rewrite of
+ *  the Ring's content (see the PR description / `docs/findings/` for the
+ *  follow-up note).
  *
  *  `showProgress` mirrors `LimitedEventDetail`'s `isPoolFinal` (issue #1580):
  *  a deck cannot exist before the Pool is final, so before that point the
@@ -20,6 +29,7 @@ export default function LimitedTablePanel({
     event: LimitedEventView;
     showProgress: boolean;
 }) {
+    const [ringOpen, setRingOpen] = useState(false);
     const pct =
         event.seatCount > 0
             ? Math.round((event.seatsWithDeck / event.seatCount) * 100)
@@ -56,7 +66,24 @@ export default function LimitedTablePanel({
                 </div>
             )}
 
-            <LimitedEventSeatList event={event} />
+            <div className="flex items-center justify-between gap-3">
+                <LimitedTableAvatarRow seats={event.seats} />
+                <Button
+                    type="button"
+                    variant="secondary"
+                    size="xs"
+                    onClick={() => setRingOpen(true)}
+                >
+                    View Table
+                </Button>
+            </div>
+
+            <LimitedTableRing
+                open={ringOpen}
+                onOpenChange={setRingOpen}
+                event={event}
+                round={event.currentRound ?? 0}
+            />
         </div>
     );
 }
