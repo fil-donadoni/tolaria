@@ -976,8 +976,24 @@
         }
     }
 
-    /* The density rungs. `data-density` is set by `Panel`, and can be set on
-       any subtree that wants the rhythm without a Panel. */
+    /* The user's explicit Settings choice (issue #2595): "reduced" forces the
+       same collapse as the OS media query above, regardless of what the OS
+       reports — this rule and that `@media` block share equal specificity
+       (one attribute selector, one pseudo-class), so it winning is purely
+       SOURCE ORDER, hence it is declared after. "system" sets no rule here on
+       purpose: the media query alone keeps deciding, which is the whole
+       point of that choice. `data-motion` is set once, on `<html>`, by
+       `useApplyUserPreferences` — never per-subtree like `data-density`. */
+    [data-motion="reduced"] {
+        --motion-fast: 1ms;
+        --motion-base: 1ms;
+        --motion-slow: 1ms;
+    }
+
+    /* The density rungs. `data-density` is set by `Panel` for an explicit
+       per-subtree override, and once on `<html>` for the user's Settings
+       preference (issue #2595) — a Panel with no explicit `density` prop
+       inherits whichever of these last applied up its ancestor chain. */
     [data-density="compact"] {
         --density-unit: var(--density-unit-compact);
         --panel-pad: 8px;

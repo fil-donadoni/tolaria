@@ -288,6 +288,25 @@ describe("design tokens v3 — CSS ↔ typed mirror", () => {
         }
     });
 
+    it('[data-motion="reduced"] (issue #2595) collapses every duration to the same non-zero tick as the OS media query', () => {
+        // The user's explicit Settings choice — same collapse as
+        // `prefers-reduced-motion: reduce` above, but forced regardless of
+        // what the OS reports.
+        const decls = declarations(
+            ruleBody(baseLayer, '[data-motion="reduced"]')
+        );
+        for (const name of [
+            "--motion-fast",
+            "--motion-base",
+            "--motion-slow",
+        ]) {
+            expect(decls[name], `${name} overridden`).toBeDefined();
+            const ms = Number(/^(\d+)ms$/.exec(decls[name]!.trim())?.[1]);
+            expect(ms).toBeGreaterThan(0);
+            expect(ms).toBeLessThanOrEqual(1);
+        }
+    });
+
     it.each(DENSITY_RUNGS.map((r) => [r.density, r] as const))(
         "the %s density rung resolves to the unit and padding the mirror claims",
         (density, rung) => {

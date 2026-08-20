@@ -6,7 +6,8 @@
 import { useState, type FormEvent } from "react";
 import { useMutation } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { LogOut } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { LogOut, Settings } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { Button } from "~/components/ui/button";
@@ -17,6 +18,7 @@ const NICKNAME_MAX = 32;
 
 export default function AppHeaderProfile() {
     const user = useCurrentUser();
+    const navigate = useNavigate();
     const { signOut } = useAuthActions();
     const updateNickname = useMutation(api.users.updateNickname);
     const [editing, setEditing] = useState(false);
@@ -136,6 +138,23 @@ export default function AppHeaderProfile() {
                     </span>
                 </div>
             )}
+            {/* Settings entry point (issue #2595) — density, motion, phase
+                stops, preview default. Kept as a minimal, additive icon-only
+                link here rather than a full nav item: #2582's AppShell owns
+                `src/components/chrome/**` and is expected to relocate the
+                real entry point (bottom nav "Me" on phone, profile menu on
+                desktop) once it lands. */}
+            <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="short-viewport:px-1.5 short-viewport:py-0.5"
+                onClick={() => void navigate({ to: "/settings" })}
+                title="Settings"
+            >
+                <Settings className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Settings</span>
+            </Button>
             <Button
                 type="button"
                 variant="secondary"

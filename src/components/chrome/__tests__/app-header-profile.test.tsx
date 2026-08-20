@@ -3,7 +3,7 @@
 // its "two-line identity block" (nickname + email) as the AppHeader content
 // row's height drivers. This pins the short-viewport shrink/hide on both.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, fireEvent, cleanup } from "@testing-library/react";
 
 vi.mock("~/hooks/useCurrentUser", () => ({
     useCurrentUser: () => ({
@@ -22,6 +22,10 @@ vi.mock("@convex/_generated/api", () => {
     const apiProxy: unknown = new Proxy({}, { get: () => apiProxy });
     return { api: apiProxy };
 });
+const navigate = vi.fn();
+vi.mock("@tanstack/react-router", () => ({
+    useNavigate: () => navigate,
+}));
 
 import AppHeaderProfile from "../app-header-profile";
 
@@ -48,5 +52,13 @@ describe("AppHeaderProfile — short-viewport chrome treatment (issue #2056 defe
         expect(nickname.className.split(/\s+/)).not.toContain(
             "short-viewport:hidden"
         );
+    });
+});
+
+describe("AppHeaderProfile — Settings entry point (issue #2595)", () => {
+    it("navigates to /settings when clicked", () => {
+        const { getByRole } = render(<AppHeaderProfile />);
+        fireEvent.click(getByRole("button", { name: /settings/i }));
+        expect(navigate).toHaveBeenCalledWith({ to: "/settings" });
     });
 });

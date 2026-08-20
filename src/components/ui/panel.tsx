@@ -67,7 +67,7 @@ const SIZE_CLASSES: Record<PanelSize, string> = {
 function Panel({
     size = "default",
     tone = "neutral",
-    density = "roomy",
+    density,
     ornament = false,
     overlay = false,
     className,
@@ -75,6 +75,16 @@ function Panel({
 }: {
     size?: PanelSize;
     tone?: PanelTone;
+    /** Explicit rung for this Panel and its subtree — an override. Omitted
+     *  (the common case) means "use the ambient rung": `[data-density]` is
+     *  never rendered by this Panel, so `--density-unit`/`--panel-pad` fall
+     *  through the CSS cascade from the nearest ancestor that DOES set it —
+     *  today that is `<html data-density>`, driven by the user's Settings
+     *  preference (issue #2595), defaulting to `roomy` there so a Panel that
+     *  says nothing renders exactly as it always did. A banner/picker that
+     *  wants a rung regardless of the user's global choice (the `compact`
+     *  board-prompt rung, the `comfortable` phone-aware dialogs) still passes
+     *  it explicitly — that pin is unaffected by any of this. */
     density?: PanelDensity;
     /** Opt in to the rich 40px corner filigree instead of the v3 brackets.
      *  ADR 0101 §2 allows it only in waiting states — the lobby hero, Game
@@ -112,7 +122,7 @@ function Panel({
     return (
         <div
             data-slot="panel"
-            data-density={density}
+            {...(density ? { "data-density": density } : {})}
             className={cn(
                 "panel-physical relative rounded-md border p-[var(--panel-pad)] text-text select-none",
                 tone === "accent" ? "border-accent/40" : "border-border-subtle",

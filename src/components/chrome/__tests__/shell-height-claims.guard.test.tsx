@@ -686,6 +686,14 @@ const ROUTE_ROOTS: Record<
         routePath: "/admin/design-system",
         files: [{ rel: "routes/design-system.route.tsx" }],
     },
+    SettingsRoute: {
+        // issue #2595: density/motion/phase-stops/preview Settings surface.
+        // Single-file root, same shape as DesignSystemRoute — no ownScroller,
+        // the page's own content grows the route root, which `<main>`'s
+        // ambient scroller (not this route) is responsible for reaching.
+        routePath: "/settings",
+        files: [{ rel: "routes/settings.route.tsx" }],
+    },
     NotFoundPage: {
         routePath: "/no-such-route",
         files: [{ rel: "components/ui/not-found-page.tsx" }],

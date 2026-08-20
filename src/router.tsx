@@ -16,6 +16,7 @@ import LimitedYourEventsRoute from "./routes/limited-your-events.route";
 import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
 import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
 import DesignSystemRoute from "./routes/design-system.route";
+import SettingsRoute from "./routes/settings.route";
 import DraftLabRoute from "./routes/draft-lab.route";
 import AdminLayoutRoute from "./routes/admin/admin-layout.route";
 import AdminIndexRoute from "./routes/admin/admin-index.route";
@@ -25,6 +26,7 @@ import AdminPickRatingsRoute from "./routes/admin/admin-pick-ratings.route";
 import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
 import AdminBugReportsRoute from "./routes/admin/admin-bug-reports.route";
 import AppShell from "./components/chrome/app-shell";
+import UserPreferencesEffect from "./components/settings/user-preferences-effect";
 import NotFoundPage from "./components/ui/not-found-page";
 import OfflineBanner from "./components/ui/offline-banner";
 
@@ -33,6 +35,7 @@ import OfflineBanner from "./components/ui/offline-banner";
 const rootRoute = createRootRoute({
     component: () => (
         <AuthGate>
+            <UserPreferencesEffect />
             <AppShell />
             <BugReportButton />
             <OfflineBanner />
@@ -145,6 +148,15 @@ const limitedDeckBuilderRoute = createRoute({
     component: LimitedDeckBuilderRoute,
 });
 
+// Settings (issue #2595, PRD #2405 slice 16/16): density, motion, phase
+// stops and the Oracle/Printed preview default, one surface, per user. A
+// general-user route (like `/limited`), NOT under `adminRoute`.
+const settingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/settings",
+    component: SettingsRoute,
+});
+
 // ─────────────────────────────────────────────────────────────────────────
 // Admin section. ONE layout route gates the whole subtree (`AdminRouteGate`
 // inside `AdminLayoutRoute`): a non-admin gets the same 404 an unknown path
@@ -231,6 +243,7 @@ const routeTree = rootRoute.addChildren([
     limitedYourEventsRoute,
     limitedEventDetailRoute,
     limitedDeckBuilderRoute,
+    settingsRoute,
     adminRoute.addChildren([
         adminIndexRoute,
         adminScenariosRoute,
