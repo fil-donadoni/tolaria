@@ -426,14 +426,62 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-your-events",
-        label: "Your Limited events (/limited/events)",
+        // Issue #2590: `/limited/events` is now a REDIRECT stub to
+        // `/limited?mine=1` — the your-events page it used to render was
+        // absorbed into the merged list. The walk proves the redirect
+        // actually lands somewhere real rather than just checking "a main
+        // region exists" (which a stuck redirect's own loading screen would
+        // also satisfy).
+        label: "Your Limited events redirect (/limited/events → /limited?mine=1)",
         async walk(page, ctx) {
             await goto(page, ctx, "/limited/events");
-            if (!(await visible(page, "main, [role=main]", 10_000))) {
+            // The redirect target's query string is `?mine=true`, not
+            // `?mine=1` — `stringifySearch` serializes the boolean, it never
+            // emits the numeric literal a hand-typed/bookmarked URL would use
+            // (see `src/router.tsx`'s `validateSearch`, which accepts both on
+            // the way IN). A pattern anchored to `?mine=1` can never match
+            // this navigation, so it always burned the full NAV_TIMEOUT
+            // before falling through to the weaker substring check below.
+            await page
+                .waitForURL(/\/limited(\?.*)?$/, { timeout: NAV_TIMEOUT })
+                .catch(() => {});
+            if (!page.url().includes("/limited")) {
                 throw new Unreachable(
-                    "/limited/events rendered no main region"
+                    "/limited/events did not redirect to /limited"
                 );
             }
+            if (!(await visible(page, "main, [role=main]", 10_000))) {
+                throw new Unreachable(
+                    "/limited/events redirected, but /limited rendered no main region"
+                );
+            }
+        },
+    },
+    {
+        id: "limited-antechamber",
+        // Issue #2590: the event detail page — now a compact avatar row +
+        // actions, with the Table Ring wired in as a dialog rather than
+        // rendered inline. Lands specifically on the "event" case
+        // `openLimitedEvent` reports — a drafting seat that gets redirected
+        // straight to the Draft Room is a DIFFERENT surface (`draft-pick`
+        // below), not this one.
+        label: "Limited event antechamber (/limited/<id>)",
+        async walk(page, ctx) {
+            const count = await limitedEventCount(page, ctx);
+            if (count === 0) {
+                throw new Unreachable(
+                    "no Limited event on this deployment — create one from /limited (+ Create Event) and re-run"
+                );
+            }
+            for (let i = 0; i < Math.min(count, 3); i++) {
+                if ((await openLimitedEvent(page, ctx, i)) !== "event") {
+                    continue;
+                }
+                if (await visible(page, "main, [role=main]", 10_000)) return;
+            }
+            throw new Unreachable(
+                "no Limited event landed on its antechamber (every seated event redirected straight to the Draft Room)"
+            );
         },
     },
     {

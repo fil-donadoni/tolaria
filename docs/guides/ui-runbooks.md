@@ -116,17 +116,24 @@ refresh token on use, so a Playwright `storageState` captured in one context
 is already spent when a second context loads it — the second context lands
 silently back on the sign-in form. Sign in per context.
 
-## Lobby, deck builder and the Limited lists (2026-08-19)
+## Lobby, deck builder and the Limited list (2026-08-20)
 
-The four routes that need no fixture beyond a signed-in account. Each is one
+The three routes that need no fixture beyond a signed-in account. Each is one
 navigation:
 
-| Route             | Screen                                                                                        |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| `/`               | Lobby — PLAY box, PRESET DECKS / MY DECKS, the active-game banner when one is running         |
-| `/decks/create`   | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode)            |
-| `/limited`        | Limited events list — YOUR CURRENT EVENTS plus `+ Create Event`                               |
-| `/limited/events` | Your-events page (#2357); a STATIC sibling of `/limited/$eventId`, so it never gets swallowed |
+| Route           | Screen                                                                                                                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`             | Lobby — PLAY box, PRESET DECKS / MY DECKS, the active-game banner when one is running                                                                                                               |
+| `/decks/create` | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode)                                                                                                                  |
+| `/limited`      | Limited events list (issue #2590) — status chips (open/drafting/building/playing/done) + a "Mine" toggle over the union of open events and every event the viewer has ever sat in, `+ Create Event` |
+
+**`/limited/events` is a redirect stub, not a screen** (issue #2590): the
+your-events page it used to render was absorbed into `/limited` behind
+`?mine=1` — navigating there lands on `/limited?mine=1` after one render
+frame. It stays a STATIC sibling of `/limited/$eventId` for route precedence
+(`src/routes/__tests__/router-limited-precedence.test.ts`), so it is still
+worth walking to prove the redirect actually fires, just not as a distinct
+visual surface.
 
 There is no `/settings` route, and the admin surfaces live under `/admin/*`
 behind `AdminRouteGate` (a non-admin gets the 404 page, indistinguishable from
@@ -153,13 +160,33 @@ the ActionSheet). Every in-game dialog is a `GameDialog`, so this is the Panel
 frame under measurement. With the dialog open, 10-12 controls behind the scrim
 measure as occluded — that is what a modal is, not a defect.
 
+## Reach the Limited antechamber (2026-08-20)
+
+The event detail page (issue #2590): a compact avatar row (who is sitting
+where) plus the actions the event's phase makes actionable — Join / Leave /
+Start / Cancel-or-Close, and the Share/Copy link. The full per-seat detail
+(pool counts, pack-passing direction) is no longer inline — it opens as the
+Table Ring dialog.
+
+1. `navigate_page` → `http://localhost:5173/limited`
+2. Click `View` on any event row (a "mine" one shows the full action set; an
+   open one you haven't joined shows just Join). The route becomes
+   `/limited/<eventId>`.
+3. `snapshot`. The avatar row sits above a `View Table` button — click it to
+   open the Ring dialog (`title="The Table"`), then close it (`Escape` or the
+   `✕`) to confirm the antechamber underneath is unaffected.
+
+A seated Draft event redirects here straight past to the Draft Room while a
+Pick is pending (`useDraftRoomRedirect`, see below) — walk a SEALED event, or
+a Draft event past `draftCompletedAt`, to land on the antechamber itself.
+
 ## Reach the Limited deck builder (2026-08-17)
 
 The pool builder is where a Sealed/Draft pool becomes a deck, and it is the
 screen the mobile-occlusion bug lives on.
 
 1. `navigate_page` → `http://localhost:5173/limited`
-2. Under YOUR CURRENT EVENTS, click `View` on the event. The route becomes
+2. Click `View` on one of your seated events. The route becomes
    `/limited/<eventId>`.
 3. Click `Build Deck` (in the "Your Pool is ready" box). The route becomes
    `/limited/<eventId>/build`.

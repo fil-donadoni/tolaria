@@ -4,6 +4,10 @@ import {
     createRouter,
 } from "@tanstack/react-router";
 import { type FormatId, isFormatId } from "@convex/formats";
+import {
+    isLimitedEventStatusChip,
+    type LimitedEventStatusChip,
+} from "~/lib/limitedEventStatus";
 import { AuthGate } from "./components/auth/auth-gate";
 import BugReportButton from "./components/bug-report/bug-report-button";
 import LobbyRoute from "./routes/lobby.route";
@@ -112,19 +116,53 @@ const joinRoute = createRoute({
 });
 
 // Limited Events lobby + detail (PRD #1107, ADR 0054/0055, issue #1110).
+// The merged list (issue #2590): status chips + a "mine" filter, both
+// carried in the URL so `/limited?mine=1` is a real, shareable/bookmarkable
+// destination — specifically the one `/limited/events` redirects to below.
+// An unrecognized `status` (a stale link, a hand-edited URL) is dropped
+// rather than kept, mirroring `decksCreateRoute`'s `?format=` guard above.
+type LimitedEventsSearch = {
+    mine?: true;
+    status?: LimitedEventStatusChip;
+};
+
 const limitedEventsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/limited",
+    validateSearch: (search): LimitedEventsSearch => {
+        const out: LimitedEventsSearch = {};
+        // Three shapes accepted, not two: TanStack's default `parseSearch`
+        // JSON-parses each query-string value, so the literal bookmarkable
+        // URL `?mine=1` arrives here as the NUMBER 1, not the string "1" —
+        // only `stringifySearch`'s own `?mine=true` output round-trips to
+        // the boolean. Dropping the number branch silently turns off the
+        // filter for the exact URL this route's doc comment promises.
+        if (search.mine === true || search.mine === "1" || search.mine === 1) {
+            out.mine = true;
+        }
+        if (isLimitedEventStatusChip(search.status)) {
+            out.status = search.status;
+        }
+        return out;
+    },
     component: LimitedEventsRoute,
 });
 
-// Your-events page (issue #2357) — a STATIC sibling of the dynamic
-// `/limited/$eventId` below. TanStack Router ranks a literal path segment
-// above a `$param` one regardless of registration order (same static-beats-
-// dynamic precedence already proven by `/decks/create` vs `/decks/$slug`
-// above), so `/limited/events` never gets swallowed by the `$eventId`
-// matcher — see `src/routes/__tests__/router-limited-precedence.test.ts`
-// for the assertion.
+// Your-events REDIRECT stub (issue #2590; was the your-events page itself,
+// issue #2357). `/limited` now absorbs the whole "every event I've ever sat
+// at" view behind the `mine` filter, so this route's only job is to send a
+// bookmarked/shared `/limited/events` link to `/limited?mine=1`.
+//
+// The route itself STAYS registered — it is still a STATIC sibling of the
+// dynamic `/limited/$eventId` below, and still needs to win that precedence
+// (an unregistered path would 404, not redirect). TanStack Router ranks a
+// literal path segment above a `$param` one regardless of registration order
+// (same static-beats-dynamic precedence already proven by `/decks/create` vs
+// `/decks/$slug` above), so `/limited/events` never gets swallowed by the
+// `$eventId` matcher — see
+// `src/routes/__tests__/router-limited-precedence.test.ts` for the
+// assertion, still valid unchanged: it only asserts route MATCHING, not what
+// the matched component renders.
 // Declared BEFORE the dynamic route here anyway, mirroring the decks pair,
 // so the source order documents the precedence instead of relying on it
 // silently.

@@ -81,9 +81,16 @@ const SURFACES: SurfaceRow[] = [
         requires: ["EmptyState"],
     },
     {
-        surface: "Limited list — your events",
-        file: "src/components/limited/limited-your-events-page.tsx",
-        requires: ["LoadingScreen", "EmptyState"],
+        // Issue #2590: the your-events page was absorbed into the merged
+        // `/limited` list behind the `mine` filter (`limited-events-page.tsx`
+        // now backs BOTH what used to be two routes) — `EmptyState` stays
+        // covered by the "Limited list — open events" row above (the SAME
+        // `LimitedEventList` renders every filtered cut of the merged list,
+        // open-only or not), so this row narrows to the page's OWN loading
+        // moment.
+        surface: "Limited list — events page (loading)",
+        file: "src/components/limited/limited-events-page.tsx",
+        requires: ["LoadingScreen"],
     },
     {
         surface: "Antechamber (join game)",

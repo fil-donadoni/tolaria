@@ -1,32 +1,57 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import {
     useDraftableSets,
     useLimitedEventMutations,
-    useMyCurrentLimitedEvents,
+    useMyLimitedEvents,
     useOpenLimitedEvents,
+    type LimitedEventSummaryView,
 } from "~/hooks/useLimitedEvent";
 import { canCreateLimitedEvents } from "~/lib/limitedGating";
+import {
+    limitedEventStatusChip,
+    type LimitedEventStatusChip,
+} from "~/lib/limitedEventStatus";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
 import LimitedEventList from "./limited-event-list";
-import LimitedMyEventsList from "./limited-my-events-list";
+import LimitedStatusFilterBar from "./limited-status-filter-bar";
 import CreateLimitedEventDialog, {
     type CreateLimitedEventPayload,
 } from "./create-limited-event-dialog";
 
-/** Limited Events lobby (PRD #1107, ADR 0054/0055, issue #1110): lists open
- *  events, lets any user join a free Seat, and lets any signed-in user open
- *  the Create Event dialog to host their own table. */
-export default function LimitedEventsPage() {
+/** Limited Events lobby (PRD #1107, ADR 0054/0055, issue #1110; merged with
+ *  the your-events page and given status/mine filtering by issue #2590): the
+ *  ONE list — open events plus every event the viewer has ever sat in
+ *  (in progress and concluded), status-chip and "mine" filtered, with Join
+ *  inline. `/limited/events` used to be the only place a concluded event's
+ *  outcome stayed visible; that view is now `mine=1` here with no status
+ *  narrowed (see `limited-your-events.route.tsx`'s redirect).
+ *
+ *  Data union: the viewer can only ever see an OPEN event they haven't
+ *  joined (anyone can, via `listOpenLimitedEvents`) or one they occupy a Seat
+ *  in at any phase (`myLimitedEvents`) — there is no "browse every event
+ *  regardless of phase and ownership" query, by design (a Sealed/Draft Pool
+ *  is private). The merged list is exactly that union, deduplicated by id. */
+export default function LimitedEventsPage({
+    mine,
+    status,
+    onMineChange,
+    onStatusChange,
+}: {
+    mine: boolean;
+    status: LimitedEventStatusChip | undefined;
+    onMineChange: (next: boolean) => void;
+    onStatusChange: (next: LimitedEventStatusChip | undefined) => void;
+}) {
     const navigate = useNavigate();
     const user = useCurrentUser();
-    const events = useOpenLimitedEvents();
-    const myEvents = useMyCurrentLimitedEvents();
+    const openEvents = useOpenLimitedEvents();
+    const myEvents = useMyLimitedEvents();
     const draftableSets = useDraftableSets();
     const { create, join } = useLimitedEventMutations();
 
@@ -37,8 +62,39 @@ export default function LimitedEventsPage() {
         useState<Id<"limitedEvents"> | null>(null);
     const [joinError, setJoinError] = useState<string | null>(null);
 
+    const viewerId = user?._id ?? "";
+
+    // Union by id — `myEvents` wins on overlap (it carries the viewer's own
+    // match record; `openEvents` never does, since an open event has no play
+    // phase yet anyway, but this keeps the merge rule obvious either way).
+    // The two source queries are differently ordered (`openEvents` is
+    // `by_status` index order — ascending creation; `myEvents` is
+    // `.order("desc")`), so Map insertion order is not a display order —
+    // sort explicitly, newest first, matching what the page this merged list
+    // replaces documented (`limited-your-events-page.tsx` on main before
+    // issue #2590).
+    const merged = useMemo((): LimitedEventSummaryView[] => {
+        if (openEvents === undefined || myEvents === undefined) return [];
+        const byId = new Map<string, LimitedEventSummaryView>();
+        for (const event of openEvents) byId.set(event._id, event);
+        for (const event of myEvents) byId.set(event._id, event);
+        return [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);
+    }, [openEvents, myEvents]);
+
+    const filtered = useMemo(() => {
+        return merged.filter((event) => {
+            if (mine && !event.seats.some((s) => s.userId === viewerId)) {
+                return false;
+            }
+            if (status && limitedEventStatusChip(event) !== status) {
+                return false;
+            }
+            return true;
+        });
+    }, [merged, mine, status, viewerId]);
+
     if (
-        events === undefined ||
+        openEvents === undefined ||
         myEvents === undefined ||
         draftableSets === undefined ||
         user === undefined
@@ -52,12 +108,6 @@ export default function LimitedEventsPage() {
             params: { eventId },
         });
     };
-
-    // Every event the viewer has ever sat at — in progress and concluded,
-    // each with its final/partial match record (issue #2357). This page's
-    // own "Your Current Events" section (below) narrows to events still in
-    // progress; a concluded event's outcome lives only here.
-    const handleViewAllEvents = () => void navigate({ to: "/limited/events" });
 
     const handleJoin = async (eventId: Id<"limitedEvents">) => {
         if (joinPendingEventId) return;
@@ -92,6 +142,11 @@ export default function LimitedEventsPage() {
         }
     };
 
+    const emptyMessage =
+        mine || status
+            ? "No Limited Events match this filter."
+            : "No open Limited Events right now.";
+
     return (
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-8">
             <Panel>
@@ -99,27 +154,29 @@ export default function LimitedEventsPage() {
                 <PanelBody>
                     {joinError && <Banner tone="danger">{joinError}</Banner>}
 
-                    <div className="flex justify-end">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <LimitedStatusFilterBar
+                            value={status}
+                            onChange={onStatusChange}
+                        />
                         <Button
-                            variant="link"
-                            size="sm"
-                            onClick={handleViewAllEvents}
+                            type="button"
+                            variant={mine ? "secondary" : "ghost"}
+                            size="xs"
+                            aria-pressed={mine}
+                            onClick={() => onMineChange(!mine)}
                         >
-                            Your Events (all) →
+                            Mine
                         </Button>
                     </div>
 
-                    <LimitedMyEventsList
-                        events={myEvents}
-                        onOpen={handleOpen}
-                    />
-
                     <LimitedEventList
-                        events={events}
-                        viewerId={user?._id ?? ""}
+                        events={filtered}
+                        viewerId={viewerId}
                         onJoin={(eventId) => void handleJoin(eventId)}
                         onOpen={handleOpen}
                         joinPendingEventId={joinPendingEventId}
+                        emptyMessage={emptyMessage}
                     />
 
                     {canCreateLimitedEvents(user) && (

@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { passDirection } from "@convex/limited/draftEngine";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import GameDialog from "~/components/ui/game-dialog";
+import { limitedEventStatusHint } from "~/lib/limitedEventStatus";
 import { cn } from "~/lib/utils";
 
 /**
@@ -70,12 +71,22 @@ export default function LimitedTableRing({
         return seat?.nickname ?? `Seat ${seatIndex + 1}`;
     };
 
+    // The Ring is mounted from both the Draft Room (always mid-draft, where
+    // "packs passing" is always true) and, since issue #2590, the antechamber
+    // at every phase — an open/Sealed/deckbuilding/finished event has no
+    // packs in flight, so the clause only belongs in the subtitle while the
+    // event actually reports "drafting".
+    const isDrafting = limitedEventStatusHint(event) === "drafting";
+    const subtitle = isDrafting
+        ? `${seatCount} seats · packs passing ${directionLabel}`
+        : `${seatCount} seats`;
+
     return (
         <GameDialog
             open={open}
             onOpenChange={onOpenChange}
             title="The Table"
-            subtitle={`${seatCount} seats · packs passing ${directionLabel}`}
+            subtitle={subtitle}
             showCloseButton
         >
             <ul
