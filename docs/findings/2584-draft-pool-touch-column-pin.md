@@ -11,9 +11,14 @@ picker and the `"move to…"` popover — at every viewport, which is an explici
 acceptance criterion. On the two BUILD views the menu's capability moved to the
 Peek Panel's `Move to…` CTA (`src/components/deckbuilder/deck-zone-peek.tsx`,
 mounted by the zone PAIR in `src/components/deckbuilder/deck-zones-surface.tsx`). On the **draft-time
-Pool** it did not: `src/components/limited/limited-draft-pool.tsx:193-209`
-still threads `onPin={handlePin}` (so a long-press DRAG onto a Column still
-records a Pin), but nothing on that surface opens a Peek Panel any more.
+Pool** it did not: nothing on that surface opens a Peek Panel, so there is no
+CTA to carry the menu's capability. A long-press DRAG onto a Column still
+records a Pin — but through `src/components/limited/limited-draft-table.tsx`'s
+own `onDragEnd` -> `handleMoveArrangement`, not through the Pool surface, which
+is why `LimitedDraftPool` now passes no `onPin` at all (`DeckZoneSurface` only
+offers its Columns through a selection, and this screen supplies no
+`onCardSelect`; the prop it used to pass was inert). Re-wiring it is one line
+the day this screen gets a selection model.
 
 So during a timed draft, on a phone, a player can no longer place a Pool card
 into a specific Column without completing a long-press drag onto a narrow,

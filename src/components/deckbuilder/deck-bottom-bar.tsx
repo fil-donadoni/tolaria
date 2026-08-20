@@ -2,10 +2,11 @@ import { useMemo } from "react";
 import { computeDeckStats } from "~/lib/deckStats";
 import type { ZoneCard } from "~/types/game";
 import { Button } from "~/components/ui/button";
+import DeckLegalityChip from "~/components/lobby/deck-builder/deck-legality-chip";
 import DeckStatsButton from "./deck-stats-button";
 import DeckMiniCurve from "./deck-mini-curve";
 import DeckMiniPips from "./deck-mini-pips";
-import type { DeckSaveBarSpec } from "./deckBuilderVariant";
+import type { DeckLegalitySpec, DeckSaveBarSpec } from "./deckBuilderVariant";
 
 export interface DeckBottomBarProps {
     mainCards: ZoneCard[];
@@ -19,6 +20,16 @@ export interface DeckBottomBarProps {
     onOpenLands?: () => void;
     /** Leave + flush — the same action Back and Done have always been. */
     onDone: () => void;
+    /** The variant's legality record, when it has one. In portrait this bar is
+     *  legality's ONLY home: `DeckLegalityPanel` costs a permanent ~48px band
+     *  the phone cannot spare and `SaveDeckBar` — whose `short-viewport:` row
+     *  carried the chip — is REPLACED here, and its row only ever matched
+     *  `(max-height: 500px)` (`index.css`), which 390x844 is not. Dropping
+     *  both left a phone builder unable to learn its deck was illegal at all
+     *  (PR #2641 review, blocker 3). Same `DeckLegalityChip` the short-viewport
+     *  row uses: one static badge when legal, a popover of reasons when not,
+     *  so it costs no height while closed. */
+    legality?: DeckLegalitySpec;
     /** The variant's save-bar record, when it has one. Its name field moves
      *  into this bar in portrait, because `SaveDeckBar` itself is replaced
      *  here rather than stacked above (two bottom bands on a phone is the
@@ -31,8 +42,9 @@ export interface DeckBottomBarProps {
  *
  * Two rows, in the order the issue lists them:
  *
- *  1. counts, colour pips and a mini mana curve — the three things a builder
- *     checks constantly and currently has to open a dialog for;
+ *  1. counts, colour pips, a mini mana curve and the legality chip — the
+ *     things a builder checks constantly and would otherwise have to open a
+ *     dialog (or a wider viewport) for;
  *  2. the deck name, then Lands / Stats / Done.
  *
  * It REPLACES `SaveDeckBar` in portrait rather than sitting above it, and
@@ -51,6 +63,7 @@ export default function DeckBottomBar({
     sideLabel,
     onOpenLands,
     onDone,
+    legality,
     saveBar,
 }: DeckBottomBarProps) {
     const stats = useMemo(() => computeDeckStats(mainCards), [mainCards]);
@@ -69,6 +82,15 @@ export default function DeckBottomBar({
                 </span>
                 <DeckMiniPips pips={stats.pips} />
                 <DeckMiniCurve curve={stats.curve} />
+                {legality && (
+                    <div className="ml-auto shrink-0">
+                        <DeckLegalityChip
+                            formatLabel={legality.formatLabel}
+                            isLegal={legality.isLegal}
+                            reasons={legality.reasons}
+                        />
+                    </div>
+                )}
             </div>
             <form
                 onSubmit={(e) => {
@@ -84,6 +106,7 @@ export default function DeckBottomBar({
                         onChange={(e) => saveBar.onChangeName(e.target.value)}
                         placeholder="Deck name"
                         aria-label="Deck name"
+                        style={{ minHeight: "var(--control-h)" }}
                         className="input-field min-w-0 flex-1 px-2 py-1 text-xs"
                     />
                 )}
@@ -92,6 +115,7 @@ export default function DeckBottomBar({
                         type="button"
                         variant="ghost"
                         size="xs"
+                        style={{ minHeight: "var(--control-h)" }}
                         onClick={onOpenLands}
                     >
                         Lands
@@ -99,19 +123,25 @@ export default function DeckBottomBar({
                 )}
                 <DeckStatsButton
                     mainCards={mainCards}
-                    className="px-2 py-1 text-xs"
+                    className="min-h-[var(--control-h)] px-2 py-1 text-xs"
                 />
                 {saveBar?.onDelete && (
                     <Button
                         type="button"
                         variant="destructive"
                         size="xs"
+                        style={{ minHeight: "var(--control-h)" }}
                         onClick={saveBar.onDelete}
                     >
                         Delete
                     </Button>
                 )}
-                <Button type="submit" variant="primary" size="xs">
+                <Button
+                    type="submit"
+                    variant="primary"
+                    size="xs"
+                    style={{ minHeight: "var(--control-h)" }}
+                >
                     Done
                 </Button>
             </form>

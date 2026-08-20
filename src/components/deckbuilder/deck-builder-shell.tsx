@@ -396,6 +396,7 @@ export default function DeckBuilderShell({
                         basicsBar ? () => setBasicsOpen(true) : undefined
                     }
                     onDone={onDone}
+                    legality={legality}
                     saveBar={saveBar}
                 />
             )}

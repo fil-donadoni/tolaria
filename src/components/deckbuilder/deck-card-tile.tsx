@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { useDraggable } from "@dnd-kit/react";
 import { cn } from "~/lib/utils";
+import { DOUBLE_CLICK_WINDOW_MS } from "~/lib/gesture/activation";
 import { pileCardTop } from "~/lib/card-layout";
 import CardImage from "~/components/cards/card-image";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
@@ -38,6 +40,17 @@ export interface DeckCardTileProps {
      *  Peek Panel -> Inspect), so reading a card and setting it as Featured
      *  stay reachable with a mouse. */
     onDoubleClick?: () => void;
+    /** The single-click action MOVES the card (removes a copy, sends it to the
+     *  other zone) rather than merely SELECTING it — so it must not run for
+     *  the first click of a double-click (PR #2641 review, blocker 1: a
+     *  double-click on a Maindeck tile removed two copies before the Inspect
+     *  Overlay opened). Set, a pointer click waits out
+     *  {@link DOUBLE_CLICK_WINDOW_MS} and a `dblclick` inside that window
+     *  cancels it outright; unset, the click acts immediately, which is what
+     *  the touch path wants — there a tap only opens the Peek Panel, nothing
+     *  is lost by doing it twice, and a 300ms lag on the primary phone gesture
+     *  would be felt on every single tap. */
+    deferClick?: boolean;
     /** Position in the overlaid pile — the tile renders `absolute` at the
      *  staggered `top` so only a sliver of each lower card shows and the
      *  topmost reads as the primary target. */
@@ -64,6 +77,7 @@ export default function DeckCardTile({
     title,
     onClick,
     onDoubleClick,
+    deferClick,
     stackIndex,
     isFeatured,
     isSelected,
@@ -71,14 +85,61 @@ export default function DeckCardTile({
 }: DeckCardTileProps) {
     const { ref, isDragging } = useDraggable({ id: dragId, data: dragData });
     const stacked = stackIndex !== undefined;
+
+    // The click/double-click arbitration (PR #2641 review, blocker 1). A
+    // browser delivers a double-click as click(detail 1), click(detail 2),
+    // dblclick — the PAIR arrives first, so a tile that acts on every click
+    // has already fired its single-click action twice by the time the Inspect
+    // Overlay opens. Two rules, in order:
+    //
+    //  1. `detail > 1` never acts. One gesture is one action, whatever the
+    //     click count — this alone takes the double-click from two to one.
+    //  2. when the action is destructive (`deferClick`) and there IS a
+    //     double-click action, the first click waits out the double-click
+    //     window instead of firing; the `dblclick` cancels it, so a
+    //     double-click performs the read and nothing else.
+    //
+    // `detail === 0` skips the wait: a click with no click count is not part
+    // of a pointer double-click sequence (keyboard activation of a control,
+    // `element.click()`, a dispatched synthetic event), so nothing can follow
+    // it and delaying it would only make the surface feel broken.
+    const pendingClick = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const cancelPendingClick = () => {
+        if (pendingClick.current !== null) {
+            clearTimeout(pendingClick.current);
+            pendingClick.current = null;
+        }
+    };
+    useEffect(() => cancelPendingClick, []);
+
+    const handleClick = (event: React.MouseEvent) => {
+        if (event.detail > 1) return;
+        if (!deferClick || !onDoubleClick || event.detail === 0) {
+            onClick();
+            return;
+        }
+        cancelPendingClick();
+        pendingClick.current = setTimeout(() => {
+            pendingClick.current = null;
+            onClick();
+        }, DOUBLE_CLICK_WINDOW_MS);
+    };
+
+    const handleDoubleClick = onDoubleClick
+        ? () => {
+              cancelPendingClick();
+              onDoubleClick();
+          }
+        : undefined;
+
     return (
         <div
             ref={ref}
             role="button"
             tabIndex={0}
             title={title}
-            onClick={onClick}
-            onDoubleClick={onDoubleClick}
+            onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
                 // `touch-pan-x`, not `touch-none` (issue #1633 bundled finding

@@ -108,9 +108,11 @@ export interface DeckZonesSurfaceProps {
     onAddColumn?: (label: string) => void;
     onRenameColumn?: (columnId: ColumnId, label: string) => void;
     onDeleteColumn?: (columnId: ColumnId) => void;
-    /** Records a Card Pin — presence renders the Maindeck's `"move to…"` card
-     *  menu (issue #1633). Threaded to the MAINDECK instance only: the
-     *  Sideboard is `dropModel: "pane"`, which has no Columns to pin into. */
+    /** Records a Card Pin — presence is what puts the Maindeck's Columns on a
+     *  selection, i.e. what offers the Peek Panel's `"Move to…"` CTA (issue
+     *  #2584, replacing the per-tile menu of #1633). Threaded to the MAINDECK
+     *  instance only: the Sideboard is `dropModel: "pane"`, which has no
+     *  Columns to pin into. */
     onPin?: (cardId: string, columnId: ColumnId, pinKey: string) => void;
 }
 
@@ -186,7 +188,14 @@ export default function DeckZonesSurface({
     const portrait = viewportMode === "portrait";
 
     const [selection, setSelection] = useState<DeckZoneSelection | null>(null);
-    const [inspecting, setInspecting] = useState<string | null>(null);
+    // The INSPECTED card is a full selection record, not a bare card id: the
+    // overlay's CTA row is derived from it, and deriving that row from
+    // `selection` instead — which only a TOUCH tap ever sets — is what left
+    // "★ Featured" unreachable at every pointer viewport (PR #2641 review,
+    // blocker 2: on desktop the overlay opened with `actions={[]}`).
+    const [inspecting, setInspecting] = useState<DeckZoneSelection | null>(
+        null
+    );
     const peekLayout = usePeekPanelLayout();
 
     // The panel is `fixed`, so the surface underneath reserves the room it
@@ -197,37 +206,47 @@ export default function DeckZonesSurface({
     // `display: contents` and has no padding of its own to set.
     const reserve = selection ? peekPanelReserve(peekLayout) : undefined;
 
-    const peekActions: readonly EditingSurfaceAction[] = !selection
-        ? []
-        : selection.zone === "maindeck"
-          ? [
-                {
-                    label: `→ ${sideTabLabel}`,
-                    primary: true,
-                    onSelect: () => {
-                        onMoveToSideboard(selection.cardId, selection.pinKey);
-                        setSelection(null);
-                    },
-                },
-                ...(onSetFeatured
-                    ? [
-                          {
-                              label: "★ Featured",
-                              onSelect: () => onSetFeatured(selection.cardId),
-                          },
-                      ]
-                    : []),
-            ]
-          : [
-                {
-                    label: `→ ${mainTabLabel}`,
-                    primary: true,
-                    onSelect: () => {
-                        onMoveToMaindeck(selection.cardId, selection.pinKey);
-                        setSelection(null);
-                    },
-                },
-            ];
+    // The surface's own CTAs for ONE card, derived from the card itself. Both
+    // consumers call it: the Peek Panel (the touch path's selection) and the
+    // Inspect Overlay (which a double-click opens at EVERY viewport, with no
+    // selection at all). One builder, so the two rows cannot drift and
+    // "★ Featured" cannot exist on one and not the other — PRD #589's picker
+    // has no other home since this slice took it off the tile.
+    const actionsFor = (
+        target: DeckZoneSelection
+    ): readonly EditingSurfaceAction[] =>
+        target.zone === "maindeck"
+            ? [
+                  {
+                      label: `→ ${sideTabLabel}`,
+                      primary: true,
+                      onSelect: () => {
+                          onMoveToSideboard(target.cardId, target.pinKey);
+                          setSelection(null);
+                      },
+                  },
+                  ...(onSetFeatured
+                      ? [
+                            {
+                                label: "★ Featured",
+                                onSelect: () => onSetFeatured(target.cardId),
+                            },
+                        ]
+                      : []),
+              ]
+            : [
+                  {
+                      label: `→ ${mainTabLabel}`,
+                      primary: true,
+                      onSelect: () => {
+                          onMoveToMaindeck(target.cardId, target.pinKey);
+                          setSelection(null);
+                      },
+                  },
+              ];
+
+    const peekActions = selection ? actionsFor(selection) : [];
+    const inspectActions = inspecting ? actionsFor(inspecting) : [];
 
     return (
         <div
@@ -298,7 +317,7 @@ export default function DeckZonesSurface({
                             ? selection.tileKey
                             : null
                     }
-                    onCardInspect={(card) => setInspecting(card.cardId)}
+                    onCardInspect={setInspecting}
                     onAddColumn={onAddColumn}
                     onRenameColumn={onRenameColumn}
                     onDeleteColumn={onDeleteColumn}
@@ -344,7 +363,7 @@ export default function DeckZonesSurface({
                             ? selection.tileKey
                             : null
                     }
-                    onCardInspect={(card) => setInspecting(card.cardId)}
+                    onCardInspect={setInspecting}
                     countSuffix={sideCountSuffix}
                     warning={sideWarning}
                     headerRight={
@@ -368,6 +387,7 @@ export default function DeckZonesSurface({
                 actions={peekActions}
                 onPin={onPin}
                 inspecting={inspecting}
+                inspectActions={inspectActions}
                 onInspect={setInspecting}
                 onCloseInspect={() => setInspecting(null)}
             />

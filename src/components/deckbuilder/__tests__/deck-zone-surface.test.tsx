@@ -8,6 +8,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, within } from "@testing-library/react";
 import { DragDropProvider } from "@dnd-kit/react";
 import {
+    addManualColumn,
     createColumnLayout,
     pinCardToColumn,
     setGrouping,
@@ -242,11 +243,25 @@ describe("DeckZoneSurface — no per-card overlay buttons (issue #2584)", () => 
         expect(plains.querySelectorAll(".ring-accent")).toHaveLength(0);
     });
 
-    it("a double-click asks the host to INSPECT the card — the pointer path that replaced the overlay buttons", () => {
+    it("a double-click hands the host the same SELECTION a tap does — the pointer path that replaced the overlay buttons", () => {
         const onCardInspect = vi.fn();
-        const { getByTitle } = renderZone({ cards: [BOLT], onCardInspect });
+        const { getByTitle } = renderZone({
+            cards: [BOLT],
+            onCardInspect,
+            onPin: () => {},
+        });
         fireEvent.doubleClick(getByTitle(/Remove Lightning Bolt/));
-        expect(onCardInspect).toHaveBeenCalledWith(BOLT);
+        // Not the bare card: the Inspect Overlay's CTA row ("→ Side",
+        // "★ Featured") is built from this record, and building it from the
+        // touch-only selection instead is what left Featured unreachable at
+        // every pointer viewport (PR #2641 review, blocker 2).
+        const inspected = onCardInspect.mock.calls[0][0];
+        expect(inspected.zone).toBe("maindeck");
+        expect(inspected.cardId).toBe(BOLT.cardId);
+        expect(inspected.pinKey).toBe(BOLT.cardId);
+        expect(
+            inspected.columns.map((c: { label: string }) => c.label)
+        ).toContain("MV 1");
     });
 
     it("a click SELECTS instead of moving once the host supplies onCardSelect (the touch path)", () => {
@@ -265,10 +280,96 @@ describe("DeckZoneSurface — no per-card overlay buttons (issue #2584)", () => 
         expect(selection.zone).toBe("maindeck");
         expect(selection.cardId).toBe(BOLT.cardId);
         expect(selection.pinKey).toBe(BOLT.cardId);
-        // The Columns travel WITH the selection: only the zone knows them.
-        const labels = selection.columns.map((c: { label: string }) => c.label);
-        expect(labels).toContain("MV 1");
-        expect(labels).not.toContain("Other");
+        expect(selection.tileKey).toBe(`mv:1:${BOLT.cardId}:0`);
+    });
+
+    // The three guards below are the per-tile `"move to…"` menu's guards
+    // (issue #1633, PR #2333 review B1), re-targeted onto the record that
+    // REPLACED that menu: `DeckZoneSelection.columns` is what the Peek Panel's
+    // "Move to…" sheet lists, so this is the same contract at its new site.
+    // The rewrite in PR #2641 had dropped them for `not.toContain("Other")` —
+    // a label this surface never produces, so deleting the pin-target filter
+    // outright left the suite green (PR #2641 review, blocker 4).
+    it("offers EXACTLY the resolved Columns that are PIN TARGETS — generated and manual, EXCLUDING the Catch-All", () => {
+        const onCardSelect = vi.fn();
+        const layout = addManualColumn(createColumnLayout(), {
+            id: "custom:removal",
+            label: "Removal",
+        });
+        const { getByTitle } = renderZone({
+            cards: [BOLT],
+            layout,
+            onCardSelect,
+            onPin: () => {},
+        });
+        fireEvent.click(getByTitle(/Remove Lightning Bolt/));
+
+        const labels = onCardSelect.mock.calls[0][0].columns.map(
+            (c: { label: string }) => c.label
+        );
+        // The full ladder this Zone resolves (`renderZone`'s default `layout`
+        // is Grouping `mv`) plus the manual Column — but NOT the Catch-All,
+        // which IS rendered on the board (see the "renders the FULL fixed
+        // ladder…" test above) and is never offered here: `pinCardToColumn`
+        // returns the layout UNCHANGED for its unnamespaced id, so listing it
+        // would be an entry that silently does nothing.
+        expect(labels).toEqual([
+            "Lands",
+            "MV 0",
+            "MV 1",
+            "MV 2",
+            "MV 3",
+            "MV 4",
+            "MV 5",
+            "MV 6",
+            "MV 7+",
+            "Removal",
+        ]);
+        expect(labels).not.toContain("Catch-All");
+    });
+
+    it("under Grouping `none` it offers NO Columns — its single Column is not a pin target either", () => {
+        // Grouping `none` resolves to one whole-Zone Column (`all`) plus the
+        // Catch-All, and NEITHER is a pin target (`pinNamespaceForGrouping`
+        // returns `null` for `none`; the Catch-All is never one). Before the
+        // B1 fixup this was the shape where the ENTIRE menu was dead: two
+        // entries, both no-ops.
+        const onCardSelect = vi.fn();
+        const { getByTitle } = renderZone({
+            cards: [BOLT],
+            layout: setGrouping(createColumnLayout(), "none"),
+            onCardSelect,
+            onPin: () => {},
+        });
+        fireEvent.click(getByTitle(/Remove Lightning Bolt/));
+        expect(onCardSelect.mock.calls[0][0].columns).toEqual([]);
+    });
+
+    it("every offered Column actually changes the layout when pinned — no entry is a reference-identical no-op", () => {
+        // Guards exactly the defect B1 found: an entry whose
+        // `onPin` -> `pinCardToColumn` round-trip returns the SAME layout
+        // reference. Folded through the real engine primitive rather than
+        // trusted from the label alone.
+        const onCardSelect = vi.fn();
+        const layout = addManualColumn(createColumnLayout(), {
+            id: "custom:removal",
+            label: "Removal",
+        });
+        const { getByTitle } = renderZone({
+            cards: [BOLT],
+            layout,
+            onCardSelect,
+            onPin: () => {},
+        });
+        fireEvent.click(getByTitle(/Remove Lightning Bolt/));
+
+        const selection = onCardSelect.mock.calls[0][0];
+        expect(selection.columns.length).toBeGreaterThan(0);
+        for (const column of selection.columns as { id: string }[]) {
+            const next = pinCardToColumn(layout, selection.pinKey, column.id);
+            expect(next).not.toBe(layout);
+            expect(next.pins[selection.pinKey]).toBeDefined();
+        }
     });
 
     it("offers NO Columns on the `pane` drop model — the Sideboard has none to pin into", () => {

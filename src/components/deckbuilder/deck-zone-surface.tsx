@@ -73,11 +73,13 @@ import ZoneOrderingSelect from "./zone-ordering-select";
  * the guaranteed landing spot a narrow-screen scroll can never run past. It is
  * the successor of `groupDeckIntoPiles`' trailing `Unknown` pile.
  *
- * The `"move to…"` menu (below) deliberately EXCLUDES the Catch-All (and
- * Grouping `none`'s single Column) — see `moveMenuColumns`'s own comment for
- * why: `pinCardToColumn` (`convex/deckLayout.ts`) returns the layout
- * unchanged for a `pinNamespace: null` id, so listing it would be a menu
- * entry that silently does nothing (PR #2333 review, B1).
+ * The Columns a selection OFFERS as `"Move to…"` destinations (below —
+ * the Peek Panel CTA that replaced the per-tile menu in issue #2584)
+ * deliberately EXCLUDE the Catch-All and Grouping `none`'s single Column —
+ * see `moveMenuColumns`'s own comment for why: `pinCardToColumn`
+ * (`convex/deckLayout.ts`) returns the layout unchanged for a
+ * `pinNamespace: null` id, so listing one would be an entry that silently
+ * does nothing (PR #2333 review, B1).
  *
  * Must render under an ancestor `DragDropProvider` — the BUILDER owns it, not
  * this component, because the Constructed builder's search results are
@@ -144,8 +146,14 @@ export interface DeckZoneSurfaceProps {
      *  selection ring on exactly the copy that was tapped. */
     selectedTileKey?: string | null;
     /** Double-click a tile (issue #2584): the POINTER path to the Inspect
-     *  Overlay, now that no tile carries an overlay button. */
-    onCardInspect?: (card: ZoneCard) => void;
+     *  Overlay, now that no tile carries an overlay button.
+     *
+     *  It hands over the SAME {@link DeckZoneSelection} a tap does, not just
+     *  the card: the overlay's CTA row is built from it ("→ Side",
+     *  "★ Featured"), and deriving that row from a touch-only selection is
+     *  what left Featured unreachable at every pointer viewport (PR #2641
+     *  review, blocker 2). One record, both entry points. */
+    onCardInspect?: (selection: DeckZoneSelection) => void;
     /** Manual-Column management (ADR 0075 §2, issue #1626). Supplied as a trio
      *  or not at all; when absent the surface renders no add/rename/delete
      *  affordance, which is the reduced draft-time bar (ADR 0075 §6) and the
@@ -390,6 +398,24 @@ export default function DeckZoneSurface({
                         tiles: column.items.map(
                             ({ card, pinKey }, idx): DeckPileTile => {
                                 const key = `${column.id}:${card.cardId}:${idx}`;
+                                // ONE record per tile, handed to BOTH gesture
+                                // paths — a tap (select → Peek Panel) and a
+                                // double-click (→ Inspect Overlay). The
+                                // overlay's CTAs are built from it by the
+                                // pair parent, so they cannot depend on a
+                                // touch-only selection (PR #2641 review,
+                                // blocker 2).
+                                const selection: DeckZoneSelection = {
+                                    zone,
+                                    cardId: card.cardId,
+                                    cardName: card.cardName,
+                                    pinKey,
+                                    tileKey: key,
+                                    columns:
+                                        dropModel === "columns" && onPin
+                                            ? moveMenuColumns
+                                            : [],
+                                };
                                 return {
                                     key,
                                     cardId: card.cardId,
@@ -414,22 +440,17 @@ export default function DeckZoneSurface({
                                     // branch, on slot presence — the surface never
                                     // asks which viewport it is on.
                                     onClick: onCardSelect
-                                        ? () =>
-                                              onCardSelect({
-                                                  zone,
-                                                  cardId: card.cardId,
-                                                  cardName: card.cardName,
-                                                  pinKey,
-                                                  tileKey: key,
-                                                  columns:
-                                                      dropModel === "columns" &&
-                                                      onPin
-                                                          ? moveMenuColumns
-                                                          : [],
-                                              })
+                                        ? () => onCardSelect(selection)
                                         : () => onCardClick(card),
+                                    // Where a click MOVES the card it is
+                                    // destructive, so the tile makes it wait
+                                    // out the double-click window rather than
+                                    // firing before an Inspect; where it only
+                                    // selects, it fires at once (PR #2641
+                                    // review, blocker 1).
+                                    deferClick: !onCardSelect,
                                     onDoubleClick: onCardInspect
-                                        ? () => onCardInspect(card)
+                                        ? () => onCardInspect(selection)
                                         : undefined,
                                     isFeatured:
                                         !!featuredCardId &&

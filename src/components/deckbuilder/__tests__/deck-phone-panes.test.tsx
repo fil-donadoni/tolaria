@@ -16,6 +16,7 @@
 // no media query.
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, fireEvent, screen } from "@testing-library/react";
+import { DOUBLE_CLICK_WINDOW_MS } from "~/lib/gesture/activation";
 import { DragDropManager } from "@dnd-kit/dom";
 import { createDeckColumnLayout } from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
@@ -38,8 +39,20 @@ vi.mock("~/hooks/useViewportMode", () => ({
 beforeAll(installDndJsdomShims);
 afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     mode = "portrait";
 });
+
+/** A REAL pointer click sequence. A browser delivers a double-click as
+ *  click(detail 1), click(detail 2), dblclick — `fireEvent.doubleClick` alone
+ *  synthesises none of the preceding clicks, which is why the shipped guard
+ *  never saw the two removals the sequence caused (PR #2641 review, blocker
+ *  1). Everything here goes through the events a browser actually sends. */
+function doubleClickLikeABrowser(el: Element) {
+    fireEvent.click(el, { detail: 1 });
+    fireEvent.click(el, { detail: 2 });
+    fireEvent.doubleClick(el, { detail: 2 });
+}
 
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt (MV 1)
 const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // Plains (land)
@@ -384,6 +397,94 @@ describe("DeckBuilderShell — the Peek Panel as the move path (issue #2584)", (
         fireEvent.doubleClick(screen.getByTitle(/Remove Lightning Bolt/));
         expect(document.querySelector("[data-inspect-overlay]")).toBeTruthy();
     });
+
+    it("a REAL double-click destroys nothing — the click pair never reaches the move handler", () => {
+        // PR #2641 review, blocker 1: the browser's click,click,dblclick left
+        // `onMainCardClick` (Constructed: remove a copy from the deck) called
+        // TWICE before the overlay opened — silent data loss on the primary
+        // desktop gesture.
+        mode = "desktop";
+        const onMainCardClick = vi.fn();
+        renderShell({
+            mainCards: [
+                card(BOLT_ID, "Lightning Bolt"),
+                card(BOLT_ID, "Lightning Bolt"),
+            ],
+            actions: { onMainCardClick },
+        });
+
+        vi.useFakeTimers();
+        doubleClickLikeABrowser(
+            screen.getAllByTitle(/Remove Lightning Bolt/)[0]
+        );
+        // …and still nothing once the deferred single click's window has
+        // elapsed: the `dblclick` CANCELLED it, it is not merely pending.
+        vi.advanceTimersByTime(DOUBLE_CLICK_WINDOW_MS * 2);
+
+        expect(onMainCardClick).not.toHaveBeenCalled();
+        expect(document.querySelector("[data-inspect-overlay]")).toBeTruthy();
+    });
+
+    it("a lone pointer click still moves the card, once the double-click window has passed", () => {
+        // The other half of the guard above: deferring must not silently kill
+        // the desktop click-to-move gesture this slice was to leave unchanged.
+        mode = "desktop";
+        const onMainCardClick = vi.fn();
+        renderShell({
+            mainCards: [card(BOLT_ID, "Lightning Bolt")],
+            actions: { onMainCardClick },
+        });
+
+        vi.useFakeTimers();
+        fireEvent.click(screen.getByTitle(/Remove Lightning Bolt/), {
+            detail: 1,
+        });
+        vi.advanceTimersByTime(DOUBLE_CLICK_WINDOW_MS + 1);
+        expect(onMainCardClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("reaches `★ Featured` through the Inspect Overlay at a POINTER viewport — a mouse has no other path to it", () => {
+        // PR #2641 review, blocker 2: `featured-card-button.tsx` is deleted and
+        // the replacement CTA lived in the TOUCH-only selection's action set,
+        // so on desktop/tablet the overlay opened with `actions={[]}` and PRD
+        // #589's Featured Card was unreachable at every pointer viewport.
+        mode = "desktop";
+        const onSet = vi.fn();
+        renderShell({
+            mainCards: [card(BOLT_ID, "Lightning Bolt")],
+            featured: { cardId: null, onSet },
+        });
+
+        doubleClickLikeABrowser(screen.getByTitle(/Remove Lightning Bolt/));
+        const overlay = document.querySelector("[data-inspect-overlay]")!;
+        expect(overlay).toBeTruthy();
+        const featured = [...overlay.querySelectorAll("button")].find(
+            (el) => el.textContent === "★ Featured"
+        )!;
+        expect(featured).toBeTruthy();
+        fireEvent.click(featured);
+        expect(onSet).toHaveBeenCalledWith(BOLT_ID);
+        // Firing a CTA closes the overlay — a read of a card the player just
+        // acted on is not what they are looking at any more.
+        expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
+    });
+
+    it("offers the move CTA in the overlay too, on the copy that was double-clicked", () => {
+        mode = "desktop";
+        const onMoveToSideboard = vi.fn();
+        renderShell({
+            mainCards: [card(BOLT_ID, "Lightning Bolt")],
+            actions: { onMoveToSideboard },
+        });
+        doubleClickLikeABrowser(screen.getByTitle(/Remove Lightning Bolt/));
+        const overlay = document.querySelector("[data-inspect-overlay]")!;
+        fireEvent.click(
+            [...overlay.querySelectorAll("button")].find(
+                (el) => el.textContent === "→ Side"
+            )!
+        );
+        expect(onMoveToSideboard).toHaveBeenCalledWith(BOLT_ID, BOLT_ID);
+    });
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -435,5 +536,39 @@ describe("DeckBuilderShell — the phone bottom bar (issue #2584)", () => {
     it("offers no `Lands` button for a variant that declares no basics bar", () => {
         renderShell({});
         expect(screen.queryByRole("button", { name: "Lands" })).toBeNull();
+    });
+
+    it("carries DECK LEGALITY — an illegal deck says so, in the bar, at 390x844", () => {
+        // PR #2641 review, blocker 3: `DeckLegalityPanel` is dropped in
+        // portrait and `SaveDeckBar` (whose `short-viewport:` row holds the
+        // chip) is REPLACED by this bar, and that row only matches
+        // `(max-height: 500px)` — never a 390x844 phone. Legality had no home
+        // on the one viewport this slice is about.
+        const { container } = renderShell({
+            mainCards: [card(BOLT_ID, "Lightning Bolt")],
+            legality: {
+                formatLabel: "Premodern",
+                isLegal: false,
+                reasons: [
+                    { code: "deck-size", message: "Deck has 1 card (min 60)" },
+                ],
+            },
+        });
+        const bar = container.querySelector("[data-deck-bottom-bar]")!;
+        expect(bar.textContent).toContain("Illegal (1)");
+        expect(bar.querySelector('[title*="Premodern illegal"]')).toBeTruthy();
+    });
+
+    it("says so when the deck IS legal, rather than falling silent", () => {
+        const { container } = renderShell({
+            mainCards: [card(BOLT_ID, "Lightning Bolt")],
+            legality: {
+                formatLabel: "Premodern",
+                isLegal: true,
+                reasons: [],
+            },
+        });
+        const bar = container.querySelector("[data-deck-bottom-bar]")!;
+        expect(bar.textContent).toContain("Legal");
     });
 });

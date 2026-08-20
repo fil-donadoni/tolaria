@@ -34,6 +34,24 @@ export const TOUCH_MOVE_TOLERANCE_PX = 10;
  *  dnd-kit's `Distance.value`. */
 export const MOUSE_DRAG_DISTANCE_PX = 8;
 
+/** How long a POINTER single-click waits before its action runs, on a surface
+ *  where the same element also has a double-click action AND the single-click
+ *  action cannot be undone.
+ *
+ *  Not part of model A's reducer above (which arbitrates press → drag/scroll/
+ *  tap, never click counts) — it lives here because it is the same kind of
+ *  datum: one number deciding what a gesture MEANT, which must have exactly
+ *  one home. A browser delivers a double-click as `click`(detail 1),
+ *  `click`(detail 2), `dblclick`, so an element that acts on the first click
+ *  has already performed a destructive action by the time the double-click
+ *  arrives (PR #2641 review, blocker 1: a double-click on a deck tile removed
+ *  TWO copies before the Inspect Overlay opened). 300ms covers a comfortable
+ *  double-click without being felt as lag; the OS threshold is typically
+ *  400–500ms, so a deliberately SLOW double-click can still let the single
+ *  click through — the reason this delay is only paid where the single click
+ *  is destructive, never on a tap that merely selects. */
+export const DOUBLE_CLICK_WINDOW_MS = 300;
+
 /** Pointer kinds the engine distinguishes. Pen behaves as touch: it is a
  *  direct-manipulation pointer on a scrolling surface, so it needs the same
  *  scroll/drag disambiguation a finger does. */

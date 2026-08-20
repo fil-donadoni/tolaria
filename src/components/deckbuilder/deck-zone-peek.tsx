@@ -21,11 +21,19 @@ export interface DeckZonePeekProps {
     /** Records a Card Pin. Presence (with a non-empty
      *  {@link DeckZoneSelection.columns}) is what offers "Move to…". */
     onPin?: (cardId: string, columnId: ColumnId, pinKey: string) => void;
-    /** Card currently open in the Inspect Overlay, if any. Held by the PARENT
-     *  because a double-click opens it with no selection at all (issue #2584's
-     *  pointer path to Inspect). */
-    inspecting?: string | null;
-    onInspect: (cardId: string) => void;
+    /** Card currently open in the Inspect Overlay, if any — as a full
+     *  {@link DeckZoneSelection}, not a bare id. Held by the PARENT because a
+     *  double-click opens it with no selection at all (issue #2584's pointer
+     *  path to Inspect), and carried as a selection because the overlay's own
+     *  CTA row is derived from the inspected CARD: deriving it from the
+     *  touch-only selection instead left "★ Featured" unreachable at every
+     *  pointer viewport (PR #2641 review, blocker 2). */
+    inspecting?: DeckZoneSelection | null;
+    /** The surface's CTAs for the INSPECTED card — the same set
+     *  {@link DeckZonePeekProps.actions} holds for the selected one, built by
+     *  the parent from one function so the two rows cannot drift. */
+    inspectActions: readonly EditingSurfaceAction[];
+    onInspect: (selection: DeckZoneSelection) => void;
     onCloseInspect: () => void;
 }
 
@@ -58,6 +66,7 @@ export default function DeckZonePeek({
     actions,
     onPin,
     inspecting,
+    inspectActions,
     onInspect,
     onCloseInspect,
 }: DeckZonePeekProps) {
@@ -78,7 +87,7 @@ export default function DeckZonePeek({
                   : []),
               {
                   label: "Inspect",
-                  onSelect: () => onInspect(selection.cardId),
+                  onSelect: () => onInspect(selection),
               },
           ]
         : [];
@@ -89,7 +98,7 @@ export default function DeckZonePeek({
     // "→ Side" tap moves the card and leaves a full-screen read of a card that
     // is no longer where the player is looking. Same rule the Draft Room
     // established in #2583.
-    const inspectActions: readonly EditingSurfaceAction[] = actions.map(
+    const overlayActions: readonly EditingSurfaceAction[] = inspectActions.map(
         (action) => ({
             ...action,
             onSelect: () => {
@@ -113,8 +122,8 @@ export default function DeckZonePeek({
 
             {inspecting && (
                 <InspectOverlay
-                    cardId={inspecting}
-                    actions={inspectActions}
+                    cardId={inspecting.cardId}
+                    actions={overlayActions}
                     onClose={onCloseInspect}
                 />
             )}
