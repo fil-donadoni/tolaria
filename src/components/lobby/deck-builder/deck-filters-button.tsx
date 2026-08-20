@@ -56,7 +56,9 @@ export default function DeckFiltersButton({
     const label = (
         <>
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Filters</span>
+            <span className="hidden sm:inline short-viewport:hidden">
+                Filters
+            </span>
             {activeCount > 0 && (
                 <span
                     data-filter-count=""
