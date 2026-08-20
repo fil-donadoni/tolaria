@@ -612,7 +612,17 @@ export default function DeckZoneSurface({
                 `deck-zones-surface.tsx` and `deck-builder-shell.tsx` stop
                 bounding the pane under `compact-chrome:`, so the shell's one
                 scroll wrapper absorbs the overflow instead of the cards.
-                Above `md` on a desktop-shaped viewport this is unchanged. */}
+                Above `md` on a desktop-shaped viewport this is unchanged.
+
+                The ROWS branch needs no such floor, and that asymmetry is
+                deliberate rather than an oversight: it is not `flex-1`, so it
+                never absorbs leftover height — the rows stack DOWN and the
+                pane scrolls past them (issue #2584). Measured 2026-08-20 in
+                the tightest place this surface now renders, the Draft Room's
+                phone-portrait pool stop, where TWO of these share ~70% of a
+                390x844 screen (issue #2588): `cards zero0 occ0 stranded0`,
+                `starved0`, tiles at full height — the `draft-pool-stop` row
+                in `scripts/ui-gate/budgets.json` is that measurement. */}
             <div
                 className={cn(
                     "flex overflow-auto p-3 md:snap-none md:gap-6 md:p-4",

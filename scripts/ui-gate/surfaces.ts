@@ -188,32 +188,45 @@ async function assertTwoSnapStops(page: Page): Promise<void> {
     const result = (await page.evaluate(`(async () => {
         const s = document.querySelector("${DRAFT_SNAP_SCROLLER}");
         if (!s) return null;
-        const max = Math.round(s.scrollHeight - s.clientHeight);
-        if (max < 8) return { max: max, rested: [], note: "no scrollable range" };
+        // The AXIS is the one thing the orientation changes (see
+        // \`useDraftSnapStops\`): portrait swipes down, landscape sideways.
+        // Reading scrollTop on the landscape scroller measures a range of 0
+        // and reports the panes "did not lay out" on a screen that is fine.
+        const x = s.getAttribute("data-orientation") === "landscape";
+        const max = Math.round(
+            x ? s.scrollWidth - s.clientWidth : s.scrollHeight - s.clientHeight
+        );
+        if (max < 8) return { axis: x ? "x" : "y", max: max, rested: [], note: "no scrollable range" };
         const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 120)));
+        const to = (v) => s.scrollTo(x ? { left: v, behavior: "instant" } : { top: v, behavior: "instant" });
         const rested = [];
         for (let i = 0; i <= 10; i++) {
-            s.scrollTo({ top: (max * i) / 10, behavior: "instant" });
+            to((max * i) / 10);
             await frame();
-            const at = Math.round(s.scrollTop);
+            const at = Math.round(x ? s.scrollLeft : s.scrollTop);
             const snapped = at <= 2 ? 0 : Math.abs(at - max) <= 2 ? max : at;
             if (rested.indexOf(snapped) === -1) rested.push(snapped);
         }
-        s.scrollTo({ top: 0, behavior: "instant" });
+        to(0);
         await frame();
-        return { max: max, rested: rested, note: "" };
-    })()`)) as { max: number; rested: number[]; note: string } | null;
+        return { axis: x ? "x" : "y", max: max, rested: rested, note: "" };
+    })()`)) as {
+        axis: string;
+        max: number;
+        rested: number[];
+        note: string;
+    } | null;
 
     if (result === null) return;
     if (result.note !== "") {
         throw new Unreachable(
-            `the phone Draft Room's snap scroller has no scrollable range (max ${result.max}px) — the two panes did not lay out`
+            `the phone Draft Room's snap scroller has no scrollable range on its ${result.axis} axis (max ${result.max}px) — the two panes did not lay out`
         );
     }
     const unexpected = result.rested.filter((v) => v !== 0 && v !== result.max);
     if (unexpected.length > 0 || result.rested.length !== 2) {
         throw new Unreachable(
-            `the phone Draft Room rests at ${result.rested.length} scroll offsets [${result.rested.join(", ")}], not exactly the two AC 1 requires ([0, ${result.max}])`
+            `the phone Draft Room rests at ${result.rested.length} ${result.axis}-offsets [${result.rested.join(", ")}], not exactly the two AC 1 requires ([0, ${result.max}])`
         );
     }
 }

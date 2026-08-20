@@ -221,8 +221,10 @@ Click sequences, both orientations:
 1. **Swipe to the pool** — click `[data-slot=draft-strip-drop][data-zone=maindeck]`
    (portrait: the left half of the pool strip along the bottom edge;
    landscape: the sneak-peek column on the right). `data-stop` becomes
-   `pool`. Programmatic scrolling works too (`s.scrollTo({top: max})`), but
-   the tap is what a player does.
+   `pool`. Programmatic scrolling works too, but the tap is what a player
+   does — and note the AXIS: portrait scrolls `top`, landscape `left`
+   (`useDraftSnapStops.ts`), so `scrollTop` on a landscape scroller reads a
+   range of `0` and looks like a surface that never laid out.
 2. **Back to the pack** — `[data-slot=draft-back-to-pack]`, in the pack's
    status bar (portrait) or the collapsed pack column (landscape).
 3. **Pick to the sideboard by drag** —
@@ -244,6 +246,19 @@ Arena-style pile — `aria-hidden`, so it is excluded from the probe's card
 census by design), `[data-slot=draft-pack-status][data-pulsing=true]` (a pack
 landed while the player was parked on the pool), and `[data-draft-chevron]`
 with `data-animated` (absent under `prefers-reduced-motion: reduce`).
+
+`bun run check:ui` walks this route TWICE — `draft-pick` stops at the pack
+stop, `draft-pool-stop` runs step 1 and probes there (off a phone it scrolls
+the split's pool column to its end instead). Both call `assertTwoSnapStops`,
+which drives the real scroller through eleven offsets and reds the lane unless
+exactly `{0, max}` rest.
+
+**Fixture requirement for `draft-pool-stop`: the seat needs a non-empty pool.**
+`LimitedDraftPool` renders an `EmptyState` at `pool.length === 0` — no
+`[data-slot=draft-pool]`, so the walk reports UNWALKED and the run is red. Make
+a few picks in the room first (select a tile, `[data-editing-action="Pick"]`);
+the lane itself never picks, because a pick is not reversible and this lane is
+non-destructive by construction.
 
 A Sealed event opens the same route in **reveal mode**: no pack, no counters,
 the dealt Pool plus `Build your deck →`.
