@@ -8,15 +8,22 @@ import { resolveFeaturedCardId } from "@convex/deckPresets";
 import type { DeckCard } from "~/types/game";
 
 /**
- * Toggle the Featured Card override. Picking a different card sets it; clicking
+ * Toggle the Featured Card override. Picking a different card sets it; picking
  * the card that's already featured clears the override (`undefined`), reverting
  * to the first-Maindeck-card default (User Story 13). `current` is the override
  * stored on the working deck, not the resolved value.
+ *
+ * `null` is an EXPLICIT clear rather than a toggle — the `Auto` option of the
+ * deck-detail picker that replaced the per-card overlay button (issue #2584).
+ * A `<select>` fires no `change` when you re-choose the value it is already
+ * showing, so the re-pick path above can never get back to Auto there; without
+ * a clear of its own the picker would be a one-way door.
  */
 export function toggleFeatured(
     current: string | undefined,
-    cardId: string
+    cardId: string | null
 ): string | undefined {
+    if (cardId === null) return undefined;
     return current === cardId ? undefined : cardId;
 }
 

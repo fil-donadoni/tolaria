@@ -10,6 +10,9 @@ import {
     resolveDeckZoneDragAction,
     zoneColumnDropId,
     zonePaneDropId,
+    zoneTabDropId,
+    SOURCE_TAB_DROP_ID,
+    isSourceTabDropId,
     type DeckZoneDragHandlers,
 } from "../deckZoneDrag";
 
@@ -236,6 +239,14 @@ function handlers() {
         >(),
         onAddToMaindeck: vi.fn<(cardId: string, cardName: string) => void>(),
         onAddToSideboard: vi.fn<(cardId: string, cardName: string) => void>(),
+        onRemoveFromDeck:
+            vi.fn<
+                (
+                    cardId: string,
+                    zone: "maindeck" | "sideboard",
+                    pinKey?: string
+                ) => void
+            >(),
     } satisfies DeckZoneDragHandlers;
 }
 
@@ -281,5 +292,122 @@ describe("applyDeckZoneDragAction (issue #1622)", () => {
             )
         ).not.toThrow();
         expect(h.onMoveToMaindeck).not.toHaveBeenCalled();
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// The phone Pane Tabs (issue #2584). A tab is a SECOND drop target for a pane
+// the player cannot see, so the two things that matter are: it resolves to the
+// SAME action a drop on the pane itself would, and the SOURCE tab — the one
+// pane that is not a Zone — means "leave the deck".
+//
+// The producer census behind these rows: a drag payload's `kind` is the whole
+// input space (`dnd-types.ts`), and there are exactly three producers of one —
+// `DraggableCard` (Constructed search results, `kind: "result"`) and
+// `DeckCardTile` under each of the two zones (`"main"` / `"side"`). Every row
+// below is one of those three against the new target, INCLUDING the two that
+// must NOT act.
+// ────────────────────────────────────────────────────────────────────────────
+describe("resolveDeckZoneDragAction — Pane Tabs (issue #2584)", () => {
+    it("a ZONE tab resolves exactly as a drop on that zone's pane", () => {
+        expect(
+            resolveDeckZoneDragAction(mainCard, zoneTabDropId("sideboard"))
+        ).toEqual(
+            resolveDeckZoneDragAction(mainCard, zonePaneDropId("sideboard"))
+        );
+        expect(
+            resolveDeckZoneDragAction(sideCard, zoneTabDropId("maindeck"))
+        ).toEqual(
+            resolveDeckZoneDragAction(sideCard, zonePaneDropId("maindeck"))
+        );
+    });
+
+    it("a search result dropped on a zone tab adds a copy to that zone", () => {
+        expect(
+            resolveDeckZoneDragAction(resultCard, zoneTabDropId("sideboard"))
+        ).toEqual({
+            type: "addToSideboard",
+            cardId: "bolt",
+            cardName: "Lightning Bolt",
+        });
+    });
+
+    it("a MAINDECK card dropped on the SOURCE tab leaves the deck, naming the zone it left", () => {
+        expect(resolveDeckZoneDragAction(mainCard, SOURCE_TAB_DROP_ID)).toEqual(
+            {
+                type: "removeFromDeck",
+                cardId: "bolt",
+                zone: "maindeck",
+                pinKey: "bolt",
+            }
+        );
+    });
+
+    it("a SIDEBOARD card dropped on the SOURCE tab leaves the sideboard, carrying the dragged COPY's key", () => {
+        expect(
+            resolveDeckZoneDragAction(
+                { ...sideCard, pinKey: "7" },
+                SOURCE_TAB_DROP_ID
+            )
+        ).toEqual({
+            type: "removeFromDeck",
+            cardId: "bolt",
+            zone: "sideboard",
+            pinKey: "7",
+        });
+    });
+
+    it("must NOT act: a search RESULT dropped on the source tab — it never entered the deck", () => {
+        expect(
+            resolveDeckZoneDragAction(resultCard, SOURCE_TAB_DROP_ID)
+        ).toBeNull();
+    });
+
+    it("must NOT act: a Maindeck card dropped on the MAINDECK tab — a tab names no Column, so there is no Pin to record", () => {
+        expect(
+            resolveDeckZoneDragAction(mainCard, zoneTabDropId("maindeck"))
+        ).toBeNull();
+    });
+
+    it("recognises the source tab id and nothing else", () => {
+        expect(isSourceTabDropId(SOURCE_TAB_DROP_ID)).toBe(true);
+        expect(isSourceTabDropId(zoneTabDropId("maindeck"))).toBe(false);
+        expect(isSourceTabDropId(zonePaneDropId("maindeck"))).toBe(false);
+        expect(isSourceTabDropId(undefined)).toBe(false);
+    });
+
+    it("dispatches removeFromDeck to the host, and stays a no-op for a variant that declares no source pane", () => {
+        const h = handlers();
+        applyDeckZoneDragAction(
+            {
+                type: "removeFromDeck",
+                cardId: "bolt",
+                zone: "sideboard",
+                pinKey: "7",
+            },
+            h
+        );
+        expect(h.onRemoveFromDeck).toHaveBeenCalledWith(
+            "bolt",
+            "sideboard",
+            "7"
+        );
+
+        const limited: DeckZoneDragHandlers = {
+            onMoveToSideboard: h.onMoveToSideboard,
+            onMoveToMaindeck: h.onMoveToMaindeck,
+            onPin: h.onPin,
+        };
+        expect(() =>
+            applyDeckZoneDragAction(
+                {
+                    type: "removeFromDeck",
+                    cardId: "bolt",
+                    zone: "maindeck",
+                    pinKey: "bolt",
+                },
+                limited
+            )
+        ).not.toThrow();
     });
 });

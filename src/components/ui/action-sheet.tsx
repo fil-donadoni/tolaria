@@ -60,6 +60,10 @@ export default function ActionSheet({
     return createPortal(
         <div
             ref={backdropRef}
+            // Queryable handle (issue #2584) — the sheet portals to
+            // `document.body`, so a test scoping a click to it has nothing
+            // else to select on.
+            data-action-sheet
             // `modal-scrim` (#1891): shared scrim + heavy backdrop blur. The
             // `transition-colors` still animates the scrim COLOR in; the blur
             // itself pops (backdrop-filter is not color-transitionable) —

@@ -14,6 +14,31 @@ import type { DragSourceKind } from "~/components/lobby/deck-builder/dnd-types";
 
 const DROP_PREFIX = "deck-zone:";
 
+/** Prefix for the phone Pane Tabs (issue #2584). A tab is a SECOND drop target
+ *  meaning the same thing as a drop on the pane it names, so it cannot reuse
+ *  the pane's own id — dnd-kit keys its droppable registry by id and two
+ *  mounted droppables sharing one id collide. The prefix differs; the MEANING
+ *  is resolved by the same parser below, so a tab drop and a pane drop can
+ *  never drift apart. */
+const TAB_PREFIX = "deck-tab:";
+
+/** The Source pane's tab (issue #2584) — the Constructed builder's search
+ *  results, the one pane that is not a deck Zone. A deck card dropped on it
+ *  leaves the deck entirely, which is the phone replacement for the tap that
+ *  used to remove it (a tap now opens the Peek Panel instead). */
+export const SOURCE_TAB_DROP_ID = `${TAB_PREFIX}source`;
+
+/** Drop-target id for the Pane Tab of one Zone (issue #2584). */
+export function zoneTabDropId(zone: DeckZone): string {
+    return `${TAB_PREFIX}${zone}`;
+}
+
+/** True for the Source pane's tab id — the one drop target that names no
+ *  Zone, so {@link parseDeckZoneDropId} cannot express it. */
+export function isSourceTabDropId(id: string | undefined): boolean {
+    return id === SOURCE_TAB_DROP_ID;
+}
+
 /** Drop-target id for one Column of one Zone. Namespaced by Zone because the
  *  Maindeck and the Sideboard generate the SAME Column ids (`mv:5` in both) —
  *  an un-namespaced id would make the two zones' columns collide in dnd-kit's
@@ -45,8 +70,16 @@ function isDeckZone(value: string): value is DeckZone {
 export function parseDeckZoneDropId(
     id: string | undefined
 ): DeckZoneDropTarget | null {
-    if (!id || !id.startsWith(DROP_PREFIX)) return null;
-    const rest = id.slice(DROP_PREFIX.length);
+    if (!id) return null;
+    // Both prefixes resolve here (issue #2584): a Pane Tab names a Zone and no
+    // Column, i.e. exactly a whole-pane drop.
+    const prefix = id.startsWith(DROP_PREFIX)
+        ? DROP_PREFIX
+        : id.startsWith(TAB_PREFIX)
+          ? TAB_PREFIX
+          : null;
+    if (!prefix) return null;
+    const rest = id.slice(prefix.length);
     const at = rest.indexOf(":");
     const zone = at < 0 ? rest : rest.slice(0, at);
     if (!isDeckZone(zone)) return null;
@@ -95,7 +128,17 @@ export type DeckZoneDragAction =
       }
     /** A Maindeck card dropped on another Maindeck Column — record a Card Pin;
      *  it stays in the deck. */
-    | { type: "pin"; cardId: string; columnId: ColumnId; pinKey: string };
+    | { type: "pin"; cardId: string; columnId: ColumnId; pinKey: string }
+    /** A deck card dropped on the SOURCE pane's tab (issue #2584) — it leaves
+     *  the deck altogether. `zone` says which list it is leaving, because the
+     *  two are separate lists in every variant and the drag payload's `kind`
+     *  is the only thing that knows which. */
+    | {
+          type: "removeFromDeck";
+          cardId: string;
+          zone: DeckZone;
+          pinKey: string;
+      };
 
 /** Resolves a completed drag into the action it represents, or `null` for a
  *  cancelled / no-op drop (missing data or target, an id this surface doesn't
@@ -106,6 +149,19 @@ export function resolveDeckZoneDragAction(
     destId: string | undefined
 ): DeckZoneDragAction | null {
     if (!source) return null;
+
+    // The Source pane's tab (issue #2584): a deck card dropped there leaves
+    // the deck. A search RESULT dropped there is a no-op — it never entered.
+    if (isSourceTabDropId(destId)) {
+        if (source.kind === "result") return null;
+        return {
+            type: "removeFromDeck",
+            cardId: source.cardId,
+            zone: source.kind === "main" ? "maindeck" : "sideboard",
+            pinKey: source.pinKey ?? source.cardId,
+        };
+    }
+
     const target = parseDeckZoneDropId(destId);
     if (!target) return null;
 
@@ -176,6 +232,16 @@ export interface DeckZoneDragHandlers {
     onPin: (cardId: string, columnId: ColumnId, pinKey: string) => void;
     onAddToMaindeck?: (cardId: string, cardName: string) => void;
     onAddToSideboard?: (cardId: string, cardName: string) => void;
+    /** Removes a card from the deck ALTOGETHER (issue #2584) — the Source
+     *  pane tab's drop. Optional: a variant with no Source pane (Limited,
+     *  whose Sideboard IS its pool) never mints that drop target, so omitting
+     *  the handler makes the action unreachable by construction rather than by
+     *  a check inside the resolver. */
+    onRemoveFromDeck?: (
+        cardId: string,
+        zone: DeckZone,
+        pinKey?: string
+    ) => void;
 }
 
 /** Dispatches one resolved action to the host's callbacks. Shared by both
@@ -203,6 +269,13 @@ export function applyDeckZoneDragAction(
             return;
         case "pin":
             handlers.onPin(action.cardId, action.columnId, action.pinKey);
+            return;
+        case "removeFromDeck":
+            handlers.onRemoveFromDeck?.(
+                action.cardId,
+                action.zone,
+                action.pinKey
+            );
             return;
     }
 }

@@ -203,7 +203,11 @@ describe("DeckBuilderShell — declared-variant vocabulary (issue #1623)", () =>
         const without = renderShell();
         expect(without.queryByTestId("source")).toBeNull();
         const withPanel = renderShell({
-            sourcePanel: <div data-testid="source">results</div>,
+            sourcePanel: {
+                label: "Search",
+                count: 1,
+                content: <div data-testid="source">results</div>,
+            },
         });
         expect(withPanel.getByTestId("source")).toBeTruthy();
     });

@@ -1,13 +1,8 @@
 import { useDraggable } from "@dnd-kit/react";
-import type { ColumnId } from "@convex/deckLayout";
 import { cn } from "~/lib/utils";
 import { pileCardTop } from "~/lib/card-layout";
 import CardImage from "~/components/cards/card-image";
-import FeaturedCardButton from "~/components/lobby/deck-builder/featured-card-button";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
-import DeckCardMoveMenu, {
-    type DeckCardMoveMenuColumn,
-} from "./deck-card-move-menu";
 
 /** The ONE deckbuilder card tile (issue #1581, re-homed here by #1632) — a
  *  single draggable + clickable card face rendered by EVERY zone surface:
@@ -37,11 +32,6 @@ export interface DeckCardTileProps {
     title: string;
     /** Fired on a plain click — the primary tap gesture (move zone / toggle). */
     onClick: () => void;
-    /** Fired on double-click. Every current surface omits it — the click
-     *  handlers are idempotent, so a double-click already resolves as the same
-     *  move twice — but it stays a prop rather than being dropped, because a
-     *  tile is the one place a distinct double-click gesture could be bound. */
-    onDoubleClick?: () => void;
     /** Position in the overlaid pile — the tile renders `absolute` at the
      *  staggered `top` so only a sliver of each lower card shows and the
      *  topmost reads as the primary target. */
@@ -50,21 +40,15 @@ export interface DeckCardTileProps {
      *  the persistent indicator ring. Constructed only; the Limited builder
      *  and the draft Pool leave it unset. */
     isFeatured?: boolean;
-    /** Pick this card as the deck's Featured Card. Presence is what renders
-     *  the affordance, so a surface with no Featured Card concept simply omits
-     *  it. Set on the TOPMOST (visible) copy of a card only — a lower copy's
-     *  button would sit behind the next card. */
-    onSetFeatured?: () => void;
-    /** "Move to…" menu (issue #1633): lists this Zone's Columns and pins the
-     *  card to whichever is picked — the touch-friendly analogue of a drag,
-     *  since a precise drop into a narrow column is not a realistic touch
-     *  gesture. Presence renders the affordance; absent on Sideboard tiles
-     *  (whose pane has no Columns to pin into) and wherever the host omits
-     *  `onPin` (`DeckZoneSurface`). */
-    moveMenu?: {
-        columns: readonly DeckCardMoveMenuColumn[];
-        onSelect: (columnId: ColumnId) => void;
-    };
+    /** This card is the SELECTED card of its surface (issue #2584) — the one
+     *  the Peek Panel is showing. Draws a selection ring; purely a cue, the
+     *  panel itself is the parent's. */
+    isSelected?: boolean;
+    /** How many identical copies this tile stands for (issue #2584's MV rows).
+     *  `undefined` or `1` renders no badge; `>1` renders a `×N` badge. The
+     *  badge is `pointer-events-none` — it is a LABEL, not one of the overlay
+     *  buttons this issue removed. */
+    count?: number;
 }
 
 export default function DeckCardTile({
@@ -73,14 +57,49 @@ export default function DeckCardTile({
     dragData,
     title,
     onClick,
-    onDoubleClick,
     stackIndex,
     isFeatured,
-    onSetFeatured,
-    moveMenu,
+    isSelected,
+    count,
 }: DeckCardTileProps) {
     const { ref, isDragging } = useDraggable({ id: dragId, data: dragData });
     const stacked = stackIndex !== undefined;
+
+    // THIS TILE BINDS ONE POINTER GESTURE, AND IT IS THE PRIMARY CLICK.
+    //
+    // Not a double-click, and not the secondary button either — both were
+    // tried on this slice and both were wrong (PR #2641 review rounds 1-3):
+    //
+    //  - DOUBLE-CLICK shares its prefix with the click that MOVES the card. A
+    //    browser delivers it as click(detail 1), click(detail 2), dblclick,
+    //    so the pair of removals lands before `dblclick` does; arbitrating it
+    //    with a deferred click cost a 300ms lag on the primary editing gesture
+    //    and silently swallowed rapid cuts (a pending action owned by a
+    //    component that unmounts as a consequence of the very action it was
+    //    deferring — removing a card re-indexes its neighbours).
+    //  - THE SECONDARY BUTTON IS ALREADY TAKEN, on this very element. The
+    //    `CardImage` below mounts `CardPreview`, which binds native listeners
+    //    on a DESCENDANT of this div: a button-2 `pointerdown` runs
+    //    `useRightPressPreview`, whose quick-click PINS the anchored 330px
+    //    preview, and `holdPreview={false}` deliberately does not disable it
+    //    (`card-preview.tsx`: "Only the TOUCH gesture is suppressed"). Binding
+    //    Inspect to `contextmenu` here opened BOTH card-reading surfaces at
+    //    once — both body portals at `z-modal`, so which one paints on top is
+    //    decided by document order, i.e. by the platform (Windows/Linux fire
+    //    `contextmenu` on mouse-DOWN, before `pointerup`, inverting the macOS
+    //    order). The repo already settles this the other way round:
+    //    `ui/context-menu.tsx` and `activatable-ability-menu.tsx` move their
+    //    menus to a SYNTHESIZED left click precisely because a genuine right
+    //    click / long press is reserved for the preview.
+    //
+    // So there is no third pointer gesture to spend, and this slice does not
+    // invent one. Card reading already has a path at every viewport: a mouse
+    // gets `CardPreview`'s right-click pin (unchanged from `main`), a finger
+    // gets tap -> Peek Panel -> `Inspect`. `★ Featured`, whose per-card
+    // overlay button this issue removed, is DECK-level metadata and moves to
+    // the deck-detail row (`deck-featured-select.tsx`) — the home issue #2584
+    // names ("Featured moves to the Inspect Overlay / deck detail").
+
     return (
         <div
             ref={ref}
@@ -88,7 +107,6 @@ export default function DeckCardTile({
             tabIndex={0}
             title={title}
             onClick={onClick}
-            onDoubleClick={onDoubleClick}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
                 // `touch-pan-x`, not `touch-none` (issue #1633 bundled finding
@@ -111,7 +129,8 @@ export default function DeckCardTile({
                 // gesture this surface used.
                 "group aspect-5/7 w-(--card-w) shrink-0 cursor-grab touch-pan-x select-none outline-none transition hover:-translate-y-0.5 hover:z-10",
                 stacked ? "absolute left-0" : "relative",
-                isDragging ? "opacity-30" : ""
+                isDragging ? "opacity-30" : "",
+                isSelected ? "z-10 -translate-y-0.5" : ""
             )}
         >
             {/* PRD #2405 / issue #2583: on an editing surface a 250ms touch hold is
@@ -124,22 +143,20 @@ export default function DeckCardTile({
             {isFeatured && (
                 <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-accent" />
             )}
-            {onSetFeatured && (
-                <FeaturedCardButton
-                    isFeatured={!!isFeatured}
-                    onSetFeatured={onSetFeatured}
-                />
+            {isSelected && (
+                <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-accent-soft" />
             )}
-            {moveMenu && (
-                <DeckCardMoveMenu
-                    // The plain card name already rides on the drag payload
-                    // (`dragData.cardName`) — `title` is the tooltip's fuller
-                    // "Remove <name> (drag to move zone)" sentence, wrong shape
-                    // for "Move <name> to…".
-                    cardName={dragData.cardName}
-                    columns={moveMenu.columns}
-                    onSelect={moveMenu.onSelect}
-                />
+            {/* Issue #2584: the `xN` badge of a collapsed MV row tile. A
+                non-interactive LABEL — `pointer-events-none`, no role, no tab
+                stop — so the AC "per-card overlay buttons are gone at every
+                viewport" stays true with it on screen. */}
+            {count !== undefined && count > 1 && (
+                <span
+                    data-card-count
+                    className="pointer-events-none absolute right-0.5 bottom-0.5 rounded-sm border border-border-accent/70 bg-surface-base/90 px-1 text-[0.625rem] font-semibold leading-4 text-parchment"
+                >
+                    x{count}
+                </span>
             )}
         </div>
     );

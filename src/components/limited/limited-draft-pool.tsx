@@ -10,8 +10,6 @@ import {
 } from "@convex/limited/poolArrangement";
 import {
     createColumnLayout,
-    parseColumnId,
-    type ColumnId,
     type ColumnLayout,
     type GroupingKind,
     type OrderingKind,
@@ -56,12 +54,20 @@ import EmptyState from "~/components/ui/empty-state";
  *   must not be confused.
  * - **no column add / rename / delete** (the trio simply not passed) — those
  *   are workbench gestures, and the vertical space belongs to the Booster and
- *   the timer. Column PLACEMENT is a different matter: the draft already lets
- *   a Pool card be dragged onto a Column (`limited-draft-table.tsx`'s own
- *   `handleMoveArrangement`), so the touch-friendly `"move to…"` menu
- *   (`onPin` below) is wired through here too — omitting it would make
- *   narrow-screen Pool arrangement unreachable during a draft, exactly the
- *   failure #1633 exists to fix (PR #2333 review, bundled finding 2).
+ *   the timer. Column PLACEMENT still works by DRAG: a Pool card dropped on a
+ *   Column resolves through `limited-draft-table.tsx`'s own `onDragEnd` ->
+ *   `handleMoveArrangement`, which is where every Pin this screen records
+ *   comes from.
+ * - **no touch `"move to…"` path.** Issue #2584 removed the per-tile menu
+ *   #1633 had added here; on the two BUILD views its capability became the
+ *   Peek Panel's "Move to…" CTA, but this surface opens no Peek Panel (the
+ *   Draft Room already mounts one for the Booster pack, and two `fixed`
+ *   panels would paint on top of each other — one selection model spanning
+ *   both is Draft Room work, #2587). So the surface is given no `onPin` at
+ *   all rather than a prop it can no longer reach: `DeckZoneSurface` only
+ *   offers Columns through a selection, and this screen supplies no
+ *   `onCardSelect`. The gap is written up in
+ *   `docs/findings/2584-draft-pool-touch-column-pin.md`.
  *
  * The Sideboard beside it is the same surface in `"pane"` drop mode, Grouping
  * `none` (one flat pile, as it has always looked) and no controls at all: a
@@ -141,30 +147,6 @@ export default function LimitedDraftPool({
         [setPoolArrangementEntry, eventId]
     );
 
-    // The `"move to…"` menu's pin (issue #1633 bundled finding 2) — the SAME
-    // shape `pool-deck-builder-form.tsx`'s own `handlePin` sends for its
-    // Pool/Maindeck zone (the build view's counterpart): `column` only, no
-    // `sideboard` field, so a pin can never itself move a card between the
-    // Pool and the Sideboard as a side effect (this menu only ever renders on
-    // Pool tiles — `dropModel: "columns"` — so the card pinned is always
-    // already main-side). `parseColumnId` mirrors `pinCardToColumn`'s own
-    // fail-closed rule; `DeckZoneSurface`'s `moveMenuColumns` already
-    // excludes non-pin-target ids (PR #2333 review, B1), so this is a second,
-    // cheap layer rather than the only one.
-    const handlePin = useCallback(
-        (_cardId: string, columnId: ColumnId, pinKey: string) => {
-            if (!parseColumnId(columnId)) return;
-            const poolIndex = Number(pinKey);
-            if (!Number.isInteger(poolIndex)) return;
-            void setPoolArrangementEntry({
-                eventId,
-                poolIndex,
-                column: columnId,
-            }).catch(() => {});
-        },
-        [setPoolArrangementEntry, eventId]
-    );
-
     const handleGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange(DRAFT_POOL_VIEW_ZONE, grouping);
         setView((v) => ({ ...v, grouping }));
@@ -200,7 +182,6 @@ export default function LimitedDraftPool({
                     onGroupingChange={handleGroupingChange}
                     onOrderingChange={handleOrderingChange}
                     onCardClick={(card) => setSideboard(card, true)}
-                    onPin={handlePin}
                     cardTitle={(card) =>
                         `Remove ${card.cardName} (double-click, drag, or click)`
                     }

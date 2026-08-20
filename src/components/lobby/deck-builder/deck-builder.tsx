@@ -410,10 +410,13 @@ export default function DeckBuilder({
     // Pick the Featured Card (PRD #589, issue #599). Stores the Card ID as the
     // override on the working deck; the debounced autosave persists it through
     // the existing deck update mutation (admin-gated for presets, ADR 0033).
-    // A re-click on the already-featured card clears the override, reverting to
-    // the first-Maindeck-card default (User Story 13).
+    // A re-pick of the already-featured card clears the override, reverting to
+    // the first-Maindeck-card default (User Story 13) — and so does an explicit
+    // `null`, which is what the deck-detail picker's `Auto` option sends (issue
+    // #2584): a `<select>` fires no change when you re-choose the value it is
+    // already showing, so the toggle alone could never get back to Auto there.
     const handleSetFeatured = useCallback(
-        (cardId: string) => {
+        (cardId: string | null) => {
             updateDeck((d) => ({
                 ...d,
                 featuredCardId: toggleFeatured(d.featuredCardId, cardId),
@@ -1058,17 +1061,25 @@ export default function DeckBuilder({
                     </div>
                 </>
             }
-            sourcePanel={
-                <div style={zoomVars(resultsZoom.value)}>
-                    <ResultsGrid
-                        entries={entries}
-                        idle={idle}
-                        activeSets={filters.sets}
-                        enforceAvailability={deck.format !== "manual"}
-                        onAdd={handleAdd}
-                    />
-                </div>
-            }
+            sourcePanel={{
+                // The pane's tab (issue #2584): one short word plus the live
+                // result count. Dropping a deck card on this tab is what
+                // removes it from the deck on a phone, now that a tap opens
+                // the Peek Panel instead of removing.
+                label: "Search",
+                count: entries?.length ?? 0,
+                content: (
+                    <div style={zoomVars(resultsZoom.value)}>
+                        <ResultsGrid
+                            entries={entries}
+                            idle={idle}
+                            activeSets={filters.sets}
+                            enforceAvailability={deck.format !== "manual"}
+                            onAdd={handleAdd}
+                        />
+                    </div>
+                ),
+            }}
             mainCards={deck.cards}
             sideCards={deck.sideboard}
             layout={layout}
@@ -1089,6 +1100,13 @@ export default function DeckBuilder({
                 onMoveToSideboard: handleMoveToSideboard,
                 onMoveToMaindeck: handleMoveToMaindeck,
                 onPin: handlePin,
+                // Dropping a deck card on the Search tab (issue #2584) — it
+                // leaves the deck entirely, the drag analogue of the tap that
+                // used to remove it.
+                onRemoveFromDeck: (cardId, zone) =>
+                    zone === "maindeck"
+                        ? handleRemove(cardId)
+                        : handleRemoveSideboard(cardId),
                 onMainCardClick: (card) => handleRemove(card.cardId),
                 onSideCardClick: (card) => handleRemoveSideboard(card.cardId),
                 onMainGroupingChange: handleMainGroupingChange,
@@ -1104,6 +1122,12 @@ export default function DeckBuilder({
             }}
             featured={{
                 cardId: effectiveFeaturedCardId,
+                // The stored OVERRIDE, not the resolved value: the deck-detail
+                // picker shows `Auto` while there is none, and `Auto` is a
+                // real state (the art follows the first Maindeck card as the
+                // deck changes) rather than a synonym for whichever card
+                // happens to be first right now.
+                explicitCardId: deck.featuredCardId,
                 onSet: handleSetFeatured,
             }}
             legality={{

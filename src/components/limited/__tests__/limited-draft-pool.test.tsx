@@ -258,16 +258,16 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
     });
 });
 
-describe("LimitedDraftPool — the `move to…` menu (issue #1633 bundled finding 2)", () => {
-    // Draft-time column MANAGEMENT is omitted from the reduced bar (no
-    // add/rename/delete), but column PLACEMENT is not: the Booster→Pool drag
-    // already persists a `columnId` (`limited-draft-table.tsx`'s
-    // `handleMoveArrangement`), so the touch-friendly menu — the same
-    // affordance the build view offers — must reach the SAME
-    // `setPoolArrangementEntry` write. Without it, narrow-screen Pool
-    // arrangement is unreachable during a timed draft, exactly what #1633
-    // exists to fix.
-    it("offers the `move to…` menu on a Pool tile, and picking a Column persists it via setPoolArrangementEntry", () => {
+describe("LimitedDraftPool — no per-card overlay buttons (issue #2584)", () => {
+    // The per-tile `"move to…"` popover (issue #1633 bundled finding 2) went
+    // away with every other per-card overlay button in issue #2584. On the two
+    // BUILD views its capability moved to the Peek Panel's "Move to…" CTA; on
+    // THIS surface it did not, because the Draft Room already mounts a Peek
+    // Panel for the Booster pack and two `fixed` panels would paint on top of
+    // each other (`docs/findings/2584-draft-pool-touch-column-pin.md`). A
+    // long-press drag onto a Column is the remaining touch path here, and the
+    // `setPoolArrangementEntry` write it reaches is unchanged.
+    it("renders no button inside a Pool card tile", () => {
         const view = projectLimitedEvent(eventRow(undefined), "user1");
         const own = view.seats.find((s) => s.seatIndex === 0)!;
 
@@ -279,49 +279,12 @@ describe("LimitedDraftPool — the `move to…` menu (issue #1633 bundled findin
             />
         );
 
-        // Both Bolts (poolIndex 0 and 1) default to the Pool/Main side, both
-        // in MV 1 — pick the FIRST rendered tile's menu (poolIndex 0).
-        const triggers = rendered.getAllByLabelText("Move Lightning Bolt to…");
-        expect(triggers.length).toBeGreaterThanOrEqual(1);
-        fireEvent.click(triggers[0]);
-
-        const menu = rendered.getByRole("menu", {
-            name: "Move Lightning Bolt to…",
-        });
-        fireEvent.click(within(menu).getByRole("menuitem", { name: "MV 6" }));
-
-        // No `sideboard` field (mirrors `pool-deck-builder-form.tsx`'s own
-        // `handlePin`): pinning a Column never itself moves a card between
-        // the Pool and the Sideboard.
-        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
-            eventId: "event-1",
-            poolIndex: 0,
-            column: "mv:6",
-        });
-    });
-
-    it("never offers the Catch-All as a `move to…` entry — it is not a pin target on the Pool either (PR #2333 review, B1)", () => {
-        const view = projectLimitedEvent(eventRow(undefined), "user1");
-        const own = view.seats.find((s) => s.seatIndex === 0)!;
-        const rendered = render(
-            <LimitedDraftPool
-                eventId={"event-1" as never}
-                pool={own.pool!}
-                arrangement={own.poolArrangement}
-            />
-        );
-
-        fireEvent.click(
-            rendered.getAllByLabelText("Move Lightning Bolt to…")[0]
-        );
-        const menu = rendered.getByRole("menu", {
-            name: "Move Lightning Bolt to…",
-        });
         expect(
-            within(menu)
-                .getAllByRole("menuitem")
-                .map((el) => el.textContent)
-        ).not.toContain("Catch-All");
+            rendered.queryAllByLabelText("Move Lightning Bolt to…")
+        ).toHaveLength(0);
+        for (const tile of rendered.getAllByTitle(/Remove Lightning Bolt/)) {
+            expect(tile.querySelectorAll("button")).toHaveLength(0);
+        }
     });
 });
 
