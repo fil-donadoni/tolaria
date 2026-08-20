@@ -10,7 +10,15 @@
 // WIRING — that each arrangement mounts its own bands, that the strip's drop
 // targets exist, that the single-mount primitives stay single, and that the
 // arrival/recall/density rules fire.
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeAll,
+    beforeEach,
+    afterEach,
+} from "vitest";
 import {
     render,
     fireEvent,
@@ -22,6 +30,8 @@ import {
     projectLimitedEvent,
     type LimitedEventRow,
 } from "@convex/limited/eventProjection";
+import { DragDropManager } from "@dnd-kit/dom";
+import { installDndJsdomShims } from "~/components/deckbuilder/__tests__/dragHarness";
 import { draftStripDropId } from "../limitedDraftDrag";
 import { zonePaneDropId } from "~/components/deckbuilder/deckZoneDrag";
 import LimitedDraftTable from "../limited-draft-table";
@@ -72,7 +82,11 @@ beforeEach(() => {
     });
 });
 
+beforeAll(() => installDndJsdomShims());
+
 afterEach(() => cleanup());
+
+type Layout = "phone-portrait" | "phone-landscape" | "split" | "stacked";
 
 type Options = {
     selectedPickId?: string;
@@ -124,8 +138,12 @@ function eventRow(options: Options): LimitedEventRow {
 }
 
 function renderTable(
-    layout: "phone-portrait" | "phone-landscape" | "split" | "stacked",
-    options: Options = {}
+    layout: Layout,
+    options: Options = {},
+    /** dnd-kit manager to inject. Passing one is how a test can tell whether
+     *  the surface's droppables landed in THE provider or in a second one an
+     *  arm minted for itself — see the single-mount guard below. */
+    manager?: DragDropManager
 ) {
     const view = projectLimitedEvent(eventRow(options), "user1");
     const seat = view.seats.find((s) => s.seatIndex === 0)!;
@@ -134,6 +152,7 @@ function renderTable(
         seat: { ...seat, autoBuiltDeck: null },
         round: 0,
         layout,
+        manager,
     };
     const utils = render(<LimitedDraftTable {...props} />);
     return {
@@ -325,16 +344,100 @@ describe("phone landscape — pack 80 | sneak-peek column 20 (issue #2588 AC 2)"
 });
 
 describe("the single-mount primitives survive the layout fork (issue #2588)", () => {
-    // The failure mode the fork invites: a pane branch that mounts its own
-    // provider / overlay. Both would render, both would work in isolation, and
-    // every unit test would pass.
-    it.each(["phone-portrait", "phone-landscape", "split", "stacked"] as const)(
-        "%s mounts exactly one surface and one Inspect Overlay",
+    // The failure mode the fork invites: a pane branch that mounts its OWN
+    // `DragDropProvider` / `DragOverlay` / context menu. Both copies render,
+    // both work in isolation, and every unit test passes.
+    //
+    // Counting `[data-slot=draft-surface]` does NOT catch it — measured in
+    // review round 1 of PR #2652: a second `DragDropProvider` + `DragOverlay`
+    // wrapping the whole return of `draft-portrait-panes.tsx` left the entire
+    // limited suite green. What catches it is the manager SEAM the surface
+    // already exposes: `DragDropProvider` mints a private `DragDropManager`
+    // when it is not handed one, so every droppable under a NESTED provider
+    // registers there and vanishes from the one we injected. Asserting each
+    // arm's own drop ids in the INJECTED registry is therefore a direct
+    // "exactly one provider" assertion, not a proxy for it.
+
+    /** The drop ids each arm is required to publish into the one manager.
+     *  Portrait mounts both panes at once (the Pool is merely scrolled off),
+     *  so it registers the strip's ids AND the Pool pane's; landscape parks
+     *  the Pool behind the sneak-peek column, so only the strip's; the two
+     *  non-phone arms have no strip at all. */
+    const REGISTERED: Record<Layout, string[]> = {
+        "phone-portrait": [
+            draftStripDropId("maindeck"),
+            draftStripDropId("sideboard"),
+            zonePaneDropId("maindeck"),
+            zonePaneDropId("sideboard"),
+        ],
+        "phone-landscape": [
+            draftStripDropId("maindeck"),
+            draftStripDropId("sideboard"),
+        ],
+        split: [zonePaneDropId("maindeck"), zonePaneDropId("sideboard")],
+        stacked: [zonePaneDropId("maindeck"), zonePaneDropId("sideboard")],
+    };
+
+    const registeredIds = (manager: DragDropManager) =>
+        [...manager.registry.droppables].map((d) => String(d.id));
+
+    it.each(Object.keys(REGISTERED) as Layout[])(
+        "%s registers its drop targets in the ONE injected manager",
         (layout) => {
-            renderTable(layout, { selectedPickId: "r0-p0-c1" });
+            const manager = new DragDropManager();
+            renderTable(
+                layout,
+                { poolLength: 3, sideboardIndexes: [2] },
+                manager
+            );
+
+            const ids = registeredIds(manager);
+            for (const id of REGISTERED[layout]) expect(ids).toContain(id);
+
+            // …and by ELEMENT, not just by id: every strip half rendered in
+            // the DOM must be the element the injected manager holds for that
+            // id. A nested provider leaves the button on screen and the
+            // registration somewhere else.
+            for (const el of dropZones()) {
+                const entry = [...manager.registry.droppables].find(
+                    (d) => d.element === el
+                );
+                expect(
+                    entry,
+                    `strip half ${el.dataset.zone} is not registered in the injected manager`
+                ).toBeTruthy();
+            }
+        }
+    );
+
+    it.each(Object.keys(REGISTERED) as Layout[])(
+        "%s mounts exactly one surface, one DragOverlay and one Inspect Overlay",
+        (layout) => {
+            const manager = new DragDropManager();
+            renderTable(layout, { selectedPickId: "r0-p0-c1" }, manager);
             expect(
                 document.querySelectorAll("[data-slot=draft-surface]").length
             ).toBe(1);
+
+            // The overlay only exists while a drag is live, so drive one —
+            // through the injected manager, so a SECOND `DragOverlay` under
+            // the same provider renders a second card and goes red here.
+            const booster = [...manager.registry.draggables].find((d) =>
+                String(d.id).startsWith("booster-")
+            )!;
+            act(() => {
+                void manager.actions.start({
+                    source: booster.id,
+                    coordinates: { x: 0, y: 0 },
+                });
+            });
+            expect(document.querySelectorAll("[data-dnd-overlay]").length).toBe(
+                1
+            );
+            act(() => {
+                void manager.actions.stop();
+            });
+
             const inspect = actionEls().find(
                 (el) => el.dataset.editingAction === "Inspect"
             )!;
@@ -344,6 +447,50 @@ describe("the single-mount primitives survive the layout fork (issue #2588)", ()
             ).toBe(1);
         }
     );
+
+    it.each(Object.keys(REGISTERED) as Layout[])(
+        "%s mounts exactly one pick context menu on the menu path",
+        (layout) => {
+            renderTable(layout, { selectedPickId: "r0-p0-c1" });
+            fireEvent.contextMenu(
+                document.querySelector('[aria-label^="Draft pick:"]')!
+            );
+            expect(
+                document.querySelectorAll(
+                    '[role=menu][aria-label="Draft pick actions"]'
+                ).length
+            ).toBe(1);
+        }
+    );
+
+    it("the landscape POOL arm registers its pane drops in the same injected manager", () => {
+        // The other half of the landscape fork: after the swipe the pack
+        // collapses and `LimitedDraftPool` mounts. A provider nested around
+        // THAT branch would never show up in the pack-stop assertion above.
+        const manager = new DragDropManager();
+        renderTable(
+            "phone-landscape",
+            { poolLength: 3, sideboardIndexes: [2] },
+            manager
+        );
+        expect(registeredIds(manager)).not.toContain(
+            zonePaneDropId("maindeck")
+        );
+
+        fireEvent.click(dropZones()[0]!);
+
+        const ids = registeredIds(manager);
+        expect(ids).toContain(zonePaneDropId("maindeck"));
+        expect(ids).toContain(zonePaneDropId("sideboard"));
+        // …and whatever strip halves the collapsed arm still renders are
+        // registered HERE too, by element.
+        for (const el of dropZones()) {
+            expect(
+                [...manager.registry.droppables].find((d) => d.element === el),
+                `strip half ${el.dataset.zone} is not registered in the injected manager`
+            ).toBeTruthy();
+        }
+    });
 
     it("mounts the Peek Panel OFF the phone regimes only", () => {
         renderTable("split", { selectedPickId: "r0-p0-c1" });
