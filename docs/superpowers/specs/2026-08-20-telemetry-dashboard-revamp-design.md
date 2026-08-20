@@ -303,11 +303,59 @@ and does not reach `scripts/`, so it owes nothing here and its absence is not
 a pass. Verification is a manual chrome-devtools-mcp pass over both views at
 the five ADR-0101 viewports, with the probe receipt pasted into the PR.
 
+## The loop bug this surfaces (in scope, decided 2026-08-20)
+
+The dashboard change was prompted by an incident it could not have prevented,
+only reported. The incident's own cause ships in the same PRD, because
+detecting `passDiedHoldingClaims` without fixing it means the dashboard's
+loudest alarm stays permanently correct.
+
+**What happened.** `scripts/loop-drain.sh` runs each pass as
+`claude -p "$PASS_PROMPT" $CLAUDE_ARGS`. In print mode the harness waits a
+bounded time for background tasks after the main agent's turn ends —
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`, default 600s — then terminates the
+process. That variable is set nowhere in this repo. Two passes on 2026-08-19
+fanned out four and one implement-subagents respectively; both were killed
+mid-edit:
+
+| pass | started  | killed   | elapsed | breakdown              |
+| ---- | -------- | -------- | ------- | ---------------------- |
+| 1    | 22:24:36 | 22:40:39 | 936s    | ~336s work + 600s wait |
+| 2    | 22:40:39 | 22:58:38 | 1079s   | ~479s work + 600s wait |
+
+Last file write in each worktree lands seconds before the kill, so the
+subagents were still working. 18 of ~34 recorded pass logs carry the same
+`Background tasks still running after 600s; terminating` line — survivable
+while batches were small, fatal once a batch was large.
+
+**Three distinct faults, three fixes:**
+
+1. **The timeout itself.** `loop-drain.sh` must set
+   `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` on the pass invocation. A pass
+   legitimately runs for hours; a ten-minute ceiling is not a safety net, it
+   is a guillotine. Pass duration is already bounded by the driver's own
+   budget and `MAX_PCT`.
+2. **The exit code lies.** A forced termination exits 0, so the drain records
+   an ordinary pass. It must distinguish them: a pass whose claims went up and
+   whose merges stayed at zero is `claims-held`, a fault reason, not
+   `no-progress`, which reads as "there was nothing to do". This is the same
+   predicate the dashboard's `passDiedHoldingClaims` displays — one
+   implementation in `lib/loop-status.ts`, consumed by both.
+3. **Nothing reaps orphans for 24h.** The stale-claim threshold is a day, so a
+   pass that dies at 23:00 blocks its dependents until the following evening.
+   A pre-pass sweep should release claims whose evidence is dead — no branch,
+   no PR, no live process holding the session marker — using the existing
+   `claims.jsonl` and `pass-markers/` state and `classifyClaim`'s verdict, not
+   a second age heuristic.
+
+Amplification, worth stating because it is systematic rather than bad luck:
+the loop schedules unblocked candidates first, and in a dependency tree the
+unblocked nodes are the roots — the blockers of everything else. So the loop
+orphans the highest-fan-out nodes first, every time. On 2026-08-19 two orphans
+(#2582, #2583) froze nine children.
+
 ## Out of scope
 
 - Changing what telemetry is collected, or the ingest pipeline.
-- Changing the drain loop's own behaviour. The `passDiedHoldingClaims`
-  condition is _detected and displayed_ here; fixing the underlying
-  `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` timeout is separate work.
 - Authentication beyond the local token. The server stays loopback-only and
   single-user.
