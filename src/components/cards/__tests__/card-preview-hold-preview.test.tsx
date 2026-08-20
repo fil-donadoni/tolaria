@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import CardPreview from "../card-preview";
 import { resetPreviewSingleton } from "../card-preview-singleton";
+import { PRESS_SCALE } from "~/hooks/useLongPress";
 import { GameContext } from "~/hooks/useGameContext";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -94,6 +95,43 @@ describe("CardPreview holdPreview (issue #2583)", () => {
             vi.advanceTimersByTime(3000);
         });
         expect(overlay()).toBeNull();
+    });
+
+    // The two `holdPreview` gates are NOT equivalent, and the PR originally
+    // claimed they were: `useLongPress`' phase is driven exclusively by the
+    // touch handlers, so the `showOverlay` gate is strictly redundant while
+    // the TOUCHSTART gate is load-bearing. It additionally suppresses the
+    // press scale-up (`PRESS_SCALE`, applied to the wrapper by
+    // `longPress.scaleStyle`) and `useLongPress`' `preventDefault()` on
+    // touchend. Neither was asserted anywhere, so removing the touchstart
+    // gate alone left 32 tests green (issue #2583 review). This is the
+    // assertion that makes it independently provable.
+    it("never even enters the pressing phase — no scale-up under the finger", () => {
+        const { container } = renderPreview(false);
+        const root = container.firstElementChild as HTMLElement;
+        act(() => {
+            fireEvent.touchStart(root, {
+                touches: [{ clientX: 10, clientY: 10 }],
+            });
+        });
+        // `pressing` is the phase the touchstart handler enters, and it is
+        // the ONLY thing that scales the wrapper. Still at rest ⇒ the
+        // touchstart gate held.
+        expect(root.style.transform).toBe("scale(1)");
+        expect(root.style.transform).not.toContain(String(PRESS_SCALE));
+    });
+
+    it("scales up under the finger when the hold IS the preview — the board", () => {
+        // The other half: the assertion above must be able to see the press,
+        // or it proves nothing.
+        const { container } = renderPreview(true);
+        const root = container.firstElementChild as HTMLElement;
+        act(() => {
+            fireEvent.touchStart(root, {
+                touches: [{ clientX: 10, clientY: 10 }],
+            });
+        });
+        expect(root.style.transform).toBe(`scale(${PRESS_SCALE})`);
     });
 
     it("still records that the pointer was a finger, so no hover path opens", () => {

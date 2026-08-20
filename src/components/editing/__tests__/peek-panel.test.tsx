@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import PeekPanel from "../peek-panel";
+import { PEEK_PANEL_RAIL_WIDTH } from "../usePeekPanelLayout";
 import type { EditingSurfaceAction } from "../editing-surface-action";
 
 /** `useViewportMode` reads two media queries. Stub them so a test picks the
@@ -155,7 +156,12 @@ describe("PeekPanel (issue #2583)", () => {
         stubViewport("landscape");
         renderPanel();
         expect(panel()!.getAttribute("data-peek-panel")).toBe("rail");
-        expect(panel()!.className).toContain("w-[224px]");
+        // The width comes from the SHARED constant, which is also what the
+        // adopting surface reserves — two copies of the number is how the
+        // panel and the reserve drift apart (issue #2583 review).
+        expect((panel() as HTMLElement).style.width).toBe(
+            PEEK_PANEL_RAIL_WIDTH
+        );
     });
 
     it("lets the surface override the viewport-derived layout", () => {

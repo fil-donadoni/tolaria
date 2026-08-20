@@ -47,12 +47,17 @@ describe("InspectOverlay (issue #2583)", () => {
         vi.restoreAllMocks();
     });
 
-    it("caps its panel at 100dvh — never vh, never a fraction of it", () => {
+    it("caps its panel at 100dvh MINUS the scrim's padding — never vh, never a fraction of it", () => {
         renderOverlay();
-        expect(panel().style.maxHeight).toBe("100dvh");
+        // Not a flat `100dvh`: the scrim is `p-3`, so a panel capped at the
+        // full viewport is taller than the box it centres in and hangs 12px
+        // past each edge (issue #2583 review). happy-dom cannot measure that,
+        // which is why the cap has to be right by construction.
+        expect(panel().style.maxHeight).toBe("calc(100dvh - 1.5rem)");
+        expect(panel().parentElement!.className).toContain("p-3");
         // A `vh` cap anywhere on the panel would reintroduce the landscape
         // overflow this component exists to remove.
-        expect(panel().style.maxHeight).not.toMatch(/\d+vh$/);
+        expect(panel().style.maxHeight).not.toMatch(/\d+vh[^a-z]/);
         expect(panel().className).not.toMatch(/max-h-\[\d+vh\]/);
     });
 

@@ -10,6 +10,10 @@ import CardPreviewModeToggle, {
 import EditingActionButton from "./editing-action-button";
 import type { EditingSurfaceAction } from "./editing-surface-action";
 
+/** The scrim's padding per side, in rem — `p-3` in the className below. The
+ *  panel's cap subtracts both sides of it, so the two are one number. */
+const SCRIM_PAD_REM = 0.75;
+
 export interface InspectOverlayProps {
     /** Registry card id being inspected. */
     cardId: string;
@@ -35,7 +39,8 @@ export interface InspectOverlayProps {
  * The two things that make it different from the board's long-press preview
  * (`CardPreview`'s overlay, ADR 0009, untouched):
  *
- * 1. **It never exceeds `100dvh`.** `dvh`, not `vh`: on mobile Safari/Chrome
+ * 1. **It never exceeds `100dvh`** (`100dvh` minus the scrim's own padding,
+ *    so the RENDERED box fits too). `dvh`, not `vh`: on mobile Safari/Chrome
  *    `100vh` is the LARGE viewport — the height the page has once the URL bar
  *    has scrolled away — so a `90vh` panel genuinely overflows a 390px-tall
  *    landscape phone that still has its chrome. `dvh` tracks the viewport as
@@ -78,7 +83,13 @@ export default function InspectOverlay({
                 data-inspect-panel
                 className="flex w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-accent/50 bg-surface shadow-2xl"
                 // The whole contract of this component in one declaration.
-                style={{ maxHeight: "100dvh" }}
+                // `- 1.5rem` is the scrim's own `p-3` padding, both sides: a
+                // flat `100dvh` panel is TALLER than the padded content box
+                // it centres in, so it hangs 12px past each viewport edge
+                // (issue #2583 review). Subtracting the padding is what makes
+                // "never exceeds 100dvh" true of the rendered box and not
+                // just of the declaration.
+                style={{ maxHeight: `calc(100dvh - ${SCRIM_PAD_REM * 2}rem)` }}
                 onClick={(e) => {
                     if (!tapAnywhereCloses) e.stopPropagation();
                 }}

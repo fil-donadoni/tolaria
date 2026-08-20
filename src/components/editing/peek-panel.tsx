@@ -1,11 +1,12 @@
 import { X } from "lucide-react";
 import { getImageUrl, resolveCardImageId } from "~/lib/images";
-import { useViewportMode } from "~/hooks/useViewportMode";
 import EditingActionButton from "./editing-action-button";
+import {
+    usePeekPanelLayout,
+    PEEK_PANEL_RAIL_WIDTH,
+    type PeekPanelLayout,
+} from "./usePeekPanelLayout";
 import type { EditingSurfaceAction } from "./editing-surface-action";
-
-/** Bottom sheet (portrait) or right rail (landscape / tablet / desktop). */
-export type PeekPanelLayout = "sheet" | "rail";
 
 export interface PeekPanelProps {
     /** Registry card id of the selected card. */
@@ -47,9 +48,10 @@ export default function PeekPanel({
     onClose,
     layout,
 }: PeekPanelProps) {
-    const viewportMode = useViewportMode();
-    const resolved: PeekPanelLayout =
-        layout ?? (viewportMode === "portrait" ? "sheet" : "rail");
+    // The SAME resolver the adopting surface calls to size its reserve — the
+    // panel choosing an axis the surface did not reserve is exactly the
+    // occlusion this shared hook exists to prevent (issue #2583 review).
+    const resolved: PeekPanelLayout = usePeekPanelLayout(layout);
     const printId = resolveCardImageId(cardId);
     const thumb = printId ? getImageUrl(printId) : null;
 
@@ -96,7 +98,11 @@ export default function PeekPanel({
             <aside
                 data-peek-panel="rail"
                 aria-label={`Selected card: ${name}`}
-                className="z-sheet fixed top-0 right-0 bottom-0 flex w-[224px] flex-col gap-2 border-l border-accent bg-surface p-2.5 pr-[max(0.625rem,env(safe-area-inset-right))]"
+                // Width from the shared constant, not a `w-[224px]` literal:
+                // it is the number the surface reserves, and two copies of it
+                // is how they drift apart.
+                style={{ width: PEEK_PANEL_RAIL_WIDTH }}
+                className="z-sheet fixed top-0 right-0 bottom-0 flex flex-col gap-2 border-l border-accent bg-surface p-2.5 pr-[max(0.625rem,env(safe-area-inset-right))]"
             >
                 <div className="flex items-start gap-2">
                     {identity}
