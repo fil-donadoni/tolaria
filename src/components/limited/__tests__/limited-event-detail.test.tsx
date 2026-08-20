@@ -5,7 +5,7 @@
 // through the real `LimitedEventDetail` render, mirroring
 // `limited-vs-ai-panel.test.tsx`'s mocking discipline.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { render, cleanup, screen } from "@testing-library/react";
 import {
     projectLimitedEvent,
     type LimitedEventRow,
