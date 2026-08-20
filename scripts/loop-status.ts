@@ -37,7 +37,7 @@ import {
 } from "./lib/receipt";
 import { parseWorktreeList } from "./worktree-gc";
 import {
-    fetchAllBranchNames,
+    fetchBranchNames,
     fetchClaimedIssues,
     fetchOpenPrBranches,
     shChecked,
@@ -249,8 +249,8 @@ export function gatherLoopStatus(
     const claimsInputs = gatherSection(() => {
         const claimedIssues = fetchClaimedIssues(claimsRunner);
         const prBranches = fetchOpenPrBranches(claimsRunner);
-        const allBranches = fetchAllBranchNames(claimsRunner);
-        return { claimedIssues, prBranches, allBranches };
+        const branches = fetchBranchNames(claimsRunner);
+        return { claimedIssues, prBranches, branches };
     }, "claimed issues / open PRs / branch list");
 
     const queueRunner = opts.queueRunner ?? ghChecked;
@@ -289,8 +289,10 @@ export function gatherLoopStatus(
             claimsInputs.status === "ok"
                 ? claimsInputs.data.prBranches
                 : new Set(),
-        allBranches:
-            claimsInputs.status === "ok" ? claimsInputs.data.allBranches : [],
+        branches:
+            claimsInputs.status === "ok"
+                ? claimsInputs.data.branches
+                : { local: [], remote: [] },
         worktreeIssueNumbers: worktreeIssueNumbers(worktrees),
         approvedReviewIssues: approvedReviewIssues(receipts),
         priority,

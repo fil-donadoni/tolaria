@@ -215,14 +215,17 @@ ls -la .claude/telemetry/loop-drain/
 **The residue** is claims and worktrees nothing will release:
 
 ```bash
-bun run loop:doctor        # claims with no branch and no PR; --release drops them
+bun run loop:doctor        # claims nothing will release; --release drops them
 bun run wt:gc              # worktrees left behind; --yes removes the finished ones
 ```
 
-`loop:doctor` holds a claim younger than two hours as `suspect` rather than
-releasing it: no branch and no PR is also exactly what a HEALTHY pass looks
-like between claiming its batch and pushing the first branch, and the sessions
-share one GitHub account, so a wrong release unclaims live work.
+`loop:doctor` is the authority on whether a claim is alive, and SKILL.md §1a
+runs it on every pass — so by the time you are reading a stopped run's residue
+it has usually already been cleaned. Its full rule (open PR, remote branch,
+local-only branch, and the two age thresholds) is
+`references/claim-lifecycle.md`; the short version is that it holds anything it
+cannot prove dead, because the sessions share one GitHub account and a wrong
+release unclaims live work with no signal that it happened.
 
 **The rule this produced** is in the frame (§ Running unattended): in a headless
 pass nothing waits on a background job. Redirect a gate to a file and read the

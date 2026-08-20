@@ -29,12 +29,33 @@ import { spawnSync } from "node:child_process";
 export type ClaimFacts = {
     issue: number;
     title: string;
-    /** A local or remote branch whose name ends in `issue-N`. */
-    hasBranch: boolean;
+    /**
+     * A branch on the REMOTE whose name ends in `issue-N`. Liveness: the work
+     * left this machine, so something downstream (a review, the merge-train)
+     * may still be holding it.
+     */
+    hasRemoteBranch: boolean;
+    /**
+     * A branch in the LOCAL repo only — no counterpart on the remote.
+     *
+     * This is NOT liveness on its own, and treating it as such was the bug
+     * (measured 2026-08-20). A local branch outlives the process that made it:
+     * when a pass is killed mid-edit its worktree and branch simply stay on
+     * disk forever, so `hasBranch` stayed true and the claim read as live for
+     * as long as anyone cared to look. Eight claims — four of them P0 — sat
+     * that way for 25-36 hours while a driver ran continuously past them.
+     */
+    hasLocalBranch: boolean;
     /** An open PR whose head branch ends in `issue-N`. */
     hasOpenPr: boolean;
     /** Hours since the issue was last updated. */
     ageHours: number;
+};
+
+/** Branch names split by where they live — see `fetchBranchNames`. */
+export type BranchNames = {
+    local: string[];
+    remote: string[];
 };
 
 export type ClaimVerdict =
@@ -54,10 +75,34 @@ export type ClaimVerdict =
  */
 export function classifyClaim(
     facts: ClaimFacts,
-    minAgeHours = 2
+    minAgeHours = 2,
+    localOnlyBranchHours = 24
 ): ClaimVerdict {
     if (facts.hasOpenPr) return { state: "live", reason: "open PR" };
-    if (facts.hasBranch) return { state: "live", reason: "branch pushed" };
+    if (facts.hasRemoteBranch)
+        return { state: "live", reason: "branch pushed" };
+
+    // A local-only branch gets a MUCH longer rope than no branch at all, and
+    // the two thresholds are not interchangeable. A claim with no branch is
+    // either seconds old (a healthy pass before `git worktree add`) or dead,
+    // and two hours separates them cleanly. A claim with a local branch is a
+    // pass that got as far as creating its worktree — it may legitimately be
+    // implementing for hours without pushing, so releasing it at two hours
+    // would unclaim live work. Past `localOnlyBranchHours` it is not a slow
+    // pass: nothing in this loop stays unpushed for a day.
+    if (facts.hasLocalBranch) {
+        if (facts.ageHours < localOnlyBranchHours) {
+            return {
+                state: "live",
+                reason: `local branch, claimed ${facts.ageHours.toFixed(1)}h ago — could still be implementing`,
+            };
+        }
+        return {
+            state: "orphan",
+            reason: `local branch never pushed, untouched for ${facts.ageHours.toFixed(0)}h — the signature of a pass killed mid-edit`,
+        };
+    }
+
     if (facts.ageHours < minAgeHours) {
         return {
             state: "suspect",
@@ -171,20 +216,26 @@ export function fetchOpenPrBranches(runner: ShRunner = sh): Set<string> {
     );
 }
 
-/** Every local AND remote branch name (local branches unprefixed; remote
- *  `origin/*` refs reduced to their short name via `ls-remote`). See
- *  `fetchClaimedIssues` for the `runner` default/override convention. */
-export function fetchAllBranchNames(runner: ShRunner = sh): string[] {
-    return [
-        ...runner("git", [
-            "branch",
-            "--all",
-            "--format=%(refname:short)",
-        ]).split("\n"),
-        ...runner("git", ["ls-remote", "--heads", "origin"])
+/**
+ * Branch names, kept in TWO buckets rather than one merged list.
+ *
+ * The merge is what hid the bug this split fixes: a local branch and a pushed
+ * one are opposite signals about whether anyone is still working, and pouring
+ * them into one array threw that away. `git branch --all` alone would not do
+ * either, since it reports `origin/*` remote-tracking refs that can be stale;
+ * `ls-remote` is the authority on what the remote actually has.
+ *
+ * See `fetchClaimedIssues` for the `runner` default/override convention.
+ */
+export function fetchBranchNames(runner: ShRunner = sh): BranchNames {
+    return {
+        local: runner("git", ["branch", "--format=%(refname:short)"]).split(
+            "\n"
+        ),
+        remote: runner("git", ["ls-remote", "--heads", "origin"])
             .split("\n")
             .map((l) => l.split("\t")[1] ?? ""),
-    ];
+    };
 }
 
 /**
@@ -194,16 +245,21 @@ export function fetchAllBranchNames(runner: ShRunner = sh): string[] {
 export function buildClaimFacts(
     issue: ClaimedIssue,
     prBranches: Set<string>,
-    allBranches: string[],
+    branches: BranchNames,
     now: number = Date.now()
 ): ClaimFacts {
     const suffix = new RegExp(`(^|/)issue-${issue.number}$`);
+    const matches = (names: string[]): boolean =>
+        names.some((b) => suffix.test(b.replace(/^refs\/heads\//, "")));
+    const hasRemoteBranch = matches(branches.remote);
     return {
         issue: issue.number,
         title: issue.title,
-        hasBranch: allBranches.some((b) =>
-            suffix.test(b.replace(/^refs\/heads\//, ""))
-        ),
+        hasRemoteBranch,
+        // Local-ONLY: a pushed branch exists in both buckets, and it is the
+        // remote that decides. Reporting it as local too would make every
+        // healthy claim look like the dead shape.
+        hasLocalBranch: !hasRemoteBranch && matches(branches.local),
         hasOpenPr: [...prBranches].some((b) => suffix.test(b)),
         ageHours:
             (now - new Date(issue.updatedAt).getTime()) / (1000 * 60 * 60),
@@ -221,12 +277,12 @@ if (import.meta.main) {
     }
 
     const prBranches = fetchOpenPrBranches();
-    const allBranches = fetchAllBranchNames();
+    const branches = fetchBranchNames();
 
     const now = Date.now();
     const orphans: number[] = [];
     for (const issue of issues) {
-        const facts = buildClaimFacts(issue, prBranches, allBranches, now);
+        const facts = buildClaimFacts(issue, prBranches, branches, now);
         const v = classifyClaim(facts);
         const mark =
             v.state === "orphan" ? "×" : v.state === "suspect" ? "?" : "·";
@@ -237,7 +293,7 @@ if (import.meta.main) {
     }
 
     console.log(
-        `\n${issues.length} claimed, ${orphans.length} orphaned (no branch, no PR).`
+        `\n${issues.length} claimed, ${orphans.length} orphaned (nothing is going to release them).`
     );
     if (orphans.length === 0) process.exit(0);
     if (!release) {

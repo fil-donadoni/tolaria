@@ -52,7 +52,7 @@ function baseInput(overrides: Partial<LoopStatusInput> = {}): LoopStatusInput {
     return {
         claimedIssues: [],
         prBranches: new Set(),
-        allBranches: [],
+        branches: { local: [], remote: [] },
         worktreeIssueNumbers: new Set(),
         approvedReviewIssues: new Set(),
         priority: {},
@@ -69,7 +69,7 @@ describe("loop-status — computeStage", () => {
         expect(
             computeStage({
                 hasWorktree: false,
-                hasBranch: false,
+                hasRemoteBranch: false,
                 hasOpenPr: false,
                 reviewApproved: false,
             })
@@ -80,7 +80,7 @@ describe("loop-status — computeStage", () => {
         expect(
             computeStage({
                 hasWorktree: true,
-                hasBranch: false,
+                hasRemoteBranch: false,
                 hasOpenPr: false,
                 reviewApproved: false,
             })
@@ -91,18 +91,34 @@ describe("loop-status — computeStage", () => {
         expect(
             computeStage({
                 hasWorktree: false,
-                hasBranch: true,
+                hasRemoteBranch: true,
                 hasOpenPr: false,
                 reviewApproved: false,
             })
         ).toBe("branch pushed");
     });
 
+    it("a LOCAL-only branch does not reach 'branch pushed'", () => {
+        // The stage is named for the push. A pass killed mid-edit leaves its
+        // local branch on disk forever, so counting it here would report dead
+        // work as further along than it ever got — the same conflation that
+        // let eight claims read as live for 25-36 hours (loop-doctor.ts,
+        // ClaimFacts.hasLocalBranch).
+        expect(
+            computeStage({
+                hasWorktree: true,
+                hasRemoteBranch: false,
+                hasOpenPr: false,
+                reviewApproved: false,
+            })
+        ).toBe("worktree");
+    });
+
     it("advances to 'PR open' once a PR exists", () => {
         expect(
             computeStage({
                 hasWorktree: true,
-                hasBranch: true,
+                hasRemoteBranch: true,
                 hasOpenPr: true,
                 reviewApproved: false,
             })
@@ -113,7 +129,7 @@ describe("loop-status — computeStage", () => {
         expect(
             computeStage({
                 hasWorktree: true,
-                hasBranch: true,
+                hasRemoteBranch: true,
                 hasOpenPr: true,
                 reviewApproved: true,
             })
@@ -126,7 +142,7 @@ describe("loop-status — computeStage", () => {
         expect(
             computeStage({
                 hasWorktree: true,
-                hasBranch: true,
+                hasRemoteBranch: true,
                 hasOpenPr: false,
                 reviewApproved: true,
             })
@@ -328,7 +344,7 @@ describe("loop-status — buildLoopStatus", () => {
         const status = buildLoopStatus(
             baseInput({
                 claimedIssues: [issue(42, "2026-08-18T11:30:00Z")],
-                allBranches: ["feat/issue-42"],
+                branches: { local: [], remote: ["feat/issue-42"] },
             })
         );
         const row = status.claims[0]!;
@@ -501,7 +517,7 @@ describe("loop-status — renderLoopStatusText", () => {
                 claimedIssues: [
                     issue(42, "2026-08-18T11:30:00Z", "widget fix"),
                 ],
-                allBranches: ["feat/issue-42"],
+                branches: { local: [], remote: ["feat/issue-42"] },
                 readyQueueIssues: [{ number: 1 }],
                 driver: {
                     ...EMPTY_DRIVER,

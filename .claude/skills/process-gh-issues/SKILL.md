@@ -38,7 +38,7 @@ SUBAGENT rather than by the orchestrator — pass the path, never the contents.
 | `references/priority-rationale.md`    | changing the sort key, or the lineage order looks wrong              | orchestrator     |
 | `references/red-baseline.md`          | the green-main precondition (§0) fails                               | orchestrator     |
 | `references/collisions.md`            | a claim probe trips, a branch/worktree exists, a subagent goes quiet | orchestrator     |
-| `references/stale-claim-sweep.md`     | §1a reports something, or a `staleClaims` entry it did not free      | orchestrator     |
+| `references/claim-lifecycle.md`       | §1a reports something, or you are about to release a claim by hand   | orchestrator     |
 | `references/subagent-brief.md`        | spawning an implement / fixup subagent                               | **the subagent** |
 | `references/reviewer-brief.md`        | spawning a reviewer subagent                                         | **the reviewer** |
 | `references/merge-train.md`           | picking the gate lane (once per run); `gh pr merge` misbehaves       | orchestrator     |
@@ -54,7 +54,7 @@ drift, and the stale one reads as authoritative.
 - `MAX_PASSES = 1` — batches per process. **One batch, then exit** (see § Running unattended): the loop's durable state lives in GitHub labels and `.claude/telemetry/green-sha`, not in the conversation, so a fresh process per batch costs nothing and caps context growth. Raise only for an interactive run you are watching.
 - `SUBAGENT_STALL_MINUTES = 20` — no receipt and no worktree activity for this long ⇒ probe for liveness (see § Stalled subagents).
 - `BATCH_CAP = 4` — max issues per fan-out batch. Tune here only. **The cap is a CPU budget, not just a context budget**: every concurrent subagent runs targeted tests, a type-check and a lint. If the project enforces a per-process worker cap (Tolaria: 2 vitest workers per light job, see its CLAUDE.md § Quality gates), `BATCH_CAP × workers` should stay at or below the machine's core count. Raising the cap without raising that budget buys queueing, not throughput.
-- `STALE_CLAIM_HOURS = 24` — claim-orphan threshold. `bun run queue:sweep` (§1a) and the planner's `staleClaims` (§1) both apply it through the same `isStaleClaim`, so they cannot drift.
+- `STALE_CLAIM_HOURS = 24` — how long an unpushed claim may sit before §1a calls it dead. `loop:doctor` owns the rule; the planner's `staleClaims` is a weaker second opinion (`references/claim-lifecycle.md`).
 - `DEFAULT_IMPL_MODEL = sonnet` — implement/fixup subagent model when the issue carries no `model:*` label. **Never omit the `model` parameter**: omitting it inherits the orchestrator's session model, which silently routes every unlabeled issue to whatever tier the session runs on (a Fable/Opus session = most expensive tier on routine work).
 - Reviewer model: **`opus`, fixed** — independent of the issue's `model:*` label (review reads a diff, costs a fraction of implementation; a strong reviewer over a cheap implementer is the asymmetry to exploit).
 
@@ -105,16 +105,17 @@ Each **subagent** repeats this check inside its worktree before implementing —
 
 Each pass of the loop selects a **batch** of issues, fans them out to parallel subagents, then integrates the results serially.
 
-### 1a. Sweep dead claims — ALWAYS, first
+### 1a. Release dead claims — ALWAYS, first
 
 ```bash
-bun run queue:sweep --release --pretty
+bun run loop:doctor --release
 ```
 
 **Every pass, unconditionally — including one whose batch you build by hand.**
 A stuck claim is worse than a lost one: the issue reads as taken, so nothing
-ever reselects it. Why it is not the planner's job, and what `--release`
-touches: `references/stale-claim-sweep.md`.
+ever reselects it, and nothing revisits the decision. `loop:doctor` is the
+single authority on whether a claim is alive; the whole lifecycle, and why it
+cannot live inside the planner, is `references/claim-lifecycle.md`.
 
 ### 1. Get the batch from the planner
 
@@ -153,7 +154,7 @@ It prints one JSON object (`version: 1`) and makes the `gh` calls itself — one
 
 | Field         | What you do                                                                                                                                                                                                                                                             |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `staleClaims` | Already freed by §1a. A non-empty list here is a **cross-check**, not a to-do — an entry §1a did not free means the two disagreed, which is a finding for the pass report.                                                                                              |
+| `staleClaims` | §1a already ran, and `loop:doctor` is the authority. Treat this as a **weaker second opinion**: it cannot see branches, so anything here that §1a held live IS live.                                                                                                    |
 | `skipped`     | Carry out the declared `action` on each (below), then move on. A skip is **never** claimed.                                                                                                                                                                             |
 | `batch`       | Claim (§1b) and fan out (§3). Each entry's `model` is the implement tier — pass it verbatim, never re-decide it. `type` is the branch prefix (`fix/issue-N` / `feat/issue-N`). `hitl: true` means the PR is left for human review instead of auto-merged (§ HITL flag). |
 | `deferred`    | Nothing — they stay unclaimed in the pool for a later pass. Report them with their `conflictsWith` so the pass report explains why the batch is the size it is.                                                                                                         |
