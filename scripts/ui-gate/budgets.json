@@ -84,12 +84,12 @@
                     "cardsStranded": 0,
                     "ctrlsZero": 1,
                     "ctrlsOcc": 0,
-                    "ctrlsStranded": 3,
+                    "ctrlsStranded": 7,
                     "starved": 0,
                     "small": 68,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "Re-recorded 2026-08-20 (issue #2585 fixup, PR #2650): 1 collapsed + 3 STRANDED controls (unreachable by any gesture) -- all pre-existing, not owned by this slice. `ctrlsOcc` (was 1) and `starved` (was 1) are both 0 now that the filter controls left the header band for a popover, handing the deck pane its height back. Issue #2593 cleared this surface's axe debt at every viewport and the floors are now hard: the `color-contrast` serious was the 10px `Auto-saved` label at `text-accent/70` (#927637 on surface-base, 4.43:1 — under the 4.5:1 floor by 0.07), raised to `/85` (6.04:1); the `scrollable-region-focusable` serious was the source pane (`data-deck-pane=\"source\"`), which now carries its own `tabIndex={0}` `role=\"region\"` tab stop. `small68` at 1440x900x2 (pointer: fine) is the deliberate 32px `--control-h-fine` branch (`src/index.css:942,946-948`) showing up in a POINTER-BLIND measurement, not a defect — WCAG 2.5.8 (cited in that CSS comment) is a TOUCH-target rule and does not bind a mouse pointer. Do NOT lower this ceiling by shrinking desktop controls; #2659 (the sibling fix issue) does not touch this row."
+                    "knownDebt": "Re-recorded 2026-08-20 (issue #2585): the source panel leaves the vertical axis and becomes a bounded-width side dock at landscape-and-roomy widths (`deck-source-dock:` in `src/index.css`), handing the zones pane the row's WHOLE height instead of half — the deck pane measures 611/900 = 67.9% here, real `getBoundingClientRect()`, clearing the issue's 60% floor with room. `ctrlsStranded` (was 3) is 7: the zones pane's own WIDTH shrinks by the dock's 22rem, and the Sideboard zone's box is a ~25% share of that (`--split-main`, `splitDefault` 3/4), so its already-overflowing header toolbar row (`deck-zone-surface.tsx:507-535`, issue #2511's own comment: \"the pane clips (overflow-hidden with no horizontal scroller)... unreachable by any gesture\") now clips 4 more of its own color-filter pips than at the full 1440px width. Same pre-existing mechanism as the 844x390x3 and 820x1180x2 cells below, NOT owned by this slice — issue #2511 owns the toolbar row's own reflow/scroll-port. 1 collapsed control is unchanged pre-existing debt. Issue #2593 cleared this surface's axe debt at every viewport and the floors are now hard: the `color-contrast` serious was the 10px `Auto-saved` label at `text-accent/70` (#927637 on surface-base, 4.43:1 — under the 4.5:1 floor by 0.07), raised to `/85` (6.04:1); the `scrollable-region-focusable` serious was the source pane (`data-deck-pane=\"source\"`), which now carries its own `tabIndex={0}` `role=\"region\"` tab stop."
                 },
                 "390x844x3": {
                     "cardsZero": 0,
@@ -135,13 +135,13 @@
                     "cardsOcc": 0,
                     "cardsStranded": 0,
                     "ctrlsZero": 1,
-                    "ctrlsOcc": 0,
-                    "ctrlsStranded": 6,
-                    "starved": 1,
+                    "ctrlsOcc": 2,
+                    "ctrlsStranded": 9,
+                    "starved": 0,
                     "small": 65,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "Re-recorded 2026-08-20 (issue #2585 fixup, PR #2650): 1 collapsed + 6 STRANDED controls, 1 starved container -- all pre-existing, not owned by this slice. `ctrlsOcc` (was 2) is 0 now that the filter controls left the header band for a popover. Issue #2593 cleared this surface's axe debt at every viewport and the floors are now hard: the `color-contrast` serious was the 10px `Auto-saved` label at `text-accent/70` (#927637 on surface-base, 4.43:1 — under the 4.5:1 floor by 0.07), raised to `/85` (6.04:1); the `scrollable-region-focusable` serious was the source pane (`data-deck-pane=\"source\"`), which now carries its own `tabIndex={0}` `role=\"region\"` tab stop. `small65` at this touch viewport (`pointer: coarse` -> the 44px `--control-h-coarse` branch, `src/index.css:942,946-948`) is REAL sub-44px tap-target debt, not a measurement artifact. Recorded as a ceiling (issue #2658) so it cannot deepen; #2659 owns lowering it as the surface's controls are fixed."
+                    "knownDebt": "Re-recorded 2026-08-20 (issue #2585): same dock split as the 1440x900x2 cell above — the deck pane measures 513/820 = 62.6% here, real `getBoundingClientRect()`, clearing the issue's 60% floor. `starved` (was 1) is 0: the card-pile strip no longer shares its height with the source panel, so its own scroller is never shorter than its tallest child now. `ctrlsOcc` (was 0) is 2 and `ctrlsStranded` (was 6) is 9: the SAME pre-existing #2511 Sideboard-toolbar overflow-clip as the 1440x900x2 cell (and the 820x1180x2 cell above, unaffected by this slice since it's portrait-shaped and never matches `deck-source-dock:`) — the zones pane's narrower WIDTH here (828px, versus 1088px at 1440x900) shrinks the Sideboard zone's ~25% share further, clipping more of the row per `deck-zone-surface.tsx:525-534`'s own comment. Not owned by this slice. 1 collapsed control is unchanged pre-existing debt. Issue #2593 cleared this surface's axe debt at every viewport and the floors are now hard: the `color-contrast` serious was the 10px `Auto-saved` label at `text-accent/70` (#927637 on surface-base, 4.43:1 — under the 4.5:1 floor by 0.07), raised to `/85` (6.04:1); the `scrollable-region-focusable` serious was the source pane (`data-deck-pane=\"source\"`), which now carries its own `tabIndex={0}` `role=\"region\"` tab stop."
                 }
             }
         },

@@ -103,3 +103,53 @@ describe("Pool deckbuilder surface — minHeight floor sweep (issue #2275)", () 
         expect(poolSurfaceMinHeightPx(246)).toBe(poolSurfaceMinHeightPx(64));
     });
 });
+
+// Issue #2585: the 50/50 `flex-1 basis-0` vertical split caps the deck pane at
+// half the free column no matter what else is trimmed — the arithmetic in
+// `docs/findings/2585-deck-pane-60-percent-needs-the-pane-split.md` shows even
+// a ZERO-height source pane leaves the deck under 60% at 1180×820. The only
+// lever that clears the AC is the source panel leaving the vertical axis and
+// becoming a bounded-WIDTH side dock at landscape-and-roomy widths, via the
+// `deck-source-dock:` custom variant (`src/index.css`). These are source-text
+// sweeps, the same legitimate pattern as the rest of this file — a render
+// assertion can't see a media-query-gated layout switch under jsdom either.
+const INDEX_CSS_SRC = readFileSync(
+    join(SHELL_DIR, "..", "..", "index.css"),
+    "utf8"
+);
+const POOL_SRC = readFileSync(
+    join(SHELL_DIR, "pool-deck-builder-form.tsx"),
+    "utf8"
+);
+
+describe("DeckBuilderShell — source-panel dock split (issue #2585)", () => {
+    it("the `deck-source-dock` variant is gated on landscape AND a 1024px width floor — not reused from `compact-chrome`'s width-only bucket", () => {
+        expect(INDEX_CSS_SRC).toContain(
+            "@custom-variant deck-source-dock (@media (orientation: landscape) and (min-width: 1024px));"
+        );
+    });
+
+    it("the strip wrapper turns into a real flex ROW under the dock variant, overriding the off-portrait `contents` collapse", () => {
+        expect(SHELL_SRC).toContain(
+            "contents deck-source-dock:flex deck-source-dock:min-h-0 deck-source-dock:flex-1 deck-source-dock:flex-row"
+        );
+    });
+
+    it("the source panel keeps its base `flex-1 basis-0` height share (untouched viewports) AND gains a bounded-width `flex-none` override under the dock variant", () => {
+        expect(SHELL_SRC).toContain(
+            "min-h-0 flex-1 basis-0 overflow-y-auto border-b border-border-subtle/30 deck-source-dock:w-[22rem] deck-source-dock:max-w-[38%] deck-source-dock:flex-none deck-source-dock:self-stretch deck-source-dock:border-b-0 deck-source-dock:border-r"
+        );
+    });
+
+    it("the source panel stays a scrollable dock — `overflow-y-auto` is never dropped under the variant", () => {
+        const sourcePaneBranch = SHELL_SRC.slice(
+            SHELL_SRC.indexOf('data-deck-pane="source"'),
+            SHELL_SRC.indexOf("{sourcePanel.content}")
+        );
+        expect(sourcePaneBranch).toContain("overflow-y-auto");
+    });
+
+    it("the Limited builder never supplies a `sourcePanel` — the whole dock branch is absent by construction, no `kind` check needed (ADR 0075)", () => {
+        expect(POOL_SRC).not.toMatch(/sourcePanel\s*[:=]/);
+    });
+});

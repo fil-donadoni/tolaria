@@ -230,15 +230,40 @@ export default function DeckBuilderShell({
                         // been — zero layout change off the phone. In portrait
                         // it becomes the horizontal snap-scroller the panes
                         // live in.
+                        //
+                        // `deck-source-dock:` (issue #2585) overrides `contents`
+                        // back to a real flex-ROW box at landscape-and-roomy
+                        // widths (tablet-landscape 1180×820, desktop 1440×900):
+                        // the source panel below stops sharing height 50/50 with
+                        // the zones pane and becomes a bounded-width side dock,
+                        // so the zones pane inherits the row's WHOLE height
+                        // instead of half of it (`src/index.css` has the
+                        // arithmetic for why only a WIDTH split reaches the
+                        // AC's 60% at 1180×820). No-op everywhere else — the
+                        // variant's media query does not match, so `contents`
+                        // still applies and this box never exists.
                         className={
                             portrait
                                 ? "flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain"
-                                : "contents"
+                                : "contents deck-source-dock:flex deck-source-dock:min-h-0 deck-source-dock:flex-1 deck-source-dock:flex-row"
                         }
                     >
                         {sourcePanel && (
                             <div
                                 data-deck-pane="source"
+                                // `deck-source-dock:` (issue #2585): a bounded
+                                // WIDTH instead of an equal HEIGHT share.
+                                // `flex-none` overrides the `flex-1 basis-0`
+                                // base so the panel stops growing to fill half
+                                // the (now horizontal) row; `overflow-y-auto`
+                                // stays, so the dock is a genuinely scrollable
+                                // results list, not a clipped strip — the row's
+                                // default `align-items: stretch` gives it the
+                                // row's FULL height (the same height the zones
+                                // pane gets), just a fixed width instead. The
+                                // divider moves from the bottom edge to the
+                                // trailing edge to match.
+                                //
                                 // A scroll port needs a keyboard way to scroll
                                 // it (axe `scrollable-region-focusable`, WCAG
                                 // 2.1.1): the pane's tiles are focusable when
@@ -255,7 +280,7 @@ export default function DeckBuilderShell({
                                 className={
                                     portrait
                                         ? "h-full w-full shrink-0 snap-start snap-always overflow-y-auto"
-                                        : "min-h-0 flex-1 basis-0 overflow-y-auto border-b border-border-subtle/30"
+                                        : "min-h-0 flex-1 basis-0 overflow-y-auto border-b border-border-subtle/30 deck-source-dock:w-[22rem] deck-source-dock:max-w-[38%] deck-source-dock:flex-none deck-source-dock:self-stretch deck-source-dock:border-b-0 deck-source-dock:border-r"
                                 }
                             >
                                 {sourcePanel.content}
@@ -278,6 +303,15 @@ export default function DeckBuilderShell({
                             // the strip above in their own right. Custom
                             // properties still inherit through it, which is all
                             // this element was ever contributing there.
+                            //
+                            // `deck-source-dock:` (issue #2585): no override
+                            // needed here. `flex-1 basis-0` is axis-agnostic —
+                            // once the strip wrapper above turns into a row, this
+                            // pane grows along the ROW's main axis (width)
+                            // instead of the column's (height), and `flex-col`
+                            // keeps arranging ITS OWN children vertically either
+                            // way. The row's default `align-items: stretch`
+                            // hands it the row's full height for free.
                             className={
                                 portrait
                                     ? "contents"

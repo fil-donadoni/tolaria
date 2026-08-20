@@ -354,7 +354,7 @@ const STICKY_SITES: Record<
                 usage: "<ResultsGrid",
             },
         },
-        why: "The results-count header pins to the shell's own source-panel scroller (`min-h-0 flex-1 basis-0 overflow-y-auto`), not to `<main>`; the Constructed wrapper passes `<ResultsGrid` into that slot (issue #1623).",
+        why: "The results-count header pins to the shell's own source-panel scroller (`overflow-y-auto` — a `flex-1 basis-0` HEIGHT share below `lg` landscape, a bounded-width `deck-source-dock:` side column at tablet-landscape/desktop, issue #2585), not to `<main>`; the Constructed wrapper passes `<ResultsGrid` into that slot (issue #1623).",
     },
     "components/board/cards-pile.tsx": {
         portaledBy: {
