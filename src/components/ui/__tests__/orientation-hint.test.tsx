@@ -49,6 +49,23 @@ describe("OrientationHint — once per surface per session (issue #2594)", () =>
         expect(screen.queryByText("Rotate me")).toBeNull();
     });
 
+    it("dismiss button meets the WCAG 2.5.8 minimum hit area (>=24x24 via min-h-6/min-w-6)", () => {
+        // Review fixup (PR #2645): the bare "✕" with only `shrink-0
+        // cursor-pointer rounded px-1`, inheriting the band's `text-xs`,
+        // measured ~19x16 — under the target. `check:ui` cannot catch this:
+        // both surfaces this component targets ("game board", "draft pick
+        // screen") are `status: "unwalked"` in `scripts/ui-gate/budgets.json`,
+        // so this class assertion is the only guard. Mirrors the identical
+        // fix already recorded at `error-toast.tsx`'s dismiss button.
+        render(<OrientationHint surfaceId="game-board" message="Rotate me" />);
+        const dismissButton = screen.getByRole("button", {
+            name: "Dismiss orientation hint",
+        });
+        expect(dismissButton.className).toContain("inline-flex");
+        expect(dismissButton.className).toContain("min-h-6");
+        expect(dismissButton.className).toContain("min-w-6");
+    });
+
     it("scopes the seen-flag per surfaceId — dismissing one surface does not suppress another", () => {
         const { unmount } = render(
             <OrientationHint surfaceId="game-board" message="Board hint" />

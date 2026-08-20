@@ -264,7 +264,9 @@ export const SHELL_BROWSE_BAND_PX = 56;
 export const SHELL_BROWSE_COMPACT_BAND_PX = 40;
 
 /** Immersive contextual bar (Exit + title + overflow) — `AppContextBar`'s
- *  `h-11`, i.e. the 44px coarse control height of `--control-h-coarse`. */
+ *  `min-h-11` (issue #2594: was a fixed `h-11`, now a floor so a real
+ *  safe-area inset grows the bar instead of squeezing its content), i.e.
+ *  the 44px coarse control height of `--control-h-coarse` as the baseline. */
 export const SHELL_CONTEXTUAL_BAND_PX = 44;
 
 /**

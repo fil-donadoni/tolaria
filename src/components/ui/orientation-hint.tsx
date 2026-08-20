@@ -79,7 +79,12 @@ export default function OrientationHint({
                 type="button"
                 onClick={() => setDismissed(true)}
                 aria-label="Dismiss orientation hint"
-                className="shrink-0 cursor-pointer rounded px-1 text-text-muted hover:text-text"
+                // inline-flex/min-h-6/min-w-6 (review fixup, WCAG 2.5.8):
+                // same >=24x24 hit-area floor as `error-toast.tsx`'s dismiss
+                // button — the bare "✕" glyph with only `px-1` and no
+                // `inline-flex`/`min-h`/`min-w`, inheriting the band's
+                // `text-xs`, measured ~19x16, under the minimum.
+                className="inline-flex min-h-6 min-w-6 shrink-0 cursor-pointer items-center justify-center rounded px-1 text-text-muted hover:text-text"
             >
                 ✕
             </button>
