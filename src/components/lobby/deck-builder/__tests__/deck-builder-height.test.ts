@@ -125,8 +125,31 @@ const POOL_SRC = readFileSync(
 describe("DeckBuilderShell — source-panel dock split (issue #2585)", () => {
     it("the `deck-source-dock` variant is gated on landscape AND a 1024px width floor — not reused from `compact-chrome`'s width-only bucket", () => {
         expect(INDEX_CSS_SRC).toContain(
-            "@custom-variant deck-source-dock (@media (orientation: landscape) and (min-width: 1024px));"
+            "@custom-variant deck-source-dock (@media (orientation: landscape) and (min-width: 1024px) and (min-height: 501px));"
         );
+    });
+
+    // Review finding #1 (PR #2653): `deck-source-dock:` and `compact-chrome:`
+    // are both `orientation: landscape` — without a height floor they
+    // OVERLAPPED at short-landscape-but-wide shapes (1280x480), and in that
+    // overlap the zones pane's `compact-chrome:flex-none compact-chrome:basis-auto`
+    // sized it along the ROW axis instead of the column, computing a
+    // 1459px-wide zones pane inside a 1280px viewport. `min-height: 501px` is
+    // one more than `compact-chrome:`'s own `max-height: 500px` ceiling, so
+    // the two ranges abut with no shared pixel — this pins that the two
+    // custom variants stay mutually exclusive by construction.
+    it("the `deck-source-dock` and `compact-chrome` variants never share a pixel — deck-source-dock requires min-height 501px, one more than compact-chrome's max-height 500px landscape branch", () => {
+        const dockMatch = INDEX_CSS_SRC.match(
+            /@custom-variant deck-source-dock \(@media[\s\S]*?min-height: (\d+)px\)\);/
+        );
+        const compactLandscapeMatch = INDEX_CSS_SRC.match(
+            /@media \(orientation: landscape\) and \(max-height: (\d+)px\)/
+        );
+        expect(dockMatch).not.toBeNull();
+        expect(compactLandscapeMatch).not.toBeNull();
+        const dockMinHeight = Number(dockMatch![1]);
+        const compactMaxHeight = Number(compactLandscapeMatch![1]);
+        expect(dockMinHeight).toBe(compactMaxHeight + 1);
     });
 
     it("the strip wrapper turns into a real flex ROW under the dock variant, overriding the off-portrait `contents` collapse", () => {
@@ -141,12 +164,22 @@ describe("DeckBuilderShell — source-panel dock split (issue #2585)", () => {
         );
     });
 
-    it("the source panel stays a scrollable dock — `overflow-y-auto` is never dropped under the variant", () => {
-        const sourcePaneBranch = SHELL_SRC.slice(
-            SHELL_SRC.indexOf('data-deck-pane="source"'),
-            SHELL_SRC.indexOf("{sourcePanel.content}")
+    // Review finding #4 (PR #2653): the original slice ran from
+    // `data-deck-pane="source"` to `{sourcePanel.content}`, which spans BOTH
+    // ternary branches of the div's `className` — so the PORTRAIT branch's
+    // own `overflow-y-auto` satisfied the assertion even with the dock
+    // (non-portrait) branch's copy deleted (proved by mutation: deleting
+    // `overflow-y-auto` from the non-portrait branch left this test green).
+    // This version captures ONLY the ternary's false branch (the dock/desktop
+    // string) via regex group, so it can't be satisfied by the portrait
+    // sibling.
+    it("the source panel's DOCK (non-portrait) branch stays a scrollable dock — `overflow-y-auto` is never dropped from that branch specifically", () => {
+        const classNameMatch = SHELL_SRC.match(
+            /data-deck-pane="source"[\s\S]*?className=\{\s*portrait\s*\?\s*"[^"]*"\s*:\s*"([^"]*)"/
         );
-        expect(sourcePaneBranch).toContain("overflow-y-auto");
+        expect(classNameMatch).not.toBeNull();
+        const dockBranchClassName = classNameMatch![1];
+        expect(dockBranchClassName).toContain("overflow-y-auto");
     });
 
     it("the Limited builder never supplies a `sourcePanel` — the whole dock branch is absent by construction, no `kind` check needed (ADR 0075)", () => {

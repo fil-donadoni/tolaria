@@ -83,8 +83,20 @@
  * touch: `orientation: landscape` excludes it (820×1180 is portrait-shaped
  * regardless of what the JS hook calls it). `min-width: 1024px` excludes the
  * short landscape phone (844×390) on width alone — 844 < 1024 — so it stays
- * on the stacked layout untouched too. */
-@custom-variant deck-source-dock (@media (orientation: landscape) and (min-width: 1024px));
+ * on the stacked layout untouched too.
+ *
+ * `min-height: 501px` makes this variant and `compact-chrome:` above
+ * MUTUALLY EXCLUSIVE by construction — both are `orientation: landscape`,
+ * and without the height floor they overlapped at short-landscape-but-wide
+ * shapes (1280×480: `compact-chrome:` matches at max-height:500px, and this
+ * variant matched too at min-width:1024px). In that overlap the zones pane's
+ * `compact-chrome:flex-none compact-chrome:basis-auto` sized it along the
+ * ROW axis instead of the column — the axis trap this file already warns
+ * about below — computing a 1459px-wide zones pane inside a 1280px viewport
+ * and pushing the Sideboard pane off-screen (issue #2585 review). 501px is
+ * one more than `compact-chrome:`'s 500px ceiling, so the two ranges abut
+ * with no shared pixel. */
+@custom-variant deck-source-dock (@media (orientation: landscape) and (min-width: 1024px) and (min-height: 501px));
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Single semantic palette — Antique Bronze (ADR 0007 roles, issue #592).

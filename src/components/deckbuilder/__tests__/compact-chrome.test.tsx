@@ -135,11 +135,16 @@ describe("card-zone floor (issue #2511)", () => {
         expect(SHELL_SRC).toContain("compact-chrome:basis-auto");
     });
 
-    it("the zone header's control cluster may shrink below md, so it wraps instead of overflowing off-screen", () => {
+    it("the zone header's control cluster may shrink at every width, so it wraps instead of overflowing off-screen", () => {
         // `shrink-0` at every width pinned the cluster at max-content inside a
         // clipped pane, stranding 4 controls outside the viewport at 844x390.
+        // Review finding #2 (issue #2585/PR #2653) dropped `shrink-0`
+        // entirely (not just its `md:` gate): the source-panel dock narrows
+        // the SAME pane at 1440x900/1180x820, and `md:shrink-0` pinned this
+        // cluster there too — measured back to 0 stranded/occluded at all
+        // five viewports once the cluster can shrink unconditionally.
         expect(ZONE_SRC).toContain(
-            'className="ml-auto flex min-w-0 flex-wrap items-center gap-2 self-center md:shrink-0"'
+            'className="ml-auto flex min-w-0 flex-wrap items-center gap-2 self-center"'
         );
     });
 });

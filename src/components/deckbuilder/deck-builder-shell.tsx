@@ -6,6 +6,8 @@ import type { CardLookup, DeckColumnLayout } from "@convex/deckLayout";
 import type { ZoneCard } from "~/types/game";
 import { cn } from "~/lib/utils";
 import { useViewportMode } from "~/hooks/useViewportMode";
+import { useDeckSourceDock } from "~/hooks/useDeckSourceDock";
+import { Button } from "~/components/ui/button";
 import CardImage from "~/components/cards/card-image";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import DeckLegalityPanel from "~/components/lobby/deck-builder/deck-legality-panel";
@@ -119,6 +121,21 @@ export default function DeckBuilderShell({
     const compact = viewportMode !== "desktop";
     const portrait = viewportMode === "portrait";
 
+    // Review finding #3 (PR #2653, issue #2585): the source-panel dock frees
+    // the zones pane's whole column height, but the applied-filter tag row
+    // (#2650) still grows the header band ~58px the moment a search is
+    // active — 1180x820's deck pane drops from 62.6% to 55.5%, under the
+    // issue's 60% floor. The header has no slack to absorb that (row 1 is
+    // already edge-to-edge at 1180px — measured, not assumed): the ONLY
+    // reclaimable chrome at that viewport is the ADD BASIC bar's fixed 57px,
+    // so it moves into the SAME sheet portrait already uses (`DeckBasicsSheet`
+    // below), gated on `sourcePanel` presence the same way finding #5 gates
+    // the strip wrapper — this predicate alone says nothing about whether a
+    // source panel exists, and reused bare it would fold Limited's bar too,
+    // on a surface the ui-gate lane never walks.
+    const dockActive = useDeckSourceDock();
+    const isSourceDock = Boolean(sourcePanel) && dockActive;
+
     const mainTabLabel = zones.mainTabLabel ?? "Main";
     const sideTabLabel = zones.sideTabLabel ?? "Side";
 
@@ -201,8 +218,25 @@ export default function DeckBuilderShell({
                 {/* The basics bar moves into a SHEET on a phone (issue #2584):
                     five steppers plus an art picker is a permanent band the
                     card panes cannot spare. `Lands` on the bottom bar opens
-                    it. */}
-                {basicsBar && !portrait && basicsBar}
+                    it. Review finding #3 (#2585/PR #2653) reuses the SAME
+                    sheet in the dock layout: the 57px inline band is the one
+                    chrome lever left to reclaim once a search is active (the
+                    header has no spare width to keep the tag row on its own
+                    row — measured edge-to-edge at 1180px), so it folds down
+                    to this one small trigger there too. */}
+                {basicsBar && !portrait && !isSourceDock && basicsBar}
+                {basicsBar && isSourceDock && (
+                    <div className="shrink-0 px-4 md:px-6">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => setBasicsOpen(true)}
+                        >
+                            Add Basic
+                        </Button>
+                    </div>
+                )}
 
                 <DragDropProvider
                     manager={manager}
@@ -242,10 +276,24 @@ export default function DeckBuilderShell({
                         // AC's 60% at 1180×820). No-op everywhere else — the
                         // variant's media query does not match, so `contents`
                         // still applies and this box never exists.
+                        //
+                        // Gated on `sourcePanel` (review finding #5): with no
+                        // source panel (Limited builder) there is only one
+                        // child left in this wrapper, so turning it into a flex
+                        // row still changes the zones pane from a direct flex
+                        // item of the shell column to the sole child of a new
+                        // row — geometrically equivalent at the AC viewports
+                        // but not actually "untouched", and it would carry
+                        // finding #1's axis trap into a surface the ui-gate
+                        // lane never walks (`limited-build` is UNWALKED). Keep
+                        // Limited on plain `contents` so the claim is true, not
+                        // just equivalent.
                         className={
                             portrait
                                 ? "flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain"
-                                : "contents deck-source-dock:flex deck-source-dock:min-h-0 deck-source-dock:flex-1 deck-source-dock:flex-row"
+                                : sourcePanel
+                                  ? "contents deck-source-dock:flex deck-source-dock:min-h-0 deck-source-dock:flex-1 deck-source-dock:flex-row"
+                                  : "contents"
                         }
                     >
                         {sourcePanel && (
@@ -450,7 +498,7 @@ export default function DeckBuilderShell({
             )}
 
             <DeckBasicsSheet
-                open={basicsOpen && portrait}
+                open={basicsOpen && (portrait || isSourceDock)}
                 onClose={() => setBasicsOpen(false)}
             >
                 {basicsBar}

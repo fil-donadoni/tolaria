@@ -71,7 +71,16 @@ export default function DeckBuilderHeader({
         <div
             data-deckbuilder-header=""
             className={cn(
-                "flex flex-wrap items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6",
+                // `deck-source-dock:py-2` (review finding #3, #2585/PR #2653):
+                // the dock layout already reclaims height by moving the
+                // source panel off the vertical axis, but the applied-filter
+                // tag row (#2650) still adds a full second row the moment a
+                // search is active, and row 1 has no spare width left to
+                // absorb it inline (measured edge-to-edge at 1180px). Trimming
+                // the band's own padding by 8px total — on TOP of folding the
+                // ADD BASIC bar below — is what closes the remaining gap to
+                // the issue's 60% floor at 1180x820 with a search active.
+                "flex flex-wrap items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 deck-source-dock:py-2 md:px-6",
                 carriesControls
                     ? "short-viewport:gap-1 short-viewport:py-1"
                     : "short-viewport:hidden"

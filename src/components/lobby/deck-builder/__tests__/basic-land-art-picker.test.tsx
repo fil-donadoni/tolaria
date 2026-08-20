@@ -4,7 +4,15 @@
 // `DeckBuilder` (Constructed) — the grid's set filter and the rewrite both
 // depend on wiring (`FORMAT_RULES[deck.format].allowedSets`, the save sink's
 // payload) a hand-built `PoolBasicLandsBar` render would mask.
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeAll,
+    beforeEach,
+    afterEach,
+} from "vitest";
 import { render, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { saveBasicLandPrintId } from "~/lib/deckViewPrefs";
 import type { LobbyDeck } from "~/lib/deckTypes";
@@ -69,6 +77,26 @@ function renderBuilder(initialDeck: LobbyDeck) {
         />
     );
 }
+
+// happy-dom's default window is 1024x768 (landscape) — coincidentally the
+// exact shape `deck-source-dock:` targets (issue #2585 review finding #3:
+// `useDeckSourceDock` mirrors that CSS variant's media query in JS, and
+// 1024x768 satisfies its `min-width: 1024px` / `min-height: 501px` /
+// landscape clauses). Unstubbed, every render here would fold the ADD BASIC
+// bar behind its dock trigger, and every `getByText("+ Mountain")` below
+// would miss. `dragHarness.ts`'s `installDndJsdomShims` already stubs
+// `matchMedia` to always report no match for the sibling drag-mounted
+// `DeckBuilder` harness (`deck-builder-zones.test.tsx`) — same fix, applied
+// here without the rest of that harness's drag-only shims (IntersectionObserver,
+// `getAnimations`), which this file never exercises.
+beforeAll(() => {
+    (window as unknown as { matchMedia: (q: string) => unknown }).matchMedia =
+        () => ({
+            matches: false,
+            addEventListener() {},
+            removeEventListener() {},
+        });
+});
 
 beforeEach(() => {
     window.localStorage.clear();
