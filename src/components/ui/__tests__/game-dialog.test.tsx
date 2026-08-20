@@ -199,6 +199,41 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         expect(onOpenChange).not.toHaveBeenCalled();
     });
 
+    // Issue #2586 — the dialog must fit 844x390 (a landscape phone) by
+    // scrolling INSIDE itself, never the page. happy-dom has no layout
+    // engine (no viewport, no computed `max-height`), so this can only
+    // assert the arithmetic/class contract, not the rendered pixels — the
+    // pixel proof is the five-viewport browser receipt
+    // (`.claude/rules/chrome-debug.md`). Two things must both hold: (1) the
+    // column wrapping title/subtitle/body is height-capped even below the
+    // 80vh breakpoint's usual floor (`short-viewport:max-h-[...]`, paired
+    // with the `short-viewport` custom variant `@media (max-height: 500px)`
+    // in src/index.css), and (2) the body itself is the scroll container
+    // (`overflow-auto` + `min-h-0`, the only child allowed to grow past its
+    // flex-basis) — a capped OUTER column with no scrolling INNER child
+    // would just clip content instead of scrolling it.
+    it("caps the content column's height under a short viewport and scrolls the body inside it, not the page", () => {
+        render(
+            <GameDialog open title="Tall content">
+                <p>body</p>
+            </GameDialog>
+        );
+        // The title's own parent IS the height-capped column — `DialogTitle`
+        // is the column's first child in `game-dialog.tsx` — so this needs
+        // no assumption about Panel's internal frame/wrapper structure.
+        const column = screen.getByRole("heading", {
+            name: "Tall content",
+        }).parentElement!;
+        expect(column.className).toContain("max-h-[80vh]");
+        expect(column.className).toContain(
+            "short-viewport:max-h-[calc(100vh-6rem)]"
+        );
+
+        const bodyScroller = screen.getByText("body").parentElement!;
+        expect(bodyScroller.className).toContain("overflow-auto");
+        expect(bodyScroller.className).toContain("min-h-0");
+    });
+
     it("does NOT dismiss on popup-container click when not dismissable", () => {
         const onOpenChange = vi.fn();
         const { baseElement } = render(

@@ -128,7 +128,30 @@ export default function GameDialog({
                     >
                         {icon && <SunburstIcon>{icon}</SunburstIcon>}
 
-                        <div className="flex max-h-[80vh] w-full min-w-0 flex-1 flex-col">
+                        <div
+                            // 80vh caps only THIS column, not the chrome
+                            // around it — DialogContent itself carries no
+                            // padding here (`p-0`, set on DialogContent's
+                            // className above; tailwind-merge wins over any
+                            // default), so it's only the Panel's `roomy`
+                            // padding (`p-6`, 24px top + 24px bottom = 48px
+                            // total) that sits outside this max-height. At
+                            // the cap the rendered popup already exceeds a
+                            // 48px-larger viewport than 80vh implies.
+                            // DialogContent centers via `top-1/2
+                            // -translate-y-1/2` with no height clamp of its
+                            // own, so any overshoot strands the top and
+                            // clips the bottom equally (issue #2586:
+                            // measured at 844x390, the Stats dialog).
+                            // `short-viewport:` (`max-height: 500px`,
+                            // src/index.css) reserves `6rem` (96px) of
+                            // chrome explicitly instead of relying on 80vh
+                            // headroom that stops existing below ~500px
+                            // tall — deliberately more than the 48px actually
+                            // spent, so the reserve stays safe even if a
+                            // future Panel density adds padding back.
+                            className="flex max-h-[80vh] short-viewport:max-h-[calc(100vh-6rem)] w-full min-w-0 flex-1 flex-col"
+                        >
                             <DialogTitle
                                 className={cn(
                                     // `.panel-title-clear` keeps the title

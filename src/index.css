@@ -193,6 +193,30 @@
     --color-combat-3: #22c55e;
     --color-combat-4: #eab308;
 
+    /* Chart categorical palette (issue #2586, dataviz skill): identity hues
+       for a chart series (e.g. the deck-stats type band), never reused for
+       success/danger/signal meaning — those stay reserved. Eight slots, a
+       FIXED order (never cycled/reassigned by rank — color-formula.md "six
+       checks"), taken from the skill's validated default categorical
+       palette's dark steps and re-validated here against THIS app's own
+       dark chart surface (`--color-surface`, #16110a — Tolaria ships
+       dark-only, see "Antique Bronze" note above):
+       `node scripts/validate_palette.js
+       "#3987e5,#d95926,#199e70,#c98500,#d55181,#008300,#9085e9,#e66767"
+       --mode dark --surface "#16110a"` — all six checks PASS (worst
+       adjacent CVD ΔE 8.4, worst adjacent normal-vision ΔE 19.3, all ≥3:1
+       on surface). Consumers must render series in THIS slot order so that
+       any two visually-touching segments are a validated *adjacent* pair —
+       see `deck-stats-type-band.tsx`. */
+    --color-chart-cat-1: #3987e5;
+    --color-chart-cat-2: #d95926;
+    --color-chart-cat-3: #199e70;
+    --color-chart-cat-4: #c98500;
+    --color-chart-cat-5: #d55181;
+    --color-chart-cat-6: #008300;
+    --color-chart-cat-7: #9085e9;
+    --color-chart-cat-8: #e66767;
+
     /* The one modal scrim (was bg-black/10 … bg-black/70 drift) */
     --color-scrim: rgb(0 0 0 / 0.5);
 
