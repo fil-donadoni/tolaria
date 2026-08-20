@@ -407,9 +407,9 @@
             "reason": "the only Limited event on this deployment is still in the DRAFTING phase, so no seat offers `Build Deck` yet. The walk is implemented in surfaces.ts (open the event from /limited, click Build Deck); delete this row and re-record once an event reaches `playing`. This is the surface the 2026-08-17 occlusion measurement came from, so it is the highest-value row to close."
         },
         "draft-pick": {
-            "label": "Draft pick screen (/limited/<id> while drafting)",
+            "label": "Draft Room (/limited/<id>/draft)",
             "status": "unwalked",
-            "reason": "the drafting event on this deployment renders no pack for this seat right now (`Booster 1 of 3 · 7 packs queued`, zero `button[aria-label^='Draft pick:']` tiles). The walk is implemented in surfaces.ts; delete this row and re-record from a seat holding a live pack."
+            "reason": "the drafting event on this deployment renders no pack for this seat right now (zero `button[aria-label^='Draft pick:']` tiles), so there is nothing to measure. The walk is implemented in surfaces.ts and was rewritten for issue #2587's own route — it now enters via the event page's redirect or its `Enter the Draft Room` link and asserts it is ON `/limited/<id>/draft` before probing. Delete this row and re-record from a seat holding a live pack."
         }
     }
 }

@@ -53,9 +53,13 @@ export interface ShellRouteChrome {
     mode: ShellMode;
     /**
      * The route draws its own chrome, so the shell adds NO band of its own —
-     * `<main>` is the whole viewport. True only for the board (`/game`): it
-     * has a pause menu and a dev rail, and a contextual bar would duplicate an
-     * exit it already offers while taking height from the battlefield.
+     * `<main>` is the whole viewport. Two routes claim it, for the same
+     * reason: the board (`/game`) has a pause menu and a dev rail, and the
+     * Draft Room (`/limited/$eventId/draft`, issue #2587) has its own thin
+     * bar carrying the pick counters AND the overflow that leaving goes
+     * through. In both cases a shell contextual bar would duplicate an exit
+     * the surface already offers while taking height from the surface that
+     * needs it.
      */
     ownChrome: boolean;
     /** Title for the immersive contextual bar (`null` in Browse mode). */
@@ -181,6 +185,12 @@ export const SHELL_ROUTE_RULES: readonly ShellRouteRule[] = [
         mode: "browse",
         ownsReturn: ["event"],
         why: "Event detail / antechamber — and the event's own page, so it owns that event's return. The immersive Draft Room is its OWN route in issue #2587, not this one.",
+    },
+    {
+        pattern: "/limited/$eventId/draft",
+        mode: "immersive",
+        ownChrome: true,
+        why: "The Draft Room (issue #2587, ADR 0101 \u00a76). Own chrome, like the board: its thin bar already carries pack/pick/direction, the Table dialog, the pool toggle and the overflow that leaving goes through \u2014 and the ADR is explicit that there is NO Event back-link during a pick, which is exactly what a shell contextual bar would re-add.",
     },
     {
         pattern: "/limited/$eventId/build",

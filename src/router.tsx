@@ -14,6 +14,7 @@ import JoinRoute from "./routes/join.route";
 import LimitedEventsRoute from "./routes/limited-events.route";
 import LimitedYourEventsRoute from "./routes/limited-your-events.route";
 import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
+import LimitedDraftRoomRoute from "./routes/limited-draft-room.route";
 import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
 import DesignSystemRoute from "./routes/design-system.route";
 import SettingsRoute from "./routes/settings.route";
@@ -139,6 +140,16 @@ const limitedEventDetailRoute = createRoute({
     component: LimitedEventDetailRoute,
 });
 
+// The Draft Room (issue #2587, PRD #2405 slice 8, ADR 0101 §6): the pick
+// screen as its OWN immersive route, out of the event page it used to be
+// mounted inside. Its shell mode lives in `SHELL_ROUTE_RULES`
+// (`~/lib/shellChrome`), not here — the room owns its chrome.
+const limitedDraftRoomRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/limited/$eventId/draft",
+    component: LimitedDraftRoomRoute,
+});
+
 // Pool-scoped deckbuilding (PRD #1107, ADR 0054/0055, issue #1111): a seat's
 // constrained builder, entered from the event detail page once the event has
 // started and the viewer's own Pool exists.
@@ -242,6 +253,7 @@ const routeTree = rootRoute.addChildren([
     limitedEventsRoute,
     limitedYourEventsRoute,
     limitedEventDetailRoute,
+    limitedDraftRoomRoute,
     limitedDeckBuilderRoute,
     settingsRoute,
     adminRoute.addChildren([

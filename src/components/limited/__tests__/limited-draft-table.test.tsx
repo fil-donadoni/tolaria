@@ -136,7 +136,6 @@ function renderTable(overrides: {
             eventId={"event-1" as never}
             seat={seatView}
             round={0}
-            totalRounds={3}
         />
     );
 }
@@ -263,8 +262,12 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    // `[data-slot]`, not a class list: the surface's classes are layout and
+    // they changed the moment the Draft Room stopped being a block inside the
+    // event page (issue #2587). A class-keyed selector went silently null
+    // there, which reads as "no reserve" — the very bug these assert.
     const surfaceOf = (container: HTMLElement) =>
-        container.querySelector("div.mt-4.flex.flex-col") as HTMLElement;
+        container.querySelector("[data-slot=draft-surface]") as HTMLElement;
 
     it("shows no panel until a card is selected", () => {
         renderTable({});
@@ -419,5 +422,82 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
             })
         );
         expect(document.querySelector("[data-inspect-panel]")).toBeNull();
+    });
+});
+
+// Keyboard picking (ADR 0101 §6, issue #2587). The point of these is not that
+// a key does something — it is that the key goes through the SAME handlers
+// the click, the context menu, the Peek Panel CTA row and the drag use, so
+// there is exactly one definition of what a pick is. Asserting on the
+// MUTATIONS (rather than on a local highlight) is what makes that structural.
+describe("LimitedDraftTable keyboard picking (issue #2587)", () => {
+    it("arrows move the SERVER-side selection, starting at the first card", () => {
+        renderTable({});
+
+        fireEvent.keyDown(window, { key: "ArrowRight" });
+
+        expect(selectDraftPickMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            pickId: "r0-p0-c0",
+        });
+        expect(submitPickMock).not.toHaveBeenCalled();
+    });
+
+    it("arrows wrap around the pack rather than stopping at its ends", () => {
+        renderTable({ selectedPickId: "r0-p0-c0" });
+
+        fireEvent.keyDown(window, { key: "ArrowLeft" });
+
+        expect(selectDraftPickMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            pickId: "r0-p0-c1",
+        });
+    });
+
+    it("Enter commits the Selected Card through submitPick", async () => {
+        renderTable({ selectedPickId: "r0-p0-c1" });
+
+        fireEvent.keyDown(window, { key: "Enter" });
+
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c1",
+            })
+        );
+    });
+
+    it("S commits it to the sideboard — the same pick plus the arrangement write", async () => {
+        renderTable({ selectedPickId: "r0-p0-c1", poolLength: 2 });
+
+        fireEvent.keyDown(window, { key: "s" });
+
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c1",
+            })
+        );
+        await waitFor(() =>
+            expect(setPoolArrangementEntryMock).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    eventId: "event-1",
+                    poolIndex: 2,
+                    sideboard: true,
+                })
+            )
+        );
+    });
+
+    it("ignores a keystroke typed into a field, and Enter with nothing selected", () => {
+        const { container } = renderTable({});
+        const input = document.createElement("input");
+        container.appendChild(input);
+
+        fireEvent.keyDown(input, { key: "ArrowRight" });
+        fireEvent.keyDown(window, { key: "Enter" });
+
+        expect(selectDraftPickMock).not.toHaveBeenCalled();
+        expect(submitPickMock).not.toHaveBeenCalled();
     });
 });

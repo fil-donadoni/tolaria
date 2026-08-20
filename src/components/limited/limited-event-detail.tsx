@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
-import { useViewportMode } from "~/hooks/useViewportMode";
 import { canViewLimitedReviewDetail } from "~/lib/adminGating";
 import {
     useLimitedEvent,
@@ -15,10 +14,8 @@ import GameDialog from "~/components/ui/game-dialog";
 import LoadingScreen from "~/components/ui/loading-screen";
 import ErrorState from "~/components/ui/error-state";
 import ActionButton from "~/components/board/action-button";
-import CompactChromeDisclosure from "~/components/deckbuilder/compact-chrome-disclosure";
 import LimitedTablePanel from "./limited-table-panel";
 import LimitedEventSeatsDisclosure from "./limited-event-seats-disclosure";
-import LimitedDraftTable from "./limited-draft-table";
 import LimitedYourDeckPanel from "./limited-your-deck-panel";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
 import LimitedChallengePanel from "./limited-challenge-panel";
@@ -38,12 +35,16 @@ import {
     isSeatingOpen,
 } from "@convex/limited/eventStatus";
 import { useAutoOpenLimitedBuilder } from "~/hooks/useAutoOpenLimitedBuilder";
+import { useDraftRoomRedirect } from "~/hooks/useDraftRoomRedirect";
 import { useRoundCascadeRecovery } from "~/hooks/useRoundCascadeRecovery";
 
 /** One Limited Event's detail page (PRD #1107, ADR 0054/0055). It shows what
  *  the event's phase makes actionable, and nothing else:
  *  - OPEN — the table, plus Join / Start / Leave / Cancel.
- *  - DRAFTING — the Booster, with the table collapsed behind a summary.
+ *  - DRAFTING — the way into the Draft Room (issue #2587): the Booster is
+ *    NOT here any more, it is `/limited/$eventId/draft`, and a seated player
+ *    landing here mid-draft is sent straight there once per tab
+ *    (`useDraftRoomRedirect`).
  *  - POOL FINAL, no deck yet — deck building (the player is sent straight to
  *    the builder; this page keeps the way back into it).
  *  - DECK IN — the table's build progress and the match lobby (challenges,
@@ -66,11 +67,6 @@ export default function LimitedEventDetail({
     // delete-preset `GameDialog` confirmation).
     const [confirmLeave, setConfirmLeave] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
-    // Called unconditionally, ahead of the loading/deleted early returns
-    // (Rules of Hooks) — only combined with `draftInProgress` below, once
-    // `event` is known non-null.
-    const compactViewport = useViewportMode() !== "desktop";
-
     // Computed before the loading/deleted early returns because the auto-open
     // effect below must run on every render (hooks can't sit behind a return).
     const viewerSeat =
@@ -80,6 +76,9 @@ export default function LimitedEventDetail({
     // End of the Draft (or start of a Sealed event) IS the start of deck
     // building — go there instead of parking on a read-only Pool.
     useAutoOpenLimitedBuilder(eventId, event, viewerSeat);
+    // ...and the same one-shot, one phase earlier: while a Pick is pending the
+    // Draft Room is where the player belongs (issue #2587).
+    useDraftRoomRedirect(eventId, event, viewerSeat);
     // Recovery, not a normal path: an event whose latest round is decided but
     // which never advanced has no server-side entry point left that can move
     // it (see `nudgeEventRounds`) — a seat viewing it is the retry.
@@ -159,15 +158,12 @@ export default function LimitedEventDetail({
         areDraftPicksLegal(event.status) &&
         event.type === "draft" &&
         !event.draftCompletedAt;
-    // Issue #2515: while a seat is actively picking, the event's own chrome
-    // (title, badges, back link, Seats, Close Event, the decorative frame)
-    // is pure overhead on a short viewport — it pushed the first pack card to
-    // 86% of a landscape phone screen. Collapsing it is gated on BOTH
-    // conditions, never either alone: viewport-only would strip the chrome on
-    // a non-drafting event (where pairings/standings/Close Event ARE the
-    // page), drafting-only would change the desktop layout, which must stay
-    // exactly as it is.
-    const collapseChrome = draftInProgress && compactViewport;
+    // Issue #2515's `collapseChrome` is GONE, superseded by issue #2587
+    // rather than kept alongside it. It folded this page's title, badges,
+    // Seats and Close Event away on a compact viewport so the Booster could
+    // fit under them; the Booster is not under them any more, it is on its
+    // own immersive route, so there is nothing left for the fold to buy and
+    // the page renders its chrome identically at every viewport again.
     // Standings become the event's live scoreboard once the play phase's
     // Swiss rounds are actually running, and stay visible once the event has
     // concluded (PRD #1628 stories 22-24/39-40, issue #1643) — never during
@@ -220,156 +216,88 @@ export default function LimitedEventDetail({
 
     return (
         <LimitedEventPageFrame>
-            {/* Issue #2515: while a seat is compact-and-drafting, the toolbar's
-                own Back link is folded away with the rest of the chrome below
-                — this is its always-resident replacement, so leaving the
-                event never requires opening the disclosure first. */}
-            {collapseChrome && (
-                <Button
-                    variant="link"
-                    size="sm"
-                    onClick={handleBack}
-                    className="px-0"
-                >
-                    ← Back to Limited Events
-                </Button>
-            )}
+            <PanelHeader title={limitedEventName(event)} />
+            <PanelBody>
+                <LimitedEventToolbar event={event} onBack={handleBack} />
 
-            {/* `active={draftInProgress}` (never the bare viewport check): the
-                chrome below folds ONLY while a seat is actively picking. Off a
-                Draft — Sealed, an open lobby, the play phase — this renders
-                `children` verbatim at every viewport, because pairings,
-                standings and Close Event ARE the page there. */}
-            <CompactChromeDisclosure
-                label="Event Details"
-                active={draftInProgress}
-            >
-                {/* The format IS the title (issue: the old header spent three
-                    rows on "LIMITED EVENT" + a flourish subtitle reading
-                    "draft — VINTAGE-CUBE, VINTAGE-CUBE, VINTAGE-CUBE —
-                    started"). `limitedEventName` collapses the repeated pack
-                    sources to "Vintage Cube Draft"; the phase moves into the
-                    toolbar chip.
+                {error && <Banner tone="danger">{error}</Banner>}
 
-                    `PanelHeader`'s `.panel-header-band` is built to sit FLUSH
-                    at a panel's top edge — `-mt-2 sm:-mt-4` climbs it up over
-                    whatever precedes it, which is exactly right when it's the
-                    very first thing in the Panel. It is NOT the first thing
-                    here while `collapseChrome`: the persistent Back link and
-                    this disclosure's own toggle button render immediately
-                    above it, and at >=640px the band's `-mt-4` (16px) covered
-                    ~16 of their ~22px, capturing their clicks (issue #2515
-                    review round 1, finding 1). Rather than fight the band's
-                    own offset, `collapseChrome` renders a plain heading with
-                    no band wrapper — legitimate per `heading-panel`'s other
-                    bare uses (`not-found-page.tsx`, `admin-page-frame.tsx`) —
-                    and keeps `PanelHeader` only for the genuinely-flush-top
-                    case (desktop, or any non-drafting event). */}
-                {collapseChrome ? (
-                    <h2 className="heading-panel mt-3 text-center text-base tracking-[0.16em] uppercase sm:text-lg">
-                        {limitedEventName(event)}
-                    </h2>
-                ) : (
-                    <PanelHeader title={limitedEventName(event)} />
-                )}
-                <PanelBody>
-                    <LimitedEventToolbar event={event} onBack={handleBack} />
-
-                    {error && <Banner tone="danger">{error}</Banner>}
-
-                    {/* The build-progress bar is gated on `isPoolFinal` (issue
+                {/* The build-progress bar is gated on `isPoolFinal` (issue
                         #1580): a deck cannot exist before the Pool is final,
                         so the "N/seatCount decks in" counter would otherwise
                         misread as live progress while a Draft is still
                         running. */}
-                    {draftInProgress ? (
-                        <LimitedEventSeatsDisclosure event={event} />
-                    ) : (
-                        <LimitedTablePanel
-                            event={event}
-                            showProgress={isPoolFinal}
+                {draftInProgress ? (
+                    <LimitedEventSeatsDisclosure event={event} />
+                ) : (
+                    <LimitedTablePanel
+                        event={event}
+                        showProgress={isPoolFinal}
+                    />
+                )}
+
+                <div className="flex justify-end gap-2">
+                    {canLeave && (
+                        <ActionButton
+                            onClick={() => setConfirmLeave(true)}
+                            label="Leave Seat"
+                            tone="secondary"
+                            disabled={pending}
                         />
                     )}
+                    {canClose && (
+                        <ActionButton
+                            onClick={() => setConfirmCancel(true)}
+                            label={seatingOpen ? "Cancel Event" : "Close Event"}
+                            tone="destructive"
+                            disabled={pending}
+                        />
+                    )}
+                    {canJoin && (
+                        <ActionButton
+                            onClick={handleJoin}
+                            label="Join Event"
+                            tone="primary"
+                            disabled={pending}
+                        />
+                    )}
+                    {canStart && (
+                        <ActionButton
+                            onClick={handleStart}
+                            label="Start Event"
+                            tone="primary"
+                            disabled={pending}
+                        />
+                    )}
+                </div>
 
-                    <div className="flex justify-end gap-2">
-                        {canLeave && (
-                            <ActionButton
-                                onClick={() => setConfirmLeave(true)}
-                                label="Leave Seat"
-                                tone="secondary"
-                                disabled={pending}
-                            />
-                        )}
-                        {canClose && (
-                            <ActionButton
-                                onClick={() => setConfirmCancel(true)}
-                                label={
-                                    seatingOpen ? "Cancel Event" : "Close Event"
-                                }
-                                tone="destructive"
-                                disabled={pending}
-                            />
-                        )}
-                        {canJoin && (
-                            <ActionButton
-                                onClick={handleJoin}
-                                label="Join Event"
-                                tone="primary"
-                                disabled={pending}
-                            />
-                        )}
-                        {canStart && (
-                            <ActionButton
-                                onClick={handleStart}
-                                label="Start Event"
-                                tone="primary"
-                                disabled={pending}
-                            />
-                        )}
-                    </div>
-
-                    {/* Explains the Start button next to it — so it belongs
+                {/* Explains the Start button next to it — so it belongs
                         to whoever can actually press it, and only while
                         pressing it is possible. It used to render
                         unconditionally, which left a started event telling
                         every viewer they could still start it. */}
-                    {canStart && (
-                        <div className="text-right text-sm italic">
-                            You can start the event at any time. The free seats
-                            will be managed by bots, both for draft and for
-                            gameplay
-                        </div>
-                    )}
-                </PanelBody>
-            </CompactChromeDisclosure>
+                {canStart && (
+                    <div className="text-right text-sm italic">
+                        You can start the event at any time. The free seats will
+                        be managed by bots, both for draft and for gameplay
+                    </div>
+                )}
+            </PanelBody>
 
-            {/* `mt-0` while collapsed (issue #2515): `LimitedDraftTable`'s own
-                root already carries `mt-4 border-t … pt-4` as its visual
-                separator from whatever sits above it — stacking `PanelBody`'s
-                OWN `mt-4` on top of that (flex items never collapse margins)
-                cost 16px of exactly the budget this collapse exists to claw
-                back.
-
-                `mt-3` (never bare `undefined`) everywhere else — review round
-                1 finding 2: before this PR the chrome and `LimitedDraftTable`
-                were children of the SAME `PanelBody`, so the gap between them
-                was that body's `gap-3` (12px) plus the table's own `mt-4`
-                (16px) = 28px. Splitting one `PanelBody` into two turned that
-                12px `gap-3` into this SECOND body's own top margin — leaving
-                it at the base `mt-4` (16px) silently grew the boundary to
-                32px on every non-collapsed render (desktop AND the play
-                phase), 4px more than main. `mt-3` puts the same 12px back
-                (`cn` merges via `twMerge`, so this overrides the base
-                `PanelBody` `mt-4`), restoring the exact 28px pre-existing
-                rhythm; `mt-0` still zeroes it only while collapsed. */}
-            <PanelBody className={collapseChrome ? "mt-0" : "mt-3"}>
+            <PanelBody className="mt-3">
+                {/* The way back INTO the room (issue #2587). The redirect
+                    above is one-shot per tab, so a player who left through
+                    the room's overflow stays here — this is what lets them
+                    change their mind without the page bouncing them on every
+                    render. */}
                 {draftInProgress && viewerSeat && (
-                    <LimitedDraftTable
-                        eventId={eventId}
-                        seat={viewerSeat}
-                        round={event.draftRound ?? 0}
-                        totalRounds={event.packSlots.length}
-                    />
+                    <Link
+                        to="/limited/$eventId/draft"
+                        params={{ eventId }}
+                        className="self-start rounded-sm px-2 py-1 text-sm tracking-[0.14em] text-accent-strong uppercase transition-colors hover:text-parchment"
+                    >
+                        Enter the Draft Room →
+                    </Link>
                 )}
 
                 {/* The viewer's deck + the builder entry point, in EVERY

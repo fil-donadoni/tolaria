@@ -103,10 +103,15 @@ async function clickIfVisible(
  */
 const EVENT_VIEW = "button:has-text('View'), a:has-text('View')";
 
-/** A pack tile on the draft pick screen. The card NAME is only in the
- *  aria-label (`limited-draft-pack-card.tsx`), never in the text content, so
- *  a `:has-text('Draft pick')` selector matches nothing on a live pack. */
-const DRAFT_PICK_TILE = "button[aria-label^='Draft pick:']";
+/** A pack tile in the Draft Room. Two traps in one selector:
+ *  - the card NAME is only in the aria-label (`limited-draft-pack-card.tsx`),
+ *    never in the text content, so `:has-text('Draft pick')` matches nothing;
+ *  - the tile is a `div role="button"` (it has to be — it is also the dnd-kit
+ *    draggable), so the `button[...]` selector this used to be matched ZERO
+ *    tiles on a live pack. That is why `budgets.json` recorded "renders no
+ *    pack for this seat right now": the lane was looking for an element that
+ *    does not exist (issue #2587). */
+const DRAFT_PICK_TILE = "[role=button][aria-label^='Draft pick:']";
 
 async function limitedEventCount(
     page: Page,
@@ -116,20 +121,33 @@ async function limitedEventCount(
     return await page.locator(EVENT_VIEW).count();
 }
 
+/**
+ * Open the nth event from `/limited`, and report where it landed.
+ *
+ * Since issue #2587 the event page REDIRECTS a seated player into the Draft
+ * Room (`/limited/<id>/draft`) while a Pick is pending — one-shot per tab, so
+ * the first open of a drafting event lands on the room and a later one does
+ * not. Both are legitimate landings, which is why this returns the pathname
+ * shape rather than a boolean "did we reach the event page": a walk that
+ * demanded the old URL would report a drafting event as unreachable.
+ */
 async function openLimitedEvent(
     page: Page,
     ctx: WalkContext,
     index: number
-): Promise<boolean> {
+): Promise<"event" | "draft" | null> {
     await goto(page, ctx, "/limited");
     const views = page.locator(EVENT_VIEW);
-    if (index >= (await views.count())) return false;
+    if (index >= (await views.count())) return null;
     await views.nth(index).click({ timeout: STEP_TIMEOUT });
     await page
-        .waitForURL(/\/limited\/[^/]+$/, { timeout: NAV_TIMEOUT })
+        .waitForURL(/\/limited\/[^/]+(\/draft)?$/, { timeout: NAV_TIMEOUT })
         .catch(() => {});
     await settle(page);
-    return /^\/limited\/[^/]+$/.test(new URL(page.url()).pathname);
+    const path = new URL(page.url()).pathname;
+    if (/^\/limited\/[^/]+\/draft$/.test(path)) return "draft";
+    if (/^\/limited\/[^/]+$/.test(path)) return "event";
+    return null;
 }
 
 /**
@@ -311,7 +329,8 @@ export const SURFACES: readonly Surface[] = [
                 );
             }
             for (let i = 0; i < Math.min(count, 3); i++) {
-                if (!(await openLimitedEvent(page, ctx, i))) continue;
+                if ((await openLimitedEvent(page, ctx, i)) !== "event")
+                    continue;
                 if (
                     await clickIfVisible(
                         page,
@@ -333,8 +352,13 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "draft-pick",
-        label: "Draft pick screen (/limited/<id> while drafting)",
+        label: "Draft Room (/limited/<id>/draft)",
         async walk(page, ctx) {
+            // Issue #2587 moved the pick screen OFF the event page onto its
+            // own immersive route. Two ways in, and the walk takes whichever
+            // the deployment offers: the event page redirects a seated player
+            // while a Pick is pending (one-shot per tab), and once that shot
+            // is spent the event page offers "Enter the Draft Room".
             const count = await limitedEventCount(page, ctx);
             if (count === 0) {
                 throw new Unreachable(
@@ -342,13 +366,31 @@ export const SURFACES: readonly Surface[] = [
                 );
             }
             for (let i = 0; i < Math.min(count, 3); i++) {
-                if (!(await openLimitedEvent(page, ctx, i))) continue;
-                if (await visible(page, DRAFT_PICK_TILE, 4000)) {
-                    return;
+                const landed = await openLimitedEvent(page, ctx, i);
+                if (landed === null) continue;
+                if (landed === "event") {
+                    if (
+                        !(await clickIfVisible(
+                            page,
+                            "a:has-text('Enter the Draft Room')",
+                            4000
+                        ))
+                    ) {
+                        continue;
+                    }
+                    await page
+                        .waitForURL(/\/draft$/, { timeout: NAV_TIMEOUT })
+                        .catch(() => {});
+                    await settle(page);
                 }
+                if (!page.url().endsWith("/draft")) continue;
+                // The room renders for a Sealed seat too (reveal mode), so
+                // reaching the URL is not enough: the surface this row
+                // budgets is the PICK screen, and its tiles are the proof.
+                if (await visible(page, DRAFT_PICK_TILE, 4000)) return;
             }
             throw new Unreachable(
-                "no Limited event is in the drafting phase (the pick screen IS /limited/<id> while status=drafting)"
+                "no Limited event is in the drafting phase with a live pack for this seat (the pick screen is /limited/<id>/draft since issue #2587)"
             );
         },
     },

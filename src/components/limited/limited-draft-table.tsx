@@ -23,6 +23,7 @@ import {
 } from "~/components/editing/usePeekPanelLayout";
 import type { EditingSurfaceAction } from "~/components/editing/editing-surface-action";
 import { cardBase } from "~/lib/cardSizing";
+import { useDraftKeyboardPicks } from "~/hooks/useDraftKeyboardPicks";
 import LimitedDraftPack from "./limited-draft-pack";
 import LimitedDraftTimer from "./limited-draft-timer";
 import LimitedDraftPool from "./limited-draft-pool";
@@ -67,13 +68,16 @@ export default function LimitedDraftTable({
     eventId,
     seat,
     round,
-    totalRounds,
     manager,
+    layout = "stacked",
+    showPool = true,
 }: {
     eventId: Id<"limitedEvents">;
     seat: LimitedEventSeatView;
+    /** 0-based booster round — the Peek Panel's subtitle names it. The
+     *  n-of-N counters live in the Draft Room's thin bar (issue #2587), which
+     *  is why this component no longer takes a `totalRounds`. */
     round: number;
-    totalRounds: number;
     /** dnd-kit manager, forwarded to this screen's own `DragDropProvider`.
      *  Omitted in the app (the provider makes its own); the mounted drag tests
      *  inject one so they can drive REAL drag operations against the REAL
@@ -81,6 +85,16 @@ export default function LimitedDraftTable({
      *  never resolve a drop target there. Same escape hatch `DeckBuilder` and
      *  `PoolDeckBuilderForm` already carry. */
     manager?: DragDropManager;
+    /** `"split"` (tablet/desktop, ADR 0101 §6) puts the Booster and the Pool
+     *  side by side; `"stacked"` keeps them one above the other, which is the
+     *  pre-#2587 arrangement and what both phone regimes still get until
+     *  their own slice lands. */
+    layout?: "stacked" | "split";
+    /** The Draft Room's pool toggle. The Pool pane is unmounted, not hidden:
+     *  it renders every pooled card through `DeckZoneSurface`, and a
+     *  `display:none` copy of that would keep paying for images the player
+     *  asked to put away. */
+    showPool?: boolean;
 }) {
     const { submitPick, selectDraftPick, setPoolArrangementEntry } =
         useLimitedEventMutations();
@@ -105,7 +119,6 @@ export default function LimitedDraftTable({
     });
 
     const pack = seat.currentPack ?? [];
-    const queueCount = seat.packQueueCount ?? 0;
     const pool = seat.pool ?? [];
 
     const handlePick = async (pickId: string) => {
@@ -279,6 +292,58 @@ export default function LimitedDraftTable({
     // the five UI-gate viewports that is WIDTH (the rail), not height.
     const peekLayout = usePeekPanelLayout();
 
+    // Arrows / Enter / S (ADR 0101 §6). Wired to the SAME three handlers the
+    // click, the context menu, the Peek Panel CTA row and the drag use — see
+    // `useDraftKeyboardPicks` for why that is the whole point of the hook.
+    useDraftKeyboardPicks({
+        enabled: !pending,
+        pack,
+        selectedPickId,
+        onSelect: handleSelect,
+        onPick: (pickId) => void handlePick(pickId),
+        onPickToSideboard: (pickId) => void handlePickToSideboard(pickId),
+    });
+
+    const packPane = (
+        <>
+            {/* Full-width, mounted directly above the Booster grid (issue
+             *  #2238) — a 12px badge sharing a meta row's text-xs muted tone
+             *  was not findable under time pressure, which is also why the
+             *  Draft Room's thin bar deliberately carries no second copy of
+             *  the countdown. `pack.length` is the SAME cards-remaining count
+             *  the server used to look up this Pick's allowance
+             *  (`assignFreshPack`), which is how the bar derives its own
+             *  denominator without a second server-written field. */}
+            <LimitedDraftTimer
+                pickDeadline={seat.pickDeadline}
+                cardsRemaining={pack.length}
+            />
+
+            <LimitedDraftPack
+                pack={pack}
+                selectedPickId={seat.selectedPickId ?? null}
+                onSelect={handleSelect}
+                onPick={(pickId) => void handlePick(pickId)}
+                onOpenMenu={(pickId, x, y) => setMenu({ pickId, x, y })}
+                pending={pending}
+                zoom={boosterZoom.value}
+            />
+        </>
+    );
+
+    const poolPane = (
+        <>
+            <h3 className="mb-2 text-sm font-semibold tracking-wide text-text-muted uppercase">
+                Your Pool ({pool.length})
+            </h3>
+            <LimitedDraftPool
+                eventId={eventId}
+                pool={pool}
+                arrangement={seat.poolArrangement}
+            />
+        </>
+    );
+
     return (
         <DragDropProvider
             manager={manager}
@@ -290,65 +355,58 @@ export default function LimitedDraftTable({
                 last row of the Pool, or a right rail that covers the right
                 224px of the Booster grid, is the occlusion the five-viewport
                 probe exists to catch. */}
+            {/* No top border / `mt-4` any more: that was this block's
+                separator from the event chrome it used to sit under (issue
+                #2515's 16px accounting). The Draft Room is its own route now
+                and there is nothing above the Booster to separate from. */}
             <div
-                className="mt-4 flex flex-col gap-3 border-t border-border-accent/20 pt-4"
+                data-slot="draft-surface"
+                className="flex min-h-0 flex-1 flex-col gap-3"
                 style={peeked ? peekPanelReserve(peekLayout) : undefined}
             >
-                <div className="flex items-center justify-between text-xs text-text-muted">
-                    <span>
-                        Booster {round + 1} of {totalRounds}
-                    </span>
-                    <div className="flex items-center gap-2">
-                        <CardZoomSlider
-                            value={boosterZoom.value}
-                            min={boosterZoom.min}
-                            max={boosterZoom.max}
-                            onChange={boosterZoom.set}
-                            label="Booster card size"
-                        />
-                        <span>
-                            {queueCount > 0
-                                ? `${queueCount} pack${queueCount === 1 ? "" : "s"} queued`
-                                : "No packs queued"}
-                        </span>
-                    </div>
+                <div className="flex items-center justify-end gap-2 text-xs text-text-muted">
+                    <CardZoomSlider
+                        value={boosterZoom.value}
+                        min={boosterZoom.min}
+                        max={boosterZoom.max}
+                        onChange={boosterZoom.set}
+                        label="Booster card size"
+                    />
                 </div>
 
                 {error && <Banner tone="danger">{error}</Banner>}
 
-                {/* Full-width, mounted directly above the Booster grid (issue
-                 *  #2238) — a 12px badge sharing the meta row's text-xs
-                 *  muted tone with the zoom slider and queue count was not
-                 *  findable under time pressure. `pack.length` is the SAME
-                 *  cards-remaining count the server used to look up this
-                 *  Pick's allowance (`assignFreshPack`), which is how the
-                 *  bar derives its own denominator without a second
-                 *  server-written field. */}
-                <LimitedDraftTimer
-                    pickDeadline={seat.pickDeadline}
-                    cardsRemaining={pack.length}
-                />
-
-                <LimitedDraftPack
-                    pack={pack}
-                    selectedPickId={seat.selectedPickId ?? null}
-                    onSelect={handleSelect}
-                    onPick={(pickId) => void handlePick(pickId)}
-                    onOpenMenu={(pickId, x, y) => setMenu({ pickId, x, y })}
-                    pending={pending}
-                    zoom={boosterZoom.value}
-                />
-
-                <div className="min-h-0 flex-1 border-t border-border-accent/20 pt-3">
-                    <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-text-muted">
-                        Your Pool ({pool.length})
-                    </h3>
-                    <LimitedDraftPool
-                        eventId={eventId}
-                        pool={pool}
-                        arrangement={seat.poolArrangement}
-                    />
-                </div>
+                {layout === "split" ? (
+                    // Tablet / desktop (ADR 0101 §6): a vertical split, pack
+                    // beside pool. Each half scrolls on its own so a long
+                    // Pool never pushes the Booster off the screen — the
+                    // exact failure the stacked layout has on a short
+                    // viewport. The preview RAIL is the Peek Panel: it is
+                    // `fixed`, and the reserve above already pays for its
+                    // width, so the split is measured against what is left.
+                    <div
+                        data-slot="draft-split"
+                        className="flex min-h-0 flex-1 gap-3"
+                    >
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+                            {packPane}
+                        </div>
+                        {showPool && (
+                            <div className="flex min-h-0 w-[36%] shrink-0 flex-col overflow-y-auto border-l border-border-accent/20 pl-3">
+                                {poolPane}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <>
+                        {packPane}
+                        {showPool && (
+                            <div className="min-h-0 flex-1 border-t border-border-accent/20 pt-3">
+                                {poolPane}
+                            </div>
+                        )}
+                    </>
+                )}
             </div>
 
             <DragOverlay dropAnimation={null}>
