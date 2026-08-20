@@ -63,14 +63,14 @@ export default function ManaChoicePicker({
         ? {
               left: placement?.left ?? position.x,
               top: placement?.top ?? position.y,
-              maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,
+              maxHeight: `calc(100dvh - ${VIEWPORT_PAD * 2}px)`,
               opacity: placement ? 1 : 0,
           }
         : {
               left: "50%",
               top: "50%",
               transform: "translate(-50%, -50%)",
-              maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,
+              maxHeight: `calc(100dvh - ${VIEWPORT_PAD * 2}px)`,
           };
 
     return (

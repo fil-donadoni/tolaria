@@ -257,7 +257,7 @@ describe("ControllerPhaseSheet — grab handle drag-to-close (#1761)", () => {
     // Height-bound regression (review finding on #1761): the sheet panel
     // used to bound height only via `max-h-[70vh] overflow-hidden` on ITSELF
     // with no `display: flex`, so `ControllerPhaseList`'s `role="dialog"`
-    // element (whose OWN inline `maxHeight: calc(100vh - 24px)` is the
+    // element (whose OWN inline `maxHeight: calc(100dvh - 24px)` is the
     // desktop panel's bound, irrelevant once nested here) never got squeezed
     // down to the space actually left under the grab handle — its internal
     // `min-h-0 flex-1 overflow-y-auto` list never had a bounded ancestor and

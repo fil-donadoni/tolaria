@@ -74,7 +74,7 @@ export default function DevPanelRail({
             // "just above the bar, whatever height it currently has" — instead
             // of the old fixed `bottom-28`, which sat correctly only for the
             // one-line bar. Desktop keeps the original bottom-4.
-            className={`fixed ${ABOVE_CONTROLLER_BAR} left-3 z-dev-overlay flex max-h-[calc(100vh-var(--controller-bar-h,8rem)-2rem)] flex-col items-start gap-2 overflow-y-auto text-xs md:bottom-4 md:max-h-[calc(100vh-2rem)]`}
+            className={`fixed ${ABOVE_CONTROLLER_BAR} left-3 z-dev-overlay flex max-h-[calc(100dvh-var(--controller-bar-h,8rem)-2rem)] flex-col items-start gap-2 overflow-y-auto text-xs md:bottom-4 md:max-h-[calc(100dvh-2rem)]`}
         >
             {!hidden && children}
             <button
