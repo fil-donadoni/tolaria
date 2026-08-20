@@ -37,6 +37,7 @@ import * as path from "node:path";
 import {
     buildClaimFacts,
     classifyClaim,
+    type BranchNames,
     type ClaimedIssue,
     type ClaimVerdict,
 } from "../loop-doctor";
@@ -56,7 +57,14 @@ export type ClaimStage =
 
 export interface StageFacts {
     hasWorktree: boolean;
-    hasBranch: boolean;
+    /**
+     * A branch on the REMOTE. Local-only deliberately does not count: this
+     * stage is literally called "branch pushed", and a pass killed mid-edit
+     * leaves its local branch on disk forever (see `ClaimFacts.hasLocalBranch`
+     * in `loop-doctor.ts`), so counting it here reported dead work as one step
+     * further along the pipeline than it ever reached.
+     */
+    hasRemoteBranch: boolean;
     hasOpenPr: boolean;
     /** An `approve` review receipt exists for this issue in the current batch. */
     reviewApproved: boolean;
@@ -65,7 +73,7 @@ export interface StageFacts {
 export function computeStage(facts: StageFacts): ClaimStage {
     if (facts.hasOpenPr && facts.reviewApproved) return "merging";
     if (facts.hasOpenPr) return "PR open";
-    if (facts.hasBranch) return "branch pushed";
+    if (facts.hasRemoteBranch) return "branch pushed";
     if (facts.hasWorktree) return "worktree";
     return "claimed";
 }
@@ -274,7 +282,7 @@ export function readDriverState(opts: ReadDriverStateOptions): DriverState {
 export interface LoopStatusInput {
     claimedIssues: ClaimedIssue[];
     prBranches: Set<string>;
-    allBranches: string[];
+    branches: BranchNames;
     worktreeIssueNumbers: Set<number>;
     /** Issues whose newest review receipt (in `receipts`) is `approve`. */
     approvedReviewIssues: Set<number>;
@@ -365,13 +373,13 @@ export function buildLoopStatus(input: LoopStatusInput): LoopStatus {
         const facts = buildClaimFacts(
             issue,
             input.prBranches,
-            input.allBranches,
+            input.branches,
             now
         );
         const verdict = classifyClaim(facts, input.minAgeHours);
         const stage = computeStage({
             hasWorktree: input.worktreeIssueNumbers.has(issue.number),
-            hasBranch: facts.hasBranch,
+            hasRemoteBranch: facts.hasRemoteBranch,
             hasOpenPr: facts.hasOpenPr,
             reviewApproved: input.approvedReviewIssues.has(issue.number),
         });

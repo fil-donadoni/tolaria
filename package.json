@@ -27,7 +27,6 @@
         "ladder": "bun scripts/ladder.ts",
         "queue:plan": "bun scripts/queue-plan.ts",
         "queue:train": "bun scripts/train-order.ts",
-        "queue:sweep": "bun scripts/queue-sweep.ts",
         "land": "bun scripts/land.ts",
         "review:receipt": "bun scripts/write-review-receipt.ts",
         "loop:scorecard": "bun scripts/loop-scorecard.ts",

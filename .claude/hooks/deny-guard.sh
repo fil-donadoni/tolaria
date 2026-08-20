@@ -376,7 +376,7 @@ fi
 #
 # **The informational allowlist, seeded against `package.json` (verify with
 # `bun run <name>` before adding another):** `cr`, `cr:check`, `findings`,
-# `queue:plan`, `queue:train`, `queue:sweep`, `loop:scorecard`, `usage:window`,
+# `queue:plan`, `queue:train`, `loop:doctor`, `loop:scorecard`, `usage:window`,
 # `telemetry:dash`, `format`. Nothing else — in particular `lint`,
 # `format:check`, `check:ts`, `check:index`, `check:stubs` and
 # `telemetry:ingest` stay DENIED: piping any of those hides a real failure
@@ -406,7 +406,7 @@ fi
 # run …` stays allowed piped — only `bun run <script>` (any script, unless
 # allowlisted above) and a bare `scripts/gate.ts` are in scope.
 # ─────────────────────────────────────────────────────────────────────────────
-GATE_INFORMATIONAL_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|queue:sweep|loop:scorecard|usage:window|telemetry:dash|format)$'
+GATE_INFORMATIONAL_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|loop:doctor|loop:scorecard|usage:window|telemetry:dash|format)$'
 
 _gate_piped=0
 _old_ifs=$IFS
