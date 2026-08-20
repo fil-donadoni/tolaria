@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { poolSurfaceMinHeightPx } from "~/lib/cardSizing";
+import { DECK_SOURCE_DOCK_QUERY } from "~/hooks/useDeckSourceDock";
 
 const SRC = readFileSync(join(__dirname, "..", "deck-builder.tsx"), "utf8");
 // Issue #1623 moved the route root, the header band and the chrome treatment
@@ -184,5 +185,37 @@ describe("DeckBuilderShell — source-panel dock split (issue #2585)", () => {
 
     it("the Limited builder never supplies a `sourcePanel` — the whole dock branch is absent by construction, no `kind` check needed (ADR 0075)", () => {
         expect(POOL_SRC).not.toMatch(/sourcePanel\s*[:=]/);
+    });
+
+    // Review round 2 finding (PR #2653): `useDeckSourceDock.ts` restates this
+    // same media query in JS (`DECK_SOURCE_DOCK_QUERY`) because folding the
+    // ADD BASIC bar is a mount-point decision only JS can make — but nothing
+    // pinned the two copies together. The reviewer changed the CSS variant's
+    // min-height from 501px to 900px and 456 files / 4782 frontend tests
+    // stayed green, which is exactly the desync this ticket exists to
+    // prevent (CSS docks the panel while the JS mirror still leaves the
+    // inline basics bar mounted). This asserts the CSS `@custom-variant`
+    // wraps the JS constant byte-for-byte, so any future edit to one without
+    // the other reds here.
+    it("the JS mirror (`DECK_SOURCE_DOCK_QUERY`) is byte-for-byte the CSS `deck-source-dock:` variant's `@media` condition", () => {
+        expect(INDEX_CSS_SRC).toContain(
+            `@custom-variant deck-source-dock (@media ${DECK_SOURCE_DOCK_QUERY});`
+        );
+    });
+
+    // Same review round: removing the `Boolean(sourcePanel)` gate around the
+    // strip wrapper's dock className (collapsing the ternary so the dock
+    // classes apply unconditionally, not only when a source panel exists)
+    // left all 519 deckbuilder tests green, because the earlier test above
+    // only checks the dock string is PRESENT somewhere in the file, not that
+    // it stays behind the `sourcePanel ?` conditional. This regex captures
+    // the whole three-way ternary (`portrait ? … : sourcePanel ? … : "contents"`)
+    // so an unconditional dock className — or a fallback other than plain
+    // `"contents"` — fails to match at all.
+    it("the strip wrapper's dock classes stay gated on `sourcePanel` — no `sourcePanel`, no `deck-source-dock:` classes, plain `contents`", () => {
+        const wrapperMatch = SHELL_SRC.match(
+            /className=\{\s*portrait\s*\?\s*"[^"]*"\s*:\s*sourcePanel\s*\?\s*"([^"]*deck-source-dock:flex[^"]*)"\s*:\s*"contents"\s*\}/
+        );
+        expect(wrapperMatch).not.toBeNull();
     });
 });

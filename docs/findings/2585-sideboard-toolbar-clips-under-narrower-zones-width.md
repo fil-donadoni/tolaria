@@ -47,3 +47,58 @@ overflow becomes `reachable` instead of `stranded` — is a one-line change
 the kind of "zone toolbar" surface #2585's own scope explicitly excludes
 touching. Worth a slice under #2511 or the ADR 0101 tablet/desktop chrome
 work, not a re-open of #2585.
+
+---
+
+## Addendum (round-2 fixup, PR #2653): dropping `shrink-0` outright trades
+
+## stranding for a NEW starve at 820×1180 — the lane cannot see it because
+
+## `/decks/create` walks an empty Sideboard
+
+Round 1 of this PR's review rejected the literal suggestion to delete
+`deck-zone-surface.tsx:535`'s `md:` gate (that would have pinned the cluster
+at max-content on EVERY viewport, re-creating #2511's original stranding on
+phones) in favour of dropping the `shrink-0` token outright, so the cluster
+shrinks and wraps at every width instead of clipping. That is still the right
+call — it took `ctrlsStranded`/`ctrlsOcc` at every `check:ui` viewport back to
+0 (see `scripts/ui-gate/budgets.json`'s `deck-builder` entries, re-recorded
+2026-08-20). But it is a trade, not a pure win, and the previous version of
+this file did not say so.
+
+**Measured on this branch (`feat/issue-2585`), same deck/account, 820×1180
+tablet-portrait, real Sideboard content (not the empty one `/decks/create`
+walks) — an A/B on the ONE `md:shrink-0` token, nothing else differing:**
+
+| state                          | Sideboard header row | Sideboard card port | verdict                                                                         |
+| ------------------------------ | -------------------- | ------------------- | ------------------------------------------------------------------------------- |
+| WITH `md:shrink-0` (pre-fixup) | 86px                 | 300px               | toolbar cluster overflows its box by **583px** with no scroll port — `stranded` |
+| WITHOUT `shrink-0` (shipped)   | 203px                | 183px               | cluster wraps ~5 rows instead of clipping — port is now `starved`               |
+
+`--card-h` at this viewport resolves to `calc(max(4.5rem, min(8rem, 18vw,
+9.5dvh)) * 1.25 * 7 / 5)` ≈ **196px** (read via `getComputedStyle` on the
+port element, not assumed). The shipped port (183px) is BELOW one card tile —
+the probe's own `starved` shape (`scripts/ui-gate/probe.js`) — confirmed with
+a real (non-empty) Sideboard: this deck carries only one Sideboard card
+(Shivan Dragon) and the port already starves; the round-2 reviewer's own
+measurement on a fuller Sideboard (134px port) is the same shape at a lower
+number, consistent with more colour pips/rows.
+
+**Why `bun run check:ui` misses this.** Every runbook surface it walks builds
+a deck through `/decks/create`, and that flow starts with an EMPTY Sideboard
+— an empty zone has no card tiles to starve, so the probe's `starved` rule
+never fires there regardless of how short the port gets. The defect only
+exists once a real deck (constructed from a preset, or an in-progress edit)
+has Sideboard cards, which is the common case in play but not in the walked
+surface.
+
+**Disposition — still a finding, not a fix, for the same reason as the
+original entry above:** it is a further slice of the #2511 trade-off (a
+toolbar cluster that neither fits alongside its zone's content nor has a
+scroll port of its own), it is independent of the dock split #2585 shipped,
+and the actual fix (give the trailing cluster its own `overflow-x-auto`, or
+fold it behind `CompactChromeDisclosure` the same way the phone-shaped
+viewports already do) is a `deck-zone-surface.tsx`-owned change #2585's scope
+excludes. `scripts/ui-gate/budgets.json`'s `820x1180x2` `deck-builder`
+`knownDebt` note has been corrected in the same PR to disclose this trade
+instead of reading as a pure win.
