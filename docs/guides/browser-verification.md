@@ -71,12 +71,21 @@ the gitignored `.env.local`. The credentials are deliberately not in the repo.
 
 **The budget file is the contract.** `scripts/ui-gate/budgets.json` holds one
 ceiling set per surface × viewport (`cardsZero/Occ/Stranded`,
-`ctrlsZero/Occ/Stranded`, `starved`, `axeSerious`, `axeCritical`). The floors
-the lane is FOR are zero occluded card tiles, zero stranded controls and no
-axe serious/critical; where a surface violates one today the entry carries a
-`knownDebt` note naming what is broken, printed under every run, so the number
-reads as debt rather than as a decision. A slice that fixes a surface lowers
-its ceilings in the same PR.
+`ctrlsZero/Occ/Stranded`, `starved`, `small`, `axeSerious`, `axeCritical`).
+The floors the lane is FOR are zero occluded card tiles, zero stranded
+controls and no axe serious/critical; where a surface violates one today the
+entry carries a `knownDebt` note naming what is broken, printed under every
+run, so the number reads as debt rather than as a decision. A slice that
+fixes a surface lowers its ceilings in the same PR.
+
+`small` (issue #2658) is the one ceiling that is deliberately **pointer-blind**:
+the probe counts every visible interactive control under 44px on its smaller
+dimension at EVERY viewport, but `--control-h` is 32px under `pointer: fine`
+by design (`src/index.css:942,946-948` — the comment cites WCAG 2.5.8, a
+touch-target rule). So a nonzero `small` on the desktop viewport (`1440x900x2`)
+usually just reflects that intentional 32px control height, while the same
+nonzero count on a `…x3,mobile,touch…` row is real sub-target debt — the
+`knownDebt` note on each budgeted row says which one it is.
 
 **What it is not.** It is not part of `check:all`: the full gate is offline by
 contract and mutex-held, and booting a browser inside it would tax every
@@ -170,6 +179,11 @@ so the gate and the hand check can never disagree about what "measured" means.
   judgement — a 300px container holding a 1200px column is a normal scrolling
   list; a 66px container holding 101px card tiles is broken, because scrolling
   cannot recover height the tile needs all at once.
+- **`small`** — a visible, in-band `button,a[href],input,select,[role=button],
+[role=tab],[role=option]` whose smaller dimension is under 44px. Budgeted
+  but **pointer-blind** (see above): read a desktop-viewport count against the
+  32px `pointer: fine` control height before calling it debt, and treat every
+  touch-viewport count as real.
 
 **The `reachable` / `occ` distinction is why this probe looks the way it
 does.** The first version clamped every element's centre point into the
@@ -189,7 +203,7 @@ The `check:ui` table IS the receipt — paste the surface × viewport lines, the
 coverage line and the screenshot directory:
 
 ```
-PASS     lobby           1440x900x2   cards n39 zero0 occ1 stranded0 | ctrls … | starved2 | axe s1/c0
+PASS     lobby           1440x900x2   cards n39 zero0 occ1 stranded0 | ctrls … | starved2 | small0 | axe s1/c0
 PASS     lobby           390x844x3    …
 PASS     lobby           844x390x3    …
 PASS     lobby           820x1180x2   …

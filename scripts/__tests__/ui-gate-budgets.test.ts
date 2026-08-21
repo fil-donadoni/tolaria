@@ -98,6 +98,26 @@ describe("check:ui budgets — a clean measured run", () => {
             expect(ev.failures.join(" ")).toContain(`${key} 1 > 0`);
         }
     });
+
+    it("gates sub-44px tap targets: a surface regressing from 44px to 22px controls goes red (issue #2658)", () => {
+        // A surface budgeted with zero known-small controls at this
+        // viewport — the ceiling the touch-target regression must not cross.
+        const budgets = budgetFile({
+            lobby: budgeted({ "390x844x3": metrics({ small: 0 }) }),
+        });
+
+        // The run measures 3 controls under 44px on the same surface —
+        // exactly the "48x22 status chip" shape from the issue's evidence.
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "390x844x3", metrics({ small: 3 }))]
+        );
+
+        expect(ev.rows[0].verdict).toBe("FAIL");
+        expect(ev.failures[0]).toContain("small 3 > 0");
+        expect(ev.measuredSurfaces).toBe(0);
+    });
 });
 
 describe("check:ui budgets — coverage is asserted, never assumed", () => {

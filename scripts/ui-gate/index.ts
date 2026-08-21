@@ -352,6 +352,7 @@ function metricsOf(probe: ProbeResult, axe: AxeCount): Ceilings {
         ctrlsOcc: probe.ctrls.occ,
         ctrlsStranded: probe.ctrls.stranded,
         starved: probe.starvedN,
+        small: probe.smallN,
         axeSerious: axe.serious,
         axeCritical: axe.critical,
     };
