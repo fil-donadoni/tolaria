@@ -1,4 +1,4 @@
-import { ConvexError, v, type GenericId } from "convex/values";
+import { ConvexError, v, type GenericId, type Infer } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, auth, getCurrentUser } from "./auth";
@@ -149,6 +149,11 @@ import {
     consumeReboundCastChoice,
 } from "./gre/rebound";
 import { assertDeckLegal, type ResolvePool } from "./formats";
+import {
+    JOIN_CODE_REJECTED,
+    findGameByJoinCode,
+    mintJoinCode,
+} from "./joinCodes";
 import { loadBanlistOverrides } from "./banlists";
 import {
     assertLimitedSeatOwnership,
@@ -4131,7 +4136,13 @@ export const listOpenGames = query({
                 // The Match owns `bestOf`; a waiting Game always has a matchId
                 // (createGame inserts both). Default to Bo1 if the Match is gone.
                 const match = g.matchId ? await ctx.db.get(g.matchId) : null;
-                return { ...g, bestOf: (match?.bestOf ?? 1) as 1 | 3 };
+                // A join code is the HOST's to share (issue #2649). This query
+                // spreads the raw row, so without the strip every open table's
+                // code would ride every other player's lobby subscription —
+                // handing out by broadcast the one thing a code is for.
+                const { joinCode, ...row } = g;
+                void joinCode;
+                return { ...row, bestOf: (match?.bestOf ?? 1) as 1 | 3 };
             })
         );
     },
@@ -4271,6 +4282,16 @@ export const createGame = mutation({
             gameNumber: 1,
             status: "waiting",
             players: toGamePlayers([player]),
+            // "Join by code" (issue #2649). This is the ONLY producer of a
+            // join code: a public, human-vs-human, engine-mode table waiting
+            // for a second seat. Every other `insertGameWithDecks` call site
+            // is solo, vs-AI, Tabletop, addressed to one Limited seat, or a
+            // Game 2+ of a match already under way — none has a second seat to
+            // sell to a stranger, so none gets a code (`isCodeJoinableGame`
+            // re-checks the same class on the way in, fail-closed).
+            // Randomness at the mutation site, the pure part in
+            // `joinCodes.ts` — same split as `pickCoinTossWinner` below.
+            joinCode: await mintJoinCode(ctx, Math.random),
             createdAt: now,
             updatedAt: now,
         });
@@ -5071,6 +5092,156 @@ export const chooseFirstPlayer = mutation({
     },
 });
 
+/** Resolves the game a join attempt is aimed at, AFTER the caller-shaped
+ *  guards and BEFORE the game-shaped ones. The only thing the two join entry
+ *  points differ by (issue #2649): `joinGame` gets a client-supplied
+ *  `Id<"games">`, `joinGameByCode` gets a code it resolves server-side.
+ *  Throwing from here is how each entry point words its own "no such game". */
+type JoinTargetResolver = (
+    ctx: MutationCtx
+) => Promise<Doc<"games"> | null | undefined>;
+
+/** The whole of a second-seat join: twelve guards in a fixed order, then the
+ *  seat write and the Match's coin-toss gate.
+ *
+ *  Extracted from `joinGame` (issue #2649) so "join by code" reuses it rather
+ *  than re-implementing the guard sequence — two copies drift, and the copy is
+ *  the one that silently misses the NEXT Limited-challenge gate someone adds.
+ *  Nothing here knows how the game was addressed. */
+async function joinWaitingGame(
+    ctx: MutationCtx,
+    args: {
+        deck: Infer<typeof deckValidator>;
+        bgColor?: string;
+    },
+    resolveTarget: JoinTargetResolver
+): Promise<{ gameId: Id<"games"> }> {
+    // ADR 0080 — a manual-format deck is rejected by the real engine.
+    if (args.deck.format === "manual")
+        throw new Error(
+            "Tabletop decks cannot start a real game. Play a Tabletop game instead."
+        );
+    const user = await getCurrentUser(ctx);
+    // #155 (match-scoped): reject joining when the user already occupies
+    // another active match (their own waiting room or an in-progress match).
+    if (await findActiveMatchForUser(ctx, user._id))
+        throw new Error(ACTIVE_GAME_MESSAGE);
+    const game = await resolveTarget(ctx);
+    if (!game) throw new Error("Game not found");
+    const gameId = game._id;
+    if (game.status !== "waiting") throw new Error("Game is not open");
+    if (game.players.length >= 2) throw new Error("Game is full");
+    if (game.players.some((p) => p.id === user._id))
+        throw new Error("Cannot join a game you are already in");
+    // Limited Event challenge (issue #1577): a challenge Game is PRIVATE to
+    // the two paired seats — only the addressed opponent may accept it, and
+    // only with a deck from the SAME event (the "reject pairing decks from
+    // different events" AC). A non-challenge open game skips both checks.
+    if (game.limitedChallenge) {
+        if (user._id !== game.limitedChallenge.challengedUserId)
+            throw new Error("This challenge is not addressed to you.");
+        assertSameEventDeck(
+            args.deck.limitedEventId,
+            game.limitedEventId ?? ""
+        );
+        // A PHASE question, never a status literal (ADR 0076 decision 1):
+        // free challenges are withdrawn while the event's Swiss rounds are
+        // running (PRD #1628 story 36, issue #1648) — the round pairing is
+        // the only Match a seat plays. `challengeLimitedSeat` already
+        // rejects CREATING a free challenge once rounds are running, but a
+        // free challenge sent during deckbuild is still a `waiting` row
+        // when the phase flips to `playing` (nothing cancels it —
+        // `openPlayPhaseIfReady` only patches status/rounds), so the ACCEPT
+        // side needs the identical gate or the challenged seat can still
+        // join it, landing both players in a live event-bound Match
+        // outside the pairing and burning the single-active-Match slot the
+        // pairing needs. A round pairing Match carries BOTH
+        // `limitedChallenge` AND `limitedPairing` (`startPairingMatch`) —
+        // that accept path must stay open even while rounds run, since it
+        // IS the round, so the gate applies only to a "free" challenge
+        // Game (no `limitedPairing`).
+        if (!game.limitedPairing && game.limitedEventId) {
+            const event = await ctx.db.get(
+                game.limitedEventId as Id<"limitedEvents">
+            );
+            if (event && areRoundsRunning(event.status))
+                throw new Error(
+                    "Free challenges are off while this event's rounds are running."
+                );
+        }
+    }
+    // A round pairing Match (issue #1645) is an appointment between two
+    // SEATS: the accepting player must sit down with the deck of the seat
+    // the pairing actually names, not merely with a deck from the same
+    // event. (`limitedPairing.seatB` is the addressed side — `seatA` is
+    // whoever started it.)
+    if (
+        game.limitedPairing &&
+        args.deck.limitedSeatId !== String(game.limitedPairing.seatB)
+    ) {
+        throw new Error(
+            "This Match is your round pairing — accept it with that seat's deck."
+        );
+    }
+    // Authoritative deck legality gate (ADR 0036): the joiner's deck must be
+    // legal for its declared format before the Match flips to "playing".
+    // The DB banlist override (PRD #1138, issue #1144) is loaded first so a
+    // joiner can't sneak in a DB-banned card even on a stale client.
+    assertDeckLegal(
+        args.deck,
+        undefined,
+        await loadBanlistOverrides(ctx, args.deck.format),
+        await loadLimitedPoolResolver(ctx, args.deck, user._id)
+    );
+
+    const player: PlayerInput = {
+        id: user._id,
+        name: user.nickname,
+        bgColor: args.bgColor ?? PLAYER_COLORS[1],
+        deck: args.deck,
+    };
+    // The host's decklist lives in `gameDecks` now (issue #2506) — hydrate
+    // it, because the seats written back must carry BOTH decks.
+    const allPlayers = [
+        ...(await hydrateGameSeats(ctx, game)),
+        ...toGamePlayers([player]),
+    ];
+    const now = Date.now();
+
+    // Complete the owning Match and open the G1 coin-toss gate (CR
+    // 103.2-103.4): add the joiner's deck snapshot, flip the Match to
+    // "pregame", and record the toss winner as the play/draw chooser. Game 1
+    // is NOT built yet — `chooseFirstPlayer` builds it once the choice lands.
+    if (game.matchId) {
+        const match = await ctx.db.get(game.matchId);
+        if (match) {
+            const joiner = buildMatchPlayers([player])[0];
+            const tossWinnerId = pickCoinTossWinner(
+                [...match.players, joiner],
+                Math.random()
+            );
+            await appendMatchSeat(ctx, match, joiner, {
+                status: "pregame",
+                playDrawChooserId: tossWinnerId,
+                updatedAt: now,
+            });
+        }
+    }
+
+    // Update game record (no gameStates row until the toss is resolved).
+    await patchGameSeats(ctx, gameId, allPlayers, {
+        status: "pregame",
+        // The join code's lifetime IS the `waiting` window (issue #2649):
+        // clearing it here is what makes every stale code fail closed, at
+        // the single point every second-seat join passes through. A code
+        // is never recycled or re-issued — a table that has started has no
+        // code at all, so there is nothing left for an old code to name.
+        joinCode: undefined,
+        updatedAt: now,
+    });
+    return { gameId };
+}
+
 export const joinGame = mutation({
     args: {
         gameId: v.id("games"),
@@ -5078,121 +5249,32 @@ export const joinGame = mutation({
         bgColor: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        // ADR 0080 — a manual-format deck is rejected by the real engine.
-        if (args.deck.format === "manual")
-            throw new Error(
-                "Tabletop decks cannot start a real game. Play a Tabletop game instead."
-            );
-        const user = await getCurrentUser(ctx);
-        // #155 (match-scoped): reject joining when the user already occupies
-        // another active match (their own waiting room or an in-progress match).
-        if (await findActiveMatchForUser(ctx, user._id))
-            throw new Error(ACTIVE_GAME_MESSAGE);
-        const game = await ctx.db.get(args.gameId);
-        if (!game) throw new Error("Game not found");
-        if (game.status !== "waiting") throw new Error("Game is not open");
-        if (game.players.length >= 2) throw new Error("Game is full");
-        if (game.players.some((p) => p.id === user._id))
-            throw new Error("Cannot join a game you are already in");
-        // Limited Event challenge (issue #1577): a challenge Game is PRIVATE to
-        // the two paired seats — only the addressed opponent may accept it, and
-        // only with a deck from the SAME event (the "reject pairing decks from
-        // different events" AC). A non-challenge open game skips both checks.
-        if (game.limitedChallenge) {
-            if (user._id !== game.limitedChallenge.challengedUserId)
-                throw new Error("This challenge is not addressed to you.");
-            assertSameEventDeck(
-                args.deck.limitedEventId,
-                game.limitedEventId ?? ""
-            );
-            // A PHASE question, never a status literal (ADR 0076 decision 1):
-            // free challenges are withdrawn while the event's Swiss rounds are
-            // running (PRD #1628 story 36, issue #1648) — the round pairing is
-            // the only Match a seat plays. `challengeLimitedSeat` already
-            // rejects CREATING a free challenge once rounds are running, but a
-            // free challenge sent during deckbuild is still a `waiting` row
-            // when the phase flips to `playing` (nothing cancels it —
-            // `openPlayPhaseIfReady` only patches status/rounds), so the ACCEPT
-            // side needs the identical gate or the challenged seat can still
-            // join it, landing both players in a live event-bound Match
-            // outside the pairing and burning the single-active-Match slot the
-            // pairing needs. A round pairing Match carries BOTH
-            // `limitedChallenge` AND `limitedPairing` (`startPairingMatch`) —
-            // that accept path must stay open even while rounds run, since it
-            // IS the round, so the gate applies only to a "free" challenge
-            // Game (no `limitedPairing`).
-            if (!game.limitedPairing && game.limitedEventId) {
-                const event = await ctx.db.get(
-                    game.limitedEventId as Id<"limitedEvents">
-                );
-                if (event && areRoundsRunning(event.status))
-                    throw new Error(
-                        "Free challenges are off while this event's rounds are running."
-                    );
-            }
-        }
-        // A round pairing Match (issue #1645) is an appointment between two
-        // SEATS: the accepting player must sit down with the deck of the seat
-        // the pairing actually names, not merely with a deck from the same
-        // event. (`limitedPairing.seatB` is the addressed side — `seatA` is
-        // whoever started it.)
-        if (
-            game.limitedPairing &&
-            args.deck.limitedSeatId !== String(game.limitedPairing.seatB)
-        ) {
-            throw new Error(
-                "This Match is your round pairing — accept it with that seat's deck."
-            );
-        }
-        // Authoritative deck legality gate (ADR 0036): the joiner's deck must be
-        // legal for its declared format before the Match flips to "playing".
-        // The DB banlist override (PRD #1138, issue #1144) is loaded first so a
-        // joiner can't sneak in a DB-banned card even on a stale client.
-        assertDeckLegal(
-            args.deck,
-            undefined,
-            await loadBanlistOverrides(ctx, args.deck.format),
-            await loadLimitedPoolResolver(ctx, args.deck, user._id)
-        );
+        await joinWaitingGame(ctx, args, (c) => c.db.get(args.gameId));
+    },
+});
 
-        const player: PlayerInput = {
-            id: user._id,
-            name: user.nickname,
-            bgColor: args.bgColor ?? PLAYER_COLORS[1],
-            deck: args.deck,
-        };
-        // The host's decklist lives in `gameDecks` now (issue #2506) — hydrate
-        // it, because the seats written back must carry BOTH decks.
-        const allPlayers = [
-            ...(await hydrateGameSeats(ctx, game)),
-            ...toGamePlayers([player]),
-        ];
-        const now = Date.now();
-
-        // Complete the owning Match and open the G1 coin-toss gate (CR
-        // 103.2-103.4): add the joiner's deck snapshot, flip the Match to
-        // "pregame", and record the toss winner as the play/draw chooser. Game 1
-        // is NOT built yet — `chooseFirstPlayer` builds it once the choice lands.
-        if (game.matchId) {
-            const match = await ctx.db.get(game.matchId);
-            if (match) {
-                const joiner = buildMatchPlayers([player])[0];
-                const tossWinnerId = pickCoinTossWinner(
-                    [...match.players, joiner],
-                    Math.random()
-                );
-                await appendMatchSeat(ctx, match, joiner, {
-                    status: "pregame",
-                    playDrawChooserId: tossWinnerId,
-                    updatedAt: now,
-                });
-            }
-        }
-
-        // Update game record (no gameStates row until the toss is resolved).
-        await patchGameSeats(ctx, args.gameId, allPlayers, {
-            status: "pregame",
-            updatedAt: now,
+/** "Join by code" (issue #2649). The code is resolved INSIDE the mutation that
+ *  joins — there is deliberately no `resolveJoinCode(code) → gameId` query for
+ *  a client to feed back: that would both trust a client-supplied id and turn
+ *  the code space into an enumerable oracle for game and host names.
+ *
+ *  Every way a code can fail to name an open table — unknown, malformed,
+ *  stale, already started, already full, or naming a class of game codes are
+ *  not issued for — produces the SAME message (`JOIN_CODE_REJECTED`), so the
+ *  failure never reveals what the game was. Everything past the resolution is
+ *  the shared `joinWaitingGame` body, guard for guard identical to `joinGame`. */
+export const joinGameByCode = mutation({
+    args: {
+        code: v.string(),
+        deck: deckValidator,
+        bgColor: v.optional(v.string()),
+    },
+    returns: v.object({ gameId: v.id("games") }),
+    handler: async (ctx, args) => {
+        return await joinWaitingGame(ctx, args, async (c) => {
+            const game = await findGameByJoinCode(c, args.code);
+            if (!game) throw new Error(JOIN_CODE_REJECTED);
+            return game;
         });
     },
 });

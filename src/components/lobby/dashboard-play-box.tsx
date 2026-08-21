@@ -35,6 +35,10 @@ interface DashboardPlayBoxProps {
     onCreateSolo: () => void;
     onCreateManual: () => void;
     onCreateMultiplayer: () => void;
+    /** Opens the code-entry dialog (issue #2649). The 4th Arena action; the
+     *  join mutation only fires once a code has been typed and confirmed, so
+     *  this callback opens a dialog rather than joining. */
+    onJoinByCode: () => void;
     onJoin: (gameId: Id<"games">) => void;
     onChangeDeck: () => void;
     /** Bo1/Bo3 for the Solo and Multiplayer actions (PRD #387). The
@@ -57,6 +61,7 @@ export default function DashboardPlayBox({
     onCreateSolo,
     onCreateManual,
     onCreateMultiplayer,
+    onJoinByCode,
     onJoin,
     onChangeDeck,
     matchFormat,
@@ -192,15 +197,16 @@ export default function DashboardPlayBox({
                 {/* The action set is swapped by mode (ADR 0101 §10), not
                     merely gated per-button: Cockatrice offers only Solo table
                     / Open a table, Arena only Play vs Bot / Solo game / Open
-                    a table — the OTHER mode's actions don't render at all,
-                    so "not offered" (issue #2591 AC) means absent from the
-                    DOM, not just disabled. */}
-                <div
-                    className={cn(
-                        "grid gap-3",
-                        isCockatrice ? "grid-cols-2" : "grid-cols-3"
-                    )}
-                >
+                    a table / Join by code — the OTHER mode's actions don't
+                    render at all, so "not offered" (issue #2591 AC) means
+                    absent from the DOM, not just disabled.
+
+                    Two columns in BOTH modes (issue #2649): Arena's 4th
+                    action turned the old `grid-cols-3` into a 3+1 orphan row,
+                    and a `grid-cols-4` puts four labels in ~85px each at
+                    390px wide. 2x2 is the one arrangement that holds at every
+                    viewport the UI gate walks. */}
+                <div className="grid grid-cols-2 gap-3">
                     {isCockatrice ? (
                         <>
                             <ActionButton
@@ -234,6 +240,12 @@ export default function DashboardPlayBox({
                                 onClick={onCreateMultiplayer}
                                 disabled={!canAct}
                                 label="Open a table"
+                                tone="secondary"
+                            />
+                            <ActionButton
+                                onClick={onJoinByCode}
+                                disabled={!canAct}
+                                label="Join by code"
                                 tone="secondary"
                             />
                         </>

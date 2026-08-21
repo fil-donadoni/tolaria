@@ -16,6 +16,7 @@ const navigate = vi.fn();
 const createSoloGame = vi.fn().mockResolvedValue("solo-game-1");
 const createGame = vi.fn().mockResolvedValue("game-1");
 const joinGame = vi.fn().mockResolvedValue(undefined);
+const joinGameByCode = vi.fn().mockResolvedValue({ gameId: "game-9" });
 const deletePreset = vi.fn();
 const joinLimitedEvent = vi.fn().mockResolvedValue(null);
 
@@ -155,8 +156,12 @@ async function renderLobby(
         // Order must mirror the `useMutation` calls in `lobby.tsx`:
         // deletePreset, createGame, createSoloGame, createManualSoloGame,
         // createManualGame, joinGame, joinManualGame, joinLimitedEvent (issue
-        // #2648). Wiring a mutation at the Lobby level extends this array —
-        // update its length AND the doc comment together.
+        // #2648), joinGameByCode (issue #2649). Wiring a mutation at the Lobby
+        // level extends this array — update its length AND the doc comment
+        // together. APPEND ONLY: a hook inserted mid-list in `lobby.tsx`
+        // re-routes every mock after it with NO failing assertion, so this
+        // array's order and `lobby.tsx`'s `useMutation` order must match
+        // element for element.
         const createManualSoloGame = vi.fn().mockResolvedValue("manual-game-1");
         const createManualGame = vi.fn().mockResolvedValue("manual-game-2");
         const joinManualGame = vi.fn().mockResolvedValue(null);
@@ -169,6 +174,7 @@ async function renderLobby(
             joinGame,
             joinManualGame,
             joinLimitedEvent,
+            joinGameByCode,
         ];
         return handlers[idx % handlers.length];
     });
@@ -508,5 +514,89 @@ describe("Lobby compact deck row actions (issue #2591)", () => {
                 id: "userdeck-manual-1",
             });
         });
+    });
+});
+
+// "Join by code" (issue #2649) — the frontend half of the wiring analysis:
+// the Arena action set offers the 4th action, it opens a dialog rather than
+// firing anything, and Confirm reaches `api.game.joinGameByCode` with the
+// NORMALIZED code. A code is never resolved to a game id client-side, so
+// there is no lookup query to assert on — the mutation call IS the contract.
+describe("Lobby join-by-code flow (issue #2649)", () => {
+    it("offers 'Join by code' in Arena mode and opens the dialog without joining", async () => {
+        const { getByText, getByLabelText } = await renderLobby();
+        fireEvent.click(getByText("Join by code"));
+        expect(joinGameByCode).not.toHaveBeenCalled();
+        expect(getByLabelText(/Join code/i)).toBeTruthy();
+    });
+
+    it("does NOT offer it in Cockatrice mode", async () => {
+        localStorage.setItem("tolaria:playMode", "cockatrice");
+        const { queryByText } = await renderLobby();
+        expect(queryByText("Join by code")).toBeNull();
+    });
+
+    it("submits the code NORMALIZED, not as typed", async () => {
+        const { getByText, getByLabelText, getByRole } = await renderLobby();
+        fireEvent.click(getByText("Join by code"));
+        // Typed the way a human would after hearing it read out: lower case,
+        // with the grouping dash, and with an "oh" for the zero.
+        fireEvent.change(getByLabelText(/Join code/i), {
+            target: { value: "k3m-9xo" },
+        });
+        fireEvent.click(getByRole("button", { name: "Join table" }));
+        await vi.waitFor(() => {
+            expect(joinGameByCode).toHaveBeenCalledTimes(1);
+        });
+        expect(joinGameByCode.mock.calls[0]![0].code).toBe("K3M9X0");
+    });
+
+    it("keeps Join inert until six alphabet characters are present", async () => {
+        const { getByText, getByLabelText, getByRole } = await renderLobby();
+        fireEvent.click(getByText("Join by code"));
+        const join = getByRole("button", { name: "Join table" });
+        expect((join as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.change(getByLabelText(/Join code/i), {
+            target: { value: "K3M9X" },
+        });
+        expect((join as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.change(getByLabelText(/Join code/i), {
+            target: { value: "K3M9XZ" },
+        });
+        expect((join as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it("shows the server's rejection in the dialog instead of closing it", async () => {
+        joinGameByCode.mockRejectedValueOnce(
+            new Error(
+                "That join code doesn't match a table that's open right now."
+            )
+        );
+        const {
+            getByText,
+            getByLabelText,
+            getByRole,
+            findByRole,
+            queryByRole,
+        } = await renderLobby();
+        fireEvent.click(getByText("Join by code"));
+        fireEvent.change(getByLabelText(/Join code/i), {
+            target: { value: "ZZZZZZ" },
+        });
+        fireEvent.click(getByRole("button", { name: "Join table" }));
+        const alert = await findByRole("alert");
+        expect(alert.textContent).toContain("open right now");
+        // Still open — the user has to see WHY before retyping.
+        expect(getByLabelText(/Join code/i)).toBeTruthy();
+        expect(navigate).not.toHaveBeenCalledWith({ to: "/game" });
+
+        // Reopening starts clean: a stale rejection banner would read as a
+        // verdict on the code the user is about to type.
+        fireEvent.click(getByRole("button", { name: "Cancel" }));
+        fireEvent.click(getByText("Join by code"));
+        expect(queryByRole("alert")).toBeNull();
+        expect((getByLabelText(/Join code/i) as HTMLInputElement).value).toBe(
+            ""
+        );
     });
 });

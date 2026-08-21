@@ -435,12 +435,20 @@ export default defineSchema({
                 seatB: v.number(),
             })
         ),
+        /** Short human-typeable code for "Join by code" (issue #2649). Minted
+         *  by `createGame` for a public Arena table and CLEARED the moment the
+         *  table leaves `waiting` — so the field's presence IS the code's
+         *  lifetime, and a stale code cannot resolve to anything. Only
+         *  `convex/joinCodes.ts` reads or writes it; `listOpenGames` strips it
+         *  so one player's code never rides another player's subscription. */
+        joinCode: v.optional(v.string()),
         createdAt: v.number(),
         updatedAt: v.number(),
     })
         .index("by_status", ["status"])
         .index("by_match", ["matchId"])
-        .index("by_limited_event", ["limitedEventId"]),
+        .index("by_limited_event", ["limitedEventId"])
+        .index("by_join_code", ["joinCode"]),
     // One seat's decklist, split out of `games.players[].deck.cards` (issue
     // #2506) — the same move `limitedSeats` made out of `limitedEvents.seats[]`
     // (see that table's comment for the general shape of the argument).

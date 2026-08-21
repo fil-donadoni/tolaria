@@ -2,7 +2,7 @@
 // 12 / #397): a joiner inherits the creator's `bestOf`, surfaced as a "Bo3
 // Match" / "Bo1 Match" badge on each open-game row. See `../dashboard-play-box`.
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, cleanup } from "@testing-library/react";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import DashboardPlayBox, { type OpenGame } from "../dashboard-play-box";
 
@@ -49,6 +49,7 @@ function renderBox(openGames: OpenGame[], onJoin = vi.fn()) {
                 onModeChange={vi.fn()}
                 onCreateSolo={vi.fn()}
                 onCreateManual={vi.fn()}
+                onJoinByCode={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
                 onJoin={onJoin}
@@ -107,6 +108,7 @@ describe("DashboardPlayBox compact selected-deck tile (ADR 0101 §10, issue #259
                 onModeChange={vi.fn()}
                 onCreateSolo={vi.fn()}
                 onCreateManual={vi.fn()}
+                onJoinByCode={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
                 onJoin={vi.fn()}
@@ -163,6 +165,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
                     onModeChange={vi.fn()}
                     onCreateSolo={handlers.onCreateSolo}
                     onCreateManual={handlers.onCreateManual}
+                    onJoinByCode={vi.fn()}
                     onCreateVsAi={handlers.onCreateVsAi}
                     onCreateMultiplayer={handlers.onCreateMultiplayer}
                     onJoin={vi.fn()}
@@ -209,6 +212,7 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
                     onModeChange={vi.fn()}
                     onCreateSolo={vi.fn()}
                     onCreateManual={vi.fn()}
+                    onJoinByCode={vi.fn()}
                     onCreateVsAi={onCreateVsAi}
                     onCreateMultiplayer={vi.fn()}
                     onJoin={vi.fn()}
@@ -253,6 +257,7 @@ describe("DashboardPlayBox match format selector", () => {
                     onModeChange={vi.fn()}
                     onCreateSolo={vi.fn()}
                     onCreateManual={vi.fn()}
+                    onJoinByCode={vi.fn()}
                     onCreateVsAi={vi.fn()}
                     onCreateMultiplayer={vi.fn()}
                     onJoin={vi.fn()}
@@ -315,6 +320,7 @@ describe("DashboardPlayBox mode gating (ADR 0101 §10, issue #2591)", () => {
                     onModeChange={vi.fn()}
                     onCreateSolo={handlers.onCreateSolo}
                     onCreateManual={handlers.onCreateManual}
+                    onJoinByCode={vi.fn()}
                     onCreateVsAi={handlers.onCreateVsAi}
                     onCreateMultiplayer={handlers.onCreateMultiplayer}
                     onJoin={vi.fn()}
@@ -378,5 +384,92 @@ describe("DashboardPlayBox mode gating (ADR 0101 §10, issue #2591)", () => {
         const { getByText } = renderWith("cockatrice", MANUAL);
         expect(button(getByText, "Solo table").disabled).toBe(false);
         expect(button(getByText, "Open a table").disabled).toBe(false);
+    });
+});
+
+// The 4th Arena action (issue #2649). It is part of the MODE-SWAPPED set, so
+// "not offered in Cockatrice" means absent from the DOM, not disabled — and
+// it obeys the same `canAct` gate as the other three, since joining a table
+// still needs a legal, mode-matching deck.
+describe("DashboardPlayBox join-by-code action (issue #2649)", () => {
+    function renderArena(
+        selectedDeck: LobbyDeck | null,
+        overrides: Partial<{ hasActiveGame: boolean; busy: boolean }> = {}
+    ) {
+        const onJoinByCode = vi.fn();
+        return {
+            onJoinByCode,
+            ...render(
+                <DashboardPlayBox
+                    selectedDeck={selectedDeck}
+                    openGames={[]}
+                    mode="arena"
+                    onModeChange={vi.fn()}
+                    onCreateSolo={vi.fn()}
+                    onCreateManual={vi.fn()}
+                    onJoinByCode={onJoinByCode}
+                    onCreateVsAi={vi.fn()}
+                    onCreateMultiplayer={vi.fn()}
+                    onJoin={vi.fn()}
+                    onChangeDeck={vi.fn()}
+                    matchFormat={1}
+                    onMatchFormatChange={vi.fn()}
+                    busy={overrides.busy}
+                    hasActiveGame={overrides.hasActiveGame}
+                />
+            ),
+        };
+    }
+
+    it("renders as the 4th Arena action and delegates on click", () => {
+        const { getByText, onJoinByCode } = renderArena(DECK);
+        const btn = getByText("Join by code").closest(
+            "button"
+        ) as HTMLButtonElement;
+        expect(btn.disabled).toBe(false);
+        fireEvent.click(btn);
+        expect(onJoinByCode).toHaveBeenCalledTimes(1);
+    });
+
+    it("shares the canAct gate — no deck, or an active game, disables it", () => {
+        for (const props of [
+            { deck: null as LobbyDeck | null, over: {} },
+            { deck: DECK as LobbyDeck | null, over: { hasActiveGame: true } },
+            { deck: DECK as LobbyDeck | null, over: { busy: true } },
+        ]) {
+            cleanup();
+            const { getByText, onJoinByCode } = renderArena(
+                props.deck,
+                props.over
+            );
+            const btn = getByText("Join by code").closest(
+                "button"
+            ) as HTMLButtonElement;
+            expect(btn.disabled).toBe(true);
+            fireEvent.click(btn);
+            expect(onJoinByCode).not.toHaveBeenCalled();
+        }
+    });
+
+    it("is absent from the DOM in Cockatrice mode, not merely disabled", () => {
+        cleanup();
+        const { queryByText } = render(
+            <DashboardPlayBox
+                selectedDeck={null}
+                openGames={[]}
+                mode="cockatrice"
+                onModeChange={vi.fn()}
+                onCreateSolo={vi.fn()}
+                onCreateManual={vi.fn()}
+                onJoinByCode={vi.fn()}
+                onCreateVsAi={vi.fn()}
+                onCreateMultiplayer={vi.fn()}
+                onJoin={vi.fn()}
+                onChangeDeck={vi.fn()}
+                matchFormat={1}
+                onMatchFormatChange={vi.fn()}
+            />
+        );
+        expect(queryByText("Join by code")).toBeNull();
     });
 });

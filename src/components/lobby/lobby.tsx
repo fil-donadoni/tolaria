@@ -50,6 +50,7 @@ import ActionButton from "~/components/board/action-button";
 import DashboardPlayBox from "./dashboard-play-box";
 import DashboardLimitedBox from "./dashboard-limited-box";
 import VsAiSetupDialog from "./vs-ai-setup-dialog";
+import JoinByCodeDialog from "./join-by-code-dialog";
 import DeckList from "./deck-list";
 import DeckRowMenu from "./deck-row-menu";
 import DeckFormatFilter from "./deck-format-filter";
@@ -67,6 +68,7 @@ function Lobby() {
     // second step) where difficulty / AI deck are chosen; the match starts only
     // on Confirm. Match format is picked in the Play box, not here.
     const [vsAiOpen, setVsAiOpen] = useState(false);
+    const [joinByCodeOpen, setJoinByCodeOpen] = useState(false);
     const [difficulty, setDifficulty] = useState<Difficulty>(() =>
         getStoredDifficulty()
     );
@@ -112,6 +114,13 @@ function Lobby() {
     const joinLimitedEventMutation = useMutation(
         api.limitedEvents.joinLimitedEvent
     );
+    // "Join by code" (issue #2649). APPEND-ONLY position, and it must stay
+    // LAST: `lobby.test.tsx` mocks `useMutation` by CALL ORDER
+    // (`mutCall % handlers.length`), so a new hook inserted anywhere but the
+    // end silently re-routes every mock after it with no failing assertion.
+    // The `handlers` array over there ends with `joinGameByCode` for exactly
+    // this reason — the two orders are one fact written twice.
+    const joinGameByCode = useMutation(api.game.joinGameByCode);
     const openGames = useQuery(
         api.game.listOpenGames,
         pageVisible ? {} : "skip"
@@ -309,6 +318,29 @@ function Lobby() {
             }
             return { gameId: targetGameId, playerId: user._id };
         });
+
+    /** Confirm step of the code-entry dialog (issue #2649). Deliberately NOT
+     *  routed through `enterGame`: that helper swallows the failure into the
+     *  lobby-wide error banner, and a rejected code has to come back to the
+     *  dialog the user is still looking at. So this REJECTS on failure and the
+     *  dialog renders the server's message — the only verdict on a code there
+     *  is. The code is never resolved to a game id client-side; the mutation
+     *  resolves it server-side and returns the game it seated us in. */
+    const handleJoinByCode = async (code: string) => {
+        if (isBusy || !selectedDeck || !user) return;
+        setIsBusy(true);
+        setActionError(null);
+        try {
+            const { gameId } = await joinGameByCode({
+                code,
+                deck: deckPayload(selectedDeck),
+            });
+            storeSession(gameId, user._id);
+            void navigate({ to: "/game" });
+        } finally {
+            setIsBusy(false);
+        }
+    };
 
     const handleBrowseLimitedEvents = () => {
         void navigate({ to: "/limited" });
@@ -578,6 +610,7 @@ function Lobby() {
                     mode={playMode}
                     onModeChange={handlePlayModeChange}
                     onCreateVsAi={() => setVsAiOpen(true)}
+                    onJoinByCode={() => setJoinByCodeOpen(true)}
                     onCreateSolo={handleCreateSolo}
                     onCreateManual={handleCreateTabletop}
                     onCreateMultiplayer={handleCreate}
@@ -663,6 +696,11 @@ function Lobby() {
                 <LobbyFooter />
             </div>
 
+            <JoinByCodeDialog
+                open={joinByCodeOpen}
+                onOpenChange={setJoinByCodeOpen}
+                onSubmit={handleJoinByCode}
+            />
             <VsAiSetupDialog
                 open={vsAiOpen}
                 onOpenChange={setVsAiOpen}
