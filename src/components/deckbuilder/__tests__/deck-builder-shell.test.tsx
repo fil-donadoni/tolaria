@@ -14,7 +14,7 @@
 //     when — its slot/prop was supplied, which is what makes the third
 //     declared variant (the draft-time Pool, ADR 0075 §6) expressible without
 //     reopening the shell.
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { DragDropManager } from "@dnd-kit/dom";
 import { dragOnto, installDndJsdomShims } from "./dragHarness";
@@ -25,6 +25,7 @@ import {
 } from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
 import { cardBase } from "~/lib/cardSizing";
+import { DECK_SOURCE_DOCK_QUERY } from "~/hooks/useDeckSourceDock";
 import DeckBuilderShell, {
     type DeckBuilderShellProps,
 } from "../deck-builder-shell";
@@ -404,5 +405,82 @@ describe("DeckBuilderShell — mounted drag (issue #1622)", () => {
 
         expect(onMoveToSideboard).toHaveBeenCalledWith(BOLT_ID, BOLT_ID);
         expect(onPin).not.toHaveBeenCalled();
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// The source-DOCK basics-bar fold (issue #2585 review finding #3, PR #2653
+// round-3 review finding #2). `isSourceDock` (`deck-builder-shell.tsx`) has
+// two independent inputs — `Boolean(sourcePanel)` (review finding #5's own
+// gate) AND `useDeckSourceDock()`'s viewport predicate — ANDed together, and
+// neither half had a test before this block: round-3 review killed the whole
+// gate two different ways (`isSourceDock = ... && false`, which silently
+// un-folds the bar everywhere, and `isSourceDock = dockActive`, which drops
+// the `sourcePanel` gate and folds Limited's bar too) with all 535 existing
+// tests staying green.
+//
+// happy-dom DOES evaluate `DECK_SOURCE_DOCK_QUERY` (proved by
+// `basic-land-art-picker.test.tsx`'s own `matchMedia` stub, whose ABSENCE
+// reds all 9 of that file's tests), so the predicate is testable at this
+// layer: stub `matchMedia` to match ONLY `DECK_SOURCE_DOCK_QUERY` — every
+// other query (`useViewportMode`'s `PORTRAIT_QUERY` /
+// `LANDSCAPE_COMPACT_QUERY` included) reports no match, which also pins
+// `viewportMode` to `"desktop"` for free, so nothing here depends on
+// happy-dom's own default window size.
+// ────────────────────────────────────────────────────────────────────────────
+describe("DeckBuilderShell — source-dock basics-bar fold (issue #2585 review finding #3)", () => {
+    const realMatchMedia = window.matchMedia;
+
+    function stubDockViewport() {
+        (
+            window as unknown as { matchMedia: (q: string) => unknown }
+        ).matchMedia = (query: string) => ({
+            matches: query === DECK_SOURCE_DOCK_QUERY,
+            media: query,
+            addEventListener() {},
+            removeEventListener() {},
+        });
+    }
+
+    afterEach(() => {
+        window.matchMedia = realMatchMedia;
+    });
+
+    it("folds the Add Basic bar behind a trigger when a source panel is present at a dock-shaped viewport, and the trigger opens the Basics sheet", () => {
+        stubDockViewport();
+        const { queryByTestId, getByRole, getAllByTestId } = renderShell({
+            sourcePanel: {
+                label: "Search",
+                count: 1,
+                content: <div data-testid="source">results</div>,
+            },
+            basicsBar: <div data-testid="basics">Add Basic content</div>,
+        });
+
+        // The inline band is ABSENT — folded, not just visually collapsed
+        // (`DeckBasicsSheet` unmounts its children while closed).
+        expect(queryByTestId("basics")).toBeNull();
+        expect(document.querySelector("[data-basics-sheet]")).toBeNull();
+
+        const trigger = getByRole("button", { name: "Add Basic" });
+        fireEvent.click(trigger);
+
+        // The sheet opens with the bar's content, and it is the ONLY copy —
+        // the inline band (folded above) never joins it once the sheet mounts.
+        expect(document.querySelector("[data-basics-sheet]")).toBeTruthy();
+        expect(getAllByTestId("basics")).toHaveLength(1);
+    });
+
+    it("does NOT fold the Add Basic bar at a dock-shaped viewport when no source panel is supplied (round-1 finding #5's own gate) — the bar stays inline, as Limited's does", () => {
+        stubDockViewport();
+        const { getByTestId, queryByRole } = renderShell({
+            basicsBar: <div data-testid="basics">Add Basic content</div>,
+        });
+
+        // No source panel at all — the trigger this predicate would otherwise
+        // create never appears, and the band renders inline, unfolded.
+        expect(getByTestId("basics")).toBeTruthy();
+        expect(queryByRole("button", { name: "Add Basic" })).toBeNull();
+        expect(document.querySelector("[data-basics-sheet]")).toBeNull();
     });
 });

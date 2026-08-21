@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { poolSurfaceMinHeightPx } from "~/lib/cardSizing";
+import { DECK_SOURCE_DOCK_QUERY } from "~/hooks/useDeckSourceDock";
 
 const SRC = readFileSync(join(__dirname, "..", "deck-builder.tsx"), "utf8");
 // Issue #1623 moved the route root, the header band and the chrome treatment
@@ -101,5 +102,120 @@ describe("Pool deckbuilder surface — minHeight floor sweep (issue #2275)", () 
     // shortfall, which `pool-deck-builder-form.test.tsx` verifies directly.
     it("the floor at the issue's own ~246px crossover measurement is identical to the floor at the phone-landscape low (64px) — it never varies across the band the crossover sits in", () => {
         expect(poolSurfaceMinHeightPx(246)).toBe(poolSurfaceMinHeightPx(64));
+    });
+});
+
+// Issue #2585: the 50/50 `flex-1 basis-0` vertical split caps the deck pane at
+// half the free column no matter what else is trimmed — the arithmetic in
+// `docs/findings/2585-deck-pane-60-percent-needs-the-pane-split.md` shows even
+// a ZERO-height source pane leaves the deck under 60% at 1180×820. The only
+// lever that clears the AC is the source panel leaving the vertical axis and
+// becoming a bounded-WIDTH side dock at landscape-and-roomy widths, via the
+// `deck-source-dock:` custom variant (`src/index.css`). These are source-text
+// sweeps, the same legitimate pattern as the rest of this file — a render
+// assertion can't see a media-query-gated layout switch under jsdom either.
+const INDEX_CSS_SRC = readFileSync(
+    join(SHELL_DIR, "..", "..", "index.css"),
+    "utf8"
+);
+const POOL_SRC = readFileSync(
+    join(SHELL_DIR, "pool-deck-builder-form.tsx"),
+    "utf8"
+);
+
+describe("DeckBuilderShell — source-panel dock split (issue #2585)", () => {
+    it("the `deck-source-dock` variant is gated on landscape AND a 1024px width floor — not reused from `compact-chrome`'s width-only bucket", () => {
+        expect(INDEX_CSS_SRC).toContain(
+            "@custom-variant deck-source-dock (@media (orientation: landscape) and (min-width: 1024px) and (min-height: 501px));"
+        );
+    });
+
+    // Review finding #1 (PR #2653): `deck-source-dock:` and `compact-chrome:`
+    // are both `orientation: landscape` — without a height floor they
+    // OVERLAPPED at short-landscape-but-wide shapes (1280x480), and in that
+    // overlap the zones pane's `compact-chrome:flex-none compact-chrome:basis-auto`
+    // sized it along the ROW axis instead of the column, computing a
+    // 1459px-wide zones pane inside a 1280px viewport. `min-height: 501px` is
+    // one more than `compact-chrome:`'s own `max-height: 500px` ceiling, so
+    // the two ranges abut with no shared pixel — this pins that the two
+    // custom variants stay mutually exclusive by construction.
+    it("the `deck-source-dock` and `compact-chrome` variants never share a pixel — deck-source-dock requires min-height 501px, one more than compact-chrome's max-height 500px landscape branch", () => {
+        const dockMatch = INDEX_CSS_SRC.match(
+            /@custom-variant deck-source-dock \(@media[\s\S]*?min-height: (\d+)px\)\);/
+        );
+        const compactLandscapeMatch = INDEX_CSS_SRC.match(
+            /@media \(orientation: landscape\) and \(max-height: (\d+)px\)/
+        );
+        expect(dockMatch).not.toBeNull();
+        expect(compactLandscapeMatch).not.toBeNull();
+        const dockMinHeight = Number(dockMatch![1]);
+        const compactMaxHeight = Number(compactLandscapeMatch![1]);
+        expect(dockMinHeight).toBe(compactMaxHeight + 1);
+    });
+
+    it("the strip wrapper turns into a real flex ROW under the dock variant, overriding the off-portrait `contents` collapse", () => {
+        expect(SHELL_SRC).toContain(
+            "contents deck-source-dock:flex deck-source-dock:min-h-0 deck-source-dock:flex-1 deck-source-dock:flex-row"
+        );
+    });
+
+    it("the source panel keeps its base `flex-1 basis-0` height share (untouched viewports) AND gains a bounded-width `flex-none` override under the dock variant", () => {
+        expect(SHELL_SRC).toContain(
+            "min-h-0 flex-1 basis-0 overflow-y-auto border-b border-border-subtle/30 deck-source-dock:w-[22rem] deck-source-dock:max-w-[38%] deck-source-dock:flex-none deck-source-dock:self-stretch deck-source-dock:border-b-0 deck-source-dock:border-r"
+        );
+    });
+
+    // Review finding #4 (PR #2653): the original slice ran from
+    // `data-deck-pane="source"` to `{sourcePanel.content}`, which spans BOTH
+    // ternary branches of the div's `className` — so the PORTRAIT branch's
+    // own `overflow-y-auto` satisfied the assertion even with the dock
+    // (non-portrait) branch's copy deleted (proved by mutation: deleting
+    // `overflow-y-auto` from the non-portrait branch left this test green).
+    // This version captures ONLY the ternary's false branch (the dock/desktop
+    // string) via regex group, so it can't be satisfied by the portrait
+    // sibling.
+    it("the source panel's DOCK (non-portrait) branch stays a scrollable dock — `overflow-y-auto` is never dropped from that branch specifically", () => {
+        const classNameMatch = SHELL_SRC.match(
+            /data-deck-pane="source"[\s\S]*?className=\{\s*portrait\s*\?\s*"[^"]*"\s*:\s*"([^"]*)"/
+        );
+        expect(classNameMatch).not.toBeNull();
+        const dockBranchClassName = classNameMatch![1];
+        expect(dockBranchClassName).toContain("overflow-y-auto");
+    });
+
+    it("the Limited builder never supplies a `sourcePanel` — the whole dock branch is absent by construction, no `kind` check needed (ADR 0075)", () => {
+        expect(POOL_SRC).not.toMatch(/sourcePanel\s*[:=]/);
+    });
+
+    // Review round 2 finding (PR #2653): `useDeckSourceDock.ts` restates this
+    // same media query in JS (`DECK_SOURCE_DOCK_QUERY`) because folding the
+    // ADD BASIC bar is a mount-point decision only JS can make — but nothing
+    // pinned the two copies together. The reviewer changed the CSS variant's
+    // min-height from 501px to 900px and 456 files / 4782 frontend tests
+    // stayed green, which is exactly the desync this ticket exists to
+    // prevent (CSS docks the panel while the JS mirror still leaves the
+    // inline basics bar mounted). This asserts the CSS `@custom-variant`
+    // wraps the JS constant byte-for-byte, so any future edit to one without
+    // the other reds here.
+    it("the JS mirror (`DECK_SOURCE_DOCK_QUERY`) is byte-for-byte the CSS `deck-source-dock:` variant's `@media` condition", () => {
+        expect(INDEX_CSS_SRC).toContain(
+            `@custom-variant deck-source-dock (@media ${DECK_SOURCE_DOCK_QUERY});`
+        );
+    });
+
+    // Same review round: removing the `Boolean(sourcePanel)` gate around the
+    // strip wrapper's dock className (collapsing the ternary so the dock
+    // classes apply unconditionally, not only when a source panel exists)
+    // left all 519 deckbuilder tests green, because the earlier test above
+    // only checks the dock string is PRESENT somewhere in the file, not that
+    // it stays behind the `sourcePanel ?` conditional. This regex captures
+    // the whole three-way ternary (`portrait ? … : sourcePanel ? … : "contents"`)
+    // so an unconditional dock className — or a fallback other than plain
+    // `"contents"` — fails to match at all.
+    it("the strip wrapper's dock classes stay gated on `sourcePanel` — no `sourcePanel`, no `deck-source-dock:` classes, plain `contents`", () => {
+        const wrapperMatch = SHELL_SRC.match(
+            /className=\{\s*portrait\s*\?\s*"[^"]*"\s*:\s*sourcePanel\s*\?\s*"([^"]*deck-source-dock:flex[^"]*)"\s*:\s*"contents"\s*\}/
+        );
+        expect(wrapperMatch).not.toBeNull();
     });
 });

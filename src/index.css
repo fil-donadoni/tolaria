@@ -61,6 +61,43 @@
     }
 }
 
+/* Deckbuilder source-panel DOCK geometry (issue #2585). The deck pane is
+ * structurally capped at half the free column as long as the source panel and
+ * the zones pane are equal `flex-1 basis-0` siblings of one vertical stack —
+ * measured ≈39% at 1440×900 and ≈33% at 1180×820, and no chrome lever (zone
+ * toolbar collapse, ADD BASIC fold, `CARD_BASE`'s `9.5dvh` term) can close
+ * that gap (`docs/findings/2585-deck-pane-60-percent-needs-the-pane-split.md`
+ * has the arithmetic: even a ZERO-height source pane leaves the deck under 60%
+ * at 1180×820). The only lever that reaches it is the issue's own "the preview
+ * becomes a dock" clause — the source panel leaves the VERTICAL axis and
+ * becomes a bounded-width side column, handing the zones pane the WHOLE free
+ * column's height (78.7% / 65.4%, both clear 60% with margin).
+ *
+ * Gated on landscape orientation AND a `lg`-equivalent width floor, NOT on
+ * `useViewportMode()`'s three-bucket split: that hook (and `compact-chrome:`
+ * above, its CSS mirror) calls tablet-PORTRAIT 820×1180 "desktop" — same
+ * bucket as the two AC viewports this dock targets — because it is a WIDTH
+ * check with no orientation component (`useSurfaceClass.ts` documents the
+ * same mismatch). Reusing that bucket here would put the dock under a
+ * 820px-wide column too, which is the tall-narrow shape this split must NOT
+ * touch: `orientation: landscape` excludes it (820×1180 is portrait-shaped
+ * regardless of what the JS hook calls it). `min-width: 1024px` excludes the
+ * short landscape phone (844×390) on width alone — 844 < 1024 — so it stays
+ * on the stacked layout untouched too.
+ *
+ * `min-height: 501px` makes this variant and `compact-chrome:` above
+ * MUTUALLY EXCLUSIVE by construction — both are `orientation: landscape`,
+ * and without the height floor they overlapped at short-landscape-but-wide
+ * shapes (1280×480: `compact-chrome:` matches at max-height:500px, and this
+ * variant matched too at min-width:1024px). In that overlap the zones pane's
+ * `compact-chrome:flex-none compact-chrome:basis-auto` sized it along the
+ * ROW axis instead of the column — the axis trap this file already warns
+ * about below — computing a 1459px-wide zones pane inside a 1280px viewport
+ * and pushing the Sideboard pane off-screen (issue #2585 review). 501px is
+ * one more than `compact-chrome:`'s 500px ceiling, so the two ranges abut
+ * with no shared pixel. */
+@custom-variant deck-source-dock (@media (orientation: landscape) and (min-width: 1024px) and (min-height: 501px));
+
 /* ──────────────────────────────────────────────────────────────────────────
  * Single semantic palette — Antique Bronze (ADR 0007 roles, issue #592).
  *

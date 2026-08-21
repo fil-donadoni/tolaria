@@ -522,17 +522,25 @@ export default function DeckZoneSurface({
                         zoneLabel={title}
                     />
                 )}
-                {/* `min-w-0` + `md:shrink-0` (issue #2511): `shrink-0` at every
-                    width pinned this cluster at its max-content size inside a
-                    pane narrower than it, and the pane clips (`overflow-hidden`
-                    with no horizontal scroller), so the tail of the row landed
-                    OUTSIDE the viewport with no scrollable ancestor —
-                    unreachable by any gesture (4 stranded controls at 844x390,
-                    1 at 390x844). Below `md` the cluster may shrink, which lets
-                    its own `flex-wrap` do the wrapping it was always meant to.
-                    Above `md` nothing changes: `shrink-0` still protects the
-                    controls from a long zone title. */}
-                <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2 self-center md:shrink-0">
+                {/* `min-w-0`, no `shrink-0` (issue #2511, tightened by #2585
+                    review finding #2): `shrink-0` pinned this cluster at its
+                    max-content size inside a pane narrower than it, and the
+                    pane clips (`overflow-hidden` with no horizontal
+                    scroller), so the tail of the row landed OUTSIDE the
+                    viewport with no scrollable ancestor — unreachable by any
+                    gesture (4 stranded controls at 844x390, 1 at 390x844).
+                    It used to apply only above `md` (`md:shrink-0`), leaving
+                    the default shrinkable below `md` so `flex-wrap` could do
+                    the wrapping it was always meant to; but the source-panel
+                    dock (#2585) narrows the zones pane at 1440x900/1180x820
+                    too — both >= `md` — so `md:shrink-0` pinned this cluster
+                    THERE as well, stranding/occluding 4 more controls at the
+                    headline desktop viewport. Dropping `shrink-0` outright
+                    (not just its `md:` gate) lets the cluster shrink and wrap
+                    at every width — measured back to 0/0 stranded/occluded at
+                    all five viewports, and it also clears the pre-existing
+                    820x1180 debt (9 stranded/2 occ -> 0/0). */}
+                <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2 self-center">
                     {/* Issue #2511: two zones x ~98px of control rows is a
                         fifth of a phone's viewport spent on affordances that
                         refine a view the player cannot see yet. Folded behind
