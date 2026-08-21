@@ -82,6 +82,61 @@ export interface ViewportBudget extends Ceilings {
     knownDebt?: string;
 }
 
+/** One `cards`/`ctrls` bucket out of `probe.js`'s result (issue #2580). */
+export interface ProbeCounts {
+    n: number;
+    zero: number;
+    occ: number;
+    reachable: number;
+    stranded: number;
+}
+
+/** The raw shape `probe.js` (browser-side) hands back for one viewport. */
+export interface ProbeResult {
+    vp: string;
+    cards: ProbeCounts;
+    ctrls: ProbeCounts;
+    starvedN: number;
+    starved: unknown[];
+    smallN: number;
+    tinyText: number;
+    hOverflow: number;
+    cardW: { min: number; max: number } | null;
+}
+
+/** axe-core's violation counts for one viewport (issue #2580/#2593). */
+export interface AxeCount {
+    serious: number;
+    critical: number;
+    ids: string[];
+    /** How many axe-exempt subtrees the run skipped (issue #2593) — see the
+     *  attribute this counts in `index.ts`'s `AXE_EXEMPT_SELECTOR`. */
+    exempt: number;
+}
+
+/**
+ * Maps one browser walk's raw measurements onto the `Ceilings` shape the
+ * budget file compares against. Pulled out of `index.ts` (issue #2658) so the
+ * mapping — in particular `small: probe.smallN` — is unit-testable without a
+ * browser: `index.ts` has no `import.meta.main` guard, so importing it runs
+ * the whole CLI (boots Vite, launches Playwright). This function is the pure
+ * half and lives beside the rest of the pure budget contract.
+ */
+export function metricsOf(probe: ProbeResult, axe: AxeCount): Ceilings {
+    return {
+        cardsZero: probe.cards.zero,
+        cardsOcc: probe.cards.occ,
+        cardsStranded: probe.cards.stranded,
+        ctrlsZero: probe.ctrls.zero,
+        ctrlsOcc: probe.ctrls.occ,
+        ctrlsStranded: probe.ctrls.stranded,
+        starved: probe.starvedN,
+        small: probe.smallN,
+        axeSerious: axe.serious,
+        axeCritical: axe.critical,
+    };
+}
+
 export interface SurfaceBudget {
     label: string;
     /**

@@ -58,9 +58,11 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import {
     coverageLine,
     evaluateRun,
+    metricsOf,
+    type AxeCount,
     type BudgetFile,
-    type Ceilings,
     type Measurement,
+    type ProbeResult,
     type SurfaceWalk,
     type ViewportBudget,
 } from "./budgets.ts";
@@ -252,33 +254,9 @@ async function ensureSignedIn(
 // Measurement
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface ProbeCounts {
-    n: number;
-    zero: number;
-    occ: number;
-    reachable: number;
-    stranded: number;
-}
-
-interface ProbeResult {
-    vp: string;
-    cards: ProbeCounts;
-    ctrls: ProbeCounts;
-    starvedN: number;
-    starved: unknown[];
-    smallN: number;
-    tinyText: number;
-    hOverflow: number;
-    cardW: { min: number; max: number } | null;
-}
-
-interface AxeCount {
-    serious: number;
-    critical: number;
-    ids: string[];
-    /** How many `[data-axe-exempt]` subtrees the run skipped (issue #2593). */
-    exempt: number;
-}
+// `ProbeCounts`/`ProbeResult`/`AxeCount`/`metricsOf` live in `budgets.ts`
+// (issue #2658) so the `small: probe.smallN` mapping is unit-testable without
+// a browser — see `metricsOf`'s doc comment there.
 
 /**
  * THE ONE AXE EXEMPTION, AND IT IS AN ATTRIBUTE, NOT A NUMBER (issue #2593).
@@ -340,21 +318,6 @@ async function runAxe(page: Page): Promise<AxeCount> {
         critical: critical.length,
         ids: [...new Set([...critical, ...serious].map((v) => v.id))],
         exempt: result.exempt,
-    };
-}
-
-function metricsOf(probe: ProbeResult, axe: AxeCount): Ceilings {
-    return {
-        cardsZero: probe.cards.zero,
-        cardsOcc: probe.cards.occ,
-        cardsStranded: probe.cards.stranded,
-        ctrlsZero: probe.ctrls.zero,
-        ctrlsOcc: probe.ctrls.occ,
-        ctrlsStranded: probe.ctrls.stranded,
-        starved: probe.starvedN,
-        small: probe.smallN,
-        axeSerious: axe.serious,
-        axeCritical: axe.critical,
     };
 }
 
