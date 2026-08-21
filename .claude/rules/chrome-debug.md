@@ -27,7 +27,7 @@ what the lane does not cover, or to diagnose what it flagged.
 **Measure, never eyeball.** A screenshot of a clipped row reads as "the cards
 are there" — that is how the bug above shipped. Run the probe
 (`scripts/ui-gate/probe.js`, the same file the lane injects) and report
-`zero / occ / stranded / starved` per viewport plus
+`zero / occ / stranded / starved / small` per viewport plus
 `list_console_messages {types:["error"]}`. A UI PR with no receipt and no
 "cannot reach the DOM" note is not done.
 

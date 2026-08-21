@@ -35,7 +35,23 @@
  * button/link/input — the "stranded CTA" case from the issue is
  * `ctrlsStranded`. `starved` counts scroll containers shorter than their
  * tallest child. `axeSerious`/`axeCritical` are axe-core violation counts at
- * those two impact levels.
+ * those two impact levels. `small` is `probe.js`'s `smallN` (issue #2658):
+ * count of visible in-band interactive controls (`button,a[href],input,
+ * select,[role=button],[role=tab],[role=option]`) whose smaller dimension is
+ * under 44px.
+ *
+ * `small` is DELIBERATELY POINTER-BLIND — the probe tests `< 44` at every
+ * viewport, including the desktop one, but `--control-h` resolves to 32px
+ * under `pointer: fine` ON PURPOSE (`src/index.css:942,946-948`, citing WCAG
+ * 2.5.8, which is a TOUCH-target rule and does not apply to a mouse). So a
+ * nonzero `small` on a `1440x900x2` (desktop, `pointer: fine`) row is very
+ * often the intended 32px control height showing up in a blind measurement —
+ * NOT debt — while the same nonzero count on a `…x3,mobile,touch…` row is
+ * real: those contexts get the 44px `--control-h-coarse` branch and a small
+ * reading there is an actual sub-target control. Every nonzero `small`
+ * ceiling MUST carry a `knownDebt` note that says which of the two it is, so
+ * a later reader does not "fix" a desktop reading by shrinking a touch
+ * target (or wave off a touch reading as "just the desktop thing").
  */
 export const BUDGET_KEYS = [
     "cardsZero",
@@ -45,6 +61,7 @@ export const BUDGET_KEYS = [
     "ctrlsOcc",
     "ctrlsStranded",
     "starved",
+    "small",
     "axeSerious",
     "axeCritical",
 ] as const;
@@ -63,6 +80,61 @@ export interface ViewportBudget extends Ceilings {
      * the surface deletes the note and the slack together.
      */
     knownDebt?: string;
+}
+
+/** One `cards`/`ctrls` bucket out of `probe.js`'s result (issue #2580). */
+export interface ProbeCounts {
+    n: number;
+    zero: number;
+    occ: number;
+    reachable: number;
+    stranded: number;
+}
+
+/** The raw shape `probe.js` (browser-side) hands back for one viewport. */
+export interface ProbeResult {
+    vp: string;
+    cards: ProbeCounts;
+    ctrls: ProbeCounts;
+    starvedN: number;
+    starved: unknown[];
+    smallN: number;
+    tinyText: number;
+    hOverflow: number;
+    cardW: { min: number; max: number } | null;
+}
+
+/** axe-core's violation counts for one viewport (issue #2580/#2593). */
+export interface AxeCount {
+    serious: number;
+    critical: number;
+    ids: string[];
+    /** How many axe-exempt subtrees the run skipped (issue #2593) — see the
+     *  attribute this counts in `index.ts`'s `AXE_EXEMPT_SELECTOR`. */
+    exempt: number;
+}
+
+/**
+ * Maps one browser walk's raw measurements onto the `Ceilings` shape the
+ * budget file compares against. Pulled out of `index.ts` (issue #2658) so the
+ * mapping — in particular `small: probe.smallN` — is unit-testable without a
+ * browser: `index.ts` has no `import.meta.main` guard, so importing it runs
+ * the whole CLI (boots Vite, launches Playwright). This function is the pure
+ * half and lives beside the rest of the pure budget contract.
+ */
+export function metricsOf(probe: ProbeResult, axe: AxeCount): Ceilings {
+    return {
+        cardsZero: probe.cards.zero,
+        cardsOcc: probe.cards.occ,
+        cardsStranded: probe.cards.stranded,
+        ctrlsZero: probe.ctrls.zero,
+        ctrlsOcc: probe.ctrls.occ,
+        ctrlsStranded: probe.ctrls.stranded,
+        starved: probe.starvedN,
+        small: probe.smallN,
+        axeSerious: axe.serious,
+        axeCritical: axe.critical,
+    };
 }
 
 export interface SurfaceBudget {
@@ -131,6 +203,7 @@ function fmtMetrics(m: Ceilings): string {
         `cards zero${m.cardsZero} occ${m.cardsOcc} stranded${m.cardsStranded}`,
         `ctrls zero${m.ctrlsZero} occ${m.ctrlsOcc} stranded${m.ctrlsStranded}`,
         `starved${m.starved}`,
+        `small${m.small}`,
         `axe s${m.axeSerious}/c${m.axeCritical}`,
     ].join(" | ");
 }

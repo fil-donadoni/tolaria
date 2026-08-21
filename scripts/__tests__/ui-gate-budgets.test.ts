@@ -3,8 +3,11 @@ import {
     BUDGET_KEYS,
     coverageLine,
     evaluateRun,
+    metricsOf,
+    type AxeCount,
     type BudgetFile,
     type Ceilings,
+    type ProbeResult,
     type SurfaceWalk,
 } from "../ui-gate/budgets.ts";
 
@@ -97,6 +100,26 @@ describe("check:ui budgets — a clean measured run", () => {
             );
             expect(ev.failures.join(" ")).toContain(`${key} 1 > 0`);
         }
+    });
+
+    it("gates sub-44px tap targets: a surface regressing from 44px to 22px controls goes red (issue #2658)", () => {
+        // A surface budgeted with zero known-small controls at this
+        // viewport — the ceiling the touch-target regression must not cross.
+        const budgets = budgetFile({
+            lobby: budgeted({ "390x844x3": metrics({ small: 0 }) }),
+        });
+
+        // The run measures 3 controls under 44px on the same surface —
+        // exactly the "48x22 status chip" shape from the issue's evidence.
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "390x844x3", metrics({ small: 3 }))]
+        );
+
+        expect(ev.rows[0].verdict).toBe("FAIL");
+        expect(ev.failures[0]).toContain("small 3 > 0");
+        expect(ev.measuredSurfaces).toBe(0);
     });
 });
 
@@ -296,5 +319,60 @@ describe("check:ui budgets — known debt is surfaced, not hidden", () => {
         expect(ev.knownDebt).toEqual([
             "lobby @ 390x844x3: 4 controls under the fixed footer",
         ]);
+    });
+});
+
+describe("metricsOf — probe/axe → Ceilings mapping (issue #2658)", () => {
+    /**
+     * `index.ts` has no `import.meta.main` guard: importing it runs the whole
+     * CLI (boots Vite, launches Playwright). `metricsOf` was pulled into
+     * `budgets.ts` (the pure half of this lane) specifically so this mapping
+     * — in particular `small: probe.smallN` — has a test that does not need a
+     * browser. Every field gets a DISTINCT value so a mis-wire (a swapped
+     * field, a hardcoded 0, `small` reading `tinyText` instead of `smallN`)
+     * shows up as a mismatch rather than passing by coincidence.
+     */
+    function probe(over: Partial<ProbeResult> = {}): ProbeResult {
+        return {
+            vp: "390x844x3",
+            cards: { n: 10, zero: 1, occ: 2, reachable: 3, stranded: 4 },
+            ctrls: { n: 20, zero: 5, occ: 6, reachable: 7, stranded: 8 },
+            starvedN: 9,
+            starved: [],
+            smallN: 11,
+            tinyText: 12,
+            hOverflow: 13,
+            cardW: null,
+            ...over,
+        };
+    }
+
+    function axe(over: Partial<AxeCount> = {}): AxeCount {
+        return { serious: 14, critical: 15, ids: [], exempt: 0, ...over };
+    }
+
+    it("maps every probe/axe field to its own Ceilings key", () => {
+        const result = metricsOf(probe(), axe());
+
+        expect(result).toEqual({
+            cardsZero: 1,
+            cardsOcc: 2,
+            cardsStranded: 4,
+            ctrlsZero: 5,
+            ctrlsOcc: 6,
+            ctrlsStranded: 8,
+            starved: 9,
+            small: 11,
+            axeSerious: 14,
+            axeCritical: 15,
+        });
+    });
+
+    it("wires Ceilings.small to probe.smallN specifically", () => {
+        const result = metricsOf(probe({ smallN: 42 }), axe());
+        expect(result.small).toBe(42);
+
+        const other = metricsOf(probe({ smallN: 0, tinyText: 42 }), axe());
+        expect(other.small).toBe(0);
     });
 });
