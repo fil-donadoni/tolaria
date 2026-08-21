@@ -87,7 +87,13 @@ export default function GameRoute() {
     const { gameId, playerId } = session;
 
     if (game && game.status === "waiting") {
-        return <WaitingForOpponent gameId={gameId} onLeave={handleLeave} />;
+        return (
+            <WaitingForOpponent
+                gameId={gameId}
+                joinCode={game.joinCode}
+                onLeave={handleLeave}
+            />
+        );
     }
 
     if (game && game.status === "pregame" && game.matchId) {

@@ -22,6 +22,7 @@ import ErrorState from "~/components/ui/error-state";
 import AmbientPageGround from "~/components/ui/ambient-page-ground";
 import DeckList from "~/components/lobby/deck-list";
 import JoinAntechamberShell from "./join-antechamber-shell";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
 
 type JoinGameProps = {
     gameId: Id<"games">;
@@ -97,9 +98,7 @@ export default function JoinGame({ gameId }: JoinGameProps) {
             storeSession(gameId, user._id);
             void navigate({ to: "/game" });
         } catch (err) {
-            setError(
-                err instanceof Error ? err.message : "Failed to join the game."
-            );
+            setError(extractMutationErrorMessage(err));
             setIsBusy(false);
         }
     };

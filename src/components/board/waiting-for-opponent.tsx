@@ -10,28 +10,48 @@ import {
 import { Button } from "~/components/ui/button";
 import EmptyState from "~/components/ui/empty-state";
 import { copyText } from "~/lib/clipboard";
+import { formatJoinCode } from "@convex/joinCodes";
 
 type WaitingForOpponentProps = {
     gameId: Id<"games">;
+    /** The table's short join code (issue #2649), when it has one. Present
+     *  only on a public Arena table and only while it is still `waiting` —
+     *  `joinWaitingGame` clears it as the second seat is filled, so this
+     *  screen is the code's ENTIRE lifetime on screen. A code nobody can read
+     *  is not a feature: this is where the host reads and copies it. */
+    joinCode?: string;
     onLeave: () => void;
 };
 
 /** Multiplayer holding screen shown while a created game waits for its second
  *  player (`game.status === "waiting"`). Shares the general page layout
- *  (ambient ground + opaque signal Panel, PRD #589). "Share" copies an invite
- *  link (`/join/<gameId>`) — a friend who opens it lands on the join
- *  antechamber, picks a deck, and is credited into this game. */
+ *  (ambient ground + opaque signal Panel, PRD #589). Two ways to bring a
+ *  friend in: "Share" copies an invite link (`/join/<gameId>`) — a friend who
+ *  opens it lands on the join antechamber, picks a deck, and is credited into
+ *  this game — or they type the join code into the lobby's "Join by code"
+ *  action, which needs nothing but the six characters shown here. */
 export default function WaitingForOpponent({
     gameId,
+    joinCode,
     onLeave,
 }: WaitingForOpponentProps) {
     const [copied, setCopied] = useState(false);
+    const [codeCopied, setCodeCopied] = useState(false);
 
     function handleShare() {
         const link = `${window.location.origin}/join/${gameId}`;
         void copyText(link);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
+    }
+
+    function handleCopyCode() {
+        if (!joinCode) return;
+        // The RAW code is what the other player must type; the grouping dash
+        // is a reading aid, not part of the value.
+        void copyText(joinCode);
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 1500);
     }
 
     return (
@@ -54,14 +74,45 @@ export default function WaitingForOpponent({
                         fills the empty space. */}
                     <EmptyState
                         className="text-center"
-                        message="Share this game ID so a friend can join."
+                        message={
+                            joinCode
+                                ? "Share the join code, or send an invite link."
+                                : "Share this game ID so a friend can join."
+                        }
                         description={
-                            <span className="font-mono">Game ID: {gameId}</span>
+                            joinCode ? (
+                                <span className="flex flex-col items-center gap-1">
+                                    <span className="text-xs uppercase tracking-wide text-text-muted">
+                                        Join code
+                                    </span>
+                                    <span className="font-mono text-2xl tracking-[0.25em] text-parchment">
+                                        {formatJoinCode(joinCode)}
+                                    </span>
+                                </span>
+                            ) : (
+                                <span className="font-mono">
+                                    Game ID: {gameId}
+                                </span>
+                            )
                         }
                         action={
-                            <Button onClick={handleShare}>
-                                {copied ? "Link copied!" : "Share invite link"}
-                            </Button>
+                            <span className="flex flex-wrap items-center justify-center gap-2">
+                                {joinCode && (
+                                    <Button onClick={handleCopyCode}>
+                                        {codeCopied
+                                            ? "Code copied!"
+                                            : "Copy join code"}
+                                    </Button>
+                                )}
+                                <Button
+                                    variant={joinCode ? "secondary" : "primary"}
+                                    onClick={handleShare}
+                                >
+                                    {copied
+                                        ? "Link copied!"
+                                        : "Share invite link"}
+                                </Button>
+                            </span>
                         }
                     />
                 </PanelBody>

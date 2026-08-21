@@ -435,12 +435,28 @@ export default defineSchema({
                 seatB: v.number(),
             })
         ),
+        /** Short human-typeable code for "Join by code" (issue #2649). Minted
+         *  by `createGame` for a public Arena table and CLEARED the moment the
+         *  table leaves `waiting` — so the field's presence IS the code's
+         *  lifetime, and a stale code cannot resolve to anything.
+         *
+         *  Not a secret, and deliberately not described as one: `listOpenGames`
+         *  strips it, but `getGame` is an unauthenticated public query that
+         *  returns the raw row, so any client holding a game id can read that
+         *  table's code (`docs/findings/2649-getgame-returns-any-games-row-
+         *  unauthenticated-by-membership.md`). That leaks nothing a code buys —
+         *  every table a code can name is already listed, by id, in the public
+         *  lobby — but the next author must not build a secrecy assumption on
+         *  this field. What the code IS: a way to reach a listed table without
+         *  the list. */
+        joinCode: v.optional(v.string()),
         createdAt: v.number(),
         updatedAt: v.number(),
     })
         .index("by_status", ["status"])
         .index("by_match", ["matchId"])
-        .index("by_limited_event", ["limitedEventId"]),
+        .index("by_limited_event", ["limitedEventId"])
+        .index("by_join_code", ["joinCode"]),
     // One seat's decklist, split out of `games.players[].deck.cards` (issue
     // #2506) — the same move `limitedSeats` made out of `limitedEvents.seats[]`
     // (see that table's comment for the general shape of the argument).

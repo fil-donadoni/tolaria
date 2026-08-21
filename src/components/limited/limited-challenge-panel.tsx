@@ -11,6 +11,7 @@ import { deckPayload } from "~/lib/deckTypes";
 import { storeSession } from "~/lib/session";
 import ActionButton from "~/components/board/action-button";
 import LimitedOpponentTile from "./limited-opponent-tile";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
 
 /** Challenge a human seat (issue #1577): once the viewer has built their own
  *  Limited deck for this event, they can challenge another SEATED HUMAN who
@@ -85,11 +86,7 @@ export default function LimitedChallengePanel({
             storeSession(gameId, user._id);
             void navigate({ to: "/game" });
         } catch (err) {
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to start the Match."
-            );
+            setError(extractMutationErrorMessage(err));
             setPending(false);
         }
     };
