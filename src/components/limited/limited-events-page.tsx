@@ -4,6 +4,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import {
     useDraftableSets,
+    useJoinLimitedEvent,
     useLimitedEventMutations,
     useMyLimitedEvents,
     useOpenLimitedEvents,
@@ -58,11 +59,29 @@ export default function LimitedEventsPage({
     const [createOpen, setCreateOpen] = useState(false);
     const [createPending, setCreatePending] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
-    const [joinPendingEventId, setJoinPendingEventId] =
-        useState<Id<"limitedEvents"> | null>(null);
-    const [joinError, setJoinError] = useState<string | null>(null);
 
     const viewerId = user?._id ?? "";
+
+    // `handleOpen` is defined here (not further below with the other
+    // handlers) purely so the Rules of Hooks are satisfied: `useJoinLimitedEvent`
+    // is a hook and must run unconditionally, before the loading early-return
+    // just below, so its `onJoined` callback must already be initialized —
+    // moving `handleOpen`'s definition down after the return would put it in
+    // the temporal dead zone at the point this hook call reads it.
+    const handleOpen = (eventId: Id<"limitedEvents">) => {
+        void navigate({
+            to: "/limited/$eventId",
+            params: { eventId },
+        });
+    };
+
+    // Shared with the lobby dashboard's inline Join affordance (issue #2648)
+    // — single in-flight guard, error surfaced, navigate to the event on
+    // success. See `useJoinLimitedEvent`'s own doc comment.
+    const { handleJoin, joinPendingEventId, joinError } = useJoinLimitedEvent(
+        join,
+        handleOpen
+    );
 
     // Union by id — `myEvents` wins on overlap (it carries the viewer's own
     // match record; `openEvents` never does, since an open event has no play
@@ -101,29 +120,6 @@ export default function LimitedEventsPage({
     ) {
         return <LoadingScreen />;
     }
-
-    const handleOpen = (eventId: Id<"limitedEvents">) => {
-        void navigate({
-            to: "/limited/$eventId",
-            params: { eventId },
-        });
-    };
-
-    const handleJoin = async (eventId: Id<"limitedEvents">) => {
-        if (joinPendingEventId) return;
-        setJoinPendingEventId(eventId);
-        setJoinError(null);
-        try {
-            await join({ eventId });
-            handleOpen(eventId);
-        } catch (err) {
-            setJoinError(
-                err instanceof Error ? err.message : "Failed to join event."
-            );
-        } finally {
-            setJoinPendingEventId(null);
-        }
-    };
 
     const handleCreate = async (payload: CreateLimitedEventPayload) => {
         if (createPending) return;

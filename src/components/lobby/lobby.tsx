@@ -7,7 +7,11 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { canEditPresets } from "~/lib/adminGating";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
-import { useMyCurrentLimitedEvents } from "~/hooks/useLimitedEvent";
+import {
+    useJoinLimitedEvent,
+    useMyCurrentLimitedEvents,
+    useOpenLimitedEvents,
+} from "~/hooks/useLimitedEvent";
 import {
     deckPayload,
     filterDecksByFormat,
@@ -102,6 +106,12 @@ function Lobby() {
     const createManualGame = useMutation(api.game.createManualGame);
     const joinGame = useMutation(api.game.joinGame);
     const joinManualGame = useMutation(api.game.joinManualGame);
+    // Inline Join from the dashboard's Open Events row (issue #2648) — its
+    // own single `useMutation` call rather than pulling in
+    // `useLimitedEventMutations()`'s other seven mutations for one field.
+    const joinLimitedEventMutation = useMutation(
+        api.limitedEvents.joinLimitedEvent
+    );
     const openGames = useQuery(
         api.game.listOpenGames,
         pageVisible ? {} : "skip"
@@ -115,6 +125,11 @@ function Lobby() {
     // First-class Limited dashboard box (issue #1582): reuses the my-events
     // query wired in by #1589 for its quick re-entry list — no new query.
     const myLimitedEvents = useMyCurrentLimitedEvents();
+    // Open (joinable) events for the box's "Open Events" row (issue #2648) —
+    // the SAME query the `/limited` browse list already subscribes to
+    // (`useOpenLimitedEvents`), narrowed client-side in `DashboardLimitedBox`
+    // via `isLimitedEventJoinable` rather than a second, narrower query.
+    const openLimitedEvents = useOpenLimitedEvents();
 
     const presetLobbyDecks = useMemo<LobbyDeck[]>(
         () => (presetDecks ?? []).map((d) => toPresetLobbyDeck(d)),
@@ -306,6 +321,15 @@ function Lobby() {
         });
     };
 
+    // Reuses `/limited`'s own Join semantics (`limited-events-page.tsx`):
+    // single in-flight guard, error surfaced rather than thrown, navigate to
+    // the event's detail on success (issue #2648).
+    const {
+        handleJoin: handleJoinLimitedEvent,
+        joinPendingEventId,
+        joinError,
+    } = useJoinLimitedEvent(joinLimitedEventMutation, handleOpenLimitedEvent);
+
     const handleViewAllLimitedEvents = () => {
         void navigate({ to: "/limited/events" });
     };
@@ -449,7 +473,8 @@ function Lobby() {
         presetDecks === undefined ||
         userDecks === undefined ||
         user === undefined ||
-        myLimitedEvents === undefined
+        myLimitedEvents === undefined ||
+        openLimitedEvents === undefined
     ) {
         return <LoadingScreen />;
     }
@@ -529,16 +554,21 @@ function Lobby() {
                 )}
 
                 {actionError && <Banner tone="danger">{actionError}</Banner>}
+                {joinError && <Banner tone="danger">{joinError}</Banner>}
 
                 {/* Live Limited strip (ADR 0101 §9 / issue #2591) — full
                     width, no longer paired 2-up with the Play box: a seated
                     event's status can change independently of whatever the
                     Play panel is doing, and pairing them implied equal
-                    weight/rhythm that a live strip doesn't need. */}
+                    weight/rhythm that a live strip doesn't need. Open events
+                    joinable inline (issue #2648, ADR 0101 §9). */}
                 <DashboardLimitedBox
                     events={myLimitedEvents}
+                    openEvents={openLimitedEvents}
                     onBrowse={handleBrowseLimitedEvents}
                     onOpen={handleOpenLimitedEvent}
+                    onJoin={(eventId) => void handleJoinLimitedEvent(eventId)}
+                    joinPendingEventId={joinPendingEventId}
                     onViewAllEvents={handleViewAllLimitedEvents}
                 />
 

@@ -1,4 +1,5 @@
-import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
+import { useMutation, useQuery, type ReactMutation } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -108,6 +109,57 @@ export function useLimitedEvent(
         api.limitedEvents.getLimitedEvent,
         eventId ? { eventId } : "skip"
     );
+}
+
+/** Single-in-flight Join flow (issue #2648): guards a second Join firing
+ *  while one is outstanding, surfaces a server rejection (already seated,
+ *  event full, event already started) as a readable message rather than an
+ *  uncaught rejection, and calls `onJoined` ONLY on success so the caller can
+ *  navigate to the event it just seated the viewer in.
+ *
+ *  Shared by the Limited Events page's own Join row (`limited-events-
+ *  page.tsx`, PRD #1107 story 7) and the lobby dashboard's inline Join
+ *  affordance (`dashboard-limited-box.tsx`, wired from `lobby.tsx`) — the
+ *  SECOND call site is what promotes this from a local closure to a shared
+ *  hook (CLAUDE.md: extract after the second) rather than growing a second,
+ *  independently-drifting copy of the same pending/error/navigate dance.
+ *
+ *  Takes the `join` mutation as a PARAMETER instead of calling `useMutation`
+ *  itself: `limited-events-page.tsx` already holds it via
+ *  `useLimitedEventMutations()` (which also gives it `create`), so this
+ *  never opens a second subscription for the same mutation, and a caller
+ *  that only needs Join (the lobby) can get its own single `useMutation`
+ *  call without pulling in the other seven `useLimitedEventMutations`
+ *  bundles. */
+export function useJoinLimitedEvent(
+    join: ReactMutation<typeof api.limitedEvents.joinLimitedEvent>,
+    onJoined: (eventId: Id<"limitedEvents">) => void
+): {
+    handleJoin: (eventId: Id<"limitedEvents">) => Promise<void>;
+    joinPendingEventId: Id<"limitedEvents"> | null;
+    joinError: string | null;
+} {
+    const [joinPendingEventId, setJoinPendingEventId] =
+        useState<Id<"limitedEvents"> | null>(null);
+    const [joinError, setJoinError] = useState<string | null>(null);
+
+    const handleJoin = async (eventId: Id<"limitedEvents">) => {
+        if (joinPendingEventId) return;
+        setJoinPendingEventId(eventId);
+        setJoinError(null);
+        try {
+            await join({ eventId });
+            onJoined(eventId);
+        } catch (err) {
+            setJoinError(
+                err instanceof Error ? err.message : "Failed to join event."
+            );
+        } finally {
+            setJoinPendingEventId(null);
+        }
+    };
+
+    return { handleJoin, joinPendingEventId, joinError };
 }
 
 export function useLimitedEventMutations() {

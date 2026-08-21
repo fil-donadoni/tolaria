@@ -1,4 +1,7 @@
-import type { LimitedEventView } from "~/hooks/useLimitedEvent";
+import type {
+    LimitedEventSummaryView,
+    LimitedEventView,
+} from "~/hooks/useLimitedEvent";
 import {
     areRoundsRunning,
     isEventConcluded,
@@ -142,6 +145,34 @@ export function limitedEventDashboardRank(
     >
 ): number {
     return DASHBOARD_STATUS_PRIORITY[limitedEventStatusHint(event)];
+}
+
+/** Whether the VIEWER can Join this event inline from a joinable-events list
+ *  (issue #2648). Mirrors, field for field, the two checks the server itself
+ *  makes before seating anyone:
+ *  - `isSeatingOpen(event.status)` — the same gate `joinLimitedEvent`
+ *    (`convex/limitedEvents.ts`) throws on ("This event has already
+ *    started.").
+ *  - the free-seat predicate `assignFreeSeat` (`convex/limited/
+ *    eventLogic.ts`) actually scans for: `seat.userId === undefined &&
+ *    !seat.isBot`. An "open" event can be FULLY seated (every Seat human- or
+ *    Bot-claimed) while `status` is still `"open"` — seating only closes
+ *    when the host explicitly starts the event — so `status === "open"`
+ *    alone is not sufficient.
+ *  Also excludes any event where a Seat already has `isViewer: true` — a
+ *  server-computed field (`projectEventSummary`), not an id compared against
+ *  a second query's result: a caller merging this list with
+ *  `myCurrentLimitedEvents`/`myLimitedEvents` by id would still miss a FULL
+ *  event with no viewer seat, which is why that comparison alone doesn't
+ *  suffice either. A row this returns `true` for is a row `joinLimitedEvent`
+ *  actually accepts — there is no second, driftable definition of
+ *  "joinable." */
+export function isLimitedEventJoinable(
+    event: Pick<LimitedEventSummaryView, "status" | "seats">
+): boolean {
+    if (!isSeatingOpen(event.status)) return false;
+    if (event.seats.some((seat) => seat.isViewer)) return false;
+    return event.seats.some((seat) => seat.userId === undefined && !seat.isBot);
 }
 
 /** The viewer's own match record for a list row (issue #2357), formatted
