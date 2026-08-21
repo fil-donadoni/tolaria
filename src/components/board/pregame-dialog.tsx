@@ -66,7 +66,12 @@ export default function PregameDialog({
 
     if (!match || choiceKind === undefined) {
         return (
-            <GameDialog open title="Coin toss" dismissable={false}>
+            <GameDialog
+                open
+                align="center"
+                title="Coin toss"
+                dismissable={false}
+            >
                 <p className="mt-1 text-center text-sm text-text-muted">
                     Tossing…
                 </p>
@@ -80,7 +85,12 @@ export default function PregameDialog({
 
     if (choiceKind === "waiting") {
         return (
-            <GameDialog open title="Coin toss" dismissable={false}>
+            <GameDialog
+                open
+                align="center"
+                title="Coin toss"
+                dismissable={false}
+            >
                 <div className="mt-1 flex flex-col gap-2">
                     <p className="text-center text-sm text-text-muted">
                         <span className="font-beleren tracking-wide text-accent-strong">
@@ -98,7 +108,12 @@ export default function PregameDialog({
 
     if (choiceKind === "auto") {
         return (
-            <GameDialog open title="Coin toss" dismissable={false}>
+            <GameDialog
+                open
+                align="center"
+                title="Coin toss"
+                dismissable={false}
+            >
                 <p className="mt-1 text-center text-sm text-text-muted">
                     Starting the game…
                 </p>
@@ -110,6 +125,9 @@ export default function PregameDialog({
     return (
         <GameDialog
             open
+            // Every body on this surface is centred (the toss result, the
+            // waiting line, the Play/Draw pair) — the title follows it.
+            align="center"
             title="Coin toss"
             subtitle={`${winnerName} won the toss`}
             dismissable={false}

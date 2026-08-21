@@ -97,7 +97,12 @@ export default function SideboardingDialog({
         // a 2-player Match). Show a passive waiting notice with the opponent's
         // ready-state (PRD #387 user story 21 / #397).
         return (
-            <GameDialog open title="Sideboarding" dismissable={false}>
+            <GameDialog
+                open
+                align="center"
+                title="Sideboarding"
+                dismissable={false}
+            >
                 <div className="flex flex-col gap-3 mt-1">
                     <p className="text-text-muted text-sm text-center">
                         Waiting for the other player to finish sideboarding…
@@ -118,7 +123,12 @@ export default function SideboardingDialog({
     // editor is no longer re-openable, so the swap can't change post-ready.
     if (opponent && seat.ready) {
         return (
-            <GameDialog open title="Sideboarding" dismissable={false}>
+            <GameDialog
+                open
+                align="center"
+                title="Sideboarding"
+                dismissable={false}
+            >
                 <div className="flex flex-col gap-3 mt-1">
                     <p className="text-success-strong text-sm text-center font-beleren tracking-wide">
                         You are ready.

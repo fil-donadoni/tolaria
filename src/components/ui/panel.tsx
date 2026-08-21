@@ -172,51 +172,54 @@ function PanelHeader({
     return (
         <div
             data-slot="panel-header"
-            className={cn(
-                "flex gap-4 sm:gap-6",
-                icon ? "flex-col items-center sm:flex-row" : "flex-col",
-                className
-            )}
+            className={cn("flex flex-col", className)}
         >
-            {icon && <SunburstIcon>{icon}</SunburstIcon>}
+            <div className="panel-header-band relative -mx-[var(--panel-pad)] -mt-[var(--panel-pad)] flex items-center justify-between gap-3 rounded-t-md px-[var(--panel-header-pad-x)] py-[calc(var(--density-unit)*0.8)]">
+                {/* The icon well sits INSIDE the band. As a sibling COLUMN it
+                    pushed the band into the remaining width, where the band's
+                    own `-mx-[--panel-pad]` bleed then ran under the icon on the
+                    left while the title and subtitle were squeezed into a
+                    ~200px column (measured on the auth screens). Inside the
+                    band the bleed is honest, the title keeps its
+                    `--panel-header-pad-x` clearance on the icon-less side, and
+                    the subtitle beneath spans the whole panel instead of a
+                    third of it. */}
+                {icon && <SunburstIcon size={44}>{icon}</SunburstIcon>}
 
-            <div className="flex w-full min-w-0 flex-1 flex-col">
-                <div className="panel-header-band relative -mx-[var(--panel-pad)] -mt-[var(--panel-pad)] flex items-center justify-between gap-2 rounded-t-md px-[var(--panel-header-pad-x)] py-[calc(var(--density-unit)*0.8)]">
-                    <h2
-                        id={titleId}
-                        data-slot="panel-title"
-                        className="heading-panel min-w-0 flex-1 text-left text-[length:var(--t-lg)] tracking-[0.16em] uppercase"
+                <h2
+                    id={titleId}
+                    data-slot="panel-title"
+                    className="heading-panel min-w-0 flex-1 text-left text-[length:var(--t-lg)] tracking-[0.16em] uppercase"
+                >
+                    {title}
+                </h2>
+                {collapsible && (
+                    <button
+                        type="button"
+                        onClick={onToggleCollapse}
+                        aria-label={collapsed ? "Expand" : "Collapse"}
+                        aria-expanded={!collapsed}
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-border-accent/60 text-text-muted transition-colors hover:text-accent-strong"
                     >
-                        {title}
-                    </h2>
-                    {collapsible && (
-                        <button
-                            type="button"
-                            onClick={onToggleCollapse}
-                            aria-label={collapsed ? "Expand" : "Collapse"}
-                            aria-expanded={!collapsed}
-                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-border-accent/60 text-text-muted transition-colors hover:text-accent-strong"
-                        >
-                            {collapsed ? (
-                                <ChevronDown className="h-3 w-3" />
-                            ) : (
-                                <ChevronUp className="h-3 w-3" />
-                            )}
-                        </button>
-                    )}
-                    {/* 1px gold rule under the band (v3: no diamond node — the
-                        centred node contradicts a left-aligned title). */}
-                    <span className="panel-rule absolute bottom-0 left-0 h-px w-full" />
-                </div>
-
-                {subtitle && (
-                    <div className="mt-3 flex items-center gap-2 text-sm text-text-muted">
-                        <SubtitleFlourish side="left" />
-                        <span>{subtitle}</span>
-                        <SubtitleFlourish side="right" />
-                    </div>
+                        {collapsed ? (
+                            <ChevronDown className="h-3 w-3" />
+                        ) : (
+                            <ChevronUp className="h-3 w-3" />
+                        )}
+                    </button>
                 )}
+                {/* 1px gold rule under the band (v3: no diamond node — the
+                    centred node contradicts a left-aligned title). */}
+                <span className="panel-rule absolute bottom-0 left-0 h-px w-full" />
             </div>
+
+            {subtitle && (
+                <div className="mt-3 flex items-center justify-center gap-2 text-center text-sm text-text-muted">
+                    <SubtitleFlourish side="left" />
+                    <span className="min-w-0">{subtitle}</span>
+                    <SubtitleFlourish side="right" />
+                </div>
+            )}
         </div>
     );
 }
@@ -245,19 +248,35 @@ function PanelBody({
  * Footer actions: right-aligned on tablet and up, **stacked full-width on
  * phone** (ADR 0101 §2). `items-stretch` in the column direction is what makes
  * each action full-width, so a caller needs no per-button width class.
+ *
+ * `layout="stack"` keeps the column at EVERY width. It exists because the
+ * responsive default cannot be opted out of from the outside: a caller passing
+ * `className="flex-col items-stretch"` still gets `sm:flex-row` (a variant
+ * class tailwind-merge has no unprefixed counterpart to drop), so above 640px
+ * the row silently came back — which is how the auth screens ended up with
+ * "No account? Sign up" wrapped into a 60px column beside the CTA. A stacked
+ * footer is right whenever the actions are a primary CTA plus a secondary
+ * text link that belongs UNDER it, not beside it.
  */
+type PanelFooterLayout = "responsive" | "stack";
+
 function PanelFooter({
+    layout = "responsive",
     className,
     children,
 }: {
+    layout?: PanelFooterLayout;
     className?: string;
     children: React.ReactNode;
 }) {
     return (
         <div
             data-slot="panel-footer"
+            data-layout={layout}
             className={cn(
-                "mt-[calc(var(--density-unit)*1.5)] flex flex-col items-stretch gap-2 border-t border-border-accent/20 pt-3 sm:flex-row sm:items-center sm:justify-end",
+                "mt-[calc(var(--density-unit)*1.5)] flex flex-col items-stretch gap-2 border-t border-border-accent/20 pt-3",
+                layout === "responsive" &&
+                    "sm:flex-row sm:items-center sm:justify-end",
                 className
             )}
         >
@@ -267,4 +286,4 @@ function PanelFooter({
 }
 
 export { Panel, PanelHeader, PanelBody, PanelFooter, SunburstIcon };
-export type { PanelDensity };
+export type { PanelDensity, PanelFooterLayout };

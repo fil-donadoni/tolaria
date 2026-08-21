@@ -105,7 +105,7 @@ export function AuthForm() {
                                 ? "Welcome back to Tolaria."
                                 : "Pick a nickname — you can change it later."
                         }
-                        icon={<Swords className="w-14 h-14 text-accent" />}
+                        icon={<Swords className="h-6 w-6 text-accent" />}
                     />
                     <PanelBody>
                         <label className="flex flex-col gap-1.5">
@@ -163,7 +163,10 @@ export function AuthForm() {
                             </Banner>
                         )}
                     </PanelBody>
-                    <PanelFooter className="flex-col items-stretch">
+                    {/* `stack`, not the responsive default: the flow toggle
+                        is a secondary link that belongs on its own line under
+                        the CTA at every width. */}
+                    <PanelFooter layout="stack">
                         <Button
                             type="submit"
                             variant="primary"
@@ -179,7 +182,7 @@ export function AuthForm() {
                         </Button>
                         <button
                             type="button"
-                            className="text-sm text-text-muted hover:text-parchment transition-colors text-center"
+                            className="mt-1 text-center text-sm text-text-muted transition-colors hover:text-parchment"
                             onClick={() => {
                                 setError(null);
                                 setFlow(

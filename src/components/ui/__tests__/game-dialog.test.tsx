@@ -112,6 +112,111 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         expect(title.className).toContain("panel-title-clear");
     });
 
+    // The icon used to be a sibling COLUMN of the whole content column, so a
+    // dialog with an icon rendered its title, rule and body inside the width
+    // LEFT OVER beside the icon — the Match Over screen's centred result
+    // treatment then sat off-centre inside the panel by half the icon well.
+    // The icon now lives in the header row and the column always spans the
+    // panel, which is what these two assert together.
+    it("keeps the content column spanning the panel when an icon is present", () => {
+        const { baseElement } = render(
+            <GameDialog open title="Game Over" icon={<span>skull</span>}>
+                <p>body</p>
+            </GameDialog>
+        );
+        const column = baseElement.querySelector(
+            '[data-slot="game-dialog-column"]'
+        )!;
+        expect(column.className).toContain("w-full");
+        // the icon is INSIDE the column, not a sibling of it
+        expect(
+            column.querySelector('[data-slot="sunburst-icon"]')
+        ).toBeTruthy();
+    });
+
+    it("puts the icon beside the title when left-aligned and above it when centred", () => {
+        const { baseElement, rerender } = render(
+            <GameDialog open title="Left" icon={<span>i</span>}>
+                <p>body</p>
+            </GameDialog>
+        );
+        const headerRow = () =>
+            baseElement.querySelector('[data-slot="sunburst-icon"]')!
+                .parentElement!;
+        expect(headerRow().className).not.toContain("flex-col");
+
+        rerender(
+            <GameDialog open align="center" title="Mid" icon={<span>i</span>}>
+                <p>body</p>
+            </GameDialog>
+        );
+        expect(headerRow().className).toContain("flex-col");
+        expect(headerRow().className).toContain("items-center");
+    });
+
+    // A centred dialog (Coin toss, Game Over) must not keep the left-aligned
+    // header language: a left title over a centred body reads as an accident.
+    // `.panel-title-clear` is dropped with it — it pays an inline-START
+    // padding, which would shift a centred title off centre, and a centred
+    // title is already inset far past the 10px corner bracket.
+    it("centres the title and drops the start-inset when align is center", () => {
+        render(
+            <GameDialog open align="center" title="Centred">
+                <p>body</p>
+            </GameDialog>
+        );
+        const title = screen.getByRole("heading", { name: "Centred" });
+        expect(title.className).toContain("text-center");
+        expect(title.className).not.toContain("panel-title-clear");
+    });
+
+    it("centres the subtitle only when align is center, and left-aligns it otherwise", () => {
+        const { baseElement, rerender } = render(
+            <GameDialog open title="T" subtitle="Sub line">
+                <p>body</p>
+            </GameDialog>
+        );
+        // the sr-only `DialogDescription` carries the same text — read the
+        // VISIBLE one
+        const visibleSubtitle = () =>
+            Array.from(baseElement.querySelectorAll("p")).find(
+                (el) =>
+                    el.textContent === "Sub line" &&
+                    !el.className.includes("sr-only")
+            )!;
+        expect(visibleSubtitle().className).toContain("text-left");
+
+        rerender(
+            <GameDialog open align="center" title="T" subtitle="Sub line">
+                <p>body</p>
+            </GameDialog>
+        );
+        expect(visibleSubtitle().className).toContain("text-center");
+    });
+
+    it("centres footer actions when align is center and right-aligns them otherwise", () => {
+        const { rerender } = render(
+            <GameDialog open title="T" footer={<button>Go</button>}>
+                <p>body</p>
+            </GameDialog>
+        );
+        const row = () =>
+            screen.getByRole("button", { name: "Go" }).parentElement!;
+        expect(row().className).toContain("sm:justify-end");
+
+        rerender(
+            <GameDialog
+                open
+                align="center"
+                title="T"
+                footer={<button>Go</button>}
+            >
+                <p>body</p>
+            </GameDialog>
+        );
+        expect(row().className).toContain("sm:justify-center");
+    });
+
     it("offsets centering by half the right-piles strip so in-game dialogs sit over the play area", () => {
         // The board publishes `--right-piles-w` to documentElement while
         // mounted; the popup centers via the shared `.play-area-center-x`
@@ -219,17 +324,18 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
     // flex-basis) — a capped OUTER column with no scrolling INNER child
     // would just clip content instead of scrolling it.
     it("caps the content column's height under a short viewport and scrolls the body inside it, not the page", () => {
-        render(
+        const { baseElement } = render(
             <GameDialog open title="Tall content">
                 <p>body</p>
             </GameDialog>
         );
-        // The title's own parent IS the height-capped column — `DialogTitle`
-        // is the column's first child in `game-dialog.tsx` — so this needs
-        // no assumption about Panel's internal frame/wrapper structure.
-        const column = screen.getByRole("heading", {
-            name: "Tall content",
-        }).parentElement!;
+        // The column publishes `data-slot="game-dialog-column"`. It used to be
+        // reached as the title's `parentElement`, which stopped being the
+        // column the moment the title gained a header ROW sibling to the icon
+        // — a structural assumption the slot removes.
+        const column = baseElement.querySelector(
+            '[data-slot="game-dialog-column"]'
+        )!;
         expect(column.className).toContain("max-h-[80vh]");
         expect(column.className).toContain(
             "short-viewport:max-h-[calc(100dvh-6rem)]"

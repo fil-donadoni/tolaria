@@ -145,6 +145,24 @@ describe("PanelHeader", () => {
         expect(band.className).toContain("px-[var(--panel-header-pad-x)]");
     });
 
+    // The icon well used to be a sibling COLUMN of the band. The band's own
+    // `-mx-[--panel-pad]` bleed then ran UNDER the icon while the title and
+    // subtitle were squeezed into what was left (~200px on the auth screens,
+    // wrapping "Create Account" and the subtitle to three lines). The icon
+    // belongs inside the band, and the subtitle spans the header.
+    it("renders the icon INSIDE the header band, not as a sibling column", () => {
+        const { container } = render(
+            <PanelHeader title="T" icon={<span>i</span>} />
+        );
+        const band = container.querySelector(".panel-header-band")!;
+        expect(band.querySelector('[data-slot="sunburst-icon"]')).toBeTruthy();
+        const header = container.querySelector('[data-slot="panel-header"]')!;
+        // the header itself is a plain column: no side-by-side split that
+        // takes width away from the band
+        expect(header.className).toContain("flex-col");
+        expect(header.className).not.toContain("sm:flex-row");
+    });
+
     it("renders subtitle when provided", () => {
         render(<PanelHeader title="T" subtitle="Sub" />);
         expect(screen.getByText("Sub")).toBeTruthy();
@@ -156,6 +174,18 @@ describe("PanelHeader", () => {
         expect(
             header.querySelectorAll('[data-slot="subtitle-flourish"]')
         ).toHaveLength(0);
+    });
+
+    // The subtitle is clasp-flanked on BOTH sides — a symmetric treatment, so
+    // it centres under the (left-aligned) title rather than hugging the left
+    // edge with one flourish stranded across the panel.
+    it("centres the clasp-flanked subtitle across the full header width", () => {
+        const { container } = render(<PanelHeader title="T" subtitle="Sub" />);
+        const row = screen.getByText("Sub").parentElement!;
+        expect(row.className).toContain("justify-center");
+        expect(
+            container.querySelectorAll('[data-slot="subtitle-flourish"]')
+        ).toHaveLength(2);
     });
 
     it("renders a collapse chevron and fires onToggleCollapse", () => {
@@ -186,6 +216,22 @@ describe("PanelFooter", () => {
     it("renders children", () => {
         render(<PanelFooter>Footer</PanelFooter>);
         expect(screen.getByText("Footer")).toBeTruthy();
+    });
+
+    // A caller cannot opt out of the responsive row from the outside:
+    // `className="flex-col"` does not cancel `sm:flex-row` (tailwind-merge has
+    // no unprefixed counterpart to drop), so above 640px the row came back —
+    // the auth screens' "No account? Sign up" wrapped into a ~60px column
+    // beside the CTA. `layout="stack"` is the opt-out.
+    it("keeps the column at every width under layout=stack", () => {
+        const { container } = render(
+            <PanelFooter layout="stack">Foot</PanelFooter>
+        );
+        const footer = container.querySelector('[data-slot="panel-footer"]')!;
+        expect(footer.getAttribute("data-layout")).toBe("stack");
+        expect(footer.className).toContain("flex-col");
+        expect(footer.className).not.toContain("sm:flex-row");
+        expect(footer.className).not.toContain("sm:justify-end");
     });
 
     // ADR 0101 §2: right-aligned from `sm` up, stacked full-width on a phone.

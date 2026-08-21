@@ -79,6 +79,8 @@ export default function ManualGameOverDialog({
     return (
         <GameDialog
             open
+            // The result treatment and every line under it are centred.
+            align="center"
             title={matchOver ? "Match Over" : "Game Over"}
             dismissable={false}
         >

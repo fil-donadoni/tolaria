@@ -11,6 +11,14 @@ import { Panel, SunburstIcon, type PanelDensity } from "@/components/ui/panel";
 
 type GameDialogSize = "default" | "wide";
 
+/** Header alignment. `start` (the default) is the v3 engraved-header language:
+ *  title left, rule beneath, body left. `center` is for the terminal/waiting
+ *  dialogs whose BODY is centred — Coin toss, Game Over, Match Result — where
+ *  a left title over a centred body reads as a layout accident. Alignment is
+ *  a per-call-site decision, never inferred: the two families are told apart
+ *  by what the body does, which the dialog cannot see. */
+type GameDialogAlign = "start" | "center";
+
 type GameDialogProps = {
     open: boolean;
     onOpenChange?: (open: boolean) => void;
@@ -25,6 +33,9 @@ type GameDialogProps = {
      *  (existing call-sites do this and keep working). */
     footer?: React.ReactNode;
     size?: GameDialogSize;
+    /** See `GameDialogAlign`. Drives the title, the subtitle and the icon
+     *  placement (beside the title when `start`, above it when `center`). */
+    align?: GameDialogAlign;
     dismissable?: boolean;
     showCloseButton?: boolean;
     /** Minimize affordance (issue #315). When provided, a minimize control is
@@ -81,6 +92,7 @@ export default function GameDialog({
     stats,
     footer,
     size = "default",
+    align = "start",
     dismissable = true,
     showCloseButton = false,
     onMinimize,
@@ -121,46 +133,55 @@ export default function GameDialog({
                     ornament={ornament}
                     className="max-w-full min-w-64 overflow-hidden sm:min-w-80"
                 >
+                    {/* ONE full-width column. The icon used to be a sibling
+                        COLUMN, which shrank the body to the remaining width —
+                        so a centred body (Game Over's result treatment) sat
+                        off-centre inside the panel by half the icon well. The
+                        icon now lives in the header row (or above the title
+                        when `align="center"`), and the body always spans the
+                        panel. */}
                     <div
-                        className={cn(
-                            "flex gap-4 sm:gap-6",
-                            icon
-                                ? "flex-col items-center sm:flex-row sm:items-start"
-                                : "flex-col"
-                        )}
+                        // 80vh caps only THIS column, not the chrome around
+                        // it — DialogContent itself carries no padding here
+                        // (`p-0`, set on DialogContent's className above;
+                        // tailwind-merge wins over any default), so it's only
+                        // the Panel's `roomy` padding (`p-6`, 24px top + 24px
+                        // bottom = 48px total) that sits outside this
+                        // max-height. At the cap the rendered popup already
+                        // exceeds a 48px-larger viewport than 80vh implies.
+                        // DialogContent centers via `top-1/2 -translate-y-1/2`
+                        // with no height clamp of its own, so any overshoot
+                        // strands the top and clips the bottom equally (issue
+                        // #2586: measured at 844x390, the Stats dialog).
+                        // `short-viewport:` (`max-height: 500px`,
+                        // src/index.css) reserves `6rem` (96px) of chrome
+                        // explicitly instead of relying on 80vh headroom that
+                        // stops existing below ~500px tall — deliberately more
+                        // than the 48px actually spent, so the reserve stays
+                        // safe even if a future Panel density adds padding
+                        // back. `100dvh`, not `100vh` (issue #2594): `vh` is
+                        // the LARGE viewport, so on a short mobile landscape
+                        // viewport with retracting browser chrome the 96px
+                        // reserve is measured against a taller-than-actual box
+                        // and can still overflow; `dvh` tracks the viewport as
+                        // it actually is.
+                        data-slot="game-dialog-column"
+                        className="flex max-h-[80vh] short-viewport:max-h-[calc(100dvh-6rem)] w-full min-w-0 flex-col"
                     >
-                        {icon && <SunburstIcon>{icon}</SunburstIcon>}
-
+                        {/* Header row: icon BESIDE the title when the body is
+                            left-aligned, ABOVE it when the body is centred —
+                            an icon pinned left over a centred body is the
+                            asymmetry the Match Over screen showed. */}
                         <div
-                            // 80vh caps only THIS column, not the chrome
-                            // around it — DialogContent itself carries no
-                            // padding here (`p-0`, set on DialogContent's
-                            // className above; tailwind-merge wins over any
-                            // default), so it's only the Panel's `roomy`
-                            // padding (`p-6`, 24px top + 24px bottom = 48px
-                            // total) that sits outside this max-height. At
-                            // the cap the rendered popup already exceeds a
-                            // 48px-larger viewport than 80vh implies.
-                            // DialogContent centers via `top-1/2
-                            // -translate-y-1/2` with no height clamp of its
-                            // own, so any overshoot strands the top and
-                            // clips the bottom equally (issue #2586:
-                            // measured at 844x390, the Stats dialog).
-                            // `short-viewport:` (`max-height: 500px`,
-                            // src/index.css) reserves `6rem` (96px) of
-                            // chrome explicitly instead of relying on 80vh
-                            // headroom that stops existing below ~500px
-                            // tall — deliberately more than the 48px actually
-                            // spent, so the reserve stays safe even if a
-                            // future Panel density adds padding back.
-                            // `100dvh`, not `100vh` (issue #2594): `vh` is
-                            // the LARGE viewport, so on a short mobile
-                            // landscape viewport with retracting browser
-                            // chrome the 96px reserve is measured against a
-                            // taller-than-actual box and can still overflow;
-                            // `dvh` tracks the viewport as it actually is.
-                            className="flex max-h-[80vh] short-viewport:max-h-[calc(100dvh-6rem)] w-full min-w-0 flex-1 flex-col"
+                            className={cn(
+                                "flex shrink-0 gap-3",
+                                align === "center"
+                                    ? "flex-col items-center"
+                                    : "items-center sm:gap-4"
+                            )}
                         >
+                            {icon && <SunburstIcon>{icon}</SunburstIcon>}
+
                             <DialogTitle
                                 className={cn(
                                     // `.panel-title-clear` keeps the title
@@ -168,9 +189,16 @@ export default function GameDialog({
                                     // every density (ADR 0101 §2): the
                                     // dialog builds its own header instead of
                                     // using PanelHeader's full-bleed band, so
-                                    // it must pay the clearance itself.
-                                    "heading-panel panel-title-clear shrink-0 text-left",
-                                    icon && "sm:text-left",
+                                    // it must pay the clearance itself. A
+                                    // centred title is already inset far past
+                                    // the bracket and the extra inline-start
+                                    // padding would shift it off centre, so
+                                    // it is paid only by the left-aligned
+                                    // header.
+                                    "heading-panel min-w-0",
+                                    align === "center"
+                                        ? "text-center"
+                                        : "panel-title-clear flex-1 text-left",
                                     // keep the title clear of the absolute
                                     // close/minimize controls (top-right)
                                     (showCloseButton || onMinimize) && "pr-8"
@@ -178,38 +206,60 @@ export default function GameDialog({
                             >
                                 {title}
                             </DialogTitle>
+                        </div>
 
-                            {/* full-width gold underline rule */}
-                            <span className="panel-rule mt-2 block h-px w-full shrink-0" />
+                        {/* full-width gold underline rule */}
+                        <span className="panel-rule mt-2 block h-px w-full shrink-0" />
 
-                            {subtitle && (
-                                <p className="mt-2 shrink-0 text-center text-sm text-text-muted">
-                                    {subtitle}
-                                </p>
-                            )}
+                        {subtitle && (
+                            <p
+                                className={cn(
+                                    "mt-2 shrink-0 text-sm text-text-muted",
+                                    align === "center"
+                                        ? "text-center"
+                                        : "text-left"
+                                )}
+                            >
+                                {subtitle}
+                            </p>
+                        )}
 
-                            {stats && (
-                                <div className="mt-3 flex shrink-0 flex-wrap items-center gap-3">
-                                    {stats}
-                                </div>
-                            )}
-
-                            <DialogDescription className="sr-only">
-                                {subtitle ?? title}
-                            </DialogDescription>
-
-                            {/* p-[0.2rem]: the buttons' focus outline draws
-                                OUTSIDE the border box — without this breathing
-                                room the overflow clips it at the container
-                                edge. */}
-                            <div className="mt-3 min-h-0 overflow-auto p-[0.2rem]">
-                                {children}
+                        {stats && (
+                            <div
+                                className={cn(
+                                    "mt-3 flex shrink-0 flex-wrap items-center gap-3",
+                                    align === "center" && "justify-center"
+                                )}
+                            >
+                                {stats}
                             </div>
+                        )}
+
+                        <DialogDescription className="sr-only">
+                            {subtitle ?? title}
+                        </DialogDescription>
+
+                        {/* p-[0.2rem]: the buttons' focus outline draws
+                            OUTSIDE the border box — without this breathing
+                            room the overflow clips it at the container
+                            edge. */}
+                        <div className="mt-3 min-h-0 overflow-auto p-[0.2rem]">
+                            {children}
                         </div>
                     </div>
 
                     {footer && (
-                        <div className="mt-5 flex flex-col items-stretch gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                        <div
+                            className={cn(
+                                "mt-5 flex flex-col items-stretch gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center",
+                                // A centred dialog's actions stay centred from
+                                // `sm` up; the left-aligned language keeps the
+                                // right-aligned action row (ADR 0101 §2).
+                                align === "center"
+                                    ? "sm:justify-center"
+                                    : "sm:justify-end"
+                            )}
+                        >
                             {footer}
                         </div>
                     )}
