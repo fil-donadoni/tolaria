@@ -52,6 +52,16 @@ work, not a re-open of #2585.
 
 ## Addendum (round-2 fixup, PR #2653): dropping `shrink-0` outright trades stranding for a NEW starve at 820×1180 — the lane cannot see it because `/decks/create` walks an empty Sideboard
 
+**This PR CAUSES a measured regression at a WALKED viewport.** Real
+(non-empty) Sideboard, 820×1180 tablet portrait: the zone header row grows
+**86px → 203px** and the card scroll port shrinks **300px → 183px** — below
+the ~196px `--card-h` tile, the probe's own `starved` shape. `bun run
+check:ui` misses it only because `/decks/create` (what the lane walks) always
+starts with an EMPTY Sideboard, and an empty zone has no card tile to starve
+against. This is not a pre-existing #2511 debt line reappearing unchanged —
+it is a new failure mode this branch's own `shrink-0` drop introduces, on a
+surface the lane is supposed to cover.
+
 Round 1 of this PR's review rejected the literal suggestion to delete
 `deck-zone-surface.tsx:535`'s `md:` gate (that would have pinned the cluster
 at max-content on EVERY viewport, re-creating #2511's original stranding on
@@ -59,8 +69,9 @@ phones) in favour of dropping the `shrink-0` token outright, so the cluster
 shrinks and wraps at every width instead of clipping. That is still the right
 call — it took `ctrlsStranded`/`ctrlsOcc` at every `check:ui` viewport back to
 0 (see `scripts/ui-gate/budgets.json`'s `deck-builder` entries, re-recorded
-2026-08-20). But it is a trade, not a pure win, and the previous version of
-this file did not say so.
+2026-08-20), and `ctrlsStranded 0` is a HARD floor while `starved` is not. But
+it is a trade, not a pure win, and the previous version of this file did not
+say so.
 
 **Measured on this branch (`feat/issue-2585`), same deck/account, 820×1180
 tablet-portrait, real Sideboard content (not the empty one `/decks/create`
@@ -88,13 +99,25 @@ exists once a real deck (constructed from a preset, or an in-progress edit)
 has Sideboard cards, which is the common case in play but not in the walked
 surface.
 
-**Disposition — still a finding, not a fix, for the same reason as the
-original entry above:** it is a further slice of the #2511 trade-off (a
-toolbar cluster that neither fits alongside its zone's content nor has a
-scroll port of its own), it is independent of the dock split #2585 shipped,
-and the actual fix (give the trailing cluster its own `overflow-x-auto`, or
-fold it behind `CompactChromeDisclosure` the same way the phone-shaped
-viewports already do) is a `deck-zone-surface.tsx`-owned change #2585's scope
-excludes. `scripts/ui-gate/budgets.json`'s `820x1180x2` `deck-builder`
-`knownDebt` note has been corrected in the same PR to disclose this trade
-instead of reading as a pure win.
+**Disposition — tracked by #2671, not fixed here.** It is a further slice of
+the #2511 trade-off (a toolbar cluster that neither fits alongside its
+zone's content nor has a scroll port of its own), and it is independent of
+the dock split #2585 shipped — a `deck-zone-surface.tsx`-owned change #2585's
+scope excludes. Filed as **#2671** ("fix: Sideboard zone toolbar wraps to
+203px with a non-empty Sideboard, starving the card port to 183px
+(820x1180)"), a #2405 sub-issue, P0 on the board — this is a real,
+PR-caused regression on a walked viewport, not a noticed-but-unasked-for
+observation, so it gets a ticket rather than staying drawer-only.
+
+**Suggested disposition for #2671:** the trailing cluster is already wrapped
+in the zone header's own `CompactChromeDisclosure`
+(`deck-zone-surface.tsx:543-591`, label `"View"`) — it just doesn't fold at
+820×1180 because `useViewportMode()` buckets tablet-portrait as `"desktop"`
+(the same bucket issue #2585's own AC viewports live in). Extending that fold
+to cover 820×1180 — or giving the trailing cluster its own `overflow-x-auto`
+scroll port instead — closes the starve without re-opening #2511's original
+stranding on phones. Either is a `deck-zone-surface.tsx`-owned change,
+independent of the dock split, and out of this PR's scope.
+`scripts/ui-gate/budgets.json`'s `820x1180x2` `deck-builder` `knownDebt` note
+cross-references #2671 and this addendum, and discloses this trade instead of
+reading as a pure win.

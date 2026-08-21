@@ -46,18 +46,21 @@ regression is not academic. `Add Basic` trigger rect confirmed via
 `getBoundingClientRect()`: 72.76x22px shipped (unchanged from before this
 ticket), 72.76x44px with the style prop applied.
 
-**Disposition — left to #2593, not fixed here.** #2585's AC is explicit,
-measured, and the entire reason this ticket exists; closing the touch-target
-gap by reclaiming ~20px of chrome elsewhere in the dock column at 1180x820 is
-exactly the kind of holistic touch-target-vs-layout-budget reconciliation
-that belongs to **#2593** (the sibling #2405 child, already unblocked and
-queued next, AC: every control reaches ≥44px at `pointer: coarse`, WCAG 2.2
-AA target size). #2593's own target files are `src/components/deckbuilder/**`
-— the same surface — so it is positioned to trade off this specific 22px
-against the rest of the dock column's chrome (header, basics-bar-as-trigger,
-search row) rather than borrowing against one AC to satisfy another.
+**Disposition — tracked by #2670.** #2585's AC is explicit, measured, and the
+entire reason this ticket exists; closing the touch-target gap by reclaiming
+~20px of chrome elsewhere in the dock column at 1180x820 is exactly the kind
+of holistic touch-target-vs-layout-budget reconciliation that #2593 (the
+sibling #2405 child, AC: every control reaches ≥44px at `pointer: coarse`,
+WCAG 2.2 AA target size) was meant to do. #2593 is now CLOSED — it shipped
+with that very AC UNMET and parked the gap in its own drawer draft,
+`docs/findings/2593-coarse-pointer-touch-targets-below-44px.md` (see that
+file's table — the deck-builder surface alone still carries 39–65 sub-44px
+controls at the coarse viewports). This dock trigger's gap, and #2593's
+whole census, are now tracked by **#2670** ("a11y: coarse-pointer targets
+below the ADR 0101 §2 44px rung — #2593's unmet AC, currently drawer-only"),
+a #2405 sub-issue, P0 on the board.
 
-**For #2593:** do not re-apply the naive `minHeight: var(--control-h)` patch
+**For #2670:** do not re-apply the naive `minHeight: var(--control-h)` patch
 verified above without first finding ~20px to reclaim elsewhere in the
 1180x820 dock column — it silently reopens #2585's search-active regression
 recorded in this file and in `scripts/ui-gate/budgets.json`'s `deck-builder`
