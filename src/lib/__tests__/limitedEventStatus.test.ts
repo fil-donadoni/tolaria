@@ -2,8 +2,12 @@
 // #1582). Every input field is on the wire `LimitedEventView` — see
 // ../limitedEventStatus.ts's doc comment for the projection chain.
 import { describe, it, expect } from "vitest";
-import { limitedEventStatusHint } from "../limitedEventStatus";
+import {
+    isLimitedEventJoinable,
+    limitedEventStatusHint,
+} from "../limitedEventStatus";
 import type { LimitedEventStatus } from "@convex/limited/eventStatus";
+import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 
 function base(
     overrides: Partial<{
@@ -128,5 +132,94 @@ describe("limitedEventStatusHint — play phase (PRD #1628, issue #1640)", () =>
                 )
             ).not.toBe("drafting");
         }
+    });
+});
+
+// The lobby dashboard's "Open Events" narrowing (issue #2648, ADR 0101 §9).
+// `isLimitedEventJoinable` is the ONLY definition of "joinable" the dashboard
+// uses — these are its ground-truth unit tests, independent of any component.
+type EventSeat = LimitedEventSummaryView["seats"][number];
+
+function seat(overrides: Partial<EventSeat> = {}): EventSeat {
+    return {
+        seatIndex: 0,
+        isBot: false,
+        isViewer: false,
+        poolCount: null,
+        hasDeck: false,
+        ...overrides,
+    };
+}
+
+function joinableFixture(
+    overrides: Partial<Pick<LimitedEventSummaryView, "status" | "seats">> = {}
+): Pick<LimitedEventSummaryView, "status" | "seats"> {
+    return {
+        status: "open",
+        seats: [seat({ seatIndex: 0 }), seat({ seatIndex: 1 })],
+        ...overrides,
+    };
+}
+
+describe("isLimitedEventJoinable (issue #2648)", () => {
+    it("accepts an 'open' event with a free Seat and no viewer Seat", () => {
+        expect(isLimitedEventJoinable(joinableFixture())).toBe(true);
+    });
+
+    it("rejects a non-'open' status (started/playing/finished all close seating)", () => {
+        for (const status of ["started", "playing", "finished"] as const) {
+            expect(isLimitedEventJoinable(joinableFixture({ status }))).toBe(
+                false
+            );
+        }
+    });
+
+    // Trap #1, half 1: the viewer already holds a Seat here — offering Join
+    // again duplicates the dashboard's own "Your Current Events" row and the
+    // server rejects it ("You already have a seat in this event.").
+    it("rejects an event the viewer already holds a Seat in, even with other free Seats", () => {
+        expect(
+            isLimitedEventJoinable(
+                joinableFixture({
+                    seats: [
+                        seat({
+                            seatIndex: 0,
+                            userId: "viewer-1",
+                            isViewer: true,
+                        }),
+                        seat({ seatIndex: 1 }),
+                    ],
+                })
+            )
+        ).toBe(false);
+    });
+
+    // Trap #1, half 2: `status` stays `"open"` until the host explicitly
+    // starts the event, so a FULLY seated (human- or Bot-claimed) event can
+    // still read `status: "open"` — `status` alone is not sufficient.
+    it("rejects a fully-seated 'open' event (every Seat human- or Bot-claimed)", () => {
+        expect(
+            isLimitedEventJoinable(
+                joinableFixture({
+                    seats: [
+                        seat({ seatIndex: 0, userId: "someone-else" }),
+                        seat({ seatIndex: 1, isBot: true }),
+                    ],
+                })
+            )
+        ).toBe(false);
+    });
+
+    it("accepts an event with a mix of claimed and free Seats", () => {
+        expect(
+            isLimitedEventJoinable(
+                joinableFixture({
+                    seats: [
+                        seat({ seatIndex: 0, userId: "someone-else" }),
+                        seat({ seatIndex: 1 }),
+                    ],
+                })
+            )
+        ).toBe(true);
     });
 });

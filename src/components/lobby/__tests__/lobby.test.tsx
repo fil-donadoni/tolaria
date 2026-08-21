@@ -17,6 +17,7 @@ const createSoloGame = vi.fn().mockResolvedValue("solo-game-1");
 const createGame = vi.fn().mockResolvedValue("game-1");
 const joinGame = vi.fn().mockResolvedValue(undefined);
 const deletePreset = vi.fn();
+const joinLimitedEvent = vi.fn().mockResolvedValue(null);
 
 // One preset deck the lobby can select as the hero, and a second one usable as
 // the AI opponent deck.
@@ -127,26 +128,35 @@ beforeEach(() => {
     localStorage.setItem("tolaria:matchFormat", "3");
 });
 
-async function renderLobby(myLimitedEvents: unknown[] = []) {
+async function renderLobby(
+    myLimitedEvents: unknown[] = [],
+    openLimitedEvents: unknown[] = []
+) {
     // `api` is mocked to `{}`, so queries can't be distinguished by reference;
-    // route by per-render call order instead. The lobby issues exactly four
+    // route by per-render call order instead. The lobby issues exactly FIVE
     // useQuery calls per render, in this order: presetDecks, openGames,
-    // activeGame, myLimitedEvents (issue #1582 — via `useMyLimitedEvents`;
-    // currentUser/userDecks go through mocked hooks).
+    // activeGame, myLimitedEvents (issue #1582 — via
+    // `useMyCurrentLimitedEvents`), openLimitedEvents (issue #2648 — via
+    // `useOpenLimitedEvents`; currentUser/userDecks go through mocked hooks).
+    // Adding a SIXTH `useQuery` call inside `Lobby` shifts this modulo AND
+    // this branch count together — update both in the same change.
     let queryCall = 0;
     useQueryMock.mockImplementation(() => {
         const idx = queryCall++;
-        if (idx % 4 === 0) return PRESET_DECKS;
-        if (idx % 4 === 1) return [];
-        if (idx % 4 === 2) return null;
-        return myLimitedEvents;
+        if (idx % 5 === 0) return PRESET_DECKS;
+        if (idx % 5 === 1) return [];
+        if (idx % 5 === 2) return null;
+        if (idx % 5 === 3) return myLimitedEvents;
+        return openLimitedEvents;
     });
     let mutCall = 0;
     useMutationMock.mockImplementation(() => {
         const idx = mutCall++;
         // Order must mirror the `useMutation` calls in `lobby.tsx`:
         // deletePreset, createGame, createSoloGame, createManualSoloGame,
-        // createManualGame, joinGame, joinManualGame.
+        // createManualGame, joinGame, joinManualGame, joinLimitedEvent (issue
+        // #2648). Wiring a mutation at the Lobby level extends this array —
+        // update its length AND the doc comment together.
         const createManualSoloGame = vi.fn().mockResolvedValue("manual-game-1");
         const createManualGame = vi.fn().mockResolvedValue("manual-game-2");
         const joinManualGame = vi.fn().mockResolvedValue(null);
@@ -158,6 +168,7 @@ async function renderLobby(myLimitedEvents: unknown[] = []) {
             createManualGame,
             joinGame,
             joinManualGame,
+            joinLimitedEvent,
         ];
         return handlers[idx % handlers.length];
     });
@@ -290,6 +301,120 @@ describe("Lobby dashboard Limited box (issue #1582)", () => {
             to: "/limited/$eventId",
             params: { eventId: "event-1" },
         });
+    });
+});
+
+// Open events joinable inline (issue #2648, ADR 0101 §9): the dashboard's
+// "Open Events" row, wired through `useOpenLimitedEvents` and the REAL
+// `useJoinLimitedEvent` hook (not stubbed — it's plain React state over the
+// injected `joinLimitedEvent` mutation, exercised here end-to-end through the
+// actual Lobby component: mutation call, error surfacing, and the
+// navigate-on-success it shares with `/limited`'s own Join row).
+describe("Lobby dashboard Open Events join (issue #2648)", () => {
+    function makeOpenEvent(overrides: Record<string, unknown> = {}) {
+        return {
+            _id: "event-open-1",
+            createdBy: "admin-1",
+            type: "sealed",
+            status: "open",
+            matchFormat: "bo3",
+            completed: false,
+            seatCount: 2,
+            seatsWithDeck: 0,
+            packSlots: ["lea"],
+            seats: [
+                {
+                    seatIndex: 0,
+                    isBot: false,
+                    isViewer: false,
+                    poolCount: null,
+                    hasDeck: false,
+                },
+                {
+                    seatIndex: 1,
+                    isBot: false,
+                    isViewer: false,
+                    poolCount: null,
+                    hasDeck: false,
+                },
+            ],
+            createdAt: 0,
+            updatedAt: 0,
+            ...overrides,
+        };
+    }
+
+    it("renders an Open Events row for a joinable event", async () => {
+        const { getByText } = await renderLobby([], [makeOpenEvent()]);
+        expect(getByText("Open Events")).toBeTruthy();
+        expect(getByText("Limited Edition Alpha Sealed")).toBeTruthy();
+        expect(getByText("Join")).toBeTruthy();
+    });
+
+    it("fires the real joinLimitedEvent mutation and navigates to the event on success", async () => {
+        const { getByText } = await renderLobby([], [makeOpenEvent()]);
+        fireEvent.click(getByText("Join"));
+        await vi.waitFor(() => {
+            expect(joinLimitedEvent).toHaveBeenCalledWith({
+                eventId: "event-open-1",
+            });
+        });
+        await vi.waitFor(() => {
+            expect(navigate).toHaveBeenCalledWith({
+                to: "/limited/$eventId",
+                params: { eventId: "event-open-1" },
+            });
+        });
+    });
+
+    it("surfaces a rejected Join as a banner instead of navigating", async () => {
+        joinLimitedEvent.mockRejectedValueOnce(
+            new Error("You already have a seat in this event.")
+        );
+        const { getByText } = await renderLobby([], [makeOpenEvent()]);
+        fireEvent.click(getByText("Join"));
+        await vi.waitFor(() => {
+            expect(
+                getByText("You already have a seat in this event.")
+            ).toBeTruthy();
+        });
+        expect(navigate).not.toHaveBeenCalledWith({
+            to: "/limited/$eventId",
+            params: { eventId: "event-open-1" },
+        });
+    });
+
+    // Trap #1 guard, exercised through the real Lobby wiring this time (the
+    // narrowing itself — `isLimitedEventJoinable` — is unit-covered in
+    // `dashboard-limited-box.test.tsx`; this proves the query result actually
+    // reaches that narrowing rather than being rendered raw).
+    it("does not offer Join for an event the viewer already holds a Seat in", async () => {
+        const { queryByText } = await renderLobby(
+            [],
+            [
+                makeOpenEvent({
+                    seats: [
+                        {
+                            seatIndex: 0,
+                            userId: "user-1",
+                            isBot: false,
+                            isViewer: true,
+                            poolCount: null,
+                            hasDeck: false,
+                        },
+                        {
+                            seatIndex: 1,
+                            isBot: false,
+                            isViewer: false,
+                            poolCount: null,
+                            hasDeck: false,
+                        },
+                    ],
+                }),
+            ]
+        );
+        expect(queryByText("Open Events")).toBeNull();
+        expect(queryByText("Join")).toBeNull();
     });
 });
 

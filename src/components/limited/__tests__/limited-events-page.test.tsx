@@ -25,16 +25,27 @@ const openEventsMock = vi.fn();
 const myEventsMock = vi.fn();
 const draftableSetsMock = vi.fn();
 
-vi.mock("~/hooks/useLimitedEvent", () => ({
-    useOpenLimitedEvents: () => openEventsMock(),
-    useMyLimitedEvents: () => myEventsMock(),
-    useDraftableSets: () => draftableSetsMock(),
-    useLimitedEventMutations: () => ({
-        create: vi.fn(),
-        join: vi.fn(),
-        start: vi.fn(),
-    }),
-}));
+// `useJoinLimitedEvent` is deliberately left as the REAL implementation
+// (`importOriginal`, issue #2648) rather than stubbed: it is plain React
+// state (`useState`) over an injected mutation, not a Convex subscription, so
+// it needs no mocking of its own — and stubbing it here would silently stop
+// covering the single-in-flight/error-surfacing behaviour this page (and the
+// lobby dashboard) both depend on.
+vi.mock("~/hooks/useLimitedEvent", async (importOriginal) => {
+    const actual =
+        await importOriginal<typeof import("~/hooks/useLimitedEvent")>();
+    return {
+        ...actual,
+        useOpenLimitedEvents: () => openEventsMock(),
+        useMyLimitedEvents: () => myEventsMock(),
+        useDraftableSets: () => draftableSetsMock(),
+        useLimitedEventMutations: () => ({
+            create: vi.fn(),
+            join: vi.fn(),
+            start: vi.fn(),
+        }),
+    };
+});
 
 beforeEach(() => {
     vi.clearAllMocks();
