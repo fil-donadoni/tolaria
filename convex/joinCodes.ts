@@ -11,6 +11,8 @@
 // Randomness lives at the MUTATION call site, never here: `generateJoinCode`
 // takes an RNG closure exactly the way `pickCoinTossWinner` takes a roll
 // (`convex/game.ts`), so every rule in this file is deterministically testable.
+import { ConvexError } from "convex/values";
+
 import type { QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 
@@ -118,7 +120,10 @@ export async function mintJoinCode(
             .first();
         if (!taken) return code;
     }
-    throw new Error("Could not allocate a join code. Please try again.");
+    // `ConvexError` so the message survives a production deployment's
+    // plain-Error redaction (`src/lib/mutation-error.ts`); this one surfaces in
+    // the lobby's banner when "Open a table" fails.
+    throw new ConvexError("Could not allocate a join code. Please try again.");
 }
 
 /** What every failed code resolution says, whatever the reason: unknown,

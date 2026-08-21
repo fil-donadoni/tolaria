@@ -56,6 +56,7 @@ import DeckRowMenu from "./deck-row-menu";
 import DeckFormatFilter from "./deck-format-filter";
 import LobbyBackground from "./lobby-background";
 import ActiveGameNotice from "./active-game-notice";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
 
 function Lobby() {
     const navigate = useNavigate();
@@ -232,9 +233,7 @@ function Lobby() {
             storeSession(gameId, playerId);
             void navigate({ to: "/game" });
         } catch (err) {
-            setActionError(
-                err instanceof Error ? err.message : "Failed to start game."
-            );
+            setActionError(extractMutationErrorMessage(err));
         } finally {
             setIsBusy(false);
         }
@@ -327,7 +326,16 @@ function Lobby() {
      *  is. The code is never resolved to a game id client-side; the mutation
      *  resolves it server-side and returns the game it seated us in. */
     const handleJoinByCode = async (code: string) => {
-        if (isBusy || !selectedDeck || !user) return;
+        // REJECTS rather than early-returning: `JoinByCodeDialog` treats a
+        // resolved `onSubmit` as a successful join and closes itself, so a bare
+        // `return` here would close the dialog having joined nothing and
+        // navigated nowhere — a silent success. Unreachable through the
+        // `canAct`-gated action today, which is exactly why it has to say so
+        // rather than rely on staying unreachable.
+        if (!selectedDeck || !user)
+            throw new Error("Pick a deck before joining a table.");
+        if (isBusy)
+            throw new Error("Another action is still running. Try again.");
         setIsBusy(true);
         setActionError(null);
         try {

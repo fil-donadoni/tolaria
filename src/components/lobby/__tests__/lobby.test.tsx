@@ -4,6 +4,7 @@
 // firing. The player's OWN deck stays the Lobby hero selection. See `../lobby`.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
+import { ConvexError } from "convex/values";
 // Static import: `vi.mock` is hoisted above all imports, so the lobby module
 // graph (dnd-kit, base-ui, deck-builder, AI) loads fully mocked. Importing it
 // here — during collection, not inside a test — keeps its heavy one-time
@@ -19,6 +20,26 @@ const joinGame = vi.fn().mockResolvedValue(undefined);
 const joinGameByCode = vi.fn().mockResolvedValue({ gameId: "game-9" });
 const deletePreset = vi.fn();
 const joinLimitedEvent = vi.fn().mockResolvedValue(null);
+
+/** How the Convex client ACTUALLY rejects a mutation — NOT `new Error(msg)`.
+ *
+ *  What reaches a `.catch` is an envelope: `message` is
+ *  "[CONVEX M(fn)] [Request ID: …] Server Error", and on a PRODUCTION
+ *  deployment that is ALL it is — the inner message is redacted on the way out
+ *  (`src/lib/mutation-error.ts`). Only a `ConvexError`'s `data` crosses intact,
+ *  which is why the server throws one and the dialog reads it through
+ *  `extractMutationErrorMessage`.
+ *
+ *  A mock that hands the component a bare `Error` whose `message` IS the
+ *  user-facing sentence tests a client that does not exist: it is green against
+ *  a component rendering `e.message` raw, which in production shows the user
+ *  "Server Error" and nothing else. Every rejection mock in this file goes
+ *  through here (issue #2649 review). */
+function convexRejection(fn: string, payload: string): ConvexError<string> {
+    const error = new ConvexError(payload);
+    error.message = `[CONVEX M(${fn})] [Request ID: 5f4d3c2b1a09] Server Error`;
+    return error;
+}
 
 // One preset deck the lobby can select as the hero, and a second one usable as
 // the AI opponent deck.
@@ -568,7 +589,8 @@ describe("Lobby join-by-code flow (issue #2649)", () => {
 
     it("shows the server's rejection in the dialog instead of closing it", async () => {
         joinGameByCode.mockRejectedValueOnce(
-            new Error(
+            convexRejection(
+                "game:joinGameByCode",
                 "That join code doesn't match a table that's open right now."
             )
         );

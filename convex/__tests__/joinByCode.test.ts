@@ -19,6 +19,7 @@
 //      addressed. The paired-error tests below are the proof: if someone
 //      re-implements the sequence in one entry point, the pair diverges.
 import { describe, expect, it } from "vitest";
+import { ConvexError } from "convex/values";
 
 import type { MutationCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
@@ -115,10 +116,16 @@ function bobFacing(over: Partial<InMemoryRow> = {}) {
 }
 
 async function rejection(fn: () => Promise<unknown>): Promise<string> {
+    return (await thrown(fn)).message;
+}
+
+/** The rejection itself, not its message — the CLASS of error is load-bearing
+ *  (see the `ConvexError` test below). */
+async function thrown(fn: () => Promise<unknown>): Promise<Error> {
     try {
         await fn();
     } catch (e) {
-        return (e as Error).message;
+        return e as Error;
     }
     throw new Error("expected the call to throw, but it resolved");
 }
@@ -268,6 +275,35 @@ describe("join by code — fail-closed", () => {
                 run(joinGameByCode, db.ctx, { code: "ZZZZZZ", deck: DECK })
             )
         ).toBe(JOIN_CODE_REJECTED);
+    });
+
+    it("rejects with a ConvexError so the message survives production", async () => {
+        // The whole feature IS its one uniform message; a plain `Error` never
+        // reaches the user on a production deployment, where Convex replaces
+        // its message with "Server Error" (`src/lib/mutation-error.ts`). Only a
+        // `ConvexError`'s `data` crosses that boundary, so the CLASS of the
+        // rejection — not just its text — is part of the contract. Every
+        // rejection the join dialog can surface is checked, not only the code
+        // one: a message that is uniform on one branch only is not uniform.
+        const cases: { label: string; args: Record<string, unknown> }[] = [
+            { label: "unknown code", args: { code: "ZZZZZZ", deck: DECK } },
+            { label: "malformed code", args: { code: "K3M9XU", deck: DECK } },
+            {
+                label: "Tabletop deck",
+                args: {
+                    code: "K3M9XZ",
+                    deck: { ...DECK, format: "manual" },
+                },
+            },
+        ];
+        for (const { label, args } of cases) {
+            const db = bobFacing();
+            const error = await thrown(() => run(joinGameByCode, db.ctx, args));
+            expect(error, label).toBeInstanceOf(ConvexError);
+            expect((error as ConvexError<string>).data, label).toBe(
+                error.message
+            );
+        }
     });
 
     it("refuses a code whose game was deleted (abandoned via leaveGame)", async () => {

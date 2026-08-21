@@ -5118,28 +5118,28 @@ async function joinWaitingGame(
 ): Promise<{ gameId: Id<"games"> }> {
     // ADR 0080 — a manual-format deck is rejected by the real engine.
     if (args.deck.format === "manual")
-        throw new Error(
+        throw new ConvexError(
             "Tabletop decks cannot start a real game. Play a Tabletop game instead."
         );
     const user = await getCurrentUser(ctx);
     // #155 (match-scoped): reject joining when the user already occupies
     // another active match (their own waiting room or an in-progress match).
     if (await findActiveMatchForUser(ctx, user._id))
-        throw new Error(ACTIVE_GAME_MESSAGE);
+        throw new ConvexError(ACTIVE_GAME_MESSAGE);
     const game = await resolveTarget(ctx);
-    if (!game) throw new Error("Game not found");
+    if (!game) throw new ConvexError("Game not found");
     const gameId = game._id;
-    if (game.status !== "waiting") throw new Error("Game is not open");
-    if (game.players.length >= 2) throw new Error("Game is full");
+    if (game.status !== "waiting") throw new ConvexError("Game is not open");
+    if (game.players.length >= 2) throw new ConvexError("Game is full");
     if (game.players.some((p) => p.id === user._id))
-        throw new Error("Cannot join a game you are already in");
+        throw new ConvexError("Cannot join a game you are already in");
     // Limited Event challenge (issue #1577): a challenge Game is PRIVATE to
     // the two paired seats — only the addressed opponent may accept it, and
     // only with a deck from the SAME event (the "reject pairing decks from
     // different events" AC). A non-challenge open game skips both checks.
     if (game.limitedChallenge) {
         if (user._id !== game.limitedChallenge.challengedUserId)
-            throw new Error("This challenge is not addressed to you.");
+            throw new ConvexError("This challenge is not addressed to you.");
         assertSameEventDeck(
             args.deck.limitedEventId,
             game.limitedEventId ?? ""
@@ -5165,7 +5165,7 @@ async function joinWaitingGame(
                 game.limitedEventId as Id<"limitedEvents">
             );
             if (event && areRoundsRunning(event.status))
-                throw new Error(
+                throw new ConvexError(
                     "Free challenges are off while this event's rounds are running."
                 );
         }
@@ -5179,7 +5179,7 @@ async function joinWaitingGame(
         game.limitedPairing &&
         args.deck.limitedSeatId !== String(game.limitedPairing.seatB)
     ) {
-        throw new Error(
+        throw new ConvexError(
             "This Match is your round pairing — accept it with that seat's deck."
         );
     }
@@ -5258,11 +5258,21 @@ export const joinGame = mutation({
  *  a client to feed back: that would both trust a client-supplied id and turn
  *  the code space into an enumerable oracle for game and host names.
  *
- *  Every way a code can fail to name an open table — unknown, malformed,
+ *  Every way a CODE can fail to name an open table — unknown, malformed,
  *  stale, already started, already full, or naming a class of game codes are
  *  not issued for — produces the SAME message (`JOIN_CODE_REJECTED`), so the
  *  failure never reveals what the game was. Everything past the resolution is
- *  the shared `joinWaitingGame` body, guard for guard identical to `joinGame`. */
+ *  the shared `joinWaitingGame` body, guard for guard identical to `joinGame`.
+ *
+ *  Scope of that uniformity, precisely: it covers the RESOLUTION. The guards
+ *  either side of it word themselves — a Tabletop deck is refused before the
+ *  code is ever looked at, and `assertDeckLegal` runs after, so a caller
+ *  submitting a deliberately illegal deck can tell "this code named a table"
+ *  from "it named nothing". Left as is on purpose: every table a code can
+ *  name is already public in `listOpenGames`, id and all, so the distinction
+ *  buys an attacker nothing — and collapsing it would mean either loading the
+ *  banlist and Limited pool twice per join or telling an honest player their
+ *  code was bad when it was their decklist. */
 export const joinGameByCode = mutation({
     args: {
         code: v.string(),
@@ -5273,7 +5283,13 @@ export const joinGameByCode = mutation({
     handler: async (ctx, args) => {
         return await joinWaitingGame(ctx, args, async (c) => {
             const game = await findGameByJoinCode(c, args.code);
-            if (!game) throw new Error(JOIN_CODE_REJECTED);
+            // `ConvexError`, never a plain `Error`: a PRODUCTION deployment
+            // replaces a plain Error's message with "Server Error" on its way
+            // to the client (`src/lib/mutation-error.ts`), which would destroy
+            // the one thing this feature's contract is made of — the single
+            // uniform verdict the user reads. A `ConvexError`'s `data` crosses
+            // that boundary intact.
+            if (!game) throw new ConvexError(JOIN_CODE_REJECTED);
             return game;
         });
     },

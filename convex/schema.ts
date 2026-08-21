@@ -438,9 +438,17 @@ export default defineSchema({
         /** Short human-typeable code for "Join by code" (issue #2649). Minted
          *  by `createGame` for a public Arena table and CLEARED the moment the
          *  table leaves `waiting` — so the field's presence IS the code's
-         *  lifetime, and a stale code cannot resolve to anything. Only
-         *  `convex/joinCodes.ts` reads or writes it; `listOpenGames` strips it
-         *  so one player's code never rides another player's subscription. */
+         *  lifetime, and a stale code cannot resolve to anything.
+         *
+         *  Not a secret, and deliberately not described as one: `listOpenGames`
+         *  strips it, but `getGame` is an unauthenticated public query that
+         *  returns the raw row, so any client holding a game id can read that
+         *  table's code (`docs/findings/2649-getgame-returns-any-games-row-
+         *  unauthenticated-by-membership.md`). That leaks nothing a code buys —
+         *  every table a code can name is already listed, by id, in the public
+         *  lobby — but the next author must not build a secrecy assumption on
+         *  this field. What the code IS: a way to reach a listed table without
+         *  the list. */
         joinCode: v.optional(v.string()),
         createdAt: v.number(),
         updatedAt: v.number(),

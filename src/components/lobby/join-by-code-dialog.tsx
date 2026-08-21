@@ -11,7 +11,8 @@
 // pre-flight lookup: resolving a code client-side is exactly what the ticket
 // forbids, and a "does this code exist?" probe would turn the code space into
 // an enumerable oracle. A typed code that is wrong comes back as a server
-// error, rendered here verbatim.
+// error, unwrapped by `extractMutationErrorMessage` and rendered here — see
+// `handleSubmit` for why the raw `.message` will not do.
 
 import { useState } from "react";
 
@@ -20,6 +21,7 @@ import GameDialog from "~/components/ui/game-dialog";
 import { Input } from "~/components/ui/input";
 import { Banner } from "~/components/ui/banner";
 import ActionButton from "~/components/board/action-button";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
 
 interface JoinByCodeDialogProps {
     open: boolean;
@@ -61,11 +63,14 @@ export default function JoinByCodeDialog({
             await onSubmit(code);
             close();
         } catch (e) {
-            setError(
-                e instanceof Error
-                    ? e.message
-                    : "Could not join that table. Try again."
-            );
+            // Through `extractMutationErrorMessage`, never `e.message`: what
+            // the Convex client hands us is the whole envelope
+            // ("[CONVEX M(game:joinGameByCode)] [Request ID: …] Server Error /
+            // Uncaught ConvexError: …"), and rendering that raw is how the one
+            // uniform verdict this feature is built on never reaches the user.
+            // The server throws `ConvexError` so the payload survives a
+            // production deployment; this is the half that reads it out.
+            setError(extractMutationErrorMessage(e));
             setPending(false);
         }
     }
@@ -126,9 +131,14 @@ export default function JoinByCodeDialog({
                     />
                 </label>
                 <p id="join-code-hint" className="text-xs text-text-muted">
+                    {/* Says only what `normalizeJoinCode` actually does: it
+                        folds O→0 and I/L→1, and it REJECTS U (there is no
+                        digit U could have been), so promising the reader a
+                        substitution for U would send them typing a code that
+                        can only come back rejected. */}
                     {JOIN_CODE_LENGTH} characters. Case doesn&apos;t matter, and
-                    the dash is optional. The letters I, L, O and U are never
-                    used — if you see one, it&apos;s a 1 or a 0.
+                    the dash is optional. Codes never contain I, L, O or U —
+                    type an I or an L as 1, and an O as 0.
                 </p>
                 {error && (
                     <Banner tone="danger" role="alert">

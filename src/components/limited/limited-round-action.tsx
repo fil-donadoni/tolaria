@@ -11,6 +11,7 @@ import { Banner } from "~/components/ui/banner";
 import ActionButton from "~/components/board/action-button";
 import { deckPayload } from "~/lib/deckTypes";
 import { storeSession } from "~/lib/session";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
 
 /** The one action a seat has on its own round pairing (PRD #1628 stories 8-13,
  *  issue #1645): start it, accept it, or resume the Match already in flight.
@@ -94,11 +95,7 @@ export default function LimitedRoundAction({
         try {
             await action();
         } catch (err) {
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to start the Match."
-            );
+            setError(extractMutationErrorMessage(err));
             setPending(false);
         }
     };
