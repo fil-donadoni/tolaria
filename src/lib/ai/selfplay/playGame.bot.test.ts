@@ -105,6 +105,91 @@ describe("listCandidates graveyard zone (issue #2689 fixup 2)", () => {
     });
 });
 
+describe("listCandidates exile zone (issue #2689 fixup 3)", () => {
+    it("returns the owner's exile filtered to head.candidateIds", () => {
+        const state = createInitialGameState(basePlayers(), 1234);
+        // Move a few real instances into exile — mirrors the graveyard test
+        // above; the helper only reads `zoneOwner.exile`, not the instance's
+        // own `.zone` tag.
+        const moved = state.players[0].library.splice(0, 3);
+        state.players[0].exile.push(...moved);
+        const allow = moved.slice(0, 1).map((c) => c.id); // Dauthi Voidwalker: count=1
+
+        const choice = baseChoice({
+            playerId: "A",
+            kind: "choose-exile-card",
+            zone: "exile",
+            candidateIds: allow,
+        });
+
+        const result = listCandidates(state, choice);
+
+        // Before this fixup there was no exile branch at all: the choice
+        // fell to the no-zone fallback, which filters BATTLEFIELD instances
+        // by candidateIds and finds none (an exile pick's candidateIds is
+        // always non-empty per the field doc), tripping the untagged-zone
+        // throw instead of returning the exile card.
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe(allow[0]);
+    });
+});
+
+describe("listCandidates library eligibleIds (issue #2689 fixup 3)", () => {
+    it("narrows a look-distribute keep pool to eligibleIds, not just candidateIds", () => {
+        const state = createInitialGameState(basePlayers(), 1234);
+        const library = state.players[0].library;
+        // Narset shape: look at the top 4 (candidateIds — the whole window,
+        // shown face-up), but only 1 of them is noncreature/nonland and thus
+        // keep-eligible (eligibleIds) — the rest may only be bottomed.
+        const looked = library.slice(0, 4).map((c) => c.id);
+        const eligible = [looked[0]];
+
+        const choice = baseChoice({
+            playerId: "A",
+            kind: "look-distribute",
+            zone: "library",
+            candidateIds: looked,
+            eligibleIds: eligible,
+        });
+
+        const result = listCandidates(state, choice);
+        const resultIds = result.map((c) => c.id).sort();
+
+        // The load-bearing assertion: the un-fixed code returns the full
+        // candidateIds-filtered window (4 cards) — a SUPERSET that trivially
+        // CONTAINS the 1 eligible id too, so an
+        // `expect(...).toEqual(expect.arrayContaining(eligible))` shape
+        // would pass on the bug. Exact length + exact id set is what fails
+        // when the eligibleIds conjunct is dropped.
+        expect(result).toHaveLength(1);
+        expect(resultIds).toEqual(eligible);
+        expect(looked.length).toBeGreaterThan(eligible.length);
+    });
+
+    it("does not apply eligibleIds outside the library zone", () => {
+        // `eligibleIds` is documented as look-distribute-only, which is
+        // library-only by construction (`PendingChoice.eligibleIds` doc,
+        // gre/state.ts) — pins that the collapsed owner-zone branch doesn't
+        // accidentally apply the conjunct to hand/graveyard/exile too, where
+        // the resolver never checks it.
+        const state = createInitialGameState(basePlayers(), 1234);
+        const moved = state.players[0].library.splice(0, 2);
+        state.players[0].graveyard.push(...moved);
+        const allow = moved.map((c) => c.id);
+
+        const choice = baseChoice({
+            playerId: "A",
+            kind: "choose-graveyard-card",
+            zone: "graveyard",
+            candidateIds: allow,
+            eligibleIds: [allow[0]],
+        });
+
+        const result = listCandidates(state, choice);
+        expect(result).toHaveLength(2);
+    });
+});
+
 describe("listCandidates no-zone fallback diagnostic (issue #2689 fixup 2)", () => {
     it("does not throw for trigger-order — candidateIds there are stack item ids, never permanents", () => {
         // CR 603.3b — reproduced live via mono-r-aggro vs br-reanimator, seed

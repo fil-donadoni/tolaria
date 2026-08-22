@@ -123,40 +123,47 @@ export function listCandidates(
 ): CardInstanceState[] {
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? head.playerId);
 
-    if (head.zone === "hand") {
-        const pool = zoneOwner.hand;
-        return head.candidateIds
+    // `hand` / `library` / `graveyard` / `exile` (`PendingChoice.zone`,
+    // gre/state.ts) are all simple owner-zone picks with the SAME
+    // resolver contract (`pendingChoiceSubmit.ts`): the pool is the owner's
+    // zone, intersected with `candidateIds` (the allow-list snapshotted when
+    // the choice was raised) when one is present. Collapsed into one branch
+    // (issue #2689 fixup 3 review) so a fifth zone added to the union can't
+    // silently fall through to the no-zone fallback the way `exile` did —
+    // `choose-exile-card` (Dauthi Voidwalker, interpreter.ts's exile branch;
+    // Currency Converter's hand-built `requestChoice`) always carries a
+    // non-empty `candidateIds` and hit the untagged-zone throw below.
+    // `battlefield` stays its own branch: it has `allControllers`, a
+    // type/controller filter and its own chooser-relative semantics that
+    // don't fit this shape.
+    const SIMPLE_OWNER_ZONES = [
+        "hand",
+        "library",
+        "graveyard",
+        "exile",
+    ] as const;
+    if (
+        head.zone &&
+        (SIMPLE_OWNER_ZONES as readonly string[]).includes(head.zone)
+    ) {
+        const zone = head.zone as (typeof SIMPLE_OWNER_ZONES)[number];
+        const pool = zoneOwner[zone];
+        const allowListed = head.candidateIds
             ? pool.filter((c) => head.candidateIds!.includes(c.id))
             : pool;
-    }
-    if (head.zone === "library") {
-        // Mirrors the hand branch above: `candidateIds` (when present) is the
-        // allow-list the submit-validator gates on (e.g. Impulse's top-4
-        // look), never the whole zone. Returning the unfiltered library let
-        // the default policy pick a card outside the allow-list and
-        // `applyPendingChoiceSubmit` throw "Card is not an eligible choice"
-        // (issue #2689 fixup 2 — 3 of 8 R1 rows guard-stopped on this).
-        const pool = zoneOwner.library;
-        return head.candidateIds
-            ? pool.filter((c) => head.candidateIds!.includes(c.id))
-            : pool;
-    }
-    if (head.zone === "graveyard") {
-        // No graveyard branch existed at all: a non-targeted
-        // `choose-graveyard-card` (Exhume — CR 701.16, zone="graveyard",
-        // always carries `candidateIds` per `PendingChoice.zone` doc above)
-        // fell through to the no-zone fallback, which filters
-        // `battlefield` instances and always yields `[]` for a graveyard
-        // pick, so the resolver throws "Select at least 1 card" (issue
-        // #2689 fixup 2 — misdiagnosed in
-        // docs/findings/2689-br-reanimator-uw-control-resolution-error.md).
-        // Graveyard is a public zone (per the field doc), so — like hand and
-        // library — the pool is the owner's graveyard, intersected with the
-        // allow-list when one is given.
-        const pool = zoneOwner.graveyard;
-        return head.candidateIds
-            ? pool.filter((c) => head.candidateIds!.includes(c.id))
-            : pool;
+        // `eligibleIds` (library `look-distribute` only, e.g. Narset — CR
+        // 701.22/701.44 — gre/state.ts) narrows further: the full looked-at
+        // window is shown, but the submit-validator
+        // (pendingChoiceSubmit.ts) rejects any KEPT id outside it, only for
+        // `zone === "library"` and `kind === "look-distribute"`. Without
+        // this conjunct the default policy could pick an unkeepable card
+        // and guard-stop on "Card is not eligible to be kept" (issue #2689
+        // fixup 3 review, medium finding — same fail-open shape as the
+        // `candidateIds` bug this branch was collapsed to fix).
+        if (zone === "library" && head.eligibleIds) {
+            return allowListed.filter((c) => head.eligibleIds!.includes(c.id));
+        }
+        return allowListed;
     }
     if (head.zone === "battlefield") {
         const pool = head.allControllers
