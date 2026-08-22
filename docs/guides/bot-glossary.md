@@ -325,17 +325,20 @@ ladder plays, each tagged with the gameplay **dynamics** it exercises
 (direct-damage, go-wide, discard, combo, …) — the coverage ledger. A change
 claims strength on the dynamics it touches; a missing dynamic is added as a
 row with the change that needs it. Code: `scripts/lib/ladder/pairings.ts`.
-`bun run ladder --pairings deckA:deckB,...` or `--dynamics tag,...` restricts
-a run to the matching subset of rows WITHOUT renumbering them — seeds and
-`gameIndex` are always derived from a row's index in the FULL registry
-(`scripts/lib/ladder/filter.ts`), so a filtered run's records are exactly the
-matching subset of an unfiltered run's; the header records the filter and
-`--resume` validates it (issue #2681).
+`bun run ladder --pairings deckA:deckB,...`, `--dynamics tag,...`, or
+`--rung R0,R1,...` restricts a run to the matching subset of rows WITHOUT
+renumbering them — seeds and `gameIndex` are always derived from a row's
+index in the FULL registry (`scripts/lib/ladder/filter.ts`), so a filtered
+run's records are exactly the matching subset of an unfiltered run's; the
+header records the filter and `--resume` validates it (issue #2681). The three
+flags are mutually exclusive — any 2-or-3-way combination fails
+(`scripts/ladder.ts`).
 
 <a id="rung"></a>**Environment rung** — a tier of the pairing registry ordered
-by how much interaction the decks carry: R0 combat and racing (today's six
-pairings), R1 instant-speed interaction and repeatable abilities, R2 cube
-archetypes with combos. Work climbs the rungs in order.
+by how much interaction the decks carry: R0 combat and racing (6 pairings),
+R1 instant-speed interaction and repeatable abilities (8 pairings), R2 cube
+archetypes with combos (3 pairings) — 17 rows total, all shipped (issue
+#2689). Work climbs the rungs in order.
 
 <a id="smoke-decision"></a>**`smoke` / `decision` tier** — ladder sizes: smoke =
 4 seeds per pairing (48 games, direction only), decision = 20 seeds (240

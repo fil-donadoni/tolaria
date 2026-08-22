@@ -1,45 +1,61 @@
 ---
 title: br-reanimator vs uw-control guard-stops 100% of the time on resolution-error
 discoveredBy: 2689
-status: draft
-confidence: medium
+status: resolved
+confidence: high
 ---
 
-**What is wrong.** The R2 smoke null-run (`--rung R2 --tier smoke --baseSeed 1`,
-issue #2689) shows the `br-reanimator` vs `uw-control` matchup hitting
-`reason: "resolution-error"` in **all 8/8 games** (both seed pairs × both seat
-orientations × both agent-seat assignments) — a 100% guard-stop rate, versus 0%
-for the other two R2 matchups (`br-reanimator` vs `mono-r-aggro`,
-`mono-r-aggro` vs `uw-control`) in the same run. That specificity (one matchup,
-every game) points at a card interaction between the two decks the production
-default resolution policy cannot settle, not run-to-run noise.
+**Resolution (round-2 fixup, PR #2692).** The diagnosis below was wrong — none
+of the four "candidate suspects" it originally named are at fault. The real
+cause is a single missing branch in the self-play harness's zone-pick
+candidate lister, `listCandidates` (`src/lib/ai/selfplay/playGame.ts`), shared
+with the round-1 review's finding 1 (the R1 library-branch bug): the function
+handled `zone: "hand"` and `zone: "battlefield"` correctly but had **no
+`zone: "graveyard"` branch at all**. `br-reanimator`'s Exhume (CR 701.16
+reanimate) raises a non-targeted `choose-graveyard-card` choice
+(`zone="graveyard"`, `count=1`, `candidateIds=['24']` in the reproduction
+below) that fell through to the no-zone fallback, which filters
+`state.players.flatMap(p => p.battlefield)` by `candidateIds` — a graveyard
+card is never on a battlefield, so this always returned `[]`, and the
+resolver's default policy then threw `Select at least 1 card`.
 
-**Evidence.**
+Both this finding and the round-1 R1 finding are **one root cause**: a
+candidate-lister with an incomplete zone census. The library branch
+(`:129-130` at review time) ignored `head.candidateIds` and returned the whole
+zone (fails a `look-distribute`-style allow-list, e.g. Impulse's top-4); the
+graveyard zone had no branch (fails any non-targeted graveyard pick, e.g.
+Exhume). Both are fixed in the same PR: the library branch now intersects with
+`head.candidateIds` exactly like the pre-existing hand branch, and a graveyard
+branch was added doing the same. The no-zone fallback also now throws loudly
+instead of silently returning `[]` when a non-empty `candidateIds` resolves to
+zero battlefield instances — the shape both bugs took — so a future missing
+zone branch surfaces immediately instead of reading as a generic downstream
+error.
 
-- Run file: `ladder-runs/2026-08-22-17-44-38-s1-smoke.jsonl`, `gameIndex` 108-115
-  (pairingIndex 14, `br-reanimator` vs `uw-control`) — every record has
-  `"reason":"resolution-error"`, `"winnerSeat":null`.
+Reproduced independently at `iterations=400`, both seat orientations, seed 57
+(turns 15/16) before the fix, hitting exactly the graveyard branch described
+above. After the fix landed, `bun run ladder --pairings br-reanimator:uw-control
+--tier smoke --baseSeed 1` was re-run: **8/8 games decisive, 0 guard stops**,
+aggregate 50.0% [21.5%–78.5%] — straddles 50% as expected for a null run, and
+the resolution-error is gone.
+
+**What was wrong (original diagnosis, kept for record).** The R2 smoke
+null-run (`--rung R2 --tier smoke --baseSeed 1`, issue #2689) showed the
+`br-reanimator` vs `uw-control` matchup hitting `reason: "resolution-error"`
+in **all 8/8 games** (both seed pairs × both seat orientations × both
+agent-seat assignments) — a 100% guard-stop rate, versus 0% for the other two
+R2 matchups (`br-reanimator` vs `mono-r-aggro`, `mono-r-aggro` vs
+`uw-control`) in the same run.
+
+**Evidence (original).**
+
+- Run file: `ladder-runs/2026-08-22-17-44-38-s1-smoke.jsonl`, `gameIndex`
+  108-115 (pairingIndex 14, `br-reanimator` vs `uw-control`) — every record
+  has `"reason":"resolution-error"`, `"winnerSeat":null`.
 - `src/lib/ai/selfplay/playGame.ts:377-386` — a `resolution-error` fires when
   `resolvePending(state)` returns `false` or throws at a pending-choice node
-  (the production default auto-resolve policy). No stack/message is captured
-  in the ladder record itself (`ms`/`plies`/`turns` only), so the exact
-  offending choice is not identified by this run alone.
-- Candidate suspects (untested): `br-reanimator` carries Entomb (library
-  search → graveyard, a card-selection choice) and Griselbrand/Archon of
-  Cruelty (Archon's ETB has a target-selection choice plus an opponent discard
-  choice); `uw-control` carries Absorb (counter + prevent-damage-choice +
-  draw). Any of these combined with the OTHER deck's own choice-bearing cards
-  is plausible; not isolated here.
-
-**Why it may not deserve its own issue.** (1) The ladder-guard-stop path
-already exists and excludes these games from the win-rate rather than
-silently mis-scoring them — the harness is behaving as designed, just
-surfacing a real gap. (2) Bot/engine changes are explicitly out of scope for
-issue #2689 ("Any Bot change. These decks are measurement fixtures."), and
-these are freshly-added decks whose combination of choice-bearing cards was
-never exercised together before. (3) n=8 from one seed pair is a small
-sample — worth a `decision`-tier (20-seed) rerun of just this pairing
-(`--pairings br-reanimator:uw-control --tier decision`) to confirm it is
-100% and not seed-cherry-picked, before spending time isolating the exact
-card. If it reproduces at decision tier, it is worth a real ticket (probably
-tagged `area:game-bot`) to pin the failing choice node with a blade scenario.
+  (the production default auto-resolve policy).
+- ~~Candidate suspects (untested): Entomb, Griselbrand, Archon of Cruelty,
+  Absorb.~~ **All four are innocent.** The actual trigger is Exhume's
+  graveyard pick hitting the missing `listCandidates` branch above — none of
+  the other cards' choices are on the failure path.

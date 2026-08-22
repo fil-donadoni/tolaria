@@ -113,8 +113,11 @@ const MAX_PLIES = 4000;
 /** List the legal candidate instances for a zone-pick choice, honoring the
  *  precomputed allow-list (`candidateIds`) when present, else the declared zone
  *  (+ battlefield filter). Mirrors the zone-membership logic the resolver
- *  validates against, so the picked ids are always legal. */
-function listCandidates(
+ *  validates against, so the picked ids are always legal.
+ *  Exported for `playGame.bot.test.ts` — a direct unit test on the mechanism
+ *  the issue #2689 fixup 2 review found broken, rather than exercising it only
+ *  indirectly through a full self-play game. */
+export function listCandidates(
     state: GameState,
     head: PendingChoice
 ): CardInstanceState[] {
@@ -127,7 +130,33 @@ function listCandidates(
             : pool;
     }
     if (head.zone === "library") {
-        return zoneOwner.library;
+        // Mirrors the hand branch above: `candidateIds` (when present) is the
+        // allow-list the submit-validator gates on (e.g. Impulse's top-4
+        // look), never the whole zone. Returning the unfiltered library let
+        // the default policy pick a card outside the allow-list and
+        // `applyPendingChoiceSubmit` throw "Card is not an eligible choice"
+        // (issue #2689 fixup 2 — 3 of 8 R1 rows guard-stopped on this).
+        const pool = zoneOwner.library;
+        return head.candidateIds
+            ? pool.filter((c) => head.candidateIds!.includes(c.id))
+            : pool;
+    }
+    if (head.zone === "graveyard") {
+        // No graveyard branch existed at all: a non-targeted
+        // `choose-graveyard-card` (Exhume — CR 701.16, zone="graveyard",
+        // always carries `candidateIds` per `PendingChoice.zone` doc above)
+        // fell through to the no-zone fallback, which filters
+        // `battlefield` instances and always yields `[]` for a graveyard
+        // pick, so the resolver throws "Select at least 1 card" (issue
+        // #2689 fixup 2 — misdiagnosed in
+        // docs/findings/2689-br-reanimator-uw-control-resolution-error.md).
+        // Graveyard is a public zone (per the field doc), so — like hand and
+        // library — the pool is the owner's graveyard, intersected with the
+        // allow-list when one is given.
+        const pool = zoneOwner.graveyard;
+        return head.candidateIds
+            ? pool.filter((c) => head.candidateIds!.includes(c.id))
+            : pool;
     }
     if (head.zone === "battlefield") {
         const pool = head.allControllers
@@ -160,10 +189,40 @@ function listCandidates(
             ? filtered.filter((c) => head.candidateIds!.includes(c.id))
             : filtered;
     }
-    // No zone (e.g. choose-damage-target): fall back to the permanent allow-list.
+    if (head.kind === "trigger-order") {
+        // CR 603.3b — `candidateIds` here are STACK ITEM ids (a permutation
+        // to order), never permanent instance ids; `resolvePending` reads
+        // `head.candidateIds` directly for its submission and never consults
+        // this function's return for this kind (the mapped `candidates` list
+        // built from it is discarded). Filtering against the battlefield
+        // would misfire the untagged-zone diagnostic below on every such
+        // choice, so this kind is out of scope for it by construction.
+        return [];
+    }
+    // No zone (e.g. `choose-damage-target`, whose every construction sets
+    // `zone: "battlefield"` in practice, so this is truly the fallback for an
+    // UNANTICIPATED zone-less permanent pick): fall back to the permanent
+    // allow-list.
     if (head.candidateIds) {
         const all = state.players.flatMap((p) => p.battlefield);
-        return all.filter((c) => head.candidateIds!.includes(c.id));
+        const found = all.filter((c) => head.candidateIds!.includes(c.id));
+        // A non-empty `candidateIds` naming zero found instances is always a
+        // bug — either an untagged zone (this fallback assumes battlefield)
+        // or a stale id — never a legitimate empty choice (that shape is a
+        // pending choice with `candidateIds: undefined` or `[]`, both handled
+        // above). Silence here is exactly what let issue #2689 fixup 2's two
+        // bugs (missing library intersection, missing graveyard branch) hide
+        // behind a generic downstream "Select at least 1 card" / "Card is not
+        // an eligible choice" instead of naming the real cause.
+        if (found.length === 0 && head.candidateIds.length > 0) {
+            throw new Error(
+                `listCandidates: choice kind="${head.kind}" choiceId="${head.choiceId}" ` +
+                    `has ${head.candidateIds.length} candidateIds but zone="${head.zone ?? "(none)"}" ` +
+                    `resolved 0 of them against any battlefield — likely an untagged zone ` +
+                    `(add a listCandidates branch for it) rather than a real empty choice.`
+            );
+        }
+        return found;
     }
     return [];
 }
