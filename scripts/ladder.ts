@@ -26,7 +26,7 @@
  * Usage:
  *   bun run ladder [--tier smoke|decision] [--baseSeed N] [--variant name]
  *   bun run ladder [--workers N]              # default: ncpu - 1, min 1
- *   bun run ladder [--pairings deckA:deckB,...] | [--dynamics tag,...]
+ *   bun run ladder [--pairings deckA:deckB,...] | [--dynamics tag,...] | [--rung R1,...]
  *   bun run ladder --resume ladder-runs/<file>.jsonl
  *   (--iterations N exists for NON-STANDARD dev shakeouts only — a verdict
  *    quoted in a PR must come from the fixed production budget.)
@@ -36,12 +36,14 @@
  * results back over stdio; this process is the SOLE writer of the run file.
  * `--workers 1` is the plain sequential loop, byte-for-byte as before.
  *
- * Pairing/dynamics filter (issue #2681): `--pairings`/`--dynamics` restrict
- * the run to a subset of `LADDER_PAIRINGS` rows WITHOUT renumbering them —
- * seeds and gameIndex are always derived from the row's index in the FULL
- * registry (scripts/lib/ladder/filter.ts + plan.ts:filterGamePlan), so a
- * filtered run's records are exactly the matching subset of an unfiltered
- * run's. The header records the filter; `--resume` validates it.
+ * Pairing/dynamics/rung filter (issue #2681, `--rung` added in #2689):
+ * `--pairings`/`--dynamics`/`--rung` — mutually exclusive, at most one —
+ * restrict the run to a subset of `LADDER_PAIRINGS` rows WITHOUT
+ * renumbering them — seeds and gameIndex are always derived from the row's
+ * index in the FULL registry (scripts/lib/ladder/filter.ts +
+ * plan.ts:filterGamePlan), so a filtered run's records are exactly the
+ * matching subset of an unfiltered run's. The header records the filter;
+ * `--resume` validates it.
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -92,7 +94,7 @@ function parseArgs(argv: string[]) {
     const out: Record<string, string> = {};
     for (let i = 0; i < argv.length; i++) {
         const m =
-            /^--(tier|baseSeed|variant|resume|iterations|pairings|dynamics|workers)$/.exec(
+            /^--(tier|baseSeed|variant|resume|iterations|pairings|dynamics|rung|workers)$/.exec(
                 argv[i]
             );
         if (!m) fail(`unknown argument "${argv[i]}" (see file header)`);
@@ -144,6 +146,7 @@ if (args.resume) {
         "iterations",
         "pairings",
         "dynamics",
+        "rung",
     ] as const) {
         if (args[k] !== undefined)
             fail(`--${k} conflicts with --resume (config comes from the file)`);
@@ -189,8 +192,13 @@ if (args.resume) {
             `⚠ NON-STANDARD run: ${iterations} iterations (production budget is ${LADDER_ITERATIONS}) — not valid for a PR verdict`
         );
 
-    if (args.pairings !== undefined && args.dynamics !== undefined)
-        fail("--pairings and --dynamics are mutually exclusive");
+    const filterFlagsSet = [
+        args.pairings !== undefined,
+        args.dynamics !== undefined,
+        args.rung !== undefined,
+    ].filter(Boolean).length;
+    if (filterFlagsSet > 1)
+        fail("--pairings, --dynamics and --rung are mutually exclusive");
     let filter: ReturnType<typeof parseFilterArg> | null = null;
     try {
         filter =
@@ -198,7 +206,9 @@ if (args.resume) {
                 ? parseFilterArg("pairings", args.pairings)
                 : args.dynamics !== undefined
                   ? parseFilterArg("dynamics", args.dynamics)
-                  : null;
+                  : args.rung !== undefined
+                    ? parseFilterArg("rung", args.rung)
+                    : null;
         if (filter) selectPairingIndices(LADDER_PAIRINGS, filter); // throws on a typo
     } catch (e) {
         fail((e as Error).message);

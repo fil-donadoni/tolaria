@@ -55,7 +55,7 @@ function seededRows(): Doc<"presetDecks">[] {
 }
 
 describe("DB-backed api.decks.list", () => {
-    it("lists every seeded preset (all nine)", () => {
+    it("lists every seeded preset", () => {
         const list = sortLobbyPresets(
             seededRows().map((r) => presetRowToLobby(r))
         );

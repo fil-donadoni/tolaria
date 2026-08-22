@@ -1,26 +1,28 @@
 // Ladder pairing-subset filter (issue #2681, decision #1895 §1 coverage
-// ledger). `--pairings deckA:deckB,...` or `--dynamics tag,...` restricts a
-// run to a subset of LADDER_PAIRINGS rows WITHOUT renumbering them: every
-// downstream consumer (buildGamePlan's `baseSeed + p * seedsPerPairing + k`
-// seed derivation, the resume identity key `gameIndex`) keeps indexing the
-// row's position in the FULL registry. This module only decides WHICH
-// indices a filter selects — filtering the already-built plan by that set is
-// a separate, index-preserving step (see `filterGamePlan` in plan.ts).
+// ledger). `--pairings deckA:deckB,...`, `--dynamics tag,...` or
+// `--rung R1,...` (issue #2689) restricts a run to a subset of
+// LADDER_PAIRINGS rows WITHOUT renumbering them: every downstream consumer
+// (buildGamePlan's `baseSeed + p * seedsPerPairing + k` seed derivation, the
+// resume identity key `gameIndex`) keeps indexing the row's position in the
+// FULL registry. This module only decides WHICH indices a filter selects —
+// filtering the already-built plan by that set is a separate,
+// index-preserving step (see `filterGamePlan` in plan.ts).
 //
 // A filter value that matches zero rows throws rather than silently running
-// an empty (or unintentionally broader) plan — a typo'd deck id or dynamics
-// tag must fail loudly (issue #2681 acceptance: "--dynamics combo runs only
-// the rows tagged combo").
+// an empty (or unintentionally broader) plan — a typo'd deck id, dynamics
+// tag or rung must fail loudly (issue #2681 acceptance: "--dynamics combo
+// runs only the rows tagged combo").
 
 import type { LadderPairing } from "./pairings";
 
 export type LadderFilterSpec =
     | { kind: "pairings"; values: string[] }
-    | { kind: "dynamics"; values: string[] };
+    | { kind: "dynamics"; values: string[] }
+    | { kind: "rung"; values: string[] };
 
-/** Parse a comma-separated `--pairings`/`--dynamics` CLI value. */
+/** Parse a comma-separated `--pairings`/`--dynamics`/`--rung` CLI value. */
 export function parseFilterArg(
-    kind: "pairings" | "dynamics",
+    kind: "pairings" | "dynamics" | "rung",
     raw: string
 ): LadderFilterSpec {
     const values = raw
@@ -59,9 +61,16 @@ export function selectPairingIndices(
                     matched = true;
                 }
             });
-        } else {
+        } else if (filter.kind === "dynamics") {
             pairings.forEach((row, i) => {
                 if (row.dynamics.includes(raw)) {
+                    out.add(i);
+                    matched = true;
+                }
+            });
+        } else {
+            pairings.forEach((row, i) => {
+                if (row.rung === raw) {
                     out.add(i);
                     matched = true;
                 }
