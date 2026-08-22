@@ -128,14 +128,22 @@ export function listCandidates(
     // resolver contract (`pendingChoiceSubmit.ts`): the pool is the owner's
     // zone, intersected with `candidateIds` (the allow-list snapshotted when
     // the choice was raised) when one is present. Collapsed into one branch
-    // (issue #2689 fixup 3 review) so a fifth zone added to the union can't
-    // silently fall through to the no-zone fallback the way `exile` did —
+    // (issue #2689 fixup 3 review) so a fifth zone added to the union does
+    // not need a fourth copy of this body the way `exile` did —
     // `choose-exile-card` (Dauthi Voidwalker, interpreter.ts's exile branch;
     // Currency Converter's hand-built `requestChoice`) always carries a
     // non-empty `candidateIds` and hit the untagged-zone throw below.
     // `battlefield` stays its own branch: it has `allControllers`, a
     // type/controller filter and its own chooser-relative semantics that
     // don't fit this shape.
+    //
+    // NOT a compile-time exhaustiveness guarantee (#2689 round-3 review):
+    // this tuple has no `satisfies` tie to the union and no `never` default,
+    // so a SIXTH zone added to `PendingChoice.zone` compiles silently. What
+    // catches it is the untagged-zone throw below, and only when
+    // `candidateIds` is non-empty; raised without one it still returns `[]`
+    // and surfaces downstream as a generic "Select at least 1 card". A real
+    // guarantee needs a `switch` with `const _never: never = head.zone`.
     const SIMPLE_OWNER_ZONES = [
         "hand",
         "library",
