@@ -151,8 +151,10 @@ export function listCandidates(
         const allowListed = head.candidateIds
             ? pool.filter((c) => head.candidateIds!.includes(c.id))
             : pool;
-        // `eligibleIds` (library `look-distribute` only, e.g. Narset — CR
-        // 701.22/701.44 — gre/state.ts) narrows further: the full looked-at
+        // `eligibleIds` (library `look-distribute` only — gre/state.ts;
+        // no CR keyword action governs it, it is an ordinary effect's
+        // restriction on which looked-at cards may be KEPT) narrows
+        // further: the full looked-at
         // window is shown, but the submit-validator
         // (pendingChoiceSubmit.ts) rejects any KEPT id outside it, only for
         // `zone === "library"` and `kind === "look-distribute"`. Without
