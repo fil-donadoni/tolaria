@@ -12,6 +12,7 @@ import {
     type OrderingKind,
 } from "@convex/deckLayout";
 import { cn } from "~/lib/utils";
+import { CARD_LANDSCAPE_COMPACT_W } from "~/lib/cardSizing";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import type { ZoneCard } from "~/types/game";
@@ -478,7 +479,25 @@ export default function DeckZoneSurface({
     // disagree with — the two arrangements are different elements, mounted one
     // at a time, so `index.css`'s "keep the two in step" warning does not
     // apply here the way it does to `narrowWidth`.
-    const asRows = useViewportMode() === "portrait";
+    const viewportMode = useViewportMode();
+    const asRows = viewportMode === "portrait";
+
+    // Issue #2665: the landscape-phone rung. The gap/padding rungs used to be
+    // `md:gap-6 md:p-4` — Tailwind's `md` is a 768px WIDTH breakpoint and a
+    // sideways phone is 844px WIDE, so it cleared `md:` and took the DESKTOP
+    // gutter on a viewport with 390px of height. Nothing those classes can see
+    // separates the two shapes; only the height does, which is precisely what
+    // `useViewportMode()`/`compact-chrome:` discriminate on.
+    //
+    // Read from the SAME hook as `asRows` above, and it is the JS twin of the
+    // `compact-chrome:` classes already on the strip (`index.css`'s "keep the
+    // two in step" warning): both resolve to
+    // `(orientation: landscape) and (max-height: 500px)`, so the density rung,
+    // the strip's own `min-h`/`flex-none` and the header suppression below can
+    // never disagree about which rung is on screen. Deliberately NOT
+    // `narrowWidth` above — that read is `md`-keyed on purpose (it mirrors the
+    // pile's own `hidden md:flex`) and a landscape phone is not narrow.
+    const landscapeCompact = viewportMode === "landscape-compact";
 
     // The header's count text. The `countSuffix` branch exists because the
     // naive `${visible.length} of ${cards.length}${countSuffix}` reads as
@@ -503,6 +522,25 @@ export default function DeckZoneSurface({
                     ? "bg-accent-soft/10 ring-2 ring-inset ring-accent/60"
                     : ""
             )}
+            /* Issue #2665. Captures the tile width this surface INHERITS so the
+               strip below can floor it at `CARD_LANDSCAPE_COMPACT_W` without a
+               `var(--card-w)` self-reference — a custom property whose own value
+               reads itself is a cycle and computes to nothing, whichever element
+               declares it, so the floor genuinely needs two elements. Flooring
+               (rather than replacing) is what keeps the per-zone zoom slider
+               live on this rung, and reading the inherited value is what makes
+               ONE expression serve both hosts: the deck builders inherit
+               `calc(cardBase * zoom)` from `deck-zones-surface.tsx`'s `zoomVars`,
+               while the Draft Room's Pool/Sideboard set nothing and inherit the
+               board's global `--card-w` (`index.css`) — measured 90.0px and
+               37.0px respectively at 844x390x3 before this change. */
+            style={
+                landscapeCompact
+                    ? ({
+                          "--card-w-inherited": "var(--card-w)",
+                      } as React.CSSProperties)
+                    : undefined
+            }
         >
             <div className="flex min-w-0 flex-wrap items-baseline gap-2 px-3 pt-3 text-sm md:px-4">
                 {/* `truncate` (issue #2056): the untruncated title wrapped to
@@ -633,15 +671,44 @@ export default function DeckZoneSurface({
                 in `scripts/ui-gate/budgets.json` is that measurement. */}
             <div
                 className={cn(
-                    "flex overflow-auto p-3 md:snap-none md:gap-6 md:p-4",
+                    "flex overflow-auto md:snap-none",
+                    // Issue #2665 — the DENSITY rung. `p-3 md:p-4` / `gap-3
+                    // md:gap-6` is a WIDTH ladder and had no rung for a
+                    // viewport that is wide AND short, so the landscape phone
+                    // took the desktop end of it (24px gutters, 16px padding,
+                    // measured). Chosen in JS rather than by adding a
+                    // `compact-chrome:` class beside the `md:` one because two
+                    // variants of equal specificity are resolved by the order
+                    // Tailwind happens to emit them in — an invisible
+                    // dependency for a rule whose whole job is to BEAT `md:`.
+                    // The branch emits one rung and never both.
+                    landscapeCompact ? "gap-2 p-2" : "p-3 md:p-4",
                     asRows
                         ? // Issue #2584: rows stack DOWN the pane and the pane
                           // itself is what scrolls vertically; each row owns its
                           // own horizontal scroller with
                           // `overscroll-behavior-x: contain`.
                           "flex-col items-stretch gap-2 overscroll-y-contain"
-                        : "flex-1 items-start gap-3 snap-x snap-mandatory compact-chrome:min-h-[calc(var(--card-h)+3.5rem)] compact-chrome:flex-none"
+                        : cn(
+                              "flex-1 items-start snap-x snap-mandatory compact-chrome:min-h-[calc(var(--card-h)+3.5rem)] compact-chrome:flex-none",
+                              !landscapeCompact && "gap-3 md:gap-6"
+                          )
                 )}
+                /* The freed gutter goes to the TILES (issue #2665 AC), as a
+                   floor over the inherited width captured on the pane above —
+                   so a zoom slider dragged up still wins, and every other
+                   viewport keeps exactly the width it had. `--card-h` is
+                   re-derived here rather than inherited because this element's
+                   own `compact-chrome:min-h-[calc(var(--card-h)+3.5rem)]` reads
+                   it, and `pileHeight()` reads it again on every Column. */
+                style={
+                    landscapeCompact
+                        ? ({
+                              "--card-w": `max(${CARD_LANDSCAPE_COMPACT_W}, var(--card-w-inherited))`,
+                              "--card-h": `calc(max(${CARD_LANDSCAPE_COMPACT_W}, var(--card-w-inherited)) * 7 / 5)`,
+                          } as React.CSSProperties)
+                        : undefined
+                }
             >
                 {asRows
                     ? rendered.map((column) => (
@@ -664,24 +731,34 @@ export default function DeckZoneSurface({
                               dataColumn={column.id}
                               tiles={column.tiles}
                               hiddenWhenEmpty={column.hiddenWhenEmpty}
+                              showHeader={!landscapeCompact}
+                              /* A Column that is not a pin target is never
+                                 renameable and never deletable (ADR 0075 §2), so
+                                 it gets no controls at all rather than two
+                                 disabled ones. Renaming is offered for MANUAL
+                                 Columns only — a generated Column's label comes
+                                 from its Grouping.
+
+                                 …and a Column the pile is CSS-hiding below `md`
+                                 (`hiddenWhenEmpty`, issue #1633) gets none either
+                                 (issue #2511): the controls inside a
+                                 `display: none` pile are unreachable but still in
+                                 the document, which is 9 zero-size buttons on the
+                                 Limited Maindeck at 390x844 — dead tab stops the
+                                 browser probe counts and a reader cannot see.
+                                 `narrowWidth` is the JS twin of the pile's own
+                                 `hidden md:flex`, read from the SAME `md`
+                                 breakpoint number so the two cannot disagree.
+
+                                 The landscape-phone rung (issue #2665) is the
+                                 third such case and the same reasoning: there is
+                                 no header to render these INTO there, so passing
+                                 them would leave exactly those zero-size,
+                                 unreachable buttons behind. Rename/delete stay
+                                 workbench gestures, as `DeckMvRow` already
+                                 decided for phone-portrait. */
                               actions={
-                                  // A Column that is not a pin target is never
-                                  // renameable and never deletable (ADR 0075 §2), so
-                                  // it gets no controls at all rather than two
-                                  // disabled ones. Renaming is offered for MANUAL
-                                  // Columns only — a generated Column's label comes
-                                  // from its Grouping.
-                                  //
-                                  // …and a Column the pile is CSS-hiding below `md`
-                                  // (`hiddenWhenEmpty`, issue #1633) gets none either
-                                  // (issue #2511): the controls inside a
-                                  // `display: none` pile are unreachable but still in
-                                  // the document, which is 9 zero-size buttons on the
-                                  // Limited Maindeck at 390x844 — dead tab stops the
-                                  // browser probe counts and a reader cannot see.
-                                  // `narrowWidth` is the JS twin of the pile's own
-                                  // `hidden md:flex`, read from the SAME `md`
-                                  // breakpoint number so the two cannot disagree.
+                                  !landscapeCompact &&
                                   (onRenameColumn || onDeleteColumn) &&
                                   column.pinNamespace !== null &&
                                   !(column.hiddenWhenEmpty && narrowWidth) ? (

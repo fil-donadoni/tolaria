@@ -23,6 +23,28 @@ export function cardBase(rem: string, vw: string, dvh: string): string {
     return `max(${CARD_MIN_W}, min(${rem}, ${vw}, ${dvh}))`;
 }
 
+/** The Column-pile tile width on the LANDSCAPE-PHONE rung (issue #2665) —
+ *  applied as a FLOOR by `DeckZoneSurface`, never as a replacement, so the
+ *  per-zone zoom slider still scales the tile UP from here.
+ *
+ *  Not a fourth copy of the clamp and not a change to `CARD_MIN_W`: the shared
+ *  floor above is a LEGIBILITY minimum for every surface, and this is a
+ *  rung-specific target for one of them. A sideways phone is the one viewport
+ *  class where every candidate in `cardBase()` argues for a small tile and none
+ *  of them should: the `dvh` term binds (390px of height -> ~37px), so both
+ *  hosts of this surface pinned to their floor while ~800px of WIDTH sat unused
+ *  behind a desktop-sized `md:gap-6`/`md:p-4` gutter (measured 2026-08-22 at
+ *  844x390x3: the Draft Room Pool at 37.0px, the deckbuilder Maindeck at
+ *  90.0px). Tightening the gutter to `gap-2`/`p-2` and dropping the per-Column
+ *  header is what pays for this number.
+ *
+ *  `7rem` (112px -> 156.8px tall at the 5:7 card aspect ratio) is above 1.2x
+ *  the widest of the two measured baselines, which is the issue's own
+ *  acceptance bar. It applies to NO other viewport: `compact-chrome`'s
+ *  `(orientation: landscape) and (max-height: 500px)` selects landscape phones
+ *  and nothing else (`useViewportMode.ts` has the range arithmetic). */
+export const CARD_LANDSCAPE_COMPACT_W = "7rem";
+
 // --- Height-reachability math (issue #2275) -------------------------------
 //
 // `PoolDeckbuilderSurface` pins its own min-height to
