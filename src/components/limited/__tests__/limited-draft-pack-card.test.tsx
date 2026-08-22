@@ -89,6 +89,27 @@ describe("LimitedDraftPackCard gestures (ADR 0060, issue #1248)", () => {
         expect(getByRole("button").getAttribute("aria-pressed")).toBe("true");
     });
 
+    it("draws the selected ring INSET, never past its own border box (issue #2663)", () => {
+        // The phone pack grid is itself the clipping scroller, flush against
+        // its own edges with no padding — a ring drawn OUTSIDE the border
+        // box (Tailwind's default) is clipped on every edge column/row.
+        // `ring-inset` is what keeps the ring entirely inside the tile's own
+        // box regardless of scroller padding.
+        const { getByRole } = render(
+            <LimitedDraftPackCard
+                card={card}
+                selected
+                onSelect={vi.fn()}
+                onPick={vi.fn()}
+                onOpenMenu={vi.fn()}
+                pending={false}
+            />
+        );
+        const classList = getByRole("button").className;
+        expect(classList).toContain("ring-inset");
+        expect(classList).toContain("ring-4");
+    });
+
     it("while pending, a click/double-click/right-click all no-op", () => {
         const onSelect = vi.fn();
         const onPick = vi.fn();

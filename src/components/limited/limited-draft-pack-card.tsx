@@ -89,7 +89,18 @@ export default function LimitedDraftPackCard({
                 pending
                     ? "cursor-not-allowed opacity-60"
                     : "hover:-translate-y-0.5",
-                selected ? "ring-4 ring-accent" : "",
+                // Issue #2663: the phone pack grid (`limited-draft-pack.tsx`)
+                // is itself the clipping scroller — its tracks sit flush
+                // against its own edges with zero inline/block padding, so a
+                // ring drawn OUTSIDE the border box (the Tailwind default)
+                // gets cut off on every edge column/row. `ring-inset` draws
+                // the same box-shadow width INWARD instead, entirely within
+                // this tile's own border box, so it can never be clipped by
+                // an ancestor's overflow regardless of scroller padding —
+                // same technique already used for drop-target rings
+                // elsewhere in the draft room (draft-pack-status-bar.tsx,
+                // draft-strip-drop-zone.tsx). No width/tile-size cost.
+                selected ? "ring-4 ring-inset ring-accent" : "",
                 isDragging ? "opacity-30" : ""
             )}
         >
