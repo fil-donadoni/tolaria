@@ -573,6 +573,22 @@ _Avoid_: A/B test, control pair
 A position the **Brain** solves only with more search than a real game grants. Recorded with _why_ — too many candidate moves at one decision, a payoff too far ahead, or a hidden-information coincidence that rarely occurs — because each cause names a missing piece of **Brain** knowledge, not a shortfall of thinking time.
 _Avoid_: Too slow, needs more iterations, timeout
 
+**Ladder**:
+The **Brain**'s strength metric: paired bot-vs-bot games in which the two **Players** use the same decks and the same shuffles and only the **Brain** configuration differs by seat, so the verdict ("stronger", "weaker", "inconclusive") is about the **Brain**, never about the decks. Complements the **Blade Scenario**: a blade proves a forced play is not missed, a ladder proves a change that shifts every decision a little is a net gain.
+_Avoid_: Self-play benchmark, deck win-rate, tournament
+
+**Pairing Registry**:
+The curated list of deck pairs the **Ladder** plays, each row tagged with the gameplay **Dynamics** it exercises (racing, go-wide combat, discard, sacrifice outlets, two-card combos…). A change claims strength on the **Dynamics** it touches; a dynamic with no row is added with the change that needs it.
+_Avoid_: Deck list, matchup table, gauntlet
+
+**Environment Rung**:
+A tier of the **Pairing Registry** ordered by how much interaction the decks carry — combat and racing first, instant-speed interaction and repeatable abilities next, cube archetypes with combos last. Work on the **Brain** climbs the rungs in order; a rung is not skipped because the player happens to play at a higher one.
+_Avoid_: Level, difficulty, format
+
+**Shortcut**:
+A sequence of game choices a **Player** with **Priority** proposes in one breath instead of performing step by step (CR 732) — including a loop repeated a stated number of times ("I'll create a million tokens"), which each other **Player** may accept or cut short at the point where they would choose differently. An engine capability consumed alike by the human UI and by the **Brain**, whose search otherwise cannot see the end of a loop.
+_Avoid_: Combo, infinite, macro, auto-repeat
+
 **Determinization**:
 Guessing a concrete possible world for the hidden information (the opponent's **Hand** and the order of the **Library**) so the **Brain** can reason about an otherwise-hidden position as if it were fully known.
 _Avoid_: Sampling, guessing, simulation
