@@ -18,6 +18,7 @@ import {
     SHELL_BROWSE_BAND_PX,
     SHELL_BROWSE_COMPACT_BAND_PX,
     SHELL_CONTEXTUAL_BAND_PX,
+    SHELL_CONTEXTUAL_COMPACT_BAND_PX,
     SHELL_RETURN_BANNER_PX,
     VIEWPORT_HEIGHT_CLASSES,
     deriveHeightClaim,
@@ -772,7 +773,15 @@ describe("shellBands — mode x viewport (issue #2582)", () => {
         }
     });
 
-    it("gives every immersive non-board route the 44px contextual bar, in every viewport", () => {
+    it("gives every immersive non-board route the contextual bar, sized per viewport (issue #2662)", () => {
+        // 44px in portrait/desktop; 36px on a landscape phone — the same
+        // height-driven split the Browse branch above already applies
+        // (`SHELL_BROWSE_BAND_PX` / `SHELL_BROWSE_COMPACT_BAND_PX`).
+        const expected = {
+            portrait: SHELL_CONTEXTUAL_BAND_PX,
+            "landscape-compact": SHELL_CONTEXTUAL_COMPACT_BAND_PX,
+            desktop: SHELL_CONTEXTUAL_BAND_PX,
+        } as const;
         for (const viewport of [
             "portrait",
             "landscape-compact",
@@ -787,7 +796,7 @@ describe("shellBands — mode x viewport (issue #2582)", () => {
                 }),
                 viewport
             ).toEqual({
-                headerBandHeightPx: SHELL_CONTEXTUAL_BAND_PX,
+                headerBandHeightPx: expected[viewport],
                 bottomBandHeightPx: 0,
             });
         }
@@ -804,6 +813,12 @@ describe("shellBands — mode x viewport (issue #2582)", () => {
             ],
             ["browse", false, "portrait", 0],
             ["immersive", false, "desktop", SHELL_CONTEXTUAL_BAND_PX],
+            [
+                "immersive",
+                false,
+                "landscape-compact",
+                SHELL_CONTEXTUAL_COMPACT_BAND_PX,
+            ],
         ] as const;
         for (const [mode, ownChrome, viewport, base] of cases) {
             expect(

@@ -157,6 +157,11 @@ export const CONTROL_HEIGHT_TOKENS: readonly TokenSpec[] = [
         value: "calc(var(--control-h) - 4px)",
         role: "dense rung: small buttons, segmented pills",
     },
+    {
+        name: "--control-h-xs",
+        value: "28px",
+        role: "short-viewport floor (landscape phone contextual bar, issue #2662) — WCAG 2.5.8 AA minimum (24x24) with margin, not pointer-aware",
+    },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
