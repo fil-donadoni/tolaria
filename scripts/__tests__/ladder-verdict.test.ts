@@ -126,6 +126,48 @@ describe("summarizeRun", () => {
     });
 });
 
+describe("summarizeRun is order-independent (issue #2681)", () => {
+    // Records referencing only pairing 0 and pairing 1 out of a 3-row
+    // registry — pairing 2 is never played (the parallel-worker/filtered-run
+    // shape: workers finish in whatever order, and a filtered run only ever
+    // produces records for the SELECTED registry rows).
+    const THREE_PAIRINGS: LadderPairing[] = [
+        ...PAIRINGS,
+        { deckA: "e", deckB: "f", dynamics: ["z"] },
+    ];
+    const records = [
+        rec(0, true, 0),
+        rec(0, false, 1),
+        rec(1, true, 2),
+        rec(1, null, 3),
+        rec(0, true, 4),
+    ];
+
+    it("never reports a phantom 0/0 matchup for a pairing with zero records", () => {
+        const s = summarizeRun(records, THREE_PAIRINGS);
+        expect(s.matchups.map((m) => m.pairingIndex)).toEqual([0, 1]);
+        expect(s.matchups.some((m) => m.pairingIndex === 2)).toBe(false);
+    });
+
+    it("shuffling the record array yields an identical summary", () => {
+        const original = summarizeRun(records, THREE_PAIRINGS);
+        const shuffled = [...records].reverse();
+        const shuffledSummary = summarizeRun(shuffled, THREE_PAIRINGS);
+        expect(shuffledSummary).toEqual(original);
+
+        // A second, differently-ordered permutation (interleaved, the shape a
+        // real multi-worker completion order would produce).
+        const interleaved = [
+            records[2],
+            records[0],
+            records[4],
+            records[3],
+            records[1],
+        ];
+        expect(summarizeRun(interleaved, THREE_PAIRINGS)).toEqual(original);
+    });
+});
+
 describe("formatVerdictBlock", () => {
     it("emits the paste-ready PR block with verdict, config and per-matchup CIs", () => {
         const header = buildHeader("smoke", 9, "my-variant", 400, PAIRINGS);

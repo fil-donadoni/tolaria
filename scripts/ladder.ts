@@ -25,9 +25,23 @@
  *
  * Usage:
  *   bun run ladder [--tier smoke|decision] [--baseSeed N] [--variant name]
+ *   bun run ladder [--workers N]              # default: ncpu - 1, min 1
+ *   bun run ladder [--pairings deckA:deckB,...] | [--dynamics tag,...]
  *   bun run ladder --resume ladder-runs/<file>.jsonl
  *   (--iterations N exists for NON-STANDARD dev shakeouts only — a verdict
  *    quoted in a PR must come from the fixed production budget.)
+ *
+ * Parallelism (issue #2681): up to `--workers N` OS processes (default
+ * ncpu - 1) each play a static round-robin slice of the plan and stream
+ * results back over stdio; this process is the SOLE writer of the run file.
+ * `--workers 1` is the plain sequential loop, byte-for-byte as before.
+ *
+ * Pairing/dynamics filter (issue #2681): `--pairings`/`--dynamics` restrict
+ * the run to a subset of `LADDER_PAIRINGS` rows WITHOUT renumbering them —
+ * seeds and gameIndex are always derived from the row's index in the FULL
+ * registry (scripts/lib/ladder/filter.ts + plan.ts:filterGamePlan), so a
+ * filtered run's records are exactly the matching subset of an unfiltered
+ * run's. The header records the filter; `--resume` validates it.
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -36,12 +50,15 @@ import {
     readFileSync,
     writeFileSync,
 } from "node:fs";
+import { cpus } from "node:os";
 import { join, resolve } from "node:path";
 
 import { LADDER_PAIRINGS } from "./lib/ladder/pairings";
+import { parseFilterArg, selectPairingIndices } from "./lib/ladder/filter";
 import {
     buildGamePlan,
     buildHeader,
+    filterGamePlan,
     headerMismatches,
     parseRunFile,
     remainingGames,
@@ -51,6 +68,7 @@ import {
     type LadderRunHeader,
     type LadderTier,
 } from "./lib/ladder/plan";
+import { runWorkerPool, type WorkerResult } from "./lib/ladder/pool";
 import {
     formatLiveLine,
     formatVerdictBlock,
@@ -62,6 +80,7 @@ import { playLadderGame } from "../src/lib/ai/selfplay/ladder";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
 const RUNS_DIR = join(REPO_ROOT, "ladder-runs");
+const WORKER_SCRIPT = join(REPO_ROOT, "scripts", "lib", "ladder", "worker.ts");
 
 // ── args ────────────────────────────────────────────────────────────────────
 function fail(msg: string): never {
@@ -72,7 +91,10 @@ function fail(msg: string): never {
 function parseArgs(argv: string[]) {
     const out: Record<string, string> = {};
     for (let i = 0; i < argv.length; i++) {
-        const m = /^--(tier|baseSeed|variant|resume|iterations)$/.exec(argv[i]);
+        const m =
+            /^--(tier|baseSeed|variant|resume|iterations|pairings|dynamics|workers)$/.exec(
+                argv[i]
+            );
         if (!m) fail(`unknown argument "${argv[i]}" (see file header)`);
         const v = argv[++i];
         if (v === undefined) fail(`--${m[1]} needs a value`);
@@ -115,7 +137,14 @@ let priorRecords: LadderGameRecord[] = [];
 let runFile: string;
 
 if (args.resume) {
-    for (const k of ["tier", "baseSeed", "variant", "iterations"] as const) {
+    for (const k of [
+        "tier",
+        "baseSeed",
+        "variant",
+        "iterations",
+        "pairings",
+        "dynamics",
+    ] as const) {
         if (args[k] !== undefined)
             fail(`--${k} conflicts with --resume (config comes from the file)`);
     }
@@ -124,13 +153,15 @@ if (args.resume) {
     header = parsed.header;
     priorRecords = parsed.records;
     // The registry must still match the file — a resumed run is the SAME
-    // experiment, and headerMismatches also guards a registry drift.
+    // experiment, and headerMismatches also guards a registry (and filter)
+    // drift. The filter itself comes from the FILE, not re-specified.
     const expected = buildHeader(
         header.tier,
         header.baseSeed,
         header.variant,
         header.iterations,
-        LADDER_PAIRINGS
+        LADDER_PAIRINGS,
+        header.filter ?? null
     );
     const mismatches = headerMismatches(header, expected);
     if (mismatches.length > 0)
@@ -158,7 +189,29 @@ if (args.resume) {
             `⚠ NON-STANDARD run: ${iterations} iterations (production budget is ${LADDER_ITERATIONS}) — not valid for a PR verdict`
         );
 
-    header = buildHeader(tier, baseSeed, variant, iterations, LADDER_PAIRINGS);
+    if (args.pairings !== undefined && args.dynamics !== undefined)
+        fail("--pairings and --dynamics are mutually exclusive");
+    let filter: ReturnType<typeof parseFilterArg> | null = null;
+    try {
+        filter =
+            args.pairings !== undefined
+                ? parseFilterArg("pairings", args.pairings)
+                : args.dynamics !== undefined
+                  ? parseFilterArg("dynamics", args.dynamics)
+                  : null;
+        if (filter) selectPairingIndices(LADDER_PAIRINGS, filter); // throws on a typo
+    } catch (e) {
+        fail((e as Error).message);
+    }
+
+    header = buildHeader(
+        tier,
+        baseSeed,
+        variant,
+        iterations,
+        LADDER_PAIRINGS,
+        filter
+    );
     const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
     runFile = join(
         RUNS_DIR,
@@ -172,19 +225,41 @@ const candidate = header.variant ? LADDER_VARIANTS[header.variant] : null;
 if (header.variant && !candidate)
     fail(`variant "${header.variant}" is no longer in LADDER_VARIANTS`);
 
+const workers =
+    args.workers !== undefined
+        ? Number(args.workers)
+        : Math.max(1, cpus().length - 1);
+if (!Number.isInteger(workers) || workers < 1)
+    fail(`--workers must be a positive integer`);
+
 // ── run ─────────────────────────────────────────────────────────────────────
-const plan = buildGamePlan(
+// `buildGamePlan` ALWAYS runs over the full registry so seeds and gameIndex
+// are derived exactly as an unfiltered run would derive them; a filter only
+// trims the resulting plan afterward (plan.ts:filterGamePlan), so a filtered
+// run's game records are the exact matching subset of an unfiltered run's
+// (issue #2681).
+const fullPlan = buildGamePlan(
     LADDER_PAIRINGS,
     TIER_SEEDS[header.tier],
     header.baseSeed
 );
+const allowedIndices = selectPairingIndices(
+    LADDER_PAIRINGS,
+    header.filter ?? null
+);
+const plan = filterGamePlan(fullPlan, allowedIndices);
 const todo = remainingGames(plan, priorRecords);
 
 console.log(
     `ladder ${header.tier}: ${plan.length} games` +
-        ` (${LADDER_PAIRINGS.length} pairings × 2 seat orders × ${TIER_SEEDS[header.tier]} seeds)` +
+        ` (${allowedIndices.size}/${LADDER_PAIRINGS.length} pairings` +
+        (header.filter
+            ? ` [--${header.filter.kind} ${header.filter.values.join(",")}]`
+            : "") +
+        ` × 2 seat orders × ${TIER_SEEDS[header.tier]} seeds)` +
         ` · candidate=${header.variant ?? "control (null run)"}` +
         ` · baseSeed=${header.baseSeed} · ${header.iterations} iterations` +
+        ` · workers=${workers}` +
         `\n→ ${runFile}\n`
 );
 
@@ -192,35 +267,12 @@ const records: LadderGameRecord[] = [...priorRecords];
 let candWins = records.filter((r) => r.candidateWon === true).length;
 let decisive = records.filter((r) => r.candidateWon !== null).length;
 
-for (const g of todo) {
-    const t0 = Date.now();
-    const outcome = playLadderGame(
-        {
-            deckSeat0: g.deckSeat0,
-            deckSeat1: g.deckSeat1,
-            seed: g.seed,
-            candidateSeat: g.candidateSeat,
-            iterations: header.iterations,
-        },
-        candidate
-    );
-    const record: LadderGameRecord = {
-        kind: "game",
-        gameIndex: g.gameIndex,
-        pairingIndex: g.pairingIndex,
-        seedIndex: g.seedIndex,
-        orientation: g.orientation,
-        deckSeat0: g.deckSeat0,
-        deckSeat1: g.deckSeat1,
-        seed: g.seed,
-        candidateSeat: g.candidateSeat,
-        winnerSeat: outcome.winnerSeat,
-        candidateWon: outcome.candidateWon,
-        reason: outcome.reason,
-        turns: outcome.turns,
-        plies: outcome.plies,
-        ms: Date.now() - t0,
-    };
+/** Append one finished game + emit its live line — the SINGLE funnel both
+ *  the sequential path and the parallel worker pool feed through, so file
+ *  content and live output stay identical regardless of how a game was
+ *  played (issue #2681: this process is the run file's sole writer). */
+function applyRecord(partial: WorkerResult): void {
+    const record: LadderGameRecord = { kind: "game", ...partial };
     appendFileSync(runFile, JSON.stringify(record) + "\n");
     records.push(record);
     if (record.candidateWon !== null) {
@@ -235,6 +287,56 @@ for (const g of todo) {
             wilson(candWins, decisive)
         )
     );
+}
+
+if (workers === 1) {
+    // Plain sequential loop — byte-for-byte the original behaviour.
+    for (const g of todo) {
+        const t0 = Date.now();
+        const outcome = playLadderGame(
+            {
+                deckSeat0: g.deckSeat0,
+                deckSeat1: g.deckSeat1,
+                seed: g.seed,
+                candidateSeat: g.candidateSeat,
+                iterations: header.iterations,
+            },
+            candidate
+        );
+        applyRecord({
+            gameIndex: g.gameIndex,
+            pairingIndex: g.pairingIndex,
+            seedIndex: g.seedIndex,
+            orientation: g.orientation,
+            deckSeat0: g.deckSeat0,
+            deckSeat1: g.deckSeat1,
+            seed: g.seed,
+            candidateSeat: g.candidateSeat,
+            winnerSeat: outcome.winnerSeat,
+            candidateWon: outcome.candidateWon,
+            reason: outcome.reason,
+            turns: outcome.turns,
+            plies: outcome.plies,
+            ms: Date.now() - t0,
+        });
+    }
+} else {
+    // Workers inherit TOLARIA_GATE_HELD=1 from this process's own env (set by
+    // gate.ts on the child it spawned above) — they never touch gate.ts
+    // themselves, so one run still holds exactly one gate mutex (issue #2681
+    // acceptance: "one run = one hold").
+    try {
+        await runWorkerPool({
+            tasks: todo,
+            workers,
+            variant: header.variant,
+            iterations: header.iterations,
+            workerScript: WORKER_SCRIPT,
+            onResult: applyRecord,
+        });
+    } catch (e) {
+        console.error(`ladder: ${(e as Error).message}`);
+    }
 }
 
 // ── report ──────────────────────────────────────────────────────────────────

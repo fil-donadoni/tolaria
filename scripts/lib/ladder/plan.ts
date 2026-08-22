@@ -19,6 +19,7 @@
 // alternates by seed-index parity so both decks get on-the-play coverage.
 
 import type { LadderPairing } from "./pairings";
+import { selectPairingIndices, type LadderFilterSpec } from "./filter";
 
 export type LadderTier = "smoke" | "decision";
 
@@ -56,6 +57,10 @@ export type LadderRunHeader = {
     /** Candidate variant name, or null for the control-vs-control null run. */
     variant: string | null;
     iterations: number;
+    /** Pairing-subset filter (issue #2681), or null for the full registry.
+     *  Resume validates this against the registry the same way it validates
+     *  `pairings` — a run under a different filter is a DIFFERENT experiment. */
+    filter: LadderFilterSpec | null;
     totalGames: number;
     pairings: { deckA: string; deckB: string }[];
 };
@@ -118,8 +123,14 @@ export function buildHeader(
     baseSeed: number,
     variant: string | null,
     iterations: number,
-    pairings: LadderPairing[]
+    pairings: LadderPairing[],
+    filter: LadderFilterSpec | null = null
 ): LadderRunHeader {
+    // totalGames reflects the FILTERED game count (what this run will
+    // actually play), while `pairings` below always records the full
+    // registry — headerMismatches still needs it to detect a registry
+    // change independent of the filter (issue #2681).
+    const selected = selectPairingIndices(pairings, filter).size;
     return {
         kind: "header",
         version: 1,
@@ -127,7 +138,8 @@ export function buildHeader(
         baseSeed,
         variant,
         iterations,
-        totalGames: pairings.length * TIER_SEEDS[tier] * 2,
+        filter,
+        totalGames: selected * TIER_SEEDS[tier] * 2,
         pairings: pairings.map(({ deckA, deckB }) => ({ deckA, deckB })),
     };
 }
@@ -178,7 +190,33 @@ export function headerMismatches(
         );
     if (JSON.stringify(header.pairings) !== JSON.stringify(expected.pairings))
         out.push("pairings: registry changed since the file was started");
+    if (header.totalGames !== expected.totalGames)
+        out.push(
+            `totalGames: file=${header.totalGames} run=${expected.totalGames}`
+        );
+    if (
+        JSON.stringify(header.filter ?? null) !==
+        JSON.stringify(expected.filter ?? null)
+    )
+        out.push(
+            `filter: file=${JSON.stringify(header.filter ?? null)} run=${JSON.stringify(expected.filter ?? null)}`
+        );
     return out;
+}
+
+/** The plan filtered down to the rows a `--pairings`/`--dynamics` filter
+ *  selected — preserving every field (gameIndex, seed, pairingIndex, …)
+ *  UNTOUCHED. This is the whole identity fix of issue #2681: `buildGamePlan`
+ *  always runs over the full registry (so seeds and gameIndex are derived
+ *  exactly as an unfiltered run would derive them), and filtering happens
+ *  strictly AFTER, as a plain array filter — so a filtered run's game
+ *  records are element-wise identical to the matching rows of an unfiltered
+ *  run, never renumbered. */
+export function filterGamePlan(
+    plan: LadderGamePlan[],
+    allowedPairingIndices: Set<number>
+): LadderGamePlan[] {
+    return plan.filter((g) => allowedPairingIndices.has(g.pairingIndex));
 }
 
 /** The plan entries not yet present in `records` — the exact games a resumed

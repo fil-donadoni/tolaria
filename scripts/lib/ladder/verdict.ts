@@ -82,27 +82,44 @@ export type LadderSummary = {
 
 /** Fold the game records into the per-matchup + aggregate report. Candidate
  *  win-rates are over DECISIVE games only; guard stops (candidateWon = null)
- *  are counted separately — harness health, never wins or losses. */
+ *  are counted separately — harness health, never wins or losses.
+ *
+ * Order-independent over `records` (issue #2681): matchups are grouped by
+ * the `pairingIndex` each record CARRIES — never by array position — and
+ * only pairing indices that actually appear in `records` are reported. A
+ * filtered run's records carry the SAME registry indices an unfiltered run
+ * would (plan.ts: filterGamePlan preserves identity), so passing the full
+ * `pairings` registry here (as `scripts/ladder.ts` always does) is correct
+ * for both a full and a filtered run: excluded rows never contribute a
+ * phantom 0/0 matchup, and record order — sequential vs. parallel-worker
+ * completion order — never changes the summary. */
 export function summarizeRun(
     records: LadderGameRecord[],
     pairings: LadderPairing[]
 ): LadderSummary {
-    const matchups: MatchupSummary[] = pairings.map((p, i) => ({
-        pairingIndex: i,
-        deckA: p.deckA,
-        deckB: p.deckB,
-        wins: 0,
-        losses: 0,
-        decisive: 0,
-        guardStops: 0,
-        ci: wilson(0, 0),
-    }));
+    const present = Array.from(
+        new Set(records.map((r) => r.pairingIndex))
+    ).sort((a, b) => a - b);
+    const matchups: MatchupSummary[] = present.map((i) => {
+        const p = pairings[i];
+        return {
+            pairingIndex: i,
+            deckA: p?.deckA ?? "?",
+            deckB: p?.deckB ?? "?",
+            wins: 0,
+            losses: 0,
+            decisive: 0,
+            guardStops: 0,
+            ci: wilson(0, 0),
+        };
+    });
+    const byIndex = new Map(matchups.map((m) => [m.pairingIndex, m]));
     let wins = 0;
     let decisive = 0;
     let guardStops = 0;
 
     for (const r of records) {
-        const m = matchups[r.pairingIndex];
+        const m = byIndex.get(r.pairingIndex);
         if (!m) continue;
         if (r.candidateWon === null) {
             m.guardStops++;
