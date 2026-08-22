@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { playLadderGame, type LadderGameSpec } from "./ladder";
-import { getSearchVariant } from "@convex/gre/ai/searchVariant";
+import {
+    getSearchVariant,
+    setSearchVariant,
+} from "@convex/gre/ai/searchVariant";
 
 /**
  * Ladder game runner micro smoke (issue #1924, decision #1895). ONE pairing at
@@ -74,13 +77,23 @@ describe("playLadderGame (micro smoke)", () => {
  * or after it — a real multi-process worker changes only WHICH OS process a
  * game runs in, never this per-call contract, so proving it here licenses
  * the parallel design without needing to spawn real subprocesses in a test.
+ *
+ * For this to be a real guard (not vacuous), SPECS[0]'s variant must
+ * DEMONSTRABLY change SPECS[0]'s own outcome — otherwise no leak of it into
+ * a neighbouring game could ever move that neighbour's result either, and
+ * the order-equality assertions below would pass whether or not the seam
+ * actually isolates. `ucbC: 0.05` on this exact (deck, seed, candidateSeat,
+ * iterations) tuple was verified empirically to flip the winner outright
+ * (S1 -> S0) versus the null variant; the assertion at the top of the test
+ * pins that fact so a future engine change that made it stop mattering would
+ * fail loudly here instead of silently making the rest of the test inert.
  */
 describe("playLadderGame: cross-game isolation (issue #2681)", () => {
     const SPECS: LadderGameSpec[] = [
         {
             deckSeat0: "mono-red-burn",
             deckSeat1: "white-weenie",
-            seed: 11,
+            seed: 1,
             candidateSeat: "S1",
             iterations: 6,
         },
@@ -99,18 +112,30 @@ describe("playLadderGame: cross-game isolation (issue #2681)", () => {
             iterations: 6,
         },
     ];
-    const VARIANTS = [null, { name: "ucb-tight", ucbC: 0.7 }, null];
+    const VARIANTS = [{ name: "ucb-tight-lo", ucbC: 0.05 }, null, null];
 
     /** Play the specs at the given original-index order, return outcomes
-     *  keyed back by that original index (never by call position). */
+     *  keyed back by that original index (never by call position). Asserts
+     *  the seam is clean after EVERY individual game, not just at the very
+     *  end — pins down which game (if any) leaves it dirty. */
     function playInOrder(order: number[]): Map<number, unknown> {
         const out = new Map<number, unknown>();
-        for (const i of order)
+        for (const i of order) {
             out.set(i, playLadderGame(SPECS[i], VARIANTS[i]));
+            expect(getSearchVariant()).toBeNull();
+        }
         return out;
     }
 
+    it("SPECS[0]'s variant demonstrably changes its own outcome (precondition — otherwise a leak of it could never be observed below)", () => {
+        setSearchVariant(null);
+        const withVariant = playLadderGame(SPECS[0], VARIANTS[0]);
+        const withoutVariant = playLadderGame(SPECS[0], null);
+        expect(withVariant).not.toEqual(withoutVariant);
+    });
+
     it("each spec's outcome is independent of the order games are played in", () => {
+        setSearchVariant(null); // hermetic: don't inherit residue from another test
         const baseline = playInOrder([0, 1, 2]);
         const reversed = playInOrder([2, 1, 0]);
         const interleaved = playInOrder([1, 0, 2]);

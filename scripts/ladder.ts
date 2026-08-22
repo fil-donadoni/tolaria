@@ -191,18 +191,17 @@ if (args.resume) {
 
     if (args.pairings !== undefined && args.dynamics !== undefined)
         fail("--pairings and --dynamics are mutually exclusive");
-    const filter =
-        args.pairings !== undefined
-            ? parseFilterArg("pairings", args.pairings)
-            : args.dynamics !== undefined
-              ? parseFilterArg("dynamics", args.dynamics)
-              : null;
-    if (filter) {
-        try {
-            selectPairingIndices(LADDER_PAIRINGS, filter); // throws on a typo
-        } catch (e) {
-            fail((e as Error).message);
-        }
+    let filter: ReturnType<typeof parseFilterArg> | null = null;
+    try {
+        filter =
+            args.pairings !== undefined
+                ? parseFilterArg("pairings", args.pairings)
+                : args.dynamics !== undefined
+                  ? parseFilterArg("dynamics", args.dynamics)
+                  : null;
+        if (filter) selectPairingIndices(LADDER_PAIRINGS, filter); // throws on a typo
+    } catch (e) {
+        fail((e as Error).message);
     }
 
     header = buildHeader(

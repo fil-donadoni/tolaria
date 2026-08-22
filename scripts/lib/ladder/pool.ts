@@ -102,19 +102,37 @@ function runOneWorker(
             { stdio: ["pipe", "pipe", "inherit"], env: process.env }
         );
 
+        let parseError: Error | null = null;
         const rl = createInterface({ input: child.stdout! });
         rl.on("line", (line) => {
             if (!line.trim()) return;
-            onResult(JSON.parse(line) as WorkerResult);
+            if (parseError) return; // already failing this worker — stop processing
+            try {
+                onResult(JSON.parse(line) as WorkerResult);
+            } catch (err) {
+                // A malformed stdout line must fail the run LOUDLY, never
+                // truncate it silently: left unguarded, this throw escapes
+                // the readline "line" event on a different tick than this
+                // function's own try/catch, so it never reaches `reject` and
+                // `runWorkerPool` resolves as if the worker had finished
+                // cleanly with every remaining game in that chunk dropped.
+                parseError = new Error(
+                    `worker emitted malformed result line: ${(err as Error).message} — line: ${line}`
+                );
+                child.kill();
+            }
         });
 
         let spawnError: Error | null = null;
         child.on("error", (err) => {
             spawnError = err;
         });
-        child.on("exit", (code, signal) => {
+        // "close" — not "exit" — guarantees stdio has fully drained, so no
+        // in-flight "line" event (and thus no reported result) is dropped.
+        child.on("close", (code, signal) => {
             rl.close();
-            if (spawnError) reject(spawnError);
+            if (parseError) reject(parseError);
+            else if (spawnError) reject(spawnError);
             else if (signal) reject(new Error(`worker killed by ${signal}`));
             else if (code !== 0)
                 reject(new Error(`worker exited with code ${code}`));

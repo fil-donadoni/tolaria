@@ -151,6 +151,21 @@ describe("ladder resume (decision #1895 §3)", () => {
         expect(mismatches.join("\n")).toMatch(/iterations/);
         expect(mismatches.join("\n")).toMatch(/pairings/);
     });
+
+    it("headerMismatches flags a totalGames drift even when every other field matches", () => {
+        // Same tier/baseSeed/variant/iterations/pairings/filter — only the
+        // recorded totalGames differs, the shape a corrupted or hand-edited
+        // run file (or a future registry-selection bug in buildHeader) would
+        // take. Constructed by hand rather than via buildHeader because
+        // buildHeader always derives a self-consistent totalGames.
+        const withDriftedCount = {
+            ...header,
+            totalGames: header.totalGames + 1,
+        };
+        expect(headerMismatches(header, withDriftedCount)).toEqual([
+            `totalGames: file=${header.totalGames} run=${withDriftedCount.totalGames}`,
+        ]);
+    });
 });
 
 describe("pairing-subset filter (issue #2681)", () => {
@@ -221,12 +236,21 @@ describe("pairing-subset filter (issue #2681)", () => {
                 values: ["combo"],
             };
             const allowed = selectPairingIndices(LADDER_PAIRINGS, filter);
+            // Snapshot an INDEPENDENT copy of the full plan before filtering.
+            // filterGamePlan returns the same object references it was given
+            // (a plain Array#filter), so building byGameIndex from fullPlan
+            // itself — even after calling filterGamePlan — would compare
+            // every filtered record against itself: a buggy filter that
+            // renumbers gameIndex IN PLACE would pass this test vacuously.
+            // Cloning here is what makes the assertion below able to fail.
+            const byGameIndex = new Map(
+                structuredClone(fullPlan).map((g) => [g.gameIndex, g])
+            );
             const filtered = filterGamePlan(fullPlan, allowed);
 
             expect(filtered.length).toBeGreaterThan(0);
             expect(filtered.length).toBeLessThan(fullPlan.length);
             // Element-wise identical to the matching rows of the FULL plan.
-            const byGameIndex = new Map(fullPlan.map((g) => [g.gameIndex, g]));
             for (const g of filtered) {
                 expect(allowed.has(g.pairingIndex)).toBe(true);
                 expect(g).toEqual(byGameIndex.get(g.gameIndex));

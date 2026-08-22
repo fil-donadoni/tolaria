@@ -190,6 +190,10 @@ export function headerMismatches(
         );
     if (JSON.stringify(header.pairings) !== JSON.stringify(expected.pairings))
         out.push("pairings: registry changed since the file was started");
+    if (header.totalGames !== expected.totalGames)
+        out.push(
+            `totalGames: file=${header.totalGames} run=${expected.totalGames}`
+        );
     if (
         JSON.stringify(header.filter ?? null) !==
         JSON.stringify(expected.filter ?? null)
