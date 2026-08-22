@@ -322,10 +322,13 @@
  * a keyboard user with no idea where they were.
  *
  * `:focus-visible`, not `:focus`: a pointer press must not paint a ring. The
- * outline (not a ring/box-shadow) is what survives `overflow: hidden` clipping
- * and forced-colors mode, and it costs no layout. A component that wants a
- * different-looking focus still gets one — its own `focus-visible:ring-*`
- * paints on top of, not instead of, this outline. */
+ * outline (not a ring/box-shadow) works in forced-colors mode and costs no
+ * layout — but it is NOT immune to ancestor `overflow: hidden` clipping (an
+ * outline paints outside the border box exactly like an outset box-shadow,
+ * and any clipping ancestor cuts both the same way; see issue #2663 for a
+ * surface where this indicator stays clipped at edge columns). A component
+ * that wants a different-looking focus still gets one — its own
+ * `focus-visible:ring-*` paints on top of, not instead of, this outline. */
 :focus-visible {
     outline: 2px solid var(--color-accent-strong);
     outline-offset: 2px;

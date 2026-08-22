@@ -89,13 +89,22 @@ describe("LimitedDraftPackCard gestures (ADR 0060, issue #1248)", () => {
         expect(getByRole("button").getAttribute("aria-pressed")).toBe("true");
     });
 
-    it("draws the selected ring INSET, never past its own border box (issue #2663)", () => {
+    it("draws the selected ring as a separate overlay PAINTED AFTER the card art (issue #2663)", () => {
         // The phone pack grid is itself the clipping scroller, flush against
         // its own edges with no padding — a ring drawn OUTSIDE the border
-        // box (Tailwind's default) is clipped on every edge column/row.
-        // `ring-inset` is what keeps the ring entirely inside the tile's own
-        // box regardless of scroller padding.
-        const { getByRole } = render(
+        // box (Tailwind's default) is clipped on every edge column/row, so
+        // the ring is `ring-inset`. But an inset box-shadow on the TILE
+        // ITSELF paints in that element's own box-decoration layer, BELOW
+        // every descendant — and the card art (`CardImage`'s `<img>`) covers
+        // the tile's box exactly, so an inset ring declared directly on the
+        // tile is invisible (this is the bug a class-name-only assertion
+        // cannot see: happy-dom has no paint order at all, so it stayed
+        // green with the ring invisible in every real browser). The overlay
+        // must therefore be its OWN element, and it must come AFTER the art
+        // in DOM order — for two siblings in the same stacking context,
+        // later-in-DOM paints on top, which is the structural fact that
+        // actually makes the ring visible.
+        const { getByRole, getByTestId, getByAltText } = render(
             <LimitedDraftPackCard
                 card={card}
                 selected
@@ -105,9 +114,38 @@ describe("LimitedDraftPackCard gestures (ADR 0060, issue #1248)", () => {
                 pending={false}
             />
         );
-        const classList = getByRole("button").className;
-        expect(classList).toContain("ring-inset");
-        expect(classList).toContain("ring-4");
+        const tile = getByRole("button");
+        const ring = getByTestId("selection-ring");
+        const art = getByAltText("Lightning Bolt");
+
+        // The ring carries the inset ring utilities...
+        expect(ring.className).toContain("ring-inset");
+        expect(ring.className).toContain("ring-4");
+
+        // ...on an element that is a DIRECT CHILD of the tile (a sibling of
+        // the whole CardImage subtree, not nested inside its own
+        // `overflow-hidden` art wrapper)...
+        expect(ring.parentElement).toBe(tile);
+
+        // ...and ordered AFTER the art in the DOM, which is what makes it
+        // paint on top instead of underneath.
+        expect(
+            art.compareDocumentPosition(ring) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
+    });
+
+    it("renders no selection-ring overlay when not selected", () => {
+        const { queryByTestId } = render(
+            <LimitedDraftPackCard
+                card={card}
+                selected={false}
+                onSelect={vi.fn()}
+                onPick={vi.fn()}
+                onOpenMenu={vi.fn()}
+                pending={false}
+            />
+        );
+        expect(queryByTestId("selection-ring")).toBeNull();
     });
 
     it("while pending, a click/double-click/right-click all no-op", () => {
