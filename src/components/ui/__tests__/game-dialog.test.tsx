@@ -310,25 +310,42 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         expect(onOpenChange).not.toHaveBeenCalled();
     });
 
-    // Issue #2586 — the dialog must fit 844x390 (a landscape phone) by
-    // scrolling INSIDE itself, never the page. happy-dom has no layout
-    // engine (no viewport, no computed `max-height`), so this can only
-    // assert the arithmetic/class contract, not the rendered pixels — the
-    // pixel proof is the five-viewport browser receipt
-    // (`.claude/rules/chrome-debug.md`). Two things must both hold: (1) the
-    // column wrapping title/subtitle/body is height-capped even below the
-    // 80vh breakpoint's usual floor (`short-viewport:max-h-[...]`, paired
-    // with the `short-viewport` custom variant `@media (max-height: 500px)`
-    // in src/index.css), and (2) the body itself is the scroll container
-    // (`overflow-auto` + `min-h-0`, the only child allowed to grow past its
-    // flex-basis) — a capped OUTER column with no scrolling INNER child
-    // would just clip content instead of scrolling it.
-    it("caps the content column's height under a short viewport and scrolls the body inside it, not the page", () => {
+    // Issue #2586 / #2666 — the dialog must fit 844x390 (a landscape phone,
+    // browser toolbar showing) by scrolling INSIDE itself, never the page,
+    // with the footer (Submit/Cancel) staying reachable. happy-dom has no
+    // layout engine (no viewport, no computed `max-height`), so this can
+    // only assert the arithmetic/class contract, not the rendered pixels —
+    // the pixel proof is the five-viewport browser receipt
+    // (`.claude/rules/chrome-debug.md`).
+    //
+    // #2586 shipped the cap on the WRONG box: only the inner column (title +
+    // body), not Panel itself — so the footer, a SIBLING of that column, sat
+    // outside the cap and was exactly what overflowed. #2666 moves the cap
+    // to Panel (the whole visible surface: header + scrolling body +
+    // footer) and switches the base rung from `vh` to `dvh` (`vh` is the
+    // LARGE viewport with the toolbar showing, so an 80vh/100vh cap still
+    // overflows a short real viewport). Three things must all hold: (1)
+    // Panel — not the column — carries the height cap, in `dvh`; (2) the
+    // column has no cap of its own any more, only `min-h-0` so it can shrink
+    // under Panel's squeeze; (3) the footer is `shrink-0` so 100% of that
+    // squeeze lands on the column's own scroll region
+    // (`overflow-auto` + `min-h-0`), never on the footer.
+    it("caps the whole Panel (header+body+footer) at a dvh height, with the footer pinned outside the scrolling body", () => {
         const { baseElement } = render(
-            <GameDialog open title="Tall content">
+            <GameDialog
+                open
+                title="Tall content"
+                footer={<button>Submit</button>}
+            >
                 <p>body</p>
             </GameDialog>
         );
+
+        const panel = baseElement.querySelector('[data-slot="panel"]')!;
+        expect(panel.className).toContain("max-h-[calc(100dvh-2rem)]");
+        expect(panel.className).toContain("flex");
+        expect(panel.className).toContain("flex-col");
+
         // The column publishes `data-slot="game-dialog-column"`. It used to be
         // reached as the title's `parentElement`, which stopped being the
         // column the moment the title gained a header ROW sibling to the icon
@@ -336,14 +353,15 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const column = baseElement.querySelector(
             '[data-slot="game-dialog-column"]'
         )!;
-        expect(column.className).toContain("max-h-[80vh]");
-        expect(column.className).toContain(
-            "short-viewport:max-h-[calc(100dvh-6rem)]"
-        );
+        expect(column.className).not.toContain("max-h-");
+        expect(column.className).toContain("min-h-0");
 
         const bodyScroller = screen.getByText("body").parentElement!;
         expect(bodyScroller.className).toContain("overflow-auto");
         expect(bodyScroller.className).toContain("min-h-0");
+
+        const footerEl = screen.getByText("Submit").parentElement!;
+        expect(footerEl.className).toContain("shrink-0");
     });
 
     it("does NOT dismiss on popup-container click when not dismissable", () => {
