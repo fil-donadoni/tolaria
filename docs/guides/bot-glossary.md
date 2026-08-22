@@ -325,6 +325,12 @@ ladder plays, each tagged with the gameplay **dynamics** it exercises
 (direct-damage, go-wide, discard, combo, …) — the coverage ledger. A change
 claims strength on the dynamics it touches; a missing dynamic is added as a
 row with the change that needs it. Code: `scripts/lib/ladder/pairings.ts`.
+`bun run ladder --pairings deckA:deckB,...` or `--dynamics tag,...` restricts
+a run to the matching subset of rows WITHOUT renumbering them — seeds and
+`gameIndex` are always derived from a row's index in the FULL registry
+(`scripts/lib/ladder/filter.ts`), so a filtered run's records are exactly the
+matching subset of an unfiltered run's; the header records the filter and
+`--resume` validates it (issue #2681).
 
 <a id="rung"></a>**Environment rung** — a tier of the pairing registry ordered
 by how much interaction the decks carry: R0 combat and racing (today's six

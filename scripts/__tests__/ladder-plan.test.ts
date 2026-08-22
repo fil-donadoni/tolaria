@@ -3,6 +3,7 @@ import { LADDER_PAIRINGS } from "../lib/ladder/pairings";
 import {
     buildGamePlan,
     buildHeader,
+    filterGamePlan,
     headerMismatches,
     parseRunFile,
     remainingGames,
@@ -10,6 +11,10 @@ import {
     LADDER_ITERATIONS,
     type LadderGameRecord,
 } from "../lib/ladder/plan";
+import {
+    selectPairingIndices,
+    type LadderFilterSpec,
+} from "../lib/ladder/filter";
 import { PRESET_DECKS } from "../../convex/deckPresets";
 
 /**
@@ -145,5 +150,139 @@ describe("ladder resume (decision #1895 §3)", () => {
         expect(mismatches.join("\n")).toMatch(/variant/);
         expect(mismatches.join("\n")).toMatch(/iterations/);
         expect(mismatches.join("\n")).toMatch(/pairings/);
+    });
+});
+
+describe("pairing-subset filter (issue #2681)", () => {
+    it("null filter selects every registry index", () => {
+        const idx = selectPairingIndices(LADDER_PAIRINGS, null);
+        expect(idx.size).toBe(LADDER_PAIRINGS.length);
+        for (let i = 0; i < LADDER_PAIRINGS.length; i++)
+            expect(idx.has(i)).toBe(true);
+    });
+
+    it("selects by dynamics tag, matching every row that carries it", () => {
+        const filter: LadderFilterSpec = {
+            kind: "dynamics",
+            values: ["combo"],
+        };
+        const idx = selectPairingIndices(LADDER_PAIRINGS, filter);
+        const expected = new Set(
+            LADDER_PAIRINGS.map((p, i) =>
+                p.dynamics.includes("combo") ? i : -1
+            ).filter((i) => i >= 0)
+        );
+        expect(idx).toEqual(expected);
+        expect(idx.size).toBeGreaterThan(0);
+    });
+
+    it("selects by deckA:deckB, in either order", () => {
+        const row = LADDER_PAIRINGS[2];
+        const forward = selectPairingIndices(LADDER_PAIRINGS, {
+            kind: "pairings",
+            values: [`${row.deckA}:${row.deckB}`],
+        });
+        const reversed = selectPairingIndices(LADDER_PAIRINGS, {
+            kind: "pairings",
+            values: [`${row.deckB}:${row.deckA}`],
+        });
+        expect(forward).toEqual(new Set([2]));
+        expect(reversed).toEqual(new Set([2]));
+    });
+
+    it("throws on a value that matches no row — never runs an empty plan silently", () => {
+        expect(() =>
+            selectPairingIndices(LADDER_PAIRINGS, {
+                kind: "dynamics",
+                values: ["nonexistent-dynamic"],
+            })
+        ).toThrow(/no registry row matches/);
+        expect(() =>
+            selectPairingIndices(LADDER_PAIRINGS, {
+                kind: "pairings",
+                values: ["nope:nope"],
+            })
+        ).toThrow(/no registry row matches/);
+    });
+
+    it(
+        "filterGamePlan preserves gameIndex, seed and every other field untouched — " +
+            "a filtered run's records are the EXACT subset of an unfiltered run's " +
+            "(the hard-part identity contract of issue #2681)",
+        () => {
+            const seedsPerPairing = TIER_SEEDS.smoke;
+            const fullPlan = buildGamePlan(
+                LADDER_PAIRINGS,
+                seedsPerPairing,
+                100
+            );
+            const filter: LadderFilterSpec = {
+                kind: "dynamics",
+                values: ["combo"],
+            };
+            const allowed = selectPairingIndices(LADDER_PAIRINGS, filter);
+            const filtered = filterGamePlan(fullPlan, allowed);
+
+            expect(filtered.length).toBeGreaterThan(0);
+            expect(filtered.length).toBeLessThan(fullPlan.length);
+            // Element-wise identical to the matching rows of the FULL plan.
+            const byGameIndex = new Map(fullPlan.map((g) => [g.gameIndex, g]));
+            for (const g of filtered) {
+                expect(allowed.has(g.pairingIndex)).toBe(true);
+                expect(g).toEqual(byGameIndex.get(g.gameIndex));
+            }
+            // No row outside the filter leaks in.
+            for (const g of filtered)
+                expect(allowed.has(g.pairingIndex)).toBe(true);
+            // The full plan's rows for those pairings are ALL present (no dropped
+            // seed/orientation within a selected pairing).
+            const expectedCount = fullPlan.filter((g) =>
+                allowed.has(g.pairingIndex)
+            ).length;
+            expect(filtered.length).toBe(expectedCount);
+        }
+    );
+
+    it("buildHeader records the filter and totalGames reflects the FILTERED count", () => {
+        const filter: LadderFilterSpec = {
+            kind: "dynamics",
+            values: ["combo"],
+        };
+        const allowed = selectPairingIndices(LADDER_PAIRINGS, filter);
+        const header = buildHeader(
+            "smoke",
+            1,
+            null,
+            LADDER_ITERATIONS,
+            LADDER_PAIRINGS,
+            filter
+        );
+        expect(header.filter).toEqual(filter);
+        expect(header.totalGames).toBe(allowed.size * TIER_SEEDS.smoke * 2);
+        // The registry itself is still recorded in full (drift detection needs it).
+        expect(header.pairings.length).toBe(LADDER_PAIRINGS.length);
+    });
+
+    it("headerMismatches flags a filter change across resume", () => {
+        const noFilter = buildHeader(
+            "smoke",
+            1,
+            null,
+            LADDER_ITERATIONS,
+            LADDER_PAIRINGS,
+            null
+        );
+        const withFilter = buildHeader(
+            "smoke",
+            1,
+            null,
+            LADDER_ITERATIONS,
+            LADDER_PAIRINGS,
+            { kind: "dynamics", values: ["combo"] }
+        );
+        expect(headerMismatches(noFilter, noFilter)).toEqual([]);
+        expect(headerMismatches(withFilter, withFilter)).toEqual([]);
+        const mismatches = headerMismatches(noFilter, withFilter);
+        expect(mismatches.join("\n")).toMatch(/filter/);
     });
 });
