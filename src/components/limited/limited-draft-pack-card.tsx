@@ -83,11 +83,12 @@ export default function LimitedDraftPackCard({
                 // outline left the keyboard user with no cursor at all on the
                 // one surface that has a keyboard model. The global
                 // `:focus-visible` rule (src/index.css, unlayered) paints it.
-                // `ring-accent` here carries no width utility and paints
-                // nothing on its own (tailwind-merge drops it in favour of
-                // the selected overlay below when both would apply) — kept
-                // only so a future `ring-*` utility added to this className
-                // composes against the right color token.
+                // `ring-accent` here is INERT: Tailwind's ring utilities only
+                // paint when a ring-WIDTH class (`ring-2`, `ring-4`, …) sets
+                // `--tw-ring-shadow`, and this tile no longer carries one —
+                // the color variable has nothing to paint with. It is kept
+                // only so a future `ring-*` width utility added to this
+                // className composes against the right color token.
                 "group relative block aspect-5/7 w-full cursor-grab touch-none rounded-[7%] ring-accent transition select-none",
                 pending
                     ? "cursor-not-allowed opacity-60"
