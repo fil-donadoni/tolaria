@@ -63,12 +63,18 @@ export default function IdentityBoard({ perm }: { perm: PermMode }) {
 
             {/* opponent half */}
             <div className="pbd-half opp">
-                <div className="pbd-zone center">
+                <div
+                    className="pbd-zone center"
+                    style={{ ["--n" as string]: OPP_LANDS.length }}
+                >
                     {OPP_LANDS.map((c, i) => (
                         <Perm key={`${c.name}-${i}`} card={c} mode={perm} />
                     ))}
                 </div>
-                <div className="pbd-zone center">
+                <div
+                    className="pbd-zone center"
+                    style={{ ["--n" as string]: OPP_PERMS.length }}
+                >
                     {OPP_PERMS.map((c, i) => (
                         <Perm key={`${c.name}-${i}`} card={c} mode={perm} />
                     ))}
@@ -79,12 +85,18 @@ export default function IdentityBoard({ perm }: { perm: PermMode }) {
 
             {/* own half */}
             <div className="pbd-half">
-                <div className="pbd-zone center">
+                <div
+                    className="pbd-zone center"
+                    style={{ ["--n" as string]: OWN_PERMS.length }}
+                >
                     {OWN_PERMS.map((c, i) => (
                         <Perm key={`${c.name}-${i}`} card={c} mode={perm} />
                     ))}
                 </div>
-                <div className="pbd-zone center">
+                <div
+                    className="pbd-zone center"
+                    style={{ ["--n" as string]: OWN_LANDS.length }}
+                >
                     {OWN_LANDS.map((c, i) => (
                         <Perm key={`${c.name}-${i}`} card={c} mode={perm} />
                     ))}
@@ -113,10 +125,7 @@ export default function IdentityBoard({ perm }: { perm: PermMode }) {
             </div>
 
             {/* own plaque + piles */}
-            <div
-                className="pbd-corner bl"
-                style={{ display: "flex", gap: 10, alignItems: "flex-end" }}
-            >
+            <div className="pbd-corner bl">
                 <Plaque
                     name="You"
                     life={20}
@@ -182,6 +191,51 @@ export default function IdentityBoard({ perm }: { perm: PermMode }) {
                         </div>
                     </div>
                 ))}
+            </div>
+
+            {/* phone-only: actions row + bottom bar (hidden on desktop) */}
+            <div className="pbd-actions">
+                <button
+                    type="button"
+                    className="pb primary"
+                    style={{ flex: 1, height: 48 }}
+                >
+                    Pass priority
+                </button>
+                <button
+                    type="button"
+                    className="pb"
+                    style={{ height: 48, padding: "0 14px" }}
+                    aria-label="Pass turn"
+                >
+                    ⏭
+                </button>
+                <button
+                    type="button"
+                    className="pb ghost"
+                    style={{ height: 48, padding: "0 12px" }}
+                    aria-label="Full control"
+                >
+                    ⚑
+                </button>
+            </div>
+            <div className="pbd-mobilebar">
+                <div className="life">
+                    <b>20</b>
+                    <span className="p-eyebrow">vs 15</span>
+                </div>
+                <div className="piles">
+                    <span className="pchip solid">GY 3</span>
+                    <span className="pchip solid">LIB 49</span>
+                    <span className="pchip solid">EXL 0</span>
+                </div>
+                <div className="phase">
+                    <b>Combat</b>
+                    <span className="p-eyebrow">T6 · your priority</span>
+                </div>
+                <button type="button" className="pmenu" aria-label="Menu">
+                    ≡
+                </button>
             </div>
 
             {/* controller */}

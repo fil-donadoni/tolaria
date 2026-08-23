@@ -24,18 +24,24 @@ function Card({
     cls?: string;
 }) {
     const face = (
-        <div
-            className={`px-c ${tapped ? "tapped" : ""} ${cls}`}
-            style={w ? { ["--cw" as string]: w } : undefined}
-        >
+        <div className={`px-c ${tapped ? "tapped" : ""} ${cls}`}>
             <img src={getImageUrl(id)} alt="" />
             {children}
         </div>
     );
-    return tilt ? (
-        <CardTilt3D visualRotationDeg={tapped ? 90 : 0}>{face}</CardTilt3D>
-    ) : (
-        face
+    return (
+        <div
+            className={`px-slot ${tapped ? "tapped" : ""} ${cls === "fluid" ? "fluid" : ""} ${cls === "under" ? "under" : ""}`}
+            style={w ? { ["--cw" as string]: w } : undefined}
+        >
+            {tilt ? (
+                <CardTilt3D visualRotationDeg={tapped ? 90 : 0}>
+                    {face}
+                </CardTilt3D>
+            ) : (
+                face
+            )}
+        </div>
     );
 }
 

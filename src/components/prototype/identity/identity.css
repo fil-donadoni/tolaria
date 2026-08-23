@@ -1130,6 +1130,9 @@
 .pbd-corner.bl {
     bottom: 14px;
     left: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
 }
 .pbd-corner.tr {
     top: 14px;
@@ -2625,4 +2628,479 @@
 .px-suggest {
     margin-top: 6px;
     padding: 6px;
+}
+
+/* ---------- card corner radius: proportional, matches the printed corner (~4.8% of width) ---------- */
+.proto-id .px-card img,
+.proto-id .px-gridcard,
+.proto-id .px-gridcard img,
+.proto-id .px-fs-card img,
+.proto-id .px-thumb,
+.proto-id .px-thumb img,
+.proto-id .pstack-item img,
+.proto-id .px-sheet-card img,
+.proto-id .px-lateral-body img,
+.proto-id .px-anchor-card img,
+.proto-id .ppile,
+.proto-id .ppile img,
+.proto-id .phand .hc,
+.proto-id .phand .hc img,
+.proto-id .phand-opp .hb,
+.proto-id .phand-opp .hb img,
+.proto-id .pperm.card,
+.proto-id .pperm.card .face,
+.proto-id .px-c,
+.proto-id .px-c img,
+.proto-id .px-slot {
+    border-radius: 4.8% / 3.45%;
+}
+/* the tilt wrapper inherits so the glare box coincides with the card */
+.proto-id [data-card-tilt-root],
+.proto-id [data-card-tilt],
+.proto-id [data-card-tilt] > * {
+    border-radius: inherit;
+}
+
+/* ---------- elements: slot owns the size, card fills it ---------- */
+.px-slot {
+    --cw: 104px;
+    position: relative;
+    width: var(--cw);
+    height: calc(var(--cw) * 1.4);
+    flex: none;
+}
+.px-slot.tapped {
+    transform: rotate(90deg) scale(0.92);
+}
+.px-slot.fluid {
+    width: calc((100% - (var(--n) - 1) * var(--gap)) / var(--n));
+    max-width: 104px;
+    height: auto;
+    aspect-ratio: 5 / 7;
+}
+.px-slot.under {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translate(18px, -22px) scale(0.96);
+    filter: brightness(0.85);
+}
+.px-slot .px-c {
+    width: 100%;
+    height: 100%;
+}
+.px-slot .px-c.tapped {
+    transform: none;
+}
+.px-slot .px-c.under {
+    position: static;
+    transform: none;
+    filter: none;
+}
+.px-adaptive .px-c.fluid {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    aspect-ratio: auto;
+}
+.px-adaptive .px-c.fluid.tapped {
+    transform: none;
+}
+.px-stack > .px-slot {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+.px-stack .px-count {
+    left: auto;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: auto;
+}
+.px-stack.tapped > .px-slot {
+    top: -18px;
+    left: 18px;
+}
+.px-host > .px-slot:last-child {
+    position: relative;
+}
+
+/* ---------- adaptive zone sizing (desktop too): a zone never clips ---------- */
+.pbd-zone {
+    --gap: 14px;
+    gap: var(--gap);
+}
+.pbd-zone .pperm {
+    flex: 0 1 auto;
+    min-width: 0;
+    width: min(
+        var(--p-card-w),
+        calc((100% - (var(--n, 1) - 1) * var(--gap)) / var(--n, 1))
+    );
+    height: auto;
+    aspect-ratio: 5 / 7;
+}
+.pbd-zone .pperm:not(.card) {
+    aspect-ratio: auto;
+    height: var(--p-crop-h);
+    width: min(
+        var(--p-crop-w),
+        calc((100% - (var(--n, 1) - 1) * var(--gap)) / var(--n, 1))
+    );
+}
+.pbd-actions,
+.pbd-mobilebar {
+    display: none;
+}
+
+/* ---------- phone portrait (ADR 0101 portrait bands, re-skinned) ---------- */
+@media (max-width: 640px) and (orientation: portrait) {
+    .pbd {
+        --p-card-w: clamp(3.4rem, 17vw, 4.6rem);
+        grid-template-rows:
+            64px minmax(0, 1fr) 8px minmax(0, 1fr)
+            auto auto auto;
+        padding: 6px 8px 0;
+    }
+    .pbd-row {
+        padding: 0 0 0 4px;
+        min-height: 64px;
+        justify-content: flex-start;
+    }
+    .phand-opp .hb {
+        width: 34px;
+        height: 48px;
+        margin: 0 -6px;
+    }
+    .pbd-corner.tl {
+        top: 70px;
+        left: 8px;
+        z-index: 3;
+    }
+    .pbd-corner.tl .pplq {
+        grid-template-columns: 36px auto;
+    }
+    .pbd-corner.tl .pplq .av {
+        width: 36px;
+        height: 36px;
+    }
+    .pbd-corner.tl .pplq .life {
+        font-size: 22px;
+    }
+    /* opponent piles → compact right rail */
+    .pbd-corner.tr {
+        top: 72px;
+        right: 8px;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .pbd-corner.tr .ppile {
+        width: 38px;
+        height: 53px;
+    }
+    .pbd-corner.tr .ppile .cnt {
+        right: -5px;
+        bottom: -5px;
+        min-width: 16px;
+        height: 16px;
+        font-size: 9.5px;
+    }
+    /* own corner (plaque + piles) hidden: life + piles live in the bottom bar */
+    .pbd-corner.bl {
+        display: none;
+    }
+    .pbd-half {
+        padding: 0 52px 0 4px;
+    }
+    .pbd-zone {
+        --gap: 8px;
+        justify-content: flex-start;
+    }
+    .pperm.tapped {
+        margin-right: 0;
+        transform: rotate(-10deg) scale(0.94);
+    }
+    .pperm .pt {
+        font-size: 11px;
+        padding: 1px 5px;
+    }
+    /* hand: a scrollable strip, no fan */
+    .phand {
+        height: calc(var(--p-card-h) * 1.2 + 6px);
+        justify-content: flex-start;
+        align-items: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 6px;
+        padding: 4px 6px 0;
+        scrollbar-width: none;
+    }
+    .phand .hc {
+        width: calc(var(--p-card-w) * 1.15);
+        height: calc(var(--p-card-h) * 1.15);
+        margin: 0;
+        transform: none;
+    }
+    .phand .hc:hover {
+        transform: translateY(-6px);
+    }
+    .pbd-actions {
+        display: flex;
+        gap: 8px;
+        padding: 8px 0;
+    }
+    .pbd-mobilebar {
+        display: grid;
+        grid-template-columns: auto 1fr auto auto;
+        align-items: center;
+        gap: 10px;
+        height: 64px;
+        margin: 0 -8px;
+        padding: 0 12px calc(env(safe-area-inset-bottom, 0px) / 2);
+        border-top: 1px solid var(--p-line);
+        background: var(--p-bg-deep);
+    }
+    .pbd-mobilebar .life b {
+        font-family: var(--p-font-display);
+        font-size: 26px;
+        font-weight: var(--p-display-weight);
+        color: var(--p-ivory);
+        margin-right: 6px;
+    }
+    .pbd-mobilebar .piles {
+        display: flex;
+        gap: 6px;
+        overflow: hidden;
+    }
+    .pbd-mobilebar .phase {
+        display: grid;
+        text-align: right;
+    }
+    .pbd-mobilebar .phase b {
+        font-family: var(--p-font-display);
+        font-size: 15px;
+        font-weight: var(--p-display-weight);
+    }
+    .pctrl {
+        display: none;
+    }
+    /* stack → compact pill under the prompt, top item only */
+    .pstack {
+        top: 128px;
+        left: 8px;
+        right: auto;
+        transform: none;
+        width: 176px;
+    }
+    .pstack .pp-head {
+        padding: 6px 10px 4px !important;
+    }
+    .pstack-item {
+        grid-template-columns: 36px 1fr;
+        padding: 6px 8px;
+    }
+    .pstack-item img {
+        width: 36px;
+    }
+    .pstack-item .n {
+        font-size: 14px;
+    }
+    .pstack-item .s {
+        font-size: 10.5px;
+    }
+    .pstack-item {
+        display: none;
+    } /* collapsed to a chip; tap expands the top item */
+    .pstack:hover .pstack-item:nth-child(2),
+    .pstack:focus-within .pstack-item:nth-child(2) {
+        display: grid;
+    }
+    .pstack-item .pchip {
+        display: none;
+    }
+    .pstack {
+        width: auto;
+        min-width: 120px;
+    }
+    .pprompt {
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        transform: none;
+        padding: 8px 10px;
+        gap: 8px;
+    }
+    .pprompt .t {
+        font-size: 15px;
+    }
+    .pprompt .d {
+        font-size: 11px;
+    }
+    .pbd-row {
+        visibility: hidden;
+    } /* opp hand sits under the prompt while targeting */
+    .pbd-corner.bl {
+        display: none;
+    }
+}
+
+/* ---------- phone landscape (ADR 0101 landscape bands, re-skinned) ---------- */
+@media (max-height: 480px) and (orientation: landscape) {
+    .pbd {
+        --p-card-w: clamp(2.6rem, 12vh, 3.4rem);
+        --p-crop-w: clamp(3.4rem, 15vh, 4.6rem);
+        grid-template-rows: 40px minmax(0, 1fr) 6px minmax(0, 1fr) auto;
+        padding: 2px 110px 0 72px;
+    }
+    .pbd-half {
+        gap: 4px;
+    }
+    .pbd-row {
+        padding: 0;
+        min-height: 44px;
+        justify-content: center;
+    }
+    .phand-opp .hb {
+        width: 30px;
+        height: 42px;
+        margin: 0 -5px;
+    }
+    .pbd-corner.tl {
+        top: 50%;
+        left: 6px;
+        transform: translateY(-110%);
+    }
+    .pbd-corner.bl {
+        top: 50%;
+        bottom: auto;
+        left: 6px;
+        transform: translateY(10%);
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .pbd-corner.bl .ppile {
+        display: none;
+    }
+    .pplq {
+        grid-template-columns: 32px auto;
+        padding: 4px 10px 4px 4px;
+    }
+    .pplq .av {
+        width: 32px;
+        height: 32px;
+    }
+    .pplq .life {
+        font-size: 20px;
+    }
+    .pplq .nm {
+        font-size: 9px;
+    }
+    .pbd-corner.tr {
+        top: 8px;
+        right: 8px;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .pbd-corner.tr .ppile {
+        width: 30px;
+        height: 42px;
+    }
+    .pbd-corner.tr .ppile .cnt {
+        min-width: 14px;
+        height: 14px;
+        font-size: 9px;
+        right: -4px;
+        bottom: -4px;
+    }
+    .pbd-half {
+        padding: 0 8px;
+    }
+    .pbd-zone {
+        --gap: 8px;
+    }
+    .phand {
+        height: calc(var(--p-card-h) * 1.05);
+        padding-top: 2px;
+    }
+    .phand .hc {
+        width: calc(var(--p-card-w) * 1.05);
+        height: calc(var(--p-card-h) * 1.05);
+        margin: 0 -6px;
+    }
+    .phand .hc:hover {
+        transform: translateY(-14px) scale(1.08);
+    }
+    .pctrl {
+        right: 8px;
+        bottom: 8px;
+        width: 96px;
+        top: auto;
+    }
+    .pctrl .turn,
+    .pctrl .phase {
+        display: none;
+    }
+    .pctrl .acts {
+        padding: 0;
+        gap: 6px;
+    }
+    .pctrl .acts .pb {
+        height: 44px;
+        padding: 0 6px;
+        font-size: 11.5px;
+        white-space: normal;
+        line-height: 1.1;
+    }
+    .pctrl .acts > div {
+        grid-template-columns: 1fr;
+    }
+    .pctrl .pp {
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        background-image: none;
+    }
+    .pstack {
+        top: 6px;
+        right: 56px;
+        left: auto;
+        transform: none;
+        width: auto;
+        min-width: 110px;
+    }
+    .pstack .pp-head {
+        padding: 5px 10px 4px !important;
+    }
+    .pstack-item {
+        display: none;
+        grid-template-columns: 32px 1fr;
+        padding: 5px 8px;
+    }
+    .pstack:hover .pstack-item:nth-child(2),
+    .pstack:focus-within .pstack-item:nth-child(2) {
+        display: grid;
+    }
+    .pstack-item img {
+        width: 32px;
+    }
+    .pstack-item .n {
+        font-size: 13px;
+    }
+    .pstack-item .s,
+    .pstack-item .pchip {
+        display: none;
+    }
+    .pprompt {
+        top: 6px;
+        padding: 6px 8px;
+        gap: 8px;
+    }
+    .pprompt .t {
+        font-size: 14px;
+    }
+    .pprompt .d {
+        display: none;
+    }
 }

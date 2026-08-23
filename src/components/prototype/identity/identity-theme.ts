@@ -44,7 +44,7 @@ export const DEFAULTS: Required<IdentitySearch> = {
     accent: "mono",
     perm: "card",
     density: "menu",
-    font: "crimson",
+    font: "geist",
     view: "preview",
 };
 
@@ -193,7 +193,7 @@ const FONT_VARS: Record<Font, Record<string, string>> = {
 export function themeStyle(
     ground: Ground,
     accent: Accent,
-    font: Font = "crimson"
+    font: Font = "geist"
 ): Record<string, string> {
     return {
         ...GROUND_VARS[ground],
