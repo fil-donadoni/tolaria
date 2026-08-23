@@ -372,11 +372,19 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const column = baseElement.querySelector(
             '[data-slot="game-dialog-column"]'
         )!;
-        // Deliberately still a prefix check: this asserts the ABSENCE of any
-        // `max-h-*` utility (arbitrary-value caps included), not one exact
-        // token — `startsWith` says that directly instead of relying on a
-        // substring match over the whole className string.
-        expect(classTokens(column).some((c) => c.startsWith("max-h-"))).toBe(
+        // Direction rule (round-3 review): substring vacuity only bites
+        // `toContain` (presence) — over-matching there is fail-SILENT, a
+        // token-exact check is required. `not.toContain` (absence) is the
+        // opposite: over-matching can only produce a false FAILURE, never a
+        // false pass, so a broader match is strictly safer, never vacuous.
+        // This assertion must therefore stay a PREFIX search, not tighten to
+        // an exact token — narrowing it to `c === "max-h-..."` would miss a
+        // *variant-prefixed* cap (`sm:max-h-40`, `short-viewport:max-h-16`
+        // in deck-legality-panel.tsx, `md:max-h-[...]` in dev-panel-rail.tsx
+        // — all real utilities elsewhere in this repo) reintroducing the
+        // #2666 footer clip at that breakpoint, silently. The regex allows
+        // an optional `<variant>:` prefix before `max-h-`.
+        expect(classTokens(column).some((c) => /(^|:)max-h-/.test(c))).toBe(
             false
         );
         expect(classTokens(column)).toContain("min-h-0");
