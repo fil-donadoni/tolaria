@@ -1096,6 +1096,14 @@ _Avoid_: Seat ring, table view, lobby ring
 The user-facing label of a **Game** run by the **GRE** — rules enforced by the engine (vs Bot, **Solo Mode**, multiplayer). A label in the Play panel's game-mode selector, not a domain term. ADR 0101.
 _Avoid_: Rules enforced, engine mode, classic, real game
 
+**Permanent Stack**:
+Two or more of a player's permanents that share the same name and the same clean state (no counters, damage, attachments or other alteration), fanned into one footprint on the battlefield with a count badge — presentation only, never the spell **Stack**. A change of state pulls a permanent out of its stack.
+_Avoid_: Stack (the spell stack), pile (that is a zone), group
+
+**Engine View**:
+The part of the **Card Preview Overlay** that shows how the **GRE** read the card: its keywords, targets, effects, triggered and activated abilities as a tree of nodes with parameter chips, read from the card's definition, with a badge saying whether it is Effect Script or a hand-written protocol card, and a way to report a problem. Beside the live Oracle text, never instead of it.
+_Avoid_: Parse panel, debug view, AST
+
 **Skin**:
 The visual identity layer of every surface — token values, type faces, panel frame, materials, motion — as distinct from the **Layout** (the viewport matrix, shell modes, zones and affordances of ADR 0101). A skin change moves nothing and removes no affordance; it changes how the same things look. Identity v4 (2026-08) is a skin: "quiet chrome, loud world" — cold graphite ground, monochrome ivory chrome, the colour left to card art, mana and game-state signals.
 _Avoid_: Theme (too small — a theme is one value set inside a skin), restyle, redesign (that word implies layout)
