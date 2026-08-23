@@ -24,6 +24,8 @@ import DesignSystemRoute from "./routes/design-system.route";
 import SettingsRoute from "./routes/settings.route";
 import DraftLabRoute from "./routes/draft-lab.route";
 import AdminLayoutRoute from "./routes/admin/admin-layout.route";
+import PrototypeIdentityRoute from "./routes/prototype-identity.route";
+import { validateIdentitySearch } from "./components/prototype/identity/identity-theme";
 import AdminIndexRoute from "./routes/admin/admin-index.route";
 import AdminScenariosRoute from "./routes/admin/admin-scenarios.route";
 import AdminBanlistsRoute from "./routes/admin/admin-banlists.route";
@@ -279,6 +281,15 @@ const adminDesignSystemRoute = createRoute({
     component: DesignSystemRoute,
 });
 
+// PROTOTYPE — throwaway route (delete with `src/components/prototype/identity/`).
+// UI identity v4 explorer (branch prototype/identity-v4).
+const prototypeIdentityRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/prototype/identity",
+    validateSearch: validateIdentitySearch,
+    component: PrototypeIdentityRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -304,6 +315,7 @@ const routeTree = rootRoute.addChildren([
         adminDraftLabRoute,
         adminDesignSystemRoute,
     ]),
+    prototypeIdentityRoute,
 ]);
 
 // One 404 for the whole app. TanStack Router's built-in fallback is a bare
