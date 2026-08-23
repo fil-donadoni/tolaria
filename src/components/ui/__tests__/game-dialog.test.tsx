@@ -2,6 +2,17 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import GameDialog from "../game-dialog";
 
+/** Token-exact className assertion helper (issue #2666, round-2 review).
+ *  A plain `expect(el.className).toContain("flex")` is a raw substring
+ *  match — it is satisfied by `flex-col`, `flex-1`, etc., so it does not
+ *  guard the utility it names once a longer sibling utility sharing the
+ *  same prefix is also present on the element. Splitting into
+ *  whitespace-delimited tokens and asserting array membership makes the
+ *  match exact instead of prefix-based. */
+function classTokens(el: Element): string[] {
+    return el.className.split(/\s+/).filter(Boolean);
+}
+
 describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
     it("renders the title with a full-width gold underline rule", () => {
         const { baseElement } = render(
@@ -95,7 +106,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const brackets = baseElement.querySelector(
             '[data-slot="corner-bracket-frame"]'
         )!;
-        expect(brackets.className).toContain("compact-chrome:block");
+        expect(classTokens(brackets)).toContain("compact-chrome:block");
     });
 
     it("keeps the dialog title clear of the corner bracket", () => {
@@ -109,7 +120,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         // `.panel-title-clear` pays the shortfall between the panel padding at
         // the current density and `--panel-header-pad-x`; the token arithmetic
         // itself is asserted in `src/__tests__/design-tokens.test.ts`.
-        expect(title.className).toContain("panel-title-clear");
+        expect(classTokens(title)).toContain("panel-title-clear");
     });
 
     // The icon used to be a sibling COLUMN of the whole content column, so a
@@ -127,7 +138,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const column = baseElement.querySelector(
             '[data-slot="game-dialog-column"]'
         )!;
-        expect(column.className).toContain("w-full");
+        expect(classTokens(column)).toContain("w-full");
         // the icon is INSIDE the column, not a sibling of it
         expect(
             column.querySelector('[data-slot="sunburst-icon"]')
@@ -143,15 +154,15 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const headerRow = () =>
             baseElement.querySelector('[data-slot="sunburst-icon"]')!
                 .parentElement!;
-        expect(headerRow().className).not.toContain("flex-col");
+        expect(classTokens(headerRow())).not.toContain("flex-col");
 
         rerender(
             <GameDialog open align="center" title="Mid" icon={<span>i</span>}>
                 <p>body</p>
             </GameDialog>
         );
-        expect(headerRow().className).toContain("flex-col");
-        expect(headerRow().className).toContain("items-center");
+        expect(classTokens(headerRow())).toContain("flex-col");
+        expect(classTokens(headerRow())).toContain("items-center");
     });
 
     // A centred dialog (Coin toss, Game Over) must not keep the left-aligned
@@ -166,8 +177,8 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
             </GameDialog>
         );
         const title = screen.getByRole("heading", { name: "Centred" });
-        expect(title.className).toContain("text-center");
-        expect(title.className).not.toContain("panel-title-clear");
+        expect(classTokens(title)).toContain("text-center");
+        expect(classTokens(title)).not.toContain("panel-title-clear");
     });
 
     it("centres the subtitle only when align is center, and left-aligns it otherwise", () => {
@@ -184,14 +195,14 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
                     el.textContent === "Sub line" &&
                     !el.className.includes("sr-only")
             )!;
-        expect(visibleSubtitle().className).toContain("text-left");
+        expect(classTokens(visibleSubtitle())).toContain("text-left");
 
         rerender(
             <GameDialog open align="center" title="T" subtitle="Sub line">
                 <p>body</p>
             </GameDialog>
         );
-        expect(visibleSubtitle().className).toContain("text-center");
+        expect(classTokens(visibleSubtitle())).toContain("text-center");
     });
 
     it("centres footer actions when align is center and right-aligns them otherwise", () => {
@@ -202,7 +213,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         );
         const row = () =>
             screen.getByRole("button", { name: "Go" }).parentElement!;
-        expect(row().className).toContain("sm:justify-end");
+        expect(classTokens(row())).toContain("sm:justify-end");
 
         rerender(
             <GameDialog
@@ -214,7 +225,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
                 <p>body</p>
             </GameDialog>
         );
-        expect(row().className).toContain("sm:justify-center");
+        expect(classTokens(row())).toContain("sm:justify-center");
     });
 
     it("offsets centering by half the right-piles strip so in-game dialogs sit over the play area", () => {
@@ -232,7 +243,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const popup = baseElement.querySelector(
             '[data-slot="dialog-content"]'
         )!;
-        expect(popup.className).toContain("play-area-center-x");
+        expect(classTokens(popup)).toContain("play-area-center-x");
     });
 
     // issue #1817, opus review round 2: Panel already exposed a `density`
@@ -342,9 +353,17 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         );
 
         const panel = baseElement.querySelector('[data-slot="panel"]')!;
-        expect(panel.className).toContain("max-h-[calc(100dvh-2rem)]");
-        expect(panel.className).toContain("flex");
-        expect(panel.className).toContain("flex-col");
+        expect(classTokens(panel)).toContain("max-h-[calc(100dvh-2rem)]");
+        // A raw `toContain("flex")` substring check is satisfied by the
+        // `flex-col` token alone, so it does not guard `display:flex` at
+        // all (round-2 review, issue #2666) — proven by mutation: dropping
+        // the standalone `flex` utility from Panel's className left this
+        // assertion green while destroying the whole fix (Panel falls back
+        // to `display:block`, the column can no longer flex-shrink, and the
+        // footer clips instead of the body scrolling). `classTokens` makes
+        // both checks exact-token, not prefix, matches.
+        expect(classTokens(panel)).toContain("flex");
+        expect(classTokens(panel)).toContain("flex-col");
 
         // The column publishes `data-slot="game-dialog-column"`. It used to be
         // reached as the title's `parentElement`, which stopped being the
@@ -353,15 +372,21 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const column = baseElement.querySelector(
             '[data-slot="game-dialog-column"]'
         )!;
-        expect(column.className).not.toContain("max-h-");
-        expect(column.className).toContain("min-h-0");
+        // Deliberately still a prefix check: this asserts the ABSENCE of any
+        // `max-h-*` utility (arbitrary-value caps included), not one exact
+        // token — `startsWith` says that directly instead of relying on a
+        // substring match over the whole className string.
+        expect(classTokens(column).some((c) => c.startsWith("max-h-"))).toBe(
+            false
+        );
+        expect(classTokens(column)).toContain("min-h-0");
 
         const bodyScroller = screen.getByText("body").parentElement!;
-        expect(bodyScroller.className).toContain("overflow-auto");
-        expect(bodyScroller.className).toContain("min-h-0");
+        expect(classTokens(bodyScroller)).toContain("overflow-auto");
+        expect(classTokens(bodyScroller)).toContain("min-h-0");
 
         const footerEl = screen.getByText("Submit").parentElement!;
-        expect(footerEl.className).toContain("shrink-0");
+        expect(classTokens(footerEl)).toContain("shrink-0");
     });
 
     it("does NOT dismiss on popup-container click when not dismissable", () => {
