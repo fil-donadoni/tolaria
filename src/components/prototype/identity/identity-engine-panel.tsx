@@ -2,6 +2,7 @@
 // skin for #2704: how the engine read a card, rendered from the REAL
 // CardDefinition (tryGetDefinition) as a tree of nodes + chips. Purely
 // presentational; the real implementation lives in #2704.
+/* eslint-disable react-refresh/only-export-components -- prototype: helper + component in one file */
 import { tryGetDefinition } from "@convex/cards";
 
 type Node = {
