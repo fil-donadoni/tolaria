@@ -1096,6 +1096,30 @@ _Avoid_: Seat ring, table view, lobby ring
 The user-facing label of a **Game** run by the **GRE** — rules enforced by the engine (vs Bot, **Solo Mode**, multiplayer). A label in the Play panel's game-mode selector, not a domain term. ADR 0101.
 _Avoid_: Rules enforced, engine mode, classic, real game
 
+**Permanent Stack**:
+Two or more of a player's permanents that share the same name and the same clean state (no counters, damage, attachments or other alteration), fanned into one footprint on the battlefield with a count badge — presentation only, never the spell **Stack**. A change of state pulls a permanent out of its stack.
+_Avoid_: Stack (the spell stack), pile (that is a zone), group
+
+**Engine View**:
+The part of the **Card Preview Overlay** that shows how the **GRE** read the card: its keywords, targets, effects, triggered and activated abilities as a tree of nodes with parameter chips, read from the card's definition, with a badge saying whether it is Effect Script or a hand-written protocol card, and a way to report a problem. Beside the live Oracle text, never instead of it.
+_Avoid_: Parse panel, debug view, AST
+
+**Skin**:
+The visual identity layer of every surface — token values, type faces, panel frame, materials, motion — as distinct from the **Layout** (the viewport matrix, shell modes, zones and affordances of ADR 0101). A skin change moves nothing and removes no affordance; it changes how the same things look. Identity v4 (2026-08) is a skin: "quiet chrome, loud world" — cold graphite ground, monochrome ivory chrome, the colour left to card art, mana and game-state signals.
+_Avoid_: Theme (too small — a theme is one value set inside a skin), restyle, redesign (that word implies layout)
+
+**Mode Tile**:
+One of the large art-backed tiles on the lobby's main menu, one per way to play (Play vs Bot, Solo game, Open a table, Limited). Selecting a tile arms the **Loadout**'s primary action; it never starts anything by itself.
+_Avoid_: Card (overloaded), hero, banner
+
+**Loadout**:
+The lobby panel that shows the active deck (featured art, name, colours, size, format, legality) with the match settings (Bo1/Bo3) and the single primary action for the selected **Mode Tile**. There is exactly one.
+_Avoid_: Active deck panel (that is its contents), play panel, sidebar
+
+**Deck Shelf**:
+A horizontal, scrollable row of small deck tiles (featured art + name) under the **Loadout**; one shelf per source (your decks, presets). Picking a tile swaps the **Loadout**.
+_Avoid_: Deck list (the tabular form), carousel, grid
+
 **Cockatrice Mode**:
 The user-facing label of a **Manual Game** — a free table, any printed card, the players call the rules. Picking it filters the deck list to **Manual Decks** and swaps the action set (Solo table · Open a table). A label, not a domain term. ADR 0101.
 _Avoid_: Tabletop, manual mode (in UI copy — the domain term stays **Manual Game**), free play
