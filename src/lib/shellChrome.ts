@@ -160,6 +160,12 @@ export const SHELL_ROUTE_RULES: readonly ShellRouteRule[] = [
         why: "The same DeckBuilderRoute in preset mode; presets have no detail page to exit to.",
     },
     {
+        pattern: "/prototype/dialogs",
+        mode: "immersive",
+        ownChrome: true,
+        why: "PROTOTYPE (branch prototype/identity-v4) — dialogs/elements explorer draws its own chrome.",
+    },
+    {
         pattern: "/prototype/identity",
         mode: "immersive",
         ownChrome: true,

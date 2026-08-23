@@ -8,6 +8,7 @@ import {
     DEFAULTS,
     FRAMES,
     FRAME_LABEL,
+    FONTS,
     GROUNDS,
     type IdentitySearch,
     PERMS,
@@ -19,9 +20,11 @@ type Knob = keyof IdentitySearch;
 export default function IdentitySwitcher({
     value,
     onChange,
+    hideSurface = false,
 }: {
     value: Required<IdentitySearch>;
     onChange: (patch: IdentitySearch) => void;
+    hideSurface?: boolean;
 }) {
     const [collapsed, setCollapsed] = useState(value.surface === "board");
 
@@ -81,14 +84,19 @@ export default function IdentitySwitcher({
 
     return (
         <div className="psw" role="toolbar" aria-label="Prototype knobs">
-            {group("surface", "surface", SURFACES)}
+            {hideSurface ? null : group("surface", "surface", SURFACES)}
             {group("ground", "ground", GROUNDS)}
             {group("frame", "frame", FRAMES, (f) => FRAME_LABEL[f])}
             {group("accent", "accent", ACCENTS)}
-            {value.surface === "board"
-                ? group("perms", "perm", PERMS)
-                : group("lobby", "density", DENSITIES)}
+            {group("font", "font", FONTS)}
+            {hideSurface
+                ? null
+                : value.surface === "board"
+                  ? group("perms", "perm", PERMS)
+                  : group("lobby", "density", DENSITIES)}
             <span className="g">
+                <a href="/prototype/identity">identity</a>
+                <a href="/prototype/dialogs">dialogs</a>
                 <a href={value.surface === "board" ? "/game" : "/"}>
                     ↗ current {value.surface}
                 </a>

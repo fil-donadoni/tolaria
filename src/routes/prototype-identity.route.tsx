@@ -39,8 +39,9 @@ export default function PrototypeIdentityRoute() {
     return (
         <div
             className={`proto-id frame-${value.frame}`}
-            style={themeStyle(value.ground, value.accent)}
+            style={themeStyle(value.ground, value.accent, value.font)}
             data-surface={value.surface}
+            data-font={value.font}
         >
             {value.surface === "board" ? (
                 <IdentityBoard perm={value.perm} />

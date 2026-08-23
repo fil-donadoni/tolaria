@@ -8,6 +8,14 @@ export const FRAMES = ["a", "b", "c"] as const;
 export const ACCENTS = ["mono", "brass"] as const;
 export const PERMS = ["crop", "card"] as const;
 export const DENSITIES = ["menu", "list"] as const;
+export const FONTS = [
+    "crimson",
+    "sourceserif",
+    "cormorant",
+    "beleren",
+    "geist",
+] as const;
+export const VIEWS = ["preview", "dialogs", "elements"] as const;
 
 export type Surface = (typeof SURFACES)[number];
 export type Ground = (typeof GROUNDS)[number];
@@ -15,6 +23,8 @@ export type Frame = (typeof FRAMES)[number];
 export type Accent = (typeof ACCENTS)[number];
 export type Perm = (typeof PERMS)[number];
 export type Density = (typeof DENSITIES)[number];
+export type Font = (typeof FONTS)[number];
+export type View = (typeof VIEWS)[number];
 
 export interface IdentitySearch {
     surface?: Surface;
@@ -23,6 +33,8 @@ export interface IdentitySearch {
     accent?: Accent;
     perm?: Perm;
     density?: Density;
+    font?: Font;
+    view?: View;
 }
 
 export const DEFAULTS: Required<IdentitySearch> = {
@@ -32,6 +44,8 @@ export const DEFAULTS: Required<IdentitySearch> = {
     accent: "mono",
     perm: "card",
     density: "menu",
+    font: "crimson",
+    view: "preview",
 };
 
 export const FRAME_LABEL: Record<Frame, string> = {
@@ -59,12 +73,16 @@ export function validateIdentitySearch(
     const a = pick(search.accent, ACCENTS);
     const p = pick(search.perm, PERMS);
     const d = pick(search.density, DENSITIES);
+    const fo = pick(search.font, FONTS);
+    const vw = pick(search.view, VIEWS);
     if (s) out.surface = s;
     if (g) out.ground = g;
     if (f) out.frame = f;
     if (a) out.accent = a;
     if (p) out.perm = p;
     if (d) out.density = d;
+    if (fo) out.font = fo;
+    if (vw) out.view = vw;
     return out;
 }
 
@@ -136,14 +154,56 @@ const SIGNAL_VARS: Record<string, string> = {
     "--p-danger-strong": "#e89384",
 };
 
+const FONT_VARS: Record<Font, Record<string, string>> = {
+    crimson: {
+        "--p-font-display": '"Crimson Pro", "Iowan Old Style", Georgia, serif',
+        "--p-display-weight": "500",
+        "--p-display-track": "-0.01em",
+        "--p-display-scale": "0.94",
+    },
+    sourceserif: {
+        "--p-font-display":
+            '"Source Serif 4", "Iowan Old Style", Georgia, serif',
+        "--p-display-weight": "500",
+        "--p-display-track": "-0.015em",
+        "--p-display-scale": "0.88",
+    },
+    cormorant: {
+        "--p-font-display":
+            '"Cormorant Garamond", "Iowan Old Style", Georgia, serif',
+        "--p-display-weight": "600",
+        "--p-display-track": "-0.005em",
+        "--p-display-scale": "1",
+    },
+    beleren: {
+        "--p-font-display": '"Beleren", "Cormorant Garamond", serif',
+        "--p-display-weight": "700",
+        "--p-display-track": "0.01em",
+        "--p-display-scale": "0.84",
+    },
+    geist: {
+        "--p-font-display":
+            '"Geist Variable", ui-sans-serif, system-ui, sans-serif',
+        "--p-display-weight": "500",
+        "--p-display-track": "-0.03em",
+        "--p-display-scale": "0.86",
+    },
+};
+
 export function themeStyle(
     ground: Ground,
-    accent: Accent
+    accent: Accent,
+    font: Font = "crimson"
 ): Record<string, string> {
-    return { ...GROUND_VARS[ground], ...ACCENT_VARS[accent], ...SIGNAL_VARS };
+    return {
+        ...GROUND_VARS[ground],
+        ...ACCENT_VARS[accent],
+        ...FONT_VARS[font],
+        ...SIGNAL_VARS,
+    };
 }
 
 /** Google Fonts link for the display face (DEV prototype only — a real
  *  adoption would vendor the woff2 like Beleren is). */
 export const DISPLAY_FONT_HREF =
-    "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&display=swap";
+    "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&family=Crimson+Pro:ital,wght@0,300..800;1,300..800&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..800;1,8..60,300..800&display=swap";
