@@ -1096,6 +1096,22 @@ _Avoid_: Seat ring, table view, lobby ring
 The user-facing label of a **Game** run by the **GRE** — rules enforced by the engine (vs Bot, **Solo Mode**, multiplayer). A label in the Play panel's game-mode selector, not a domain term. ADR 0101.
 _Avoid_: Rules enforced, engine mode, classic, real game
 
+**Skin**:
+The visual identity layer of every surface — token values, type faces, panel frame, materials, motion — as distinct from the **Layout** (the viewport matrix, shell modes, zones and affordances of ADR 0101). A skin change moves nothing and removes no affordance; it changes how the same things look. Identity v4 (2026-08) is a skin: "quiet chrome, loud world" — cold graphite ground, monochrome ivory chrome, the colour left to card art, mana and game-state signals.
+_Avoid_: Theme (too small — a theme is one value set inside a skin), restyle, redesign (that word implies layout)
+
+**Mode Tile**:
+One of the large art-backed tiles on the lobby's main menu, one per way to play (Play vs Bot, Solo game, Open a table, Limited). Selecting a tile arms the **Loadout**'s primary action; it never starts anything by itself.
+_Avoid_: Card (overloaded), hero, banner
+
+**Loadout**:
+The lobby panel that shows the active deck (featured art, name, colours, size, format, legality) with the match settings (Bo1/Bo3) and the single primary action for the selected **Mode Tile**. There is exactly one.
+_Avoid_: Active deck panel (that is its contents), play panel, sidebar
+
+**Deck Shelf**:
+A horizontal, scrollable row of small deck tiles (featured art + name) under the **Loadout**; one shelf per source (your decks, presets). Picking a tile swaps the **Loadout**.
+_Avoid_: Deck list (the tabular form), carousel, grid
+
 **Cockatrice Mode**:
 The user-facing label of a **Manual Game** — a free table, any printed card, the players call the rules. Picking it filters the deck list to **Manual Decks** and swaps the action set (Solo table · Open a table). A label, not a domain term. ADR 0101.
 _Avoid_: Tabletop, manual mode (in UI copy — the domain term stays **Manual Game**), free play
