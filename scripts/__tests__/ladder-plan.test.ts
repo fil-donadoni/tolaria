@@ -50,6 +50,13 @@ describe("ladder pairing registry (decision #1895 §1)", () => {
         expect(LADDER_PAIRINGS.length).toBeGreaterThanOrEqual(6);
     });
 
+    it("has 17 rows after the R1/R2 rungs (issue #2689), every row tagged", () => {
+        expect(LADDER_PAIRINGS.length).toBe(17);
+        for (const row of LADDER_PAIRINGS) {
+            expect(row.rung).toBeDefined();
+        }
+    });
+
     it("every row references existing preset decks and declares dynamics", () => {
         const presetIds = new Set(PRESET_DECKS.map((d) => d.presetId));
         for (const row of LADDER_PAIRINGS) {
@@ -61,13 +68,16 @@ describe("ladder pairing registry (decision #1895 §1)", () => {
 });
 
 describe("ladder game plan (decision #1895 §2)", () => {
-    it("tier sizes: smoke 48, decision 240 at the 6-pairing pool", () => {
+    it("tier sizes: pairings × seeds × 2 orientations, at the full pool", () => {
+        // Registry-size-independent on purpose (issue #2689 grew the pool
+        // from 6 to 17 rows) — the formula is the thing under test, not a
+        // hardcoded pool size.
         expect(buildGamePlan(LADDER_PAIRINGS, TIER_SEEDS.smoke, 1).length).toBe(
-            48
+            LADDER_PAIRINGS.length * TIER_SEEDS.smoke * 2
         );
         expect(
             buildGamePlan(LADDER_PAIRINGS, TIER_SEEDS.decision, 1).length
-        ).toBe(240);
+        ).toBe(LADDER_PAIRINGS.length * TIER_SEEDS.decision * 2);
     });
 
     it("derives seeds as baseSeed + pairing*K + seedIndex", () => {
@@ -285,6 +295,55 @@ describe("pairing-subset filter (issue #2681)", () => {
         expect(header.totalGames).toBe(allowed.size * TIER_SEEDS.smoke * 2);
         // The registry itself is still recorded in full (drift detection needs it).
         expect(header.pairings.length).toBe(LADDER_PAIRINGS.length);
+    });
+
+    it(
+        "selects by rung, preserving the FULL registry's index identity — " +
+            "R1 is indices 6-13, not renumbered 0-7 (issue #2689)",
+        () => {
+            const r1Indices = LADDER_PAIRINGS.map((p, i) =>
+                p.rung === "R1" ? i : -1
+            ).filter((i) => i >= 0);
+            const idx = selectPairingIndices(LADDER_PAIRINGS, {
+                kind: "rung",
+                values: ["R1"],
+            });
+            expect(idx).toEqual(new Set(r1Indices));
+            // The hard-part identity contract, spelled out: every selected
+            // index must be its row's own position in LADDER_PAIRINGS, not a
+            // position in some re-packed R1-only subset.
+            for (const i of idx) expect(LADDER_PAIRINGS[i].rung).toBe("R1");
+        }
+    );
+
+    it("R1 has 8 rows and R2 has 3 rows, per the registry (issue #2689)", () => {
+        expect(
+            selectPairingIndices(LADDER_PAIRINGS, {
+                kind: "rung",
+                values: ["R1"],
+            }).size
+        ).toBe(8);
+        expect(
+            selectPairingIndices(LADDER_PAIRINGS, {
+                kind: "rung",
+                values: ["R2"],
+            }).size
+        ).toBe(3);
+    });
+
+    it("an unknown rung value throws, like an unknown pairing/dynamics value", () => {
+        expect(() =>
+            selectPairingIndices(LADDER_PAIRINGS, {
+                kind: "rung",
+                values: ["R99"],
+            })
+        ).toThrow(/no registry row matches/);
+    });
+
+    it("every row carries a rung", () => {
+        for (const row of LADDER_PAIRINGS) {
+            expect(["R0", "R1", "R2"]).toContain(row.rung);
+        }
     });
 
     it("headerMismatches flags a filter change across resume", () => {

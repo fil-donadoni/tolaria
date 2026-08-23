@@ -358,6 +358,205 @@ const erhnamgeddon: DeckPreset = {
     ],
 };
 
+// ── Ladder environment rung R1: instant-speed interaction (issue #2689,
+// decision #1895 §1) ────────────────────────────────────────────────────────
+
+const bgSacrifice: DeckPreset = {
+    presetId: "bg-sacrifice",
+    name: "Golgari Sacrifice",
+    format: "freeform",
+    description: "Sacrifice outlets feeding graveyard recursion.",
+    colors: ["B", "G"],
+    cards: [
+        ...times(4, "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb", "Llanowar Elves"),
+        ...times(2, "b1420ec5-367c-4514-86c5-3993bf339e37", "Tarpan"),
+        ...times(2, "8845e6bd-40ee-45ca-a099-53f19ff20a8a", "Plague Spitter"),
+        ...times(2, "336b3b8f-d104-4f06-ad4f-c92b8a9038ca", "Hell's Caretaker"),
+        ...times(3, "0f4174e4-0be8-49b5-8c52-22001790f6eb", "Fallen Angel"),
+        ...times(1, "c7e10ca7-1e5d-4224-82cf-798a4d436d72", "Eternal Witness"),
+        ...times(2, "cdcccb0f-ce96-453b-9e82-41d87f52e58b", "Ashnod's Altar"),
+        ...times(4, "ce07bede-2219-427c-a61a-56518751de42", "Raise Dead"),
+        ...times(2, "b6cb2549-e485-44d6-9d65-7605c568909e", "Unearth"),
+        ...times(2, "badc73ec-3728-4246-90c7-5f4eb7051ed5", "Regrowth"),
+        ...times(6, "6176936d-72e2-4205-8871-4c5a4f1cb2d8", "Swamp"),
+        ...times(6, "6f1c8cb0-38eb-408b-94e8-16db83999b3b", "Forest"),
+        ...times(4, "412ceddd-2b9a-4551-a6bf-ae2830a2010a", "Bayou"),
+    ],
+};
+
+const uwFlash: DeckPreset = {
+    presetId: "uw-flash",
+    name: "Azorius Flash",
+    format: "freeform",
+    description: "Every threat and answer at instant speed.",
+    colors: ["W", "U"],
+    cards: [
+        ...times(3, "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58", "Snapcaster Mage"),
+        ...times(
+            2,
+            "c2c794b9-09da-49be-b258-b0e21f1663e3",
+            "Containment Priest"
+        ),
+        ...times(2, "98cbc1c2-b76e-4da3-aa43-00e10b2ce532", "Cathar Commando"),
+        ...times(3, "f8ac5006-91bd-4803-93da-f87cf196dd2f", "Serra Angel"),
+        ...times(4, "0df55e3f-14de-46ef-b6b1-616618724d9e", "Counterspell"),
+        ...times(2, "abcaf16d-aa02-43e2-aa38-bb1835d47a05", "Mana Leak"),
+        ...times(2, "3d2cc591-3a81-468a-91a4-3c3aac83a21a", "Memory Lapse"),
+        ...times(2, "5d6a0f3e-457f-41f5-be26-5fb249874f1a", "Absorb"),
+        ...times(2, "aeb359c8-209c-455f-84b2-970e5678a9fa", "Exclude"),
+        ...times(
+            2,
+            "386ea9eb-abc1-4862-aa2d-8fb808d79490",
+            "Swords to Plowshares"
+        ),
+        ...times(6, "90a57c0e-fa61-45ef-955d-d296403967d5", "Island"),
+        ...times(6, "b1623d57-4729-4796-b3f7-f1837a05c6ed", "Plains"),
+        ...times(2, "a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb", "Tundra"),
+        ...times(2, "09dd9023-f7ee-4e99-8821-7059deb83730", "Adarkar Wastes"),
+    ],
+};
+
+const rgKicker: DeckPreset = {
+    presetId: "rg-kicker",
+    name: "Gruul Kicker",
+    format: "freeform",
+    description: "Every nonland card has an optional kicker cost.",
+    colors: ["R", "G"],
+    cards: [
+        ...times(4, "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb", "Llanowar Elves"),
+        ...times(3, "3e207863-de68-47e1-8c63-413b5fa48943", "Llanowar Elite"),
+        ...times(3, "7e6e2e49-7bde-43c1-8caf-43d237dfc052", "Pouncing Kavu"),
+        ...times(3, "a2832ad3-ce7f-44d2-beb2-c95d982905a6", "Kavu Aggressor"),
+        ...times(
+            2,
+            "13f24f89-3996-4740-a6c9-d26b8869554b",
+            "Thornscape Battlemage"
+        ),
+        ...times(
+            2,
+            "d707243e-7f11-44bc-b8b8-af635ab1dc87",
+            "Thunderscape Battlemage"
+        ),
+        ...times(3, "dc7732bc-e168-44d9-923a-db7e985bd6db", "Skizzik"),
+        ...times(2, "61a25a35-3ae4-471e-adcd-d8baf2f77b68", "Urza's Rage"),
+        ...times(2, "2a85437f-052e-494c-a9ee-265c4624a409", "Scorching Lava"),
+        ...times(6, "eace2c85-976c-425e-9800-5a6ccbd91b56", "Mountain"),
+        ...times(6, "6f1c8cb0-38eb-408b-94e8-16db83999b3b", "Forest"),
+        ...times(2, "60df6592-0b3b-4b87-aeb2-8fa94b4fb7be", "Taiga"),
+        ...times(2, "ba6f1263-d598-49fb-b5f8-09f11822ebd0", "Karplusan Forest"),
+    ],
+};
+
+const monoUTempo: DeckPreset = {
+    presetId: "mono-u-tempo",
+    name: "Mono-Blue Tempo",
+    format: "freeform",
+    description: "Bounce as removal — tempo is the only currency.",
+    colors: ["U"],
+    cards: [
+        ...times(4, "25ab9a2b-e248-4ae2-aac3-b49fdb3e260a", "Flying Men"),
+        ...times(3, "cf56e862-3169-4f63-acd0-731080fa32f2", "Serendib Efreet"),
+        ...times(
+            2,
+            "425156e6-8eee-4bff-8f2f-86edd9a4f73b",
+            "Waterspout Elemental"
+        ),
+        ...times(4, "8512f2c1-6361-4b79-843f-80b6bceeeb99", "Unsummon"),
+        ...times(3, "b8286edd-644b-4135-8dca-af97f3920de3", "Boomerang"),
+        ...times(2, "52ddf7bf-de9c-4657-8d5b-79869d36fa63", "Rushing River"),
+        ...times(3, "0df55e3f-14de-46ef-b6b1-616618724d9e", "Counterspell"),
+        ...times(3, "9d710a97-062f-4773-b6c6-8aeddeb3b6e8", "Impulse"),
+        ...times(16, "90a57c0e-fa61-45ef-955d-d296403967d5", "Island"),
+    ],
+};
+
+// ── Ladder environment rung R2: cube archetypes (issue #2689, decision
+// #1895 §1) — combo-infinite / Izzet Twin is a known coverage hole, deferred
+// to PRD #2687 (CR 732 loop shortcut); see the note above LADDER_PAIRINGS in
+// scripts/lib/ladder/pairings.ts. ─────────────────────────────────────────
+
+const brReanimator: DeckPreset = {
+    presetId: "br-reanimator",
+    name: "Rakdos Reanimator",
+    format: "freeform",
+    description: "Discard a fatty, then cheat it onto the battlefield.",
+    colors: ["B", "R"],
+    cards: [
+        ...times(4, "f60a2091-fb97-4f04-911b-fce9b6351044", "Entomb"),
+        ...times(
+            4,
+            "a1b0da17-d595-441d-811c-a2d28d2bb232",
+            "Faithless Looting"
+        ),
+        ...times(4, "ae1ef31c-8ca5-444c-8f39-e1d1827318f5", "Reanimate"),
+        ...times(3, "a88b23ce-ce19-47da-b9f2-055a4d6bdc79", "Exhume"),
+        ...times(2, "8fd7861d-925f-4b4c-a4ab-60be6f43d50b", "Animate Dead"),
+        ...times(2, "311a6257-dd77-4bb6-81cb-c8e7862350f3", "Necromancy"),
+        ...times(3, "b51666ae-2aef-4cb1-9cd4-44aec81530f8", "Griselbrand"),
+        ...times(
+            2,
+            "1be9d9a4-d7ee-4854-abc2-85cabf993ec9",
+            "Archon of Cruelty"
+        ),
+        ...times(7, "6176936d-72e2-4205-8871-4c5a4f1cb2d8", "Swamp"),
+        ...times(5, "eace2c85-976c-425e-9800-5a6ccbd91b56", "Mountain"),
+        ...times(4, "717f6d10-9144-4ade-9ac6-a481cc66b875", "Badlands"),
+    ],
+};
+
+const monoRAggro: DeckPreset = {
+    presetId: "mono-r-aggro",
+    name: "Mono-Red Aggro",
+    format: "freeform",
+    description: "The cube clock — linear pressure with reach.",
+    colors: ["R"],
+    cards: [
+        ...times(
+            4,
+            "a9738cda-adb1-47fb-9f4c-ecd930228c4d",
+            "Ragavan, Nimble Pilferer"
+        ),
+        ...times(4, "c1ba83ab-83f5-421d-bba1-0f925870b5c8", "Ball Lightning"),
+        ...times(3, "2bc1b462-4e3c-47cc-87c5-f6e29dd70c01", "Kavu Runner"),
+        ...times(4, "d573ef03-4730-45aa-93dd-e45ac1dbaf4a", "Lightning Bolt"),
+        ...times(4, "b5883762-ca0a-4932-8d2a-41a45796a5f8", "Chain Lightning"),
+        ...times(3, "b1eb5b2c-1f02-48a6-a287-88eb189d6780", "Fireblast"),
+        ...times(
+            2,
+            "8e5283db-3e22-4862-9d95-56d03d09c2ae",
+            "Price of Progress"
+        ),
+        ...times(16, "eace2c85-976c-425e-9800-5a6ccbd91b56", "Mountain"),
+    ],
+};
+
+const uwControl: DeckPreset = {
+    presetId: "uw-control",
+    name: "Azorius Control",
+    format: "freeform",
+    description: "Seven sweepers, four counterspells, two win conditions.",
+    colors: ["W", "U"],
+    cards: [
+        ...times(3, "a2788d69-6a3a-42f0-8736-cc6b57755ecd", "Wrath of God"),
+        ...times(2, "2aa98fca-972b-46c2-bdec-6ace35c988d5", "Day of Judgment"),
+        ...times(2, "94bc55ed-b89b-4e22-b3f1-4ce0f8d180d7", "Rout"),
+        ...times(
+            4,
+            "386ea9eb-abc1-4862-aa2d-8fb808d79490",
+            "Swords to Plowshares"
+        ),
+        ...times(4, "0df55e3f-14de-46ef-b6b1-616618724d9e", "Counterspell"),
+        ...times(3, "abcaf16d-aa02-43e2-aa38-bb1835d47a05", "Mana Leak"),
+        ...times(2, "5d6a0f3e-457f-41f5-be26-5fb249874f1a", "Absorb"),
+        ...times(2, "cac8c421-5b92-481d-b2de-560c0231ab58", "Jayemdae Tome"),
+        ...times(2, "f8ac5006-91bd-4803-93da-f87cf196dd2f", "Serra Angel"),
+        ...times(6, "90a57c0e-fa61-45ef-955d-d296403967d5", "Island"),
+        ...times(6, "b1623d57-4729-4796-b3f7-f1837a05c6ed", "Plains"),
+        ...times(2, "a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb", "Tundra"),
+        ...times(2, "09dd9023-f7ee-4e99-8821-7059deb83730", "Adarkar Wastes"),
+    ],
+};
+
 export const PRESET_DECKS: DeckPreset[] = [
     whiteWeenie,
     monoRedBurn,
@@ -368,4 +567,11 @@ export const PRESET_DECKS: DeckPreset[] = [
     monoBlack,
     robots,
     erhnamgeddon,
+    bgSacrifice,
+    uwFlash,
+    rgKicker,
+    monoUTempo,
+    brReanimator,
+    monoRAggro,
+    uwControl,
 ];
