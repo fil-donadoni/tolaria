@@ -121,46 +121,48 @@ not vitest projects. What a lane otherwise decides is whether a project runs
 deliberate narrowing of #2655's admission decision, not a preservation of
 it (ADR 0104 § Decision, with the three backstops that make it acceptable).
 
-### Measurements — the quiet-machine re-run, and why the first round was voided
+### Measurements — the like-for-like run, and why the first round was voided
 
-The lane costs recorded when #2741 shipped were measured while a heavy
-7-worker `ladder.ts` job saturated the machine, and the `check:pr` baseline
-they were compared against (330s, PRD #2738's problem statement) was measured
-on a _quiet_ one — so that first comparison mixed a contended number against
-a quiet one and proved nothing about the lanes' real cost:
+**All three figures below were taken in one window on the same machine
+(2026-08-24, 18:32–18:44, load average 4–11 and falling, no `ladder.ts` job
+running), each exiting 0.** That is what makes them comparable; the first
+round was not.
 
-| lane                  | contended (2026-08-24, 7-worker `ladder.ts` in flight) |        quiet |
-| --------------------- | -----------------------------------------------------: | -----------: |
-| `skin`                |                                                 343.3s | ⚠ unverified |
-| `engine`              |                        275.2s (reviewer re-run 264.9s) | ⚠ unverified |
-| `check:pr` (baseline) |                                    330s, already quiet |            — |
+| lane                  | measured, like-for-like | PRD #2738 projection |     vs baseline |
+| --------------------- | ----------------------: | -------------------: | --------------: |
+| `check:pr` (baseline) |                    305s |                 330s |               — |
+| `skin`                |                    222s |                ~188s |  **−83s (27%)** |
+| `engine`              |                    175s |                ~175s | **−130s (43%)** |
 
-**A genuinely quiet re-measurement was attempted for #2743 and could not be
-obtained in this session — say so plainly rather than reporting a number that
-would still be contended.** #2738's comment 5394668153 reported the machine
-quiet at 15:21 (load ~1.6). By the time this issue's implementer reached the
-measurement step (~15:37), a **new** `ladder.ts --tier decision --variant
-placebo` job (7-8 workers) was already running, and stayed running
-continuously through 16:12 — 35+ minutes of waiting, load average oscillating
-9–25 the entire window (`uptime`/`pgrep -f ladder/worker.ts` checked
-repeatedly; see `docs/findings/2743-recurring-ladder-contention-during-measurement.md`
-for the full evidence trail). Rather than measure under a second contended
-window and relabel it "quiet" — which is exactly the mistake #2738's comment
-flagged in the first place — the `skin`/`engine` quiet figures stay
-**unverified**, and re-measuring them on an ACTUALLY idle machine is an open
-item for #2738, not something this issue can discharge by waiting indefinitely
-on a shared, continuously-busy machine.
+**`engine` hit its projection exactly. `skin` did not** — 222s against ~188s,
+a real 27% saving but 34s short. Recorded as measured rather than rounded
+toward the projection. Two candidate explanations, neither yet separated: the
+`skin` run happened at the highest load of the three (≈10 vs ≈4 for the
+baseline), and `dom` is the single most expensive thing in that lane, so the
+projection may simply have been optimistic about it. Anyone re-measuring
+should run `skin` last, when the machine is quietest, before concluding the
+projection was wrong.
 
-**What IS established, and stands regardless of the missing quiet
-figures:** re-measuring two of this PRD's own quiet baseline rows under the
-original contended load gave `node[src]` 24s vs 8s quiet (3.0x) and
-`node[scripts]` 72s vs 33s quiet (2.2x); applying 2.26x to `dom`'s 109s quiet
-baseline reproduces the measured 246.2s `dom` figure inside the contended
-`skin` run almost exactly. That is a load multiplier, not a lane defect —
-nothing in the `skin`/`engine` lane CONTENT is structurally slower than
-`check:pr`'s own project runs, whatever the eventual quiet figure turns out to
-be. The `~188s`/`~175s` projections in PRD #2738 remain unverified in both
-directions until the quiet re-run happens.
+**Why the first round was voided.** The lane costs recorded when #2741
+shipped (`skin` 343.3s, `engine` 275.2s / reviewer re-run 264.9s) were
+measured while a heavy 7-worker `ladder.ts` job saturated the machine, and
+the 330s `check:pr` baseline they were compared against was measured on a
+quiet one — so that comparison mixed a contended number against a quiet one
+and proved nothing. A quiet re-run was then attempted for #2743 and blocked
+again: a _second_ `ladder.ts --tier decision --variant placebo` job ran
+continuously through the implementer's 35-minute window (evidence trail in
+`docs/findings/2743-recurring-ladder-contention-during-measurement.md`).
+Rather than relabel a second contended window "quiet", the figures stayed
+marked unverified until the measurement above finally landed on an idle
+machine.
+
+**The load multiplier, established during that voided round and still
+useful:** re-measuring two of this PRD's own baseline rows under the
+contended load gave `node[src]` 24s vs 8s quiet (3.0x) and `node[scripts]`
+72s vs 33s quiet (2.2x); 2.26x applied to `dom`'s 109s quiet baseline
+reproduces the 246.2s `dom` figure inside the contended `skin` run almost
+exactly. Contention, not lane content — as the like-for-like numbers above
+now confirm.
 
 ### What each lane skips, and why each skip is safe
 
