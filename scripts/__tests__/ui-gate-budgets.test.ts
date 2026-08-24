@@ -4,6 +4,7 @@ import {
     coverageLine,
     evaluateRun,
     metricsOf,
+    planRecord,
     receiptKindLine,
     receiptKindOf,
     type AxeCount,
@@ -54,6 +55,16 @@ function measured(
         status: "measured",
         measurements: [{ viewport, metrics: m }],
     };
+}
+
+/** Simulates a hand-edited (or pre-`--record`-fix) `budgets.json` row that is
+ *  missing a `BUDGET_KEY` entirely — the fail-open shape from issue #2673's
+ *  "Note on scope boundaries", as distinct from a key merely absent because a
+ *  test doesn't care about it. */
+function omit(m: Ceilings, key: keyof Ceilings): Ceilings {
+    const clone: Partial<Ceilings> = { ...m };
+    delete clone[key];
+    return clone as Ceilings;
 }
 
 describe("check:ui budgets — a clean measured run", () => {
@@ -538,5 +549,263 @@ describe("metricsOf — probe/axe → Ceilings mapping (issue #2658)", () => {
 
         const other = metricsOf(probe({ smallN: 0, tinyText: 42 }), axe());
         expect(other.small).toBe(0);
+    });
+});
+
+describe("evaluateRun — a missing BUDGET_KEY fails closed (issue #2673)", () => {
+    /**
+     * `loadBudgets` is an unchecked `JSON.parse(...) as BudgetFile` and the
+     * ceiling loop used to read `ceilings[key]` directly: `actual >
+     * undefined` is `false`, so a hand-edited row missing a key returned
+     * PASS no matter how bad the measurement was — demonstrated in the
+     * issue with a deleted `small` ceiling and a measured `small: 999`. A
+     * stricter `--record` (below) makes a hand-edited file MORE likely, not
+     * less, so this had to close in the same change.
+     */
+    it("fails a surface whose budgeted viewport is missing a BUDGET_KEY, regardless of the measured value", () => {
+        const brokenCeilings = omit(metrics({ small: 1 }), "small");
+        const budgets = budgetFile({
+            lobby: budgeted({ "1440x900x2": brokenCeilings }),
+        });
+
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "1440x900x2", metrics({ small: 999 }))],
+            ["lobby"]
+        );
+
+        expect(ev.rows[0].verdict).toBe("FAIL");
+        expect(ev.failures[0]).toContain("small ceiling MISSING");
+    });
+
+    it("still passes a fully-specified row whose measurement sits at the ceiling", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "1440x900x2": metrics({ small: 5 }) }),
+        });
+
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "1440x900x2", metrics({ small: 5 }))],
+            ["lobby"]
+        );
+
+        expect(ev.rows[0].verdict).toBe("PASS");
+    });
+});
+
+describe("planRecord — the --record refusal rules (issue #2673)", () => {
+    /**
+     * The doc comment on `recordBudgets` always said "written for review,
+     * never as an auto-heal" — nothing enforced it. `planRecord` is the pure
+     * decision logic `--record` runs through; these tests are the guard the
+     * issue asks for, exercised without a browser or the CLI (`index.ts` has
+     * no `import.meta.main` guard, so it cannot be imported in a test — see
+     * `metricsOf`'s doc comment above for the same reason).
+     */
+
+    it("records a key absent from the prior row with no --accept required (#2658's small rollout)", () => {
+        const priorViewport = omit(metrics({ cardsOcc: 0 }), "small");
+        const budgets = budgetFile({
+            lobby: budgeted({ "1440x900x2": priorViewport }),
+        });
+        const walk = measured(
+            "lobby",
+            "1440x900x2",
+            metrics({ cardsOcc: 0, small: 24 })
+        );
+
+        const plan = planRecord(budgets, [walk], new Set());
+
+        expect(plan.changed).toBe(true);
+        const change = plan.changes.find((c) => c.key === "small");
+        expect(change).toMatchObject({
+            kind: "new",
+            prior: undefined,
+            measured: 24,
+            accepted: true,
+        });
+        expect(plan.surfaces.lobby.viewports!["1440x900x2"].small).toBe(24);
+    });
+
+    it("refuses to loosen a regressed ceiling without an explicit --accept", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "1440x900x2": metrics({ ctrlsOcc: 0 }) }),
+        });
+        const walk = measured("lobby", "1440x900x2", metrics({ ctrlsOcc: 3 }));
+
+        const plan = planRecord(budgets, [walk], new Set());
+
+        expect(plan.changed).toBe(false);
+        const change = plan.changes.find((c) => c.key === "ctrlsOcc");
+        expect(change).toMatchObject({
+            kind: "regression",
+            prior: 0,
+            measured: 3,
+            accepted: false,
+        });
+        // The regression is NOT written — the ceiling stays at its prior
+        // value, so `evaluateRun` on the same file still catches it.
+        expect(plan.surfaces.lobby.viewports!["1440x900x2"].ctrlsOcc).toBe(0);
+    });
+
+    it("records a regression only when its exact surface.viewport.key token is in --accept", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "1440x900x2": metrics({ ctrlsOcc: 0 }) }),
+        });
+        const walk = measured("lobby", "1440x900x2", metrics({ ctrlsOcc: 3 }));
+
+        const plan = planRecord(
+            budgets,
+            [walk],
+            new Set(["lobby.1440x900x2.ctrlsOcc"])
+        );
+
+        expect(plan.changed).toBe(true);
+        expect(plan.surfaces.lobby.viewports!["1440x900x2"].ctrlsOcc).toBe(3);
+        expect(plan.changes.find((c) => c.key === "ctrlsOcc")?.accepted).toBe(
+            true
+        );
+    });
+
+    it("does not let an unrelated tightening ride along in a run recorded for another reason (PR #2660 shape)", () => {
+        // `lobby.cardsOcc` sits at 1 on purpose — a nondeterministic ambient
+        // art draw, per the shipped `knownDebt` note. A run recording some
+        // OTHER surface/key must not quietly remove that slack just because
+        // this particular run happened to draw a local frame.
+        const budgets = budgetFile({
+            lobby: budgeted({
+                "1440x900x2": {
+                    ...metrics({ cardsOcc: 1 }),
+                    knownDebt:
+                        "held at 1 for the Scryfall draw, NONDETERMINISTIC",
+                },
+            }),
+        });
+        const walk = measured("lobby", "1440x900x2", metrics({ cardsOcc: 0 }));
+
+        const plan = planRecord(budgets, [walk], new Set());
+
+        expect(plan.changed).toBe(false);
+        expect(plan.surfaces.lobby.viewports!["1440x900x2"].cardsOcc).toBe(1);
+        expect(plan.surfaces.lobby.viewports!["1440x900x2"].knownDebt).toBe(
+            "held at 1 for the Scryfall draw, NONDETERMINISTIC"
+        );
+        const change = plan.changes.find((c) => c.key === "cardsOcc");
+        expect(change).toMatchObject({
+            kind: "tightening",
+            prior: 1,
+            measured: 0,
+            accepted: false,
+        });
+    });
+
+    it("records a tightening only when accepted, and drops the knownDebt note whose number it moved", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({
+                "1440x900x2": {
+                    ...metrics({ cardsOcc: 1 }),
+                    knownDebt:
+                        "held at 1 for the Scryfall draw, NONDETERMINISTIC",
+                },
+            }),
+        });
+        const walk = measured("lobby", "1440x900x2", metrics({ cardsOcc: 0 }));
+
+        const plan = planRecord(
+            budgets,
+            [walk],
+            new Set(["lobby.1440x900x2.cardsOcc"])
+        );
+
+        expect(plan.changed).toBe(true);
+        expect(plan.surfaces.lobby.viewports!["1440x900x2"].cardsOcc).toBe(0);
+        expect(
+            plan.surfaces.lobby.viewports!["1440x900x2"].knownDebt
+        ).toBeUndefined();
+        expect(plan.droppedKnownDebt).toEqual([
+            "lobby @ 1440x900x2: held at 1 for the Scryfall draw, NONDETERMINISTIC",
+        ]);
+    });
+
+    it("keeps a knownDebt note when the only change at that viewport is a brand-new key", () => {
+        const priorViewport = {
+            ...omit(metrics({ cardsOcc: 1 }), "small"),
+            knownDebt: "held at 1, NONDETERMINISTIC",
+        };
+        const budgets = budgetFile({
+            lobby: budgeted({ "1440x900x2": priorViewport }),
+        });
+        const walk = measured(
+            "lobby",
+            "1440x900x2",
+            metrics({ cardsOcc: 1, small: 24 })
+        );
+
+        const plan = planRecord(budgets, [walk], new Set());
+
+        expect(plan.surfaces.lobby.viewports!["1440x900x2"].knownDebt).toBe(
+            "held at 1, NONDETERMINISTIC"
+        );
+        expect(plan.surfaces.lobby.viewports!["1440x900x2"].small).toBe(24);
+        expect(plan.droppedKnownDebt).toEqual([]);
+    });
+
+    it("reports changed:false and an empty diff when the run matches the file exactly", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "1440x900x2": metrics({ cardsOcc: 1 }) }),
+        });
+        const walk = measured("lobby", "1440x900x2", metrics({ cardsOcc: 1 }));
+
+        const plan = planRecord(budgets, [walk], new Set());
+
+        expect(plan.changed).toBe(false);
+        expect(plan.changes).toEqual([]);
+        expect(plan.droppedKnownDebt).toEqual([]);
+    });
+
+    it("leaves surfaces this run did not walk untouched, and never overwrites a declared-unwalked surface", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "1440x900x2": metrics({ cardsOcc: 1 }) }),
+            "game-board": {
+                label: "Game board",
+                status: "unwalked",
+                reason: "no fixture yet",
+            },
+        });
+        const gameBoardWalk: SurfaceWalk = {
+            surface: "game-board",
+            status: "measured",
+            measurements: [{ viewport: "1440x900x2", metrics: metrics() }],
+        };
+
+        const plan = planRecord(budgets, [gameBoardWalk], new Set());
+
+        expect(plan.surfaces.lobby).toEqual(budgets.surfaces.lobby);
+        expect(plan.surfaces["game-board"]).toEqual(
+            budgets.surfaces["game-board"]
+        );
+        expect(plan.changed).toBe(false);
+    });
+
+    it("records a brand-new surface's every key as new, using resolveLabel for the label", () => {
+        const budgets = budgetFile({});
+        const walk = measured(
+            "deck-detail",
+            "1440x900x2",
+            metrics({ cardsZero: 2 })
+        );
+
+        const plan = planRecord(budgets, [walk], new Set(), (id) =>
+            id === "deck-detail" ? "Deck detail" : undefined
+        );
+
+        expect(plan.changed).toBe(true);
+        expect(plan.surfaces["deck-detail"].label).toBe("Deck detail");
+        expect(plan.surfaces["deck-detail"].status).toBe("budgeted");
+        expect(plan.changes.filter((c) => c.kind === "new")).toHaveLength(
+            BUDGET_KEYS.length
+        );
     });
 });
