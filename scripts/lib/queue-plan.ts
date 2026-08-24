@@ -28,6 +28,7 @@
 // The orchestrator EXECUTES this plan; it does not re-derive it.
 
 import { lintIssue, type Finding } from "./queue-lint";
+import { classifyPath, laneFor, type Lane } from "../check-lane";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Input — the shape `gh issue list --json number,title,labels,parent,assignees,updatedAt`
@@ -184,6 +185,20 @@ export interface PlannedIssue {
     priority?: BoardPriority;
     targetFiles: string[];
     blastRadius: BlastRadius;
+    /**
+     * The lane THIS issue's own `targetFiles` classify to, computed with the
+     * EXACT predicate `check:lane` runs against a real diff
+     * (`classifyPath`/`laneFor`, `scripts/check-lane.ts`) — never a second,
+     * hand-maintained mapping from an `area:*` label. The label is a
+     * hypothesis a human wrote before the code existed; this is the
+     * authority, and the two are allowed to disagree (issue #2743, closing
+     * PRD #2738 § "the issue's area:* label is the hypothesis … the
+     * authority stays what check:lane derives from the real diff").
+     *
+     * Determines which OTHER issues may share this batch — see the
+     * homogeneity check in `planBatch` — never who reads the batch.
+     */
+    lane: Lane;
     reason: string;
 }
 
@@ -202,6 +217,18 @@ export interface SkippedIssue {
 
 export interface BatchPlan {
     version: 1;
+    /**
+     * The lane every admitted issue shares — set once, from the first
+     * admission (`batch[0].lane`), and `undefined` for an empty batch. A
+     * batch is all-`skin`, all-`engine` or all-`full`, never mixed (issue
+     * #2743): the orchestrator's payoff for homogeneity — one batch-level
+     * `check:ui` for a `skin` batch, none at all for an `engine` one — holds
+     * only when EVERY admitted issue's real target files land in the same
+     * lane. A `full` batch pays neither of those rules; an issue inside one
+     * that itself reaches `src/**` still owes its own per-PR check under
+     * `.claude/rules/chrome-debug.md`, unchanged by this field.
+     */
+    lane?: Lane;
     batch: PlannedIssue[];
     deferred: DeferredIssue[];
     skipped: SkippedIssue[];
@@ -636,6 +663,17 @@ export function planBatch(
         const batchable =
             blastRadius === "declared" || blastRadius === "inferred";
 
+        // Lane (issue #2743). Computed from the real `targetFiles` with the
+        // SAME predicate `check:lane` runs against an actual diff — never
+        // from the issue's `area:*` label, which this function never reads.
+        // `unknown` (targetFiles === []) and `everything` (targetFiles ===
+        // [EVERYTHING], and `classifyPath("")` is unrecognised) both feed
+        // `laneFor` an input that resolves to `full` on its own fail-closed
+        // terms, which is also the right answer: both are already solo
+        // (`!batchable` below), so their lane never has to coexist with
+        // anything else's.
+        const lane: Lane = laneFor(targetFiles.map(classifyPath));
+
         // Well-formedness (issue #2188). The lint runs at both ends of the
         // queue's life: intake calls it before publishing, and the planner
         // calls it here so a pre-existing defect cannot poison a batch.
@@ -697,6 +735,26 @@ export function planBatch(
                 });
                 continue;
             }
+
+            // Lane homogeneity (issue #2743). A batch is all-skin, all-engine
+            // or all-full — the reason lives on `BatchPlan.lane` above. This
+            // is what makes a `area:ui-ux`-labelled issue whose declared
+            // files actually reach `convex/**` harmless rather than
+            // corrupting: it computes `full` on its own real target files (see
+            // `lane` above, which never reads the label) and simply cannot
+            // join a `skin` batch — it is deferred here like any other
+            // cross-lane candidate, and every OTHER issue in the batch is
+            // admitted or deferred exactly as if the mislabelled one had
+            // never been in the queue (acceptance criterion 2).
+            if (batch[0].lane !== lane) {
+                deferred.push({
+                    number: issue.number,
+                    reason: `lane mismatch — batch is ${batch[0].lane} (from #${batch[0].number}), this issue's target files land in ${lane}`,
+                    conflictsWith: batch[0].number,
+                });
+                continue;
+            }
+
             const clash = batch.find((admitted) =>
                 admitted.targetFiles.some((a) =>
                     comparable.some((c) => pathsOverlap(a, c))
@@ -725,6 +783,7 @@ export function planBatch(
                 : {}),
             targetFiles: comparable,
             blastRadius,
+            lane,
             reason: batchable
                 ? `admitted — ${blastRadius} target files, disjoint from the rest of the batch`
                 : "admitted solo — blast radius is neither declared nor inferred",
@@ -733,5 +792,12 @@ export function planBatch(
         if (!batchable) closed = true;
     }
 
-    return { version: 1, batch, deferred, skipped, staleClaims };
+    return {
+        version: 1,
+        lane: batch[0]?.lane,
+        batch,
+        deferred,
+        skipped,
+        staleClaims,
+    };
 }

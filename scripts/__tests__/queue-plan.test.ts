@@ -717,6 +717,133 @@ describe("queue planner — disjointness (issue #2181)", () => {
     });
 });
 
+describe("queue planner — lane homogeneity (issue #2743, closing PRD #2738)", () => {
+    // Every case here classifies `lane` from `targetFiles` with the SAME
+    // `classifyPath`/`laneFor` predicate `check:lane` runs against a real
+    // diff (scripts/check-lane.ts) — never from the issue's `area:*` label,
+    // which none of these fixtures even sets. That is the point: the label
+    // is a hypothesis a human writes before the code exists, and the planner
+    // never reads it for this decision.
+
+    it("admits two skin-only issues into one batch and tags them `skin`", () => {
+        const issues = [issue(100, {}), issue(200, {})];
+        const details = {
+            100: { body: body({ targetFiles: ["src/a.ts"] }) },
+            200: { body: body({ targetFiles: ["src/b.tsx"] }) },
+        };
+        const plan = planBatch(issues, CONFIG, makePort(details));
+
+        expect(numbers(plan)).toEqual([100, 200]);
+        expect(plan.lane).toBe("skin");
+        expect(plan.batch.map((b) => b.lane)).toEqual(["skin", "skin"]);
+    });
+
+    it("admits two engine-only issues into one batch and tags them `engine`", () => {
+        const issues = [issue(100, {}), issue(200, {})];
+        const details = {
+            100: { body: body({ targetFiles: ["convex/gre/state.ts"] }) },
+            200: { body: body({ targetFiles: ["scripts/gate.ts"] }) },
+        };
+        const plan = planBatch(issues, CONFIG, makePort(details));
+
+        expect(numbers(plan)).toEqual([100, 200]);
+        expect(plan.lane).toBe("engine");
+        expect(plan.batch.every((b) => b.lane === "engine")).toBe(true);
+    });
+
+    it("defers a skin issue that would join an engine batch — cross-lane, not just disjoint", () => {
+        // The two issues' files do not even overlap (`convex/gre/state.ts` vs
+        // `src/a.ts`), so the pre-#2743 disjointness check alone would have
+        // admitted both. Lane homogeneity is a SEPARATE, stricter rule.
+        const issues = [issue(100, {}), issue(200, {})];
+        const details = {
+            100: { body: body({ targetFiles: ["convex/gre/state.ts"] }) },
+            200: { body: body({ targetFiles: ["src/a.ts"] }) },
+        };
+        const plan = planBatch(issues, CONFIG, makePort(details));
+
+        expect(numbers(plan)).toEqual([100]);
+        expect(plan.lane).toBe("engine");
+        expect(plan.deferred).toContainEqual(
+            expect.objectContaining({
+                number: 200,
+                conflictsWith: 100,
+                reason: expect.stringContaining("lane mismatch"),
+            })
+        );
+    });
+
+    it("computes lane from real target files, never from the area:* label — a UI-labelled issue whose diff reaches convex/** is `full`, and it does not corrupt the batch (acceptance criterion 2)", () => {
+        const issues = [
+            issue(100, { labels: ["area:ui-ux", "ready-for-agent"] }),
+            // Mislabelled: carries the UI hypothesis but its OWN declared
+            // files also reach convex/**, so its real lane is `full`.
+            issue(200, { labels: ["area:ui-ux", "ready-for-agent"] }),
+            issue(300, { labels: ["area:ui-ux", "ready-for-agent"] }),
+        ];
+        const details = {
+            100: { body: body({ targetFiles: ["src/a.ts"] }) },
+            200: {
+                body: body({
+                    targetFiles: ["src/b.ts", "convex/cards/sets/lea/red.ts"],
+                }),
+            },
+            300: { body: body({ targetFiles: ["src/c.ts"] }) },
+        };
+        const plan = planBatch(issues, CONFIG, makePort(details));
+
+        // #100 sets the batch lane to `skin`. #200's real files land in
+        // `full` despite its `area:ui-ux` label, so it is deferred — the
+        // mislabel degrades it to a stricter gate, it does not corrupt
+        // anyone else's admission. #300, genuinely skin, still joins.
+        expect(numbers(plan)).toEqual([100, 300]);
+        expect(plan.lane).toBe("skin");
+        expect(plan.deferred).toContainEqual(
+            expect.objectContaining({
+                number: 200,
+                conflictsWith: 100,
+                reason: expect.stringContaining("lane mismatch"),
+            })
+        );
+        expect(plan.deferred.find((d) => d.number === 200)!.reason).toContain(
+            "full"
+        );
+    });
+
+    it("computes lane from the diff even when the area:* label points the other way — an area:mechanics issue touching only src/** is `skin`", () => {
+        const issues = [
+            issue(100, { labels: ["area:mechanics", "ready-for-agent"] }),
+        ];
+        const details = {
+            100: { body: body({ targetFiles: ["src/only.ts"] }) },
+        };
+        const plan = planBatch(issues, CONFIG, makePort(details));
+
+        expect(plan.batch[0].lane).toBe("skin");
+    });
+
+    it("lets `full`-lane issues keep batching together exactly as before #2743 (no new constraint among themselves)", () => {
+        // Neither file is under src/**, convex/** or scripts/**, so both are
+        // individually `full` by the fail-closed default — and were already
+        // batchable together under plain disjointness before this issue.
+        const issues = [issue(100, {}), issue(200, {})];
+        const details = {
+            100: { body: body({ targetFiles: ["docs/a.md"] }) },
+            200: { body: body({ targetFiles: ["docs/b.md"] }) },
+        };
+        const plan = planBatch(issues, CONFIG, makePort(details));
+
+        expect(numbers(plan)).toEqual([100, 200]);
+        expect(plan.lane).toBe("full");
+    });
+
+    it("leaves `lane` undefined on an empty batch", () => {
+        const plan = planBatch([], CONFIG, makePort({}));
+        expect(plan.batch).toEqual([]);
+        expect(plan.lane).toBeUndefined();
+    });
+});
+
 describe("queue planner — model routing (issue #2181)", () => {
     it("resolves the tier from the label, and falls back to the configured default", () => {
         const issues = [

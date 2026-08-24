@@ -257,12 +257,25 @@ prose is the fallback for judgment, not the home of invariants.
 
 Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
-| When              | Run                                                                |
-| ----------------- | ------------------------------------------------------------------ |
-| Iterating         | targeted only — `bunx vitest run <path>`. Formatting is automatic. |
-| Pre-PR            | `bunx vitest run <paths touched>` + **`bun run check:pr`**         |
-| Before done/merge | **`bun run check:all`** + **`bun run test`**, both zero-error      |
+| When              | Run                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| Iterating         | targeted only — `bunx vitest run <path>`. Formatting is automatic.                               |
+| Pre-PR            | `bunx vitest run <paths touched>` + **`bun run check:lane`** (falls back to `check:pr` verbatim) |
+| Before done/merge | **`bun run check:all`** + **`bun run test`**, both zero-error                                    |
 
+- **`bun run check:lane` is the default pre-PR path** (#2738/#2741/#2743). It
+  classifies the diff into `skin` (`src/**` only) / `engine` (no `src/**`) /
+  `full`, runs exactly the checks that lane's plan names, and prints a
+  per-check receipt. On anything it cannot affirmatively place — a mixed
+  diff, `package.json`, a lockfile, `.claude/**`, an unrecognised path —
+  it degrades to `check:pr` **verbatim**, unchanged, so the fallback can never
+  rot. **No lane ever scopes a project's tests to the diff** — the `skin`
+  lane's `node[src,scripts]` carries a path argument (`src/ scripts/`), but
+  it is a fixed, declared subset of the lane, not one computed from the
+  changed files; every other admitted project runs whole, exactly as
+  `check:pr` runs it. The diff decides whether a project runs at all, never
+  a diff-derived slice of it (ADR 0104, which also records why this does not
+  revert #2431/#2655).
 - **Never hand-pick a subset of `check:pr`** — omitting `check:index` once
   broke every card-shipping PR at the merge-train.
 - **`check:all` VERIFIES formatting**, it does not repair it — on drift run

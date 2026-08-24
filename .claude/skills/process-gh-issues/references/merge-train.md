@@ -4,6 +4,56 @@
 
 Entered once per run (to pick the lane) and again whenever `gh pr merge` misbehaves. The lane choice
 is the difference between gating the tree that LANDS and gating a tree `main` has already moved past.
+Also the home of the batch-level lane re-derivation and `check:ui` procedure every batch runs before
+any of its PRs merge (SKILL.md §1's `lane` field; issue #2743, closing PRD #2738).
+
+---
+
+## Batch-level `check:ui` — re-derive the real lane before ANY batch's PRs merge; run `check:ui` once if it reaches `skin`
+
+`BatchPlan.lane` is a hypothesis computed from each issue's _declared_ `targetFiles` before any code
+existed, not a fact about the tree that actually landed — an `engine`/`full` batch's real implementation
+can drift into `src/**` exactly as plausibly as a declared `skin` batch's could turn out narrower. So
+Steps A–B below (bootstrap the integration, re-derive the lane from its real diff) run for **every**
+batch, whatever its planned lane said. When that real diff contains ANY `skin`-classified path, the
+batch owes exactly ONE `check:ui` run for the whole batch, not one per PR: every issue whose real
+changes live under `src/**`/`public/**` is then covered by that single integrated run, satisfying the
+per-PR obligation in `.claude/rules/chrome-debug.md` for all of them. When the real diff has no `skin`
+path, the batch owes no `check:ui` from this rule — proceed straight to Step C. Either way, a `full`-lane
+issue whose OWN diff independently reaches `src/**`, inside an otherwise non-`skin` batch, still owes
+its own per-PR `check:ui`, unchanged, since it never earned the batch's homogeneity guarantee.
+
+- **Step A — bootstrap and build the integrated tree.** A fresh scratch worktree is missing every
+  gitignored runtime input `check:ui` needs — `scripts/ui-gate/index.ts:415-417` hard-fails
+  `VITE_CONVEX_URL is unset` without it. Run `bun run worktree:init` in the scratch worktree FIRST (it
+  copies `.env.local` and `convex/_generated`, and installs `node_modules` — same bootstrap
+  `references/subagent-brief.md` step 1 requires of an implement-subagent's own worktree). Then build
+  the integration off the current `origin/main` tip: `git merge --no-ff <branch>` for every PR in
+  `order`, in sequence. The batch is file-disjoint by construction (SKILL.md §1), so this never
+  conflicts.
+- **Step B — re-derive the lane from the integration's REAL diff, then run `bun run check:ui` if
+  warranted.** `BatchPlan.lane` was computed from each issue's _declared_ `targetFiles` before any code
+  existed — a hypothesis, not a fact about the tree that actually landed. Re-derive it for real: run
+  `git diff --name-only origin/main` in the scratch worktree and classify the result yourself through
+  `classifyPath`/`laneFor` (`scripts/check-lane.ts`'s exported predicate — the same one `check:lane`
+  runs). **Do not reach for `bun run check:lane --json` as a cheap classify-only probe** — it does not
+  stop at printing a plan; it EXECUTES that lane's whole plan and exits 1 on a red check, so running it
+  here would gate the scratch integration for real, not just classify it (a real capability gap —
+  `check-lane.ts` has no dry-run/classify-only flag — tracked as a finding, not fixed by this doc). Run
+  `check:ui` whenever ANY path in that real diff classifies `skin` — whatever the planned batch lane
+  said, including on an `engine`/`full` batch whose integration drifted into `src/**`. Its output IS the
+  batch's pixel receipt — paste it in the pass report exactly as a
+  single-PR `check:ui` receipt would be pasted.
+- **Step C — green (or no `skin` path in the real diff) → proceed to the ordinary per-PR merge-train
+  below, unchanged.** Discard the scratch worktree; nothing about it participates in the real merges,
+  which each re-gate and re-integrate for real through `land`.
+- **Step D — red → do NOT merge any PR in the batch.** Bisect across the batch's PRs: drop branches
+  from the integration one at a time, in reverse `order`, re-running `check:ui` after each removal,
+  until it goes green. The last branch removed is the culprit. Hand that PR's issue to a fixup
+  subagent with the `check:ui` receipt as the finding, and re-verify before either re-attempting the
+  batch integration or falling back to merging the batch's unaffected PRs individually. **Never patch
+  the regression directly against the unattributed red integration** — the whole point of bisecting is
+  that "which PR" is a fact to establish, not a guess.
 
 ---
 

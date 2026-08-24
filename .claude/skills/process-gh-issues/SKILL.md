@@ -41,7 +41,7 @@ SUBAGENT rather than by the orchestrator — pass the path, never the contents.
 | `references/claim-lifecycle.md`       | §1a reports something, or you are about to release a claim by hand   | orchestrator     |
 | `references/subagent-brief.md`        | spawning an implement / fixup subagent                               | **the subagent** |
 | `references/reviewer-brief.md`        | spawning a reviewer subagent                                         | **the reviewer** |
-| `references/merge-train.md`           | picking the gate lane (once per run); `gh pr merge` misbehaves       | orchestrator     |
+| `references/merge-train.md`           | the gate lane, a skin batch check:ui, or `gh pr merge` misbehaving   | orchestrator     |
 | `references/scenario-registration.md` | a receipt carried a `scenario` (§5)                                  | orchestrator     |
 | `references/afk-driver.md`            | setting up or debugging `bun run loop:afk` (§ Running unattended)    | the human/user   |
 
@@ -159,6 +159,8 @@ It prints one JSON object (`version: 1`) and makes the `gh` calls itself — one
 | `batch`       | Claim (§1b) and fan out (§3). Each entry's `model` is the implement tier — pass it verbatim, never re-decide it. `type` is the branch prefix (`fix/issue-N` / `feat/issue-N`). `hitl: true` means the PR is left for human review instead of auto-merged (§ HITL flag). |
 | `deferred`    | Nothing — they stay unclaimed in the pool for a later pass. Report them with their `conflictsWith` so the pass report explains why the batch is the size it is.                                                                                                         |
 
+Each `batch` entry also carries `lane` (from real `targetFiles`, never the label).
+
 **Skip actions**, one `gh` call each plus a one-line comment saying why:
 
 - `relabel-human` — the work cannot be landed by an automated session however well implemented: `gh issue edit N --remove-label ready-for-agent --add-label ready-for-human`. (CI-config changes under `.github/workflows/**` need the `workflow` OAuth scope, which only an interactive `gh auth refresh` grants — never work around it with an alternate token. Same for anything whose _definition of done_ is a human at a browser.)
@@ -270,6 +272,8 @@ It reads the batch's receipts, builds the conflict graph over the paths each PR 
 | `unreadable` | `{file, message}` — a receipt that failed validation, or whose filename does not match its own contents (a tampering signal), or whose round sequence has a gap | its ISSUE is quarantined out of `order`/`entries`/`blocked` — everyone else's order still printed. `queue:train` exits non-zero whenever this is non-empty; fix or re-write the named file, then re-run. Never treat a non-empty `unreadable` as "nothing to merge" — every other issue's order in the same output is still correct |
 
 A **cycle is a stop, not a hint.** Two PRs that each restructure a file the other touches have no correct order, and that is the batch telling you it should never have been parallel. Merging one anyway means picking a sequence nobody chose. Report the cycle, leave both claimed, and let the next pass take them serially.
+
+**Every batch re-derives its real lane from the integration before any PR merges; a batch whose real diff reaches `skin` owes ONE `check:ui`, integrated tree.** Procedure + bisect: `references/merge-train.md`.
 
 Then merge the PRs **one at a time** behind a serial lock. **Never merge two PRs concurrently** — the whole point of this stage is that every merge is gated against the _actual_ post-merge state of `main`, not a stale base.
 
