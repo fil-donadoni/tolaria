@@ -92,8 +92,12 @@ describe("ladder worker process boundary (issue #1929)", () => {
         );
         const inProcess = toGameRecordFields(PLAN, outcome, 0);
 
-        const { ms: _workerMs, ...workerFields } = viaWorker;
-        const { ms: _localMs, ...localFields } = inProcess;
-        expect(workerFields).toEqual(localFields);
+        const ignoringWallClock = (r: Omit<WorkerResult, never>) => ({
+            ...r,
+            ms: 0,
+        });
+        expect(ignoringWallClock(viaWorker)).toEqual(
+            ignoringWallClock(inProcess)
+        );
     }, 120_000);
 });

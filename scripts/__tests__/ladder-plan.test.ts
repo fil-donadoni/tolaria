@@ -439,6 +439,35 @@ describe("corpus mode: orientation-0-only plan (issue #1929)", () => {
         );
     });
 
+    it("a corpus run can be resumed — the reconstructed header round-trips", () => {
+        // scripts/ladder.ts's --resume branch re-derives the header it EXPECTS
+        // from the fields it read out of the file, then diffs the two. Every
+        // field it forgets to pass through therefore reads as drift and
+        // refuses a legitimate crash-recovery resume. `orientations` was
+        // exactly that: reconstructed as the default 2 against a file saying
+        // 1, so no corpus run could ever be resumed — the failure mode of a
+        // multi-hour run that dies at hour 20.
+        const fromFile = buildHeader(
+            "decision",
+            1,
+            null,
+            LADDER_ITERATIONS,
+            LADDER_PAIRINGS,
+            null,
+            1
+        );
+        const reconstructed = buildHeader(
+            fromFile.tier,
+            fromFile.baseSeed,
+            fromFile.variant,
+            fromFile.iterations,
+            LADDER_PAIRINGS,
+            fromFile.filter ?? null,
+            fromFile.orientations ?? 2
+        );
+        expect(headerMismatches(fromFile, reconstructed)).toEqual([]);
+    });
+
     it("treats a pre-#1929 header (no orientations field) as paired", () => {
         const legacy = buildHeader(
             "smoke",
@@ -447,7 +476,8 @@ describe("corpus mode: orientation-0-only plan (issue #1929)", () => {
             LADDER_ITERATIONS,
             LADDER_PAIRINGS
         );
-        const { orientations: _absent, ...withoutField } = legacy;
+        const withoutField = { ...legacy };
+        delete withoutField.orientations;
         expect(headerMismatches(withoutField, legacy)).toEqual([]);
     });
 });

@@ -161,6 +161,7 @@ if (args.resume) {
         "pairings",
         "dynamics",
         "rung",
+        "orientations",
     ] as const) {
         if (args[k] !== undefined)
             fail(`--${k} conflicts with --resume (config comes from the file)`);
@@ -178,7 +179,8 @@ if (args.resume) {
         header.variant,
         header.iterations,
         LADDER_PAIRINGS,
-        header.filter ?? null
+        header.filter ?? null,
+        header.orientations ?? 2
     );
     const mismatches = headerMismatches(header, expected);
     if (mismatches.length > 0)
