@@ -20,22 +20,40 @@ the merge-train** — the failure is not local to the branch that skipped it.
 Three lanes:
 
 1. **The bot suite's fast lane** (#1912) — `TOLARIA_BOT_FAST=1`, deny-list in
-   `vitest.config.ts`, ~60s. Home of the catalogue-wide bot guards:
+   `vitest.config.ts`, ~60-75s. Home of the catalogue-wide bot guards:
    `aiEffectsGuard`, `pickRatings`, `opValuerCoverage`, the censuses.
-2. **The whole node project** — `convex/**` + `scripts/**` + every DOM-free
-   `src` test. 692 files, ~30s at the light tier's 2 workers: no dom env init
-   and `isolate: false`, so the card registry is imported once per worker.
+2. **The whole application suite — node AND dom, both WHOLE** —
+   `vitest run --project node --project dom`. `node` is `convex/**` +
+   `scripts/**` + every DOM-free `src` test (~30s at the light tier's 2
+   workers: no dom env init and `isolate: false`, so the card registry is
+   imported once per worker); `dom` (#2655) is every `src/**/*.test.{ts,tsx}`
+   that genuinely needs one — component renders, layout guards, census tests
+   like `shell-height-claims.guard.test.tsx`.
 3. **`bun run cr:lint`** (#2429), ~1s — offline, reads only the vendored CR, so
    the gate's no-network contract holds.
 
-**Lane 2 used to be filtered to `scripts/__tests__`.** That left every backend
-catalogue guard outside the light gate — `effects/validate`'s
+**Lane 2's node half used to be filtered to `scripts/__tests__`.** That left
+every backend catalogue guard outside the light gate — `effects/validate`'s
 Op-registry/executor/schema coverage, `mechanicsRegistry`, `divergenceMarkers`,
 `serialize`'s drift check. A branch reached review with `validate.test.ts` red
 and a `check:pr` that exited 0. Fixed in #2431; scope now pinned by
 `scripts/__tests__/check-guards-scope.test.ts`, and bot deny-list drift by
 `bot-fast-lane.test.ts`. Widening or narrowing a lane means changing that
 guard, which is the point.
+
+**Lane 2 had no dom half at all until #2655.** `dom` ran only inside
+`bun run test:app` (heavy tier), which `scripts/gate.ts` blocks by design
+inside an issue worktree — so a `src/` component/layout guard was invisible
+to an implement-subagent's `check:pr` and surfaced for the first time at the
+merge-train, on the rebased tree, after review had already been paid for.
+Issue #2584 died exactly there on a shell-height CENSUS guard the failing
+diff never touched — a diff-derived subset would not have caught it, which is
+why the fix runs the dom project WHOLE (same reasoning as the node half
+above), not a changed-files filter. It costs nothing extra in tier: `dom`
+joins the SAME `vitest run` invocation as `node`, inside the SAME
+`check:guards` command `check:pr` already runs under `gate.ts light` — no
+mutex, no worker-count change, no full-suite escape hatch. Scope pinned by the
+same `check-guards-scope.test.ts` (a parallel describe block for `dom`).
 
 ## The dom project is need-classified, not directory-classified
 
@@ -49,12 +67,11 @@ The partition is pinned by `scripts/__tests__/src-test-env-split.test.ts`. The
 failure it exists to prevent is subtle: a file selected by **no** project runs
 nowhere and the gate stays green.
 
-### What genuinely needs a DOM stays outside the light gate
+### What genuinely needs a DOM — outside `check:all:inner`, inside `check:pr` since #2655
 
-252 files. Issue #2435 swapped the environment to `happy-dom`, measured
-back-to-back on the same tree with
-`TOLARIA_VITEST_WORKERS=2 bunx vitest run --project dom` (2207 passed both
-ways):
+Issue #2435 swapped the environment to `happy-dom`, measured back-to-back on
+the same tree with `TOLARIA_VITEST_WORKERS=2 bunx vitest run --project dom`
+(252 files then, 2207 passed both ways):
 
 | environment | wall    | `environment` phase |
 | ----------- | ------- | ------------------- |
@@ -63,7 +80,15 @@ ways):
 
 ~34% off wall, ~61% off the `environment` phase. Per-file environment init
 still dominates, so no deny-list helps and `--pool=threads` measured identical.
-Cover `src/` changes with targeted runs.
+
+**Still outside `check:all:inner`/`check:all`** — the heavy static-only gate
+never ran any test project, `dom` included, and that is unchanged by #2655.
+**No longer outside `check:pr`** — `check:guards`'s lane 2 now runs `dom`
+whole, in the same `vitest run` invocation as `node`, on the light tier (no
+mutex, no worker-count change, no `TOLARIA_ALLOW_FULL_SUITE`); before/after
+wall-clock is in the issue's PR. Iterating still uses targeted runs
+(`bunx vitest run <path>`) — `check:pr` is the whole-project backstop before a
+PR opens, the same relationship the node project already had.
 
 **Its one known cross-boundary breakage class** is caught statically instead of
 by running it: a `vi.mock("@convex/cards")` factory going stale when a name
