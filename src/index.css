@@ -986,6 +986,17 @@
         /* Secondary rung for dense controls (small buttons, segmented pills).
            Resolves lazily, so it follows the pointer override below. */
         --control-h-sm: calc(var(--control-h) - 4px);
+        /* VIEWPORT floor, not pointer-aware (issue #2662): the Immersive
+         * contextual bar's Exit/overflow controls on a landscape phone
+         * (`short-viewport:`). 44px there is the coarse-pointer COMFORT
+         * target, not a viewport rule, and it alone ate ~11% of a ~390px-tall
+         * screen. 28px keeps a few px of margin over the WCAG 2.2 AA MINIMUM
+         * target size (24x24 CSS px, SC 2.5.8) — the floor being traded down
+         * to, not the 44px AAA/iOS comfort target this replaces there. Flat,
+         * not `calc()` off `--control-h`: it must stay 28px whether the
+         * pointer is coarse or fine, since a landscape phone is coarse and a
+         * split-screen desktop window at the same height is fine. */
+        --control-h-xs: 28px;
 
         /* ── 4. Motion (ADR 0101 §2) ──
          * Named durations + easings so a transition is never a magic number.

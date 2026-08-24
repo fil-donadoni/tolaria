@@ -5,7 +5,8 @@
  * The v3 widening in one sentence: the shell no longer has "a header or no
  * header" — it has a TOP band whose height depends on the route's shell mode
  * and the viewport regime (56px Browse bar / 40px landscape-compact bar / 44px
- * Immersive contextual bar / 0 on the board), and a BOTTOM band that exists
+ * Immersive contextual bar / 36px landscape-compact contextual bar (issue
+ * #2662) / 0 on the board), and a BOTTOM band that exists
  * only in phone-portrait Browse (the 56px bottom nav plus its safe-area
  * inset). Both are `shrink-0` siblings of `<main>` in the same flex column, so
  * both are subtracted from `<main>` identically — which is precisely why the
@@ -270,6 +271,20 @@ export const SHELL_BROWSE_COMPACT_BAND_PX = 40;
 export const SHELL_CONTEXTUAL_BAND_PX = 44;
 
 /**
+ * Immersive contextual bar on a landscape phone (issue #2662) —
+ * `AppContextBar`'s `short-viewport:min-h-[calc(2.25rem_+_env(safe-area-inset-top))]`
+ * (the inset folded into the floor itself, issue #2662 review round 2). The
+ * 44px baseline above is the coarse-POINTER comfort target (ADR 0101 §2), not
+ * a viewport rule; on a ~390px-tall landscape phone it alone ate ~11% of the
+ * screen before the surface below it drew anything. 36px keeps the bar's own
+ * controls at the WCAG 2.2 AA floor (24x24 CSS px, SC 2.5.8) via
+ * `--control-h-xs` (28px) with
+ * a few px of vertical margin, same pairing as `SHELL_BROWSE_COMPACT_BAND_PX`
+ * beside `SHELL_BROWSE_BAND_PX`.
+ */
+export const SHELL_CONTEXTUAL_COMPACT_BAND_PX = 36;
+
+/**
  * Phone-portrait Browse bottom nav — `AppBottomNav`'s `h-14`, EXCLUDING the
  * safe-area inset, which is a device fact and therefore an input to
  * `shellBands` rather than a constant.
@@ -311,8 +326,15 @@ export function shellBands(inputs: ShellBandInputs): {
     }
     const banner = inputs.returnBanner ? SHELL_RETURN_BANNER_PX : 0;
     if (inputs.mode === "immersive") {
+        // Landscape phone (issue #2662) discriminates the same way the Browse
+        // branch below already does — by HEIGHT (`landscape-compact`), never
+        // a width breakpoint, since a sideways phone is wide but short.
+        const contextualBand =
+            inputs.viewport === "landscape-compact"
+                ? SHELL_CONTEXTUAL_COMPACT_BAND_PX
+                : SHELL_CONTEXTUAL_BAND_PX;
         return {
-            headerBandHeightPx: SHELL_CONTEXTUAL_BAND_PX + banner,
+            headerBandHeightPx: contextualBand + banner,
             bottomBandHeightPx: 0,
         };
     }
