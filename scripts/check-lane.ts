@@ -25,7 +25,7 @@
  * `full` as its terminal statement with every narrower lane guarded by an
  * affirmative predicate (`every(... === "skin")`, `!includes("skin")`).
  * Reordering those clauses cannot turn an unknown path into `skin`. The
- * explicit `FULL_PATHS` rules below are therefore documentation of the
+ * explicit `FULL_PATTERNS` rules below are therefore documentation of the
  * dominant cases AND a guard that beats any future widening of the skin
  * rules — they are not what makes the default safe.
  *
