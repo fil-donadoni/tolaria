@@ -8,7 +8,10 @@ import {
     renderJson,
     runPlan,
     renderReceipt,
+    executePlan,
+    shellStdio,
     type LanePlan,
+    type RunResult,
 } from "../check-lane";
 
 /**
@@ -496,6 +499,36 @@ describe("check-lane — the printed receipt renders the plan (issue #2740)", ()
         expect(renderPlan(plan, "4f2a91c")).toContain("4f2a91c");
     });
 
+    /**
+     * `renderJson` is the ONLY JSON renderer (#2748 review, finding 1):
+     * `main()` no longer hand-builds `JSON.stringify({ head, ...plan,
+     * ...result })` next to it, so this same function must also cover the
+     * EXECUTED case — the `RunResult` merged in alongside the plan fields.
+     * Proof-of-failure: temporarily deleted `head` from `renderJson`'s
+     * return — this test AND "the --json form carries the HEAD SHA..."
+     * above both went red (`parsed.head` was `undefined`); reverted.
+     */
+    it("also merges in the RunResult once the plan has executed", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        const result: RunResult = {
+            outcomes: [{ id: "node[all]", status: "pass", ms: 5 }],
+            ok: true,
+            totalMs: 5,
+        };
+        const parsed = JSON.parse(renderJson(plan, "4f2a91c", result)) as {
+            head: string;
+            lane: string;
+            ok: boolean;
+            totalMs: number;
+            outcomes: { id: string }[];
+        };
+        expect(parsed.head).toBe("4f2a91c");
+        expect(parsed.lane).toBe("engine");
+        expect(parsed.ok).toBe(true);
+        expect(parsed.totalMs).toBe(5);
+        expect(parsed.outcomes).toEqual(result.outcomes);
+    });
+
     it("renders the full lane without an empty skip block", () => {
         const out = renderPlan(classifyLane(["package.json"]), "deadbee");
         expect(out).toMatch(/^lane: {2}full/m);
@@ -616,18 +649,81 @@ describe("check-lane — execution (issue #2741)", () => {
     });
 
     /**
-     * Structural guard: `classifyLane` (the plan builder) must be called
-     * exactly ONCE in this file's own source — one in its own `export
-     * function classifyLane(` declaration, one in `main()`. A second call
-     * site in `main()` would be exactly the bug #2741 exists to prevent: a
-     * receipt built from a plan different from the one that was executed.
+     * `executePlan` — the ONE function that fans a plan out to
+     * `renderPlan`, `runPlan` and `renderJson` (#2748 review, finding 3) —
+     * takes the plan as data and has no access to `classifyLane` or the git
+     * plumbing, so it structurally CANNOT rebuild a second, independently
+     * classified plan for rendering. This is the behavioural form of the
+     * invariant #2741 exists to hold: the executed commands (via `exec`)
+     * and the rendered output (json or human) both derive from the exact
+     * plan this test constructs — a rendering path fed by a different
+     * plan (e.g. a re-derived one with a different `lane`/`run`/`skip`)
+     * would show up here as a mismatch between what was executed and what
+     * was printed.
      *
-     * Proof-of-failure (manual): temporarily added a second
-     * `classifyLane(...)` call inside `main()` (a hand-built duplicate
-     * "for printing") — this test went red (found 2 call sites, wanted 1).
-     * Reverted.
+     * Proof-of-failure (manual): changed `executePlan`'s `renderJson` call
+     * to render a hand-built second plan (`{ ...plan, lane: "full" }`)
+     * instead of `plan` — this test went red (`parsed.lane` was `"full"`,
+     * expected `"engine"`, while `calls` still matched the original
+     * `plan.run` commands: exactly the "receipt describes a different run"
+     * shape). Reverted.
      */
-    it("classifyLane is called exactly once outside its own declaration (#2741)", () => {
+    it("executePlan renders and executes off the exact same plan object it was given (#2741, #2748)", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        const { exec, calls } = fakeExec(
+            Object.fromEntries(
+                plan.run.map((c) => [c.command, { ok: true, ms: 3 }])
+            )
+        );
+        const lines: string[] = [];
+        const result = executePlan(plan, "4f2a91c", true, exec, (l) =>
+            lines.push(l)
+        );
+
+        expect(calls).toEqual(plan.run.map((c) => c.command));
+
+        const parsed = JSON.parse(lines[0]) as LanePlan & {
+            head: string;
+            ok: boolean;
+        };
+        expect(parsed.head).toBe("4f2a91c");
+        expect(parsed.lane).toBe(plan.lane);
+        expect(parsed.files).toEqual(plan.files);
+        expect(ids(parsed.run)).toEqual(ids(plan.run));
+        expect(parsed.ok).toBe(result.ok);
+    });
+
+    it("executePlan prints the human plan then the human receipt when not in json mode", () => {
+        const plan = classifyLane(["src/app.tsx"]);
+        const { exec } = fakeExec(
+            Object.fromEntries(
+                plan.run.map((c) => [c.command, { ok: true, ms: 2 }])
+            )
+        );
+        const lines: string[] = [];
+        executePlan(plan, "deadbee", false, exec, (l) => lines.push(l));
+
+        expect(lines).toHaveLength(2);
+        expect(lines[0]).toBe(renderPlan(plan, "deadbee"));
+        expect(lines[1]).toMatch(/^PASS/m);
+    });
+
+    /**
+     * Narrower structural guard, kept alongside the behavioural test above
+     * rather than in its place: it pins only that `classifyLane` itself has
+     * exactly one call site in this file's own source (one declaration, one
+     * call in `main()`). It does NOT, on its own, prove renderPlan/runPlan
+     * consume the same plan — a hand-built second plan constructed WITHOUT
+     * calling `classifyLane` again (e.g. `{ ...plan, lane: "full" }`) would
+     * pass this text scan while still describing a different run than the
+     * one executed. That case is what the behavioural `executePlan` test
+     * above actually catches.
+     *
+     * Proof-of-failure (manual, from the original #2741 PR): temporarily
+     * added a second `classifyLane(...)` call inside `main()` — this test
+     * went red (found 2 call sites, wanted 1). Reverted.
+     */
+    it("classifyLane has exactly one call site outside its own declaration (textual, narrower than the behavioural guard above)", () => {
         const src = readFileSync(
             resolve(ROOT, "scripts/check-lane.ts"),
             "utf8"
@@ -656,5 +752,29 @@ describe("check-lane — execution (issue #2741)", () => {
         );
         expect(src).not.toContain("TOLARIA_ALLOW_FULL_SUITE");
         expect(src).not.toMatch(/gate\.ts["'`]\s*,\s*"heavy"/);
+    });
+});
+
+describe("check-lane — --json stdout isolation (#2748 review, finding 2)", () => {
+    /**
+     * `shellRun` always spawned children with `stdio: "inherit"`, so in
+     * `--json` mode every check's own stdout (tsc, prettier, vitest, vite)
+     * landed on `check:lane --json`'s stdout ahead of the JSON blob,
+     * breaking `bun run check:lane --json | jq` even though the file's own
+     * usage block advertises `--json` as emitting JSON. `shellStdio` is the
+     * pure decision extracted out of `shellRun` so it's testable without
+     * spawning a real check — repo convention (every DECISION in this file
+     * is a pure function tested directly).
+     *
+     * Proof-of-failure: temporarily made `shellStdio` return `["inherit",
+     * "inherit", "inherit"]` unconditionally (ignoring `json`) — the first
+     * assertion below went red (`[2]` !== `"inherit"`). Reverted.
+     */
+    it("redirects the child's stdout to the parent's stderr (fd 2) in json mode", () => {
+        expect(shellStdio(true)).toEqual(["inherit", 2, "inherit"]);
+    });
+
+    it("leaves the child's stdout inherited outside json mode, so the human receipt still streams check output live", () => {
+        expect(shellStdio(false)).toEqual(["inherit", "inherit", "inherit"]);
     });
 });

@@ -8,13 +8,20 @@
  * that exact plan and prints a receipt: per-check pass/fail/not-run with
  * wall-clock.
  *
- * ONE PLAN OBJECT, BUILT ONCE. `main()` calls `classifyLane` exactly once;
- * `renderPlan` and `runPlan` both read the SAME `LanePlan` value it
- * returns. There is no second list of commands anywhere — the failure this
- * guards against is a receipt that describes a different run from the one
- * that happened (a skip line claiming "dom skipped" while dom actually
- * ran, or vice versa). `check-lane.test.ts` pins `classifyLane` is called
- * exactly once in this file.
+ * ONE PLAN OBJECT, BUILT ONCE. `main()` calls `classifyLane` exactly once
+ * and hands the resulting `LanePlan` to `executePlan`, the single function
+ * that fans it out to `renderPlan`, `runPlan` and `renderJson` — none of
+ * which can independently rebuild a plan, because none of them (nor
+ * `executePlan`) has access to `classifyLane` or the git plumbing. There is
+ * no second list of commands anywhere and no second JSON renderer — the
+ * failure this guards against is a receipt that describes a different run
+ * from the one that happened (a skip line claiming "dom skipped" while dom
+ * actually ran, or vice versa; or a `--json` blob hand-built next to
+ * `renderJson` instead of through it, #2748 review finding 1).
+ * `check-lane.test.ts` pins this two ways: a behavioural test that
+ * `executePlan` renders and executes off the exact same plan it was given,
+ * and a narrower textual check that `classifyLane` itself has exactly one
+ * call site in this file.
  *
  * THE LANE IS DERIVED FROM THE DIFF AND CAN NEVER BE DECLARED BY A FLAG.
  * A `--skin` flag is a hand-maintained list in disguise: the first agent
@@ -347,9 +354,22 @@ export function renderPlan(plan: LanePlan, head: string): string {
  * describes exactly what was classified; `--json` must not lose that, or the
  * one consumer that could check the classification mechanically is the one
  * that cannot say which tree it classified (round-1 review of #2740).
+ *
+ * `result` is optional so this ALSO covers the executed case (#2741): when
+ * `main()` runs the plan for real, it passes the `RunResult` `runPlan`
+ * returned and this merges in `ok`/`outcomes`/`totalMs` alongside the plan
+ * fields — there is exactly one JSON renderer, never a second
+ * `JSON.stringify({ head, ...plan, ...result })` built by hand next to this
+ * one (#2748 review, finding 1: that second build was live in `main()` and
+ * left this function dead, so the round-1 review's own SHA guard never
+ * reached production).
  */
-export function renderJson(plan: LanePlan, head: string): string {
-    return JSON.stringify({ head, ...plan }, null, 2);
+export function renderJson(
+    plan: LanePlan,
+    head: string,
+    result?: RunResult
+): string {
+    return JSON.stringify({ head, ...plan, ...result }, null, 2);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -471,6 +491,25 @@ function fail(message: string): never {
 const GATE = resolve(__dirname, "gate.ts");
 
 /**
+ * The stdio wiring for one planned check's child process. In `--json` mode
+ * the process's OWN stdout must carry nothing but the JSON blob (that is
+ * the entire point of `--json` — a consumer piping it to `jq`), so the
+ * child's stdout is redirected to the parent's stderr instead of inherited;
+ * stdin and the child's own stderr keep flowing straight through either
+ * way. Split out as a pure function so the DECISION (which fd a child's
+ * stdout lands on) is unit-testable without spawning anything, matching
+ * every other decision in this file (#2748 review, finding 2: `stdio:
+ * "inherit"` unconditionally meant every check's own stdout — tsc,
+ * prettier, vitest, vite — landed on `check:lane --json`'s stdout ahead of
+ * the JSON blob, breaking `bun run check:lane --json | jq`).
+ */
+export function shellStdio(
+    json: boolean
+): ["inherit", "inherit" | 2, "inherit"] {
+    return ["inherit", json ? 2 : "inherit", "inherit"];
+}
+
+/**
  * Execute one planned command at the LIGHT tier — no mutex, no worker-count
  * override. `scripts/gate.ts light` is the repo's single mechanism for
  * that: for the light tier it takes no lock and leaves
@@ -481,13 +520,47 @@ const GATE = resolve(__dirname, "gate.ts");
  * "light" means is inherited automatically instead of drifting between two
  * copies of the same mechanism.
  */
-function shellRun(command: string, cwd: string): { ok: boolean; ms: number } {
+function shellRun(
+    command: string,
+    cwd: string,
+    json: boolean
+): { ok: boolean; ms: number } {
     const t0 = Date.now();
     const r = spawnSync("bun", [GATE, "light", command], {
-        stdio: "inherit",
+        stdio: shellStdio(json),
         cwd,
     });
     return { ok: r.status === 0, ms: Date.now() - t0 };
+}
+
+/**
+ * The single consumer of ONE plan object (#2748 review, finding 3): given a
+ * `LanePlan` and NOTHING that could rebuild one (no access to `classifyLane`
+ * or the git plumbing — those live in `main()`, above and outside this
+ * function), fans it out to `renderPlan`, `runPlan` and `renderJson`. That
+ * is the actual invariant issue #2741 exists to hold — a receipt describing
+ * the same run that was executed — expressed as an architectural fact
+ * (this function CANNOT construct a second plan, having no way to reach
+ * `classifyLane`) rather than the textual "one call site" proxy
+ * `check-lane.test.ts` used to rely on alone. `exec` and `log` are injected
+ * so a test can drive this with a hand-built plan and a fake shell, with no
+ * subprocess — same pattern as `runPlan`'s injectable `exec`.
+ */
+export function executePlan(
+    plan: LanePlan,
+    head: string,
+    json: boolean,
+    exec: (command: string) => { ok: boolean; ms: number },
+    log: (line: string) => void = console.log
+): RunResult {
+    if (!json) log(renderPlan(plan, head));
+
+    const result = runPlan(plan, exec);
+
+    if (json) log(renderJson(plan, head, result));
+    else log(renderReceipt(result));
+
+    return result;
 }
 
 function parseArgs(argv: string[]): { base: string; json: boolean } {
@@ -517,22 +590,18 @@ function main(): void {
     }
 
     const head = git(["rev-parse", "--short", "HEAD"], cwd).trim();
-    // ONE plan, built once — renderPlan (below) and runPlan (the execution)
-    // both read this same value. Never build a second list of commands.
+    // ONE plan, built once — passed to executePlan, the single function
+    // that reads it for rendering AND execution. Never build a second list
+    // of commands, and never render the JSON form by hand next to
+    // renderJson (#2748 review, finding 1).
     const plan = classifyLane(
         changedPaths(base, cwd, true),
         changedPaths(base, cwd, false)
     );
 
-    if (!json) console.log(renderPlan(plan, head));
-
-    const result = runPlan(plan, (command) => shellRun(command, cwd));
-
-    if (json) {
-        console.log(JSON.stringify({ head, ...plan, ...result }, null, 2));
-    } else {
-        console.log(renderReceipt(result));
-    }
+    const result = executePlan(plan, head, json, (command) =>
+        shellRun(command, cwd, json)
+    );
 
     process.exit(result.ok ? 0 : 1);
 }
