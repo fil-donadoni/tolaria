@@ -7,6 +7,7 @@ import {
     naduWingedWisdom,
 } from "../multicolor";
 import { grizzlyBears } from "../../lea/green";
+import { garrukWildspeaker } from "../../lrw/green";
 import { forest } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
@@ -18,6 +19,11 @@ import {
 } from "../../../../gre/state";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
+import {
+    applyAllCombatDamage,
+    buildAutoDamageAssignments,
+} from "../../../../gre/phases";
+import { checkStateBasedActions } from "../../../../gre/sba";
 import type { GameEvent, TargetSelection } from "../../../types";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
@@ -161,6 +167,159 @@ describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.2a)", () => {
         resolveActivated(state, frog, "psychic-frog-exile-flying");
         const live = state.players[0].battlefield.find((c) => c.id === "frog")!;
         expect(live.staticAbilities).toContain("flying");
+    });
+});
+
+// ── Combat-damage draw: "to a player OR PLANESWALKER" (issue #1855) ──────────
+//
+// Driven through the REAL combat damage step, not a hand-built TriggerStateView.
+// `applyAllCombatDamage` emits the DAMAGE_DEALT event AND runs
+// `collectTriggers` / `placeTriggersOnStack` itself, so `state.stack` after the
+// call is the engine's own answer to "did this trigger fire?".
+//
+// Why that matters here: a planeswalker is a permanent (CR 110.1 — a permanent
+// is a card or token on the battlefield), and combat damage to one removes
+// loyalty counters (CR 120.3c). The event therefore carries
+// `target: { type: "permanent" }` — the SAME shape as damage to a blocking
+// creature. Nothing on the event distinguishes them; only a battlefield lookup
+// on the recipient's types does. A hand-built view would let a wrong lookup
+// pass, which is exactly how the dropped clause survived.
+describe("Psychic Frog combat-damage draw (CR 110.1 / 120.3c, issue #1855)", () => {
+    /** p1 attacks with the Frog. `attackTargets` sends it at a planeswalker
+     *  (CR 508.1a); omitted, it attacks the defending player. */
+    function frogCombat(args: {
+        p2Battlefield?: CardInstanceState[];
+        attackTargets?: Record<string, string>;
+        /** blockerId → the attackers it blocks (CR 509.1a). */
+        blockerAssignments?: Record<string, string[]>;
+        blockedAttackerIds?: string[];
+    }): GameState {
+        const frog = frogOnBattlefield();
+        frog.isAttacking = true;
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [frog],
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "lib-1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", { battlefield: args.p2Battlefield ?? [] }),
+            ],
+        });
+        state.phase = "COMBAT_DAMAGE";
+        state.combat = {
+            attackerIds: ["frog"],
+            attackTargets: args.attackTargets,
+            confirmed: true,
+            blockerAssignments: args.blockerAssignments ?? {},
+            blockersConfirmed: true,
+            blockedAttackerIds: args.blockedAttackerIds,
+        };
+        return state;
+    }
+
+    function dealCombatDamage(state: GameState): void {
+        applyAllCombatDamage(
+            state,
+            buildAutoDamageAssignments(state, "regular"),
+            "regular"
+        );
+    }
+
+    const drawTriggers = (state: GameState) =>
+        state.stack.filter(
+            (item) => item.triggeredAbilityId === "psychic-frog-combat-draw"
+        );
+
+    const garruk = (id: string, loyalty: number) =>
+        makeInstance(garrukWildspeaker.id, {
+            id,
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            counters: { loyalty },
+        });
+
+    it("fires on combat damage to a planeswalker and draws a card", () => {
+        const state = frogCombat({
+            p2Battlefield: [garruk("gw", 3)],
+            attackTargets: { frog: "gw" },
+        });
+        dealCombatDamage(state);
+
+        // CR 120.3c — the damage went to loyalty, not to p2's life total.
+        const pw = state.players[1].battlefield.find((c) => c.id === "gw")!;
+        expect(pw.counters?.loyalty).toBe(2);
+        expect(state.players[1].life).toBe(20);
+        // The clause the card used to drop.
+        expect(drawTriggers(state)).toHaveLength(1);
+
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib-1"]);
+
+        // Wire format: the drawn card is visible to its controller after the
+        // projection strips/reshapes zones.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand).toHaveLength(1);
+    });
+
+    it("still fires on combat damage to a player (the unchanged half)", () => {
+        const state = frogCombat({});
+        dealCombatDamage(state);
+
+        expect(state.players[1].life).toBe(19);
+        expect(drawTriggers(state)).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("does NOT fire on combat damage to a blocking creature", () => {
+        const blocker = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isBlocking: true,
+        });
+        const state = frogCombat({
+            p2Battlefield: [blocker],
+            blockerAssignments: { bear: ["frog"] },
+            blockedAttackerIds: ["frog"],
+        });
+        dealCombatDamage(state);
+
+        // The Frog's 1 damage went to the Bear, not to p2.
+        expect(state.players[1].life).toBe(20);
+
+        // Same `target: { type: "permanent" }` event shape as the planeswalker
+        // case — only the recipient's types differ.
+        expect(drawTriggers(state)).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("fires even when the damage is lethal to the planeswalker", () => {
+        // CR 603.2 — triggers are collected from the event before state-based
+        // actions run, so the 0-loyalty planeswalker is still on the
+        // battlefield for the recipient-type lookup. Guards the fail-closed
+        // fallback in `passesTargetPermanentFilter` (a recipient absent from
+        // the view synthesises empty `types` and would silently not match).
+        const state = frogCombat({
+            p2Battlefield: [garruk("gw", 1)],
+            attackTargets: { frog: "gw" },
+        });
+        dealCombatDamage(state);
+
+        expect(drawTriggers(state)).toHaveLength(1);
+        checkStateBasedActions(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "gw")
+        ).toBeUndefined();
     });
 });
 

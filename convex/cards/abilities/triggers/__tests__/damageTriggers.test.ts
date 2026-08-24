@@ -10,7 +10,10 @@ import type {
     PermanentView,
     TriggerStateView,
 } from "../../../types";
-import { damageDealtTrigger } from "../damageDealtTrigger";
+import {
+    damageDealtTrigger,
+    type DamageDealtTargetSpec,
+} from "../damageDealtTrigger";
 import { damageTakenTrigger } from "../damageTakenTrigger";
 
 function makeSelf(overrides: Partial<PermanentView> = {}): PermanentView {
@@ -73,6 +76,18 @@ function makeView(): TriggerStateView {
                         ownerId: "p2",
                         types: ["Creature"],
                         subtypes: [],
+                        staticAbilities: [],
+                    },
+                    // CR 110.1 — a planeswalker on the battlefield is a
+                    // permanent, so damage to it arrives on the event shaped
+                    // exactly like damage to `opp-1` above. Only this lookup
+                    // tells them apart (issue #1855).
+                    {
+                        id: "pw-1",
+                        controllerId: "p2",
+                        ownerId: "p2",
+                        types: ["Planeswalker"],
+                        subtypes: ["Jace"],
                         staticAbilities: [],
                     },
                 ],
@@ -273,6 +288,82 @@ describe("damageDealtTrigger (CR 120.3 / 603.4)", () => {
         // Invoke resolve directly with a synthetic event.
         ab.resolve!({} as never, makeEvent({ amount: 5, sourceColors: ["R"] }));
         expect(seen).toEqual({ amount: 5, colors: ["R"] });
+    });
+
+    // ── Producer census for the widened union (issue #1855) ─────────────────
+    //
+    // `DamageDealtTargetSpec` grew `"player-or-planeswalker"`. One test per
+    // `kind` already in the catalogue, asserting what each MUST and MUST NOT
+    // match once a planeswalker recipient exists — the widening is only safe
+    // if the sixteen existing call sites keep their exact semantics.
+    //
+    //   kind "player"           (6 sites: Ragavan, Marsh Viper, Abyssal
+    //                            Specter, Hypnotic Specter, Nicol Bolas,
+    //                            The Fallen) — "to a player"/"to an opponent":
+    //                            must NOT match a planeswalker.
+    //   kind "permanent"        (1 site: Kaldra Compleat, filter Creature)
+    //                            — "to a creature": must NOT match either.
+    //   target omitted / "any"  (9 sites: Umezawa's Jitte, Armadillo Cloak,
+    //                            Spirit Link, El-Hajjâj, …) — "deals damage"
+    //                            with no recipient clause: DOES match, and
+    //                            already did before this change.
+    const pwEvent = () =>
+        makeEvent({ target: { type: "permanent", id: "pw-1" } });
+    const creatureEvent = () =>
+        makeEvent({ target: { type: "permanent", id: "opp-1" } });
+    const playerEvent = () =>
+        makeEvent({ target: { type: "player", id: "p2" } });
+
+    function targetSpecTrigger(target?: DamageDealtTargetSpec) {
+        return damageDealtTrigger({
+            id: "t",
+            oracleText: "x",
+            source: "any",
+            target,
+            resolve: () => {},
+        });
+    }
+
+    it('target { kind: "player-or-planeswalker" } matches a player and a planeswalker but not a creature', () => {
+        const ab = targetSpecTrigger({ kind: "player-or-planeswalker" });
+        expect(ab.matches(playerEvent(), makeSelf(), makeView())).toBe(true);
+        expect(ab.matches(pwEvent(), makeSelf(), makeView())).toBe(true);
+        expect(ab.matches(creatureEvent(), makeSelf(), makeView())).toBe(false);
+    });
+
+    it('target { kind: "player-or-planeswalker" } fails closed on a recipient absent from the view', () => {
+        // CR 120.3 — the event alone cannot answer "was that a planeswalker?".
+        // A permanent the view does not contain synthesises empty `types`, so
+        // the planeswalker half must reject it rather than assume.
+        const ab = targetSpecTrigger({ kind: "player-or-planeswalker" });
+        const gone = makeEvent({ target: { type: "permanent", id: "ghost" } });
+        expect(ab.matches(gone, makeSelf(), makeView())).toBe(false);
+        expect(ab.matches(gone, makeSelf(), undefined)).toBe(false);
+    });
+
+    it('target { kind: "player" } still rejects a planeswalker recipient', () => {
+        const ab = targetSpecTrigger({
+            kind: "player",
+            player: { relation: "any" },
+        });
+        expect(ab.matches(playerEvent(), makeSelf(), makeView())).toBe(true);
+        expect(ab.matches(pwEvent(), makeSelf(), makeView())).toBe(false);
+    });
+
+    it('target { kind: "permanent", filter: { types: "Creature" } } still rejects a planeswalker recipient', () => {
+        const ab = targetSpecTrigger({
+            kind: "permanent",
+            filter: { types: "Creature" },
+        });
+        expect(ab.matches(creatureEvent(), makeSelf(), makeView())).toBe(true);
+        expect(ab.matches(pwEvent(), makeSelf(), makeView())).toBe(false);
+    });
+
+    it("an omitted target still matches every recipient, planeswalkers included", () => {
+        const ab = targetSpecTrigger(undefined);
+        expect(ab.matches(playerEvent(), makeSelf(), makeView())).toBe(true);
+        expect(ab.matches(pwEvent(), makeSelf(), makeView())).toBe(true);
+        expect(ab.matches(creatureEvent(), makeSelf(), makeView())).toBe(true);
     });
 });
 
