@@ -72,9 +72,9 @@ on THIS deployment:
 `openLimitedEvent(page, ctx, i)` for `i` in `0..min(count, 3)` — whichever
 events currently sit first under `/limited`'s `View` button list
 (`scripts/ui-gate/surfaces.ts:252-266`), and returns as soon as one lands on a
-visible pack tile. This deployment carries five `started` drafts created
-within about five minutes of each other, plus newer events layered above
-them in the list. A walk run on one day and a walk run on another can land on
+visible pack tile. This deployment carries five `started` drafts — four
+created within about five minutes of each other, plus one from three days
+earlier — and newer events layered above them in the list. A walk run on one day and a walk run on another can land on
 a genuinely different event/seat and read the difference as drift, when it is
 actually two different fixtures being measured under the same row label.
 
