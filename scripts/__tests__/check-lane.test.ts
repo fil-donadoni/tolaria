@@ -6,6 +6,8 @@ import {
     classifyLane,
     renderPlan,
     renderJson,
+    runPlan,
+    renderReceipt,
     type LanePlan,
 } from "../check-lane";
 
@@ -467,8 +469,11 @@ describe("check-lane — the printed receipt renders the plan (issue #2740)", ()
             expect(out).toContain(s.id);
             expect(out).toContain(s.reason);
         }
-        // The receipt must say it ran nothing — this slice is inert.
-        expect(out).toMatch(/inert|nothing was run|ran nothing/i);
+        // #2741: this lane now executes for real — the plan-only render no
+        // longer claims anything about running or not running (that claim
+        // moved to renderReceipt, tested below, which is built from the
+        // execution outcome instead of asserted here).
+        expect(out).not.toMatch(/inert/i);
     });
 
     /**
@@ -493,5 +498,160 @@ describe("check-lane — the printed receipt renders the plan (issue #2740)", ()
         expect(out).toMatch(/^lane: {2}full/m);
         expect(out).toContain("check:pr");
         expect(out).not.toMatch(/^skip:/m);
+    });
+});
+
+describe("check-lane — execution (issue #2741)", () => {
+    /**
+     * Round-trip: an `exec` fake standing in for the shell, so the DECISION
+     * (fail-fast? how a not-run check is recorded?) is tested without
+     * spawning anything — repo convention (land.ts, docs-lane.ts: git
+     * plumbing thin & untested, decisions pure & tested).
+     */
+    function fakeExec(results: Record<string, { ok: boolean; ms: number }>): {
+        exec: (command: string) => { ok: boolean; ms: number };
+        calls: string[];
+    } {
+        const calls: string[] = [];
+        return {
+            calls,
+            exec: (command: string) => {
+                calls.push(command);
+                const r = results[command];
+                if (!r) throw new Error(`unexpected command: ${command}`);
+                return r;
+            },
+        };
+    }
+
+    it("runs every planned check and reports pass when all pass", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        const { exec, calls } = fakeExec(
+            Object.fromEntries(
+                plan.run.map((c) => [c.command, { ok: true, ms: 10 }])
+            )
+        );
+        const result = runPlan(plan, exec);
+
+        expect(result.ok).toBe(true);
+        expect(calls).toEqual(plan.run.map((c) => c.command));
+        expect(result.outcomes.map((o) => o.status)).toEqual(
+            plan.run.map(() => "pass")
+        );
+        expect(result.totalMs).toBe(10 * plan.run.length);
+    });
+
+    /**
+     * FAIL-FAST, matching check:pr's own `&&`-chained behaviour (see the
+     * doc comment on `runPlan`): the first red check stops the rest, and
+     * every check after it is recorded `not-run` rather than silently
+     * missing from the receipt.
+     *
+     * Proof-of-failure (manual, per .claude/rules/gre-development.md §
+     * Proof-of-failure): reverting the `if (!ok) { ...continue; }` guard so
+     * `runPlan` always calls `exec` turned this red — `calls` grew past the
+     * failing check and outcomes past it read "pass"/"fail" instead of
+     * "not-run". Reverted.
+     */
+    it("stops at the first red check; later checks are not-run, never silently absent", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        expect(plan.run.length).toBeGreaterThan(2);
+        const failing = plan.run[1].command;
+        const { exec, calls } = fakeExec(
+            Object.fromEntries(
+                plan.run.map((c, i) => [
+                    c.command,
+                    { ok: c.command !== failing, ms: 5 + i },
+                ])
+            )
+        );
+        const result = runPlan(plan, exec);
+
+        expect(result.ok).toBe(false);
+        // exec was called for the first two checks only — the failing one
+        // and everything after it never ran.
+        expect(calls).toEqual(plan.run.slice(0, 2).map((c) => c.command));
+        expect(result.outcomes[0].status).toBe("pass");
+        expect(result.outcomes[1].status).toBe("fail");
+        for (const o of result.outcomes.slice(2)) {
+            expect(o.status).toBe("not-run");
+            expect(o.ms).toBe(0);
+        }
+    });
+
+    it("renderReceipt shows every outcome and a PASS/FAIL summary with the total", () => {
+        const plan = classifyLane(["src/app.tsx"]);
+        const result = runPlan(
+            plan,
+            fakeExec(
+                Object.fromEntries(
+                    plan.run.map((c) => [c.command, { ok: true, ms: 1000 }])
+                )
+            ).exec
+        );
+        const out = renderReceipt(result);
+        for (const o of result.outcomes) expect(out).toContain(o.id);
+        expect(out).toMatch(/^PASS/m);
+        expect(out).toContain(`${(result.totalMs / 1000).toFixed(1)}s`);
+    });
+
+    it("renderReceipt reports FAIL when any check failed", () => {
+        const plan = classifyLane(["src/app.tsx"]);
+        const failing = plan.run[0].command;
+        const result = runPlan(
+            plan,
+            fakeExec(
+                Object.fromEntries(
+                    plan.run.map((c) => [
+                        c.command,
+                        { ok: c.command !== failing, ms: 1 },
+                    ])
+                )
+            ).exec
+        );
+        expect(renderReceipt(result)).toMatch(/^FAIL/m);
+    });
+
+    /**
+     * Structural guard: `classifyLane` (the plan builder) must be called
+     * exactly ONCE in this file's own source — one in its own `export
+     * function classifyLane(` declaration, one in `main()`. A second call
+     * site in `main()` would be exactly the bug #2741 exists to prevent: a
+     * receipt built from a plan different from the one that was executed.
+     *
+     * Proof-of-failure (manual): temporarily added a second
+     * `classifyLane(...)` call inside `main()` (a hand-built duplicate
+     * "for printing") — this test went red (found 2 call sites, wanted 1).
+     * Reverted.
+     */
+    it("classifyLane is called exactly once outside its own declaration (#2741)", () => {
+        const src = readFileSync(
+            resolve(ROOT, "scripts/check-lane.ts"),
+            "utf8"
+        );
+        const declarations = (src.match(/function classifyLane\(/g) ?? [])
+            .length;
+        const total = (src.match(/\bclassifyLane\(/g) ?? []).length;
+        expect(declarations).toBe(1);
+        expect(total - declarations).toBe(1);
+    });
+
+    /**
+     * `shellRun` (the real executor `main()` uses) delegates every command
+     * to `scripts/gate.ts light` — the repo's single light-tier mechanism
+     * (no mutex, `TOLARIA_VITEST_WORKERS` left for `vitest.config.ts`'s own
+     * default). This pins the delegation shape so it can't quietly drift
+     * into a hand-rolled env/tier reimplementation.
+     */
+    it("delegates execution to `scripts/gate.ts light`, never a hand-rolled tier", () => {
+        const src = readFileSync(
+            resolve(ROOT, "scripts/check-lane.ts"),
+            "utf8"
+        );
+        expect(src).toMatch(
+            /spawnSync\(\s*"bun",\s*\[GATE, "light", command\]/
+        );
+        expect(src).not.toContain("TOLARIA_ALLOW_FULL_SUITE");
+        expect(src).not.toMatch(/gate\.ts["'`]\s*,\s*"heavy"/);
     });
 });
