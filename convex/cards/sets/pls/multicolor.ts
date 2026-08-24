@@ -517,9 +517,13 @@ export const marshCrocodile: CardDefinition = {
                 {
                     // CR 101.4 — `forEach { set: "players" }` walks players in
                     // APNAP order, so each player picks their own discard in
-                    // turn order rather than the engine picking for them.
+                    // turn order rather than the engine picking for them; with
+                    // `simultaneous` the discards then happen together, so no
+                    // player sees an earlier player's discarded card before
+                    // making their own choice (CR 101.4a/101.4b).
                     op: "forEach",
                     select: { set: "players" },
+                    simultaneous: true,
                     effects: [
                         {
                             op: "choice",
@@ -576,6 +580,9 @@ export const razingSnidd: CardDefinition = {
                 {
                     op: "forEach",
                     select: { set: "players" },
+                    // CR 101.4 — every player picks (APNAP), then all the
+                    // chosen lands are sacrificed together.
+                    simultaneous: true,
                     effects: [
                         {
                             op: "choice",
@@ -729,6 +736,9 @@ export const urzasGuilt: CardDefinition = {
         {
             op: "forEach",
             select: { set: "players" },
+            // CR 101.4 — every player chooses their three (APNAP), then all
+            // the discards happen together.
+            simultaneous: true,
             effects: [
                 {
                     op: "choice",

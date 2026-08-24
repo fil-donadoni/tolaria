@@ -48,6 +48,7 @@ import {
 } from "../../pendingChoiceSubmit";
 import { compactState, expandState } from "../../serialize";
 import { refreshExpectedInput } from "../../expectedInput";
+import { getEffectiveColors } from "../../../cards/effectiveColors";
 import { projectPublicState } from "../../../gameProjections";
 import {
     fireDelayedTriggers,
@@ -9326,6 +9327,90 @@ describe("Effect Script Op: animate (CR 208.2 / 611.1, issue #1317)", () => {
         const state = makeState();
         pushSpell(state, id, "p1", []);
         expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+
+    // `colors` (issue #1872) — the layer-5 half of "becomes a 3/2 blue and
+    // black Elemental creature" (CR 613.1e; CR 105.3, the new colour replaces
+    // every colour the object had). Asserted on the INDEFINITE animation, the
+    // path with no `tickAllDurations` revert record — the durated one is
+    // covered end-to-end by the manland tests in
+    // `convex/cards/sets/wwk/__tests__/colorless.test.ts`.
+    it("sets the animated permanent's colours, indefinitely, and they survive the projection (wire format)", () => {
+        const id = registerScript("test-op-animate-colors", [
+            {
+                op: "animate",
+                target: { target: 0 },
+                power: 2,
+                toughness: 2,
+                colors: ["U", "B"],
+            },
+        ]);
+        const land = makeInstance(BEAR_ID, {
+            id: "colouredLand",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"],
+            subtypes: ["Swamp"],
+            power: undefined,
+            toughness: undefined,
+            staticAbilities: [],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        // The BEAR_ID fixture prints {G}, so the pre-animation colour is
+        // green — which makes this the CR 105.3 case outright: the new colour
+        // REPLACES every colour the object had, it does not union with it.
+        expect(getEffectiveColors(land)).toEqual(["G"]);
+
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "colouredLand" }]);
+        resolveTopOfStack(state);
+
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "colouredLand"
+        )!;
+        expect(getEffectiveColors(live)).toEqual(["U", "B"]);
+        // No duration → no revert record; the only end is a zone change.
+        expect(live.temporaryColorOverride).toBeUndefined();
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "colouredLand"
+        )!;
+        expect(getEffectiveColors(slim)).toEqual(["U", "B"]);
+    });
+
+    it("leaves the printed colour alone when `colors` is omitted (CR 105.2)", () => {
+        const id = registerScript("test-op-animate-no-colors", [
+            { op: "animate", target: { target: 0 }, power: 2, toughness: 2 },
+        ]);
+        const land = makeInstance(BEAR_ID, {
+            id: "plainLand",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"],
+            subtypes: ["Swamp"],
+            power: undefined,
+            toughness: undefined,
+            staticAbilities: [],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "plainLand" }]);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "plainLand"
+        )!;
+        expect(live.colorOverride).toBeUndefined();
+        // Still exactly its printed colour — the fixture's {G} cost.
+        expect(getEffectiveColors(live)).toEqual(["G"]);
     });
 });
 

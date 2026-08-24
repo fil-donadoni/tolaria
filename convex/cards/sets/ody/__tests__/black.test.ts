@@ -34,7 +34,10 @@ const bearFor = (owner: string, cid: string) =>
 // (CR 701.21.) The first DSL card composing a `choice` Op inside a forEach
 // construct (ADR 0045, issue #807): the players set iterates in APNAP order
 // (CR 101.4), each iteration suspending on a `sacrifice-permanents` Pending
-// Choice for the current player and resuming to sacrifice the pick.
+// Choice for the current player. Since issue #1872 the construct carries
+// `simultaneous: true`, so EVERY player's pick is collected before ANY
+// sacrifice is applied — CR 101.4's "Then the actions happen simultaneously",
+// whose worked example in the rules text is this card's own line.
 describe("Innocent Blood (each player sacrifices a creature — DSL-only choice-inside-forEach, CR 701.21 / 101.4 / issue #807)", () => {
     it("is a {B} sorcery, DSL-only with a valid Effect Script and no targets", () => {
         expect(innocentBlood.manaCost).toEqual({ B: 1 });
@@ -74,11 +77,20 @@ describe("Innocent Blood (each player sacrifices a creature — DSL-only choice-
             choiceId: head.choiceId,
             cardInstanceIds: ["ibA1"],
         });
-        // p1's sacrifice landed; now p2 is prompted (CR 101.4 order).
-        expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["ibA2"]);
-        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["ibA1"]);
+        // CR 101.4 (issue #1872) — p1's pick is RECORDED, not yet applied:
+        // p2 is prompted while p1's chosen bear is still on the battlefield
+        // and p1's graveyard is still empty. This is the whole order-visible
+        // difference; with the sacrifices applied per iteration, "ibA1" would
+        // already be in p1's graveyard here and any graveyard-count or
+        // death-watching effect would see one death instead of two.
         head = state.pendingChoices![0];
         expect(head.playerId).toBe("p2");
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "ibA1",
+            "ibA2",
+        ]);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual(["ibB1"]);
 
         applyPendingChoiceSubmit(state, {
             playerId: "p2",
@@ -87,6 +99,10 @@ describe("Innocent Blood (each player sacrifices a creature — DSL-only choice-
             choiceId: head.choiceId,
             cardInstanceIds: ["ibB1"],
         });
+        // "Then the actions happen simultaneously" — both sacrifices land in
+        // the same resolution frame, after every choice was made.
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["ibA2"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["ibA1"]);
         expect(state.players[1].battlefield).toHaveLength(0);
         // p2's graveyard: the sacrificed bear + the resolved sorcery
         // (cast by p2, CR 608.2k).

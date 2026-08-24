@@ -268,3 +268,112 @@ describe("Everflowing Chalice (Multikicker {2}, CR 702.33e)", () => {
         expect(slim.counters?.charge).toBe(2);
     });
 });
+
+// --- Layer-5 colour clause on the manland cycle (issue #1872) --------------
+// "becomes a 3/2 BLUE AND BLACK Elemental creature" / "a 4/4 WHITE AND BLUE
+// Elemental creature": `animate`'s `colors` field routes through the same
+// layer-5 colour SET the `setColor` Op uses (CR 613.1e; CR 105.3 — the new
+// colour replaces every colour the object had). Board-visible characteristic
+// → the wire-format assertion below is mandatory (`.claude/rules/gre-
+// development.md`), since `projectPublicState` reshapes the instance.
+import { getEffectiveColors } from "../../../effectiveColors";
+import { resetBattlefieldTransientState } from "../../../../gre/state";
+
+describe("manland colour clause (CR 613.1e layer 5 / CR 105.3)", () => {
+    function animate(
+        def: typeof creepingTarPit,
+        abilityId: string
+    ): { state: GameState; live: CardInstanceState } {
+        const land = makeInstance(def.id, {
+            id: "manland",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, land, abilityId);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "manland"
+        )!;
+        return { state, live };
+    }
+
+    it("is colourless before animating (CR 105.2 — a land has no mana cost)", () => {
+        const land = makeInstance(creepingTarPit.id, {
+            id: "manland",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        expect(getEffectiveColors(land)).toEqual([]);
+    });
+
+    it("Creeping Tar Pit becomes blue and black while animated", () => {
+        const { live } = animate(creepingTarPit, "creeping-tar-pit-animate");
+        expect(getEffectiveColors(live)).toEqual(["U", "B"]);
+    });
+
+    it("Celestial Colonnade becomes white and blue while animated", () => {
+        const { live } = animate(
+            celestialColonnade,
+            "celestial-colonnade-animate"
+        );
+        expect(getEffectiveColors(live)).toEqual(["W", "U"]);
+    });
+
+    it("re-reads blue and black after the wire projection", () => {
+        const { state, live } = animate(
+            creepingTarPit,
+            "creeping-tar-pit-animate"
+        );
+        expect(getEffectiveColors(live)).toEqual(["U", "B"]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === live.id
+        )!;
+        expect(getEffectiveColors(slim)).toEqual(["U", "B"]);
+    });
+
+    it("returns to colourless when the animation expires (CR 514.2)", () => {
+        const { state } = animate(creepingTarPit, "creeping-tar-pit-animate");
+        state.activePlayerId = "p1";
+        state.turn = 1;
+        state.phase = "END_STEP" as GameState["phase"];
+        advancePhase(state);
+
+        const live = [
+            ...state.players[0].battlefield,
+            ...state.players[1].battlefield,
+        ].find((c) => c.id === "manland")!;
+        // The colour reverts at the SAME boundary the P/T and type line do.
+        expect(live.animation).toBeUndefined();
+        expect(getEffectiveColors(live)).toEqual([]);
+        expect(live.temporaryColorOverride).toBeUndefined();
+    });
+
+    it("strands no colour override when the animated land leaves the battlefield (CR 400.7)", () => {
+        const { live } = animate(creepingTarPit, "creeping-tar-pit-animate");
+        expect(live.colorOverride).toEqual(["U", "B"]);
+        expect(live.temporaryColorOverride).toBeDefined();
+
+        resetBattlefieldTransientState(live);
+
+        // Both the override AND its revert record go — a surviving record
+        // would splice a stale colour back onto a NEW object at the next
+        // phase boundary.
+        expect(live.colorOverride).toBeUndefined();
+        expect(live.temporaryColorOverride).toBeUndefined();
+        expect(getEffectiveColors(live)).toEqual([]);
+    });
+
+    it("does not alias the card definition's colour array into game state", () => {
+        const { live } = animate(creepingTarPit, "creeping-tar-pit-animate");
+        const declared = creepingTarPit.activatedAbilities![1].effects!.find(
+            (e) => e.op === "animate"
+        )! as { colors?: string[] };
+        expect(live.colorOverride).not.toBe(declared.colors);
+    });
+});

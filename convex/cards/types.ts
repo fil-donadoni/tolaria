@@ -1530,6 +1530,18 @@ export interface AnimateSpec {
      *  animation with a granted ability, so this asymmetry is unexercised but
      *  documented. */
     grantedAbilities?: string[];
+    /** Colours the permanent BECOMES while animated (layer 5, CR 613.1e —
+     *  "becomes a 3/2 blue and black Elemental creature", Creeping Tar Pit).
+     *  CR 105.3: a new colour REPLACES every colour the object had, which is
+     *  exactly `SpellContext.setColorOverride`'s semantics — so this field is
+     *  routed through that same layer-5 primitive rather than carrying a
+     *  second colour channel of its own. With `duration` set the override
+     *  reverts at the SAME phase boundary the animation does (one
+     *  `tickAllDurations` pass restores both); omitted, it is indefinite and
+     *  ends only when the permanent leaves the battlefield (CR 400.7).
+     *  OMITTED leaves the printed colour alone — a colourless manland
+     *  (Mishra's Factory) stays colourless (CR 105.2). */
+    colors?: Color[];
     /** Phase boundary at which the animation reverts (CR 611.2, Mishra's
      *  Factory's "until end of turn"). OMITTED means the animation is
      *  INDEFINITE (CR 611.2b) — it never auto-reverts at a phase boundary and
@@ -11987,7 +11999,7 @@ export type EffectOp =
      *  applies on top at read time (CR 613.4). Skipped when the target is gone
      *  (CR 608.2b) or already animated by a DIFFERENT still-active `animate`
      *  effect (the primitive's "one animation at a time" guard — `subtype` /
-     *  `additionalTypes` for the SECOND application no-op, but
+     *  `additionalTypes` / `colors` for the SECOND application no-op, but
      *  `grantedAbilities` still apply, matching Earthbend N re-applied to an
      *  already-earthbent land). */
     | {
@@ -11998,6 +12010,14 @@ export type EffectOp =
           subtype?: string;
           additionalTypes?: CardType[];
           grantedAbilities?: string[];
+          /** Layer-5 colour set applied in the same breath as the animation
+           *  (CR 613.1e; CR 105.3 — the new colour replaces every colour the
+           *  object had). Routed through the SAME `setColorOverride`
+           *  primitive the `setColor` Op skins, honouring `duration`, so the
+           *  colour reverts exactly when the animation does. Omitted leaves
+           *  the printed colour untouched (a colourless manland stays
+           *  colourless, CR 105.2). */
+          colors?: Color[];
           duration?: DurationSpec;
       }
     /** CR 613.4b layer 7b (issue #1318) — SET a permanent's base power and/or
@@ -13481,25 +13501,39 @@ export type EffectOp =
      *  iteration; bindings made BEFORE the construct stay readable in every
      *  iteration. `choice` Ops inside the body suspend/resume per iteration
      *  through the same Pending Choice pipeline as top-level choices — with a
-     *  players set this yields APNAP-ordered decisions (CR 101.4). One
-     *  deliberate simplification, flagged per the GRE rules: each iteration's
-     *  actions apply as soon as they resolve (sequential), not batched
-     *  simultaneously after all choices (CR 101.4d timing) — visible only
-     *  when a later chooser's options depend on an earlier iteration's
-     *  action. `forEach` does not nest (the validator rejects it).
+     *  players set this yields APNAP-ordered decisions (CR 101.4). By default
+     *  each iteration's actions apply as soon as they resolve (sequential) —
+     *  set `simultaneous` when the Oracle line needs CR 101.4's "then the
+     *  actions happen simultaneously". `forEach` does not nest (the validator
+     *  rejects it).
      *
-     *  `simultaneous` (CR 400.7 / 614-batch, issue #1094) — ONLY valid over a
-     *  `{ set: "graveyard" }` selector, and ONLY with the canonical
-     *  single-Op reanimation body `[{ op: "moveZone", target: { ref: "$each"
-     *  }, to: "battlefield" }]` (optionally `controller`). When set, the
-     *  interpreter bypasses the normal per-member `runOpList` walk entirely
-     *  and hands the WHOLE frozen member set to
+     *  `simultaneous` names ONE of exactly two selector/body pairings; the
+     *  validator rejects anything else rather than falling back silently.
+     *
+     *  `{ set: "graveyard" }` (CR 400.7 / 614-batch, issue #1094) — ONLY with
+     *  the canonical single-Op reanimation body `[{ op: "moveZone", target: {
+     *  ref: "$each" }, to: "battlefield" }]` (optionally `controller`). The
+     *  interpreter bypasses the per-member `runOpList` walk entirely and hands
+     *  the WHOLE frozen member set to
      *  `SpellContext.returnGraveyardSetToBattlefield` in one call, so every
      *  reanimated permanent enters as a single event — none of their static-
      *  effect grants or ETB triggers observe only some of the others already
      *  on the battlefield (Replenish; Living Death would set it too).
-     *  Omitted/false keeps the original sequential per-member walk (the only
-     *  behavior every OTHER `forEach` selector still has). */
+     *
+     *  `{ set: "players" }` (CR 101.4, issue #1872) — ONLY with the body
+     *  `[{ op: "choice", …, bind: "$b" }, { op: "sacrifice" | "discard", …:
+     *  { ref: "$b" } }]`. The interpreter walks the SAME Ops through the same
+     *  `runOpList` cursor, re-sequenced into two passes: every player's choice
+     *  in APNAP order first, then every player's action. That is CR 101.4's
+     *  own Innocent Blood example — a later chooser must decide against the
+     *  board the earlier choosers saw, not one an earlier sacrifice already
+     *  emptied. A `moveZone`-to-battlefield body is deliberately NOT admitted
+     *  (Exhume, Show and Tell): deferring the moves fixes the choice half but
+     *  still fires N separate entry events, and no batch-entry primitive
+     *  exists for a per-player pick out of hand.
+     *
+     *  Omitted/false keeps the sequential per-member walk (the only behavior
+     *  every OTHER `forEach` selector has). */
     | {
           op: "forEach";
           select: EffectForEachSelector;

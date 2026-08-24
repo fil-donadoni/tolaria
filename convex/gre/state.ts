@@ -10422,6 +10422,39 @@ export function markEnteredThisTurn(
     card.enteredOnTurn = turn;
 }
 
+/** The ONE layer-5 colour-SET write (CR 613.1e; CR 105.3 — "the new color
+ *  replaces all previous colors the object had"), shared by
+ *  `SpellContext.setColorOverride` (the `setColor` Op's primitive) and by
+ *  `animateAsCreature`'s `colors` clause ("becomes a 3/2 blue and black
+ *  Elemental creature", Creeping Tar Pit). Both reach the same field and the
+ *  same `temporaryColorOverride` revert record, so a timed colour set restores
+ *  the prior override at its phase boundary (`tickAllDurations`, phases.ts)
+ *  regardless of which caller wrote it.
+ *
+ *  `resolved` is an ALREADY-resolved `Duration` (each caller resolves its own
+ *  spec against its own acting player) — `undefined` means indefinite, whose
+ *  only end is the permanent leaving the battlefield (CR 400.7,
+ *  `resetBattlefieldTransientState`).
+ *
+ *  The colour list is COPIED: callers hand in an array that may live on a
+ *  module-level `CardDefinition`, and instance state must never alias it. */
+export function applyColorOverrideToPermanent(
+    card: CardInstanceState,
+    colors: readonly Color[],
+    resolved: Duration | undefined
+): void {
+    if (resolved) {
+        card.temporaryColorOverride = {
+            colors: [...colors],
+            ...(card.colorOverride
+                ? { restoreColorOverride: [...card.colorOverride] }
+                : {}),
+            duration: resolved,
+        };
+    }
+    card.colorOverride = [...colors];
+}
+
 /** Undoes the mutations applied by `animateAsCreature`, restoring the
  *  permanent to its pre-animation shape (CR 208.2 / 611.1). Safe to call on a
  *  card with no `animation` record (returns immediately). Called from the
@@ -10661,6 +10694,14 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.skipNextUntap;
     delete card.exileOnDeath;
     delete card.colorOverride;
+    // CR 400.7 (issue #1872) — the layer-5 colour SET's REVERT record is
+    // scrubbed with the override it guards. `colorOverride` alone was deleted
+    // here, leaving a live `temporaryColorOverride` on the departed object: at
+    // the next phase boundary `tickAllDurations` would splice a stale colour
+    // (or `undefined`) back onto what is by then a NEW object. Latent for the
+    // timed `setColor` case (Kavu Chameleon) and reachable the moment an
+    // `animate` with `colors` bounces mid-animation.
+    delete card.temporaryColorOverride;
     delete card.cantBeBlockedThisTurn;
     delete card.cantBeBlockedBySubtypesThisTurn;
     // CR 603.6b — the chosen player is stored for the rest of the game while
@@ -15527,6 +15568,27 @@ export function buildSpellContext(
                 }
                 card.power = spec.power;
                 card.toughness = spec.toughness;
+                // CR 613.1e layer 5 / CR 105.3 (issue #1872) — "becomes a 3/2
+                // BLUE AND BLACK Elemental creature" (Creeping Tar Pit). The
+                // colour clause is not a second channel: it goes through the
+                // very same `applyColorOverrideToPermanent` write the
+                // `setColor` Op's primitive uses, with the animation's OWN
+                // resolved duration, so the colour reverts at exactly the
+                // phase boundary the P/T and type line do — and an INDEFINITE
+                // animation's colour, like its type line, ends only when the
+                // permanent leaves the battlefield (CR 400.7). Inside the
+                // one-animation-at-a-time guard, so a second application is a
+                // no-op here exactly as `subtype` / `additionalTypes` are.
+                // Omitted `colors` leaves the printed colour alone — a
+                // colourless manland (Mishra's Factory) stays colourless
+                // (CR 105.2).
+                if (spec.colors) {
+                    applyColorOverrideToPermanent(
+                        card,
+                        spec.colors,
+                        card.animation.duration
+                    );
+                }
             }
             // CR 611.2c — keyword abilities an animate effect grants as part of
             // "becomes a creature with [keyword]" (Earthbend N's haste) persist
@@ -16176,24 +16238,13 @@ export function buildSpellContext(
                 // choice UNTIL END OF TURN", Kavu Chameleon) records what to
                 // restore on expiry; an indefinite call (no duration, Dream
                 // Coat / Shyft) behaves exactly as before.
-                if (duration) {
-                    found.card.temporaryColorOverride = {
-                        colors: [...colors],
-                        ...(found.card.colorOverride
-                            ? {
-                                  restoreColorOverride: [
-                                      ...found.card.colorOverride,
-                                  ],
-                              }
-                            : {}),
-                        duration: resolveDuration(
-                            duration,
-                            item.controllerId,
-                            state
-                        ),
-                    };
-                }
-                found.card.colorOverride = colors;
+                applyColorOverrideToPermanent(
+                    found.card,
+                    colors,
+                    duration
+                        ? resolveDuration(duration, item.controllerId, state)
+                        : undefined
+                );
             } else if (target.type === "spell") {
                 const si = state.stack.find((s) => s.id === target.id);
                 if (!si) return;

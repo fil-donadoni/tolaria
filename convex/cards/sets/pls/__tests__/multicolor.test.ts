@@ -1397,6 +1397,66 @@ describe("Urza's Guilt — the discard is MANDATORY (CR 701.9a / 608.2b, issue #
     });
 });
 
+describe("Urza's Guilt — choices first, discards together (CR 101.4, issue #1872)", () => {
+    it("collects p2's picks before ANY card leaves p1's hand", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: fillHand("p1", 6),
+                    library: fillHand("p1", 4).map((c) => ({
+                        ...c,
+                        zone: "library" as const,
+                    })),
+                }),
+                makePlayer("p2", {
+                    hand: fillHand("p2", 6),
+                    library: fillHand("p2", 4).map((c) => ({
+                        ...c,
+                        zone: "library" as const,
+                    })),
+                }),
+            ],
+        });
+        pushSpell(state, urzasGuilt.id, "p1");
+        resolveTopOfStack(state);
+
+        let head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1"); // active player decides first
+        const p1Handbefore = state.players[0].hand.length;
+        const p1Picks = state.players[0].hand.slice(0, 3).map((c) => c.id);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: p1Picks,
+        });
+
+        // CR 101.4 / 101.4a — p2 is prompted with p1's cards still in HAND.
+        // Sequentially applied, p1's three would already be face-up in the
+        // graveyard, which is information CR 101.4a keeps hidden.
+        head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p2");
+        expect(state.players[0].hand).toHaveLength(p1Handbefore);
+        expect(state.players[0].graveyard).toHaveLength(0);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: state.players[1].hand.slice(0, 3).map((c) => c.id),
+        });
+
+        // "Then the actions happen simultaneously" — both discards land.
+        expect(state.players[0].hand).toHaveLength(p1Handbefore - 3);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(
+            expect.arrayContaining(p1Picks)
+        );
+        expect(state.players[1].graveyard.length).toBeGreaterThanOrEqual(3);
+    });
+});
+
 describe("Marsh Crocodile — 'each player discards a card' is MANDATORY (CR 701.9a, issue #1953)", () => {
     /** Casts Marsh Crocodile for real and walks its two ETB triggers up to (but
      *  NOT through) the discard choice, so the raised choice is the one the

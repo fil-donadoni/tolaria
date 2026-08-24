@@ -22,10 +22,19 @@ import type { CardDefinition, SpellContext } from "../../types";
 //     shipped impulse card, the cast-permission window is not auto-revoked
 //     on a timer (no such primitive exists); the permission persists while
 //     the card remains in exile instead of being turn-gated.
-//   - "you may spend mana as though it were mana of any color" — no
-//     mana-color-fixing-on-cast primitive exists; the exiled card is
-//     castable for its normal, unfixed mana cost. The golden path (exile the
-//     defending player's top card, then cast it) is faithful.
+//
+// DIVERGENCE (tracked-by: #1872) — "you may spend mana as though it were mana
+// of any color" is not implemented: the exiled card is castable only for its
+// normal, unfixed mana cost, so an off-colour exile can be uncastable when the
+// Oracle text says it should not be. There is no cast-time mana-fixing seam in
+// the engine to reach for — the only mana-substitution shape is the fixed
+// `{from,to}` pair a battlefield static effect carries (`ManaSubstitution`,
+// gre/state.ts) — and building one is a shared-primitive job spanning
+// `castRawManaCost`, the exile-cast permission record and every reader of it
+// (server, bot valuation, client affordability). Written up with the full
+// call-site evidence in `docs/findings/1872-cast-time-mana-color-fixing.md`.
+// The golden path (exile the defending player's top card, then cast it) is
+// faithful.
 export const robberOfTheRich: CardDefinition = {
     id: "0ecbe097-ba51-42e5-957c-382eb66c08f0",
     name: "Robber of the Rich",

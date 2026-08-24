@@ -3030,6 +3030,11 @@ export const OP_EXECUTORS: {
             subtype: op.subtype,
             additionalTypes: op.additionalTypes,
             grantedAbilities: op.grantedAbilities,
+            // Layer 5 (CR 613.1e / 105.3) — "becomes a 3/2 blue and black
+            // Elemental creature". Handed to the primitive, which routes it
+            // through the SAME `setColorOverride` machinery the `setColor` Op
+            // skins so the colour reverts with the animation.
+            colors: op.colors,
             duration: op.duration,
         });
     },
@@ -5289,6 +5294,58 @@ function execForEach(
                 ? []
                 : ctx.returnGraveyardSetToBattlefield(entries, controllerId);
             ctx.noteChoice(resultKey, entered);
+        }
+        return undefined;
+    }
+
+    // Choices first, actions together (CR 101.4, issue #1872). The rule's own
+    // example is Innocent Blood's line: "First, the active player chooses a
+    // creature they control. Then each of the nonactive players, in turn
+    // order, chooses a creature they control. Then all creatures chosen this
+    // way are sacrificed simultaneously." The default per-member walk applies
+    // each member's action the moment its own choice resolves, so a later
+    // chooser decides against a board an earlier member's action already
+    // changed — and CR 101.4b says a player knows the previous players'
+    // CHOICES, not the results of acting on them.
+    //
+    // Unlike the graveyard batch above this does NOT bypass `runOpList`: it
+    // walks the SAME body Ops in the same deterministic pre-order, just
+    // re-sequenced into two passes — every choice for every member, then every
+    // action for every member. That keeps the whole suspend/resume machinery
+    // intact (positions stay monotonic and stable across a re-walk, so a
+    // suspension in pass 1 resumes at exactly its own member's choice, and
+    // every already-completed Op is skipped by the same `cursor.resume` rule).
+    // The validator constrains the body to `[choice, sacrifice|discard]`, so
+    // pass 2 holds no suspending Op and cannot interleave a prompt back into
+    // the applied half.
+    if (op.select.set === "players" && op.simultaneous) {
+        const choiceOps = op.effects.slice(0, 1);
+        const applyOps = op.effects.slice(1);
+        // Pass 1 — every player's decision, APNAP order (CR 101.4), nothing
+        // applied yet.
+        for (let k = 0; k < members.length; k++) {
+            const eachId = scopeBindingName(EACH_BINDING, pos, k);
+            if (ctx.recallChoice(eachId) === undefined) {
+                ctx.noteChoice(eachId, [members[k]]);
+            }
+            const outcome = runOpList(
+                scopedContext(ctx, pos, k),
+                choiceOps,
+                cursor
+            );
+            if (outcome === "suspend") return "suspend";
+        }
+        // Pass 2 — "Then the actions happen simultaneously." Each member acts
+        // on the pick frozen in pass 1; no trigger resolves in between (the
+        // engine's trigger scan runs after the whole resolution), so the
+        // deaths / discards are one observable batch.
+        for (let k = 0; k < members.length; k++) {
+            const outcome = runOpList(
+                scopedContext(ctx, pos, k),
+                applyOps,
+                cursor
+            );
+            if (outcome === "suspend") return "suspend";
         }
         return undefined;
     }
