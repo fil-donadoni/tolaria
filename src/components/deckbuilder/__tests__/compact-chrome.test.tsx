@@ -115,9 +115,9 @@ describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
         vi.unstubAllGlobals();
     });
 
-    it("is the exact complement of useViewportMode's own PORTRAIT_QUERY (orientation: portrait, min-width: 768px)", () => {
+    it("is the width-complement of useViewportMode's own PORTRAIT_QUERY (orientation: portrait, min-width: 768px), height-bounded (issue #2671 review M2)", () => {
         expect(TABLET_PORTRAIT_QUERY).toBe(
-            "(orientation: portrait) and (min-width: 768px)"
+            "(orientation: portrait) and (min-width: 768px) and (max-height: 1300px)"
         );
     });
 
@@ -140,6 +140,23 @@ describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
         // 1440x900 / 1180x820 (this issue's own AC): landscape, so the real
         // browser query never matches regardless of width. Modelled here as
         // the query simply not matching, the same as any other desktop read.
+        mode = "desktop";
+        matches[TABLET_PORTRAIT_QUERY] = false;
+        render(
+            <CompactChromeDisclosure label="View">
+                <button type="button">Colour</button>
+            </CompactChromeDisclosure>
+        );
+        expect(screen.getByRole("button", { name: "Colour" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: /View/ })).toBeNull();
+    });
+
+    it("stays verbatim on a TALL portrait viewport past the height bound (issue #2671 review M2)", () => {
+        // 1440x2560: same orientation/width band as the failing 820x1180 AC
+        // case, but the real browser query stops matching once height
+        // exceeds `max-height: 1300px` — modelled here as the query not
+        // matching, exactly as the browser's own `matchMedia` would report
+        // for a query with that bound past 1300px tall.
         mode = "desktop";
         matches[TABLET_PORTRAIT_QUERY] = false;
         render(

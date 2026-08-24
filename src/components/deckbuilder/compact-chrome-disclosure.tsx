@@ -2,10 +2,11 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { useViewportMode } from "~/hooks/useViewportMode";
 
-/** Tablet-portrait-and-wider (issue #2671): the complement of
- *  `useViewportMode`'s own `PORTRAIT_QUERY` (`orientation: portrait` AND
- *  `max-width: 767px`) — same orientation, the width band that hook's
- *  three-bucket split calls `"desktop"`.
+/** Tablet-portrait, height-bounded (issue #2671, review M2). The complement
+ *  of `useViewportMode`'s own `PORTRAIT_QUERY` (`orientation: portrait` AND
+ *  `max-width: 767px`) on the WIDTH axis — same orientation, the width band
+ *  that hook's three-bucket split calls `"desktop"` — but, unlike the first
+ *  cut of this fix, bounded on the HEIGHT axis too.
  *
  *  Why a SEPARATE predicate rather than widening `useViewportMode()` itself:
  *  that hook is the app's one seam for the GAMEPLAY layout switch (portrait
@@ -17,31 +18,41 @@ import { useViewportMode } from "~/hooks/useViewportMode";
  *  deliberately does NOT reuse `useViewportMode()`'s bucket, for the same
  *  reason: `orientation: landscape` there, `orientation: portrait` here.
  *
- *  Why orientation, not a raw width cutoff: this deckbuilder's zones pane
- *  only gets the dock's full-column HEIGHT in landscape
- *  (`deck-source-dock`, `orientation: landscape`) — in portrait the source
- *  panel, basics bar and legality strip all stay inline, so the pane's own
- *  height budget is much smaller regardless of how wide the portrait screen
- *  is. Measured live (CDP `getBoundingClientRect()`, `/decks/create`,
- *  Freeform, a real non-empty Sideboard):
+ *  **The height bound (review M2).** The first cut of this predicate had no
+ *  upper height bound, on the theory that portrait's `deck-source-dock`
+ *  never applies (that variant is `orientation: landscape` only), so the
+ *  Sideboard pane's height budget "stays tight at ANY portrait width" —
+ *  which conflated WIDTH-independence (true: `CARD_BASE`'s width term,
+ *  `18vw`, is never the binding minimum once width ≥ 768px, so the fold
+ *  needn't ever vary by width) with HEIGHT-independence (false: the pane is
+ *  an equal `flex-1` sibling of the source panel down the SAME free column
+ *  `deck-source-dock` describes, so its height scales linearly with viewport
+ *  height — a taller portrait screen genuinely has more room, and portrait
+ *  only guarantees height ≥ width, never a SHORT height). Measured live (CDP
+ *  `getBoundingClientRect()`, `/decks/create`, Freeform, a real non-empty
+ *  Sideboard, width held at 820/768 — width doesn't move these numbers, per
+ *  the paragraph above):
  *
- *  | viewport   | orientation | Sideboard pane H | header (unfolded) | port w/ header |
- *  | ---------- | ----------- | ----------------- | ------------------ | -------------- |
- *  | 820×1180   | portrait    | 385.5px            | 203px               | ~183px — BELOW the ~196px `--card-h` tile (`starved`) |
- *  | 1180×820   | landscape   | 551.5px            | 203px               | 300.5px — clears the tile |
- *  | 1440×900   | landscape   | 640.5px            | 191px               | 401.5px — clears the tile |
+ *  | height | Sideboard pane H | header (unfolded) | port w/ header | `--card-h` tile | starved? |
+ *  | ------ | ----------------- | ------------------ | --------------- | ----------------- | -------- |
+ *  | 1180   | 385.5px            | 203px               | ~183px           | ~196px             | YES      |
+ *  | 1250   | ~420.5px           | 203px               | ~218px           | ~208px             | no (~10px margin) |
+ *  | 1400   | ~495.5px           | 203px               | ~293px           | 224px (capped)     | no (~69px margin) |
+ *  | 2560   | 1139px             | 34px (already folded) | 1105px        | ~224px             | no (~4x the room)  |
  *
- *  The unfolded header wraps to roughly the SAME ~200px at every one of
- *  these (the cluster's own unwrapped natural width is ~766px, far past any
- *  of these panes' 199–266px box, `docs/findings/2585-*` addendum) — what
- *  changes is the height budget it is subtracted from. Landscape's dock
- *  gives that budget enough headroom to absorb a ~200px header and still
- *  clear the tile; portrait's does not, at ANY width `useViewportMode()`
- *  still calls `"desktop"` — there is no landscape-only "narrow enough to
- *  need it" story to encode, so this has no upper width bound of its own
- *  (`useViewportMode`'s `PORTRAIT_QUERY` already owns 0–767px). */
+ *  Pane height is linear in viewport height in this band (slope 0.5 — the
+ *  equal-`flex-1`-sibling split), and `--card-h` itself is height-driven
+ *  (`9.5dvh` is the binding term of `CARD_BASE`'s `min()` below its 8rem cap
+ *  at height ≈1347px) — solving `port(H) = tile(H)` for the two linear
+ *  pieces puts the crossover at H≈1219px. `max-height: 1300px` below keeps
+ *  ~80px of margin PAST that crossover (folds a little longer than strictly
+ *  required, never less), while excluding the 2560-tall case above and
+ *  every taller portrait screen, where folding bought nothing but was
+ *  applied anyway. Below `min-width: 768px` `useViewportMode`'s own
+ *  `PORTRAIT_QUERY` already folds via the OTHER branch of `compact` — this
+ *  query's job is only the band that hook still calls `"desktop"`. */
 export const TABLET_PORTRAIT_QUERY =
-    "(orientation: portrait) and (min-width: 768px)";
+    "(orientation: portrait) and (min-width: 768px) and (max-height: 1300px)";
 
 function subscribeTabletPortrait(onStoreChange: () => void): () => void {
     if (typeof window === "undefined" || !window.matchMedia) return () => {};
@@ -68,6 +79,24 @@ function useIsTabletPortrait(): boolean {
         getTabletPortraitSnapshot,
         getTabletPortraitServerSnapshot
     );
+}
+
+/** The exact fold predicate `CompactChromeDisclosure` uses internally,
+ *  exported so a STATIC sibling element (one that isn't itself wrapped by
+ *  the disclosure) can hide in lockstep instead of via a separate CSS
+ *  variant — issue #2671 review M1: `pool-basic-lands-bar.tsx`'s "Add Basic"
+ *  label used `compact-chrome:hidden`, a variant that never widened to cover
+ *  `useIsTabletPortrait()`, so at 820x1180 the label kept rendering right
+ *  next to the disclosure's own now-folded "Add Basic ▾" toggle — the same
+ *  JS-unmount-vs-CSS-hide desync `index.css`'s `compact-chrome:` comment
+ *  warns about, just with the mismatch running the other direction (CSS
+ *  variant narrower than the JS predicate rather than wider). Reading this
+ *  hook directly, rather than adding a second CSS variant to keep in sync by
+ *  hand, makes the two impossible to desync — there is only one predicate. */
+export function useCompactChromeFold(active = true): boolean {
+    const viewportMode = useViewportMode();
+    const tabletPortrait = useIsTabletPortrait();
+    return active && (viewportMode !== "desktop" || tabletPortrait);
 }
 
 export interface CompactChromeDisclosureProps {
@@ -131,11 +160,7 @@ export default function CompactChromeDisclosure({
     children,
     active = true,
 }: CompactChromeDisclosureProps) {
-    // Hooks called unconditionally regardless of `active` (Rules of Hooks) —
-    // only the DERIVED `compact` boolean is gated.
-    const viewportMode = useViewportMode();
-    const tabletPortrait = useIsTabletPortrait();
-    const compact = active && (viewportMode !== "desktop" || tabletPortrait);
+    const compact = useCompactChromeFold(active);
     const [open, setOpen] = useState(false);
 
     if (!compact) return <>{children}</>;

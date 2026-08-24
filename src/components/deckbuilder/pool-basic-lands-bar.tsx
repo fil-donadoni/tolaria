@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import BasicLandArtPicker from "./basic-land-art-picker";
-import CompactChromeDisclosure from "./compact-chrome-disclosure";
+import CompactChromeDisclosure, {
+    useCompactChromeFold,
+} from "./compact-chrome-disclosure";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "./basicLands";
 
 interface PoolBasicLandsBarProps {
@@ -67,11 +69,20 @@ export default function PoolBasicLandsBar({
     onPickArt,
     disabled,
 }: PoolBasicLandsBarProps) {
+    // Issue #2671 review M1: was `compact-chrome:hidden`, a CSS variant that
+    // never widened to cover `useIsTabletPortrait()` — at 820x1180 the
+    // disclosure below folds (its own predicate DOES include tablet-portrait)
+    // while this static label stayed visible, rendering "Add Basic" beside
+    // the disclosure's own "Add Basic ▾" toggle. Reading the disclosure's
+    // exact fold predicate keeps the two from ever disagreeing again.
+    const compactChrome = useCompactChromeFold();
     return (
         <div className="flex flex-wrap items-center gap-2 short-viewport:gap-1 border-b border-border-subtle/30 bg-surface/60 px-4 py-2 short-viewport:py-0.5 md:px-6">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted compact-chrome:hidden">
-                Add Basic
-            </span>
+            {!compactChrome && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                    Add Basic
+                </span>
+            )}
             {/* Issue #2511: five subtypes x four controls wraps to 199px at
                 390px wide — the second-tallest chrome band on the screen, and
                 one a player only touches while building a mana base. It folds

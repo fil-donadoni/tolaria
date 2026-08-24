@@ -4,14 +4,24 @@
 // generalises the bar to both builders and adds the per-subtype Maindeck
 // counter, the shift-click/right-click/`−`-button remove gesture (floored at
 // zero, visibly unavailable), and the `+5` step.
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { render, cleanup, fireEvent, screen } from "@testing-library/react";
 import PoolBasicLandsBar from "../pool-basic-lands-bar";
+import { TABLET_PORTRAIT_QUERY } from "../compact-chrome-disclosure";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "../basicLands";
+import type { ViewportMode } from "~/hooks/useViewportMode";
+
+// The compact-fold seam under test (issue #2671 review M1), driven exactly
+// like `compact-chrome.test.tsx` drives it.
+let mode: ViewportMode = "desktop";
+vi.mock("~/hooks/useViewportMode", () => ({
+    useViewportMode: () => mode,
+}));
 
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    mode = "desktop";
 });
 
 function idsFor(
@@ -361,5 +371,100 @@ describe("PoolBasicLandsBar — short-viewport chrome treatment (issue #2056)", 
         const classes = button.className.split(/\s+/);
         expect(classes).toContain("short-viewport:px-1.5");
         expect(classes).toContain("short-viewport:py-0");
+    });
+});
+
+// Issue #2671 review M1: the static "Add Basic" label used to be hidden by
+// the `compact-chrome:` CSS variant, which never widened to cover the
+// tablet-portrait fold added for this issue — so at 820x1180 the disclosure
+// folded (its own predicate DOES include tablet-portrait) while the label
+// stayed on screen, rendering "Add Basic" beside the disclosure's own
+// "Add Basic ▾" toggle. The fix reads the SAME fold predicate the disclosure
+// uses (`useCompactChromeFold`) instead of a second, independently-drifting
+// CSS rule.
+describe("PoolBasicLandsBar — static label follows the disclosure's own fold (issue #2671 review M1)", () => {
+    let matches: Record<string, boolean> = {};
+
+    beforeEach(() => {
+        matches = {};
+        vi.stubGlobal("matchMedia", (query: string) => ({
+            media: query,
+            get matches() {
+                return matches[query] ?? false;
+            },
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            addListener: () => {},
+            removeListener: () => {},
+            onchange: null,
+            dispatchEvent: () => true,
+        }));
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("renders the static label exactly once, no toggle, on a desktop-shaped viewport", () => {
+        mode = "desktop";
+        matches[TABLET_PORTRAIT_QUERY] = false;
+        render(
+            <PoolBasicLandsBar
+                cardIdsBySubtype={idsFor()}
+                counts={countsFor()}
+                onAdd={vi.fn()}
+                onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
+                disabled={false}
+            />
+        );
+        expect(screen.getAllByText("Add Basic")).toHaveLength(1);
+        expect(screen.queryByRole("button", { name: /Add Basic/ })).toBeNull();
+    });
+
+    it("folds to the toggle and drops the static label on a tablet-portrait viewport (the 820x1180 regression)", () => {
+        // `useViewportMode()` alone reads this as "desktop" (width > 767px)
+        // — exactly the bug #2671 fixed for the disclosure itself. Without
+        // this test's fix, the label would ALSO need `useViewportMode()` to
+        // say non-desktop, which it never does here either.
+        mode = "desktop";
+        matches[TABLET_PORTRAIT_QUERY] = true;
+        render(
+            <PoolBasicLandsBar
+                cardIdsBySubtype={idsFor()}
+                counts={countsFor()}
+                onAdd={vi.fn()}
+                onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
+                disabled={false}
+            />
+        );
+        // The static label is GONE, not merely hidden — only the toggle's
+        // own text should say "Add Basic".
+        expect(
+            screen.queryByText("Add Basic", { selector: "span" })
+        ).toBeNull();
+        expect(screen.getByRole("button", { name: /Add Basic/ })).toBeTruthy();
+        expect(screen.getAllByText(/Add Basic/)).toHaveLength(1);
+    });
+
+    it("folds on a phone-shaped viewport too (pre-existing #2511 behaviour, unchanged)", () => {
+        mode = "portrait";
+        matches[TABLET_PORTRAIT_QUERY] = false;
+        render(
+            <PoolBasicLandsBar
+                cardIdsBySubtype={idsFor()}
+                counts={countsFor()}
+                onAdd={vi.fn()}
+                onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
+                disabled={false}
+            />
+        );
+        expect(screen.getAllByText(/Add Basic/)).toHaveLength(1);
+        expect(screen.getByRole("button", { name: /Add Basic/ })).toBeTruthy();
     });
 });

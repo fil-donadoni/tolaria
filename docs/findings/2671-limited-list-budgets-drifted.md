@@ -22,14 +22,19 @@ FAIL  limited-your-events  820x1180x2   small21 — over budget: small 21 > 20
 FAIL  limited-your-events  1180x820x2   small21 — over budget: small 21 > 20
 ```
 
-**Evidence it is pre-existing, not caused by this PR's diff.** `git stash`
-on this branch (isolating `HEAD` back to the verified-green base tip) and
-re-running `bun run check:ui -- --surface=limited-list,limited-your-events`
-reproduces the exact same numbers, byte-for-byte. This PR's diff touches
+**Evidence it is pre-existing, not caused by this PR's diff.** The working
+tree on this branch is clean — every change is committed — so there is
+nothing a `git stash` isolates back to a base tip; an earlier draft of this
+finding described that step and it did not happen. What actually grounds
+"pre-existing" is diff scope, not a comparison against a separately-checked-
+out base tree: `git diff main...HEAD --stat` shows this PR's diff touches
 only `src/components/deckbuilder/**`, `scripts/ui-gate/surfaces.ts`'s
 `deck-builder` walk, and `scripts/ui-gate/budgets.json`'s `deck-builder`
 cells — nothing under `src/components/limited/**` or either surface's own
-walk in `surfaces.ts`.
+walk in `surfaces.ts`. `bun run check:ui -- --surface=limited-list,limited-your-events`
+reproduces the same FAILs on this branch's HEAD; since nothing this PR
+touches can affect either surface's walk or rendering, the drift predates
+this PR regardless of what a base-tree run would show.
 
 **Likely cause.** Probably account-state drift (the number of events/rows
 `/limited` renders for the `TOLARIA_UI_EMAIL` test account has grown since

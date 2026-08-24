@@ -606,6 +606,22 @@ async function main(): Promise<number> {
                     detail,
                 });
                 perSurface.set(surface.id, list);
+
+                // Issue #2671 review H2. Runs AFTER the measurement above, on
+                // the SAME page — undoes state the walk had to create for the
+                // probe to see (the `deck-builder` fixture's real `userDecks`
+                // row) without touching what was just measured. Best-effort:
+                // a cleanup failure is hygiene debt, not a measurement defect,
+                // so it is logged rather than failing the surface.
+                if (surface.cleanup) {
+                    try {
+                        await surface.cleanup(page, ctx);
+                    } catch (err) {
+                        log(
+                            `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} CLEANUP FAILED — ${(err as Error).message.split("\n")[0]}`
+                        );
+                    }
+                }
             };
 
             // Signed-out surfaces FIRST: `<AuthGate>` makes them unreachable

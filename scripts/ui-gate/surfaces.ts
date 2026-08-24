@@ -35,6 +35,14 @@ export interface WalkContext {
     stressScenarioLabel: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
+    /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
+     *  `useDeckWorkspace`'s autosave, so a real `userDecks` row exists by the
+     *  time `walk()` returns. `walk()` records the auto-assigned name here;
+     *  `cleanup()` reads it (on the SAME page, right after the probe has
+     *  measured this exact state) to delete that one row by name from the
+     *  lobby's My Decks list, then clears the field. `undefined` means
+     *  nothing to clean up. */
+    lastCreatedDeckName?: string;
     log(message: string): void;
 }
 
@@ -54,6 +62,15 @@ export interface Surface {
      */
     preAuth?: boolean;
     walk(page: Page, ctx: WalkContext): Promise<void>;
+    /**
+     * Runs AFTER the probe/axe/screenshot for this surface+viewport pass, on
+     * the SAME page (issue #2671 review H2) — so it can undo state `walk()`
+     * had to create for the probe to have something real to measure, without
+     * touching what the probe already captured. A failure here is logged and
+     * swallowed (`index.ts`'s `measure()`): cleanup is hygiene, not part of
+     * the measurement this surface exists to take.
+     */
+    cleanup?(page: Page, ctx: WalkContext): Promise<void>;
 }
 
 const NAV_TIMEOUT = 20_000;
@@ -475,6 +492,42 @@ export const SURFACES: readonly Surface[] = [
                     "the Sideboard still reads empty after importing — the fixture card names may no longer resolve"
                 );
             }
+            // Issue #2671 review H2: the import above just tripped
+            // `useDeckWorkspace`'s autosave (`useDeckWorkspace.ts`), which
+            // means a real `userDecks` row now exists (or will, once
+            // `cleanup()` navigates away and the flush-on-unmount fires).
+            // Record the auto-assigned name — the one thing `cleanup()`
+            // needs to find and delete this exact row afterwards, from the
+            // SAME page, without touching anything the probe measured.
+            ctx.lastCreatedDeckName = await page
+                .locator('input[placeholder="Deck name"]')
+                .first()
+                .inputValue()
+                .catch(() => undefined);
+        },
+        async cleanup(page, ctx) {
+            const name = ctx.lastCreatedDeckName;
+            if (!name) return;
+            ctx.lastCreatedDeckName = undefined;
+            // Navigating away unmounts the builder, which is what flushes a
+            // still-pending autosave (`useDeckWorkspace`'s flush-on-unmount)
+            // — the same mechanism that created the row, now guaranteed to
+            // have run before the delete below looks for it.
+            await goto(page, ctx, "/");
+            const menuSelector = `button[aria-label="More actions for ${name}"]`;
+            if (!(await visible(page, menuSelector, STEP_TIMEOUT))) {
+                // Nothing to clean up — the row never landed (e.g. the
+                // autosave lost a race with something else entirely).
+                return;
+            }
+            await page.locator(menuSelector).first().click();
+            const deleteItem = '[role="menuitem"]:has-text("Delete")';
+            if (!(await clickIfVisible(page, deleteItem, STEP_TIMEOUT))) return;
+            const confirmDelete = '[role="dialog"] button:has-text("Delete")';
+            if (!(await clickIfVisible(page, confirmDelete, STEP_TIMEOUT))) {
+                return;
+            }
+            await page.waitForTimeout(400);
         },
     },
     {
