@@ -5,6 +5,7 @@ import {
     classifyPath,
     classifyLane,
     renderPlan,
+    renderJson,
     type LanePlan,
 } from "../check-lane";
 
@@ -61,6 +62,33 @@ describe("check-lane — path classification (issue #2740)", () => {
         ]) {
             expect(classifyPath(p), p).toBe("full");
         }
+    });
+
+    /**
+     * Round-1 review finding (#2740). `SKIN_PATTERNS` carried `/\.css$/` and
+     * an UNANCHORED asset-extension alternation, and `classifyPath` tests
+     * `SKIN_PATTERNS` BEFORE `ENGINE_PATTERNS` — so any path outside `data/`
+     * and `.claude/` classified as `skin` on its extension alone, whatever
+     * directory it lived in. The `FAILS CLOSED` fixtures below are `.ts`/`.md`
+     * only, which is exactly why it survived: no test could structurally reach
+     * the bug. Directory is the primary key; an extension is never a key.
+     */
+    it("an extension NEVER promotes a path out of engine (#2740 review)", () => {
+        expect(classifyPath("convex/gre/theme.css")).toBe("engine");
+        expect(classifyPath("convex/cards/art/x.svg")).toBe("engine");
+        expect(classifyPath("scripts/ui-gate/report.css")).toBe("engine");
+        expect(classifyPath("scripts/ui-gate/logo.png")).toBe("engine");
+    });
+
+    it("an extension NEVER promotes an unrecognised path out of full (#2740 review)", () => {
+        expect(classifyPath("docs/img/a.png")).toBe("full");
+        expect(classifyPath("docs/guides/style.css")).toBe("full");
+        // Five such files are tracked TODAY — `.agents/skills/*/assets/*.svg`
+        // — and the PR-body census lists `.agents/**` as `full`.
+        expect(
+            classifyPath(".agents/skills/convex-quickstart/assets/icon.svg")
+        ).toBe("full");
+        expect(classifyPath(".claude/hooks/theme.css")).toBe("full");
     });
 
     it("FAILS CLOSED: a path matching no rule is full, never skin", () => {
@@ -131,6 +159,28 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         );
         expect(
             classifyLane(["convex/gre/engine.ts", "data/cr/VERSION.json"]).lane
+        ).toBe("full");
+    });
+
+    it("a css/asset-only diff under convex|scripts ⇒ engine, never skin (#2740 review)", () => {
+        expect(classifyLane(["scripts/ui-gate/report.css"]).lane).toBe(
+            "engine"
+        );
+        expect(
+            classifyLane(["convex/gre/theme.css", "convex/cards/art/x.svg"])
+                .lane
+        ).toBe("engine");
+        // Mixed with a real src file it is the mixed case, not skin.
+        expect(
+            classifyLane(["src/app.tsx", "scripts/ui-gate/report.css"]).lane
+        ).toBe("full");
+    });
+
+    it("an asset-only diff outside every rule ⇒ full (#2740 review)", () => {
+        expect(classifyLane(["docs/img/a.png"]).lane).toBe("full");
+        expect(
+            classifyLane([".agents/skills/convex-quickstart/assets/icon.svg"])
+                .lane
         ).toBe("full");
     });
 
@@ -205,6 +255,76 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         for (const plan of [skin, engine, full]) {
             for (const s of plan.skip) {
                 expect(s.reason.length, s.id).toBeGreaterThan(10);
+            }
+        }
+    });
+
+    /**
+     * The sharpest symptom of the round-1 finding was not the lane itself but
+     * the RECEIPT: `classifyLane(["scripts/ui-gate/report.css"])` yielded
+     * `skin` and rendered "no changed path under convex/** or scripts/** —
+     * the bot suites cannot go red" for a diff that plainly contained a
+     * `scripts/**` path. A reason that misdescribes the diff is a false
+     * statement in the one artifact whose entire purpose is to be judgable,
+     * so the reasons are checked against the files, not merely against
+     * themselves.
+     */
+    it("every skip reason claiming 'no changed path under X' tells the truth", () => {
+        const diffs = [
+            ["src/components/board/Card.tsx", "src/index.css"],
+            ["public/img/symbols/W.svg"],
+            ["index.html"],
+            ["scripts/ui-gate/report.css"],
+            ["convex/gre/theme.css", "convex/cards/art/x.svg"],
+            ["convex/gre/engine.ts", "scripts/gate.ts"],
+            ["scripts/gate.ts"],
+        ];
+        for (const files of diffs) {
+            const plan = classifyLane(files);
+            for (const s of plan.skip) {
+                const claim = s.reason.match(
+                    /no changed path under ([^—]+?)\s*—/
+                );
+                if (!claim) continue;
+                for (const glob of claim[1].split(/\s+or\s+/)) {
+                    const prefix = glob.trim().replace(/\*+$/, "");
+                    for (const f of plan.files) {
+                        expect(
+                            f.startsWith(prefix),
+                            `lane=${plan.lane} skip=${s.id} claims "${s.reason}" but the diff contains ${f}`
+                        ).toBe(false);
+                    }
+                }
+            }
+        }
+    });
+
+    /**
+     * The header's rationale makes a POSITIVE claim about the diff ("all
+     * under …") where the skip reasons make negative ones. Same defect class,
+     * so it is checked the same way: against the files, never against itself.
+     */
+    it("the rationale's 'all under X' claim tells the truth for every lane", () => {
+        const allowed: Record<string, RegExp> = {
+            skin: /^(src\/|public\/|index\.html$)/,
+            engine: /^(convex\/|scripts\/)/,
+        };
+        for (const files of [
+            ["src/components/board/Card.tsx", "src/index.css"],
+            ["public/img/symbols/W.svg", "index.html"],
+            ["scripts/ui-gate/report.css"],
+            ["convex/gre/theme.css", "scripts/gate.ts"],
+            ["convex/gre/engine.ts"],
+        ]) {
+            const plan = classifyLane(files);
+            const re = allowed[plan.lane];
+            expect(re, `${plan.lane} is not a narrowed lane`).toBeDefined();
+            expect(plan.rationale).toContain("all under");
+            for (const f of plan.files) {
+                expect(
+                    re.test(f),
+                    `lane=${plan.lane} says "${plan.rationale}" but the diff contains ${f}`
+                ).toBe(true);
             }
         }
     });
@@ -349,6 +469,23 @@ describe("check-lane — the printed receipt renders the plan (issue #2740)", ()
         }
         // The receipt must say it ran nothing — this slice is inert.
         expect(out).toMatch(/inert|nothing was run|ran nothing/i);
+    });
+
+    /**
+     * The dirty-tree refusal exists so the printed SHA describes exactly what
+     * was classified; the machine-readable form must not lose that (#2740
+     * review, nit 2).
+     */
+    it("the --json form carries the HEAD SHA the human receipt carries", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        const parsed = JSON.parse(renderJson(plan, "4f2a91c")) as LanePlan & {
+            head: string;
+        };
+        expect(parsed.head).toBe("4f2a91c");
+        expect(parsed.lane).toBe("engine");
+        expect(parsed.files).toEqual(["convex/gre/engine.ts"]);
+        expect(ids(parsed.run)).toContain("node[all]");
+        expect(renderPlan(plan, "4f2a91c")).toContain("4f2a91c");
     });
 
     it("renders the full lane without an empty skip block", () => {

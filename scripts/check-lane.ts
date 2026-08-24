@@ -38,7 +38,7 @@
  * Usage:
  *   bun run check:lane                # classify HEAD against origin/main
  *   bun run check:lane --base=<ref>   # classify against another base
- *   bun run check:lane --json         # emit the plan object itself
+ *   bun run check:lane --json         # emit the plan object + HEAD SHA
  *
  * Exits 1 on a dirty working tree, so the HEAD SHA it prints describes
  * exactly what was classified.
@@ -74,18 +74,27 @@ const FULL_PATTERNS: RegExp[] = [
     /^\.claude\//,
 ];
 
-/** Extensions that are static assets wherever they live. */
-const ASSET_EXTENSIONS =
-    /\.(svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|mp3|wav|webmanifest)$/i;
-
-/** Paths a `skin` diff may contain: the client and what it serves. */
-const SKIN_PATTERNS: RegExp[] = [
-    /^src\//,
-    /^public\//,
-    /^index\.html$/,
-    /\.css$/,
-    ASSET_EXTENSIONS,
-];
+/**
+ * Paths a `skin` diff may contain: the client and what it serves.
+ *
+ * DIRECTORY IS THE PRIMARY KEY, AND AN EXTENSION IS NEVER A KEY AT ALL.
+ * This list used to carry `/\.css$/` and an unanchored asset-extension
+ * alternation, and `classifyPath` tests it BEFORE `ENGINE_PATTERNS` — so any
+ * path outside `data/` and `.claude/` classified as `skin` on its extension
+ * alone, whatever directory it lived in: `convex/gre/theme.css`,
+ * `convex/cards/art/x.svg`, `docs/img/a.png`, and the five tracked
+ * `.agents/skills/<skill>/assets/icon.svg` files that exist in the repo
+ * today (round-1 review of #2740). The sharpest symptom was
+ * `scripts/ui-gate/report.css` ⇒ `lane=skin`, whose rendered skip reason read
+ * "no changed path under convex/** or scripts/**" — a false statement in the
+ * one artifact whose entire purpose is to be judgable, and the single place
+ * where this file's "unknown never means skin" was not structural.
+ *
+ * `^src/` and `^public/` already admit every stylesheet and asset that
+ * belongs to the client, so anchoring costs nothing and an extension can no
+ * longer promote a path out of `full`/`engine`.
+ */
+const SKIN_PATTERNS: RegExp[] = [/^src\//, /^public\//, /^index\.html$/];
 
 /** Paths that are server/tooling code but do not force the full gate. */
 const ENGINE_PATTERNS: RegExp[] = [/^convex\//, /^scripts\//];
@@ -291,11 +300,11 @@ export function classifyLane(
 }
 
 function skinRationale(files: string[]): string {
-    return `${files.length} file${files.length === 1 ? "" : "s"}, all under src/** or static assets`;
+    return `${files.length} file${files.length === 1 ? "" : "s"}, all under src/**, public/** or index.html`;
 }
 
 function engineRationale(files: string[]): string {
-    return `${files.length} file${files.length === 1 ? "" : "s"}, none under src/**`;
+    return `${files.length} file${files.length === 1 ? "" : "s"}, all under convex/** or scripts/**`;
 }
 
 function fullRationale(files: string[]): string {
@@ -331,6 +340,17 @@ export function renderPlan(plan: LanePlan, head: string): string {
         `note:  INERT (issue #2740) — this is the plan only; nothing was run.`
     );
     return lines.join("\n");
+}
+
+/**
+ * The machine-readable form of the SAME plan object, with the HEAD SHA the
+ * human receipt carries. The dirty-tree refusal exists so the printed SHA
+ * describes exactly what was classified; `--json` must not lose that, or the
+ * one consumer that could check the classification mechanically is the one
+ * that cannot say which tree it classified (round-1 review of #2740).
+ */
+export function renderJson(plan: LanePlan, head: string): string {
+    return JSON.stringify({ head, ...plan }, null, 2);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -398,7 +418,7 @@ function main(): void {
         changedPaths(base, cwd, false)
     );
 
-    console.log(json ? JSON.stringify(plan, null, 2) : renderPlan(plan, head));
+    console.log(json ? renderJson(plan, head) : renderPlan(plan, head));
     process.exit(0);
 }
 
