@@ -194,11 +194,12 @@ real diff — never from the issue's `area:*` label, which is a hypothesis a
 human wrote before the code existed. A batch is admitted lane-homogeneous
 (all `skin`, all `engine`, or all `full`); a candidate whose real lane
 disagrees with the batch's is deferred as a lane mismatch, the same way an
-overlapping target file is deferred today. `/process-gh-issues` (SKILL.md §4)
-runs exactly one `check:ui` for a `skin` batch, on the integrated tree,
-before any of its PRs merge, and bisects across the batch's PRs on red rather
-than patching an unattributed failure — see SKILL.md §4 "Batch-level
-`check:ui`" for the procedure.
+overlapping target file is deferred today. `/process-gh-issues` runs exactly
+one `check:ui` for a `skin` batch, on the integrated tree, before any of its
+PRs merge, and bisects across the batch's PRs on red rather than patching an
+unattributed failure — see `references/merge-train.md` (§ "Batch-level
+`check:ui`") for the procedure, including the lane re-derivation from the
+integration's real diff.
 
 ## Why `check:all` verifies formatting instead of repairing it
 

@@ -1,4 +1,4 @@
-# Gate lanes narrow which projects a diff is admitted to skip — #2431/#2655 stand
+# Gate lanes narrow which projects a diff is admitted to skip — #2431 stands unmodified, #2655 is deliberately narrowed
 
 ## Status
 
@@ -22,30 +22,40 @@ rather than filtered down to the files a diff touched:
   implement-subagent and surfaced for the first time at the merge-train.
   Issue #2584 died exactly there, on a shell-height CENSUS guard the failing
   diff never touched — a diff-derived subset would not have caught it. The fix
-  added `dom` to `check:guards`, and it too runs **whole**, never filtered to
-  changed files.
+  (PR #2737, commit `fc8b9672`) added `--project dom` to `check:guards` so it
+  runs on **every** diff, unconditionally. That is an ADMISSION fix, not a
+  content one: there was no filtered/partial `dom` state before it to widen
+  back to whole — `dom` simply did not run in the light gate at all. This
+  point matters enough to its own section below, because an earlier draft of
+  this ADR filed #2655 under the wrong axis.
 
 Both decisions share one lesson: **a catalogue/census guard's job is to
 notice something the diff didn't touch** (a keyword nobody registered, a
 component nobody resized, a barrel export nobody renamed). Filtering a test
 project down to the files a diff changed is exactly the operation that defeats
 a census guard, because the guard's whole value is independent of what
-changed. So #2431 and #2655 each closed off a filtering axis: once a project
-is going to run at all, it runs in full.
+changed. #2431 closed off a filtering axis for `node` — once it runs, it runs
+in full, never diff-scoped. #2655 closed off an admission gap for `dom` — it
+now runs on every diff, never conditionally. Different axes, same direction:
+both moves widened, never narrowed, and by the time `check:pr` reached its
+current form neither project's participation varied with the diff.
 
 Now PRD #2738 asks the opposite-sounding question: skip the bot fast lane
 entirely on a diff that cannot reach `convex/**`, skip `dom` entirely on a
 diff that cannot reach `src/**`. Read carelessly, that looks like undoing
-#2431/#2655 — narrowing back to something diff-derived. **It is not, and this
-ADR exists because a future reader would otherwise conclude that it is.**
+#2431/#2655 — narrowing back to something diff-derived. **For #2431 that
+reading is wrong outright: `check:lane` never diff-filters a project's own
+file list, so #2431 stays completely intact. For #2655 that reading is
+partially right, and this ADR exists to say exactly how much — not to wave
+the question away.**
 
 ## The distinction that makes both things true at once
 
-There are two different axes, and #2431/#2655 fixed one while #2738/#2743
-operate on the other:
+There are two different axes, and they do not split along the #2431/#2655
+line the way an earlier draft of this ADR claimed.
 
 **Axis 1 — CONTENT: once a project is going to run, how much of it runs.**
-This is what #2431 and #2655 fixed, and it stays fixed. `bun run check:lane`
+This is what #2431 fixed, and it stays fixed. `bun run check:lane`
 (`scripts/check-lane.ts`) never filters a project's own test files by the
 diff. The `engine` lane runs the WHOLE `node` project — every file under
 `convex/**`, `scripts/**` and every DOM-free `src` test — even though the
@@ -56,37 +66,93 @@ to a diff-derived file list; `classifyLane`'s `run` array names whole
 `--project` invocations (`bunx vitest run --project node`), never a path
 argument computed from `git diff`.
 
-**Axis 2 — ADMISSION: whether a project runs AT ALL.** This is what #2738 and
-#2743 add, and it is new: a diff that cannot possibly reach `convex/**` (every
-changed path classifies `skin`) is not merely given a smaller `node`/bot run —
-it is given none. The `engine` lane, symmetrically, admits no `dom` run at
-all. This was always implicitly true in principle (a `src/**`-only diff
-cannot make `mechanicsRegistry.test.ts` go red because it changes no card
-definition), but before `check:lane` existed, every diff paid every project
-regardless, because there was no mechanical predicate an agent could trust to
-draw that line safely — and getting it wrong in the unsafe direction is
-exactly what #2431/#2655 were fixing.
+**Axis 2 — ADMISSION: whether a project runs AT ALL.** This is the axis
+#2655 actually operated on, and it is also the axis `check:lane` operates on
+— the same axis, not a different one, which is the correction this section
+exists to make. #2655 (PR #2737, commit `fc8b9672`) moved `dom` from "never
+runs in the light gate" to "runs on every diff, unconditionally": a pure
+admission decision, since there was no partial or filtered `dom` state before
+it to widen back to whole — only an absence to fill. `check:lane`'s `engine`
+lane makes the opposite move on that SAME axis: it narrows `dom`'s admission
+from "every diff" back down to "every diff that can reach `src/**`"
+(symmetrically, `skin` narrows the bot fast lane and `node`'s `convex/**`
+half to "every diff that can reach `convex/**`"). For a diff that genuinely
+is `skin`-only or `engine`-only, narrowing is safe by construction — a
+`src/**`-only diff cannot make `mechanicsRegistry.test.ts` go red, so
+skipping `node`'s `convex/**` half loses nothing real.
+
+**The direction this ADR has to be honest about is the other one.** For a
+diff `check:lane` classifies `engine`, `dom` is skipped — including for a
+diff that touches only `convex/**`. PRD #2738's own count is that 179 of 437
+`src` tests import `convex/**`, so a convex-only diff CAN turn a `src`-side
+test red, and under the `engine` lane that failure no longer surfaces before
+review — it resurfaces at the merge-train, on the integrated tree, which is
+the exact symptom #2655 was filed to fix. This work does not revert #2655's
+fix — no diff lands without a `dom` run somewhere in its history, see the
+backstops below — but for the `engine`-lane slice of diffs it does move that
+run later in the pipeline than #2655 put it, deliberately.
 
 The two axes commute in one direction only, which is the whole point:
-**narrowing Axis 2 is safe precisely because Axis 1 stayed fixed.** If the
-`engine` lane both skipped `dom` (Axis 2) AND ran `node` filtered to the
-diff's own files (Axis 1), it would reintroduce #2431's exact failure mode —
-a catalogue guard the diff never touched, silently unrun. `check:lane` never
-does the second thing. Every `PlannedCheck.command` in `classifyLane`
-(`scripts/check-lane.ts`) that names a vitest project passes no path filter;
-the only place a path list reaches a command is `format(diff)`/`lint(diff)`,
-tools with no catalogue-guard concept to defeat in the first place.
+**narrowing Axis 2 is safe precisely because Axis 1 stayed fixed, and because
+narrowing Axis 2 is never the same as removing the check — every diff still
+runs `dom` somewhere, backstopped in between.** If the `engine` lane both
+skipped `dom` (Axis 2) AND ran `node` filtered to the diff's own files
+(Axis 1), it would reintroduce #2431's exact failure mode — a catalogue guard
+the diff never touched, silently unrun, with nothing downstream to catch it
+either. `check:lane` never does the second thing. Every `PlannedCheck.command`
+in `classifyLane` (`scripts/check-lane.ts`) that names a vitest project
+passes no path filter; the only place a path list reaches a command is
+`format(diff)`/`lint(diff)`, tools with no catalogue-guard concept to defeat
+in the first place.
 
-**Restated as the one paragraph a future reader needs:** #2431 and #2655
-stand, unmodified and unreverted. Both made `check:guards` run its projects
-**whole** rather than diff-filtered, and every project a lane runs today is
-still whole — `check-lane.test.ts` pins that no `run` command carries a path
-argument for a `--project` invocation. What changed is a different question
-entirely: which projects a diff is **admitted** to skip. A diff that
-structurally cannot reach `convex/**` was always going to leave
-`mechanicsRegistry.test.ts` green; `check:lane` is the first place that
-observation is turned into "so don't run it," fail-closed, and pinned by a
-test — not "so run less of it."
+**Three backstops make narrowing `dom`'s admission on the `engine` lane an
+accepted trade rather than an unguarded gap** (PRD #2738's own accounting,
+carried here so this ADR is the one place a reader checks the claim):
+
+1. **The `engine` lane keeps the WHOLE type-check** (`bun run check:ts`,
+   `tsc[all]` in `classifyLane`) — `src/**` imports `convex/gre` (ADR 0074:
+   the client-side Brain and the Draft Lab both do), so a `convex/**` change
+   that breaks a type the frontend depends on is still caught, pre-PR, on
+   every `engine` diff.
+2. **`scripts/__tests__/convex-cards-barrel-mock.test.ts`**, kept because the
+   `engine` lane keeps the whole `node` project, catches the one documented
+   cross-boundary breakage class statically, without needing a DOM
+   environment: a `convex/cards/**` rename or export change that a `src/**`
+   suite's `vi.mock("@convex/cards")` factory goes stale against (#2339 — 102
+   tests across 12 files, first seen at the merge-train before this guard
+   existed).
+3. **The merge-train's full gate** (`land`, SKILL.md §4 step 3) runs the
+   complete suite — `node` AND `dom`, both whole — on the rebased tree before
+   any PR actually merges.
+
+**State the residual risk plainly, because that is what this ADR is for:** a
+convex-only diff that reddens a `dom` test in a way the type-check and the
+barrel-mock guard do not catch — a runtime behaviour change visible only to a
+rendered component, not to `tsc` or to an import-graph census — is now caught
+at the merge-train instead of pre-PR. That is **later** than #2655 put it:
+#2655's whole point was moving the `dom` guard from "surfaces at the
+merge-train" to "surfaces before review." For the `engine` lane's slice of
+diffs, this work moves it back, on purpose, in exchange for not paying a
+`dom` run's wall-clock on every diff that structurally cannot need one. The
+trade is accepted, not hidden, and its cost is a bisect at the merge-train
+(the existing procedure in `references/merge-train.md`) rather than a red
+`check:pr` on the branch. If a real incident ever shows the three backstops
+above missing something a `dom` run would have caught, the fix is narrower
+than reverting this ADR: strengthen the backstop that missed it — most likely
+`convex-cards-barrel-mock.test.ts`'s coverage — not restore `dom` to every
+`engine` diff.
+
+**Restated as the one paragraph a future reader needs:** #2431 fixed Axis 1
+for `node` and stands unmodified — `check:lane` never diff-filters a
+project's own file list; read `classifyLane` itself for that (no `run`
+command anywhere in `check-lane.ts` carries a path argument for a `--project`
+invocation) rather than a test, since no test currently pins it — see
+Consequences below. #2655 fixed Axis 2 for `dom`, moving it from
+never-admitted to always-admitted; this work **narrows that back down**,
+deliberately, for exactly the slice of diffs (`engine`-classified) where the
+three checks above stand in `dom`'s place. Both are true at once because they
+are different claims about different projects on different axes — not
+because #2655 was left untouched. It was not.
 
 ## Decision
 
@@ -97,7 +163,10 @@ test — not "so run less of it."
 2. **Lane content is never diff-filtered.** Every check a lane's plan names
    for a `--project` invocation runs that project whole. This is the
    invariant the paragraph above defends, and it is why narrowing Axis 2 does
-   not reopen #2431 or #2655.
+   not reopen #2431's failure mode. It does narrow #2655's original fix for
+   the `engine` lane's slice of diffs — see "The distinction that makes both
+   things true at once" for the three backstops that make that an accepted
+   trade rather than an unguarded gap.
 3. **Lane admission is fail-closed.** `classifyPath` returns `full` for any
    path it does not affirmatively recognise, and `laneFor` treats a single
    `full`-classified path, or an unrecognised directory, as forcing the full
@@ -128,13 +197,21 @@ test — not "so run less of it."
 - A reader who sees `check:guards` running `node`/`dom` whole in one place and
   a diff skipping `node`/`dom` entirely in another now has one document that
   names both axes and says which decision is on which axis.
-- `check-lane.test.ts`'s "names must be invokable" guard is also, incidentally,
-  the guard that would catch a future regression on Axis 1: a `run` command
-  built with a path filter still resolves to a real script/project, so that
-  guard alone would not catch it — but `classifyLane`'s own construction (no
-  path-filter branch exists for a `--project` command) is what holds the line,
-  and any PR adding one is a deliberate, reviewable change to this ADR's
-  central claim, not a silent one.
+- **No automated guard pins "no `run` command carries a path argument for a
+  `--project` invocation."** `check-lane.test.ts`'s nearest test, `"every
+--project X names a real vitest project"`, only checks that a project name
+  a command references resolves to something real — a `run` command rebuilt
+  with a path filter (`--project node src/gre/foo.test.ts`) would still pass
+  it, because `node` is still a real project name. What holds the Axis-1
+  invariant today is `classifyLane`'s own construction — no branch anywhere
+  in it adds a path filter to a `--project` command — plus ordinary code
+  review: a PR adding one is a visible, reviewable change to this ADR's
+  central claim, not a silently passing one. That is weaker than a pinned
+  test, and is left that way deliberately in this revision rather than
+  patched in as an afterthought; a future PR that wants the stronger
+  guarantee should add the test directly (assert no `command` string in any
+  `LanePlan.run` matches a path-looking token after `--project`) rather than
+  lean on this paragraph to stand in for it.
 - Cost measurements for the `skin`/`engine` lanes live in
   `docs/agents/quality-gates.md`, not here — this record is about the
   invariant, not the stopwatch.

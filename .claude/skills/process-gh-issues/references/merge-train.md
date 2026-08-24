@@ -12,20 +12,32 @@ merge (SKILL.md §1's `lane` field; issue #2743, closing PRD #2738).
 ## Batch-level `check:ui` — once, only for a `lane: "skin"` batch, before any of its PRs merge
 
 A `skin` batch owes exactly ONE `check:ui` run for the whole batch, not one per PR: every admitted
-issue's real target files live under `src/**`/`public/**`, so one integrated run covers all of them
-and the per-PR obligation in `.claude/rules/chrome-debug.md` is satisfied by this instead. An `engine`
-or `full` batch owes none of this from the batch rule — a `full`-lane issue that itself reaches
-`src/**` still owes its own per-PR `check:ui`, unchanged, since it never earned the `skin` batch's
-homogeneity guarantee.
+issue's declared target files live under `src/**`/`public/**`, so one integrated run is _hypothesised_
+to cover all of them and the per-PR obligation in `.claude/rules/chrome-debug.md` is satisfied by this
+instead — Step A below re-derives the lane from the integration's real diff before trusting that
+hypothesis. An `engine` or `full` batch owes none of this from the batch rule — a `full`-lane issue that
+itself reaches `src/**` still owes its own per-PR `check:ui`, unchanged, since it never earned the
+`skin` batch's homogeneity guarantee.
 
-- **Step A — build the integrated tree** in a scratch worktree off the current `origin/main` tip:
-  `git merge --no-ff <branch>` for every PR in `order`, in sequence. The batch is file-disjoint by
-  construction (SKILL.md §1), so this never conflicts.
-- **Step B — run `bun run check:ui` there once.** Its output IS the batch's pixel receipt — paste it
-  in the pass report exactly as a single-PR `check:ui` receipt would be pasted.
-- **Step C — green → proceed to the ordinary per-PR merge-train below, unchanged.** Discard the
-  scratch worktree; nothing about it participates in the real merges, which each re-gate and
-  re-integrate for real through `land`.
+- **Step A — bootstrap and build the integrated tree.** A fresh scratch worktree is missing every
+  gitignored runtime input `check:ui` needs — `scripts/ui-gate/index.ts:415-417` hard-fails
+  `VITE_CONVEX_URL is unset` without it. Run `bun run worktree:init` in the scratch worktree FIRST (it
+  copies `.env.local` and `convex/_generated`, and installs `node_modules` — same bootstrap
+  `references/subagent-brief.md` step 1 requires of an implement-subagent's own worktree). Then build
+  the integration off the current `origin/main` tip: `git merge --no-ff <branch>` for every PR in
+  `order`, in sequence. The batch is file-disjoint by construction (SKILL.md §1), so this never
+  conflicts.
+- **Step B — re-derive the lane from the integration's REAL diff, then run `bun run check:ui` if
+  warranted.** `BatchPlan.lane` was computed from each issue's _declared_ `targetFiles` before any code
+  existed — a hypothesis, not a fact about the tree that actually landed. Re-derive it for real:
+  `bun run check:lane --json` in the scratch worktree (or `git diff --name-only origin/main` through
+  the same `classifyPath`). Run `check:ui` whenever ANY path in that real diff classifies `skin` —
+  whatever the planned batch lane said, including on an `engine`/`full` batch whose integration drifted
+  into `src/**`. Its output IS the batch's pixel receipt — paste it in the pass report exactly as a
+  single-PR `check:ui` receipt would be pasted.
+- **Step C — green (or no `skin` path in the real diff) → proceed to the ordinary per-PR merge-train
+  below, unchanged.** Discard the scratch worktree; nothing about it participates in the real merges,
+  which each re-gate and re-integrate for real through `land`.
 - **Step D — red → do NOT merge any PR in the batch.** Bisect across the batch's PRs: drop branches
   from the integration one at a time, in reverse `order`, re-running `check:ui` after each removal,
   until it goes green. The last branch removed is the culprit. Hand that PR's issue to a fixup
