@@ -318,15 +318,21 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
     describe("real-repo census (issue #1841) — pins the exact split so a future widening cannot quietly swallow the stub majority", () => {
         const TODO_ISSUE_LINE = /\/\/.*TODO\(\s*issue\s*#\d+/i;
 
-        it("every `TODO(issue #NNN)` comment left in tracked, non-test source sits in stub context (26 sites) — none reach scanRepoMarkers as a live ref, because the three that used to (dsk/red.ts x2, mh3/colorless.ts) were converted to canonical `tracked-by:` by this issue's own fix", () => {
+        it("every `TODO(issue #NNN)` comment left in tracked, non-test source sits in stub context — none reach scanRepoMarkers as a live ref, because the three that used to (dsk/red.ts x2, mh3/colorless.ts) were converted to canonical `tracked-by:` by this issue's own fix. Asserts the PROPERTY (every raw hit is stub context), not a whole-repo count: a future commented-out card stub added or removed elsewhere in the catalogue shifts the count without touching this guard's actual concern, and a fixed number would red the gate for unrelated work", () => {
             const sources = readSources();
             let rawHits = 0;
-            for (const { text } of sources) {
-                for (const line of text.split("\n")) {
-                    if (TODO_ISSUE_LINE.test(line)) rawHits++;
-                }
+            for (const { file, text } of sources) {
+                const lines = text.split("\n");
+                lines.forEach((line, i) => {
+                    if (!TODO_ISSUE_LINE.test(line)) return;
+                    rawHits++;
+                    expect(
+                        isStubContext(lines, i),
+                        `${file}:${i + 1} — TODO(issue #N) outside stub context should have been repointed to tracked-by:`
+                    ).toBe(true);
+                });
             }
-            expect(rawHits).toBe(26);
+            expect(rawHits).toBeGreaterThan(0);
 
             const liveHitsUsingThisSyntax = scanRepoMarkers(sources).filter(
                 (m) => TODO_ISSUE_LINE.test(m.text)
