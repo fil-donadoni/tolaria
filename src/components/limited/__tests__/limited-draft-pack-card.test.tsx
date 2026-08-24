@@ -148,6 +148,41 @@ describe("LimitedDraftPackCard gestures (ADR 0060, issue #1248)", () => {
         expect(queryByTestId("selection-ring")).toBeNull();
     });
 
+    it("permits native vertical panning instead of blocking all touch (issue #2664)", () => {
+        // `touch-none` forecloses the browser's OWN scroll gesture at
+        // `touchstart`, before dnd-kit's touch `Delay` constraint ever gets a
+        // chance to run — a vertical drag starting on a tile could never
+        // scroll the phone pack grid (`limited-draft-pack.tsx`), stranding
+        // cards past the fold at the `dense` rung. `touch-pan-y` is the fix:
+        // the browser may still pan vertically (a quick swipe scrolls); only
+        // a stationary hold reaches dnd-kit's Delay timer and starts a drag.
+        // happy-dom cannot arbitrate scroll-vs-drag itself (no layout, no
+        // real touch-action enforcement) — this asserts the CSS declaration
+        // the browser acts on, which is the only thing a unit test CAN prove
+        // here. The actual scroll-vs-drag-vs-tap decision for this surface is
+        // dnd-kit's own `PointerSensor` + `Delay` constraint
+        // (`useDeckDragSensors.ts`), not the in-repo `gestureReducer`
+        // (`src/lib/gesture/activation.ts`) — that reducer backs the OTHER,
+        // custom-engine gesture surfaces (board hand, deckbuilder tiles use
+        // dnd-kit too) and never runs on this component, so it is not the
+        // place to add coverage for this bug. The real proof is the browser
+        // receipt (`bun run check:ui` + a manual CDP walk at the `dense`
+        // rung, per the PR).
+        const { getByRole } = render(
+            <LimitedDraftPackCard
+                card={card}
+                selected={false}
+                onSelect={vi.fn()}
+                onPick={vi.fn()}
+                onOpenMenu={vi.fn()}
+                pending={false}
+            />
+        );
+        const tile = getByRole("button");
+        expect(tile.className).toContain("touch-pan-y");
+        expect(tile.className).not.toContain("touch-none");
+    });
+
     it("while pending, a click/double-click/right-click all no-op", () => {
         const onSelect = vi.fn();
         const onPick = vi.fn();

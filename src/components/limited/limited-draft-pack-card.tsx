@@ -89,7 +89,39 @@ export default function LimitedDraftPackCard({
                 // the color variable has nothing to paint with. It is kept
                 // only so a future `ring-*` width utility added to this
                 // className composes against the right color token.
-                "group relative block aspect-5/7 w-full cursor-grab touch-none rounded-[7%] ring-accent transition select-none",
+                //
+                // `touch-pan-y`, not `touch-none` (issue #2664). The phone
+                // pack grid (`limited-draft-pack.tsx`) IS the vertical
+                // scroller — a fixed-column grid with no wrapper, `overflow-y:
+                // auto` — and a drag on this tile is what selects/picks it
+                // (`useDraggable` above, driven by the SAME
+                // `useDeckDragSensors` config the deckbuilder pool uses:
+                // `limited-draft-table.tsx` passes it into the shared
+                // `DragDropProvider`). `touch-none` blocked ALL native
+                // panning at `touchstart`, before dnd-kit's touch `Delay`
+                // constraint (250ms) ever got a chance to run — so a drag
+                // starting ON a tile (the only place a card can be grabbed)
+                // could never scroll the grid, and cards past the fold were
+                // unreachable at the `dense` rung. dnd-kit's `PointerSensor`
+                // never calls `preventDefault` while waiting on the Delay
+                // timer, and only registers its own `touchmove`
+                // `preventDefault` once the delay elapses WITHOUT the finger
+                // moving past its tolerance (`node_modules/@dnd-kit/dom`'s
+                // `DelayConstraint`/`_PointerSensor.handleStart`) — so CSS is
+                // what decides whether a quick vertical swipe is EVER seen as
+                // a scroll. `pan-y` lets the browser own that swipe (a hold
+                // with no movement still reaches the JS timer and starts the
+                // drag); it still blocks native horizontal panning and pinch
+                // zoom, neither of which this tile uses. Same fix shape as
+                // `deck-card-tile.tsx` (`touch-pan-x`, issue #1633) and
+                // `board-hand-card.tsx`'s `allowHorizontalPan` (#1994),
+                // mirrored onto the vertical axis this grid actually scrolls.
+                // Scroll chaining into the two-stop snap scroller above the
+                // grid is already contained (`overscroll-contain` on both the
+                // grid and `draft-portrait-panes.tsx` /
+                // `draft-landscape-panes.tsx`'s outer scroller) — this class
+                // only decides whether the INNERMOST scroll can start.
+                "group relative block aspect-5/7 w-full cursor-grab touch-pan-y rounded-[7%] ring-accent transition select-none",
                 pending
                     ? "cursor-not-allowed opacity-60"
                     : "hover:-translate-y-0.5",
