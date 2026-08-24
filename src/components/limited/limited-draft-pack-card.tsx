@@ -82,14 +82,17 @@ export default function LimitedDraftPackCard({
                 // selection through it with the arrows — and killing the
                 // outline left the keyboard user with no cursor at all on the
                 // one surface that has a keyboard model. The global
-                // `:focus-visible` rule (src/index.css, unlayered) paints it;
-                // `ring-accent` stays what the SELECTED ring is drawn in, a
-                // different state that must remain distinguishable from focus.
+                // `:focus-visible` rule (src/index.css, unlayered) paints it.
+                // `ring-accent` here is INERT: Tailwind's ring utilities only
+                // paint when a ring-WIDTH class (`ring-2`, `ring-4`, …) sets
+                // `--tw-ring-shadow`, and this tile no longer carries one —
+                // the color variable has nothing to paint with. It is kept
+                // only so a future `ring-*` width utility added to this
+                // className composes against the right color token.
                 "group relative block aspect-5/7 w-full cursor-grab touch-none rounded-[7%] ring-accent transition select-none",
                 pending
                     ? "cursor-not-allowed opacity-60"
                     : "hover:-translate-y-0.5",
-                selected ? "ring-4 ring-accent" : "",
                 isDragging ? "opacity-30" : ""
             )}
         >
@@ -102,6 +105,26 @@ export default function LimitedDraftPackCard({
                 sizes="180px"
                 holdPreview={false}
             />
+            {/* Issue #2663: the phone pack grid (`limited-draft-pack.tsx`) is
+                itself the clipping scroller — its tracks sit flush against
+                its own edges with zero inline/block padding, so a ring drawn
+                OUTSIDE the border box (Tailwind's default) gets cut off on
+                every edge column/row. `ring-inset` alone does not fix this:
+                an inset box-shadow paints in the element's OWN box-decoration
+                layer, below every descendant — and `<CardImage>`'s `img` ==
+                this tile's box exactly, so an inset ring on the tile itself
+                is painted entirely UNDER the card art and is invisible
+                (caught in review). The fix is a separate overlay element,
+                rendered AFTER `<CardImage>` so it paints on top, carrying the
+                inset ring — same shape `deck-card-tile.tsx` already uses for
+                its own selected/featured overlays. Inset + its own box keeps
+                it unclippable by the scroller with no tile-width cost. */}
+            {selected && (
+                <div
+                    data-testid="selection-ring"
+                    className="pointer-events-none absolute inset-0 rounded-[7%] ring-4 ring-inset ring-accent"
+                />
+            )}
         </div>
     );
 }
