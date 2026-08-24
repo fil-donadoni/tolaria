@@ -175,6 +175,48 @@ export type SurfaceWalk =
 
 export type Verdict = "PASS" | "FAIL" | "UNWALKED";
 
+/**
+ * A full walk — every surface the lane defines, measured — is the PR
+ * receipt `.claude/rules/chrome-debug.md` demands. A `--surface=` subset is
+ * a DIAGNOSTIC: useful for fast local iteration, but it did not measure the
+ * whole app and must never be pasted into a PR as if it were the receipt
+ * (issue #2742) — identity-v4-shaped diffs touch shared skin
+ * (`src/components/ui/**`) that reaches every surface, so a per-PR subset
+ * would be a lie in exactly the dominant case.
+ *
+ * Deliberately ORTHOGONAL to pass/fail: `UNWALKED` and `FAIL` keep their
+ * exact current meanings and exit codes on a DIAGNOSTIC run — this label
+ * only says how much of the app was in scope, never whether it was clean.
+ */
+export type ReceiptKind = "RECEIPT" | "DIAGNOSTIC";
+
+export interface ReceiptKindResult {
+    kind: ReceiptKind;
+    /** Surfaces `definedSurfaceIds` names that this run did not request.
+     *  Empty for a full walk (RECEIPT); non-empty for any subset. */
+    unmeasuredSurfaces: string[];
+}
+
+/**
+ * Pure function of the requested surface set against the full surface list
+ * — no fs, no browser, no run result. `--surface=a,b,c` naming every
+ * surface the lane defines IS a full walk (`RECEIPT`); anything less is a
+ * `DIAGNOSTIC` naming exactly what it skipped.
+ */
+export function receiptKindOf(
+    requestedSurfaceIds: readonly string[],
+    definedSurfaceIds: readonly string[]
+): ReceiptKindResult {
+    const requested = new Set(requestedSurfaceIds);
+    const unmeasuredSurfaces = definedSurfaceIds.filter(
+        (id) => !requested.has(id)
+    );
+    return {
+        kind: unmeasuredSurfaces.length === 0 ? "RECEIPT" : "DIAGNOSTIC",
+        unmeasuredSurfaces,
+    };
+}
+
 export interface ResultRow {
     surface: string;
     /** Null for a whole-surface row (unwalked / unreachable / undeclared). */
@@ -196,6 +238,13 @@ export interface Evaluation {
     knownSurfaces: number;
     /** `knownDebt` notes in play, so the PR can list what the next slice owns. */
     knownDebt: string[];
+    /** RECEIPT for a full walk, DIAGNOSTIC for a `--surface=` subset — see
+     *  `receiptKindOf`. Orthogonal to `failures`: a DIAGNOSTIC run with a
+     *  budget violation still has a non-empty `failures` and exits non-zero. */
+    receiptKind: ReceiptKind;
+    /** Surfaces this run did not request, when `receiptKind` is DIAGNOSTIC.
+     *  Empty for a RECEIPT run. */
+    unmeasuredSurfaces: string[];
 }
 
 function fmtMetrics(m: Ceilings): string {
@@ -387,6 +436,11 @@ export function evaluateRun(
         if (surfaceComplete) measuredSurfaces++;
     }
 
+    const { kind: receiptKind, unmeasuredSurfaces } = receiptKindOf(
+        knownSurfaceIds,
+        definedSurfaceIds
+    );
+
     return {
         rows,
         failures,
@@ -394,10 +448,27 @@ export function evaluateRun(
         declaredUnwalked,
         knownSurfaces: knownSurfaceIds.length,
         knownDebt,
+        receiptKind,
+        unmeasuredSurfaces,
     };
 }
 
 /** The coverage line printed under the table — the honest denominator. */
 export function coverageLine(ev: Evaluation): string {
     return `coverage: ${ev.measuredSurfaces}/${ev.knownSurfaces} surfaces measured, ${ev.declaredUnwalked} declared unwalked`;
+}
+
+/**
+ * The line that makes a subset run impossible to mistake for a PR receipt
+ * (issue #2742). Printed above the per-surface table so it is the first
+ * thing a reader — human or the next agent pasting this into a PR — sees.
+ */
+export function receiptKindLine(ev: Evaluation): string {
+    if (ev.receiptKind === "RECEIPT") {
+        return "RECEIPT — every surface this lane defines was measured";
+    }
+    return (
+        `DIAGNOSTIC — NOT a PR receipt: ${ev.unmeasuredSurfaces.length} surface(s) ` +
+        `not measured this run (${ev.unmeasuredSurfaces.join(", ")})`
+    );
 }

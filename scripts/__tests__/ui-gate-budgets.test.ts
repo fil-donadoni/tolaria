@@ -4,6 +4,8 @@ import {
     coverageLine,
     evaluateRun,
     metricsOf,
+    receiptKindLine,
+    receiptKindOf,
     type AxeCount,
     type BudgetFile,
     type Ceilings,
@@ -319,6 +321,119 @@ describe("check:ui budgets — known debt is surfaced, not hidden", () => {
         expect(ev.knownDebt).toEqual([
             "lobby @ 390x844x3: 4 controls under the fixed footer",
         ]);
+    });
+});
+
+describe("receiptKindOf — RECEIPT vs DIAGNOSTIC is a pure function of the two surface lists (issue #2742)", () => {
+    it("is RECEIPT when the requested set names every surface the lane defines", () => {
+        const result = receiptKindOf(
+            ["lobby", "game-board", "deck-builder"],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(result.kind).toBe("RECEIPT");
+        expect(result.unmeasuredSurfaces).toEqual([]);
+    });
+
+    it("is RECEIPT regardless of request order — set comparison, not array equality", () => {
+        const result = receiptKindOf(
+            ["deck-builder", "lobby", "game-board"],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(result.kind).toBe("RECEIPT");
+    });
+
+    it("is DIAGNOSTIC for a proper --surface= subset, naming what it did not measure", () => {
+        const result = receiptKindOf(
+            ["lobby"],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(result.kind).toBe("DIAGNOSTIC");
+        expect(result.unmeasuredSurfaces).toEqual([
+            "game-board",
+            "deck-builder",
+        ]);
+    });
+
+    it("is DIAGNOSTIC even for a single-surface omission — a near-full walk is still not a receipt", () => {
+        const result = receiptKindOf(
+            ["lobby", "game-board"],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(result.kind).toBe("DIAGNOSTIC");
+        expect(result.unmeasuredSurfaces).toEqual(["deck-builder"]);
+    });
+
+    it("treats an empty defined-surface list as a (vacuous) RECEIPT — nothing was skipped", () => {
+        const result = receiptKindOf([], []);
+        expect(result.kind).toBe("RECEIPT");
+        expect(result.unmeasuredSurfaces).toEqual([]);
+    });
+});
+
+describe("evaluateRun wires receiptKind through, and it never softens a failure (issue #2742)", () => {
+    it("a full walk (no --surface, or --surface naming every surface) reports RECEIPT", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "390x844x3": metrics() }),
+        });
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "390x844x3")],
+            ["lobby"]
+        );
+        expect(ev.receiptKind).toBe("RECEIPT");
+        expect(ev.unmeasuredSurfaces).toEqual([]);
+        expect(receiptKindLine(ev)).toBe(
+            "RECEIPT — every surface this lane defines was measured"
+        );
+    });
+
+    it("a --surface= subset reports DIAGNOSTIC and names the unmeasured surfaces", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "390x844x3": metrics() }),
+        });
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "390x844x3")],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(ev.receiptKind).toBe("DIAGNOSTIC");
+        expect(ev.unmeasuredSurfaces).toEqual(["game-board", "deck-builder"]);
+        expect(receiptKindLine(ev)).toContain("NOT a PR receipt");
+        expect(receiptKindLine(ev)).toContain("game-board");
+        expect(receiptKindLine(ev)).toContain("deck-builder");
+    });
+
+    it("orthogonality: a DIAGNOSTIC subset run that hits a budget failure still fails, with the same FAIL verdict and non-empty failures a full run would produce", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "390x844x3": metrics() }),
+        });
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "390x844x3", metrics({ cardsOcc: 3 }))],
+            ["lobby", "game-board"] // a subset run — DIAGNOSTIC
+        );
+
+        expect(ev.receiptKind).toBe("DIAGNOSTIC");
+        // The receipt-kind label changed; the verdict and exit-worthiness did not.
+        expect(ev.rows[0].verdict).toBe("FAIL");
+        expect(ev.failures).toHaveLength(1);
+        expect(ev.failures[0]).toContain("cardsOcc 3 > 0");
+    });
+
+    it("orthogonality, the other direction: a RECEIPT (full) run with a coverage hole still reports UNWALKED and fails", () => {
+        const ev = evaluateRun(
+            budgetFile({}),
+            ["lobby"],
+            [measured("lobby", "390x844x3")],
+            ["lobby"] // full walk — RECEIPT
+        );
+
+        expect(ev.receiptKind).toBe("RECEIPT");
+        expect(ev.rows[0].verdict).toBe("UNWALKED");
+        expect(ev.failures[0]).toContain("no entry in budgets.json");
     });
 });
 
