@@ -137,13 +137,17 @@ export default function LimitedEventDetail({
     // undesigned, concession/replacement policy). Independent of `canClose`:
     // the creator, if ALSO seated, sees both actions.
     const canLeave = seatingOpen && !!viewerSeat;
-    // The creator's ONE close action, for the whole life of the event (issue
-    // #2357) — no longer OPEN-only. What it DOES branches by phase (hard
-    // delete while seating is open, force-finish once started); a second
-    // close on an already-concluded event is a harmless no-op the mutation
-    // itself absorbs (idempotent), so the affordance never has to hide once
-    // the event is done.
-    const canClose = isCreator;
+    // The creator's ONE close action, for the whole life of the event up to
+    // (but not including) its conclusion (issue #2357, tightened by #2674) —
+    // no longer OPEN-only. What it DOES branches by phase (hard delete while
+    // seating is open, force-finish once started). Once the event is
+    // CONCLUDED there is nothing left to close, so the affordance itself
+    // hides — offering an action whose only possible outcome is a no-op is
+    // the bug (#2674), not a harmless quirk. The mutation still absorbs a
+    // stray second call idempotently (`convex/limitedEvents.ts`
+    // `cancelLimitedEvent`) — that is server-side defense for a race between
+    // two clicks, not a licence for the client to offer the action here.
+    const canClose = isCreator && !isEventConcluded(event.status);
     // Mirrors `isEventPoolFinal` (`convex/limited/autoBuild.ts`, issue
     // #1115): the point at which every bot seat's Pool — and therefore its
     // Auto-Built deck — is final and the vs-AI hookup can offer it. Stays true

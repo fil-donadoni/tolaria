@@ -27,6 +27,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { shellReturnAffordance } from "@/lib/shellChrome";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { storeSession } from "~/lib/session";
+import { limitedEventName } from "~/lib/limitedEventName";
 import { Button } from "~/components/ui/button";
 import type { ActiveSession } from "~/hooks/useActiveSession";
 
@@ -79,10 +80,13 @@ export default function AppReturnBanner({
         onClick = resumeGame;
         disabled = !user;
     } else if (affordance === "event" && event !== null) {
-        message =
-            event.type === "draft"
-                ? "A draft is in progress."
-                : "A sealed event is in progress.";
+        // Names the event (issue #2674) rather than "a draft"/"a sealed
+        // event" — on an event's own detail page, generic copy with no
+        // subject reads as a statement about the page the viewer is ON, when
+        // it is in fact about a DIFFERENT event in flight. `limitedEventName`
+        // already reads as "<sources> Draft"/"<sources> Sealed", so it needs
+        // no separate type-branch appended here.
+        message = `${limitedEventName(event)} is in progress.`;
         label = "Return to event";
         onClick = () =>
             void navigate({

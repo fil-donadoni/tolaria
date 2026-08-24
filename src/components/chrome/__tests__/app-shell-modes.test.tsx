@@ -90,7 +90,7 @@ const RUNNING_GAME: ActiveSession = {
 
 const RUNNING_DRAFT: ActiveSession = {
     game: null,
-    event: { eventId: "e1", type: "draft" },
+    event: { eventId: "e1", type: "draft", packSlots: ["lea"] },
     loading: false,
 } as ActiveSession;
 

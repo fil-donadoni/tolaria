@@ -301,4 +301,29 @@ describe("the band the shell reserved is the band it renders (#2619 review)", ()
         expect(banners).toHaveLength(1);
         expect(banners[0].textContent).toContain("A game is in progress.");
     });
+
+    // Issue #2674: generic copy ("A sealed event is in progress.") on an
+    // event's own detail page reads as a statement about the page the viewer
+    // is ON, when the banner is in fact about a DIFFERENT event. Naming it
+    // is what makes that misreading impossible.
+    it("names the active event in the banner text", () => {
+        h.pathname = "/decks/goblins";
+        h.results[GAME_QUERY] = null;
+        h.results[EVENTS_QUERY] = [
+            { _id: "e1", type: "sealed", packSlots: ["lea"] },
+        ];
+
+        const { container } = render(<AppShell />);
+
+        const banner = container.querySelector(
+            '[data-slot="app-return-banner"]'
+        );
+        expect(banner).not.toBeNull();
+        // "Limited Edition Alpha Sealed" — `limitedEventName`'s own output
+        // for a single-source Sealed event (`src/lib/limitedEventName.ts`),
+        // not a hand-rolled expectation that could drift from it.
+        expect(banner!.textContent).toContain(
+            "Limited Edition Alpha Sealed is in progress."
+        );
+    });
 });
