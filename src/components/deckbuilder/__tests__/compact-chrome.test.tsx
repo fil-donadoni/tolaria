@@ -14,12 +14,14 @@
 // `deck-builder-height.test.ts` already does for `short-viewport:`. The PIXEL
 // proof is the browser probe in the PR — that is the whole reason
 // `.claude/rules/chrome-debug.md` exists.
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, fireEvent, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ViewportMode } from "~/hooks/useViewportMode";
-import CompactChromeDisclosure from "../compact-chrome-disclosure";
+import CompactChromeDisclosure, {
+    TABLET_PORTRAIT_QUERY,
+} from "../compact-chrome-disclosure";
 
 // The single seam under test — driven explicitly so happy-dom's media-query
 // support never decides the branch (same pattern as
@@ -80,6 +82,86 @@ describe("CompactChromeDisclosure (issue #2511)", () => {
             ).toBe("true");
         });
     }
+});
+
+describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
+    // A real `matchMedia` global, keyed by query string — unmatched queries
+    // default to `false` (the same "never matches" shape happy-dom's own
+    // stub has), so a stray extra query the component starts asking fails
+    // the assertion instead of silently reading as a match.
+    let matches: Record<string, boolean> = {};
+
+    function installMatchMedia() {
+        vi.stubGlobal("matchMedia", (query: string) => ({
+            media: query,
+            get matches() {
+                return matches[query] ?? false;
+            },
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            addListener: () => {},
+            removeListener: () => {},
+            onchange: null,
+            dispatchEvent: () => true,
+        }));
+    }
+
+    beforeEach(() => {
+        matches = {};
+        installMatchMedia();
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("is the exact complement of useViewportMode's own PORTRAIT_QUERY (orientation: portrait, min-width: 768px)", () => {
+        expect(TABLET_PORTRAIT_QUERY).toBe(
+            "(orientation: portrait) and (min-width: 768px)"
+        );
+    });
+
+    it("folds the band on a tablet-portrait viewport even though useViewportMode() still reads 'desktop'", () => {
+        // The exact bug this issue fixes: 820x1180 is `useViewportMode()`'s
+        // "desktop" bucket (width > 767px), so a fold gated on that hook
+        // ALONE never engages here — this is the regression's reproduction.
+        mode = "desktop";
+        matches[TABLET_PORTRAIT_QUERY] = true;
+        render(
+            <CompactChromeDisclosure label="View">
+                <button type="button">Colour</button>
+            </CompactChromeDisclosure>
+        );
+        expect(screen.queryByRole("button", { name: "Colour" })).toBeNull();
+        expect(screen.getByRole("button", { name: /View/ })).toBeTruthy();
+    });
+
+    it("stays verbatim on a desktop-shaped LANDSCAPE viewport — the query never matches without orientation: portrait", () => {
+        // 1440x900 / 1180x820 (this issue's own AC): landscape, so the real
+        // browser query never matches regardless of width. Modelled here as
+        // the query simply not matching, the same as any other desktop read.
+        mode = "desktop";
+        matches[TABLET_PORTRAIT_QUERY] = false;
+        render(
+            <CompactChromeDisclosure label="View">
+                <button type="button">Colour</button>
+            </CompactChromeDisclosure>
+        );
+        expect(screen.getByRole("button", { name: "Colour" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: /View/ })).toBeNull();
+    });
+
+    it("active=false still forces verbatim even when the tablet-portrait query matches", () => {
+        mode = "desktop";
+        matches[TABLET_PORTRAIT_QUERY] = true;
+        render(
+            <CompactChromeDisclosure label="View" active={false}>
+                <button type="button">Colour</button>
+            </CompactChromeDisclosure>
+        );
+        expect(screen.getByRole("button", { name: "Colour" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: /View/ })).toBeNull();
+    });
 });
 
 describe("compact-chrome variant (issue #2511)", () => {

@@ -23,10 +23,20 @@ export default function DeckMiniCurve({ curve }: { curve: number[] }) {
             className="flex h-6 shrink-0 items-end gap-0.5"
         >
             {curve.map((count, index) => (
+                // No `aria-label` (issue #2671): a bare `<span>` has no
+                // implicit role, and axe's `aria-prohibited-attr` rule flags
+                // `aria-label` on an element whose role doesn't support
+                // accessible naming — this shape only ever renders once a
+                // populated deck exists, which the browser-verification
+                // lane's own fixture never seeded before this issue. The
+                // parent `role="group"` above already names the whole
+                // sparkline; `title` stays as the sighted-hover per-bucket
+                // detail, the same tradeoff `DeckStatsCurveChart` (the full
+                // Stats dialog chart this is a reduced twin of) already
+                // makes for its own bars.
                 <span
                     key={CURVE_LABELS[index]}
                     title={`${CURVE_LABELS[index]}: ${count}`}
-                    aria-label={`${CURVE_LABELS[index]}: ${count}`}
                     className="w-1 rounded-t-[1px] bg-accent/70"
                     style={{
                         // A floor of 2px keeps an empty bucket visible as a

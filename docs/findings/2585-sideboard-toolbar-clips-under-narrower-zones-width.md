@@ -1,7 +1,8 @@
 ---
 title: The Sideboard zone's header toolbar row has no scroll port, so any narrowing of the zones pane's width strands more of it
 discoveredBy: 2585
-status: draft
+status: triaged
+issue: 2671
 confidence: high
 ---
 
@@ -99,25 +100,28 @@ exists once a real deck (constructed from a preset, or an in-progress edit)
 has Sideboard cards, which is the common case in play but not in the walked
 surface.
 
-**Disposition — tracked by #2671, not fixed here.** It is a further slice of
-the #2511 trade-off (a toolbar cluster that neither fits alongside its
-zone's content nor has a scroll port of its own), and it is independent of
-the dock split #2585 shipped — a `deck-zone-surface.tsx`-owned change #2585's
-scope excludes. Filed as **#2671** ("fix: Sideboard zone toolbar wraps to
-203px with a non-empty Sideboard, starving the card port to 183px
-(820x1180)"), a #2405 sub-issue, P0 on the board — this is a real,
+**Disposition — FIXED by #2671.** It was a further slice of the #2511
+trade-off (a toolbar cluster that neither fit alongside its zone's content
+nor had a scroll port of its own), and it was independent of the dock split
+#2585 shipped — a `deck-zone-surface.tsx`/`compact-chrome-disclosure.tsx`-owned
+change #2585's scope excluded. Filed as **#2671** ("fix: Sideboard zone
+toolbar wraps to 203px with a non-empty Sideboard, starving the card port to
+183px (820x1180)"), a #2405 sub-issue, P0 on the board — this was a real,
 PR-caused regression on a walked viewport, not a noticed-but-unasked-for
-observation, so it gets a ticket rather than staying drawer-only.
+observation, so it got a ticket rather than staying drawer-only.
 
-**Suggested disposition for #2671:** the trailing cluster is already wrapped
-in the zone header's own `CompactChromeDisclosure`
-(`deck-zone-surface.tsx:543-591`, label `"View"`) — it just doesn't fold at
-820×1180 because `useViewportMode()` buckets tablet-portrait as `"desktop"`
-(the same bucket issue #2585's own AC viewports live in). Extending that fold
-to cover 820×1180 — or giving the trailing cluster its own `overflow-x-auto`
-scroll port instead — closes the starve without re-opening #2511's original
-stranding on phones. Either is a `deck-zone-surface.tsx`-owned change,
-independent of the dock split, and out of this PR's scope.
-`scripts/ui-gate/budgets.json`'s `820x1180x2` `deck-builder` `knownDebt` note
-cross-references #2671 and this addendum, and discloses this trade instead of
-reading as a pure win.
+**How #2671 closed it.** `CompactChromeDisclosure`'s fold predicate
+(`compact-chrome-disclosure.tsx`) was OR'd with a new `useIsTabletPortrait()`
+hook — `(orientation: portrait) and (min-width: 768px)`, the exact
+complement of `useViewportMode`'s own portrait band — so the trailing
+cluster now folds at 820×1180 too, without touching `useViewportMode()`
+itself (a shared, gameplay-wide layout seam) or reopening #2511's original
+stranding on phones. Measured with a real non-empty Sideboard: header row
+203px → 34px, card scroll port ~183px → 384.5px. The `overflow-x-auto`
+scroll-port alternative this note originally floated was not taken — folding
+reused the SAME toggle the zone header already owned, rather than adding a
+second overflow mechanism next to it. `scripts/ui-gate/budgets.json`'s
+`820x1180x2` `deck-builder` cell is re-recorded accordingly, and the
+`/decks/create` walk (`scripts/ui-gate/surfaces.ts`) now seeds a non-empty
+Sideboard so this regression class is visible to the lane by budget, not
+invisible by accident of fixture.

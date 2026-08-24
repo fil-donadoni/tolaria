@@ -414,6 +414,67 @@ export const SURFACES: readonly Surface[] = [
             if (!(await visible(page, "input, button", 10_000))) {
                 throw new Unreachable("the deck builder rendered no controls");
             }
+            // Issue #2671: this walk used to leave both zones empty, which hid
+            // a regression class from the probe entirely — `starved` can only
+            // fire once a real card TILE exists to compare a shrunk port
+            // against (`scripts/ui-gate/probe.js`), and an empty zone has no
+            // tile. Importing a tiny decklist seeds both zones without a drag
+            // simulation (the same `Import` entry point a player uses).
+            const DIALOG_TEXTAREA = '[role="dialog"] textarea';
+            const DIALOG_PREVIEW =
+                "[role=\"dialog\"] button:has-text('Preview')";
+            const DIALOG_CONFIRM = "[role=\"dialog\"] button:has-text('Add ')";
+            if (
+                !(await clickIfVisible(page, "button:has-text('Import')", 6000))
+            ) {
+                throw new Unreachable(
+                    "the deck builder offered no Import button"
+                );
+            }
+            if (!(await visible(page, DIALOG_TEXTAREA, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the Import decklist dialog did not open"
+                );
+            }
+            // Every card in this builder renders as a member of an OVERLAID
+            // Column pile (ADR 0075, `deck-column-pile.tsx`), stacked
+            // whenever 2+ cards share a grouping bucket — by design, not a
+            // defect, and orthogonal to this issue. A decklist with any
+            // duplicate name or two cards of the same mana value would stack
+            // a pile and paint the probe's centre-point occlusion check on
+            // ITS OWN buried tiles, noise this fixture has no reason to
+            // carry. Every line below is both a UNIQUE name and its own
+            // distinct mana value (one basic land total, so the "Lands" pile
+            // never gets a second member either) — no two cards this walk
+            // adds can ever land in the same pile.
+            await page
+                .locator(DIALOG_TEXTAREA)
+                .fill(
+                    "Deck\n1 Forest\n1 Llanowar Elves\n1 Grizzly Bears\n\nSideboard\n1 Shivan Dragon\n1 Circle of Protection: Red"
+                );
+            if (!(await clickIfVisible(page, DIALOG_PREVIEW, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the Import dialog's Preview button never enabled"
+                );
+            }
+            if (!(await visible(page, DIALOG_CONFIRM, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the pasted decklist resolved no cards to import"
+                );
+            }
+            await page.locator(DIALOG_CONFIRM).first().click({
+                timeout: STEP_TIMEOUT,
+            });
+            await page.waitForTimeout(600);
+            // "2/15" is this walk's own fixed decklist (Shivan Dragon +
+            // Circle of Protection: Red) — a specific count, not just any
+            // digit, so this fails loudly if the import silently dropped a
+            // card instead of leaving the Sideboard genuinely empty.
+            if (!(await visible(page, "text=/2\\/15/", STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the Sideboard still reads empty after importing — the fixture card names may no longer resolve"
+                );
+            }
         },
     },
     {
