@@ -613,9 +613,10 @@ async function main(): Promise<number> {
                 // Issue #2671 review round 2 MUST-FIX: this used to sit inside
                 // the happy path above (and the original `catch` block above
                 // `return`ed before ever reaching it), so a walk that threw
-                // AFTER the fixture import — e.g. any of `deck-builder`'s six
-                // `Unreachable` sites past the Import confirm click — left the
-                // `userDecks` row it created permanently on the deployment.
+                // AFTER the fixture import — for `deck-builder` that is the
+                // one `Unreachable` site past the Import confirm click, the
+                // sideboard check — left the `userDecks` row it created
+                // permanently on the deployment.
                 // Runs on BOTH the happy path and the failure path now (on the
                 // SAME page), undoing state the walk had to create for the
                 // probe to see (the `deck-builder` fixture's real `userDecks`
