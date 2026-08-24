@@ -427,7 +427,13 @@ export function evaluateRun(
             for (const key of BUDGET_KEYS) {
                 const actual = m.metrics[key];
                 const ceiling = ceilings[key];
-                if (actual > ceiling) {
+                // A budgeted row missing a BUDGET_KEY (hand-edited, or a
+                // `--record` run that skipped it) must never read as "no
+                // ceiling exceeded" — `loadBudgets` is an unchecked cast, so
+                // `ceiling` can genuinely be `undefined` here (issue #2673).
+                if (ceiling === undefined) {
+                    over.push(`${key} ceiling MISSING (measured ${actual})`);
+                } else if (actual > ceiling) {
                     over.push(`${key} ${actual} > ${ceiling}`);
                 }
             }
@@ -508,4 +514,173 @@ export function receiptKindLine(ev: Evaluation): string {
         `DIAGNOSTIC — NOT a PR receipt: ${ev.unmeasuredSurfaces.length} surface(s) ` +
         `not measured this run (${ev.unmeasuredSurfaces.join(", ")})`
     );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// `--record` planning (issue #2673)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * One measured value's relationship to the prior budget file, per
+ * surface × viewport × `BudgetKey` — the granularity the doc comment on
+ * `recordBudgets` (`index.ts`) always promised and the old bulk-overwrite
+ * never delivered.
+ *
+ *   - `"new"`      — the key is absent from the prior row. The legitimate
+ *     case `--record` exists for (#2658's `small` rollout): always recorded,
+ *     no opt-in required.
+ *   - `"regression"` — measured is WORSE (higher) than the prior ceiling.
+ *     The dangerous direction: recording it unconditionally is how the gate
+ *     goes green on the regression it exists to catch.
+ *   - `"tightening"` — measured is BETTER (lower) than the prior ceiling.
+ *     Sounds harmless; several rows hold slack on purpose (`knownDebt`
+ *     explains why in words) and a run recorded for an unrelated reason must
+ *     not remove that slack as a side effect (PR #2660).
+ *
+ * `"regression"` and `"tightening"` are recorded ONLY when their exact
+ * `${surface}.${viewport}.${key}` token is in the caller's `accepted` set —
+ * the row-naming opt-in the issue asks for. Refused ones are still reported
+ * (`RecordChange.accepted: false`) so the terminal and the PR receipt name
+ * every row that changed, recorded or not.
+ */
+export interface RecordChange {
+    surface: string;
+    viewport: string;
+    key: BudgetKey;
+    kind: "new" | "regression" | "tightening";
+    /** `undefined` for `kind === "new"` — there was no prior ceiling. */
+    prior: number | undefined;
+    measured: number;
+    /** Whether this run's `accepted` set authorized writing `measured` into
+     *  the plan's `surfaces`. Always `true` for `kind === "new"`. */
+    accepted: boolean;
+}
+
+export interface RecordPlan {
+    /** `budgets.surfaces` with every accepted/new value applied and every
+     *  refused value left at its prior ceiling. Equal in VALUE (not
+     *  reference) to the input when `changed` is `false`. Unwalked surfaces,
+     *  and surfaces this run did not walk at all, pass through untouched. */
+    surfaces: BudgetFile["surfaces"];
+    /** Every prior-vs-measured difference this run observed, whether or not
+     *  it was recorded — the full before/after table the terminal and the PR
+     *  receipt print (issue #2673 requires naming every changed row, not
+     *  just the fact that something changed). */
+    changes: RecordChange[];
+    /** `"<surface> @ <viewport>: <note>"` for every `knownDebt` note dropped
+     *  because a ceiling under it moved. A note is prose about a specific
+     *  number; the moment that number moves the prose is false by
+     *  construction, so it is dropped rather than carried forward stale. A
+     *  viewport whose ONLY change is a brand-new key keeps its note — the
+     *  numbers the note describes did not move. */
+    droppedKnownDebt: string[];
+    /** `true` iff `surfaces` differs from the input in VALUE. Callers use
+     *  this to decide whether the file is worth writing and whether
+     *  `recordedOn` may be bumped — a run that recorded nothing must not
+     *  claim a provenance date for rows it did not touch. */
+    changed: boolean;
+}
+
+/**
+ * Pure planner for `--record` (issue #2673). No fs, no clock, no `SURFACES`
+ * lookup — `resolveLabel` is how the caller (which owns `surfaces.ts`) supplies
+ * a label for a surface this file has never seen before; everything else is a
+ * function of `(budgets, walks, accepted)`, which is what makes the refusal
+ * rules unit-testable without a browser.
+ *
+ * Deliberately mirrors the shape of `evaluateRun`: takes the same
+ * `BudgetFile` / `SurfaceWalk[]` inputs, returns a value the caller applies —
+ * neither function touches the filesystem.
+ */
+export function planRecord(
+    budgets: BudgetFile,
+    walks: readonly SurfaceWalk[],
+    accepted: ReadonlySet<string>,
+    resolveLabel?: (surfaceId: string) => string | undefined
+): RecordPlan {
+    const surfaces: BudgetFile["surfaces"] = { ...budgets.surfaces };
+    const changes: RecordChange[] = [];
+    const droppedKnownDebt: string[] = [];
+    let changed = false;
+
+    for (const walk of walks) {
+        if (walk.status !== "measured") continue;
+        const existing = budgets.surfaces[walk.surface];
+        if (existing && existing.status === "unwalked") continue;
+
+        // Start from the prior viewports so a viewport this run did not
+        // measure (never happens today — every walk covers all five — but
+        // nothing here should assume it) is preserved, not silently dropped.
+        const viewports: Record<string, ViewportBudget> = {
+            ...existing?.viewports,
+        };
+
+        for (const m of walk.measurements) {
+            const priorVp = existing?.viewports?.[m.viewport];
+            const nextVp = { ...priorVp } as ViewportBudget;
+            let vpChanged = false;
+            let existingKeyMoved = false;
+
+            for (const key of BUDGET_KEYS) {
+                const measured = m.metrics[key];
+                const prior = priorVp?.[key];
+
+                if (prior === undefined) {
+                    nextVp[key] = measured;
+                    changes.push({
+                        surface: walk.surface,
+                        viewport: m.viewport,
+                        key,
+                        kind: "new",
+                        prior: undefined,
+                        measured,
+                        accepted: true,
+                    });
+                    vpChanged = true;
+                    continue;
+                }
+
+                if (measured === prior) continue;
+
+                const kind: "regression" | "tightening" =
+                    measured > prior ? "regression" : "tightening";
+                const token = `${walk.surface}.${m.viewport}.${key}`;
+                const isAccepted = accepted.has(token);
+                changes.push({
+                    surface: walk.surface,
+                    viewport: m.viewport,
+                    key,
+                    kind,
+                    prior,
+                    measured,
+                    accepted: isAccepted,
+                });
+                if (isAccepted) {
+                    nextVp[key] = measured;
+                    vpChanged = true;
+                    existingKeyMoved = true;
+                }
+                // Refused: `nextVp[key]` already holds `prior` — left alone.
+            }
+
+            if (existingKeyMoved && priorVp?.knownDebt) {
+                droppedKnownDebt.push(
+                    `${walk.surface} @ ${m.viewport}: ${priorVp.knownDebt}`
+                );
+                delete nextVp.knownDebt;
+            }
+
+            if (vpChanged) changed = true;
+            viewports[m.viewport] = nextVp;
+        }
+
+        surfaces[walk.surface] = {
+            label:
+                existing?.label ?? resolveLabel?.(walk.surface) ?? walk.surface,
+            status: "budgeted",
+            viewports,
+        };
+    }
+
+    return { surfaces, changes, droppedKnownDebt, changed };
 }

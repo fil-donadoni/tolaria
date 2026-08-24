@@ -40,8 +40,11 @@
  * Usage:
  *   bun run check:ui
  *   bun run check:ui -- --surface=lobby,deck-builder     # subset, same rules
- *   bun run check:ui -- --record                         # rewrite budgets.json
- *                                                        # from this run (review it!)
+ *   bun run check:ui -- --record                         # record NEW keys only
+ *                                                        # (see recordBudgets)
+ *   bun run check:ui -- --record --accept=lobby.1440x900x2.cardsOcc
+ *                                                        # + accept one named
+ *                                                        # regression/tightening
  *
  * Env:
  *   TOLARIA_UI_EMAIL / TOLARIA_UI_PASSWORD   dev-account credentials. Read
@@ -59,13 +62,14 @@ import {
     coverageLine,
     evaluateRun,
     metricsOf,
+    planRecord,
     receiptKindLine,
     type AxeCount,
     type BudgetFile,
     type Measurement,
     type ProbeResult,
+    type RecordChange,
     type SurfaceWalk,
-    type ViewportBudget,
 } from "./budgets.ts";
 import {
     SURFACES,
@@ -331,10 +335,19 @@ interface Options {
     surfaces: string[] | null;
     headed: boolean;
     record: boolean;
+    /** `${surface}.${viewport}.${key}` tokens naming exactly which
+     *  regression/tightening this run is allowed to record (issue #2673) —
+     *  see `recordBudgets`. Empty unless `--accept=` is passed. */
+    accept: Set<string>;
 }
 
 function parseArgs(argv: string[]): Options {
-    const opts: Options = { surfaces: null, headed: false, record: false };
+    const opts: Options = {
+        surfaces: null,
+        headed: false,
+        record: false,
+        accept: new Set(),
+    };
     for (const arg of argv) {
         if (arg === "--headed") opts.headed = true;
         else if (arg === "--record") opts.record = true;
@@ -344,6 +357,14 @@ function parseArgs(argv: string[]): Options {
                 .split(",")
                 .map((s) => s.trim())
                 .filter(Boolean);
+        } else if (arg.startsWith("--accept=")) {
+            for (const token of arg
+                .slice("--accept=".length)
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)) {
+                opts.accept.add(token);
+            }
         } else if (arg.startsWith("--")) {
             throw new FatalError(`unknown flag ${arg}`);
         }
@@ -358,30 +379,68 @@ function loadBudgets(): BudgetFile {
     return JSON.parse(fs.readFileSync(BUDGETS_PATH, "utf8")) as BudgetFile;
 }
 
-/** `--record`: fold this run's measurements back into the budget file,
- *  preserving every `knownDebt` note and every declared-unwalked row. Written
- *  for review, never as an auto-heal — the whole point of a budget is that a
- *  human agreed to the number. */
-function recordBudgets(budgets: BudgetFile, walks: SurfaceWalk[]): void {
-    for (const walk of walks) {
-        if (walk.status !== "measured") continue;
-        const existing = budgets.surfaces[walk.surface];
-        if (existing && existing.status === "unwalked") continue;
-        const surface = SURFACES.find((s) => s.id === walk.surface);
-        const viewports: Record<string, ViewportBudget> = {};
-        for (const m of walk.measurements) {
-            const prior = existing?.viewports?.[m.viewport];
-            viewports[m.viewport] = {
-                ...m.metrics,
-                ...(prior?.knownDebt ? { knownDebt: prior.knownDebt } : {}),
-            };
-        }
-        budgets.surfaces[walk.surface] = {
-            label: existing?.label ?? surface?.label ?? walk.surface,
-            status: "budgeted",
-            viewports,
-        };
+function fmtChange(c: RecordChange): string {
+    const loc = `${c.surface.padEnd(20)} ${c.viewport.padEnd(12)} ${c.key}`;
+    if (c.kind === "new") return `NEW         ${loc}: (absent) → ${c.measured}`;
+    const arrow = `${c.prior} → ${c.measured}`;
+    if (c.accepted) {
+        return `${c.kind.toUpperCase().padEnd(11)} ${loc}: ${arrow}  [recorded — accepted]`;
     }
+    const token = `${c.surface}.${c.viewport}.${c.key}`;
+    return `${c.kind.toUpperCase().padEnd(11)} ${loc}: ${arrow}  [NOT recorded — pass --accept=${token} to accept]`;
+}
+
+/**
+ * `--record`: fold this run's measurements back into the budget file.
+ * Mutates `budgets` in place (including when nothing is written to disk) so
+ * the `evaluateRun` call right after this one sees the SAME ceilings a
+ * written file would have — a refused regression therefore still fails the
+ * run, exactly as it should: the point of refusing is that the gate keeps
+ * catching it, not that `--record` quietly no-ops on it.
+ *
+ * Three cases, per surface × viewport × `BudgetKey` (issue #2673 — see
+ * `planRecord`'s doc comment for the full rationale):
+ *   - absent from the prior row → always recorded (the flag's actual job,
+ *     #2658's `small` rollout)
+ *   - measured worse than the prior ceiling (regression) → refused unless
+ *     its exact token is named in `--accept=`
+ *   - measured better than the prior ceiling (tightening) → refused unless
+ *     named in `--accept=` — it must never ride along in a run recorded for
+ *     an unrelated reason (PR #2660)
+ *
+ * Every difference this run observed is printed, recorded or not — "review
+ * before committing" is worthless against a diff nobody named. A `knownDebt`
+ * note whose ceiling moved is dropped, never carried forward stale. The file
+ * is written, and `recordedOn` bumped, ONLY when something actually changed.
+ */
+function recordBudgets(
+    budgets: BudgetFile,
+    walks: SurfaceWalk[],
+    accept: ReadonlySet<string>
+): void {
+    const plan = planRecord(
+        budgets,
+        walks,
+        accept,
+        (id) => SURFACES.find((s) => s.id === id)?.label
+    );
+
+    budgets.surfaces = plan.surfaces;
+
+    if (plan.changes.length > 0) {
+        log("\n─── check:ui --record ──────────────────────────────────────");
+        for (const c of plan.changes) log(`  ${fmtChange(c)}`);
+    }
+    if (plan.droppedKnownDebt.length > 0) {
+        log("\ndropped stale knownDebt (the ceiling it describes moved):");
+        for (const d of plan.droppedKnownDebt) log(`  · ${d}`);
+    }
+
+    if (!plan.changed) {
+        log("\nno changes to record — budgets.json left untouched");
+        return;
+    }
+
     budgets.recordedOn = new Date().toISOString().slice(0, 10);
     fs.writeFileSync(BUDGETS_PATH, `${JSON.stringify(budgets, null, 4)}\n`);
     log(
@@ -580,7 +639,7 @@ async function main(): Promise<number> {
             }
         }
 
-        if (opts.record) recordBudgets(budgets, walks);
+        if (opts.record) recordBudgets(budgets, walks, opts.accept);
 
         const ev = evaluateRun(budgets, knownIds, walks, SURFACE_IDS);
 
