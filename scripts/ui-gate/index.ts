@@ -59,6 +59,7 @@ import {
     coverageLine,
     evaluateRun,
     metricsOf,
+    receiptKindLine,
     type AxeCount,
     type BudgetFile,
     type Measurement,
@@ -546,6 +547,7 @@ async function main(): Promise<number> {
         log(
             "\n─── check:ui ───────────────────────────────────────────────────"
         );
+        log(receiptKindLine(ev));
         for (const row of ev.rows) {
             log(
                 `${row.verdict.padEnd(8)} ${row.surface.padEnd(20)} ${(row.viewport ?? "—").padEnd(12)} ${row.detail}`

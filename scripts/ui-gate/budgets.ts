@@ -175,6 +175,60 @@ export type SurfaceWalk =
 
 export type Verdict = "PASS" | "FAIL" | "UNWALKED";
 
+/**
+ * A full walk — the run's `--surface` set naming every surface the lane
+ * defines — is the PR receipt `.claude/rules/chrome-debug.md` demands. A
+ * `--surface=` subset is a DIAGNOSTIC: useful for fast local iteration, but
+ * it left part of the app out of scope and must never be pasted into a PR
+ * as if it were the receipt (issue #2742) — identity-v4-shaped diffs touch
+ * shared skin (`src/components/ui/**`) that reaches every surface, so a
+ * per-PR subset would be a lie in exactly the dominant case.
+ *
+ * `RECEIPT` is a SCOPE claim only — it says nothing about whether every
+ * in-scope surface was actually measured. A `budgets.json` entry can
+ * declare `status: "unwalked"` and `index.ts` skips it before walking, so a
+ * full-scope RECEIPT run can still show fewer `measuredSurfaces` than
+ * `knownSurfaces` (`coverageLine`/`receiptKindLine` say how many).
+ *
+ * Deliberately ORTHOGONAL to pass/fail: `UNWALKED` and `FAIL` keep their
+ * exact current meanings and exit codes on a DIAGNOSTIC run — this label
+ * only says how much of the app was in scope, never whether it was clean.
+ */
+export type ReceiptKind = "RECEIPT" | "DIAGNOSTIC";
+
+export interface ReceiptKindResult {
+    kind: ReceiptKind;
+    /** Surfaces `definedSurfaceIds` names that this run did not request.
+     *  Empty for a full walk (RECEIPT); non-empty for any subset. */
+    unmeasuredSurfaces: string[];
+}
+
+/**
+ * Pure function of the requested surface set against the full surface list
+ * — no fs, no browser, no run result. `--surface=a,b,c` naming every
+ * surface the lane defines IS a full walk (`RECEIPT`); anything less is a
+ * `DIAGNOSTIC` naming exactly what it skipped.
+ *
+ * An empty `definedSurfaceIds` is deliberately NOT a `RECEIPT` even though
+ * the subset-diff against it is vacuously empty (issue #2742 review): a
+ * label that decides coverage must never default to "fully covered" when it
+ * has nothing to compare against — there is no lane to have fully walked.
+ */
+export function receiptKindOf(
+    requestedSurfaceIds: readonly string[],
+    definedSurfaceIds: readonly string[]
+): ReceiptKindResult {
+    const requested = new Set(requestedSurfaceIds);
+    const unmeasuredSurfaces = definedSurfaceIds.filter(
+        (id) => !requested.has(id)
+    );
+    const kind: ReceiptKind =
+        definedSurfaceIds.length > 0 && unmeasuredSurfaces.length === 0
+            ? "RECEIPT"
+            : "DIAGNOSTIC";
+    return { kind, unmeasuredSurfaces };
+}
+
 export interface ResultRow {
     surface: string;
     /** Null for a whole-surface row (unwalked / unreachable / undeclared). */
@@ -196,6 +250,13 @@ export interface Evaluation {
     knownSurfaces: number;
     /** `knownDebt` notes in play, so the PR can list what the next slice owns. */
     knownDebt: string[];
+    /** RECEIPT for a full walk, DIAGNOSTIC for a `--surface=` subset — see
+     *  `receiptKindOf`. Orthogonal to `failures`: a DIAGNOSTIC run with a
+     *  budget violation still has a non-empty `failures` and exits non-zero. */
+    receiptKind: ReceiptKind;
+    /** Surfaces this run did not request, when `receiptKind` is DIAGNOSTIC.
+     *  Empty for a RECEIPT run. */
+    unmeasuredSurfaces: string[];
 }
 
 function fmtMetrics(m: Ceilings): string {
@@ -216,15 +277,23 @@ function fmtMetrics(m: Ceilings): string {
  * drift both live in the gap between them.
  *
  * `definedSurfaceIds` is every surface `surfaces.ts` defines, and it exists
- * only for the stale-entry guard: under `--surface=` the run covers a subset,
- * and comparing the budget file against that subset would report every
- * unselected surface as a stale entry.
+ * for two things: the stale-entry guard (under `--surface=` the run covers a
+ * subset, and comparing the budget file against that subset would report
+ * every unselected surface as a stale entry) and the RECEIPT/DIAGNOSTIC
+ * label (`receiptKindOf`). It is REQUIRED, not defaulted to
+ * `knownSurfaceIds` — a default of "the requested set" makes the comparison
+ * compare a set against itself, so `receiptKindOf` returns `RECEIPT`
+ * unconditionally regardless of what was actually skipped (issue #2742
+ * review finding 2). Callers that only care about the coverage checks and
+ * not the receipt label still must pass the real defined-surface list —
+ * `SURFACE_IDS` in production, the surface's own known-id array in a test
+ * that is not exercising the receipt label.
  */
 export function evaluateRun(
     budgets: BudgetFile,
     knownSurfaceIds: readonly string[],
     walks: readonly SurfaceWalk[],
-    definedSurfaceIds: readonly string[] = knownSurfaceIds
+    definedSurfaceIds: readonly string[]
 ): Evaluation {
     const rows: ResultRow[] = [];
     const failures: string[] = [];
@@ -387,6 +456,11 @@ export function evaluateRun(
         if (surfaceComplete) measuredSurfaces++;
     }
 
+    const { kind: receiptKind, unmeasuredSurfaces } = receiptKindOf(
+        knownSurfaceIds,
+        definedSurfaceIds
+    );
+
     return {
         rows,
         failures,
@@ -394,10 +468,44 @@ export function evaluateRun(
         declaredUnwalked,
         knownSurfaces: knownSurfaceIds.length,
         knownDebt,
+        receiptKind,
+        unmeasuredSurfaces,
     };
 }
 
 /** The coverage line printed under the table — the honest denominator. */
 export function coverageLine(ev: Evaluation): string {
     return `coverage: ${ev.measuredSurfaces}/${ev.knownSurfaces} surfaces measured, ${ev.declaredUnwalked} declared unwalked`;
+}
+
+/**
+ * The line that makes a subset run impossible to mistake for a PR receipt
+ * (issue #2742). Printed above the per-surface table so it is the first
+ * thing a reader — human or the next agent pasting this into a PR — sees.
+ *
+ * `RECEIPT` is a SCOPE claim, not a measurement claim: it says this run's
+ * `--surface` set covered the full lane as `surfaces.ts` currently defines
+ * it (nothing was left out by `--surface=`). It does NOT say every surface
+ * came back green, or even that every surface was measured — a budgets.json
+ * entry can legitimately declare `status: "unwalked"`, and `index.ts` skips
+ * that surface before walking. Claiming "every surface … was measured" was
+ * false on every run touching a declared-unwalked surface (review finding
+ * 1, #2742): a clean run then printed this line directly above
+ * `coverage: 10/13 surfaces measured, 3 declared unwalked` — two adjacent
+ * lines contradicting each other. The counts below are pulled straight off
+ * `Evaluation` (`measuredSurfaces`/`knownSurfaces`/`declaredUnwalked`, the
+ * same fields `coverageLine` reads) rather than restated, so the two lines
+ * can never drift apart again.
+ */
+export function receiptKindLine(ev: Evaluation): string {
+    if (ev.receiptKind === "RECEIPT") {
+        return (
+            `RECEIPT — full lane run, ${ev.knownSurfaces} surface(s) in scope ` +
+            `(${ev.measuredSurfaces} measured, ${ev.declaredUnwalked} declared unwalked)`
+        );
+    }
+    return (
+        `DIAGNOSTIC — NOT a PR receipt: ${ev.unmeasuredSurfaces.length} surface(s) ` +
+        `not measured this run (${ev.unmeasuredSurfaces.join(", ")})`
+    );
 }

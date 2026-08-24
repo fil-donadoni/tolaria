@@ -4,6 +4,8 @@ import {
     coverageLine,
     evaluateRun,
     metricsOf,
+    receiptKindLine,
+    receiptKindOf,
     type AxeCount,
     type BudgetFile,
     type Ceilings,
@@ -62,7 +64,8 @@ describe("check:ui budgets — a clean measured run", () => {
         const ev = evaluateRun(
             budgets,
             ["lobby"],
-            [measured("lobby", "390x844x3", metrics({ ctrlsOcc: 2 }))]
+            [measured("lobby", "390x844x3", metrics({ ctrlsOcc: 2 }))],
+            ["lobby"]
         );
 
         expect(ev.failures).toEqual([]);
@@ -78,7 +81,8 @@ describe("check:ui budgets — a clean measured run", () => {
         const ev = evaluateRun(
             budgets,
             ["lobby"],
-            [measured("lobby", "390x844x3", metrics({ cardsOcc: 3 }))]
+            [measured("lobby", "390x844x3", metrics({ cardsOcc: 3 }))],
+            ["lobby"]
         );
 
         expect(ev.rows[0].verdict).toBe("FAIL");
@@ -96,7 +100,8 @@ describe("check:ui budgets — a clean measured run", () => {
             const ev = evaluateRun(
                 budgets,
                 ["s"],
-                [measured("s", "vp", metrics({ [key]: 1 }))]
+                [measured("s", "vp", metrics({ [key]: 1 }))],
+                ["s"]
             );
             expect(ev.failures.join(" ")).toContain(`${key} 1 > 0`);
         }
@@ -114,7 +119,8 @@ describe("check:ui budgets — a clean measured run", () => {
         const ev = evaluateRun(
             budgets,
             ["lobby"],
-            [measured("lobby", "390x844x3", metrics({ small: 3 }))]
+            [measured("lobby", "390x844x3", metrics({ small: 3 }))],
+            ["lobby"]
         );
 
         expect(ev.rows[0].verdict).toBe("FAIL");
@@ -128,7 +134,8 @@ describe("check:ui budgets — coverage is asserted, never assumed", () => {
         const ev = evaluateRun(
             budgetFile({}),
             ["lobby"],
-            [measured("lobby", "390x844x3")]
+            [measured("lobby", "390x844x3")],
+            ["lobby"]
         );
 
         expect(ev.rows[0].verdict).toBe("UNWALKED");
@@ -149,7 +156,8 @@ describe("check:ui budgets — coverage is asserted, never assumed", () => {
                     status: "unreachable",
                     reason: "scenario row absent from this deployment",
                 },
-            ]
+            ],
+            ["game-stress"]
         );
 
         expect(ev.rows[0].verdict).toBe("UNWALKED");
@@ -161,7 +169,7 @@ describe("check:ui budgets — coverage is asserted, never assumed", () => {
         const budgets = budgetFile({
             lobby: budgeted({ "390x844x3": metrics() }),
         });
-        const ev = evaluateRun(budgets, ["lobby"], []);
+        const ev = evaluateRun(budgets, ["lobby"], [], ["lobby"]);
 
         expect(ev.rows[0].verdict).toBe("UNWALKED");
         expect(ev.failures[0]).toContain("produced no result");
@@ -177,7 +185,8 @@ describe("check:ui budgets — coverage is asserted, never assumed", () => {
         const ev = evaluateRun(
             budgets,
             ["lobby"],
-            [measured("lobby", "390x844x3")]
+            [measured("lobby", "390x844x3")],
+            ["lobby"]
         );
 
         expect(ev.failures).toHaveLength(1);
@@ -202,7 +211,8 @@ describe("check:ui budgets — coverage is asserted, never assumed", () => {
                         { viewport: "9999x9999x1", metrics: metrics() },
                     ],
                 },
-            ]
+            ],
+            ["lobby"]
         );
 
         expect(ev.failures.join(" ")).toContain(
@@ -217,7 +227,8 @@ describe("check:ui budgets — coverage is asserted, never assumed", () => {
         const ev = evaluateRun(
             budgets,
             ["lobby"],
-            [measured("lobby", "390x844x3")]
+            [measured("lobby", "390x844x3")],
+            ["lobby"]
         );
 
         expect(ev.rows[0].verdict).toBe("UNWALKED");
@@ -232,7 +243,8 @@ describe("check:ui budgets — coverage is asserted, never assumed", () => {
         const ev = evaluateRun(
             budgets,
             ["lobby"],
-            [measured("lobby", "390x844x3")]
+            [measured("lobby", "390x844x3")],
+            ["lobby"]
         );
 
         expect(ev.failures).toHaveLength(1);
@@ -267,7 +279,7 @@ describe("check:ui budgets — declared-unwalked is listed, not green", () => {
                 reason: "no drafting event fixture yet",
             },
         });
-        const ev = evaluateRun(budgets, ["draft-pick"], []);
+        const ev = evaluateRun(budgets, ["draft-pick"], [], ["draft-pick"]);
 
         expect(ev.failures).toEqual([]);
         expect(ev.rows[0].verdict).toBe("UNWALKED");
@@ -286,7 +298,8 @@ describe("check:ui budgets — declared-unwalked is listed, not green", () => {
         const ev = evaluateRun(
             budgets,
             ["lobby", "draft-pick"],
-            [measured("lobby", "390x844x3")]
+            [measured("lobby", "390x844x3")],
+            ["lobby", "draft-pick"]
         );
 
         expect(ev.failures).toEqual([]);
@@ -312,13 +325,164 @@ describe("check:ui budgets — known debt is surfaced, not hidden", () => {
         const ev = evaluateRun(
             budgets,
             ["lobby"],
-            [measured("lobby", "390x844x3", metrics({ ctrlsOcc: 4 }))]
+            [measured("lobby", "390x844x3", metrics({ ctrlsOcc: 4 }))],
+            ["lobby"]
         );
 
         expect(ev.failures).toEqual([]);
         expect(ev.knownDebt).toEqual([
             "lobby @ 390x844x3: 4 controls under the fixed footer",
         ]);
+    });
+});
+
+describe("receiptKindOf — RECEIPT vs DIAGNOSTIC is a pure function of the two surface lists (issue #2742)", () => {
+    it("is RECEIPT when the requested set names every surface the lane defines", () => {
+        const result = receiptKindOf(
+            ["lobby", "game-board", "deck-builder"],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(result.kind).toBe("RECEIPT");
+        expect(result.unmeasuredSurfaces).toEqual([]);
+    });
+
+    it("is RECEIPT regardless of request order — set comparison, not array equality", () => {
+        const result = receiptKindOf(
+            ["deck-builder", "lobby", "game-board"],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(result.kind).toBe("RECEIPT");
+    });
+
+    it("is DIAGNOSTIC for a proper --surface= subset, naming what it did not measure", () => {
+        const result = receiptKindOf(
+            ["lobby"],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(result.kind).toBe("DIAGNOSTIC");
+        expect(result.unmeasuredSurfaces).toEqual([
+            "game-board",
+            "deck-builder",
+        ]);
+    });
+
+    it("is DIAGNOSTIC even for a single-surface omission — a near-full walk is still not a receipt", () => {
+        const result = receiptKindOf(
+            ["lobby", "game-board"],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(result.kind).toBe("DIAGNOSTIC");
+        expect(result.unmeasuredSurfaces).toEqual(["deck-builder"]);
+    });
+
+    it("is DIAGNOSTIC, never RECEIPT, when the defined-surface list is empty — there is no lane to have fully covered (review finding 2, #2742)", () => {
+        const result = receiptKindOf([], []);
+        expect(result.kind).toBe("DIAGNOSTIC");
+        expect(result.unmeasuredSurfaces).toEqual([]);
+    });
+});
+
+describe("evaluateRun wires receiptKind through, and it never softens a failure (issue #2742)", () => {
+    it("a full walk (no --surface, or --surface naming every surface) reports RECEIPT", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "390x844x3": metrics() }),
+        });
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "390x844x3")],
+            ["lobby"]
+        );
+        expect(ev.receiptKind).toBe("RECEIPT");
+        expect(ev.unmeasuredSurfaces).toEqual([]);
+        expect(receiptKindLine(ev)).toBe(
+            "RECEIPT — full lane run, 1 surface(s) in scope (1 measured, 0 declared unwalked)"
+        );
+    });
+
+    it("a RECEIPT run touching a declared-unwalked surface never claims every surface was MEASURED — that is a scope claim, not a measurement claim (review finding 1, #2742)", () => {
+        // budgets.json shape from the bug report: --surface names the whole
+        // lane (RECEIPT-eligible scope), but one of those surfaces is
+        // declared `status: "unwalked"` and index.ts skips it before
+        // walking — a clean full run still has measuredSurfaces < knownSurfaces.
+        const budgets = budgetFile({
+            lobby: budgeted({ "390x844x3": metrics() }),
+            "draft-pick": {
+                label: "Draft pick",
+                status: "unwalked",
+                reason: "no drafting event fixture yet",
+            },
+        });
+        const ev = evaluateRun(
+            budgets,
+            ["lobby", "draft-pick"],
+            [measured("lobby", "390x844x3")],
+            ["lobby", "draft-pick"]
+        );
+
+        expect(ev.receiptKind).toBe("RECEIPT");
+        expect(ev.measuredSurfaces).toBe(1);
+        expect(ev.knownSurfaces).toBe(2);
+        expect(ev.declaredUnwalked).toBe(1);
+
+        const line = receiptKindLine(ev);
+        // The old wording asserted every surface WAS MEASURED, which was
+        // false right here (1 of 2 was declared unwalked, not measured).
+        expect(line).not.toContain(
+            "every surface this lane defines was measured"
+        );
+        // The counts in the RECEIPT line must be the same numbers
+        // `coverageLine` reports, never restated independently.
+        expect(line).toContain(`${ev.measuredSurfaces} measured`);
+        expect(line).toContain(`${ev.declaredUnwalked} declared unwalked`);
+    });
+
+    it("a --surface= subset reports DIAGNOSTIC and names the unmeasured surfaces", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "390x844x3": metrics() }),
+        });
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "390x844x3")],
+            ["lobby", "game-board", "deck-builder"]
+        );
+        expect(ev.receiptKind).toBe("DIAGNOSTIC");
+        expect(ev.unmeasuredSurfaces).toEqual(["game-board", "deck-builder"]);
+        expect(receiptKindLine(ev)).toContain("NOT a PR receipt");
+        expect(receiptKindLine(ev)).toContain("game-board");
+        expect(receiptKindLine(ev)).toContain("deck-builder");
+    });
+
+    it("orthogonality: a DIAGNOSTIC subset run that hits a budget failure still fails, with the same FAIL verdict and non-empty failures a full run would produce", () => {
+        const budgets = budgetFile({
+            lobby: budgeted({ "390x844x3": metrics() }),
+        });
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "390x844x3", metrics({ cardsOcc: 3 }))],
+            ["lobby", "game-board"] // a subset run — DIAGNOSTIC
+        );
+
+        expect(ev.receiptKind).toBe("DIAGNOSTIC");
+        // The receipt-kind label changed; the verdict and exit-worthiness did not.
+        expect(ev.rows[0].verdict).toBe("FAIL");
+        expect(ev.failures).toHaveLength(1);
+        expect(ev.failures[0]).toContain("cardsOcc 3 > 0");
+    });
+
+    it("orthogonality, the other direction: a RECEIPT (full) run with a coverage hole still reports UNWALKED and fails", () => {
+        const ev = evaluateRun(
+            budgetFile({}),
+            ["lobby"],
+            [measured("lobby", "390x844x3")],
+            ["lobby"] // full walk — RECEIPT
+        );
+
+        expect(ev.receiptKind).toBe("RECEIPT");
+        expect(ev.rows[0].verdict).toBe("UNWALKED");
+        expect(ev.failures[0]).toContain("no entry in budgets.json");
     });
 });
 
