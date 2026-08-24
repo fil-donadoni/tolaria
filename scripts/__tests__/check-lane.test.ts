@@ -12,12 +12,15 @@ import {
 } from "../check-lane";
 
 /**
- * `bun run check:lane` (issue #2740, parent #2738) — the gate-lane
- * classifier, landing INERT: it decides and prints, it runs nothing.
+ * `bun run check:lane` (issue #2741, wiring execution onto the classifier
+ * landed inert in #2740; parent #2738) — the gate-lane classifier AND
+ * executor: it decides, prints the plan, then runs it and prints a receipt.
  *
  * Per repo convention (land.test.ts, ui-gate-budgets.test.ts): the git
  * plumbing stays thin and untested; every DECISION is a pure function tested
- * directly against hand-built path lists, never through a subprocess.
+ * directly against hand-built path lists, never through a subprocess. The
+ * "check-lane — execution" describe block below tests `runPlan` the same
+ * way, via an injected fake `exec` instead of a real subprocess.
  *
  * The load-bearing property is FAIL-CLOSED: a path no rule recognises must
  * yield `full`. Unknown never means skin.
