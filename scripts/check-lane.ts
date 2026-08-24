@@ -1,19 +1,27 @@
 #!/usr/bin/env bun
 /**
- * `bun run check:lane` — the gate-lane classifier (issue #2740, parent
- * #2738). It reads the changed paths against `origin/main`, decides which
- * lane the diff qualifies for, and PRINTS the plan: the ordered list of
- * checks that lane would run, and the skip list with the reason for each
- * skip.
+ * `bun run check:lane` — the gate-lane classifier AND executor (issue
+ * #2741, wiring up the classifier landed inert in #2740; parent #2738). It
+ * reads the changed paths against `origin/main`, decides which lane the
+ * diff qualifies for, PRINTS the plan (the ordered list of checks that lane
+ * runs, and the skip list with the reason for each skip), then EXECUTES
+ * that exact plan and prints a receipt: per-check pass/fail/not-run with
+ * wall-clock.
  *
- * THIS SLICE IS INERT. It executes nothing. That is the point: the failure
- * mode that matters is not "the lane is slow", it is "the lane classified
- * wrong and skipped the check that would have gone red". Landing the
- * classifier next to a real `bun run check:pr` makes a misclassification
- * observable at zero cost, before anything relies on it (#2738 § Further
- * Notes, slice order). Issue #2741 wires execution to the SAME plan object
- * this file returns, so the printed receipt can never describe a different
- * run from the one that happens.
+ * ONE PLAN OBJECT, BUILT ONCE. `main()` calls `classifyLane` exactly once
+ * and hands the resulting `LanePlan` to `executePlan`, the single function
+ * that fans it out to `renderPlan`, `runPlan` and `renderJson` — none of
+ * which can independently rebuild a plan, because none of them (nor
+ * `executePlan`) has access to `classifyLane` or the git plumbing. There is
+ * no second list of commands anywhere and no second JSON renderer — the
+ * failure this guards against is a receipt that describes a different run
+ * from the one that happened (a skip line claiming "dom skipped" while dom
+ * actually ran, or vice versa; or a `--json` blob hand-built next to
+ * `renderJson` instead of through it, #2748 review finding 1).
+ * `check-lane.test.ts` pins this two ways: a behavioural test that
+ * `executePlan` renders and executes off the exact same plan it was given,
+ * and a narrower textual check that `classifyLane` itself has exactly one
+ * call site in this file.
  *
  * THE LANE IS DERIVED FROM THE DIFF AND CAN NEVER BE DECLARED BY A FLAG.
  * A `--skin` flag is a hand-maintained list in disguise: the first agent
@@ -38,13 +46,14 @@
  * Usage:
  *   bun run check:lane                # classify HEAD against origin/main
  *   bun run check:lane --base=<ref>   # classify against another base
- *   bun run check:lane --json         # emit the plan object + HEAD SHA
+ *   bun run check:lane --json         # emit the plan + receipt as JSON
  *
  * Exits 1 on a dirty working tree, so the HEAD SHA it prints describes
  * exactly what was classified.
  */
 
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Path classification
@@ -336,9 +345,6 @@ export function renderPlan(plan: LanePlan, head: string): string {
         });
         lines.push(`       predicate: classifyPath() in scripts/check-lane.ts`);
     }
-    lines.push(
-        `note:  INERT (issue #2740) — this is the plan only; nothing was run.`
-    );
     return lines.join("\n");
 }
 
@@ -348,9 +354,104 @@ export function renderPlan(plan: LanePlan, head: string): string {
  * describes exactly what was classified; `--json` must not lose that, or the
  * one consumer that could check the classification mechanically is the one
  * that cannot say which tree it classified (round-1 review of #2740).
+ *
+ * `result` is optional so this ALSO covers the executed case (#2741): when
+ * `main()` runs the plan for real, it passes the `RunResult` `runPlan`
+ * returned and this merges in `ok`/`outcomes`/`totalMs` alongside the plan
+ * fields — there is exactly one JSON renderer, never a second
+ * `JSON.stringify({ head, ...plan, ...result })` built by hand next to this
+ * one (#2748 review, finding 1: that second build was live in `main()` and
+ * left this function dead, so the round-1 review's own SHA guard never
+ * reached production).
  */
-export function renderJson(plan: LanePlan, head: string): string {
-    return JSON.stringify({ head, ...plan }, null, 2);
+export function renderJson(
+    plan: LanePlan,
+    head: string,
+    result?: RunResult
+): string {
+    return JSON.stringify({ head, ...plan, ...result }, null, 2);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Execution (issue #2741) — the SAME `plan.run` list every render above
+// reads drives this. `runPlan` takes an injectable `exec` so the only thing
+// that is a DECISION here (fail-fast? what counts as pass/fail? how the
+// receipt accounts for a check that never ran) is a pure function, testable
+// without spawning a shell — repo convention (git plumbing thin & untested;
+// land.ts, docs-lane.ts).
+// ─────────────────────────────────────────────────────────────────────────
+
+export type CheckStatus = "pass" | "fail" | "not-run";
+
+export interface CheckOutcome {
+    id: string;
+    status: CheckStatus;
+    ms: number;
+}
+
+export interface RunResult {
+    outcomes: CheckOutcome[];
+    ok: boolean;
+    totalMs: number;
+}
+
+/**
+ * Run every check in `plan.run`, IN ORDER, against the injected `exec`.
+ *
+ * FAIL-FAST, matching `check:pr`'s own behaviour: `check:all:inner` chains
+ * its steps with `&&`, and `check:pr` chains `check:all:inner` and
+ * `check:guards` the same way (package.json) — the first red check already
+ * stops everything after it today. A check that never ran because an
+ * earlier one failed is recorded `not-run` rather than silently missing
+ * from the receipt, so every planned check is accounted for either way.
+ */
+export function runPlan(
+    plan: LanePlan,
+    exec: (command: string) => { ok: boolean; ms: number }
+): RunResult {
+    const outcomes: CheckOutcome[] = [];
+    let ok = true;
+    let totalMs = 0;
+    for (const check of plan.run) {
+        if (!ok) {
+            outcomes.push({ id: check.id, status: "not-run", ms: 0 });
+            continue;
+        }
+        const result = exec(check.command);
+        totalMs += result.ms;
+        outcomes.push({
+            id: check.id,
+            status: result.ok ? "pass" : "fail",
+            ms: result.ms,
+        });
+        if (!result.ok) ok = false;
+    }
+    return { outcomes, ok, totalMs };
+}
+
+/**
+ * The receipt: per-check pass/fail/not-run with wall-clock, rendered from
+ * the `RunResult` `runPlan` returned — never a second list. Replaces the
+ * old `note: INERT` line now that this executes for real.
+ */
+export function renderReceipt(result: RunResult): string {
+    const lines: string[] = [];
+    const width = Math.max(...result.outcomes.map((o) => o.id.length));
+    const mark: Record<CheckStatus, string> = {
+        pass: "✓",
+        fail: "✗",
+        "not-run": "·",
+    };
+    for (const o of result.outcomes) {
+        const time =
+            o.status === "not-run" ? "" : `  ${(o.ms / 1000).toFixed(1)}s`;
+        lines.push(`  ${mark[o.status]} ${o.id.padEnd(width)}${time}`);
+    }
+    lines.push("");
+    lines.push(
+        `${result.ok ? "PASS" : "FAIL"}  ${(result.totalMs / 1000).toFixed(1)}s total`
+    );
+    return lines.join("\n");
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -386,6 +487,92 @@ function fail(message: string): never {
     process.exit(1);
 }
 
+// Computed from this FILE's directory, same pattern as land.ts/docs-lane.ts.
+const GATE = resolve(__dirname, "gate.ts");
+
+/**
+ * The stdio wiring for one planned check's child process. In `--json` mode
+ * the process's OWN stdout must carry nothing but the JSON blob (that is
+ * the entire point of `--json` — a consumer piping it to `jq`), so the
+ * child's stdout is redirected to the parent's stderr instead of inherited;
+ * stdin and the child's own stderr keep flowing straight through either
+ * way. Split out as a pure function so the DECISION (which fd a child's
+ * stdout lands on) is unit-testable without spawning anything, matching
+ * every other decision in this file (#2748 review, finding 2: `stdio:
+ * "inherit"` unconditionally meant every check's own stdout — tsc,
+ * prettier, vitest, vite — landed on `check:lane --json`'s stdout ahead of
+ * the JSON blob, breaking `bun run check:lane --json | jq`).
+ */
+export function shellStdio(
+    json: boolean
+): ["inherit", "inherit" | 2, "inherit"] {
+    return ["inherit", json ? 2 : "inherit", "inherit"];
+}
+
+/**
+ * Execute one planned command at the LIGHT tier — no mutex, no worker-count
+ * override. `scripts/gate.ts light` is the repo's single mechanism for
+ * that: for the light tier it takes no lock and leaves
+ * `TOLARIA_VITEST_WORKERS` exactly as the caller set it (unset here), which
+ * is how `check:pr`'s own `--project` invocations land on
+ * `vitest.config.ts`'s default cap of 2. Delegating to `gate.ts` rather
+ * than re-deriving that env logic here means a future change to what
+ * "light" means is inherited automatically instead of drifting between two
+ * copies of the same mechanism.
+ */
+function shellRun(
+    command: string,
+    cwd: string,
+    json: boolean
+): { ok: boolean; ms: number } {
+    const t0 = Date.now();
+    const r = spawnSync("bun", [GATE, "light", command], {
+        stdio: shellStdio(json),
+        cwd,
+    });
+    return { ok: r.status === 0, ms: Date.now() - t0 };
+}
+
+/**
+ * The single consumer of ONE plan object (#2748 review, finding 3): given a
+ * `LanePlan`, fans it out to `renderPlan`, `runPlan` and `renderJson`, so
+ * the receipt describes the same run that was executed — the invariant
+ * issue #2741 exists to hold.
+ *
+ * WHAT HOLDS THIS IS THE TEST, NOT THE STRUCTURE. `executePlan` is
+ * module-scope in this file, so `classifyLane` and the git plumbing ARE
+ * lexically in scope here: a rebuild inserted into this body type-checks
+ * and runs (round-2 review of #2748, which proved exactly that). An earlier
+ * version of this comment claimed the function "CANNOT" reach
+ * `classifyLane`; that was false, and a false structural claim in the one
+ * file whose thesis is "the receipt must not lie" is the same sin one level
+ * up. The real guard is `check-lane.test.ts` § "executePlan renders and
+ * executes off the plan it was given", which reddens when a rendering path
+ * is fed anything but the passed plan. Taking the plan as a PARAMETER makes
+ * the rebuild an obvious edit rather than an invisible one; it does not
+ * make it impossible.
+ *
+ * `exec` and `log` are injected so a test can drive this with a hand-built
+ * plan and a fake shell, with no subprocess — same pattern as `runPlan`'s
+ * injectable `exec`.
+ */
+export function executePlan(
+    plan: LanePlan,
+    head: string,
+    json: boolean,
+    exec: (command: string) => { ok: boolean; ms: number },
+    log: (line: string) => void = console.log
+): RunResult {
+    if (!json) log(renderPlan(plan, head));
+
+    const result = runPlan(plan, exec);
+
+    if (json) log(renderJson(plan, head, result));
+    else log(renderReceipt(result));
+
+    return result;
+}
+
 function parseArgs(argv: string[]): { base: string; json: boolean } {
     const baseArg = argv.find((a) => a.startsWith("--base="));
     for (const a of argv) {
@@ -413,13 +600,20 @@ function main(): void {
     }
 
     const head = git(["rev-parse", "--short", "HEAD"], cwd).trim();
+    // ONE plan, built once — passed to executePlan, the single function
+    // that reads it for rendering AND execution. Never build a second list
+    // of commands, and never render the JSON form by hand next to
+    // renderJson (#2748 review, finding 1).
     const plan = classifyLane(
         changedPaths(base, cwd, true),
         changedPaths(base, cwd, false)
     );
 
-    console.log(json ? renderJson(plan, head) : renderPlan(plan, head));
-    process.exit(0);
+    const result = executePlan(plan, head, json, (command) =>
+        shellRun(command, cwd, json)
+    );
+
+    process.exit(result.ok ? 0 : 1);
 }
 
 if (import.meta.main) {

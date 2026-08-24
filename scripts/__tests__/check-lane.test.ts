@@ -6,16 +6,24 @@ import {
     classifyLane,
     renderPlan,
     renderJson,
+    runPlan,
+    renderReceipt,
+    executePlan,
+    shellStdio,
     type LanePlan,
+    type RunResult,
 } from "../check-lane";
 
 /**
- * `bun run check:lane` (issue #2740, parent #2738) — the gate-lane
- * classifier, landing INERT: it decides and prints, it runs nothing.
+ * `bun run check:lane` (issue #2741, wiring execution onto the classifier
+ * landed inert in #2740; parent #2738) — the gate-lane classifier AND
+ * executor: it decides, prints the plan, then runs it and prints a receipt.
  *
  * Per repo convention (land.test.ts, ui-gate-budgets.test.ts): the git
  * plumbing stays thin and untested; every DECISION is a pure function tested
- * directly against hand-built path lists, never through a subprocess.
+ * directly against hand-built path lists, never through a subprocess. The
+ * "check-lane — execution" describe block below tests `runPlan` the same
+ * way, via an injected fake `exec` instead of a real subprocess.
  *
  * The load-bearing property is FAIL-CLOSED: a path no rule recognises must
  * yield `full`. Unknown never means skin.
@@ -467,8 +475,11 @@ describe("check-lane — the printed receipt renders the plan (issue #2740)", ()
             expect(out).toContain(s.id);
             expect(out).toContain(s.reason);
         }
-        // The receipt must say it ran nothing — this slice is inert.
-        expect(out).toMatch(/inert|nothing was run|ran nothing/i);
+        // #2741: this lane now executes for real — the plan-only render no
+        // longer claims anything about running or not running (that claim
+        // moved to renderReceipt, tested below, which is built from the
+        // execution outcome instead of asserted here).
+        expect(out).not.toMatch(/inert/i);
     });
 
     /**
@@ -488,10 +499,287 @@ describe("check-lane — the printed receipt renders the plan (issue #2740)", ()
         expect(renderPlan(plan, "4f2a91c")).toContain("4f2a91c");
     });
 
+    /**
+     * `renderJson` is the ONLY JSON renderer (#2748 review, finding 1):
+     * `main()` no longer hand-builds `JSON.stringify({ head, ...plan,
+     * ...result })` next to it, so this same function must also cover the
+     * EXECUTED case — the `RunResult` merged in alongside the plan fields.
+     * Proof-of-failure: temporarily deleted `head` from `renderJson`'s
+     * return — this test AND "the --json form carries the HEAD SHA..."
+     * above both went red (`parsed.head` was `undefined`); reverted.
+     */
+    it("also merges in the RunResult once the plan has executed", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        const result: RunResult = {
+            outcomes: [{ id: "node[all]", status: "pass", ms: 5 }],
+            ok: true,
+            totalMs: 5,
+        };
+        const parsed = JSON.parse(renderJson(plan, "4f2a91c", result)) as {
+            head: string;
+            lane: string;
+            ok: boolean;
+            totalMs: number;
+            outcomes: { id: string }[];
+        };
+        expect(parsed.head).toBe("4f2a91c");
+        expect(parsed.lane).toBe("engine");
+        expect(parsed.ok).toBe(true);
+        expect(parsed.totalMs).toBe(5);
+        expect(parsed.outcomes).toEqual(result.outcomes);
+    });
+
     it("renders the full lane without an empty skip block", () => {
         const out = renderPlan(classifyLane(["package.json"]), "deadbee");
         expect(out).toMatch(/^lane: {2}full/m);
         expect(out).toContain("check:pr");
         expect(out).not.toMatch(/^skip:/m);
+    });
+});
+
+describe("check-lane — execution (issue #2741)", () => {
+    /**
+     * Round-trip: an `exec` fake standing in for the shell, so the DECISION
+     * (fail-fast? how a not-run check is recorded?) is tested without
+     * spawning anything — repo convention (land.ts, docs-lane.ts: git
+     * plumbing thin & untested, decisions pure & tested).
+     */
+    function fakeExec(results: Record<string, { ok: boolean; ms: number }>): {
+        exec: (command: string) => { ok: boolean; ms: number };
+        calls: string[];
+    } {
+        const calls: string[] = [];
+        return {
+            calls,
+            exec: (command: string) => {
+                calls.push(command);
+                const r = results[command];
+                if (!r) throw new Error(`unexpected command: ${command}`);
+                return r;
+            },
+        };
+    }
+
+    it("runs every planned check and reports pass when all pass", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        const { exec, calls } = fakeExec(
+            Object.fromEntries(
+                plan.run.map((c) => [c.command, { ok: true, ms: 10 }])
+            )
+        );
+        const result = runPlan(plan, exec);
+
+        expect(result.ok).toBe(true);
+        expect(calls).toEqual(plan.run.map((c) => c.command));
+        expect(result.outcomes.map((o) => o.status)).toEqual(
+            plan.run.map(() => "pass")
+        );
+        expect(result.totalMs).toBe(10 * plan.run.length);
+    });
+
+    /**
+     * FAIL-FAST, matching check:pr's own `&&`-chained behaviour (see the
+     * doc comment on `runPlan`): the first red check stops the rest, and
+     * every check after it is recorded `not-run` rather than silently
+     * missing from the receipt.
+     *
+     * Proof-of-failure (manual, per .claude/rules/gre-development.md §
+     * Proof-of-failure): reverting the `if (!ok) { ...continue; }` guard so
+     * `runPlan` always calls `exec` turned this red — `calls` grew past the
+     * failing check and outcomes past it read "pass"/"fail" instead of
+     * "not-run". Reverted.
+     */
+    it("stops at the first red check; later checks are not-run, never silently absent", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        expect(plan.run.length).toBeGreaterThan(2);
+        const failing = plan.run[1].command;
+        const { exec, calls } = fakeExec(
+            Object.fromEntries(
+                plan.run.map((c, i) => [
+                    c.command,
+                    { ok: c.command !== failing, ms: 5 + i },
+                ])
+            )
+        );
+        const result = runPlan(plan, exec);
+
+        expect(result.ok).toBe(false);
+        // exec was called for the first two checks only — the failing one
+        // and everything after it never ran.
+        expect(calls).toEqual(plan.run.slice(0, 2).map((c) => c.command));
+        expect(result.outcomes[0].status).toBe("pass");
+        expect(result.outcomes[1].status).toBe("fail");
+        for (const o of result.outcomes.slice(2)) {
+            expect(o.status).toBe("not-run");
+            expect(o.ms).toBe(0);
+        }
+    });
+
+    it("renderReceipt shows every outcome and a PASS/FAIL summary with the total", () => {
+        const plan = classifyLane(["src/app.tsx"]);
+        const result = runPlan(
+            plan,
+            fakeExec(
+                Object.fromEntries(
+                    plan.run.map((c) => [c.command, { ok: true, ms: 1000 }])
+                )
+            ).exec
+        );
+        const out = renderReceipt(result);
+        for (const o of result.outcomes) expect(out).toContain(o.id);
+        expect(out).toMatch(/^PASS/m);
+        expect(out).toContain(`${(result.totalMs / 1000).toFixed(1)}s`);
+    });
+
+    it("renderReceipt reports FAIL when any check failed", () => {
+        const plan = classifyLane(["src/app.tsx"]);
+        const failing = plan.run[0].command;
+        const result = runPlan(
+            plan,
+            fakeExec(
+                Object.fromEntries(
+                    plan.run.map((c) => [
+                        c.command,
+                        { ok: c.command !== failing, ms: 1 },
+                    ])
+                )
+            ).exec
+        );
+        expect(renderReceipt(result)).toMatch(/^FAIL/m);
+    });
+
+    /**
+     * `executePlan` — the ONE function that fans a plan out to
+     * `renderPlan`, `runPlan` and `renderJson` (#2748 review, finding 3) —
+     * takes the plan as a parameter. That makes a rebuild an obvious edit,
+     * NOT an impossible one: `executePlan` is module-scope beside
+     * `classifyLane`, so a rebuild inserted into its body type-checks and
+     * runs (proved in round-2 review of #2748). THIS TEST is the guard, and
+     * it compares CONTENT, not object identity — `renderJson(structuredClone
+     * (plan), …)` still passes here. What it does pin is the failure that
+     * matters: a rendering path fed a differently-CLASSIFIED plan. This is
+     * the behavioural form of the invariant #2741 exists to hold: the
+     * executed commands (via `exec`)
+     * and the rendered output (json or human) both derive from the exact
+     * plan this test constructs — a rendering path fed by a different
+     * plan (e.g. a re-derived one with a different `lane`/`run`/`skip`)
+     * would show up here as a mismatch between what was executed and what
+     * was printed.
+     *
+     * Proof-of-failure (manual): changed `executePlan`'s `renderJson` call
+     * to render a hand-built second plan (`{ ...plan, lane: "full" }`)
+     * instead of `plan` — this test went red (`parsed.lane` was `"full"`,
+     * expected `"engine"`, while `calls` still matched the original
+     * `plan.run` commands: exactly the "receipt describes a different run"
+     * shape). Reverted.
+     */
+    it("executePlan renders and executes off the plan it was given — same lane, files and run list (#2741, #2748)", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        const { exec, calls } = fakeExec(
+            Object.fromEntries(
+                plan.run.map((c) => [c.command, { ok: true, ms: 3 }])
+            )
+        );
+        const lines: string[] = [];
+        const result = executePlan(plan, "4f2a91c", true, exec, (l) =>
+            lines.push(l)
+        );
+
+        expect(calls).toEqual(plan.run.map((c) => c.command));
+
+        const parsed = JSON.parse(lines[0]) as LanePlan & {
+            head: string;
+            ok: boolean;
+        };
+        expect(parsed.head).toBe("4f2a91c");
+        expect(parsed.lane).toBe(plan.lane);
+        expect(parsed.files).toEqual(plan.files);
+        expect(ids(parsed.run)).toEqual(ids(plan.run));
+        expect(parsed.ok).toBe(result.ok);
+    });
+
+    it("executePlan prints the human plan then the human receipt when not in json mode", () => {
+        const plan = classifyLane(["src/app.tsx"]);
+        const { exec } = fakeExec(
+            Object.fromEntries(
+                plan.run.map((c) => [c.command, { ok: true, ms: 2 }])
+            )
+        );
+        const lines: string[] = [];
+        executePlan(plan, "deadbee", false, exec, (l) => lines.push(l));
+
+        expect(lines).toHaveLength(2);
+        expect(lines[0]).toBe(renderPlan(plan, "deadbee"));
+        expect(lines[1]).toMatch(/^PASS/m);
+    });
+
+    /**
+     * Narrower structural guard, kept alongside the behavioural test above
+     * rather than in its place: it pins only that `classifyLane` itself has
+     * exactly one call site in this file's own source (one declaration, one
+     * call in `main()`). It does NOT, on its own, prove renderPlan/runPlan
+     * consume the same plan — a hand-built second plan constructed WITHOUT
+     * calling `classifyLane` again (e.g. `{ ...plan, lane: "full" }`) would
+     * pass this text scan while still describing a different run than the
+     * one executed. That case is what the behavioural `executePlan` test
+     * above actually catches.
+     *
+     * Proof-of-failure (manual, from the original #2741 PR): temporarily
+     * added a second `classifyLane(...)` call inside `main()` — this test
+     * went red (found 2 call sites, wanted 1). Reverted.
+     */
+    it("classifyLane has exactly one call site outside its own declaration (textual, narrower than the behavioural guard above)", () => {
+        const src = readFileSync(
+            resolve(ROOT, "scripts/check-lane.ts"),
+            "utf8"
+        );
+        const declarations = (src.match(/function classifyLane\(/g) ?? [])
+            .length;
+        const total = (src.match(/\bclassifyLane\(/g) ?? []).length;
+        expect(declarations).toBe(1);
+        expect(total - declarations).toBe(1);
+    });
+
+    /**
+     * `shellRun` (the real executor `main()` uses) delegates every command
+     * to `scripts/gate.ts light` — the repo's single light-tier mechanism
+     * (no mutex, `TOLARIA_VITEST_WORKERS` left for `vitest.config.ts`'s own
+     * default). This pins the delegation shape so it can't quietly drift
+     * into a hand-rolled env/tier reimplementation.
+     */
+    it("delegates execution to `scripts/gate.ts light`, never a hand-rolled tier", () => {
+        const src = readFileSync(
+            resolve(ROOT, "scripts/check-lane.ts"),
+            "utf8"
+        );
+        expect(src).toMatch(
+            /spawnSync\(\s*"bun",\s*\[GATE, "light", command\]/
+        );
+        expect(src).not.toContain("TOLARIA_ALLOW_FULL_SUITE");
+        expect(src).not.toMatch(/gate\.ts["'`]\s*,\s*"heavy"/);
+    });
+});
+
+describe("check-lane — --json stdout isolation (#2748 review, finding 2)", () => {
+    /**
+     * `shellRun` always spawned children with `stdio: "inherit"`, so in
+     * `--json` mode every check's own stdout (tsc, prettier, vitest, vite)
+     * landed on `check:lane --json`'s stdout ahead of the JSON blob,
+     * breaking `bun run check:lane --json | jq` even though the file's own
+     * usage block advertises `--json` as emitting JSON. `shellStdio` is the
+     * pure decision extracted out of `shellRun` so it's testable without
+     * spawning a real check — repo convention (every DECISION in this file
+     * is a pure function tested directly).
+     *
+     * Proof-of-failure: temporarily made `shellStdio` return `["inherit",
+     * "inherit", "inherit"]` unconditionally (ignoring `json`) — the first
+     * assertion below went red (`[2]` !== `"inherit"`). Reverted.
+     */
+    it("redirects the child's stdout to the parent's stderr (fd 2) in json mode", () => {
+        expect(shellStdio(true)).toEqual(["inherit", 2, "inherit"]);
+    });
+
+    it("leaves the child's stdout inherited outside json mode, so the human receipt still streams check output live", () => {
+        expect(shellStdio(false)).toEqual(["inherit", "inherit", "inherit"]);
     });
 });
