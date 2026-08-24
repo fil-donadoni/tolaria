@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
@@ -251,5 +251,112 @@ describe("the two malformed shapes issue #2285 reported are still rejected by ha
                 ],
             })
         ).toThrowError(/expected a non-empty string/);
+    });
+});
+
+describe("issue #2656: the receipt lands in the PRIMARY checkout, not cwd", () => {
+    // Every fixture above runs the CLI with `cwd: tmp`, where `tmp` is a bare
+    // `mkdtempSync` directory — NOT a git repo at all. `primaryCheckout()`
+    // falls back to `resolve(cwd)` for a non-repo cwd exactly the same way the
+    // old buggy `process.cwd()` did, so those tests pass identically before
+    // and after the fix and prove nothing about the bug this issue reports.
+    // This block builds the real shape: a primary checkout with `.git/`, and
+    // a LINKED WORKTREE (`git worktree add`) — the actual layout every
+    // implement/review subagent runs inside — then runs the CLI with its cwd
+    // set to the linked worktree and asserts the receipt landed under the
+    // PRIMARY's `.claude/receipts/`, never the worktree's own.
+    let primary: string;
+    let worktree: string;
+
+    function gitq(args: string[], cwd: string) {
+        const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+        if (r.status !== 0) {
+            throw new Error(
+                `git ${args.join(" ")} failed in ${cwd}: ${r.stderr}`
+            );
+        }
+        return r.stdout.trim();
+    }
+
+    beforeEach(() => {
+        // realpathSync: on macOS `os.tmpdir()` is under a `/var` symlink to
+        // `/private/var`, and `git rev-parse --git-common-dir` (inside
+        // `primaryCheckout`) resolves through it — so comparing the raw
+        // `mkdtempSync` path against the CLI's resolved output would fail on
+        // a symlink difference that has nothing to do with this issue's bug.
+        primary = fs.realpathSync(
+            fs.mkdtempSync(
+                path.join(os.tmpdir(), "tolaria-review-receipt-primary-")
+            )
+        );
+        gitq(["init", "-q"], primary);
+        gitq(["config", "user.email", "test@example.com"], primary);
+        gitq(["config", "user.name", "Test"], primary);
+        gitq(["commit", "--allow-empty", "-q", "-m", "init"], primary);
+
+        worktree = path.join(
+            fs.mkdtempSync(
+                path.join(os.tmpdir(), "tolaria-review-receipt-wt-parent-")
+            ),
+            "linked"
+        );
+        gitq(
+            ["worktree", "add", "-q", "-b", "linked-branch", worktree],
+            primary
+        );
+    });
+
+    afterEach(() => {
+        // Best-effort — a leftover linked worktree under a stale primary is
+        // harmless (both live under os.tmpdir()), but `git worktree remove`
+        // keeps `git worktree list` honest for anyone poking at `primary`
+        // interactively while debugging a failure.
+        try {
+            gitq(["worktree", "remove", "--force", worktree], primary);
+        } catch {
+            // fine — the OS reclaims tmpdir either way
+        }
+    });
+
+    it("writes the receipt under the primary checkout's .claude/receipts, not the worktree's", () => {
+        const result = spawnSync(
+            "bun",
+            [
+                CLI,
+                "--batch",
+                "batch-wt",
+                "--issue",
+                "2656",
+                "--pr",
+                "9002",
+                "--outcome",
+                "approve",
+            ],
+            { cwd: worktree, encoding: "utf8" }
+        );
+        expect(result.status, result.stderr).toBe(0);
+
+        const primaryReceipt = path.join(
+            primary,
+            ".claude/receipts/batch-wt/2656-review.json"
+        );
+        const worktreeReceipt = path.join(
+            worktree,
+            ".claude/receipts/batch-wt/2656-review.json"
+        );
+        expect(fs.existsSync(primaryReceipt)).toBe(true);
+        expect(fs.existsSync(worktreeReceipt)).toBe(false);
+
+        const { receipts, errors } = readReceipts(primary, "batch-wt");
+        expect(errors).toEqual([]);
+        expect(receipts).toHaveLength(1);
+        const receipt = receipts[0] as ReviewReceipt;
+        expect(receipt.issue).toBe(2656);
+        expect(receipt.pr).toBe(9002);
+
+        // The path the CLI itself printed must also point at the primary —
+        // a caller that trusts the printed path (queue:train's callers do
+        // not, but a human debugging by hand would) must not be misled either.
+        expect(result.stdout.trim()).toBe(primaryReceipt);
     });
 });

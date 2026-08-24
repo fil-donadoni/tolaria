@@ -34,6 +34,8 @@
 import * as fs from "fs";
 import * as path from "path";
 
+import { primaryCheckout } from "./primary-checkout";
+
 export const RECEIPT_VERSION = 1;
 
 /**
@@ -567,6 +569,16 @@ function findSiblingBatchWithIssue(
  * forgot to bump `round` or a caller trying to rewrite a verdict it does not
  * own — both are bugs the throw is supposed to surface, not silently resolve
  * by picking a winner.
+ *
+ * `projectRoot` is resolved through `primaryCheckout()` before it is used for
+ * anything (issue #2656): every implement/fixup/review subagent runs from
+ * inside its own issue worktree, and a caller that hands in `process.cwd()`
+ * (or any other worktree path) must still land the file in the PRIMARY
+ * checkout's `.claude/receipts/`, not a sibling directory the merge-train
+ * never reads. A non-repo `projectRoot` (every existing test fixture — a bare
+ * `mkdtempSync` dir) falls through `primaryCheckout`'s own `resolve(cwd)`
+ * branch unchanged, so this is a no-op for every caller that was already
+ * passing a real root.
  */
 export function writeReceipt(
     projectRoot: string,
@@ -578,7 +590,8 @@ export function writeReceipt(
             ? { ...(value as Record<string, unknown>), ts: nowSeconds() }
             : value
     );
-    const dir = receiptDir(projectRoot, batchId);
+    const root = primaryCheckout(projectRoot);
+    const dir = receiptDir(root, batchId);
 
     // Misrouted-batch guard: a subagent handed the WRONG batch id (a typo'd
     // session id, e.g.) writes into a directory that looks empty and is
@@ -604,8 +617,12 @@ export function writeReceipt(
     // invariant; it catches one specific shape (a genuinely fresh batch id
     // whose very first write collides with a sibling), nothing more.
     if (!fs.existsSync(dir) && receipt.role !== "missing") {
-        const root = path.join(projectRoot, RECEIPTS_ROOT);
-        const sibling = findSiblingBatchWithIssue(root, batchId, receipt.issue);
+        const receiptsRoot = path.join(root, RECEIPTS_ROOT);
+        const sibling = findSiblingBatchWithIssue(
+            receiptsRoot,
+            batchId,
+            receipt.issue
+        );
         if (sibling && process.env.TOLARIA_ALLOW_RECEIPT_REBATCH !== "1") {
             throw new Error(
                 `writeReceipt: refusing to create batch directory ${dir} for ` +

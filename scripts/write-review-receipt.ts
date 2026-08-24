@@ -38,6 +38,7 @@
 // call is loud rather than a silently-accepted file.
 
 import { RECEIPT_VERSION, writeReceipt } from "./lib/receipt";
+import { primaryCheckout } from "./lib/primary-checkout";
 
 function readFlag(name: string): string | undefined {
     const i = process.argv.indexOf(`--${name}`);
@@ -106,5 +107,11 @@ const receipt: Record<string, unknown> = {
 // writeReceipt validates via parseReceipt before it writes — including the
 // "blocking with zero findings" rejection — so that rule lives once, in the
 // contract, not re-implemented here.
-const written = writeReceipt(process.cwd(), batch, receipt);
+//
+// The project root is the PRIMARY checkout, not `process.cwd()` (issue
+// #2656): every reviewer subagent runs this from inside its own issue
+// worktree, so a bare `process.cwd()` wrote the receipt to a sibling
+// directory the merge-train never reads — silently, since the write itself
+// succeeded and printed a path.
+const written = writeReceipt(primaryCheckout(), batch, receipt);
 console.log(written);

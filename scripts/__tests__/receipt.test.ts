@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
@@ -933,5 +933,103 @@ describe("newestBatchDir", () => {
         touch(path.join(tmp, "sess-y"), tie);
         const winner = newestBatchDir(tmp);
         expect(fs.readdirSync(tmp)[0]).toBe(winner);
+    });
+});
+
+describe("issue #2656: writeReceipt lands in the PRIMARY checkout, not a linked worktree's cwd", () => {
+    // Every OTHER fixture in this file passes a bare `mkdtempSync` dir as
+    // `projectRoot` — not a git repo at all — so `primaryCheckout()` falls
+    // through to `resolve(cwd)` for them and they cannot distinguish the old
+    // `process.cwd()`-shaped bug from the fix. This block builds the real
+    // shape instead: a primary checkout with `.git/` and a LINKED WORKTREE
+    // (`git worktree add`) — the layout every implement/fixup subagent
+    // actually runs inside — then calls `writeReceipt` with the WORKTREE path
+    // as `projectRoot` and asserts the file lands under the PRIMARY's
+    // `.claude/receipts/`, never the worktree's own.
+    let primary: string;
+    let worktreeParent: string;
+    let worktree: string;
+
+    function gitq(args: string[], cwd: string) {
+        const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+        if (r.status !== 0) {
+            throw new Error(
+                `git ${args.join(" ")} failed in ${cwd}: ${r.stderr}`
+            );
+        }
+        return r.stdout.trim();
+    }
+
+    beforeEach(() => {
+        // realpathSync: on macOS os.tmpdir() sits under a `/var` symlink to
+        // `/private/var`, and `git rev-parse --git-common-dir` (inside
+        // `primaryCheckout`) resolves through it — comparing the raw
+        // `mkdtempSync` path against the resolved output would fail on a
+        // symlink difference unrelated to this issue's bug.
+        primary = fs.realpathSync(
+            fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-receipt-primary-"))
+        );
+        gitq(["init", "-q"], primary);
+        gitq(["config", "user.email", "test@example.com"], primary);
+        gitq(["config", "user.name", "Test"], primary);
+        gitq(["commit", "--allow-empty", "-q", "-m", "init"], primary);
+
+        worktreeParent = fs.mkdtempSync(
+            path.join(os.tmpdir(), "tolaria-receipt-wt-parent-")
+        );
+        worktree = path.join(worktreeParent, "linked");
+        gitq(
+            ["worktree", "add", "-q", "-b", "linked-branch-receipt", worktree],
+            primary
+        );
+    });
+
+    afterEach(() => {
+        try {
+            gitq(["worktree", "remove", "--force", worktree], primary);
+        } catch {
+            // fine — the OS reclaims tmpdir either way
+        }
+    });
+
+    it("writes under the primary checkout's .claude/receipts, not the worktree's, when called with the worktree as projectRoot", () => {
+        const written = writeReceipt(worktree, "batch-wt-implement", {
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 2656,
+            outcome: "pr-open",
+            pr: 9003,
+            branch: "fix/issue-2656",
+            worktree,
+            targetFiles: ["scripts/lib/receipt.ts"],
+            proofOfFailure: [
+                {
+                    broke: "reverted writeReceipt to use projectRoot directly",
+                    failed: "this test",
+                },
+            ],
+        });
+
+        const primaryReceipt = path.join(
+            primary,
+            ".claude/receipts/batch-wt-implement/2656-implement.json"
+        );
+        const worktreeReceipt = path.join(
+            worktree,
+            ".claude/receipts/batch-wt-implement/2656-implement.json"
+        );
+        expect(written).toBe(primaryReceipt);
+        expect(fs.existsSync(primaryReceipt)).toBe(true);
+        expect(fs.existsSync(worktreeReceipt)).toBe(false);
+
+        const { receipts, errors } = readReceipts(
+            primary,
+            "batch-wt-implement"
+        );
+        expect(errors).toEqual([]);
+        expect(receipts).toHaveLength(1);
+        const receipt = receipts[0] as WorkReceipt;
+        expect(receipt.issue).toBe(2656);
+        expect(receipt.pr).toBe(9003);
     });
 });

@@ -82,6 +82,7 @@
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
+import { primaryCheckout } from "./lib/primary-checkout";
 
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
@@ -109,13 +110,11 @@ function git(args: string[], cwd: string): string {
     return r.stdout.trim();
 }
 
-/** The checkout that owns `.git/` — where `green-sha` lives and worktree
- *  teardown runs from, never the linked worktree `land` is invoked from
- *  (same pattern as docs-lane.ts `primaryCheckout`). */
-function primaryCheckout(cwd: string): string {
-    const common = git(["rev-parse", "--git-common-dir"], cwd);
-    return common.startsWith("/") ? dirname(resolve(common)) : resolve(cwd);
-}
+// The checkout that owns `.git/` — where `green-sha` lives and worktree
+// teardown runs from, never the linked worktree `land` is invoked from —
+// used to be a private copy of this exact test; now the shared resolver
+// (issue #2519, folded in by #2656) so there is one authority instead of two
+// drifting in parallel.
 
 function fail(message: string): never {
     console.error(`land: ${message}`);

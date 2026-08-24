@@ -7,10 +7,16 @@
 // `null` when we already ARE the primary, because its caller needs to know
 // "there is nothing to bootstrap FROM" rather than a usable path — a
 // different signature, left alone here). Migrating those five onto this
-// module is explicitly out of scope for #2519: each already ships behind its
-// own tests, and unifying them is a separate change from adding the two NEW
-// callers this issue needs (`loop-status.ts` and the `/api/loop-status`
-// route in `telemetry-serve.ts`).
+// module was explicitly out of scope for #2519: each already shipped behind
+// its own tests, and unifying them was a separate change from adding the two
+// NEW callers that issue needed (`loop-status.ts` and the
+// `/api/loop-status` route in `telemetry-serve.ts`).
+//
+// `land.ts`'s copy was folded into this module by #2656 (the receipt writer
+// needed the SAME resolution, and a second production caller finally made
+// deduping the two worth doing). The other three — `loop-scorecard.ts`,
+// `docs-lane.ts`, `worktree-gc.ts` — plus the deliberately-different
+// `bootstrap-worktree.ts`, stay untouched; #2656 folds in exactly one.
 //
 // The test itself: in the primary checkout, `git rev-parse --git-common-dir`
 // prints the RELATIVE path `.git`. In a linked worktree it prints an
