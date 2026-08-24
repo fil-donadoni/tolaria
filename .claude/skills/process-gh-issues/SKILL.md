@@ -273,7 +273,7 @@ It reads the batch's receipts, builds the conflict graph over the paths each PR 
 
 A **cycle is a stop, not a hint.** Two PRs that each restructure a file the other touches have no correct order, and that is the batch telling you it should never have been parallel. Merging one anyway means picking a sequence nobody chose. Report the cycle, leave both claimed, and let the next pass take them serially.
 
-**A `skin` batch owes ONE `check:ui`, integrated tree, before any PR merges.** Procedure + bisect: `references/merge-train.md`.
+**Every batch re-derives its real lane from the integration before any PR merges; a batch whose real diff reaches `skin` owes ONE `check:ui`, integrated tree.** Procedure + bisect: `references/merge-train.md`.
 
 Then merge the PRs **one at a time** behind a serial lock. **Never merge two PRs concurrently** — the whole point of this stage is that every merge is gated against the _actual_ post-merge state of `main`, not a stale base.
 

@@ -55,16 +55,23 @@ There are two different axes, and they do not split along the #2431/#2655
 line the way an earlier draft of this ADR claimed.
 
 **Axis 1 — CONTENT: once a project is going to run, how much of it runs.**
-This is what #2431 fixed, and it stays fixed. `bun run check:lane`
-(`scripts/check-lane.ts`) never filters a project's own test files by the
-diff. The `engine` lane runs the WHOLE `node` project — every file under
-`convex/**`, `scripts/**` and every DOM-free `src` test — even though the
-triggering diff might touch only one file in `convex/gre/`. The `skin` lane
-runs the WHOLE `dom` project, not the subset of component tests that import
-the changed file. There is no line of `check-lane.ts` that narrows a project
-to a diff-derived file list; `classifyLane`'s `run` array names whole
-`--project` invocations (`bunx vitest run --project node`), never a path
-argument computed from `git diff`.
+This is what #2431 fixed, and it stays fixed — precisely: no `--project`
+invocation in `classifyLane`'s `run` array is ever scoped to a DIFF-DERIVED
+subset of a project's tests. No lane computes "which files inside this
+project did the diff touch" and hands vitest only those. The `engine` lane
+runs the WHOLE `node` project — every file under `convex/**`, `scripts/**`
+and every DOM-free `src` test — even though the triggering diff might touch
+only one file in `convex/gre/`. The `skin` lane runs the WHOLE `dom` project,
+not the subset of component tests that import the changed file. The one
+exception, and it is a declared one, is the `skin` lane's `node[src,scripts]`
+(`bunx vitest run --project node src/ scripts/`): it DOES carry a path
+argument. That argument is a fixed, literal scope written into the lane
+definition — `src/ scripts/`, never a list built from `changedPaths` or
+`presentPaths` — and the sibling `node[convex]` skip entry in the same lane
+records exactly what that static scope excludes and why. So the accurate
+statement is narrower than "never a path argument": no `run` command's path
+argument is ever COMPUTED FROM THE DIFF; where one exists, it is static and
+declared, and its matching skip entry says what is thereby not run.
 
 **Axis 2 — ADMISSION: whether a project runs AT ALL.** This is the axis
 #2655 actually operated on, and it is also the axis `check:lane` operates on
@@ -99,11 +106,17 @@ runs `dom` somewhere, backstopped in between.** If the `engine` lane both
 skipped `dom` (Axis 2) AND ran `node` filtered to the diff's own files
 (Axis 1), it would reintroduce #2431's exact failure mode — a catalogue guard
 the diff never touched, silently unrun, with nothing downstream to catch it
-either. `check:lane` never does the second thing. Every `PlannedCheck.command`
-in `classifyLane` (`scripts/check-lane.ts`) that names a vitest project
-passes no path filter; the only place a path list reaches a command is
-`format(diff)`/`lint(diff)`, tools with no catalogue-guard concept to defeat
-in the first place.
+either. `check:lane` never does the second thing: no `PlannedCheck.command` in
+`classifyLane` (`scripts/check-lane.ts`) that names a `--project` invocation
+scopes it to a DIFF-DERIVED subset. `format(diff)`/`lint(diff)` do carry a
+path list built from the diff, but those are tools with no catalogue-guard
+concept to defeat in the first place. The `skin` lane's `node[src,scripts]`
+also carries a path argument on a `--project` invocation — but it is the
+lane's own fixed declaration (`src/ scripts/`), not the diff's file list, and
+the paired `node[convex]` skip entry names exactly what that declaration
+excludes. That static exception is the one place Axis 1 and Axis 2 touch the
+same command; it does not reopen #2431's failure mode because it is not a
+diff-derived filter.
 
 **Three backstops make narrowing `dom`'s admission on the `engine` lane an
 accepted trade rather than an unguarded gap** (PRD #2738's own accounting,
@@ -143,11 +156,14 @@ than reverting this ADR: strengthen the backstop that missed it — most likely
 `engine` diff.
 
 **Restated as the one paragraph a future reader needs:** #2431 fixed Axis 1
-for `node` and stands unmodified — `check:lane` never diff-filters a
-project's own file list; read `classifyLane` itself for that (no `run`
-command anywhere in `check-lane.ts` carries a path argument for a `--project`
-invocation) rather than a test, since no test currently pins it — see
-Consequences below. #2655 fixed Axis 2 for `dom`, moving it from
+for `node` and stands unmodified — `check:lane` never scopes a project's own
+file list to the diff; read `classifyLane` itself for that (no `run` command
+anywhere in `check-lane.ts` computes a `--project` path argument from the
+changed files — the `skin` lane's `node[src,scripts]` does carry a path
+argument, but it is the fixed `src/ scripts/` written into the lane
+definition, not one derived from the diff) rather than a test, since no test
+currently pins it — see Consequences below. #2655 fixed Axis 2 for `dom`,
+moving it from
 never-admitted to always-admitted; this work **narrows that back down**,
 deliberately, for exactly the slice of diffs (`engine`-classified) where the
 three checks above stand in `dom`'s place. Both are true at once because they
@@ -160,11 +176,16 @@ because #2655 was left untouched. It was not.
    gates); `check:pr` remains exactly as it is and is the fallback the
    classifier itself falls back to on any diff it cannot affirmatively place
    in `skin` or `engine` (`laneFor`'s `full` terminal case, `check-lane.ts`).
-2. **Lane content is never diff-filtered.** Every check a lane's plan names
-   for a `--project` invocation runs that project whole. This is the
-   invariant the paragraph above defends, and it is why narrowing Axis 2 does
-   not reopen #2431's failure mode. It does narrow #2655's original fix for
-   the `engine` lane's slice of diffs — see "The distinction that makes both
+2. **Lane content is never diff-derived.** No check in a lane's plan scopes a
+   `--project` invocation to the files the triggering diff touched. Most
+   `--project` commands run the project whole (`node[all]`, `dom`); the
+   `skin` lane's `node[src,scripts]` is the one exception, and it is scoped
+   to a fixed, declared subset (`src/ scripts/`) written into the lane
+   itself — never to the diff — with the paired `node[convex]` skip entry
+   recording what that static scope excludes. This is the invariant the
+   paragraph above defends, and it is why narrowing Axis 2 does not reopen
+   #2431's failure mode. It does narrow #2655's original fix for the
+   `engine` lane's slice of diffs — see "The distinction that makes both
    things true at once" for the three backstops that make that an accepted
    trade rather than an unguarded gap.
 3. **Lane admission is fail-closed.** `classifyPath` returns `full` for any
@@ -197,21 +218,26 @@ because #2655 was left untouched. It was not.
 - A reader who sees `check:guards` running `node`/`dom` whole in one place and
   a diff skipping `node`/`dom` entirely in another now has one document that
   names both axes and says which decision is on which axis.
-- **No automated guard pins "no `run` command carries a path argument for a
-  `--project` invocation."** `check-lane.test.ts`'s nearest test, `"every
---project X names a real vitest project"`, only checks that a project name
-  a command references resolves to something real — a `run` command rebuilt
-  with a path filter (`--project node src/gre/foo.test.ts`) would still pass
-  it, because `node` is still a real project name. What holds the Axis-1
-  invariant today is `classifyLane`'s own construction — no branch anywhere
-  in it adds a path filter to a `--project` command — plus ordinary code
-  review: a PR adding one is a visible, reviewable change to this ADR's
-  central claim, not a silently passing one. That is weaker than a pinned
-  test, and is left that way deliberately in this revision rather than
+- **No automated guard pins "no `--project` invocation is scoped to a
+  diff-derived path argument."** `check-lane.test.ts`'s nearest test, `"every
+--project X names a real vitest project"`, only checks that a project name a
+  command references resolves to something real — a `run` command rebuilt
+  with a path filter computed from the changed files (`--project node
+  src/gre/foo.test.ts`) would still pass it, because `node` is still a real
+  project name, and that test alone could not tell it apart from the `skin`
+  lane's legitimate static `node[src,scripts]` scope. What holds the Axis-1
+  invariant today is `classifyLane`'s own construction — every branch that
+  attaches a path argument to a `--project` command writes a fixed, literal
+  path list (`src/ scripts/`), never one built from the function's own
+  `changedPaths`/`presentPaths` parameters — plus ordinary code review: a PR
+  that makes a path argument diff-derived is a visible, reviewable change to
+  this ADR's central claim, not a silently passing one. That is weaker than a
+  pinned test, and is left that way deliberately in this revision rather than
   patched in as an afterthought; a future PR that wants the stronger
   guarantee should add the test directly (assert no `command` string in any
-  `LanePlan.run` matches a path-looking token after `--project`) rather than
-  lean on this paragraph to stand in for it.
+  `LanePlan.run` builds its `--project` path argument from `changedPaths` or
+  `presentPaths` rather than a literal) rather than lean on this paragraph to
+  stand in for it.
 - Cost measurements for the `skin`/`engine` lanes live in
   `docs/agents/quality-gates.md`, not here — this record is about the
   invariant, not the stopwatch.

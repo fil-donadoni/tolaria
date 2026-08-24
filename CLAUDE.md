@@ -269,10 +269,13 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
   per-check receipt. On anything it cannot affirmatively place — a mixed
   diff, `package.json`, a lockfile, `.claude/**`, an unrecognised path —
   it degrades to `check:pr` **verbatim**, unchanged, so the fallback can never
-  rot. A lane never filters WHICH FILES a project it runs sees — every project
-  a lane admits still runs whole, exactly as `check:pr` runs it; the diff only
-  ever decides whether a project runs at all (ADR 0104, which also records why
-  this does not revert #2431/#2655).
+  rot. **No lane ever scopes a project's tests to the diff** — the `skin`
+  lane's `node[src,scripts]` carries a path argument (`src/ scripts/`), but
+  it is a fixed, declared subset of the lane, not one computed from the
+  changed files; every other admitted project runs whole, exactly as
+  `check:pr` runs it. The diff decides whether a project runs at all, never
+  a diff-derived slice of it (ADR 0104, which also records why this does not
+  revert #2431/#2655).
 - **Never hand-pick a subset of `check:pr`** — omitting `check:index` once
   broke every card-shipping PR at the merge-train.
 - **`check:all` VERIFIES formatting**, it does not repair it — on drift run
