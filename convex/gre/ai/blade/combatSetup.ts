@@ -36,6 +36,7 @@ import {
 } from "../../combat";
 import { applyMoveInSearch, decidingPlayer } from "../../search";
 import type { CardInstanceState, GameState } from "../../state";
+import { getOpponentId } from "../../state";
 import type { BladeSetupStep } from "./types";
 
 /** Upper bound on the priority passes used to walk from the declaration to the
@@ -131,6 +132,7 @@ export function applyDeclareAttackers(
     // "DECLARE_ATTACKERS" at the guard above and cannot see that
     // `applyMoveInSearch` mutates it.
     const phaseOf = (s: GameState): string => s.phase;
+    const defenderId = getOpponentId(state, state.activePlayerId);
     for (let i = 0; i < MAX_PRIORITY_PASSES; i++) {
         if (phaseOf(state) === "DECLARE_BLOCKERS") break;
         const owed = decidingPlayer(state);
@@ -138,6 +140,17 @@ export function applyDeclareAttackers(
             throw fail(
                 `nobody owes an action at phase "${state.phase}" — the position never reaches the block window.`
             );
+        }
+        // `haltForDefenderResponse` (issue #2248) — stop here, WITHOUT
+        // consuming this pass, the first time the DEFENDER is owed priority
+        // still inside DECLARE_ATTACKERS. That is the only window a flash
+        // blocker can be cast into this combat (see the field's doc in
+        // `types.ts`); continuing the walk would auto-pass through it and the
+        // block-window state this step normally builds can never express a
+        // response to the attack, only a response to the (already-locked)
+        // block.
+        if (step.haltForDefenderResponse && owed === defenderId) {
+            return;
         }
         applyMoveInSearch(state, owed, { kind: "pass" });
     }

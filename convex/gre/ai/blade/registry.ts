@@ -1949,6 +1949,107 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #2306's blade-coda negative control: proves `colorModePrior` stays a SOFT ordering bias — every mode is still opened (CHOICE_TOP_K comfortably covers 5 colours) and the search still finds the mechanically-forced correct answer even when it is the evidence-LOWER colour. Guards against the fix over-correcting into a hard filter that would drop this exact save.",
     },
+
+    // ── Flash-permanent reactive timing (issue #2248) ────────────────────
+    // The reactive-timing discipline built for instants (#219/#221/#222/#223,
+    // generalised to activated abilities by #1890) treated "instant speed" as
+    // `types.includes("Instant")` at two of its four sites, so a flash
+    // PERMANENT carried none of the bias an instant gets: the bot dumped it in
+    // its own main phase every time, never weighing the option to hold mana
+    // open and cast reactively later. `hasInstantSpeed` (`constants.ts`) is now
+    // the single authority every site routes through.
+    //
+    // Three entries, the discriminating triple the issue calls for: the FIX
+    // itself (holds), and two NEGATIVE CONTROLS proving the bias is a
+    // preference, not a mute button — a bias that fires too broadly is
+    // structurally indistinguishable from a hard prune until something forces
+    // it to fire and it doesn't.
+    {
+        label: "flash permanent: holds Containment Priest in its own main with no threat",
+        spec: {
+            cards: [{ name: "Containment Priest", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Containment Priest" }],
+        },
+        note: "Issue #2248, the fix itself. Empty board, no attack pending, nothing else to spend mana on: the only choice is cast-now vs hold-for-later, and later is never worse (Containment Priest has no haste, so casting now buys it nothing timing-wise — it cannot attack or use its replacement ability any sooner). Casting now forecloses the mana-open option for free; holding it to the opponent's end step is outcome-equal on material and strictly better on information, so the `isSorcerySpeedTrickDump` shape-3 tie-break (`search.ts`) redirects the outcome-equal cast to `pass`. Guards all three shipped pieces together: the rollout guardrail no longer models the early dump as typical play, the mover's-own-main hold nudge (`isReactiveHold`) makes the wait explorable at all, and the root tie-break is the one that actually redirects the choice.",
+    },
+    {
+        label: "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
+        spec: {
+            cards: [
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 4,
+                },
+                { name: "Containment Priest", owner: "opp", zone: "hand" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        // `me` (players[0]) is the active player and sends the attack; `opp`
+        // holds Containment Priest and is the one the search runs for.
+        setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Containment Priest" }],
+        },
+        note: "Issue #2248 negative control 1 — 'needed as a blocker against a lethal attack'. 4 x Craw Wurm is 24 unblocked power into 20 life (CR 510.1c/704.5a); with no other blocker, NOT casting Containment Priest is a loss by force, and the mid-DECLARE_ATTACKERS window `haltForDefenderResponse` stops at is the ONLY point a flash blocker can be cast INTO this combat — by DECLARE_BLOCKERS the blockers are locked (CR 509.1a) and the creature would already need to be on the battlefield. If the #2248 bias generalised past sorcery speed into a blanket 'prefer holding priority' preference, this is exactly the position that would go red: the position is symmetric to the fix entry above except for WHO holds priority and WHY casting matters, and the bias must not touch it. `isDiscouragedRolloutMove`/`isSorcerySpeedTrickDump` do not even reach their flash branches here (`pid !== state.activePlayerId` and `state.phase` is not a main phase), so this also stands as a structural check that the new branches are phase/mover-scoped as designed, not merely outcome-scoped.",
+    },
+    {
+        label: "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn",
+        spec: {
+            cards: [
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 3,
+                },
+                { name: "Raging Kavu", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // Higher than the suite's typical `must` budget on purpose: this is a
+        // genuine TWO-PLY decision (cast, then choose an attacker subset out
+        // of 2^4 declare-attackers combinations once Kavu joins the board),
+        // not the one-shot choices most entries pose. Measured at authoring
+        // time: `cast-spell` is NOT yet the top candidate at 400/800/1200
+        // iterations on any of the 5 seeds (the search simply hasn't found
+        // and confirmed the "cast + attack with everything" line yet — a
+        // budget/branching gap orthogonal to issue #2248), and IS the top
+        // candidate, by a margin of 0.067 mean reward (above `OUTCOME_EPS`),
+        // on all 5 at 2000. This is a budget floor for THIS entry's shape,
+        // not evidence that #2248's fix needs more search generally.
+        budget: { iterations: 2000 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Raging Kavu" }],
+        },
+        note: "Issue #2248 negative control 2 — 'sorcery-speed cast with real reward'. 3 x Craw Wurm already on board is 18 power, short of the opponent's 20 life; Raging Kavu's Flash makes it structurally match `isSorcerySpeedTrickDump` shape 3 (a non-Instant flash permanent, cast by the active player at a main phase) exactly the way the fix entry's Containment Priest does, but Kavu also has HASTE — casting it THIS main phase adds 3 power to THIS combat and crosses lethal (21 into 20), where holding it for the opponent's end step forfeits the attack entirely and pushes the kill a full turn later against an opponent who gets to act in between. That gap is far outside `OUTCOME_EPS`, so the tie-break's own mean-reward gate must not fire: the position proves the fix is a preference among outcome-equal lines, never a rule that redirects a decisively-better cast to `pass`.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

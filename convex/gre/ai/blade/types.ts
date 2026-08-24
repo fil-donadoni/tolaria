@@ -190,8 +190,23 @@ export type BladeSetupStep =
      *  `applyMoveInSearch`, the engine's own move-application chokepoint (see
      *  `combatSetup.ts`), and throws when no creature may legally attack, when
      *  the declaration fails the real restriction checks, or when the position
-     *  never reaches an open declare-blockers window. */
-    | { kind: "declare-attackers"; cards?: string[] };
+     *  never reaches an open declare-blockers window.
+     *
+     *  `haltForDefenderResponse` (issue #2248) stops the walk ONE priority
+     *  window earlier — the moment the attack is confirmed and priority first
+     *  passes to the DEFENDER, still inside the `DECLARE_ATTACKERS` step
+     *  (CR 508.2/509.1c). That is the only window a flash blocker can be cast
+     *  INTO this combat: by the time the walk would otherwise reach
+     *  `DECLARE_BLOCKERS`, the block turn-based action has already locked the
+     *  defender's blockers, and `enumerateMoves` there offers only
+     *  `declare-blockers` (`moves.ts`) — no cast. Default (unset/false)
+     *  reproduces the exact pre-existing walk-to-`DECLARE_BLOCKERS` behavior
+     *  every other entry using this step relies on. */
+    | {
+          kind: "declare-attackers";
+          cards?: string[];
+          haltForDefenderResponse?: boolean;
+      };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).

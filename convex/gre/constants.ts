@@ -448,8 +448,19 @@ export function composeMaterializedSubtypes(
  *  (creatures, sorceries, and non-flash permanents) return false: they may be
  *  cast only when the player could cast a sorcery (CR 307.1, 601.3a). Canonical
  *  predicate reused by the auto-tap timing filter (issue #475) and the search
- *  heuristics (`evaluate`, `heldInteraction`). */
-export function hasInstantSpeed(card: CardInstanceState): boolean {
+ *  heuristics (`evaluate`, `heldInteraction`, `search`'s reactive-timing sites,
+ *  issue #2248) — the single authority so a fourth site cannot regress to a raw
+ *  `types.includes("Instant")`.
+ *
+ *  Structural (`types`/`staticAbilities` only), not `CardInstanceState`-typed,
+ *  so a `CardDefinition` (whose `staticAbilities` is optional) can call it too
+ *  after normalizing the optional field to `[]` at the call site — the shape
+ *  `isReactiveInstantCast` needs when it reads a hand card's zone-agnostic
+ *  `CardDefinition` rather than its battlefield instance. */
+export function hasInstantSpeed(card: {
+    types: CardInstanceState["types"];
+    staticAbilities: CardInstanceState["staticAbilities"];
+}): boolean {
     return (
         card.types.includes("Instant") || card.staticAbilities.includes("flash")
     );

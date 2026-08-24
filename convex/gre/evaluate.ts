@@ -42,6 +42,7 @@ import {
     hasNonManaActivatedAbility,
     isTapLockedBySummoningSickness,
     getProducibleColorsOnBoard,
+    hasInstantSpeed,
     manaValue,
 } from "./constants";
 import type { ActivatedAbility } from "../cards/types";
@@ -217,14 +218,6 @@ export type EvalTerms = {
     flexibility: number;
 };
 
-/** Whether a hand card can be cast at instant speed — an Instant, or any card
- *  with the Flash keyword (CR 702.8). The flexibility term only rewards holding
- *  cards that can actually answer something during an opponent's window. */
-function hasInstantTiming(card: CardInstanceState): boolean {
-    if (card.types.includes("Instant")) return true;
-    return card.staticAbilities.includes("flash");
-}
-
 /** Untapped mana sources + floating mana available to `player` this turn — the
  *  color-blind coarse proxy the `mana` term and the flexibility / castability
  *  gates all share (CR 601 colored requirements are not modelled).
@@ -267,18 +260,46 @@ function availableManaFor(player: PlayerState): number {
  *  cast THIS turn (ADR 0021 slice 1 castability, reused by slice 3). The search
  *  uses this to know a player has a live reactive option — a trick to ambush a
  *  block with, a removal to hold up — when deciding whether the reactive line is
- *  worth exploring. */
+ *  worth exploring.
+ *
+ *  `extra` narrows the instant-speed set further (primitive reuse, issue
+ *  #2248): the mover's-own-main hold nudge (`isReactiveHold` in `search.ts`)
+ *  needs "at least one affordable FLASH PERMANENT" specifically, not any
+ *  instant-speed card — a plain Instant's sorcery-speed dump is already
+ *  covered by the existing reactive-cast prior and rollout guardrail, so
+ *  reusing this predicate unfiltered there would blur a narrow nudge into a
+ *  general "consider passing on my own turn" bias. Omitted, it reproduces the
+ *  original unfiltered behavior every existing caller relies on. */
 export function hasCastableInstant(
     state: GameState,
-    playerId: string
+    playerId: string,
+    extra?: (card: CardInstanceState) => boolean
 ): boolean {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return false;
     const availableMana = availableManaFor(player);
     return player.hand.some(
         (c) =>
-            hasInstantTiming(c) &&
+            hasInstantSpeed(c) &&
+            (!extra || extra(c)) &&
             manaValue(getInstanceManaCost(c)) <= availableMana
+    );
+}
+
+/** Whether `playerId` holds at least one affordable FLASH PERMANENT — a
+ *  non-Instant card carrying the Flash keyword (CR 702.8) — with the mana open
+ *  THIS turn to cast it (issue #2248). A thin, named wrapper over
+ *  `hasCastableInstant`'s `extra` filter rather than a parallel
+ *  implementation (primitive reuse) — see that function's doc for why the
+ *  narrowing matters. */
+export function hasCastableFlashPermanent(
+    state: GameState,
+    playerId: string
+): boolean {
+    return hasCastableInstant(
+        state,
+        playerId,
+        (c) => !c.types.includes("Instant")
     );
 }
 
@@ -331,7 +352,7 @@ function activationsInFlight(
 
 /** Whether `perm` offers `player` an instant-speed activated option that is
  *  still THEIRS — live and affordable, or already announced and awaiting
- *  resolution. The board-side mirror of `hasInstantTiming` (issue #1890 item 3).
+ *  resolution. The board-side mirror of `hasInstantSpeed` (issue #1890 item 3).
  *
  *  Per-card-agnostic by construction: the only inputs are the ability's declared
  *  TIMING (through `isDeferrableStackAbility`, the shared authority), its cost
@@ -480,7 +501,7 @@ function flexibilityTerm(
     let castable = 0;
     for (const card of player.hand) {
         if (castable >= FLEX_CARD_CAP) break;
-        if (!hasInstantTiming(card)) continue;
+        if (!hasInstantSpeed(card)) continue;
         if (manaValue(getInstanceManaCost(card)) > availableMana) continue;
         castable += 1;
     }

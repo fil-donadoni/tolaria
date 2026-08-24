@@ -107,6 +107,7 @@ import {
     declaredCombatDelta,
     lethalUnblockedDelta,
     hasCastableInstant,
+    hasCastableFlashPermanent,
     materialMargin,
     WIN_SCORE,
     type PositionBreakdown,
@@ -115,7 +116,12 @@ import { describeMove } from "./describeMove";
 import { determinize } from "./determinize";
 import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
-import { isCreature, hasManaAbility, manaGateBattlefields } from "./constants";
+import {
+    isCreature,
+    hasManaAbility,
+    manaGateBattlefields,
+    hasInstantSpeed,
+} from "./constants";
 import { tryGetDefinition } from "../cards";
 import { getManaSubstitutions } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
@@ -1120,9 +1126,20 @@ export function isDiscouragedRolloutMove(
         const card = player?.hand.find((c) => c.id === move.cardInstanceId);
         const cardId = (card?.card as { id?: string } | undefined)?.id;
         const def = cardId ? tryGetDefinition(cardId) : undefined;
-        if (!def || !def.types.includes("Instant")) return false;
+        // Instant timing (CR 601.3a / 702.8): an Instant OR a Flash permanent —
+        // both are "still castable in a later, more informed window" by
+        // construction (that IS what instant speed means), so a sorcery-speed
+        // cast here is discouraged on the same terms either way (issue #2248).
+        if (
+            !def ||
+            !hasInstantSpeed({
+                types: def.types,
+                staticAbilities: def.staticAbilities ?? [],
+            })
+        )
+            return false;
         // Sorcery-speed window: the mover is the active player at a main phase,
-        // where a pure instant could instead be held for a reactive moment.
+        // where the card could instead be held for a reactive moment.
         const atSorcerySpeed =
             pid === state.activePlayerId &&
             (state.phase === "PRECOMBAT_MAIN" ||
@@ -1442,10 +1459,10 @@ export function isReactiveInstantCast(
     const cardId = (card?.card as { id?: string } | undefined)?.id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return false;
-    return (
-        def.types.includes("Instant") ||
-        (def.staticAbilities?.includes("flash") ?? false)
-    );
+    return hasInstantSpeed({
+        types: def.types,
+        staticAbilities: def.staticAbilities ?? [],
+    });
 }
 
 /** Whether `move` is a non-empty ATTACK by a mover that holds a castable instant
@@ -1473,14 +1490,42 @@ function isAmbushSetupAttack(
  *  spending the trick. The leaf scores waiting as if the un-pumped attacker just
  *  dies to the block, so the search would rather pump pre-emptively (forfeiting
  *  the ambush) than wait; this nudge keeps the wait explored so the block-step
- *  response behind it is reachable. */
+ *  response behind it is reachable.
+ *
+ *  Second shape (issue #2248): holding priority in the mover's OWN main phase
+ *  — no combat pending at all — while holding an affordable FLASH PERMANENT.
+ *  The leaf scores the flash body only once it is ON the battlefield, so the
+ *  "wait for the opponent's end step, cast it there, keep the option open in
+ *  the meantime" line is otherwise never explored: nothing makes the tree
+ *  prefer an unopened `pass` over the immediately-scoring `cast-spell`.
+ *  Deliberately narrow — `hasCastableFlashPermanent`, not `hasCastableInstant`
+ *  — so this does not turn into a general "consider passing on my own turn"
+ *  bias: a hand with a plain instant, or no affordable flash card, or no mana
+ *  open, does not qualify, and a `play-land` / `declare-attackers` edge is a
+ *  DIFFERENT edge with its own UCB score entirely — this only adds `pass` to
+ *  the set of branches the search bothers to explore, it never prefers `pass`
+ *  over them (`reactivePrior` decays with visits and never enters
+ *  `selectRootMove`).
+ *
+ *  The two shapes are phase-disjoint by construction, not by an ad-hoc
+ *  ordering: `state.combat` is torn down at the END_OF_COMBAT step's exit
+ *  (`endCombatStep`, `phases.ts`), so by the time `state.phase` reads
+ *  `PRECOMBAT_MAIN`/`POSTCOMBAT_MAIN` there is no confirmed combat left to
+ *  match the first branch — a position can satisfy at most one of the two
+ *  `if`s below, never both and never neither incorrectly. */
 function isReactiveHold(state: GameState, pid: string, move: Move): boolean {
     if (move.kind !== "pass") return false;
-    const combat = state.combat;
-    if (!combat || !combat.confirmed || combat.blockersConfirmed) return false;
-    if (combat.attackerIds.length === 0) return false;
     if (pid !== state.activePlayerId) return false;
-    return hasCastableInstant(state, pid);
+    const combat = state.combat;
+    if (combat && combat.confirmed && !combat.blockersConfirmed) {
+        if (combat.attackerIds.length > 0 && hasCastableInstant(state, pid)) {
+            return true;
+        }
+    }
+    const ownMain =
+        state.phase === "PRECOMBAT_MAIN" || state.phase === "POSTCOMBAT_MAIN";
+    if (!ownMain) return false;
+    return hasCastableFlashPermanent(state, pid);
 }
 
 /** Soft progressive-bias prior added to an edge's UCB1 score (ADR 0021 slice 3,
@@ -2650,6 +2695,20 @@ export function selectRootMove(
  *     value the moment it resolves, whenever that is, and must be left to win or
  *     lose on mean reward. Without the clause this rule swallowed the latter.
  *
+ *  3. **A FLASH PERMANENT dumped at sorcery speed** (issue #2248) — a
+ *     `cast-spell` of a non-Instant card carrying the Flash keyword, cast by
+ *     the active player at a main phase, with NO `aiCombatHint.pump` gate.
+ *     Case 1's pump gate scopes it to trades whose entire worth is the
+ *     window — a permanent's body is not invisible to `evaluateCreature` the
+ *     way an until-end-of-turn buff is, so that narrowing doesn't apply here.
+ *     What DOES carry over is the option itself: casting at sorcery speed
+ *     forecloses the mana-open option (waiting to act on more information —
+ *     the opponent's end step) for no reason, the same option a held instant
+ *     protects. A flash permanent with REAL value now (a needed blocker, a
+ *     lethal-relevant body, an ETB that must resolve before an opponent's
+ *     known action) wins on mean reward and never reaches this branch — the
+ *     tie-break only fires within `OUTCOME_EPS` of the best move.
+ *
  *  Pure. */
 function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
     const player = state.players.find((p) => p.id === state.activePlayerId);
@@ -2663,10 +2722,14 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
             state.phase === "POSTCOMBAT_MAIN";
         if (!atSorcerySpeed) return false;
         const card = player.hand.find((c) => c.id === move.cardInstanceId);
-        if (!card || !card.types.includes("Instant")) return false;
-        const cardId = (card.card as { id?: string } | undefined)?.id;
-        const def = cardId ? tryGetDefinition(cardId) : undefined;
-        return !!def?.aiCombatHint?.pump;
+        if (!card) return false;
+        if (card.types.includes("Instant")) {
+            const cardId = (card.card as { id?: string } | undefined)?.id;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
+            return !!def?.aiCombatHint?.pump;
+        }
+        // Shape 3 — flash permanent, no pump gate (see header).
+        return card.staticAbilities.includes("flash");
     }
     if (move.kind === "activate-ability") {
         if (!isSorceryTimingFor(state, player.id)) return false;
