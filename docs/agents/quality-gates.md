@@ -106,13 +106,20 @@ runs exactly that lane's checks. It is now the default pre-PR path
 (CLAUDE.md § Quality gates); `check:pr` is the fallback the classifier itself
 runs verbatim on a `full` diff.
 
-**The axis it operates on is not the axis #2431/#2655 fixed — see ADR 0104
-for the full argument.** In one sentence: those two widenings made every
-project `check:guards` runs execute WHOLE rather than diff-filtered, and that
-stays true here — no lane in `check-lane.ts` ever narrows a `--project`
-invocation to a subset of its own files. What a lane decides is only whether
-a project runs **at all**: `skin` never runs the bot fast lane or the `node`
-project's `convex/**` half; `engine` never runs `dom`.
+**The axis it operates on is only partly the axis #2431/#2655 fixed — see
+ADR 0104 for the full argument, including which of the two is narrowed
+here.** In one sentence: no lane scopes a `--project` invocation to a
+**diff-derived** subset of tests, which is the property #2431 established;
+where a lane's `--project` command carries a path argument at all it is a
+fixed literal written into the lane definition (`skin`'s
+`node[src,scripts]` = `bunx vitest run --project node src/ scripts/`), with
+a paired skip entry recording what that excludes. The only diff-derived
+commands are `format(diff)` / `lint(diff)`, which are prettier and eslint,
+not vitest projects. What a lane otherwise decides is whether a project runs
+**at all**: `skin` never runs the bot fast lane or the `node` project's
+`convex/**` half; `engine` never runs `dom` — and that last one **is** a
+deliberate narrowing of #2655's admission decision, not a preservation of
+it (ADR 0104 § Decision, with the three backstops that make it acceptable).
 
 ### Measurements — the quiet-machine re-run, and why the first round was voided
 
