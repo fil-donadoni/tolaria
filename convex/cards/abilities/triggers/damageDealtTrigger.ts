@@ -36,10 +36,29 @@ import {
 /** Discriminator over the target of the damage event. CR 120.3 — damage is
  *  dealt to a creature, planeswalker, player, or battle. The factory honors
  *  the discriminator before applying the optional refinement (`filter` for
- *  permanents, `player` filter for players). */
+ *  permanents, `player` filter for players).
+ *
+ *  `"player-or-planeswalker"` is the modern Oracle combat-damage template
+ *  ("deals combat damage to a player or planeswalker" — Psychic Frog, issue
+ *  #1855). It is NOT expressible with the other two members, because the
+ *  clause spans the player/permanent axis the event itself discriminates on:
+ *  a planeswalker is a permanent (CR 110.1 — a permanent is a card or token
+ *  on the battlefield), so damage to it is emitted as
+ *  `target: { type: "permanent" }`, byte-identical in shape to damage to a
+ *  creature (`phases.ts` `dealToAttackedPlaneswalker`; CR 120.3c — damage
+ *  dealt to a planeswalker removes that many loyalty counters). Answering
+ *  "was that a planeswalker?" therefore needs a battlefield lookup on the
+ *  recipient's types, which is what `passesTargetPermanentFilter` does
+ *  against the `TriggerStateView` every `matches` call already receives.
+ *
+ *  Deliberately carries no refinement: every printing of this template is
+ *  unconstrained on both halves ("a player", "a planeswalker" — neither
+ *  "an opponent" nor "you control"). A filter nobody passes is a fail-open
+ *  invariant waiting to happen; add the field with its first real caller. */
 export type DamageDealtTargetSpec =
     | { kind: "player"; player: PlayerFilter }
     | { kind: "permanent"; filter?: PermanentFilter }
+    | { kind: "player-or-planeswalker" }
     | { kind: "any" };
 
 export interface DamageDealtTriggerArgs {
@@ -115,12 +134,46 @@ export function damageDealtTrigger(
         self: PermanentView,
         state: TriggerStateView | undefined
     ): boolean {
-        if (target === undefined || target.kind === "any") return true;
-        if (target.kind === "player") {
-            return passesTargetPlayerFilter(event, self, state, target.player);
+        // Omitted target = no constraint, same as an explicit `"any"`.
+        if (target === undefined) return true;
+        // Exhaustive over `DamageDealtTargetSpec` (CLAUDE.md § Exhaustive
+        // target-type matching): the `never` default is what turns a future
+        // member added to the union into a TYPE ERROR here instead of a
+        // silently non-matching trigger — the exact failure this issue fixed.
+        switch (target.kind) {
+            case "any":
+                return true;
+            case "player":
+                return passesTargetPlayerFilter(
+                    event,
+                    self,
+                    state,
+                    target.player
+                );
+            case "permanent":
+                return passesTargetPermanentFilter(
+                    event,
+                    self,
+                    state,
+                    target.filter
+                );
+            case "player-or-planeswalker":
+                // The player half needs no lookup — the event already says so.
+                if (event.target.type === "player") return true;
+                // The planeswalker half does: CR 120.3c damage to a planeswalker
+                // arrives shaped exactly like damage to a creature, so the
+                // recipient's types are read off the live battlefield through
+                // the shared permanent-filter authority. Fails CLOSED — a
+                // recipient absent from the view synthesises empty `types`, so
+                // an unknown permanent never satisfies "Planeswalker".
+                return passesTargetPermanentFilter(event, self, state, {
+                    types: "Planeswalker",
+                });
+            default: {
+                const exhaustive: never = target;
+                return exhaustive;
+            }
         }
-        // target.kind === "permanent"
-        return passesTargetPermanentFilter(event, self, state, target.filter);
     }
 
     function matches(

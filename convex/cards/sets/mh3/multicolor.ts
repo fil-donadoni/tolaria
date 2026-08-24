@@ -14,9 +14,9 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Psychic Frog — {U}{B} Creature — Frog 1/2.
-// "Whenever this creature deals combat damage to a player, draw a card." (CR
-//  510.4 combat damage; CR 121.1 draw — a self-source combat-damage-to-player
-//  trigger.)
+// "Whenever this creature deals combat damage to a player or planeswalker,
+//  draw a card." (CR 510.4 combat damage; CR 121.1 draw — a self-source
+//  combat-damage trigger over the player-or-planeswalker recipient class.)
 // "Discard a card: Put a +1/+1 counter on this creature." (CR 122.1 counter.)
 // "Exile three cards from your graveyard: This creature gains flying until end
 //  of turn." (CR 118.5 exile-from-graveyard cost; CR 611.2a temporary keyword
@@ -29,8 +29,6 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // when a card is actually discarded. This mirrors the established Necropolis
 // idiom (cost→resolve-time pick) and keeps gameplay faithful; the only deviation
 // is that the discard happens on resolution rather than at activation.
-// (The engine has no planeswalkers, so the combat-damage trigger fires on
-//  damage to a player only; the printed oracle text is preserved.)
 export const psychicFrog: CardDefinition = {
     id: "68924203-c3d9-41ce-8ca8-c6dd491eb3ca",
     name: "Psychic Frog",
@@ -45,13 +43,18 @@ export const psychicFrog: CardDefinition = {
     triggeredAbilities: [
         // Migrated resolve()→effects[] (ADR 0045, closes #1280): the
         // combat-damage draw rides `damageDealtTrigger`'s `effects` site.
+        // The recipient class is the whole printed clause (issue #1855): a
+        // planeswalker is a permanent (CR 110.1) and combat damage to one
+        // removes loyalty (CR 120.3c), so it reaches the trigger as a
+        // `permanent` target and needs the disjunctive discriminator — a
+        // plain `kind: "player"` silently dropped "or planeswalker".
         damageDealtTrigger({
             id: "psychic-frog-combat-draw",
             oracleText:
                 "Whenever this creature deals combat damage to a player or planeswalker, draw a card.",
             source: "self",
             isCombat: true,
-            target: { kind: "player", player: { relation: "any" } },
+            target: { kind: "player-or-planeswalker" },
             effects: [{ op: "draw", player: "controller", count: 1 }],
         }),
     ],

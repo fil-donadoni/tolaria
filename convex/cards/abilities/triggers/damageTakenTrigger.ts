@@ -31,7 +31,19 @@ import {
 /** Discriminator over the side that took the damage. Required — the whole
  *  point of `damageTakenTrigger` is to gate on the receiver. Use a
  *  `PermanentFilter` with `controllerRelation: "self"` for the canonical
- *  "whenever this creature is dealt damage" case (CR 109.2). */
+ *  "whenever this creature is dealt damage" case (CR 109.2).
+ *
+ *  ASYMMETRY WITH THE MIRROR (issue #1855). `DamageDealtTargetSpec` grew a
+ *  `"player-or-planeswalker"` member; this union deliberately did NOT. The
+ *  dealt-side member exists because that clause spans the player/permanent
+ *  axis and is therefore inexpressible with the other members. On the taken
+ *  side the single-recipient shapes are already covered — "whenever a
+ *  planeswalker you control is dealt damage" IS
+ *  `{ kind: "permanent", filter: { types: "Planeswalker", controllerRelation:
+ *  "yours" } }`. Only the disjunction ("dealt damage to you or a planeswalker
+ *  you control") would need a new member, and no shipped card uses it. An
+ *  inert union member is not free: it ships untested, un-exercised surface
+ *  that reads as supported. Add it with its first real caller and its test. */
 export type DamageTakenTargetSpec =
     | { kind: "permanent"; filter?: PermanentFilter }
     | { kind: "player"; player: PlayerFilter }
@@ -90,12 +102,32 @@ export function damageTakenTrigger(
         self: PermanentView,
         state: TriggerStateView | undefined
     ): boolean {
-        if (target.kind === "any") return true;
-        if (target.kind === "player") {
-            return passesTargetPlayerFilter(event, self, state, target.player);
+        // Exhaustive over `DamageTakenTargetSpec` (CLAUDE.md § Exhaustive
+        // target-type matching). The mirror's `never` default is what makes a
+        // future member a type error here rather than a silently inert kind
+        // (the shape of issue #1855 on the dealt side).
+        switch (target.kind) {
+            case "any":
+                return true;
+            case "player":
+                return passesTargetPlayerFilter(
+                    event,
+                    self,
+                    state,
+                    target.player
+                );
+            case "permanent":
+                return passesTargetPermanentFilter(
+                    event,
+                    self,
+                    state,
+                    target.filter
+                );
+            default: {
+                const exhaustive: never = target;
+                return exhaustive;
+            }
         }
-        // target.kind === "permanent"
-        return passesTargetPermanentFilter(event, self, state, target.filter);
     }
 
     function matches(
