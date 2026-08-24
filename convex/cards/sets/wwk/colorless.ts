@@ -13,12 +13,12 @@ import type {
 // `restrictCombat` Op's evasion `restriction: "cant-be-blocked"` (CR 509.1b)
 // skins `setCantBeBlockedThisTurn` — the whole ability is now `effects[]`, no
 // `resolve()`.
-// SIMPLIFICATION (flagged): `AnimateSpec` has no `colors` field, so the
-// animated creature does not become blue/black while animated (CR 105.1) —
-// this only matters against colour-referencing effects (protection, colour
-// hosers) while the land is animated, a narrow interaction; P/T, unblockable,
-// and "still a land" are all correct. Vintage Cube free tranche
-// (issue #675, ADR 0041).
+// The colour clause ("blue and black") is `animate`'s `colors` field (issue
+// #1872) — a layer-5 colour SET (CR 613.1e) applied through the same
+// `setColorOverride` primitive the `setColor` Op skins, so CR 105.3's "the new
+// color replaces all previous colors" holds and the land reads blue+black to
+// protection / colour hosers exactly while it is animated. Vintage Cube free
+// tranche (issue #675, ADR 0041).
 export const creepingTarPit: CardDefinition = {
     id: "0f427f0b-034c-4821-8758-e395c0042d8a",
     rarity: "rare",
@@ -56,6 +56,9 @@ export const creepingTarPit: CardDefinition = {
                     power: 3,
                     toughness: 2,
                     subtype: "Elemental",
+                    // CR 613.1e / 105.3 — "becomes a 3/2 BLUE AND BLACK
+                    // Elemental creature"; reverts with the animation.
+                    colors: ["U", "B"],
                     duration: { phase: "end-of-turn" },
                 },
                 {
@@ -68,8 +71,8 @@ export const creepingTarPit: CardDefinition = {
     ],
 };
 
-// Celestial Colonnade — see Creeping Tar Pit's comment for the
-// colour-modelling simplification (no `colors` field on `AnimateSpec`).
+// Celestial Colonnade — see Creeping Tar Pit's comment for the layer-5 colour
+// clause (`animate`'s `colors`, CR 613.1e / 105.3).
 //
 // Migrated resolve()→effects[] (ADR 0045, PRD #795): the `animate` Op (CR
 // 208.2/611.1, issue #1317) is a thin declarative skin over the exact
@@ -114,6 +117,9 @@ export const celestialColonnade: CardDefinition = {
                     power: 4,
                     toughness: 4,
                     subtype: "Elemental",
+                    // CR 613.1e / 105.3 — "becomes a 4/4 WHITE AND BLUE
+                    // Elemental creature"; reverts with the animation.
+                    colors: ["W", "U"],
                     duration: { phase: "end-of-turn" },
                 },
                 {

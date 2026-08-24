@@ -2577,6 +2577,43 @@ function isSimultaneousReanimationBody(effects: unknown): boolean {
     return Object.keys(op).every((k) => allowed.has(k));
 }
 
+/** The only `forEach` body shape a `simultaneous: true` PLAYERS sweep may
+ *  carry (CR 101.4, issue #1872): exactly `[{ op: "choice", …, bind: "$b" },
+ *  { op: "sacrifice" | "discard", …: { ref: "$b" } }]` — one decision Op, then
+ *  one Op applying THAT decision.
+ *
+ *  Deliberately narrow, and fail-closed, for two reasons the interpreter
+ *  depends on. (1) The re-sequencing is choices-then-actions, so anything in
+ *  the SECOND half that could itself suspend would push a prompt back in
+ *  among the already-applied actions and reintroduce exactly the interleaving
+ *  this fixes; `sacrifice` and `discard` are terminal and cannot suspend.
+ *  (2) Applying the actions back-to-back is only equivalent to CR 101.4's
+ *  "simultaneously" for actions no OTHER player's action can invalidate — a
+ *  player sacrificing their own creature or discarding their own card.
+ *
+ *  What this deliberately does NOT admit: a `moveZone`-to-battlefield body
+ *  (Exhume, Show and Tell). Those need every chosen card to ENTER as one
+ *  event — a batch-entry primitive, which exists for a graveyard SET
+ *  (`returnGraveyardSetToBattlefield`, the sibling shape above) but not for a
+ *  per-player CHOICE out of hand or graveyard. Deferring the moves alone
+ *  would fix the choice half and still fire N separate entry events. */
+function isSimultaneousPlayerChoiceBody(effects: unknown): boolean {
+    if (!Array.isArray(effects) || effects.length !== 2) return false;
+    const choice = effects[0] as Record<string, unknown>;
+    const apply = effects[1] as Record<string, unknown>;
+    if (choice.op !== "choice") return false;
+    const bind = choice.bind;
+    if (typeof bind !== "string") return false;
+    const picksRef = (
+        apply.op === "sacrifice"
+            ? apply.permanents
+            : apply.op === "discard"
+              ? apply.cards
+              : undefined
+    ) as Record<string, unknown> | undefined;
+    return !!picksRef && picksRef.ref === bind;
+}
+
 /** Shape check for `divideIntoPiles`'s `objects` selector (ADR 0053, pile
  *  division) — deliberately its OWN small selector, not `EffectForEachSelector`
  *  (see the type doc): `controller`/`player` are REQUIRED, not optional, since
@@ -3691,9 +3728,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature.
     // `target` is an object selector; `power`/`toughness` are the animation's
     // base P/T (0 is legal — a characteristic, not a CR 107.1 amount);
-    // `subtype`/`additionalTypes`/`grantedAbilities` are optional; `duration`
-    // is OPTIONAL — omitted means an INDEFINITE animation (CR 611.2b,
-    // Earthbend N), present means a temporary one (Mishra's Factory).
+    // `subtype`/`additionalTypes`/`grantedAbilities`/`colors` are optional;
+    // `duration` is OPTIONAL — omitted means an INDEFINITE animation
+    // (CR 611.2b, Earthbend N), present a temporary one (Mishra's Factory).
+    // `colors` (layer 5, CR 613.1e) takes the SAME vocabulary as `setColor`'s
+    // own list; unlike `setColor` an EMPTY array is rejected below, because
+    // "becomes a colourless creature" is not a template any animate clause
+    // uses and an accidental `[]` would silently blank a coloured permanent.
     animate: {
         required: {
             target: isObjectSelector,
@@ -3704,8 +3745,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             subtype: isNonEmptyString,
             additionalTypes: (v) => isStringArray(v, TOKEN_CARD_TYPES),
             grantedAbilities: (v) => isStringArray(v),
+            colors: (v) => isStringArray(v, TOKEN_COLORS),
             duration: isDurationSpec,
         },
+        check: (entry) =>
+            Array.isArray(entry.colors) && entry.colors.length === 0
+                ? [
+                      'field "colors" must be non-empty — omit it to leave the printed colour alone (CR 105.2)',
+                  ]
+                : [],
     },
     // CR 205.1a layer 4 (issue #2361) — SET a permanent's card types,
     // REPLACING every type it currently has, indefinitely (Oko, Thief of
@@ -4213,9 +4261,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // forEach — the `forEach` structural construct (ADR 0045, issue #807).
     // The `select` selector shape is checked here; body Op validity, the
     // nesting ban, and `$each` ref references are checked by the recursive
-    // schema / ordered ref passes. `simultaneous` (CR 400.7 / 614-batch,
-    // issue #1094) is a graveyard-set-only, single-Op-body-only flag —
-    // checked below.
+    // schema / ordered ref passes. `simultaneous` names one of two exact
+    // selector/body pairings — graveyard batch reanimation (CR 400.7 /
+    // 614-batch, issue #1094) or players choices-then-actions (CR 101.4,
+    // issue #1872) — checked below.
     forEach: {
         required: { select: isForEachSelector, effects: isOpList },
         optional: { simultaneous: isBoolean },
@@ -4224,22 +4273,36 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             if (Array.isArray(entry.effects) && entry.effects.length === 0) {
                 errors.push('field "effects" must be a non-empty Op list');
             }
-            // Simultaneous batch reanimation (issue #1094): only meaningful
-            // over a graveyard set, and only for the ONE body shape the
-            // batch primitive executes — a single reanimating `moveZone`.
-            // A multi-Op body has no CR 400.7 single-event analogue (the
-            // per-member side effects would still need sequencing), so it
-            // stays sequential (`simultaneous` omitted/false).
+            // `simultaneous` admits exactly TWO selector/body pairings, each
+            // with its own interpreter path, and nothing else — a set it does
+            // not recognise, or a body one Op wider than the pairing allows,
+            // is REJECTED rather than quietly falling back to the sequential
+            // walk (a silent fallback is how a card ships reading
+            // "simultaneously" and behaving sequentially).
+            //
+            //   graveyard (issue #1094, CR 400.7 / 614-batch) — a single
+            //     reanimating `moveZone`, handed WHOLE to the batch primitive.
+            //   players   (issue #1872, CR 101.4) — `[choice, sacrifice |
+            //     discard]`, re-sequenced by the interpreter into
+            //     every-choice-then-every-action.
             if (entry.simultaneous === true) {
                 const select = entry.select as { set?: unknown } | undefined;
-                if (!select || select.set !== "graveyard") {
+                const set = select?.set;
+                if (set === "graveyard") {
+                    if (!isSimultaneousReanimationBody(entry.effects)) {
+                        errors.push(
+                            'field "simultaneous" over { set: "graveyard" } requires "effects" to be exactly [{ op: "moveZone", target: { ref: "$each" }, to: "battlefield" }] (optionally "controller") — the one CR 400.7 single-event shape the batch primitive executes'
+                        );
+                    }
+                } else if (set === "players") {
+                    if (!isSimultaneousPlayerChoiceBody(entry.effects)) {
+                        errors.push(
+                            'field "simultaneous" over { set: "players" } requires "effects" to be exactly [{ op: "choice", …, bind: "$b" }, { op: "sacrifice" | "discard", …: { ref: "$b" } }] — the one CR 101.4 choices-then-actions shape the interpreter re-sequences'
+                        );
+                    }
+                } else {
                     errors.push(
-                        'field "simultaneous" is only valid with { select: { set: "graveyard" } }'
-                    );
-                }
-                if (!isSimultaneousReanimationBody(entry.effects)) {
-                    errors.push(
-                        'field "simultaneous" requires "effects" to be exactly [{ op: "moveZone", target: { ref: "$each" }, to: "battlefield" }] (optionally "controller") — the one CR 400.7 single-event shape the batch primitive executes'
+                        'field "simultaneous" is only valid with { select: { set: "graveyard" } } (CR 400.7 batch reanimation) or { select: { set: "players" } } (CR 101.4 choices-then-actions)'
                     );
                 }
             }

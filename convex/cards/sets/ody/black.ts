@@ -11,9 +11,11 @@ import type { CardDefinition } from "../../types";
 // Pending Choice for the current player (`$each`) and resumes to sacrifice
 // the pick. A player with no creatures is skipped entirely (CR 608.2b — the
 // choice clamps to zero candidates, so neither the prompt nor the sacrifice
-// happens). Engine simplification (flagged): each iteration's sacrifice
-// applies before the next player picks, rather than all sacrifices happening
-// simultaneously after all choices (CR 101.4d).
+// happens). `simultaneous: true` (issue #1872) is what makes the timing right:
+// the interpreter collects EVERY player's pick first and only then applies the
+// sacrifices, so a later chooser decides against the board the earlier
+// choosers saw — CR 101.4's "Then the actions happen simultaneously", whose
+// worked example in the rules text is this card's own line.
 export const innocentBlood: CardDefinition = {
     id: "d26af8f6-df64-4027-880c-f2fae2d8103f",
     name: "Innocent Blood",
@@ -25,6 +27,10 @@ export const innocentBlood: CardDefinition = {
         {
             op: "forEach",
             select: { set: "players" },
+            // CR 101.4 — "Then the actions happen simultaneously." The rule's
+            // own example IS this card: every player chooses in APNAP order,
+            // then all chosen creatures are sacrificed together.
+            simultaneous: true,
             effects: [
                 {
                     op: "choice",

@@ -2134,7 +2134,11 @@ describe("validateEffectScript — forEach simultaneous batch reanimation (CR 40
         };
         const errors = validateEffectScript(host({ effects: [script] }));
         expect(
-            errors.some((e) => /"simultaneous" requires "effects"/.test(e))
+            errors.some((e) =>
+                /"simultaneous" over \{ set: "graveyard" \} requires "effects"/.test(
+                    e
+                )
+            )
         ).toBe(true);
     });
 
@@ -2147,7 +2151,9 @@ describe("validateEffectScript — forEach simultaneous batch reanimation (CR 40
         };
         expect(
             validateEffectScript(host({ effects: [wrongTo] })).some((e) =>
-                /"simultaneous" requires "effects"/.test(e)
+                /"simultaneous" over \{ set: "graveyard" \} requires "effects"/.test(
+                    e
+                )
             )
         ).toBe(true);
 
@@ -2161,7 +2167,9 @@ describe("validateEffectScript — forEach simultaneous batch reanimation (CR 40
         };
         expect(
             validateEffectScript(host({ effects: [wrongTarget] })).some((e) =>
-                /"simultaneous" requires "effects"/.test(e)
+                /"simultaneous" over \{ set: "graveyard" \} requires "effects"/.test(
+                    e
+                )
             )
         ).toBe(true);
     });
@@ -2193,6 +2201,216 @@ describe("validateEffectScript — forEach simultaneous batch reanimation (CR 40
     it("a valid simultaneous forEach script survives a JSON round-trip unchanged (ADR 0046 purity)", () => {
         expect(JSON.parse(JSON.stringify([replenishShape]))).toEqual([
             replenishShape,
+        ]);
+    });
+});
+
+describe("validateEffectScript — animate colours (CR 613.1e layer 5, issue #1872)", () => {
+    it("accepts a non-empty colour list", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { target: 0 },
+                            power: 3,
+                            toughness: 2,
+                            colors: ["U", "B"],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects an EMPTY colour list — omit the field instead (CR 105.2)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "animate",
+                        target: { target: 0 },
+                        power: 3,
+                        toughness: 2,
+                        colors: [],
+                    },
+                ],
+            })
+        );
+        expect(errors.some((e) => /"colors" must be non-empty/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects a colour outside the five-plus-colourless vocabulary", () => {
+        const script = {
+            op: "animate",
+            target: { target: 0 },
+            power: 3,
+            toughness: 2,
+            colors: ["U", "Purple"],
+        } as unknown as EffectOp;
+        const errors = validateEffectScript(host({ effects: [script] }));
+        expect(errors.some((e) => /"colors" has invalid value/.test(e))).toBe(
+            true
+        );
+    });
+});
+
+describe("validateEffectScript — forEach simultaneous players choices-then-actions (CR 101.4, issue #1872)", () => {
+    const innocentBloodShape: EffectOp = {
+        op: "forEach",
+        select: { set: "players" },
+        simultaneous: true,
+        effects: [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: { ref: "$each" },
+                zone: "battlefield",
+                filter: { type: "Creature" },
+                count: 1,
+                prompt: "Choose a creature to sacrifice.",
+                bind: "$sac",
+            },
+            { op: "sacrifice", permanents: { ref: "$sac" } },
+        ],
+    };
+
+    it("accepts the canonical shape (players set + [choice, sacrifice] body)", () => {
+        expect(
+            validateEffectScript(host({ effects: [innocentBloodShape] }))
+        ).toEqual([]);
+    });
+
+    it("accepts a [choice, discard] body", () => {
+        const script: EffectOp = {
+            op: "forEach",
+            select: { set: "players" },
+            simultaneous: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: { ref: "$each" },
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card.",
+                    bind: "$disc",
+                },
+                {
+                    op: "discard",
+                    player: { ref: "$each" },
+                    cards: { ref: "$disc" },
+                },
+            ],
+        };
+        expect(validateEffectScript(host({ effects: [script] }))).toEqual([]);
+    });
+
+    it("rejects a terminal Op that reads a DIFFERENT binding than the choice bound", () => {
+        const script = {
+            ...innocentBloodShape,
+            effects: [
+                (innocentBloodShape as { effects: EffectOp[] }).effects[0],
+                { op: "sacrifice", permanents: { ref: "$other" } },
+            ],
+        } as unknown as EffectOp;
+        expect(
+            validateEffectScript(host({ effects: [script] })).some((e) =>
+                /"simultaneous" over \{ set: "players" \} requires "effects"/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a body whose terminal Op is not sacrifice/discard (a moveZone reanimation — Exhume's shape)", () => {
+        const script = {
+            op: "forEach",
+            select: { set: "players" },
+            simultaneous: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-graveyard-card",
+                    player: { ref: "$each" },
+                    zone: "graveyard",
+                    filter: { type: "Creature" },
+                    count: 1,
+                    prompt: "Choose a creature card.",
+                    bind: "$rean",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$rean" },
+                    to: "battlefield",
+                    player: { ref: "$each" },
+                },
+            ],
+        } as unknown as EffectOp;
+        expect(
+            validateEffectScript(host({ effects: [script] })).some((e) =>
+                /"simultaneous" over \{ set: "players" \} requires "effects"/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a THREE-Op body — pass 2 must hold exactly the one applying Op", () => {
+        const script = {
+            ...innocentBloodShape,
+            effects: [
+                ...(innocentBloodShape as { effects: EffectOp[] }).effects,
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        } as unknown as EffectOp;
+        expect(
+            validateEffectScript(host({ effects: [script] })).some((e) =>
+                /"simultaneous" over \{ set: "players" \} requires "effects"/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a body whose FIRST Op is not a choice", () => {
+        const script = {
+            ...innocentBloodShape,
+            effects: [
+                { op: "draw", player: "controller", count: 1 },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
+        } as unknown as EffectOp;
+        expect(
+            validateEffectScript(host({ effects: [script] })).some((e) =>
+                /"simultaneous" over \{ set: "players" \} requires "effects"/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("still rejects simultaneous over a set that is neither graveyard nor players", () => {
+        const script: EffectOp = {
+            op: "forEach",
+            select: { set: "permanents", zone: "battlefield" },
+            simultaneous: true,
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        };
+        expect(
+            validateEffectScript(host({ effects: [script] })).some((e) =>
+                /"simultaneous" is only valid with/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("a valid simultaneous players forEach survives a JSON round-trip unchanged (ADR 0046 purity)", () => {
+        expect(JSON.parse(JSON.stringify([innocentBloodShape]))).toEqual([
+            innocentBloodShape,
         ]);
     });
 });

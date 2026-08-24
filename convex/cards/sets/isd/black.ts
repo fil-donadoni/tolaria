@@ -49,6 +49,9 @@ export const lilianaOfTheVeil: CardDefinition = {
                 {
                     op: "forEach",
                     select: { set: "players" },
+                    // CR 101.4 — every player chooses (APNAP), then all the
+                    // discards happen together.
+                    simultaneous: true,
                     effects: [
                         {
                             op: "choice",
