@@ -37,10 +37,14 @@ export interface ActiveSessionGame {
     solo: boolean;
 }
 
-/** The Limited event the viewer can return to. */
+/** The Limited event the viewer can return to. `type` + `packSlots` together
+ *  are exactly `limitedEventName`'s input (`~/lib/limitedEventName.ts`) — the
+ *  return banner needs to NAME the event (issue #2674), not just tell the two
+ *  types apart. */
 export interface ActiveSessionEvent {
     eventId: LimitedEventSummaryView["_id"];
     type: LimitedEventSummaryView["type"];
+    packSlots: LimitedEventSummaryView["packSlots"];
 }
 
 export interface ActiveSession {
@@ -101,7 +105,9 @@ export function useActiveSession(enabled: boolean): ActiveSession {
     // one is the one to offer. A user is in at most a handful, and the ordering
     // is the query's — the shell does not re-rank it.
     const first = events[0];
-    const event = first ? { eventId: first._id, type: first.type } : null;
+    const event = first
+        ? { eventId: first._id, type: first.type, packSlots: first.packSlots }
+        : null;
 
     return { game, event, loading: false };
 }

@@ -207,12 +207,21 @@ describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2
         expect(screen.getByText("Close Event")).toBeTruthy();
     });
 
-    it("still shows Close Event for the creator once the event has concluded — closing again is a harmless no-op", () => {
+    it("still shows Close Event for the creator while the play phase is running (issue #2674: non-terminal phases keep the affordance unchanged)", () => {
+        eventMock.mockReturnValue(
+            makeEvent({ status: "playing", createdBy: "user-1" })
+        );
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+        expect(screen.getByText("Close Event")).toBeTruthy();
+    });
+
+    it("hides the close affordance for the creator once the event has concluded — issue #2674, nothing left to close (the mutation's own idempotent absorb, proven server-side in limitedEventClose.test.ts, is unaffected)", () => {
         eventMock.mockReturnValue(
             makeEvent({ status: "finished", createdBy: "user-1" })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
-        expect(screen.getByText("Close Event")).toBeTruthy();
+        expect(screen.queryByText("Cancel Event")).toBeNull();
+        expect(screen.queryByText("Close Event")).toBeNull();
     });
 
     it("requires confirmation before calling the cancel mutation", () => {
