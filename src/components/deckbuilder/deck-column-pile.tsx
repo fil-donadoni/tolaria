@@ -32,6 +32,7 @@ export default function DeckColumnPile({
     tiles,
     actions,
     hiddenWhenEmpty = false,
+    showHeader = true,
 }: {
     label: string;
     /** dnd-kit droppable id — unique within the host's `DragDropProvider`. */
@@ -56,6 +57,23 @@ export default function DeckColumnPile({
      *  today"). The Catch-All is never passed `true` here — it always stays
      *  reachable as the guaranteed landing spot the AC calls for. */
     hiddenWhenEmpty?: boolean;
+    /** Draw the label + count row above the cards (issue #2665). False on the
+     *  landscape-phone rung, where the label is ~11px of text over a tile the
+     *  player is looking at anyway, and the row's height is the scarcest thing
+     *  on a 390px-tall screen — the Column is read from its position and its
+     *  contents there, as it is in the Booster pack.
+     *
+     *  Suppressing the header does NOT unregister the Column: `useDroppable`'s
+     *  `ref` and `data-column` both live on the OUTER element below, which is
+     *  rendered unconditionally, so a headerless Column is the same drop target
+     *  at the same `dropId` (`deck-zone-landscape-density.test.tsx` asserts
+     *  exactly that, against a recording `useDroppable`, because a
+     *  `data-column` attribute would survive the droppable being torn out from
+     *  under it). It DOES take the `actions` slot off screen with it, which is why
+     *  the caller stops passing one on that rung rather than leaving an
+     *  unreachable menu in the document — the same treatment `DeckMvRow`
+     *  already gives phone-portrait. */
+    showHeader?: boolean;
 }) {
     const { ref, isDropTarget } = useDroppable({
         id: dropId,
@@ -73,13 +91,15 @@ export default function DeckColumnPile({
                     : ""
             )}
         >
-            <div className="flex min-w-0 items-baseline justify-between gap-1 text-xs text-text-muted">
-                <span className="truncate font-semibold">{label}</span>
-                <span className="shrink-0 text-text-disabled">
-                    {tiles.length}
-                </span>
-                {actions}
-            </div>
+            {showHeader && (
+                <div className="flex min-w-0 items-baseline justify-between gap-1 text-xs text-text-muted">
+                    <span className="truncate font-semibold">{label}</span>
+                    <span className="shrink-0 text-text-disabled">
+                        {tiles.length}
+                    </span>
+                    {actions}
+                </div>
+            )}
             <div
                 className="relative w-(--card-w)"
                 style={{ height: pileHeight(tiles.length) }}
