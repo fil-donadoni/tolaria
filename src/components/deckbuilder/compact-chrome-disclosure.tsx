@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
-import { useViewportMode } from "~/hooks/useViewportMode";
+import { useCompactChromeFold } from "./useCompactChromeFold";
 
 export interface CompactChromeDisclosureProps {
     /** Toggle label — names the band that is folded away, so the control reads
@@ -14,7 +14,8 @@ export interface CompactChromeDisclosureProps {
      *  event chrome collapses only while a seat is actively drafting, never
      *  when the event isn't — pairings/standings/Close Event are the page
      *  then, even on a compact viewport). Default `true` keeps every existing
-     *  caller's plain `useViewportMode() !== "desktop"` behaviour. */
+     *  caller's `useViewportMode() !== "desktop" || useIsTabletPortrait()`
+     *  behaviour (issue #2671). */
     active?: boolean;
 }
 
@@ -41,20 +42,29 @@ export interface CompactChromeDisclosureProps {
  *    probe counts and a reader cannot see. Unmounting also means the folded
  *    controls hold no tab stops.
  *
- * The viewport predicate is `useViewportMode()` (the app's single layout seam,
+ * The core predicate is `useViewportMode()` (the app's single layout seam,
  * #335/#1763), whose non-`desktop` modes are mirrored in CSS as the
  * `compact-chrome:` variant (`src/index.css`) for the layout half of the same
  * fix. Changing one without the other desynchronises them — see the note there.
+ *
+ * **OR'd with `useIsTabletPortrait()` (issue #2671, `useCompactChromeFold`
+ * in `./useCompactChromeFold`).** That hook's
+ * `"desktop"` bucket includes tablet-portrait widths the deckbuilder's own
+ * source-panel dock never reaches (dock is landscape-only), so a fold gated
+ * on it ALONE never engaged at 820×1180 and the trailing cluster wrapped the
+ * header to 203px, starving the Sideboard's card port to ~183px — below one
+ * card tile. `TABLET_PORTRAIT_QUERY` is deliberately NOT mirrored into the
+ * `compact-chrome:` CSS variant: that variant's one consumer in this surface
+ * (`deck-zone-surface.tsx`'s card-port floor) exists to protect the port
+ * from a header this component has ALREADY folded down to one line — once
+ * folding engages there is nothing left for the floor to guard.
  */
 export default function CompactChromeDisclosure({
     label,
     children,
     active = true,
 }: CompactChromeDisclosureProps) {
-    // Hook called unconditionally regardless of `active` (Rules of Hooks) —
-    // only the DERIVED `compact` boolean is gated.
-    const viewportMode = useViewportMode();
-    const compact = active && viewportMode !== "desktop";
+    const compact = useCompactChromeFold(active);
     const [open, setOpen] = useState(false);
 
     if (!compact) return <>{children}</>;

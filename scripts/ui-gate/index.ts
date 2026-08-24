@@ -563,9 +563,11 @@ async function main(): Promise<number> {
                 if (budget?.status === "unwalked") return;
                 if (unreachable.has(surface.id)) return;
 
+                let walked = true;
                 try {
                     await surface.walk(page, ctx);
                 } catch (err) {
+                    walked = false;
                     const reason =
                         err instanceof Unreachable
                             ? err.message
@@ -574,38 +576,62 @@ async function main(): Promise<number> {
                     log(
                         `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} UNWALKED — ${reason}`
                     );
-                    return;
                 }
 
-                const probe = await runProbe(page);
-                const axe = await runAxe(page);
-                const metrics = metricsOf(probe, axe);
-                const shot = path.join(
-                    SHOT_DIR,
-                    `${surface.id}__${viewport.id}.png`
-                );
-                await page.screenshot({ path: shot });
+                if (walked) {
+                    const probe = await runProbe(page);
+                    const axe = await runAxe(page);
+                    const metrics = metricsOf(probe, axe);
+                    const shot = path.join(
+                        SHOT_DIR,
+                        `${surface.id}__${viewport.id}.png`
+                    );
+                    await page.screenshot({ path: shot });
 
-                const detail =
-                    `cards n${probe.cards.n} zero${probe.cards.zero} occ${probe.cards.occ} ` +
-                    `stranded${probe.cards.stranded} reach${probe.cards.reachable} | ` +
-                    `ctrls n${probe.ctrls.n} zero${probe.ctrls.zero} occ${probe.ctrls.occ} ` +
-                    `stranded${probe.ctrls.stranded} | starved${probe.starvedN} | ` +
-                    `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +
-                    `${axe.exempt ? ` exempt${axe.exempt}` : ""} | ` +
-                    `small${probe.smallN} tiny${probe.tinyText} hOverflow${probe.hOverflow}`;
-                log(
-                    `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}`
-                );
+                    const detail =
+                        `cards n${probe.cards.n} zero${probe.cards.zero} occ${probe.cards.occ} ` +
+                        `stranded${probe.cards.stranded} reach${probe.cards.reachable} | ` +
+                        `ctrls n${probe.ctrls.n} zero${probe.ctrls.zero} occ${probe.ctrls.occ} ` +
+                        `stranded${probe.ctrls.stranded} | starved${probe.starvedN} | ` +
+                        `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +
+                        `${axe.exempt ? ` exempt${axe.exempt}` : ""} | ` +
+                        `small${probe.smallN} tiny${probe.tinyText} hOverflow${probe.hOverflow}`;
+                    log(
+                        `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}`
+                    );
 
-                const list = perSurface.get(surface.id) ?? [];
-                list.push({
-                    viewport: viewport.id,
-                    metrics,
-                    screenshot: path.relative(REPO_ROOT, shot),
-                    detail,
-                });
-                perSurface.set(surface.id, list);
+                    const list = perSurface.get(surface.id) ?? [];
+                    list.push({
+                        viewport: viewport.id,
+                        metrics,
+                        screenshot: path.relative(REPO_ROOT, shot),
+                        detail,
+                    });
+                    perSurface.set(surface.id, list);
+                }
+
+                // Issue #2671 review round 2 MUST-FIX: this used to sit inside
+                // the happy path above (and the original `catch` block above
+                // `return`ed before ever reaching it), so a walk that threw
+                // AFTER the fixture import — for `deck-builder` that is the
+                // one `Unreachable` site past the Import confirm click, the
+                // sideboard check — left the `userDecks` row it created
+                // permanently on the deployment.
+                // Runs on BOTH the happy path and the failure path now (on the
+                // SAME page), undoing state the walk had to create for the
+                // probe to see (the `deck-builder` fixture's real `userDecks`
+                // row) without touching what was just measured. Best-effort:
+                // a cleanup failure is hygiene debt, not a measurement defect,
+                // so it is logged rather than failing the surface.
+                if (surface.cleanup) {
+                    try {
+                        await surface.cleanup(page, ctx);
+                    } catch (err) {
+                        log(
+                            `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} CLEANUP FAILED — ${(err as Error).message.split("\n")[0]}`
+                        );
+                    }
+                }
             };
 
             // Signed-out surfaces FIRST: `<AuthGate>` makes them unreachable

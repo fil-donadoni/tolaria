@@ -35,6 +35,14 @@ export interface WalkContext {
     stressScenarioLabel: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
+    /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
+     *  `useDeckWorkspace`'s autosave, so a real `userDecks` row exists by the
+     *  time `walk()` returns. `walk()` records the auto-assigned name here;
+     *  `cleanup()` reads it (on the SAME page, right after the probe has
+     *  measured this exact state) to delete that one row by name from the
+     *  lobby's My Decks list, then clears the field. `undefined` means
+     *  nothing to clean up. */
+    lastCreatedDeckName?: string;
     log(message: string): void;
 }
 
@@ -54,6 +62,15 @@ export interface Surface {
      */
     preAuth?: boolean;
     walk(page: Page, ctx: WalkContext): Promise<void>;
+    /**
+     * Runs AFTER the probe/axe/screenshot for this surface+viewport pass, on
+     * the SAME page (issue #2671 review H2) — so it can undo state `walk()`
+     * had to create for the probe to have something real to measure, without
+     * touching what the probe already captured. A failure here is logged and
+     * swallowed (`index.ts`'s `measure()`): cleanup is hygiene, not part of
+     * the measurement this surface exists to take.
+     */
+    cleanup?(page: Page, ctx: WalkContext): Promise<void>;
 }
 
 const NAV_TIMEOUT = 20_000;
@@ -414,6 +431,115 @@ export const SURFACES: readonly Surface[] = [
             if (!(await visible(page, "input, button", 10_000))) {
                 throw new Unreachable("the deck builder rendered no controls");
             }
+            // Issue #2671: this walk used to leave both zones empty, which hid
+            // a regression class from the probe entirely — `starved` can only
+            // fire once a real card TILE exists to compare a shrunk port
+            // against (`scripts/ui-gate/probe.js`), and an empty zone has no
+            // tile. Importing a tiny decklist seeds both zones without a drag
+            // simulation (the same `Import` entry point a player uses).
+            const DIALOG_TEXTAREA = '[role="dialog"] textarea';
+            const DIALOG_PREVIEW =
+                "[role=\"dialog\"] button:has-text('Preview')";
+            const DIALOG_CONFIRM = "[role=\"dialog\"] button:has-text('Add ')";
+            if (
+                !(await clickIfVisible(page, "button:has-text('Import')", 6000))
+            ) {
+                throw new Unreachable(
+                    "the deck builder offered no Import button"
+                );
+            }
+            if (!(await visible(page, DIALOG_TEXTAREA, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the Import decklist dialog did not open"
+                );
+            }
+            // Every card in this builder renders as a member of an OVERLAID
+            // Column pile (ADR 0075, `deck-column-pile.tsx`), stacked
+            // whenever 2+ cards share a grouping bucket — by design, not a
+            // defect, and orthogonal to this issue. A decklist with any
+            // duplicate name or two cards of the same mana value would stack
+            // a pile and paint the probe's centre-point occlusion check on
+            // ITS OWN buried tiles, noise this fixture has no reason to
+            // carry. Every line below is both a UNIQUE name and its own
+            // distinct mana value (one basic land total, so the "Lands" pile
+            // never gets a second member either) — no two cards this walk
+            // adds can ever land in the same pile.
+            await page
+                .locator(DIALOG_TEXTAREA)
+                .fill(
+                    "Deck\n1 Forest\n1 Llanowar Elves\n1 Grizzly Bears\n\nSideboard\n1 Shivan Dragon\n1 Circle of Protection: Red"
+                );
+            if (!(await clickIfVisible(page, DIALOG_PREVIEW, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the Import dialog's Preview button never enabled"
+                );
+            }
+            if (!(await visible(page, DIALOG_CONFIRM, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the pasted decklist resolved no cards to import"
+                );
+            }
+            await page.locator(DIALOG_CONFIRM).first().click({
+                timeout: STEP_TIMEOUT,
+            });
+            await page.waitForTimeout(600);
+            // Issue #2671 review round 2 MUST-FIX: this capture used to sit
+            // AFTER the "2/15" assertion below, so the one remaining throw
+            // site in this walk (the sideboard check) left
+            // `ctx.lastCreatedDeckName` unset — the one thing `cleanup()`
+            // needs to find and delete the row — and `index.ts`'s cleanup
+            // call (now always invoked, happy path or not — see the
+            // `measure()` fix) had nothing to act on. The name is unrelated
+            // to whether the import verifies: it is `nextDeckName()`'s
+            // sequential "Deck N", computed client-side from the deck list at
+            // MOUNT (`deck-builder.tsx:268`, `src/lib/userDecks.ts`), before
+            // this walk ever opens the Import dialog — reading it here, right
+            // after the confirm click, is no less accurate than reading it
+            // after the sideboard check, and it moves the capture ahead of
+            // every throw site that follows the import.
+            //
+            // The import above just tripped `useDeckWorkspace`'s autosave
+            // (`useDeckWorkspace.ts`), which means a real `userDecks` row now
+            // exists (or will, once `cleanup()` navigates away and the
+            // flush-on-unmount fires).
+            ctx.lastCreatedDeckName = await page
+                .locator('input[placeholder="Deck name"]')
+                .first()
+                .inputValue()
+                .catch(() => undefined);
+            // "2/15" is this walk's own fixed decklist (Shivan Dragon +
+            // Circle of Protection: Red) — a specific count, not just any
+            // digit, so this fails loudly if the import silently dropped a
+            // card instead of leaving the Sideboard genuinely empty.
+            if (!(await visible(page, "text=/2\\/15/", STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the Sideboard still reads empty after importing — the fixture card names may no longer resolve"
+                );
+            }
+        },
+        async cleanup(page, ctx) {
+            const name = ctx.lastCreatedDeckName;
+            if (!name) return;
+            ctx.lastCreatedDeckName = undefined;
+            // Navigating away unmounts the builder, which is what flushes a
+            // still-pending autosave (`useDeckWorkspace`'s flush-on-unmount)
+            // — the same mechanism that created the row, now guaranteed to
+            // have run before the delete below looks for it.
+            await goto(page, ctx, "/");
+            const menuSelector = `button[aria-label="More actions for ${name}"]`;
+            if (!(await visible(page, menuSelector, STEP_TIMEOUT))) {
+                // Nothing to clean up — the row never landed (e.g. the
+                // autosave lost a race with something else entirely).
+                return;
+            }
+            await page.locator(menuSelector).first().click();
+            const deleteItem = '[role="menuitem"]:has-text("Delete")';
+            if (!(await clickIfVisible(page, deleteItem, STEP_TIMEOUT))) return;
+            const confirmDelete = '[role="dialog"] button:has-text("Delete")';
+            if (!(await clickIfVisible(page, confirmDelete, STEP_TIMEOUT))) {
+                return;
+            }
+            await page.waitForTimeout(400);
         },
     },
     {
