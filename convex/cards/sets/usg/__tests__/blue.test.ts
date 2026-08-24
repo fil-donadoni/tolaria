@@ -172,7 +172,7 @@ describe("Show and Tell ({2}{U}: each player may put an artifact/creature/enchan
 // Time Spiral — NOT DSL-migratable (ADR 0045): the Timetwister-shape shuffle
 // clause is the SAME already-tracked bulk whole-zone-move gap Timetwister
 // itself is blocked on (lea/__tests__/blue.test.ts covers Timetwister;
-// tracked-by: #1841). `resolveSteps` (not a bare `resolve`) because the
+// tracked-by: #1727). `resolveSteps` (not a bare `resolve`) because the
 // seven-card draws are irreversible and must run exactly once before the
 // untap choice can suspend (Sylvan Library precedent, leg/green.ts).
 describe("Time Spiral ({4}{U}{U}: exile self, Timetwister-shape shuffle+draw for each player, untap up to 6 lands, CR 608.2m / 400.7 / 701.26)", () => {

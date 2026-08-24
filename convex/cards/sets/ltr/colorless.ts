@@ -7,8 +7,20 @@ import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
-// TODO(needs-triage): implement — needs a new engine capability.
-// tracked-by: #1841
+// Palantír of Orthanc — {3} Legendary Artifact. "At the beginning of your end
+// step, put an influence counter on this artifact and scry 2. Then target
+// opponent may have you draw a card. If that player doesn't, you mill X cards,
+// where X is the number of influence counters on it, and that player loses
+// life equal to the total mana value of those cards."
+//
+// TRIAGED 2026-08-25 (#1841 audit) — the marker used to read "needs a new
+// engine capability" with no gap named. Three distinct gaps, none of them
+// this card's alone: an OPPONENT-made may-choice inside the controller's own
+// trigger (a punisher branch, not a `mayPay`); an amount read off a named
+// counter on the source; and a life-loss amount equal to the total mana value
+// of the cards a preceding `mill` moved — a value that must be captured from
+// the Op's own result. Classified on the living cube tracker.
+// tracked-by: #1525
 // export const palantROfOrthanc: CardDefinition = {
 //     id: "6efb6a69-562c-4d95-858d-b067444cfd7e",
 //     name: "Palantír of Orthanc",

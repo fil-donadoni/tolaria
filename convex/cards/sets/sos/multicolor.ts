@@ -354,13 +354,15 @@ export const loreholdCharm: CardDefinition = {
 // Vicious Rivalry — {2}{B}{G} Sorcery. "As an additional cost to cast this
 // spell, pay X life. Destroy all artifacts and creatures with mana value X or
 // less." (CR 118.4 / 119.4 pay-X-life additional cost — already shipped via
-// `additionalCosts.payXLife`, Fire Covenant.) BLOCKED: `EffectCardFilter.
-// manaValueAtMost` is a FIXED literal ceiling by design (its own doc comment
-// in `convex/cards/types.ts` names Green Sun's Zenith's "mana value X or
-// less" as the exact NOT-expressible case) — there is no DYNAMIC (chosen-X)
-// mana-value ceiling for a `forEach`/battlefield-sweep filter. Do not invent
-// a name or paper over the gap with `resolve()`.
-// tracked-by: #1841
+// `additionalCosts.payXLife`, Fire Covenant.)
+//
+// FREED 2026-08-25 (#1841 audit): the old wording claimed
+// `EffectCardFilter.manaValueAtMost` is a FIXED literal ceiling with no
+// dynamic (chosen-X) form. That is WRONG at HEAD — the field is
+// `number | EffectXValue`, and `manaValueAtMost: { X: true }` is the dynamic
+// chosen-X ceiling, shipped and in use at `convex/cards/sets/mbs/green.ts`.
+// Nothing engine-side blocks this card; it is ordinary card work.
+// tracked-by: #2761
 // export const viciousRivalry: CardDefinition = {
 //     id: "6fa9cd18-3181-4373-ab65-49bf9de9487f",
 //     name: "Vicious Rivalry",

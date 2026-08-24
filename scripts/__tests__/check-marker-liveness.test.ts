@@ -340,17 +340,23 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             expect(liveHitsUsingThisSyntax).toEqual([]);
         });
 
-        it("dsk/red.ts and mh3/colorless.ts no longer name the closed #691 anywhere — repointed to #2494 (Fear of Missing Out's attack trigger) or #1841 (orphan bucket, no live successor)", () => {
+        it("dsk/red.ts and mh3/colorless.ts no longer name the closed #691 anywhere — repointed to #2494 (Fear of Missing Out's attack trigger), and, once the #1841 audit retired that orphan bucket, to its successor slices #2761 (Silence — freed) and #2766 (Shifting Woodland's delirium copy)", () => {
             const hits = scanRepoMarkers(readSources()).filter((m) =>
                 /dsk\/red\.ts|mh3\/colorless\.ts/.test(m.file)
             );
             expect(hits.length).toBeGreaterThanOrEqual(3);
             for (const h of hits) {
                 expect(h.issueNumbers).not.toContain(691);
+                // The bucket this census used to pin was #1841, retired as
+                // `not planned` by its own audit — a marker naming it again
+                // would be a dangling ref at a CLOSED issue, the exact class
+                // `check-marker-liveness` exists to catch.
+                expect(h.issueNumbers).not.toContain(1841);
             }
             const allNumbers = new Set(hits.flatMap((h) => h.issueNumbers));
             expect(allNumbers.has(2494)).toBe(true);
-            expect(allNumbers.has(1841)).toBe(true);
+            expect(allNumbers.has(2761)).toBe(true);
+            expect(allNumbers.has(2766)).toBe(true);
         });
     });
 });

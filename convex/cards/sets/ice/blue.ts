@@ -282,14 +282,20 @@ export const balduvianShaman: CardDefinition = {
                 controller: "you",
                 colorFilter: "W",
             },
-            // NOT DSL-migratable (ADR 0045): two clauses, neither has an Op.
-            // (a) CR 612 color-word text substitution — no `addTextChange`
-            // Op exists (only layer-5 `setColor`, a direct override, not a
-            // text-string replacement). (b) CR 113.1/611.2c PERMANENT grant
-            // of a triggered ability to another permanent — no Op wraps
+            // NOT DSL-migratable (ADR 0045). CORRECTED 2026-08-25 (#1841
+            // audit): this comment used to name TWO blockers; only one is
+            // real.
+            // (a) STILL BLOCKED — CR 612 color-word text substitution: no
+            // `addTextChange` Op exists (only layer-5 `setColor`, a direct
+            // override, not a text-string replacement).
+            // (b) NOT A BLOCKER — the claim was "no Op wraps
             // `grantTriggeredAbilityPermanent` (only the temporary
-            // `grantAbility` Op, duration-scoped). Blocked on: a text-change
-            // Op and a permanent triggered-ability-grant Op.
+            // `grantAbility` Op, duration-scoped)". `duration` on the
+            // `grantAbility` Op is OPTIONAL and an omitted one means
+            // INDEFINITE (CR 611.2b, issue #1746); all three legs mirror that
+            // split, so `grantTriggeredAbilityPermanent` IS reachable.
+            // Blocked on: the text-change Op alone.
+            // tracked-by: #2763
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target || target.type !== "permanent") return;

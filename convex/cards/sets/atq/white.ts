@@ -258,7 +258,7 @@ export const martyrsOfKorlis: CardDefinition = {
 // NOT DSL-migratable: X = twice getArtifactDamageDealtThisTurn(caster) needs a
 // per-turn artifact-damage EffectValue plus an arithmetic (×2) value construct;
 // neither exists in the grammar (literal|ref|count|manaValue), so the amount
-// can't be expressed as an Op today. tracked-by: #1841
+// can't be expressed as an Op today. tracked-by: #1993
 export const reversePolarity: CardDefinition = {
     id: "da7ed8ba-3886-4779-a9b3-6892a7ed3527",
     rarity: "common",
