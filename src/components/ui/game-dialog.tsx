@@ -131,7 +131,35 @@ export default function GameDialog({
                     tone="neutral"
                     density={density}
                     ornament={ornament}
-                    className="max-w-full min-w-64 overflow-hidden sm:min-w-80"
+                    // `flex flex-col` + `max-h-[calc(100dvh-2rem)]` (issue
+                    // #2666): the cap lives HERE, on the whole visible dialog
+                    // surface (header + scrolling body + footer), not on the
+                    // inner column alone — it used to cap only the column
+                    // below (title + body), leaving Panel and DialogContent
+                    // itself unbounded, so the footer — a SIBLING of the
+                    // capped column, not inside it — was exactly what got
+                    // pushed off the bottom of a short viewport (a landscape
+                    // phone with the browser toolbar showing: the Submit
+                    // button in the bug-report dialog). Now Panel is the
+                    // bounded box, the column below is a flex item that
+                    // shrinks to whatever height is left after the
+                    // `shrink-0` footer, and the column's own scroll region
+                    // (`data-slot="game-dialog-column"`'s child, `overflow-
+                    // auto` + `min-h-0`) absorbs that shrinkage — so the
+                    // title row and the footer both stay pinned and visible,
+                    // and only the body scrolls. `dvh`, not `vh`/`80vh`: with
+                    // the browser toolbar shown `vh` is the LARGE viewport
+                    // and a percentage cap still overflows; `dvh` tracks the
+                    // viewport as it actually is, and the flat `2rem` margin
+                    // (matching `DialogContent`'s own cap, dialog.tsx) holds
+                    // at any height instead of degrading at short ones the
+                    // way a percentage does. Matches `DialogContent`'s cap
+                    // exactly on purpose (dialog.tsx) — Popup's own height is
+                    // just Panel's rendered height (its sole child), already
+                    // <= this value, so the two caps never fight; the outer
+                    // one is a backstop for every OTHER `DialogContent`
+                    // consumer, not a second constraint on this one.
+                    className="flex max-h-[calc(100dvh-2rem)] max-w-full min-w-64 flex-col overflow-hidden sm:min-w-80"
                 >
                     {/* ONE full-width column. The icon used to be a sibling
                         COLUMN, which shrank the body to the remaining width —
@@ -141,32 +169,21 @@ export default function GameDialog({
                         when `align="center"`), and the body always spans the
                         panel. */}
                     <div
-                        // 80vh caps only THIS column, not the chrome around
-                        // it — DialogContent itself carries no padding here
-                        // (`p-0`, set on DialogContent's className above;
-                        // tailwind-merge wins over any default), so it's only
-                        // the Panel's `roomy` padding (`p-6`, 24px top + 24px
-                        // bottom = 48px total) that sits outside this
-                        // max-height. At the cap the rendered popup already
-                        // exceeds a 48px-larger viewport than 80vh implies.
-                        // DialogContent centers via `top-1/2 -translate-y-1/2`
-                        // with no height clamp of its own, so any overshoot
-                        // strands the top and clips the bottom equally (issue
-                        // #2586: measured at 844x390, the Stats dialog).
-                        // `short-viewport:` (`max-height: 500px`,
-                        // src/index.css) reserves `6rem` (96px) of chrome
-                        // explicitly instead of relying on 80vh headroom that
-                        // stops existing below ~500px tall — deliberately more
-                        // than the 48px actually spent, so the reserve stays
-                        // safe even if a future Panel density adds padding
-                        // back. `100dvh`, not `100vh` (issue #2594): `vh` is
-                        // the LARGE viewport, so on a short mobile landscape
-                        // viewport with retracting browser chrome the 96px
-                        // reserve is measured against a taller-than-actual box
-                        // and can still overflow; `dvh` tracks the viewport as
-                        // it actually is.
+                        // No max-h of its own any more (issue #2666) — Panel
+                        // above owns the cap on the WHOLE box, footer
+                        // included. `min-h-0` is what lets this column shrink
+                        // past its natural content height when Panel's cap
+                        // bites: flex items default to `min-height: auto`,
+                        // which floors shrinkage at the content's own
+                        // intrinsic size and would otherwise defeat the cap
+                        // entirely. Every direct child here except the body
+                        // scroller is `shrink-0` (title row, rule, subtitle,
+                        // stats), so 100% of any deficit lands on the body
+                        // scroller below, which is the one with `overflow-
+                        // auto` — exactly the "scrolls the body, not the
+                        // page (or the title, or the footer)" contract.
                         data-slot="game-dialog-column"
-                        className="flex max-h-[80vh] short-viewport:max-h-[calc(100dvh-6rem)] w-full min-w-0 flex-col"
+                        className="flex min-h-0 w-full min-w-0 flex-col"
                     >
                         {/* Header row: icon BESIDE the title when the body is
                             left-aligned, ABOVE it when the body is centred —
@@ -251,7 +268,18 @@ export default function GameDialog({
                     {footer && (
                         <div
                             className={cn(
-                                "mt-5 flex flex-col items-stretch gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center",
+                                // `shrink-0` (issue #2666): Panel above is now
+                                // the capped flex column, and this footer is
+                                // its OTHER flex item alongside the column —
+                                // without `shrink-0` the flexbox squeeze that
+                                // enforces Panel's cap would shrink both
+                                // proportionally, which is exactly how the
+                                // Submit button used to get clipped. Pinning
+                                // this to its natural height forces the WHOLE
+                                // deficit onto the column (whose own
+                                // `min-h-0` scroll region is built to absorb
+                                // it), so the footer is always fully visible.
+                                "mt-5 flex shrink-0 flex-col items-stretch gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center",
                                 // A centred dialog's actions stay centred from
                                 // `sm` up; the left-aligned language keeps the
                                 // right-aligned action row (ADR 0101 §2).

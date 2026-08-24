@@ -2,6 +2,17 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import GameDialog from "../game-dialog";
 
+/** Token-exact className assertion helper (issue #2666, round-2 review).
+ *  A plain `expect(el.className).toContain("flex")` is a raw substring
+ *  match — it is satisfied by `flex-col`, `flex-1`, etc., so it does not
+ *  guard the utility it names once a longer sibling utility sharing the
+ *  same prefix is also present on the element. Splitting into
+ *  whitespace-delimited tokens and asserting array membership makes the
+ *  match exact instead of prefix-based. */
+function classTokens(el: Element): string[] {
+    return el.className.split(/\s+/).filter(Boolean);
+}
+
 describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
     it("renders the title with a full-width gold underline rule", () => {
         const { baseElement } = render(
@@ -95,7 +106,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const brackets = baseElement.querySelector(
             '[data-slot="corner-bracket-frame"]'
         )!;
-        expect(brackets.className).toContain("compact-chrome:block");
+        expect(classTokens(brackets)).toContain("compact-chrome:block");
     });
 
     it("keeps the dialog title clear of the corner bracket", () => {
@@ -109,7 +120,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         // `.panel-title-clear` pays the shortfall between the panel padding at
         // the current density and `--panel-header-pad-x`; the token arithmetic
         // itself is asserted in `src/__tests__/design-tokens.test.ts`.
-        expect(title.className).toContain("panel-title-clear");
+        expect(classTokens(title)).toContain("panel-title-clear");
     });
 
     // The icon used to be a sibling COLUMN of the whole content column, so a
@@ -127,7 +138,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const column = baseElement.querySelector(
             '[data-slot="game-dialog-column"]'
         )!;
-        expect(column.className).toContain("w-full");
+        expect(classTokens(column)).toContain("w-full");
         // the icon is INSIDE the column, not a sibling of it
         expect(
             column.querySelector('[data-slot="sunburst-icon"]')
@@ -143,15 +154,15 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const headerRow = () =>
             baseElement.querySelector('[data-slot="sunburst-icon"]')!
                 .parentElement!;
-        expect(headerRow().className).not.toContain("flex-col");
+        expect(classTokens(headerRow())).not.toContain("flex-col");
 
         rerender(
             <GameDialog open align="center" title="Mid" icon={<span>i</span>}>
                 <p>body</p>
             </GameDialog>
         );
-        expect(headerRow().className).toContain("flex-col");
-        expect(headerRow().className).toContain("items-center");
+        expect(classTokens(headerRow())).toContain("flex-col");
+        expect(classTokens(headerRow())).toContain("items-center");
     });
 
     // A centred dialog (Coin toss, Game Over) must not keep the left-aligned
@@ -166,8 +177,8 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
             </GameDialog>
         );
         const title = screen.getByRole("heading", { name: "Centred" });
-        expect(title.className).toContain("text-center");
-        expect(title.className).not.toContain("panel-title-clear");
+        expect(classTokens(title)).toContain("text-center");
+        expect(classTokens(title)).not.toContain("panel-title-clear");
     });
 
     it("centres the subtitle only when align is center, and left-aligns it otherwise", () => {
@@ -184,14 +195,14 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
                     el.textContent === "Sub line" &&
                     !el.className.includes("sr-only")
             )!;
-        expect(visibleSubtitle().className).toContain("text-left");
+        expect(classTokens(visibleSubtitle())).toContain("text-left");
 
         rerender(
             <GameDialog open align="center" title="T" subtitle="Sub line">
                 <p>body</p>
             </GameDialog>
         );
-        expect(visibleSubtitle().className).toContain("text-center");
+        expect(classTokens(visibleSubtitle())).toContain("text-center");
     });
 
     it("centres footer actions when align is center and right-aligns them otherwise", () => {
@@ -202,7 +213,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         );
         const row = () =>
             screen.getByRole("button", { name: "Go" }).parentElement!;
-        expect(row().className).toContain("sm:justify-end");
+        expect(classTokens(row())).toContain("sm:justify-end");
 
         rerender(
             <GameDialog
@@ -214,7 +225,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
                 <p>body</p>
             </GameDialog>
         );
-        expect(row().className).toContain("sm:justify-center");
+        expect(classTokens(row())).toContain("sm:justify-center");
     });
 
     it("offsets centering by half the right-piles strip so in-game dialogs sit over the play area", () => {
@@ -232,7 +243,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const popup = baseElement.querySelector(
             '[data-slot="dialog-content"]'
         )!;
-        expect(popup.className).toContain("play-area-center-x");
+        expect(classTokens(popup)).toContain("play-area-center-x");
     });
 
     // issue #1817, opus review round 2: Panel already exposed a `density`
@@ -310,25 +321,50 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         expect(onOpenChange).not.toHaveBeenCalled();
     });
 
-    // Issue #2586 — the dialog must fit 844x390 (a landscape phone) by
-    // scrolling INSIDE itself, never the page. happy-dom has no layout
-    // engine (no viewport, no computed `max-height`), so this can only
-    // assert the arithmetic/class contract, not the rendered pixels — the
-    // pixel proof is the five-viewport browser receipt
-    // (`.claude/rules/chrome-debug.md`). Two things must both hold: (1) the
-    // column wrapping title/subtitle/body is height-capped even below the
-    // 80vh breakpoint's usual floor (`short-viewport:max-h-[...]`, paired
-    // with the `short-viewport` custom variant `@media (max-height: 500px)`
-    // in src/index.css), and (2) the body itself is the scroll container
-    // (`overflow-auto` + `min-h-0`, the only child allowed to grow past its
-    // flex-basis) — a capped OUTER column with no scrolling INNER child
-    // would just clip content instead of scrolling it.
-    it("caps the content column's height under a short viewport and scrolls the body inside it, not the page", () => {
+    // Issue #2586 / #2666 — the dialog must fit 844x390 (a landscape phone,
+    // browser toolbar showing) by scrolling INSIDE itself, never the page,
+    // with the footer (Submit/Cancel) staying reachable. happy-dom has no
+    // layout engine (no viewport, no computed `max-height`), so this can
+    // only assert the arithmetic/class contract, not the rendered pixels —
+    // the pixel proof is the five-viewport browser receipt
+    // (`.claude/rules/chrome-debug.md`).
+    //
+    // #2586 shipped the cap on the WRONG box: only the inner column (title +
+    // body), not Panel itself — so the footer, a SIBLING of that column, sat
+    // outside the cap and was exactly what overflowed. #2666 moves the cap
+    // to Panel (the whole visible surface: header + scrolling body +
+    // footer) and switches the base rung from `vh` to `dvh` (`vh` is the
+    // LARGE viewport with the toolbar showing, so an 80vh/100vh cap still
+    // overflows a short real viewport). Three things must all hold: (1)
+    // Panel — not the column — carries the height cap, in `dvh`; (2) the
+    // column has no cap of its own any more, only `min-h-0` so it can shrink
+    // under Panel's squeeze; (3) the footer is `shrink-0` so 100% of that
+    // squeeze lands on the column's own scroll region
+    // (`overflow-auto` + `min-h-0`), never on the footer.
+    it("caps the whole Panel (header+body+footer) at a dvh height, with the footer pinned outside the scrolling body", () => {
         const { baseElement } = render(
-            <GameDialog open title="Tall content">
+            <GameDialog
+                open
+                title="Tall content"
+                footer={<button>Submit</button>}
+            >
                 <p>body</p>
             </GameDialog>
         );
+
+        const panel = baseElement.querySelector('[data-slot="panel"]')!;
+        expect(classTokens(panel)).toContain("max-h-[calc(100dvh-2rem)]");
+        // A raw `toContain("flex")` substring check is satisfied by the
+        // `flex-col` token alone, so it does not guard `display:flex` at
+        // all (round-2 review, issue #2666) — proven by mutation: dropping
+        // the standalone `flex` utility from Panel's className left this
+        // assertion green while destroying the whole fix (Panel falls back
+        // to `display:block`, the column can no longer flex-shrink, and the
+        // footer clips instead of the body scrolling). `classTokens` makes
+        // both checks exact-token, not prefix, matches.
+        expect(classTokens(panel)).toContain("flex");
+        expect(classTokens(panel)).toContain("flex-col");
+
         // The column publishes `data-slot="game-dialog-column"`. It used to be
         // reached as the title's `parentElement`, which stopped being the
         // column the moment the title gained a header ROW sibling to the icon
@@ -336,14 +372,29 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const column = baseElement.querySelector(
             '[data-slot="game-dialog-column"]'
         )!;
-        expect(column.className).toContain("max-h-[80vh]");
-        expect(column.className).toContain(
-            "short-viewport:max-h-[calc(100dvh-6rem)]"
+        // Direction rule (round-3 review): substring vacuity only bites
+        // `toContain` (presence) — over-matching there is fail-SILENT, a
+        // token-exact check is required. `not.toContain` (absence) is the
+        // opposite: over-matching can only produce a false FAILURE, never a
+        // false pass, so a broader match is strictly safer, never vacuous.
+        // This assertion must therefore stay a PREFIX search, not tighten to
+        // an exact token — narrowing it to `c === "max-h-..."` would miss a
+        // *variant-prefixed* cap (`sm:max-h-40`, `short-viewport:max-h-16`
+        // in deck-legality-panel.tsx, `md:max-h-[...]` in dev-panel-rail.tsx
+        // — all real utilities elsewhere in this repo) reintroducing the
+        // #2666 footer clip at that breakpoint, silently. The regex allows
+        // an optional `<variant>:` prefix before `max-h-`.
+        expect(classTokens(column).some((c) => /(^|:)max-h-/.test(c))).toBe(
+            false
         );
+        expect(classTokens(column)).toContain("min-h-0");
 
         const bodyScroller = screen.getByText("body").parentElement!;
-        expect(bodyScroller.className).toContain("overflow-auto");
-        expect(bodyScroller.className).toContain("min-h-0");
+        expect(classTokens(bodyScroller)).toContain("overflow-auto");
+        expect(classTokens(bodyScroller)).toContain("min-h-0");
+
+        const footerEl = screen.getByText("Submit").parentElement!;
+        expect(classTokens(footerEl)).toContain("shrink-0");
     });
 
     it("does NOT dismiss on popup-container click when not dismissable", () => {

@@ -64,7 +64,34 @@ function DialogContent({
                     // the transform, so the zoom/fade enter-exit animation (which
                     // animates `transform` via keyframes) stays intact. Lobby:
                     // var absent ⇒ 0px ⇒ unchanged full-viewport centering.
-                    "play-area-center-x z-modal fixed top-1/2 grid w-fit -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-border-accent/40 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+                    //
+                    // `max-h-[calc(100dvh-2rem)]` (issue #2666): this popup used
+                    // to carry NO height constraint at all — it centers via
+                    // `top-1/2 -translate-y-1/2` and sizes to its child's
+                    // natural height, so a tall child (a form, a long dialog
+                    // body) simply ran off both the top and bottom of the
+                    // viewport with nothing to scroll it back into view. `dvh`,
+                    // not `vh`/`100vh`: with a mobile browser's URL/toolbar
+                    // showing, `vh` resolves against the LARGE viewport (the
+                    // size once the chrome has scrolled away), so a cap
+                    // expressed in `vh` still overflows the SMALL viewport the
+                    // page is actually laid out in right now — `dvh` tracks the
+                    // viewport as it actually is. `2rem` is a flat top+bottom
+                    // margin (1rem each), not a percentage, so it holds at any
+                    // viewport height instead of degrading at short ones the
+                    // way a `vh`/`dvh` PERCENTAGE cap does.
+                    //
+                    // This is a backstop for every `DialogContent` consumer —
+                    // `GameDialog`'s own `Panel` (game-dialog.tsx) carries the
+                    // SAME cap and is what actually splits a tall dialog into a
+                    // pinned header, a scrolling body and a pinned footer; this
+                    // cap alone does not add that internal scroll region, it
+                    // only guarantees the popup itself can never exceed the
+                    // dynamic viewport (so a consumer that manages its own
+                    // internal scrolling, like `GameDialog`, never conflicts
+                    // with it — the popup simply never needs to shrink below
+                    // its already-capped child).
+                    "play-area-center-x z-modal fixed top-1/2 grid max-h-[calc(100dvh-2rem)] w-fit -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-border-accent/40 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
                     className
                 )}
                 {...props}
