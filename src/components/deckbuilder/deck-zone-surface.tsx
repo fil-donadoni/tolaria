@@ -752,13 +752,16 @@ export default function DeckZoneSurface({
 
                                  The landscape-phone rung (issue #2665) is the
                                  third such case and the same reasoning: there is
-                                 no header to render these INTO there, so passing
-                                 them would leave exactly those zero-size,
-                                 unreachable buttons behind. Rename/delete stay
-                                 workbench gestures, as `DeckMvRow` already
-                                 decided for phone-portrait. */
+                                 no header to render these INTO there. Unlike the
+                                 other two cases, this one needs no gate of its
+                                 own here — `showHeader={!landscapeCompact}` above
+                                 already unmounts the whole header row `actions`
+                                 would sit in (`{showHeader && (…)}` in
+                                 `deck-column-pile.tsx`), so whatever this prop
+                                 evaluates to on that rung is never rendered.
+                                 Rename/delete stay workbench gestures, as
+                                 `DeckMvRow` already decided for phone-portrait. */
                               actions={
-                                  !landscapeCompact &&
                                   (onRenameColumn || onDeleteColumn) &&
                                   column.pinNamespace !== null &&
                                   !(column.hiddenWhenEmpty && narrowWidth) ? (
