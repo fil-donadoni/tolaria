@@ -75,9 +75,18 @@ export function playLadderGame(
             lastSampledTurn = st.turn;
             marginSamples.push({ turn: st.turn, margin: evaluate(st, "S0") });
         }
-        setSearchVariant(pid === spec.candidateSeat ? candidate : null);
+        const isCandidate = pid === spec.candidateSeat;
+        setSearchVariant(isCandidate ? candidate : null);
+        // `searchSeedMask` (issue #1929) re-rolls WHICH determinizations the
+        // candidate samples without touching how it searches — the noise-floor
+        // placebo. Applied here, on the seed handed in, precisely so search.ts
+        // stays unaware of it: it is a property of the experiment, not of the
+        // engine. `>>> 0` keeps the XOR a non-negative 32-bit integer, the
+        // shape `nextSeed()` produces.
+        const mask = isCandidate ? candidate?.searchSeedMask : undefined;
+        const seed = mask === undefined ? sd : (sd ^ mask) >>> 0;
         try {
-            return search(st, pid, b, sd);
+            return search(st, pid, b, seed);
         } finally {
             setSearchVariant(null);
         }

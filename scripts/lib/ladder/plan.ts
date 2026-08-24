@@ -67,6 +67,11 @@ export type LadderRunHeader = {
     filter: LadderFilterSpec | null;
     totalGames: number;
     pairings: { deckA: string; deckB: string }[];
+    /** Orientations played per seed (issue #1929). 2 = the standard paired
+     *  A/B. 1 = corpus mode: orientation 0 only, valid ONLY for a null run,
+     *  where the second orientation is a bit-identical replay and so pure
+     *  waste. Absent in pre-#1929 files, which are all 2. */
+    orientations?: 1 | 2;
 };
 
 /** One line per completed game, appended as soon as the game ends — a crash
@@ -167,7 +172,8 @@ export function buildHeader(
     variant: string | null,
     iterations: number,
     pairings: LadderPairing[],
-    filter: LadderFilterSpec | null = null
+    filter: LadderFilterSpec | null = null,
+    orientations: 1 | 2 = 2
 ): LadderRunHeader {
     // totalGames reflects the FILTERED game count (what this run will
     // actually play), while `pairings` below always records the full
@@ -182,8 +188,9 @@ export function buildHeader(
         variant,
         iterations,
         filter,
-        totalGames: selected * TIER_SEEDS[tier] * 2,
+        totalGames: selected * TIER_SEEDS[tier] * orientations,
         pairings: pairings.map(({ deckA, deckB }) => ({ deckA, deckB })),
+        orientations,
     };
 }
 
@@ -244,7 +251,29 @@ export function headerMismatches(
         out.push(
             `filter: file=${JSON.stringify(header.filter ?? null)} run=${JSON.stringify(expected.filter ?? null)}`
         );
+    if ((header.orientations ?? 2) !== (expected.orientations ?? 2))
+        out.push(
+            `orientations: file=${header.orientations ?? 2} run=${expected.orientations ?? 2}`
+        );
     return out;
+}
+
+/** The plan restricted to orientation 0 — corpus mode (issue #1929).
+ *
+ *  In a NULL run the two orientations of a pair are the same game played
+ *  twice: with no variant installed both seats run the identical config, so
+ *  only the candidate LABEL differs, and the second orientation reproduces
+ *  the first bit for bit (verified across all 340 pairs of the 2026-08-23
+ *  run). Playing it buys one guaranteed win and one guaranteed loss — no
+ *  information, half the machine time. When the run exists to GENERATE a
+ *  corpus rather than to compare two agents, drop it.
+ *
+ *  Filtering happens after `buildGamePlan`, like the pairing filter, so every
+ *  field stays exactly what an unfiltered run would derive: a corpus run's
+ *  records are element-wise identical to the orientation-0 rows of a full
+ *  run at the same baseSeed. */
+export function orientationZeroOnly(plan: LadderGamePlan[]): LadderGamePlan[] {
+    return plan.filter((g) => g.orientation === 0);
 }
 
 /** The plan filtered down to the rows a `--pairings`/`--dynamics` filter
