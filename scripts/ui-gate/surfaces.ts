@@ -483,6 +483,30 @@ export const SURFACES: readonly Surface[] = [
                 timeout: STEP_TIMEOUT,
             });
             await page.waitForTimeout(600);
+            // Issue #2671 review round 2 MUST-FIX: this capture used to sit
+            // AFTER the "2/15" assertion below, so the one remaining throw
+            // site in this walk (the sideboard check) left
+            // `ctx.lastCreatedDeckName` unset — the one thing `cleanup()`
+            // needs to find and delete the row — and `index.ts`'s cleanup
+            // call (now always invoked, happy path or not — see the
+            // `measure()` fix) had nothing to act on. The name is unrelated
+            // to whether the import verifies: it is `nextDeckName()`'s
+            // sequential "Deck N", computed client-side from the deck list at
+            // MOUNT (`deck-builder.tsx:268`, `src/lib/userDecks.ts`), before
+            // this walk ever opens the Import dialog — reading it here, right
+            // after the confirm click, is no less accurate than reading it
+            // after the sideboard check, and it moves the capture ahead of
+            // every throw site that follows the import.
+            //
+            // The import above just tripped `useDeckWorkspace`'s autosave
+            // (`useDeckWorkspace.ts`), which means a real `userDecks` row now
+            // exists (or will, once `cleanup()` navigates away and the
+            // flush-on-unmount fires).
+            ctx.lastCreatedDeckName = await page
+                .locator('input[placeholder="Deck name"]')
+                .first()
+                .inputValue()
+                .catch(() => undefined);
             // "2/15" is this walk's own fixed decklist (Shivan Dragon +
             // Circle of Protection: Red) — a specific count, not just any
             // digit, so this fails loudly if the import silently dropped a
@@ -492,18 +516,6 @@ export const SURFACES: readonly Surface[] = [
                     "the Sideboard still reads empty after importing — the fixture card names may no longer resolve"
                 );
             }
-            // Issue #2671 review H2: the import above just tripped
-            // `useDeckWorkspace`'s autosave (`useDeckWorkspace.ts`), which
-            // means a real `userDecks` row now exists (or will, once
-            // `cleanup()` navigates away and the flush-on-unmount fires).
-            // Record the auto-assigned name — the one thing `cleanup()`
-            // needs to find and delete this exact row afterwards, from the
-            // SAME page, without touching anything the probe measured.
-            ctx.lastCreatedDeckName = await page
-                .locator('input[placeholder="Deck name"]')
-                .first()
-                .inputValue()
-                .catch(() => undefined);
         },
         async cleanup(page, ctx) {
             const name = ctx.lastCreatedDeckName;

@@ -83,18 +83,59 @@ describe("CompactChromeDisclosure (issue #2511)", () => {
     }
 });
 
+/** Evaluates a `(feature: value) and (feature: value) ...` media query
+ *  against a simulated viewport for real, instead of a query-string lookup
+ *  table the test pre-decides the answer for. Issue #2671 review round 2 L1:
+ *  a lookup table lets a test claim it exercises the `max-height` term while
+ *  actually hard-coding the answer — this evaluator is what makes the TALL
+ *  portrait case below fail when `TABLET_PORTRAIT_QUERY` regresses to
+ *  unbounded, because only a query that GENUINELY carries a height term can
+ *  ever turn `false` on a tall-but-narrow viewport. Covers exactly the
+ *  feature vocabulary `TABLET_PORTRAIT_QUERY` and `useViewportMode`'s own
+ *  `PORTRAIT_QUERY` use — an unhandled feature throws rather than silently
+ *  matching, so a query this evaluator can't parse fails loudly, not green. */
+function evaluateMediaQuery(
+    query: string,
+    viewport: { width: number; height: number }
+): boolean {
+    return query.split(" and ").every((rawTerm) => {
+        const term = rawTerm.trim().replace(/^\(|\)$/g, "");
+        const [feature, rawValue] = term.split(":").map((s) => s.trim());
+        if (feature === "orientation") {
+            const isPortrait = viewport.height >= viewport.width;
+            return rawValue === "portrait" ? isPortrait : !isPortrait;
+        }
+        const px = parseInt(rawValue, 10);
+        switch (feature) {
+            case "min-width":
+                return viewport.width >= px;
+            case "max-width":
+                return viewport.width <= px;
+            case "min-height":
+                return viewport.height >= px;
+            case "max-height":
+                return viewport.height <= px;
+            default:
+                throw new Error(
+                    `evaluateMediaQuery: unhandled feature "${feature}" in "${query}"`
+                );
+        }
+    });
+}
+
 describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
-    // A real `matchMedia` global, keyed by query string — unmatched queries
-    // default to `false` (the same "never matches" shape happy-dom's own
-    // stub has), so a stray extra query the component starts asking fails
-    // the assertion instead of silently reading as a match.
-    let matches: Record<string, boolean> = {};
+    // A real `matchMedia` global that evaluates every query against a
+    // simulated viewport (`evaluateMediaQuery` above) rather than a
+    // pre-decided lookup table — so a test that sets `viewport` is actually
+    // exercising the query's own terms (width, orientation, height), not the
+    // test author's guess at the answer.
+    let viewport = { width: 1440, height: 900 };
 
     function installMatchMedia() {
         vi.stubGlobal("matchMedia", (query: string) => ({
             media: query,
             get matches() {
-                return matches[query] ?? false;
+                return evaluateMediaQuery(query, viewport);
             },
             addEventListener: () => {},
             removeEventListener: () => {},
@@ -106,7 +147,7 @@ describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
     }
 
     beforeEach(() => {
-        matches = {};
+        viewport = { width: 1440, height: 900 };
         installMatchMedia();
     });
 
@@ -125,7 +166,7 @@ describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
         // "desktop" bucket (width > 767px), so a fold gated on that hook
         // ALONE never engages here — this is the regression's reproduction.
         mode = "desktop";
-        matches[TABLET_PORTRAIT_QUERY] = true;
+        viewport = { width: 820, height: 1180 };
         render(
             <CompactChromeDisclosure label="View">
                 <button type="button">Colour</button>
@@ -136,11 +177,11 @@ describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
     });
 
     it("stays verbatim on a desktop-shaped LANDSCAPE viewport — the query never matches without orientation: portrait", () => {
-        // 1440x900 / 1180x820 (this issue's own AC): landscape, so the real
-        // browser query never matches regardless of width. Modelled here as
-        // the query simply not matching, the same as any other desktop read.
+        // 1440x900 / 1180x820 (this issue's own AC): landscape (width >
+        // height), so `evaluateMediaQuery`'s `orientation: portrait` term
+        // genuinely fails regardless of width.
         mode = "desktop";
-        matches[TABLET_PORTRAIT_QUERY] = false;
+        viewport = { width: 1440, height: 900 };
         render(
             <CompactChromeDisclosure label="View">
                 <button type="button">Colour</button>
@@ -150,14 +191,18 @@ describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
         expect(screen.queryByRole("button", { name: /View/ })).toBeNull();
     });
 
-    it("stays verbatim on a TALL portrait viewport past the height bound (issue #2671 review M2)", () => {
+    it("stays verbatim on a TALL portrait viewport past the height bound (issue #2671 review round 2 L1)", () => {
         // 1440x2560: same orientation/width band as the failing 820x1180 AC
-        // case, but the real browser query stops matching once height
-        // exceeds `max-height: 1300px` — modelled here as the query not
-        // matching, exactly as the browser's own `matchMedia` would report
-        // for a query with that bound past 1300px tall.
+        // case (portrait, width >= 768), but taller than the query's own
+        // `max-height: 1300px` term — `evaluateMediaQuery` computes the
+        // match for real from these numbers and `TABLET_PORTRAIT_QUERY`'s
+        // actual string, so this case is load-bearing on the height term
+        // specifically: reverting `TABLET_PORTRAIT_QUERY` to the unbounded
+        // query (dropping "and (max-height: 1300px)") makes the evaluator
+        // return `true` here too, folding the band and turning this
+        // assertion red (proof-of-failure, verified — see PR receipt).
         mode = "desktop";
-        matches[TABLET_PORTRAIT_QUERY] = false;
+        viewport = { width: 1440, height: 2560 };
         render(
             <CompactChromeDisclosure label="View">
                 <button type="button">Colour</button>
@@ -169,7 +214,7 @@ describe("useIsTabletPortrait / TABLET_PORTRAIT_QUERY (issue #2671)", () => {
 
     it("active=false still forces verbatim even when the tablet-portrait query matches", () => {
         mode = "desktop";
-        matches[TABLET_PORTRAIT_QUERY] = true;
+        viewport = { width: 820, height: 1180 };
         render(
             <CompactChromeDisclosure label="View" active={false}>
                 <button type="button">Colour</button>
