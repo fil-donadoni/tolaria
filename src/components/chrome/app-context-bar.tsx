@@ -67,7 +67,7 @@ export default function AppContextBar({
             // to the padding alone is what makes the floor `band + inset`:
             // natural height stays `content + inset + border`, which is
             // always below `band + inset` (content + border < band at both
-            // rungs bar the fine-pointer 44px/44px coincidence noted below),
+            // rungs bar the coarse-pointer 44px/44px coincidence noted below),
             // so the min-height wins and the box lands at exactly
             // `band + inset`. `<main>`'s sibling `flex-1 min-h-0` (not a
             // hardcoded subtraction) already fills whatever's actually left,

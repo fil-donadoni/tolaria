@@ -272,11 +272,13 @@ export const SHELL_CONTEXTUAL_BAND_PX = 44;
 
 /**
  * Immersive contextual bar on a landscape phone (issue #2662) —
- * `AppContextBar`'s `short-viewport:min-h-9`. The 44px baseline above is the
- * coarse-POINTER comfort target (ADR 0101 §2), not a viewport rule; on a
- * ~390px-tall landscape phone it alone ate ~11% of the screen before the
- * surface below it drew anything. 36px keeps the bar's own controls at the
- * WCAG 2.2 AA floor (24x24 CSS px, SC 2.5.8) via `--control-h-xs` (28px) with
+ * `AppContextBar`'s `short-viewport:min-h-[calc(2.25rem_+_env(safe-area-inset-top))]`
+ * (the inset folded into the floor itself, issue #2662 review round 2). The
+ * 44px baseline above is the coarse-POINTER comfort target (ADR 0101 §2), not
+ * a viewport rule; on a ~390px-tall landscape phone it alone ate ~11% of the
+ * screen before the surface below it drew anything. 36px keeps the bar's own
+ * controls at the WCAG 2.2 AA floor (24x24 CSS px, SC 2.5.8) via
+ * `--control-h-xs` (28px) with
  * a few px of vertical margin, same pairing as `SHELL_BROWSE_COMPACT_BAND_PX`
  * beside `SHELL_BROWSE_BAND_PX`.
  */
