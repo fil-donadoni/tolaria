@@ -2,7 +2,10 @@
 //
 // Pure module: no fs, no clock, no engine imports — everything here is
 // derivable arithmetic, so the determinism contract is testable in the
-// application suite. The contract (decision #1895 §2):
+// application suite. (`LadderGameOutcome` is an `import type`, erased at
+// compile time: it buys `toGameRecordFields` a real link to what the game
+// runner returns without pulling the engine in at runtime.) The contract
+// (decision #1895 §2):
 //
 //   * fixed ITERATION budget (never timeMs);
 //   * per-game seeds DERIVED from the run's baseSeed — pairing p, seed-index k
@@ -18,6 +21,7 @@
 // AGENT drives which seat. Seat S0 is always on the play. Deck seating
 // alternates by seed-index parity so both decks get on-the-play coverage.
 
+import type { LadderGameOutcome } from "../../../src/lib/ai/selfplay/ladder";
 import type { LadderPairing } from "./pairings";
 import { selectPairingIndices, type LadderFilterSpec } from "./filter";
 
@@ -91,6 +95,39 @@ export type LadderGameRecord = {
      *  only when the stop hit before the first sample. */
     marginSamples?: { turn: number; margin: number }[];
 };
+
+/** Build a finished game's record fields from its plan and its outcome — the
+ *  SINGLE constructor both dispatch paths use (the sequential loop in
+ *  scripts/ladder.ts and the worker process in worker.ts), so a record can
+ *  never depend on WHICH path played the game.
+ *
+ *  Why a shared constructor rather than an object literal per path (issue
+ *  #1929): both paths used to spell every field out by hand, and
+ *  `LadderGameRecord`'s optional fields make an omission type-CORRECT. When
+ *  per-turn margin sampling was added, `marginSamples` was wired into the
+ *  sequential literal only; the worker's literal silently dropped it, so a
+ *  parallel run — the only kind anyone runs at decision tier — wrote a corpus
+ *  with the calibration data missing and no error anywhere. Spreading the
+ *  outcome means a new `LadderGameOutcome` field reaches the run file with no
+ *  edit here at all, and cannot be dropped by one path and not the other. */
+export function toGameRecordFields(
+    plan: LadderGamePlan,
+    outcome: LadderGameOutcome,
+    ms: number
+): Omit<LadderGameRecord, "kind"> {
+    return {
+        gameIndex: plan.gameIndex,
+        pairingIndex: plan.pairingIndex,
+        seedIndex: plan.seedIndex,
+        orientation: plan.orientation,
+        deckSeat0: plan.deckSeat0,
+        deckSeat1: plan.deckSeat1,
+        seed: plan.seed,
+        candidateSeat: plan.candidateSeat,
+        ...outcome,
+        ms,
+    };
+}
 
 /** Expand the pairing registry into the full deterministic game list. */
 export function buildGamePlan(

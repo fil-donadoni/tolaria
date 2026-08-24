@@ -21,7 +21,7 @@
 import { createInterface } from "node:readline";
 import { LADDER_VARIANTS } from "../../../convex/gre/ai/searchVariant";
 import { playLadderGame } from "../../../src/lib/ai/selfplay/ladder";
-import type { LadderGamePlan } from "./plan";
+import { toGameRecordFields, type LadderGamePlan } from "./plan";
 import type { WorkerResult } from "./pool";
 
 function fail(msg: string): never {
@@ -67,21 +67,10 @@ rl.on("line", (line) => {
         },
         candidate
     );
-    const result: WorkerResult = {
-        gameIndex: task.gameIndex,
-        pairingIndex: task.pairingIndex,
-        seedIndex: task.seedIndex,
-        orientation: task.orientation,
-        deckSeat0: task.deckSeat0,
-        deckSeat1: task.deckSeat1,
-        seed: task.seed,
-        candidateSeat: task.candidateSeat,
-        winnerSeat: outcome.winnerSeat,
-        candidateWon: outcome.candidateWon,
-        reason: outcome.reason,
-        turns: outcome.turns,
-        plies: outcome.plies,
-        ms: Date.now() - t0,
-    };
+    const result: WorkerResult = toGameRecordFields(
+        task,
+        outcome,
+        Date.now() - t0
+    );
     process.stdout.write(JSON.stringify(result) + "\n");
 });

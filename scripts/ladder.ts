@@ -66,6 +66,7 @@ import {
     remainingGames,
     LADDER_ITERATIONS,
     TIER_SEEDS,
+    toGameRecordFields,
     type LadderGameRecord,
     type LadderRunHeader,
     type LadderTier,
@@ -313,23 +314,7 @@ if (workers === 1) {
             },
             candidate
         );
-        applyRecord({
-            gameIndex: g.gameIndex,
-            pairingIndex: g.pairingIndex,
-            seedIndex: g.seedIndex,
-            orientation: g.orientation,
-            deckSeat0: g.deckSeat0,
-            deckSeat1: g.deckSeat1,
-            seed: g.seed,
-            candidateSeat: g.candidateSeat,
-            winnerSeat: outcome.winnerSeat,
-            candidateWon: outcome.candidateWon,
-            reason: outcome.reason,
-            turns: outcome.turns,
-            plies: outcome.plies,
-            ms: Date.now() - t0,
-            marginSamples: outcome.marginSamples,
-        });
+        applyRecord(toGameRecordFields(g, outcome, Date.now() - t0));
     }
 } else {
     // Workers inherit TOLARIA_GATE_HELD=1 from this process's own env (set by
