@@ -1,21 +1,45 @@
 import { describe, it, expect } from "vitest";
+import { createServer } from "node:net";
 
 /**
  * `telemetry-serve.ts` (#2623) — the request handler extracted from the
  * `Bun.serve` listener so every route is callable with an in-memory
- * `Request`. Every `import()` below is deliberate rather than hoisted to
- * the top of the file: it is what makes `import.meta.main` read `false`
- * for the target module in the first place (Bun sets it `true` only for
- * the process's entry-point module, never for one reached via `import`) —
- * exactly the condition `startServer()` is gated on in production. If that
- * guard were ever weakened (the `if (import.meta.main)` check dropped, or
+ * `Request`. This suite runs in the `node` vitest project (confirmed by
+ * hand: the plain `Bun` global and `bun:sqlite` are BOTH unavailable here —
+ * `node[all]`/`bunx vitest run --project node`, `check-lane.ts`'s own
+ * command, genuinely executes under Node, not Bun), so nothing here may
+ * reference `Bun.*` — `startServer()`'s own `Bun.serve` call is exercised
+ * only by the manual check in the PR description, never by this file.
+ *
+ * Every `import()` below is deliberate rather than hoisted to the top of
+ * the file: it is what makes `import.meta.main` read `false` for the
+ * target module in the first place (true only for the process's
+ * entry-point module, never one reached via `import`) — exactly the
+ * condition `startServer()` is gated on in production. If that guard were
+ * ever weakened (the `if (import.meta.main)` check dropped, or
  * `startServer()` called unconditionally at module scope), the very first
- * `import` in this file would eagerly bind the default port before any
- * test body ran — the "silent real port under the parallel gate" failure
- * mode this issue exists to prevent. No `vi.mock` / `vi.spyOn` / fake
- * timers here — the `node` vitest project runs with `isolate: false` on
- * the promise that these files hold no such state to leak between them.
+ * `import` in this file would eagerly try to bind a port before any test
+ * body ran — the "silent real port under the parallel gate" failure mode
+ * this issue exists to prevent (and, under this specific Node runtime,
+ * `startServer()`'s own `Bun.serve` call would throw `Bun is not defined`
+ * at import time — an even louder failure). No `vi.mock` / `vi.spyOn` /
+ * fake timers here — the `node` vitest project runs with `isolate: false`
+ * on the promise that these files hold no such state to leak between them.
  */
+
+/** Node's `net`, not `Bun.serve` — portable across whichever runtime this
+ *  project ends up running the `node` vitest project under, and enough to
+ *  prove a TCP port is/isn't bound regardless of who bound it. */
+function isPortFree(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+        const probe = createServer();
+        probe.once("error", () => resolve(false));
+        probe.listen(port, "127.0.0.1", () => {
+            probe.close(() => resolve(true));
+        });
+    });
+}
+
 describe("telemetry-serve — bootstrap guard (#2623)", () => {
     it("importing the module opens no port — not even the module's own resolved default", async () => {
         // Deliberately NOT the real default (5174): this machine can have a
@@ -29,36 +53,18 @@ describe("telemetry-serve — bootstrap guard (#2623)", () => {
         // be set before the FIRST import of the module in this worker
         // (module top-level code, including a broken guard, runs exactly
         // once, at that first import).
-        const testPort = "48173";
+        const testPort = 48173;
         const prevPort = process.env.TELEMETRY_SERVE_PORT;
-        process.env.TELEMETRY_SERVE_PORT = testPort;
+        process.env.TELEMETRY_SERVE_PORT = String(testPort);
         try {
             await import("../telemetry-serve");
             // If the import above had wrongly called `startServer()` (a
-            // dropped/weakened `import.meta.main` guard), it already bound
-            // `testPort`, and this bind attempt throws EADDRINUSE.
-            const probe = Bun.serve({
-                port: Number(testPort),
-                hostname: "127.0.0.1",
-                fetch: () => new Response("probe"),
-            });
-            probe.stop(true);
+            // dropped/weakened `import.meta.main` guard), `testPort` is
+            // already bound and this resolves `false`.
+            expect(await isPortFree(testPort)).toBe(true);
         } finally {
             if (prevPort === undefined) delete process.env.TELEMETRY_SERVE_PORT;
             else process.env.TELEMETRY_SERVE_PORT = prevPort;
-        }
-    });
-
-    it("startServer binds a real loopback socket, on an OS-assigned port, and serves through the same handler", async () => {
-        const { startServer } = await import("../telemetry-serve");
-        const server = startServer(0);
-        try {
-            expect(server.hostname).toBe("127.0.0.1");
-            expect(server.port).toBeGreaterThan(0);
-            const res = await fetch(`http://127.0.0.1:${server.port}/api/nope`);
-            expect(res.status).toBe(404);
-        } finally {
-            server.stop(true);
         }
     });
 });

@@ -15,13 +15,34 @@
 
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import { Database } from "bun:sqlite";
+import { createRequire } from "node:module";
+import type { Database } from "bun:sqlite";
 import { gatherLoopStatus, fetchPriorityGracefully } from "./loop-status";
 import type { GracefulPriority } from "./loop-status";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
 const HTML_PATH = join(PROJECT_DIR, "scripts/telemetry-dashboard.html");
+
+/**
+ * `bun:sqlite` is a Bun-only builtin with no Node equivalent — a top-level
+ * `import { Database } from "bun:sqlite"` makes importing THIS MODULE fail
+ * outright under the `node` vitest project (#2623), regardless of whether a
+ * store ever gets opened. `createRequire` defers resolution to the one call
+ * site that actually needs it, and that call site only runs when
+ * `existsSync(DB_PATH)` is true — never the case for a fresh worktree/test
+ * environment with no `.claude/telemetry/telemetry.db`, so `handleRequest`'s
+ * route test never touches the Bun-only builtin at all. Kept synchronous
+ * (a `require`, not a dynamic `import()`) so `requireDb()` and every route
+ * that calls it stay synchronous — no cascading async refactor.
+ */
+const requireModule = createRequire(import.meta.url);
+function openDatabase(path: string): Database {
+    const { Database: DatabaseCtor } = requireModule(
+        "bun:sqlite"
+    ) as typeof import("bun:sqlite");
+    return new DatabaseCtor(path, { readonly: true });
+}
 
 /**
  * `telemetry.db` is built by `telemetry:ingest` and goes stale/absent between
@@ -33,9 +54,7 @@ const HTML_PATH = join(PROJECT_DIR, "scripts/telemetry-dashboard.html");
  * always starts, and only the DB-BACKED routes fail, with a clear message
  * naming the fix, when there is nothing to query.
  */
-let db: Database | null = existsSync(DB_PATH)
-    ? new Database(DB_PATH, { readonly: true })
-    : null;
+let db: Database | null = existsSync(DB_PATH) ? openDatabase(DB_PATH) : null;
 
 /** Thrown by `requireDb()` — caught once, in the route dispatcher, and
  *  turned into a 503 rather than the generic 400 every other query error
@@ -49,7 +68,7 @@ function requireDb(): Database {
     // restart — cheap to check, and `existsSync` is the same test the
     // startup path already used.
     if (existsSync(DB_PATH)) {
-        db = new Database(DB_PATH, { readonly: true });
+        db = openDatabase(DB_PATH);
         return db;
     }
     throw new NoTelemetryStoreError(
