@@ -16,6 +16,7 @@
 
 import { describe, it, expect } from "vitest";
 import { shelldockIsle } from "../colorless";
+import { steamVents } from "../../gpt/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     removePermanentTo,
@@ -24,7 +25,10 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyPendingChoiceSubmit,
+    applyLandEntrySubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     FACE_DOWN_CARD_ID,
@@ -452,6 +456,71 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         expect(state.players[0].battlefield.some((c) => c.id === hidden)).toBe(
             true
         );
+        expect(state.players[0].landsPlayedThisTurn).toBe(1);
+    });
+
+    // issue #1980 — the full path the bug was reported on: hideaway (CR 702.75)
+    // can exile ANY card off the top four of your own library, a shock land
+    // included, and the play half routes through `applyPlayLandFromExile`.
+    // That function used to skip the CR 614.12 pay-choice entirely, so this
+    // exact sequence let the land in UNTAPPED, with no prompt and no life
+    // paid. A hand-played copy has always offered the choice; the two origins
+    // must not differ.
+    it("CR 614.12 — a hidden SHOCK LAND played through the exile link still offers the pay-choice", () => {
+        const { state, isle } = setup(6, 15, steamVents.id);
+        const hidden = hideOne(state, isle);
+        const lifeBefore = state.players[0].life;
+
+        resolveActivated(state, isle, PLAY_ABILITY_ID);
+        answerOffer(state, "cast");
+
+        // The ability's own resolution has finished (a land never uses the
+        // stack), but the land has NOT entered: it waits in exile on the
+        // stackless pay-choice, exactly like a hand-played shock land waits in
+        // hand.
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].battlefield.some((c) => c.id === hidden)).toBe(
+            false
+        );
+        expect(state.players[0].exile.some((c) => c.id === hidden)).toBe(true);
+        expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
+
+        const suspended = state.pendingChoices![0];
+        expect(suspended.kind).toBe("land-entry-tapped");
+        expect(suspended.landInstanceId).toBe(hidden);
+        expect(suspended.landSourceZone).toBe("exile");
+        expect(suspended.cost).toEqual({ life: 2 });
+        // CR 406.3 — the card is still face down here and `pendingChoices`
+        // reach BOTH viewers unredacted, so the prompt must not name it.
+        expect(suspended.prompt).not.toMatch(/steam vents/i);
+
+        applyLandEntrySubmit(state, { playerId: "p1", accept: true });
+        const land = state.players[0].battlefield.find((c) => c.id === hidden);
+        expect(land).toBeDefined();
+        expect(land!.isTapped).toBe(false);
+        expect(state.players[0].life).toBe(lifeBefore - 2);
+        expect(state.players[0].landsPlayedThisTurn).toBe(1);
+        expect(state.players[0].exile.some((c) => c.id === hidden)).toBe(false);
+        // CR 406.3 — it left exile face up: the opponent's projection shows
+        // the real card, not the face-down placeholder.
+        const opp = projectPublicState(state, 1, "p2");
+        expect(
+            opp.players[0].battlefield.find((c) => c.id === hidden)!.card.id
+        ).toBe(steamVents.id);
+    });
+
+    it("CR 614.12 — declining the pay-choice on the exile-link play enters it TAPPED", () => {
+        const { state, isle } = setup(6, 15, steamVents.id);
+        const hidden = hideOne(state, isle);
+        const lifeBefore = state.players[0].life;
+
+        resolveActivated(state, isle, PLAY_ABILITY_ID);
+        answerOffer(state, "cast");
+        applyLandEntrySubmit(state, { playerId: "p1", accept: false });
+
+        const land = state.players[0].battlefield.find((c) => c.id === hidden);
+        expect(land!.isTapped).toBe(true);
+        expect(state.players[0].life).toBe(lifeBefore);
         expect(state.players[0].landsPlayedThisTurn).toBe(1);
     });
 

@@ -295,8 +295,9 @@ export type SubmitLandEntryArgs = {
  *  against the current head pending choice — the shock-land pay-choice. On
  *  accept the cost is paid (gated by `canPayMayPayCost`; throws if unaffordable)
  *  to skip the land's own tapped clause; either way `finalizeLandEntry`
- *  completes the suspended entry (moving the land from hand to battlefield,
- *  tapped iff declined OR forced by another source). Unlike `applyMayPaySubmit`
+ *  completes the suspended entry (moving the land from whichever zone the
+ *  choice's `landSourceZone` names onto the battlefield, tapped iff declined
+ *  OR forced by another source). Unlike `applyMayPaySubmit`
  *  there is NO stack item: a land is played, not cast, so resolution resumes to
  *  the active player's priority window rather than `resolveTopOfStack`. Throws
  *  on identity mismatch or a non-`land-entry-tapped` head. Extracted from the
@@ -331,7 +332,11 @@ export function applyLandEntrySubmit(
         args.playerId,
         head.landInstanceId,
         head.cost,
-        args.accept
+        args.accept,
+        // issue #1980 — the choice's own source-zone discriminator, read off
+        // `head` before the shift above; without it the finalizer cannot find
+        // a land suspended in exile or a graveyard.
+        head.landSourceZone
     );
 
     // CR 614.12 — a played land is not a stack resolution; resume priority to

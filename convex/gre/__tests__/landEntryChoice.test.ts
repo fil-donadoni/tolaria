@@ -28,7 +28,11 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
-import { applyPlayLand } from "../playLand";
+import {
+    applyPlayLand,
+    applyPlayLandFromExile,
+    applyPlayLandFromGraveyard,
+} from "../playLand";
 import { applyLandEntrySubmit } from "../pendingChoiceSubmit";
 import { getPlayer, resolveTopOfStack } from "../state";
 import type { StackItem } from "../state";
@@ -102,6 +106,32 @@ function playSteamVents(
     return { state, player: getPlayer(state, "p1") };
 }
 
+/** A Steam Vents sitting in `zone` on p1 (issue #1980 — the two origins that
+ *  used to skip the pay-choice entirely). `named` gives the instance a `.card`
+ *  payload carrying a real `name`: production persists only the slim `{ id }`
+ *  (see `makeInstance`), so the prompt today always falls back to "This land"
+ *  and the redaction branch cannot be told apart without one. */
+function shockIn(
+    zone: "exile" | "graveyard",
+    opts: { life?: number; knownTo?: string[]; named?: boolean } = {}
+) {
+    const shock = makeInstance(steamVents.id, {
+        id: "shock",
+        zone,
+        ...(opts.named
+            ? { card: { id: steamVents.id, name: steamVents.name } }
+            : {}),
+        ...(opts.knownTo ? { knownTo: opts.knownTo } : {}),
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", { life: opts.life ?? 20, [zone]: [shock] }),
+            makePlayer("p2"),
+        ],
+    });
+    return { state, player: getPlayer(state, "p1") };
+}
+
 describe("shock land entry: definition shape (CR 614.12)", () => {
     it.each(ALL_SHOCKS)(
         "$def.name declares entersTappedUnlessPay, subtypes, and the two-colour mana choice",
@@ -130,6 +160,7 @@ describe("shock land entry: suspend (CR 614.12, ADR 0051)", () => {
         expect(head?.kind).toBe("land-entry-tapped");
         expect(head?.playerId).toBe("p1");
         expect(head?.landInstanceId).toBe("shock");
+        expect(head?.landSourceZone).toBe("hand");
         expect(head?.cost).toEqual({ life: 2 });
         expect(state.priorityPlayerId).toBe("p1");
     });
@@ -206,6 +237,184 @@ describe("shock land entry: affordability gate (CR 119.4)", () => {
     });
 });
 
+// CR 614.12 (issue #1980) — the pay-choice belongs to the LAND, not to the
+// zone it is played from. `applyPlayLandFromExile` (a hideaway / impulse-draw
+// play permission) and `applyPlayLandFromGraveyard` (Icetill Explorer) both
+// used to skip it outright: they read `shouldEnterTapped` and moved the card,
+// so a shock land played from either zone entered UNTAPPED FOR FREE with no
+// prompt and no life paid. Both now suspend before the zone move exactly as
+// the hand and library-top origins do.
+describe.each([
+    { origin: "exile", zone: "exile" as const },
+    { origin: "graveyard", zone: "graveyard" as const },
+])("shock land entry: $origin origin (CR 614.12, #1980)", ({ zone }) => {
+    const play =
+        zone === "exile" ? applyPlayLandFromExile : applyPlayLandFromGraveyard;
+
+    it(`suspends entry on a land-entry-tapped choice — the land stays in the ${zone}`, () => {
+        const { state, player } = shockIn(zone);
+        const result = play(state, player, "shock");
+
+        expect(result).toBeNull(); // no on-battlefield instance yet
+        expect(player[zone].find((c) => c.id === "shock")).toBeDefined();
+        expect(
+            player.battlefield.find((c) => c.id === "shock")
+        ).toBeUndefined();
+
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("land-entry-tapped");
+        expect(head?.playerId).toBe("p1");
+        expect(head?.landInstanceId).toBe("shock");
+        expect(head?.landSourceZone).toBe(zone);
+        expect(head?.cost).toEqual({ life: 2 });
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    it("pay 2 life → enters UNTAPPED, controller loses 2 life", () => {
+        const { state, player } = shockIn(zone);
+        play(state, player, "shock");
+        applyLandEntrySubmit(state, { playerId: "p1", accept: true });
+
+        const land = player.battlefield.find((c) => c.id === "shock");
+        expect(land).toBeDefined();
+        expect(land!.isTapped).toBe(false);
+        expect(getPlayer(state, "p1").life).toBe(18);
+        expect(player[zone].find((c) => c.id === "shock")).toBeUndefined();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("decline → enters TAPPED, life unchanged", () => {
+        const { state, player } = shockIn(zone);
+        play(state, player, "shock");
+        applyLandEntrySubmit(state, { playerId: "p1", accept: false });
+
+        const land = player.battlefield.find((c) => c.id === "shock");
+        expect(land!.isTapped).toBe(true);
+        expect(getPlayer(state, "p1").life).toBe(20);
+    });
+
+    // CR 305.2 — a PLAYED land spends the drop, exactly once, at the
+    // settlement and not at the suspend.
+    it("records the land drop exactly once, and only once settled", () => {
+        const { state, player } = shockIn(zone);
+        play(state, player, "shock");
+        expect(getPlayer(state, "p1").landsPlayedThisTurn ?? 0).toBe(0);
+        applyLandEntrySubmit(state, { playerId: "p1", accept: true });
+        expect(getPlayer(state, "p1").landsPlayedThisTurn).toBe(1);
+    });
+
+    // CR 616 / 614.1c — paying removes only the land's OWN clause; a
+    // battlefield-scanned replacement still taps it, on every origin.
+    it("Kismet still forces tapped even when the 2 life is paid", () => {
+        const { state, player } = shockIn(zone);
+        getPlayer(state, "p2").battlefield.push(
+            makeInstance(kismet.id, {
+                id: "kismet",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        play(state, player, "shock");
+        applyLandEntrySubmit(state, { playerId: "p1", accept: true });
+
+        const land = player.battlefield.find((c) => c.id === "shock");
+        expect(land!.isTapped).toBe(true);
+        expect(getPlayer(state, "p1").life).toBe(18);
+    });
+});
+
+// CR 601.3e / 400.7 — the exile origin carries two concerns the graveyard one
+// does not: a per-card play permission that must be consumed when the card
+// leaves exile, and an exile zone that may belong to a DIFFERENT player
+// (issue #1156). Both have to survive the detour through the pay-choice.
+describe("shock land entry: exile origin specifics (CR 601.3e, #1980)", () => {
+    it("consumes the exile play grant when the DELAYED entry settles, not at the suspend", () => {
+        const shock = makeInstance(steamVents.id, {
+            id: "shock",
+            zone: "exile",
+            castableFromExileBy: "p1",
+            castableFromExileIncludesLand: true,
+            castableFromExileUntilTurn: 3,
+            castFromExileWithoutPayingManaCost: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, exile: [shock] }),
+                makePlayer("p2"),
+            ],
+        });
+        const player = getPlayer(state, "p1");
+        applyPlayLandFromExile(state, player, "shock");
+
+        // Still suspended: the grant survives the choice window (priority is
+        // frozen on the chooser, so nothing else can consume it).
+        expect(
+            player.exile.find((c) => c.id === "shock")?.castableFromExileBy
+        ).toBe("p1");
+
+        applyLandEntrySubmit(state, { playerId: "p1", accept: false });
+        const land = player.battlefield.find((c) => c.id === "shock")!;
+        expect(land.castableFromExileBy).toBeUndefined();
+        expect(land.castableFromExileIncludesLand).toBeUndefined();
+        expect(land.castableFromExileUntilTurn).toBeUndefined();
+        expect(land.castFromExileWithoutPayingManaCost).toBeUndefined();
+    });
+
+    it("a cross-player grant settles onto the CASTER's battlefield, not the exile owner's", () => {
+        const shock = makeInstance(steamVents.id, {
+            id: "shock",
+            zone: "exile",
+            controllerId: "p2",
+            ownerId: "p2",
+            castableFromExileBy: "p1",
+            castableFromExileIncludesLand: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { exile: [shock] }),
+            ],
+        });
+        const p1 = getPlayer(state, "p1");
+        expect(applyPlayLandFromExile(state, p1, "shock")).toBeNull();
+        expect(state.pendingChoices?.[0]?.landSourceZone).toBe("exile");
+
+        applyLandEntrySubmit(state, { playerId: "p1", accept: true });
+        expect(getPlayer(state, "p2").exile).toHaveLength(0);
+        expect(getPlayer(state, "p2").battlefield).toHaveLength(0);
+        const land = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "shock"
+        );
+        expect(land).toBeDefined();
+        expect(land!.isTapped).toBe(false);
+        expect(getPlayer(state, "p1").life).toBe(18);
+        expect(getPlayer(state, "p1").landsPlayedThisTurn).toBe(1);
+    });
+
+    // CR 406.3 — a hideaway-exiled card is FACE DOWN, examinable only by the
+    // players its `knownTo` names, while `pendingChoices` cross
+    // `projectPublicState` unredacted to BOTH viewers. The prompt must not be
+    // the thing that discloses the hidden card's identity.
+    it("never names a still-face-down exiled land in the prompt", () => {
+        const { state, player } = shockIn("exile", {
+            named: true,
+            knownTo: ["p1"],
+        });
+        applyPlayLandFromExile(state, player, "shock");
+
+        const prompt = state.pendingChoices?.[0]?.prompt;
+        expect(prompt).not.toContain("Steam Vents");
+        expect(prompt).toContain("This land");
+    });
+
+    it("DOES name an ordinary face-up exiled land (CR 406.3's default)", () => {
+        const { state, player } = shockIn("exile", { named: true });
+        applyPlayLandFromExile(state, player, "shock");
+
+        expect(state.pendingChoices?.[0]?.prompt).toContain("Steam Vents");
+    });
+});
+
 // CR 614.12 — the "as it enters" pay-choice applies at EVERY ETB, not only when
 // the land is PLAYED from hand. A shock land put onto the battlefield by an
 // effect (library tutor / reanimation / put-onto-battlefield) funnels through
@@ -254,6 +463,12 @@ describe("shock land entry via effect — non-play ETB (CR 614.12)", () => {
         expect(head?.playerId).toBe("p1");
         expect(head?.landInstanceId).toBe("shock");
         expect(head?.cost).toEqual({ life: 2 });
+        // The must-NOT row of the source-zone census (issue #1980): this land
+        // came from the graveyard but was PUT onto the battlefield, not
+        // played. It must record `"battlefield"`, so `finalizeLandEntry` takes
+        // the already-in-play completion and never re-moves it out of a
+        // graveyard it no longer occupies (and never spends a land drop).
+        expect(head?.landSourceZone).toBe("battlefield");
         // Provisional: the land is on the battlefield but not settled untapped.
         const land = getPlayer(state, "p1").battlefield.find(
             (c) => c.id === "shock"
@@ -310,5 +525,25 @@ describe("shock land entry: wire format (ADR 0051)", () => {
             .battlefield.find((c) => c.id === "shock");
         expect(slim!.isTapped).toBe(true);
         void player;
+    });
+
+    // issue #1980 — the exile-origin choice reaches the client through the
+    // same reducer, discriminator and all: without `landSourceZone` surviving
+    // projection the prompt renders but nothing tells the finalizer where the
+    // land is.
+    it("the exile-origin choice keeps its source zone across projectPublicState", () => {
+        const { state, player } = shockIn("exile");
+        applyPlayLandFromExile(state, player, "shock");
+
+        const head = projectPublicState(state, 1, "p1").pendingChoices?.[0];
+        expect(head?.kind).toBe("land-entry-tapped");
+        expect(head?.landSourceZone).toBe("exile");
+        expect(head?.cost).toEqual({ life: 2 });
+
+        applyLandEntrySubmit(state, { playerId: "p1", accept: false });
+        const slim = projectPublicState(state, 1, "p1")
+            .players.find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "shock");
+        expect(slim!.isTapped).toBe(true);
     });
 });
