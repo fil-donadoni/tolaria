@@ -598,7 +598,7 @@ describe("deny-guard — a gate may not be run in the BACKGROUND either (#2654)"
         expect(denied(r)).toBe(true);
     });
 
-    it("allows a script on the informational allowlist to run in the background", () => {
+    it("allows a script on the exempt-script list to run in the background", () => {
         for (const cmd of [
             "bun run cr 605.1a",
             "bun run findings",
@@ -608,6 +608,37 @@ describe("deny-guard — a gate may not be run in the BACKGROUND either (#2654)"
             const r = runHook(DENY_GUARD, bashBg(cmd, issueWorktree, true));
             expect(r.code, `expected ALLOW for backgrounded: ${cmd}`).toBe(0);
         }
+    });
+
+    // Review finding #1 (#2735): the allowlist had no long-running SERVER
+    // scripts, so §3's deliberate over-approximation ("any non-allowlisted
+    // `bun run` reaches the gate") — harmless for a pager, since nothing
+    // there runs forever — false-denied `bun run dev`/`bun run preview`
+    // backgrounded. `docs/guides/ui-runbooks.md` makes a backgrounded `dev`
+    // the prerequisite for manual CDP verification, and the denial message
+    // then told the caller to run a process that never exits in the
+    // FOREGROUND — obeying it burns the harness's own 10-minute cap and the
+    // harness backgrounds it anyway, manufacturing the exact stall this rule
+    // exists to prevent, through the one producer the issue puts out of
+    // scope. `dev`/`preview` now sit on the SAME `GATE_EXEMPT_SCRIPT_RE`, not
+    // a second list.
+    it("allows `bun run dev` and `bun run preview` to run in the background — long-running servers, not gates", () => {
+        for (const cmd of ["bun run dev", "bun run preview"]) {
+            const r = runHook(DENY_GUARD, bashBg(cmd, issueWorktree, true));
+            expect(r.code, `expected ALLOW for backgrounded: ${cmd}`).toBe(0);
+        }
+    });
+
+    // The paired-deny case, as close as possible to the allow above (the
+    // header's own rule): a `bun run` script that is NOT on the exempt list
+    // must still be denied backgrounded, even though it shares the exact
+    // "long-running-looking dev command" shape with the two just allowed.
+    it("still denies a non-exempt `bun run` script backgrounded, right next to the dev/preview allow above", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bashBg("bun run test:watch", issueWorktree, true)
+        );
+        expect(denied(r)).toBe(true);
     });
 
     it("allows a FOREGROUND gate — the flag is what matters, not the command", () => {

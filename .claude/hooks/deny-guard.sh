@@ -243,12 +243,29 @@ seg_has() {
 # and §3b (run in the background). Both are the same underlying failure: the
 # gate's exit code, the only done/not-done signal in the workflow, never
 # reaches anyone. Deny-by-default: a script not named anywhere below is still
-# a gate unless it resolves through `bun run` to a name on the ONE
-# informational allowlist, or the invocation is a bare `scripts/gate.ts`.
-# There is deliberately no second copy of this test and no second allowlist —
-# see #2429/#2527 for what a hand-maintained gate-name list already cost once.
+# a gate unless it resolves through `bun run` to a name on the ONE exempt-
+# script list, or the invocation is a bare `scripts/gate.ts`. There is
+# deliberately no second copy of this test and no second list — see
+# #2429/#2527 for what a hand-maintained gate-name list already cost once.
+#
+# **The list carries TWO senses of "not a gate", not one — renamed from
+# GATE_INFORMATIONAL_SCRIPT_RE to say so (issue #2654 review).** §3 only ever
+# needed the first sense (nobody branches on the exit code: `cr`, `findings`,
+# `format`, …), so a purely informational name was accurate for it alone. §3b
+# widens what "exempt" has to mean: `bun run dev` / `bun run preview` are
+# long-running SERVERS with no gate verdict to report in the first place —
+# `docs/guides/ui-runbooks.md` makes a backgrounded `dev` the prerequisite for
+# manual CDP verification, and denying it (worse, telling the caller to run a
+# process that never exits in the FOREGROUND) would burn the harness's own
+# 10-minute cap and manufacture the exact stall this file exists to prevent,
+# through the one producer the issue puts out of scope. Both senses share one
+# property that is the actual membership test — nothing downstream ever reads
+# this script's own exit code as a verdict — so one list is correct, not two.
+# Adding `dev`/`preview` here also correctly relaxes §3 for an ordinary dev-
+# server startup banner piped into a pager, which was never the failure §3
+# exists to catch.
 # ─────────────────────────────────────────────────────────────────────────────
-GATE_INFORMATIONAL_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|loop:doctor|loop:scorecard|usage:window|telemetry:dash|format)$'
+GATE_EXEMPT_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|loop:doctor|loop:scorecard|usage:window|telemetry:dash|format|dev|preview)$'
 
 # True when the given SEGMENT text reaches the gate runner.
 segment_reaches_gate() {
@@ -270,7 +287,7 @@ segment_reaches_gate() {
     [ -n "$_grg_scripts" ] || return 1
 
     for _grg_script in $_grg_scripts; do
-        if ! printf '%s\n' "$_grg_script" | grep -Eq "$GATE_INFORMATIONAL_SCRIPT_RE"; then
+        if ! printf '%s\n' "$_grg_script" | grep -Eq "$GATE_EXEMPT_SCRIPT_RE"; then
             return 0
         fi
     done
@@ -436,6 +453,14 @@ fi
 # which redirects stderr into the same stream this rule now matches on
 # purpose.)
 #
+# **`dev`/`preview` joined this same list later, for §3b's reason, not this
+# one** (issue #2654 review) — the constant was renamed to
+# `GATE_EXEMPT_SCRIPT_RE` accordingly. They are not "informational" in the
+# sense above (there is no gate output to read at all, piped or not); they
+# are long-running servers that legitimately background, and adding them here
+# means §3 also correctly stops treating a `dev`/`preview` startup banner
+# piped into a pager as a gate violation, which it never was.
+#
 # **Still scoped to a single segment, never to every test run.** Telemetry
 # over 24 days: 2,819 of 3,981 full-gate invocations were piped into a pager,
 # and so were 2,295 of 4,189 targeted `vitest run` calls. Denying both would
@@ -481,9 +506,10 @@ scripts/gate.ts and none of them was covered). Redirect to a file and read
 that instead:
   bun run test >/tmp/gate.log 2>&1; echo \"exit=\$?\"; grep -E 'Tests|FAIL' /tmp/gate.log
 
-If this really is a purely informational script whose exit code nobody
-branches on, add its name to GATE_INFORMATIONAL_SCRIPT_RE in
-.claude/hooks/deny-guard.sh § 3 — not before checking what it actually does."
+If this really is a script whose exit code nobody branches on — purely
+informational, or a long-running server with no verdict to report — add its
+name to GATE_EXEMPT_SCRIPT_RE in .claude/hooks/deny-guard.sh § 3 — not before
+checking what it actually does."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -502,10 +528,11 @@ fi
 # `segment_reaches_gate` (defined above, shared code, one allowlist) is the
 # exact "does this reach the gate runner" test §3 already uses: deny BY
 # DEFAULT, so a gate script named nowhere in this file is still denied, and
-# the SAME informational allowlist (`GATE_INFORMATIONAL_SCRIPT_RE`) exempts
-# the scripts whose exit code nobody branches on either way. There is
-# deliberately no independent "known background-unsafe gates" list — that is
-# exactly the name-list shape §3 already had to be rewritten out of once.
+# the SAME exempt-script list (`GATE_EXEMPT_SCRIPT_RE`) exempts the scripts
+# nothing downstream reads a verdict from either way — informational readers
+# and long-running servers alike. There is deliberately no independent
+# "known background-unsafe gates" list — that is exactly the name-list shape
+# §3 already had to be rewritten out of once.
 #
 # Checked against EVERY segment, not only ones with a pipe: backgrounding has
 # nothing to do with pagers, and a gate needs no `|` in the command to be a
@@ -547,10 +574,10 @@ Genuinely slow and you want to read the output back? Redirect to a file —
 still in the foreground, still waiting for the real exit code:
   bun run test >/tmp/gate.log 2>&1; echo \"exit=\$?\"; grep -E 'Tests|FAIL' /tmp/gate.log
 
-If this really is a purely informational script whose exit code nobody
-branches on, it belongs on GATE_INFORMATIONAL_SCRIPT_RE in
-.claude/hooks/deny-guard.sh (the same allowlist §3 uses) — not before checking
-what it actually does."
+If this really is a script whose exit code nobody branches on — purely
+informational, or a long-running server with no verdict to report — it
+belongs on GATE_EXEMPT_SCRIPT_RE in .claude/hooks/deny-guard.sh (the same
+list §3 uses) — not before checking what it actually does."
         fi
     done
     set +f
