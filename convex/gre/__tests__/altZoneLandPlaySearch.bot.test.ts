@@ -31,6 +31,7 @@ import {
 const COURSER = getCardByName("Courser of Kruphix").id;
 const ICETILL = getCardByName("Icetill Explorer").id;
 const FOREST = getCardByName("Forest").id;
+const SHOCK = getCardByName("Steam Vents").id;
 
 /** p1 controls `permanentId` and holds one Forest in the named alternate zone. */
 function altZoneBoard(
@@ -108,6 +109,91 @@ describe("alternate-zone land plays reach the search leaves (CR 305.9)", () => {
             });
         });
     }
+
+    // issue #1980 — the exile and graveyard origins now SUSPEND on the CR
+    // 614.12 pay-choice for a shock land, exactly like hand and library-top.
+    // A suspend the 1-ply leaf cannot answer is a frozen bot (the standing
+    // rule: the bot never freezes a game), and a suspend `finalizeLandEntry`
+    // cannot locate is a THROW mid-rollout. `autoFinalizeLandEntryChoices`
+    // drains it with the ADR 0016 minimal-legal default (pay iff affordable),
+    // reading the choice's own `landSourceZone` to find the land again.
+    describe("shock land from an alternate zone does not stall the search leaf (CR 614.12)", () => {
+        /** p1 holds a Steam Vents playable from `zone`. */
+        function shockBoard(zone: "graveyard" | "exile"): GameState {
+            const shock = makeInstance(SHOCK, {
+                controllerId: "p1",
+                ownerId: "p1",
+                id: "alt-land",
+                zone,
+                ...(zone === "exile"
+                    ? {
+                          castableFromExileBy: "p1",
+                          castableFromExileIncludesLand: true,
+                      }
+                    : {}),
+            });
+            return makeState({
+                players: [
+                    makePlayer("p1", {
+                        life: 20,
+                        battlefield:
+                            zone === "graveyard"
+                                ? [
+                                      makeInstance(ICETILL, {
+                                          controllerId: "p1",
+                                          ownerId: "p1",
+                                          id: "source",
+                                      }),
+                                  ]
+                                : [],
+                        ...(zone === "graveyard"
+                            ? { graveyard: [shock] }
+                            : { exile: [shock] }),
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+        }
+
+        for (const zone of ["graveyard", "exile"] as const) {
+            it(`${zone}: the leaf drains the pay-choice and pays the 2 life`, () => {
+                const next = applyMoveForSearch(shockBoard(zone), "p1", {
+                    kind: "play-land",
+                    cardInstanceId: "alt-land",
+                });
+                const player = getPlayer(next, "p1");
+                // Drained, not left owed — nothing for the rollout to stall on.
+                expect(next.pendingChoices ?? []).toHaveLength(0);
+                expect(player.battlefield.map((c) => c.id)).toContain(
+                    "alt-land"
+                );
+                expect(player[zone].map((c) => c.id)).not.toContain("alt-land");
+                expect(player.landsPlayedThisTurn).toBe(1);
+                // Affordable at 20 life → the default pays and enters untapped.
+                expect(
+                    player.battlefield.find((c) => c.id === "alt-land")!
+                        .isTapped
+                ).toBe(false);
+                expect(player.life).toBe(18);
+            });
+
+            it(`${zone}: at 1 life the leaf declines and the land enters tapped`, () => {
+                const board = shockBoard(zone);
+                getPlayer(board, "p1").life = 1;
+                const next = applyMoveForSearch(board, "p1", {
+                    kind: "play-land",
+                    cardInstanceId: "alt-land",
+                });
+                const player = getPlayer(next, "p1");
+                expect(next.pendingChoices ?? []).toHaveLength(0);
+                expect(
+                    player.battlefield.find((c) => c.id === "alt-land")!
+                        .isTapped
+                ).toBe(true);
+                expect(player.life).toBe(1);
+            });
+        }
+    });
 
     it("applyMoveInSearch is a no-op for a stale move whose card no permitted zone holds", () => {
         const state = altZoneBoard(COURSER, "library");

@@ -122,7 +122,8 @@ function autoFinalizeLandEntryChoices(state: GameState): void {
             head.playerId,
             head.landInstanceId,
             head.cost,
-            accept
+            accept,
+            head.landSourceZone
         );
     }
 }

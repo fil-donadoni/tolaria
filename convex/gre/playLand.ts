@@ -16,7 +16,13 @@
 // scan + SBA pass, but NOT the caller's surrounding concerns (game.ts owns
 // validation / seq / persistence; applyMove owns its search framing).
 
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    LandEntrySourceZone,
+    PlayLandSourceZone,
+    PlayerState,
+} from "./state";
 import {
     moveCard,
     markEnteredThisTurn,
@@ -106,7 +112,8 @@ export function applyPlayLand(
             player.id,
             handCard.id,
             def.entersTappedUnlessPay,
-            handCard.card
+            handCard.card,
+            "hand"
         );
         return null;
     }
@@ -167,12 +174,12 @@ function moveCardAcrossPlayers(
  *  and the "play" legality (land-drop count, sorcery timing). The stale
  *  cast-from-exile flags are dropped as the card leaves exile.
  *
- *  Scope: the interactive `entersTappedUnlessPay` pay-choice (shock lands, CR
- *  614.12) is NOT wired for the exile origin — its finalizer sources from hand,
- *  so such a land enters untapped for free from here. A land's own
- *  `entersTapped` and board replacements (Kismet) still apply via
- *  `shouldEnterTapped`. Genuinely reachable since hideaway (CR 702.75) can exile
- *  ANY card off the top four of your own library — tracked-by: #1980. */
+ *  The interactive `entersTappedUnlessPay` pay-choice (shock lands, CR 614.12)
+ *  IS wired here, exactly as on the hand and library-top origins: the entry
+ *  suspends BEFORE the zone move and `finalizeLandEntry` completes it. It
+ *  reaches this origin through any play-from-exile permission — hideaway
+ *  (CR 702.75) can exile ANY card off the top four of your own library — and
+ *  skipping it let such a land enter untapped for free (issue #1980). */
 export function applyPlayLandFromExile(
     state: GameState,
     player: PlayerState,
@@ -192,6 +199,36 @@ export function applyPlayLandFromExile(
     const exileCard = exileOwner.exile.find((c) => c.id === cardInstanceId);
     if (!exileCard) return null;
 
+    // CR 614.12 / ADR 0051 (issue #1980) — a land carrying the pay-choice
+    // suspends BEFORE the zone move, exactly like the hand and library-top
+    // origins. The card stays in exile (still face down if hideaway put it
+    // there) for the choice window and `finalizeLandEntry` moves it, so the
+    // grant flags below are consumed there instead — see
+    // `consumeExilePlayGrant`.
+    const exileCardId = (exileCard.card as { id?: string } | undefined)?.id;
+    const exileDef = exileCardId ? tryGetDefinition(exileCardId) : undefined;
+    if (exileDef?.entersTappedUnlessPay) {
+        enqueueLandEntryChoice(
+            state,
+            player.id,
+            exileCard.id,
+            exileDef.entersTappedUnlessPay,
+            // CR 406.3 — a hideaway-exiled card is FACE DOWN, readable only by
+            // the players its `knownTo` names, while `pendingChoices` crosses
+            // `projectPublicState` unredacted to BOTH viewers. Naming the land
+            // in the prompt would therefore disclose the hidden card to the
+            // opponent, the same leak `castDuringResolution`'s own Play/Decline
+            // offer avoids by never naming it (`effects/interpreter.ts`).
+            // Passing `undefined` falls back to the generic "This land"
+            // wording. An ordinary face-up exile permission (Expressive
+            // Iteration, Headliner Scarlett — no `knownTo` stamped, CR 406.3's
+            // default) names the land like every other origin.
+            isHiddenInExile(exileCard) ? undefined : exileCard.card,
+            "exile"
+        );
+        return null;
+    }
+
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board.
     const willEnterTapped = shouldEnterTapped(state, exileCard);
 
@@ -205,8 +242,25 @@ export function applyPlayLandFromExile(
                   "exile",
                   "battlefield"
               );
-    // The play-from-exile permission is consumed the moment the card leaves
-    // exile for the battlefield (CR 601.3e); drop the stale flags.
+    consumeExilePlayGrant(card);
+    return settleEnteredLand(state, player, card, willEnterTapped);
+}
+
+/** CR 406.3 — is this exiled card still FACE DOWN, i.e. examinable only by the
+ *  players its `knownTo` names? Exiled cards are face UP by default (an empty
+ *  / absent `knownTo`); hideaway (CR 702.75a) and friends stamp the restricted
+ *  list. Used to decide whether a land-entry prompt may name the card, since
+ *  `pendingChoices` reach both viewers unredacted (issue #1980). */
+function isHiddenInExile(card: CardInstanceState): boolean {
+    return (card.knownTo?.length ?? 0) > 0;
+}
+
+/** CR 601.3e — the play-from-exile permission is consumed the moment the card
+ *  leaves exile for the battlefield; drop the now-stale grant flags. Shared by
+ *  the immediate exile play (`applyPlayLandFromExile`) and the DELAYED one
+ *  that resumes out of a CR 614.12 pay-choice (`finalizeLandEntry`), so the
+ *  suspended path cannot leave a consumed permission behind (issue #1980). */
+function consumeExilePlayGrant(card: CardInstanceState): void {
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
     // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides the same
@@ -216,7 +270,6 @@ export function applyPlayLandFromExile(
     // CR 305.9 (issue #1689) — the land-inclusive marker rides the same
     // permission window; drop it too now that the grant is consumed.
     delete card.castableFromExileIncludesLand;
-    return settleEnteredLand(state, player, card, willEnterTapped);
 }
 
 /** CR 305 / 305.1-analog — play a LAND from the GRAVEYARD under an
@@ -229,7 +282,12 @@ export function applyPlayLandFromExile(
  *  timing) — this function only performs the zone move + bookkeeping. Unlike
  *  the exile path, there is no per-card grant to clear: the permission is
  *  read live off the battlefield every time, so nothing on the card itself
- *  needs to be consumed. */
+ *  needs to be consumed.
+ *
+ *  Like every other origin this wires the interactive `entersTappedUnlessPay`
+ *  pay-choice (shock lands, CR 614.12), suspending BEFORE the zone move
+ *  (issue #1980). The graveyard is a public zone (CR 400.2), so the prompt can
+ *  always name the land. */
 export function applyPlayLandFromGraveyard(
     state: GameState,
     player: PlayerState,
@@ -237,6 +295,23 @@ export function applyPlayLandFromGraveyard(
 ): CardInstanceState | null {
     const graveyardCard = player.graveyard.find((c) => c.id === cardInstanceId);
     if (!graveyardCard) return null;
+
+    // CR 614.12 / ADR 0051 — suspend on the pay-choice BEFORE the zone move,
+    // exactly like the hand, library-top and exile paths; the land stays in
+    // the graveyard for the window.
+    const graveCardId = (graveyardCard.card as { id?: string } | undefined)?.id;
+    const graveDef = graveCardId ? tryGetDefinition(graveCardId) : undefined;
+    if (graveDef?.entersTappedUnlessPay) {
+        enqueueLandEntryChoice(
+            state,
+            player.id,
+            graveyardCard.id,
+            graveDef.entersTappedUnlessPay,
+            graveyardCard.card,
+            "graveyard"
+        );
+        return null;
+    }
 
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board, exactly
     // like the hand and exile play paths.
@@ -286,7 +361,8 @@ export function applyPlayLandFromLibraryTop(
             player.id,
             top.id,
             def.entersTappedUnlessPay,
-            top.card
+            top.card,
+            "library-top"
         );
         return null;
     }
@@ -300,8 +376,10 @@ export function applyPlayLandFromLibraryTop(
 }
 
 /** The zone a play-land action is sourcing its card from (CR 305.9 — hand
- *  unless an effect explicitly says otherwise). */
-export type PlayLandSourceZone = "hand" | "exile" | "graveyard" | "library-top";
+ *  unless an effect explicitly says otherwise). Defined in `gre/state.ts`
+ *  (where `PendingChoice.landSourceZone` needs it) and re-exported here, this
+ *  module's historic home, so every existing importer is unaffected. */
+export type { PlayLandSourceZone, LandEntrySourceZone } from "./state";
 
 /** Resolves WHICH zone `cardInstanceId` is being played from, or `null` when
  *  no permitted source holds it. The permission checks are the same ones
@@ -413,9 +491,10 @@ function settleEnteredLand(
     if (willEnterTapped) card.isTapped = true;
 
     // CR 121.6 / 614.1c (issue #1693) — the entry-counters self-replacement
-    // applies at THIS entry site too. Every one of this helper's four callers
+    // applies at THIS entry site too. Every one of this helper's callers
     // (`applyPlayLand`, `applyPlayLandFromExile`, `applyPlayLandFromGraveyard`,
-    // `finalizeLandEntry`'s from-hand branch) is a full permanent entry, so it
+    // `applyPlayLandFromLibraryTop`, `finalizeLandEntry`'s play-source branch)
+    // is a full permanent entry, so it
     // must run before the grant/static passes and before `emitPermanentEntered`
     // scans triggers — nothing may observe the permanent at zero counters.
     // Latent today (no shipped Land declares `entersWith`), wired so the site
@@ -488,15 +567,29 @@ function payCostText(cost: MayPayCost): string {
 }
 
 /** CR 614.12 / ADR 0051 — enqueue the stackless land-entry pay-choice for a
- *  shock land currently in `playerId`'s hand. Freezes priority on the chooser.
- *  `landCardData` is the entering card's `.card` payload, forwarded onto the
- *  prompt so it can name the land. */
+ *  shock land entering under `playerId`'s control. Freezes priority on the
+ *  chooser. `landCardData` is the entering card's `.card` payload, forwarded
+ *  onto the prompt so it can name the land — pass `undefined` when the card's
+ *  identity must stay hidden (a still-face-down exiled card, CR 406.3), which
+ *  falls back to the generic "This land" wording.
+ *
+ *  `sourceZone` is REQUIRED and is recorded on the choice as
+ *  `PendingChoice.landSourceZone`: the explicit, fail-closed discriminator
+ *  `finalizeLandEntry` reads to find the land again on submit. It is a
+ *  parameter rather than something the finalizer re-derives because a sniff
+ *  cannot distinguish "not in any zone I thought to look in" from "not
+ *  suspended at all" — the hand-then-library-top sniff it replaced silently
+ *  could not see an exile or graveyard origin, which is why neither dared
+ *  raise this choice and a shock land played from exile entered untapped for
+ *  free (issue #1980). Requiring it means a NEW play origin breaks the build
+ *  here instead of falling through to a wrong zone. */
 export function enqueueLandEntryChoice(
     state: GameState,
     playerId: string,
     landInstanceId: string,
     cost: MayPayCost,
-    landCardData: unknown
+    landCardData: unknown,
+    sourceZone: LandEntrySourceZone
 ): void {
     const name =
         (landCardData as { name?: string } | undefined)?.name ?? "This land";
@@ -509,11 +602,90 @@ export function enqueueLandEntryChoice(
         zoneOwnerId: playerId,
         kind: "land-entry-tapped",
         landInstanceId,
+        landSourceZone: sourceZone,
         cost,
         count: 1,
         prompt: `You may pay ${payCostText(cost)}. If you don't, ${name} enters the battlefield tapped.`,
     });
     state.priorityPlayerId = playerId;
+}
+
+/** The land a suspended `land-entry-tapped` choice is waiting on, together
+ *  with the player whose zone currently holds it. `owner` differs from the
+ *  acting player only for the cross-player exile grant (CR 400.7 / 601.3e,
+ *  issue #1156 — Dauthi Voidwalker letting a card leave an OPPONENT's exile
+ *  straight onto the caster's battlefield). */
+type SuspendedLandSource = {
+    card: CardInstanceState;
+    owner: PlayerState;
+    zone: "hand" | "library" | "graveyard" | "exile";
+};
+
+/** Locates the card a suspended `land-entry-tapped` choice is waiting on, in
+ *  whichever zone it was being PLAYED from (CR 305) when the choice
+ *  interrupted the entry. Driven by the choice's own `landSourceZone`
+ *  discriminator, NOT by a search: each origin suspends before its zone move,
+ *  so the card is exactly where its enqueue site said it was.
+ *
+ *  Returns `undefined` for `"battlefield"` (the effect-entry case: the land is
+ *  already in play, so `finalizeLandEntry` falls through to its
+ *  already-on-battlefield completion) and for a zone that no longer holds the
+ *  card at all. `undefined` for the DISCRIMINATOR itself means a choice
+ *  persisted before the field existed (issue #1980): fall back to the exact
+ *  hand-then-library-top sniff that shipped before, which is what such a
+ *  choice was enqueued under. */
+function locateSuspendedLandSource(
+    state: GameState,
+    player: PlayerState,
+    landInstanceId: string,
+    sourceZone: LandEntrySourceZone | undefined
+): SuspendedLandSource | undefined {
+    switch (sourceZone) {
+        case "hand": {
+            const card = player.hand.find((c) => c.id === landInstanceId);
+            return card ? { card, owner: player, zone: "hand" } : undefined;
+        }
+        case "library-top": {
+            // Position-strict (index 0), mirroring the play-from-top
+            // permission itself (CR 400.2 keeps the rest of the library
+            // hidden). Priority is frozen on the chooser for the whole choice
+            // window, so nothing can reorder the library underneath it.
+            const top = player.library[0];
+            return top && top.id === landInstanceId
+                ? { card: top, owner: player, zone: "library" }
+                : undefined;
+        }
+        case "graveyard": {
+            const card = player.graveyard.find((c) => c.id === landInstanceId);
+            return card
+                ? { card, owner: player, zone: "graveyard" }
+                : undefined;
+        }
+        case "exile": {
+            // CR 400.7 / 601.3e (issue #1156) — exile is the one origin whose
+            // owner may not be the acting player, so resolve it by search
+            // rather than assuming `player`, exactly as
+            // `applyPlayLandFromExile` does on its immediate path.
+            const owner = state.players.find((p) =>
+                p.exile.some((c) => c.id === landInstanceId)
+            );
+            const card = owner?.exile.find((c) => c.id === landInstanceId);
+            return owner && card ? { card, owner, zone: "exile" } : undefined;
+        }
+        case "battlefield":
+            return undefined; // effect entry — already in play
+        case undefined: {
+            const handCard = player.hand.find((c) => c.id === landInstanceId);
+            if (handCard) {
+                return { card: handCard, owner: player, zone: "hand" };
+            }
+            const top = player.library[0];
+            if (top && top.id === landInstanceId) {
+                return { card: top, owner: player, zone: "library" };
+            }
+            return undefined;
+        }
+    }
 }
 
 /** CR 614.12 / ADR 0051 — complete a suspended land-entry after the controller
@@ -522,38 +694,33 @@ export function enqueueLandEntryChoice(
  *  it. Any OTHER tapped source (Kismet) still applies independently, so the
  *  final tapped bit is `shouldEnterTapped(state, card) || !accept` — the land's
  *  own contribution is the pay-choice, everything else comes through the shared
- *  oracle. Mutates `state`; returns the now-on-battlefield land. */
+ *  oracle. `sourceZone` is the choice's own `PendingChoice.landSourceZone` —
+ *  the caller reads it off the pending choice before shifting it out of the
+ *  queue. Mutates `state`; returns the now-on-battlefield land. */
 export function finalizeLandEntry(
     state: GameState,
     playerId: string,
     landInstanceId: string,
     cost: MayPayCost,
-    accept: boolean
+    accept: boolean,
+    sourceZone?: LandEntrySourceZone
 ): CardInstanceState {
     const player = getPlayer(state, playerId);
     if (accept) payMayPayCost(state, playerId, cost);
 
     // Play-land path (CR 305): the land is still in the zone it is being PLAYED
-    // from for the choice window. That is normally hand, but a play-from-top
-    // permission (Courser of Kruphix) suspends with the land still at index 0
-    // of the library — `applyPlayLandFromLibraryTop` enqueues before the zone
-    // move exactly as the hand path does. Both are the same "play" origin and
-    // settle identically; only the source zone the move reads differs. The
-    // library lookup is position-strict (index 0), mirroring the permission
-    // itself. Graveyard/exile origins never enqueue this choice (see
-    // `applyPlayLandFromExile`'s scope note, tracked-by: #1980), so they are
-    // deliberately not searched here.
-    const playSource:
-        | { card: CardInstanceState; zone: "hand" | "library" }
-        | undefined = (() => {
-        const handCard = player.hand.find((c) => c.id === landInstanceId);
-        if (handCard) return { card: handCard, zone: "hand" as const };
-        const top = player.library[0];
-        if (top && top.id === landInstanceId) {
-            return { card: top, zone: "library" as const };
-        }
-        return undefined;
-    })();
+    // from for the choice window — hand, the top of the library (Courser of
+    // Kruphix), the graveyard (Icetill Explorer) or exile (a hideaway /
+    // impulse-draw play permission). All four suspend before their zone move
+    // and settle identically; only the zone the move reads differs, and
+    // `locateSuspendedLandSource` reads it off the choice's own discriminator
+    // instead of sniffing (issue #1980).
+    const playSource = locateSuspendedLandSource(
+        state,
+        player,
+        landInstanceId,
+        sourceZone
+    );
     if (playSource) {
         // Move it and run the full land-entry settlement (records the land
         // drop). Kismet-style forced-tapped is read from the PRE-move board.
@@ -561,12 +728,25 @@ export function finalizeLandEntry(
         // `shouldEnterTapped` returns only the battlefield-scanned replacement.
         const forcedTapped = shouldEnterTapped(state, playSource.card);
         const willEnterTapped = forcedTapped || !accept;
-        const card = moveCard(
-            player,
-            landInstanceId,
-            playSource.zone,
-            "battlefield"
-        );
+        const card =
+            playSource.owner === player
+                ? moveCard(
+                      player,
+                      landInstanceId,
+                      playSource.zone,
+                      "battlefield"
+                  )
+                : moveCardAcrossPlayers(
+                      playSource.owner,
+                      player,
+                      landInstanceId,
+                      "exile",
+                      "battlefield"
+                  );
+        // CR 601.3e — the delayed exile play consumes its permission on
+        // arrival, exactly like the immediate one; without this the grant
+        // survives on the now-on-battlefield card (issue #1980).
+        if (playSource.zone === "exile") consumeExilePlayGrant(card);
         return settleEnteredLand(state, player, card, willEnterTapped);
     }
 

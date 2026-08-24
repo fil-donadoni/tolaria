@@ -1636,6 +1636,34 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
     });
 
+    it("pendingChoices with a land-entry source zone (CR 614.12, #1980)", () => {
+        // `landSourceZone` is the ONLY thing that tells `finalizeLandEntry`
+        // where a suspended shock land is. A game snapshot saved mid-choice
+        // and reloaded without it finalizes against the wrong zone (or
+        // throws), so its survival through the DB round-trip is load-bearing —
+        // and `pendingChoices` rides the generic optional-key loop as raw
+        // JSON, which is exactly where a nested field goes quiet.
+        const state = freshState();
+        state.pendingChoices = [
+            {
+                stackItemId: "",
+                step: 0,
+                choiceId: "land-entry-shock",
+                playerId: "p1",
+                zoneOwnerId: "p1",
+                kind: "land-entry-tapped",
+                landInstanceId: "shock",
+                landSourceZone: "exile",
+                cost: { life: 2 },
+                count: 1,
+                prompt: "You may pay 2 life. If you don't, This land enters the battlefield tapped.",
+            },
+        ];
+        const back = roundTrip(state);
+        expect(back.pendingChoices).toEqual(state.pendingChoices);
+        expect(back.pendingChoices![0].landSourceZone).toBe("exile");
+    });
+
     it("pendingChoices with option-pick options (#289)", () => {
         const state = freshState();
         state.pendingChoices = [

@@ -2575,6 +2575,21 @@ export type RestrictedMana = {
     cantBeCounteredRider?: true;
 };
 
+/** The zone a play-land action is sourcing its card from (CR 305.9 — hand
+ *  unless an effect explicitly says otherwise). Lives here rather than in
+ *  `gre/playLand.ts` because `PendingChoice.landSourceZone` needs it and
+ *  `playLand.ts` imports FROM this module, never the other way round;
+ *  `playLand.ts` re-exports it so its existing importers are unaffected. */
+export type PlayLandSourceZone = "hand" | "exile" | "graveyard" | "library-top";
+
+/** Where the land a suspended `land-entry-tapped` pay-choice (CR 614.12) is
+ *  waiting on currently SITS. The four `PlayLandSourceZone` values are the
+ *  play-land origins, each of which suspends BEFORE its zone move so the card
+ *  is still in its source zone; `"battlefield"` is the effect-entry case (a
+ *  tutored / reanimated land already put onto the battlefield provisionally
+ *  tapped, with its ETB deferred — `stageReanimatedOnBattlefield`). */
+export type LandEntrySourceZone = PlayLandSourceZone | "battlefield";
+
 /** Mid-resolution player choice requested by a spell/ability's resolve step
  *  (CR 608.2, 101.4). Enqueued by `SpellContext.requestChoice`; consumed by
  *  the `selectResolutionChoice` mutation. While one or more entries are
@@ -2652,11 +2667,25 @@ export type PendingChoice = {
      *  re-derive it from the cost union. */
     permanentAction?: "return" | "sacrifice";
     /** For `kind: "land-entry-tapped"` only (CR 614.12, ADR 0051) — the
-     *  instance id of the land currently entering, which is still in the
-     *  chooser's hand while this choice is pending (the entry suspends BEFORE
-     *  the zone move). `finalizeLandEntry` reads it to complete the entry on
-     *  submit. */
+     *  instance id of the land currently entering, which is still sitting in
+     *  the zone named by `landSourceZone` while this choice is pending (a
+     *  PLAYED land suspends BEFORE the zone move; an effect-put land is
+     *  already on the battlefield). `finalizeLandEntry` reads it to complete
+     *  the entry on submit. */
     landInstanceId?: string;
+    /** For `kind: "land-entry-tapped"` only (CR 614.12, ADR 0051, issue #1980)
+     *  — WHERE `landInstanceId` currently is, so `finalizeLandEntry` can find
+     *  it again on submit. The explicit, fail-closed discriminator that
+     *  replaced a hand-then-library-top sniff: the sniff could not see a land
+     *  played from `"exile"` (a hideaway / impulse-draw permission) or from a
+     *  `"graveyard"` (Icetill Explorer), which is why neither origin dared
+     *  raise this choice at all and a shock land played from exile entered
+     *  untapped for free. `"battlefield"` is the effect-entry case
+     *  (`stageReanimatedOnBattlefield` — a tutored / reanimated land already
+     *  in play with its ETB deferred). Every enqueue site passes it; it is
+     *  optional only so a choice persisted before this field existed still
+     *  finalizes, through the legacy sniff. */
+    landSourceZone?: LandEntrySourceZone;
     /** For `kind: "madness-cast"` only (CR 702.35a) — the instance id of the
      *  discarded-and-exiled card this choice decides. The client's "Cast" button
      *  fires `announceCast` on it (which consumes the choice); the DECLINE routes
@@ -5038,11 +5067,12 @@ function targetLegalityGate(
 }
 
 /** A stackless `land-entry-tapped` pay-choice (CR 614.12 / ADR 0051) — a shock
- *  land put onto the battlefield by the effect that is resolving right now. It
- *  is answered in the active player's priority window AFTER the resolution
- *  completes, exactly like the play-land path, so it never suspends a
- *  resolution of ANY shape: the land has already entered and nothing left to
- *  run observes its tapped bit. */
+ *  land put onto the battlefield by the effect that is resolving right now, or
+ *  one PLAYED mid-resolution under a play-from-<zone> permission (Word of
+ *  Command from hand, hideaway from exile — see `playLandForPlayer`). It is
+ *  answered in the active player's priority window AFTER the resolution
+ *  completes, exactly like the play-land-at-priority path, so it never
+ *  suspends a resolution of ANY shape. */
 function isStacklessLandEntryPay(c: PendingChoice): boolean {
     return c.kind === "land-entry-tapped" && c.stackItemId === "";
 }
@@ -10969,7 +10999,12 @@ function stageReanimatedOnBattlefield(
             controllerId,
             card.id,
             putDef.entersTappedUnlessPay,
-            card.card
+            card.card,
+            // Effect entry, not a play: the land is ALREADY on the battlefield
+            // (pushed two lines above) with its ETB deferred, so
+            // `finalizeLandEntry` must look for it there rather than in any
+            // play-source zone (issue #1980).
+            "battlefield"
         );
         return false;
     }
