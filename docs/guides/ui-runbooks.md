@@ -116,6 +116,42 @@ refresh token on use, so a Playwright `storageState` captured in one context
 is already spent when a second context loads it — the second context lands
 silently back on the sign-in form. Sign in per context.
 
+## Reach the password reset screens (2026-08-24)
+
+The auth screens are the one part of the app a signed-in session can never
+see, so `check:ui` walks them on the signed-out page BEFORE it signs in
+(`Surface.preAuth` in `surfaces.ts`). By hand, the same order applies: reach
+them from a cold profile, or the gate will have opened first.
+
+**Step 1 — ask for a code** (lane surface `auth-forgot-password`):
+
+1. `navigate_page` → `http://localhost:5173`, land on the sign-in Panel.
+2. Click `Forgot password?`. It is the third control in the Panel footer,
+   below `No account? Sign up`, and it appears on the sign-in flow only —
+   the sign-up flow has nothing to reset yet.
+3. The credentials form is replaced, not covered: the `Reset Password` Panel
+   carries one `input[type=email]` and a `Send Code` submit.
+
+**Step 2 — enter the code** (NOT walked by the lane):
+
+4. Submit a real account's address. Reaching step 2 needs a live
+   `flow: "reset"` round-trip, which mints an OTP and spends a real Resend
+   send — which is why the lane stops at step 1 rather than doing it five
+   times per run.
+5. Read the 8-digit code out of the email and paste it. The grouping the
+   email renders (`1234 5678`) is stripped client-side; the server only ever
+   stored the digits.
+6. Fill `New password` and `Confirm new password`, submit. On success the
+   user is signed in on the spot and `<AuthGate>` swaps the whole screen for
+   the lobby — there is no success state to screenshot.
+
+An address with **no account** still advances to step 2 and shows the same
+"if an account exists…" notice. That is deliberate (anti-enumeration), not a
+bug to reproduce: no code is coming.
+
+Behaviour for both steps is covered by
+`src/components/auth/__tests__/forgot-password-form.test.tsx`.
+
 ## Lobby, deck builder and the Limited list (2026-08-20)
 
 The three routes that need no fixture beyond a signed-in account. Each is one

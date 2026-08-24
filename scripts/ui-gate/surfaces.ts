@@ -41,6 +41,18 @@ export interface WalkContext {
 export interface Surface {
     id: string;
     label: string;
+    /**
+     * Walk this surface BEFORE the lane signs in, on the signed-out page.
+     *
+     * The auth screen is the one thing `<AuthGate>` makes unreachable to a
+     * signed-in session, so it was invisible to this lane by construction —
+     * the very screen every user meets first was the only one with no
+     * measurement behind it. A `preAuth` surface is walked at the top of each
+     * viewport's context; `ensureSignedIn` re-navigates to the app root
+     * afterwards, so leaving the sign-in form mid-flow costs the rest of the
+     * run nothing.
+     */
+    preAuth?: boolean;
     walk(page: Page, ctx: WalkContext): Promise<void>;
 }
 
@@ -335,6 +347,55 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
 }
 
 export const SURFACES: readonly Surface[] = [
+    {
+        id: "auth-sign-in",
+        label: "Sign in (signed out, /)",
+        preAuth: true,
+        async walk(page, ctx) {
+            await goto(page, ctx, "/");
+            if (!(await visible(page, "input[type=email]", 15_000))) {
+                throw new Unreachable(
+                    "the app root did not render the sign-in form — is this context already signed in?"
+                );
+            }
+        },
+    },
+    {
+        id: "auth-forgot-password",
+        label: "Password reset, step 1 (signed out, / → Forgot password?)",
+        preAuth: true,
+        async walk(page, ctx) {
+            await goto(page, ctx, "/");
+            if (!(await visible(page, "input[type=email]", 15_000))) {
+                throw new Unreachable(
+                    "the app root did not render the sign-in form — is this context already signed in?"
+                );
+            }
+            if (
+                !(await clickIfVisible(
+                    page,
+                    "button:has-text('Forgot password')"
+                ))
+            ) {
+                throw new Unreachable(
+                    "no `Forgot password?` control on the sign-in screen"
+                );
+            }
+            if (!(await visible(page, "button:has-text('Send Code')", 6000))) {
+                throw new Unreachable(
+                    "`Forgot password?` did not swap in the reset form"
+                );
+            }
+            await settle(page);
+            // STEP 2 (code + new password) is NOT walked: reaching it needs a
+            // live `flow: "reset"` round-trip, which mints a real OTP and
+            // spends a real Resend send on every viewport of every run. The
+            // step-2 layout is covered by
+            // `src/components/auth/__tests__/forgot-password-form.test.tsx`
+            // for behaviour and by a hand-driven CDP pass for layout — see
+            // `docs/guides/ui-runbooks.md`.
+        },
+    },
     {
         id: "lobby",
         label: "Lobby (/)",
