@@ -47,14 +47,16 @@ export const fearOfMissingOut: CardDefinition = {
             count: 1,
         },
     ],
-    // TODO(issue #691): Delirium attack trigger — "Whenever this creature
-    // attacks for the first time each turn, if there are four or more card
-    // types among cards in your graveyard, untap target creature. After this
-    // phase, there is an additional combat phase." Blocked on: additional
-    // combat phase system not modeled.
+    // TODO (tracked-by: #2494): Delirium attack trigger — "Whenever this
+    // creature attacks for the first time each turn, if there are four or
+    // more card types among cards in your graveyard, untap target creature.
+    // After this phase, there is an additional combat phase." Blocked on:
+    // additional combat phase system not modeled.
 };
 
-// Silence — TODO(issue #691 stub): needs a proper implementation.
+// Silence — TODO (tracked-by: #1841): needs a proper implementation. No
+// live successor issue exists for this stub; #1841 stays open owning this
+// orphan bucket.
 //
 // Silence: {W} Instant. "Your opponents can't cast spells this turn."
 // Blocked on: spell-cast restriction infrastructure for opponents.

@@ -216,12 +216,30 @@ const COMMENT_PREFIX = /^\s*(\/\/|\/\*\*?|\*)\s*/;
 const TRACKED_BY_TAIL = /tracked-by:\s*$/i;
 const TRACKED_BY_G = /tracked-by:\s*(?:tolaria)?#(\d+)/gi;
 
-/** Every explicit `tracked-by: #NNN` occurrence on a comment line of `text`
- *  (`//`, `/*`, `/**` or a ` * ` JSDoc continuation) — independent of any
- *  MARKER word. One record per LINE naming at least one number, numbers
- *  deduped/ascending. A line ending in a bare `tracked-by:` is folded with
- *  the following comment line before matching (see the module note above).
- *  Liveness-only; Guard B never calls this. */
+// Issue #1841: a second live-ref SYNTAX, resolved by the SAME function and
+// filtered by the SAME `isStubContext` caller. A `TODO(issue #NNN…)` note
+// (`convex/cards/sets/dsk/red.ts`, `mh3/colorless.ts`, prior to this issue's
+// own fix) named a live-tracking disposition — Guard B's own `DISPOSITION`
+// regex already accepted it presence-only — but `scanTrackedByRefs` only
+// ever resolved `tracked-by:`, so a closed issue behind this syntax
+// satisfied `markers:lint` silently. 26 of the 29 sites using this syntax
+// sit inside commented-out card stubs (`check-stub-coverage.ts`'s domain,
+// e.g. `mh1/white.ts:79`'s own such note directly above a commented-out
+// `export const windsOfAbandon…`) — those stay excluded exactly as before
+// via `isStubContext` in `scripts/check-marker-liveness.ts`, which walks the
+// contiguous `//` run independent of which regex produced the record. The
+// number always sits on the same line as the `TODO(issue` opener at every
+// site found in this repo, so — unlike `tracked-by:` — no two-line fold is
+// needed here.
+const TODO_ISSUE_G = /TODO\(\s*issue\s*#(\d+)/gi;
+
+/** Every explicit `tracked-by: #NNN` OR `TODO(issue #NNN…` occurrence on a
+ *  comment line of `text` (`//`, `/*`, `/**` or a ` * ` JSDoc continuation)
+ *  — independent of any MARKER word. One record per LINE naming at least one
+ *  number, numbers deduped/ascending. A line ending in a bare `tracked-by:`
+ *  is folded with the following comment line before matching (see the module
+ *  note above) — `TODO(issue #NNN` is never folded, see `TODO_ISSUE_G`'s own
+ *  comment. Liveness-only; Guard B never calls this. */
 export function scanTrackedByRefs(file: string, text: string): MarkerRecord[] {
     const lines = text.split("\n");
     const out: MarkerRecord[] = [];
@@ -238,6 +256,8 @@ export function scanTrackedByRefs(file: string, text: string): MarkerRecord[] {
         }
         const numbers = new Set<number>();
         for (const m of scanned.matchAll(TRACKED_BY_G))
+            numbers.add(Number(m[1]));
+        for (const m of scanned.matchAll(TODO_ISSUE_G))
             numbers.add(Number(m[1]));
         if (numbers.size === 0) continue;
         out.push({

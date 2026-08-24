@@ -6,6 +6,7 @@ import {
     findUnresolvedMarkers,
     markersBlockingClosure,
     scanRepoMarkers,
+    readSources,
 } from "../check-marker-liveness";
 import type { MarkerRecord } from "../lib/divergence-markers";
 
@@ -247,6 +248,141 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             },
         ];
         expect(scanRepoMarkers(sources)).toEqual([]);
+    });
+
+    describe("TODO(issue #NNN) syntax — the second live-ref shape resolved (issue #1841)", () => {
+        it("resolves a `TODO(issue #NNN)` ref outside stub context, same as `tracked-by:` — the exact shape that hid dsk/red.ts's and mh3/colorless.ts's stale #691 refs from markers:lint before this fix", () => {
+            const sources = [
+                {
+                    file: "convex/cards/sets/dsk/red.ts",
+                    text: [
+                        "// TODO(issue #691): Delirium attack trigger — additional combat",
+                        "// phase not yet modeled.",
+                        "export {};",
+                    ].join("\n"),
+                },
+            ];
+            const hits = scanRepoMarkers(sources);
+            expect(hits).toHaveLength(1);
+            expect(hits[0]).toMatchObject({
+                tracked: true,
+                issueNumbers: [691],
+            });
+        });
+
+        it("resolves the `TODO(issue #NNN stub)` spelling too — the word `stub` in the parens does not by itself make this stub CONTEXT (that is `isStubContext`'s job, based on an adjacent commented-out `export const`, not on this word)", () => {
+            const sources = [
+                {
+                    file: "convex/cards/sets/dsk/red.ts",
+                    text: [
+                        "// Silence — TODO(issue #691 stub): needs a proper implementation.",
+                        "export {};",
+                    ].join("\n"),
+                },
+            ];
+            const hits = scanRepoMarkers(sources);
+            expect(hits).toHaveLength(1);
+            expect(hits[0].issueNumbers).toEqual([691]);
+        });
+
+        it("still drops a `TODO(issue #NNN stub)` hit sitting in REAL stub context (the same contiguous-comment-run + STUB_ANCHOR test as the tracked-by: shape) — the 26-of-29 majority this widening must not turn into false reds", () => {
+            const sources = [
+                {
+                    file: "convex/cards/sets/mh1/white.ts",
+                    text: [
+                        "// TODO(issue #676 stub — Overload is unbuilt, no primitive)",
+                        "// export const windsOfAbandon: CardDefinition = {",
+                        '//     name: "Winds of Abandon",',
+                        "// };",
+                        "export {};",
+                    ].join("\n"),
+                },
+            ];
+            expect(scanRepoMarkers(sources)).toEqual([]);
+        });
+
+        it("does not fold a `TODO(issue #NNN` opener across a line break — every real site keeps the number on the same line (see TODO_ISSUE_G's own module comment)", () => {
+            const sources = [
+                {
+                    file: "convex/gre/foo.ts",
+                    text: [
+                        "// TODO(issue",
+                        "// #691): split across lines, not a real site shape.",
+                    ].join("\n"),
+                },
+            ];
+            expect(scanRepoMarkers(sources)).toEqual([]);
+        });
+    });
+
+    describe("real-repo census (issue #1841) — pins the exact split so a future widening cannot quietly swallow the stub majority", () => {
+        const TODO_ISSUE_LINE = /\/\/.*TODO\(\s*issue\s*#\d+/i;
+
+        it("every `TODO(issue #NNN)` comment left in tracked, non-test source sits in stub context (26 sites) — none reach scanRepoMarkers as a live ref, because the three that used to (dsk/red.ts x2, mh3/colorless.ts) were converted to canonical `tracked-by:` by this issue's own fix", () => {
+            const sources = readSources();
+            let rawHits = 0;
+            for (const { text } of sources) {
+                for (const line of text.split("\n")) {
+                    if (TODO_ISSUE_LINE.test(line)) rawHits++;
+                }
+            }
+            expect(rawHits).toBe(26);
+
+            const liveHitsUsingThisSyntax = scanRepoMarkers(sources).filter(
+                (m) => TODO_ISSUE_LINE.test(m.text)
+            );
+            expect(liveHitsUsingThisSyntax).toEqual([]);
+        });
+
+        it("dsk/red.ts and mh3/colorless.ts no longer name the closed #691 anywhere — repointed to #2494 (Fear of Missing Out's attack trigger) or #1841 (orphan bucket, no live successor)", () => {
+            const hits = scanRepoMarkers(readSources()).filter((m) =>
+                /dsk\/red\.ts|mh3\/colorless\.ts/.test(m.file)
+            );
+            expect(hits.length).toBeGreaterThanOrEqual(3);
+            for (const h of hits) {
+                expect(h.issueNumbers).not.toContain(691);
+            }
+            const allNumbers = new Set(hits.flatMap((h) => h.issueNumbers));
+            expect(allNumbers.has(2494)).toBe(true);
+            expect(allNumbers.has(1841)).toBe(true);
+        });
+    });
+});
+
+describe("end-to-end: TODO(issue #NNN) reds the sweep exactly like tracked-by: (issue #1841)", () => {
+    it("a TODO(issue #NNN) marker OUTSIDE stub context naming a CLOSED issue is now caught rotten — the exact gap #1841 closes (dsk/red.ts and mh3/colorless.ts named the closed #691 this way and markers:lint reported clean)", () => {
+        const sources = [
+            {
+                file: "convex/cards/sets/dsk/red.ts",
+                text: [
+                    "// TODO(issue #691): Delirium attack trigger — additional combat",
+                    "// phase not yet modeled.",
+                    "export {};",
+                ].join("\n"),
+            },
+        ];
+        const markers = scanRepoMarkers(sources);
+        const states = new Map<number, "OPEN" | "CLOSED">([[691, "CLOSED"]]);
+        expect(findRottenMarkers(markers, states)).toHaveLength(1);
+    });
+
+    it("the SAME closed-issue TODO(issue #NNN) note sitting in REAL stub context stays green — check-stub-coverage.ts's domain, not this sweep's", () => {
+        const sources = [
+            {
+                file: "convex/cards/sets/mh1/white.ts",
+                text: [
+                    "// TODO(issue #691 stub — hypothetically closed, unbuilt)",
+                    "// export const someStub: CardDefinition = {",
+                    '//     name: "Some Stub",',
+                    "// };",
+                    "export {};",
+                ].join("\n"),
+            },
+        ];
+        const markers = scanRepoMarkers(sources);
+        const states = new Map<number, "OPEN" | "CLOSED">([[691, "CLOSED"]]);
+        expect(markers).toEqual([]);
+        expect(findRottenMarkers(markers, states)).toEqual([]);
     });
 });
 
