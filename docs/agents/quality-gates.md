@@ -96,6 +96,110 @@ becomes barrel-internal (#2339 — 102 tests across 12 files, seen first at the
 merge-train). `scripts/__tests__/convex-cards-barrel-mock.test.ts` runs in the
 node lane and catches it at light-gate speed.
 
+## `check:lane` — measured lane costs, what each lane skips, and why #2431/#2655 still stand
+
+`bun run check:lane` (PRD #2738: #2739 tsconfig cache → #2740 classifier landed
+inert → #2741 wiring/execution → #2743 batch homogeneity + this section) picks
+a lane from the diff — `skin` (`src/**`/`public/**`/`index.html` only),
+`engine` (no `src/**` at all) or `full` (anything else, fail-closed) — and
+runs exactly that lane's checks. It is now the default pre-PR path
+(CLAUDE.md § Quality gates); `check:pr` is the fallback the classifier itself
+runs verbatim on a `full` diff.
+
+**The axis it operates on is not the axis #2431/#2655 fixed — see ADR 0104
+for the full argument.** In one sentence: those two widenings made every
+project `check:guards` runs execute WHOLE rather than diff-filtered, and that
+stays true here — no lane in `check-lane.ts` ever narrows a `--project`
+invocation to a subset of its own files. What a lane decides is only whether
+a project runs **at all**: `skin` never runs the bot fast lane or the `node`
+project's `convex/**` half; `engine` never runs `dom`.
+
+### Measurements — the quiet-machine re-run, and why the first round was voided
+
+The lane costs recorded when #2741 shipped were measured while a heavy
+7-worker `ladder.ts` job saturated the machine, and the `check:pr` baseline
+they were compared against (330s, PRD #2738's problem statement) was measured
+on a _quiet_ one — so that first comparison mixed a contended number against
+a quiet one and proved nothing about the lanes' real cost:
+
+| lane                  | contended (2026-08-24, 7-worker `ladder.ts` in flight) |        quiet |
+| --------------------- | -----------------------------------------------------: | -----------: |
+| `skin`                |                                                 343.3s | ⚠ unverified |
+| `engine`              |                        275.2s (reviewer re-run 264.9s) | ⚠ unverified |
+| `check:pr` (baseline) |                                    330s, already quiet |            — |
+
+**A genuinely quiet re-measurement was attempted for #2743 and could not be
+obtained in this session — say so plainly rather than reporting a number that
+would still be contended.** #2738's comment 5394668153 reported the machine
+quiet at 15:21 (load ~1.6). By the time this issue's implementer reached the
+measurement step (~15:37), a **new** `ladder.ts --tier decision --variant
+placebo` job (7-8 workers) was already running, and stayed running
+continuously through 16:12 — 35+ minutes of waiting, load average oscillating
+9–25 the entire window (`uptime`/`pgrep -f ladder/worker.ts` checked
+repeatedly; see `docs/findings/2743-recurring-ladder-contention-during-measurement.md`
+for the full evidence trail). Rather than measure under a second contended
+window and relabel it "quiet" — which is exactly the mistake #2738's comment
+flagged in the first place — the `skin`/`engine` quiet figures stay
+**unverified**, and re-measuring them on an ACTUALLY idle machine is an open
+item for #2738, not something this issue can discharge by waiting indefinitely
+on a shared, continuously-busy machine.
+
+**What IS established, and stands regardless of the missing quiet
+figures:** re-measuring two of this PRD's own quiet baseline rows under the
+original contended load gave `node[src]` 24s vs 8s quiet (3.0x) and
+`node[scripts]` 72s vs 33s quiet (2.2x); applying 2.26x to `dom`'s 109s quiet
+baseline reproduces the measured 246.2s `dom` figure inside the contended
+`skin` run almost exactly. That is a load multiplier, not a lane defect —
+nothing in the `skin`/`engine` lane CONTENT is structurally slower than
+`check:pr`'s own project runs, whatever the eventual quiet figure turns out to
+be. The `~188s`/`~175s` projections in PRD #2738 remain unverified in both
+directions until the quiet re-run happens.
+
+### What each lane skips, and why each skip is safe
+
+| check                 | skin                       | engine      |
+| --------------------- | -------------------------- | ----------- |
+| format + lint         | diff-scoped                | diff-scoped |
+| `check:ts`            | `app` + `scripts` projects | whole       |
+| `check:bundle`        | yes                        | yes         |
+| `check:index`/`stubs` | no                         | yes         |
+| `cr:lint`             | yes                        | yes         |
+| bot fast lane         | no                         | yes         |
+| `node` — `convex/**`  | no                         | yes         |
+| `node` — `scripts/**` | yes                        | yes         |
+| `node` — `src/**`     | yes                        | no          |
+| `dom`                 | whole                      | no          |
+
+Three rows are decisions, not oversights (PRD #2738 § Implementation
+Decisions has the full reasoning; summarised here):
+
+- **The `scripts/` project stays in BOTH lanes** — it is where
+  `src-test-env-split.test.ts` lives, the guard against a new `src` test file
+  landing in neither vitest project, and `skin` is precisely the lane that
+  adds `src` test files.
+- **`engine` keeps the WHOLE type-check** — `src/**` imports `convex/gre`
+  (ADR 0074, the client-side Brain and the Draft Lab), so an engine diff can
+  still break the app project; that type-check is one of three backstops (with
+  `convex-cards-barrel-mock.test.ts` and the full gate at the merge-train)
+  that make dropping `dom` safe for this lane.
+- **`skin` keeps `check:bundle`** — 12s, and the only check that catches the
+  duplicate-import class that crashes the app on cold load.
+
+### Batch homogeneity and the batch-level `check:ui`
+
+`scripts/lib/queue-plan.ts`'s `planBatch` (issue #2743) computes each
+candidate issue's `lane` from its own declared/inferred `targetFiles`, with
+the identical `classifyPath`/`laneFor` predicate `check:lane` runs against a
+real diff — never from the issue's `area:*` label, which is a hypothesis a
+human wrote before the code existed. A batch is admitted lane-homogeneous
+(all `skin`, all `engine`, or all `full`); a candidate whose real lane
+disagrees with the batch's is deferred as a lane mismatch, the same way an
+overlapping target file is deferred today. `/process-gh-issues` (SKILL.md §4)
+runs exactly one `check:ui` for a `skin` batch, on the integrated tree,
+before any of its PRs merge, and bisects across the batch's PRs on red rather
+than patching an unattributed failure — see SKILL.md §4 "Batch-level
+`check:ui`" for the procedure.
+
 ## Why `check:all` verifies formatting instead of repairing it
 
 `format:check`, not `format`. #1807: a gate that repairs what it checks can

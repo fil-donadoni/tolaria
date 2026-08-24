@@ -257,12 +257,22 @@ prose is the fallback for judgment, not the home of invariants.
 
 Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
-| When              | Run                                                                |
-| ----------------- | ------------------------------------------------------------------ |
-| Iterating         | targeted only — `bunx vitest run <path>`. Formatting is automatic. |
-| Pre-PR            | `bunx vitest run <paths touched>` + **`bun run check:pr`**         |
-| Before done/merge | **`bun run check:all`** + **`bun run test`**, both zero-error      |
+| When              | Run                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| Iterating         | targeted only — `bunx vitest run <path>`. Formatting is automatic.                               |
+| Pre-PR            | `bunx vitest run <paths touched>` + **`bun run check:lane`** (falls back to `check:pr` verbatim) |
+| Before done/merge | **`bun run check:all`** + **`bun run test`**, both zero-error                                    |
 
+- **`bun run check:lane` is the default pre-PR path** (#2738/#2741/#2743). It
+  classifies the diff into `skin` (`src/**` only) / `engine` (no `src/**`) /
+  `full`, runs exactly the checks that lane's plan names, and prints a
+  per-check receipt. On anything it cannot affirmatively place — a mixed
+  diff, `package.json`, a lockfile, `.claude/**`, an unrecognised path —
+  it degrades to `check:pr` **verbatim**, unchanged, so the fallback can never
+  rot. A lane never filters WHICH FILES a project it runs sees — every project
+  a lane admits still runs whole, exactly as `check:pr` runs it; the diff only
+  ever decides whether a project runs at all (ADR 0104, which also records why
+  this does not revert #2431/#2655).
 - **Never hand-pick a subset of `check:pr`** — omitting `check:index` once
   broke every card-shipping PR at the merge-train.
 - **`check:all` VERIFIES formatting**, it does not repair it — on drift run

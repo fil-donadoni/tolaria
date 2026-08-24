@@ -4,6 +4,35 @@
 
 Entered once per run (to pick the lane) and again whenever `gh pr merge` misbehaves. The lane choice
 is the difference between gating the tree that LANDS and gating a tree `main` has already moved past.
+Also the home of the batch-level `check:ui` procedure a `lane: "skin"` batch owes before any of its PRs
+merge (SKILL.md §1's `lane` field; issue #2743, closing PRD #2738).
+
+---
+
+## Batch-level `check:ui` — once, only for a `lane: "skin"` batch, before any of its PRs merge
+
+A `skin` batch owes exactly ONE `check:ui` run for the whole batch, not one per PR: every admitted
+issue's real target files live under `src/**`/`public/**`, so one integrated run covers all of them
+and the per-PR obligation in `.claude/rules/chrome-debug.md` is satisfied by this instead. An `engine`
+or `full` batch owes none of this from the batch rule — a `full`-lane issue that itself reaches
+`src/**` still owes its own per-PR `check:ui`, unchanged, since it never earned the `skin` batch's
+homogeneity guarantee.
+
+- **Step A — build the integrated tree** in a scratch worktree off the current `origin/main` tip:
+  `git merge --no-ff <branch>` for every PR in `order`, in sequence. The batch is file-disjoint by
+  construction (SKILL.md §1), so this never conflicts.
+- **Step B — run `bun run check:ui` there once.** Its output IS the batch's pixel receipt — paste it
+  in the pass report exactly as a single-PR `check:ui` receipt would be pasted.
+- **Step C — green → proceed to the ordinary per-PR merge-train below, unchanged.** Discard the
+  scratch worktree; nothing about it participates in the real merges, which each re-gate and
+  re-integrate for real through `land`.
+- **Step D — red → do NOT merge any PR in the batch.** Bisect across the batch's PRs: drop branches
+  from the integration one at a time, in reverse `order`, re-running `check:ui` after each removal,
+  until it goes green. The last branch removed is the culprit. Hand that PR's issue to a fixup
+  subagent with the `check:ui` receipt as the finding, and re-verify before either re-attempting the
+  batch integration or falling back to merging the batch's unaffected PRs individually. **Never patch
+  the regression directly against the unattributed red integration** — the whole point of bisecting is
+  that "which PR" is a fact to establish, not a guess.
 
 ---
 
