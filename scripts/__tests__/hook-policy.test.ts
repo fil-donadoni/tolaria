@@ -66,6 +66,29 @@ function bash(command: string, cwd: string, session = "sess-1") {
     };
 }
 
+/**
+ * A Bash PreToolUse payload carrying the tool input's `run_in_background`
+ * flag alongside `command` — the same JSON shape the harness actually sends,
+ * so `runInBackground` can be a real boolean, the string `"true"`/`"false"`,
+ * or omitted entirely by passing `undefined` (§3b must treat all of those
+ * the same way `.tool_input.run_in_background` itself does).
+ */
+function bashBg(
+    command: string,
+    cwd: string,
+    runInBackground: boolean | string | undefined,
+    session = "sess-1"
+) {
+    const payload = bash(command, cwd, session);
+    return {
+        ...payload,
+        tool_input: {
+            ...payload.tool_input,
+            run_in_background: runInBackground,
+        },
+    };
+}
+
 const denied = (r: HookResult) => r.code === 2;
 
 /**
@@ -512,6 +535,115 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
             bash("bun run telemetry:ingest | tail -5", issueWorktree)
         );
         expect(denied(r)).toBe(true);
+    });
+});
+
+describe("deny-guard — a gate may not be run in the BACKGROUND either (#2654)", () => {
+    // Nine subagent terminations were observed with this exact shape: start
+    // the gate detached, report "waiting for the notification", end the
+    // turn. Under `claude -p` the end of the turn is the end of the process,
+    // so nothing ever wakes it — the pass stalls holding a claimed batch, no
+    // receipt written. This rule reuses §3's OWN "reaches the gate runner"
+    // predicate and its ONE informational allowlist — never a second gate
+    // notion, never a second list.
+
+    it("denies a gate script requested to run in the background", () => {
+        for (const cmd of [
+            "bun run test",
+            "bun run test:app",
+            "bun run check:all",
+            "bun run check:pr",
+            "bun run land 2524",
+            "bun run docs:ship",
+        ]) {
+            const r = runHook(DENY_GUARD, bashBg(cmd, issueWorktree, true));
+            expect(denied(r), `expected DENY for backgrounded: ${cmd}`).toBe(
+                true
+            );
+        }
+    });
+
+    it("names the foreground alternative in the denial message", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bashBg("bun run test", mainCheckout, true)
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/foreground/i);
+        expect(r.stderr).toMatch(/bun run test\b/);
+    });
+
+    it("denies a bare `scripts/gate.ts` invocation run in the background, no allowlist applies to it", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bashBg(
+                "bun scripts/gate.ts heavy 'bun run test'",
+                issueWorktree,
+                true
+            )
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    // The test that makes the enumerate-the-gates class extinct for
+    // backgrounding too: a script name nobody has written yet must still be
+    // denied when backgrounded, because the rule is deny-by-default, not
+    // "deny if it matches a known gate name". If someone reintroduces a
+    // hardcoded gate-name list — here OR duplicated from §3 — this goes red.
+    it("fails CLOSED on an invented, non-existent script requested to run in the background", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bashBg("bun run some:future:gate", issueWorktree, true)
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it("allows a script on the informational allowlist to run in the background", () => {
+        for (const cmd of [
+            "bun run cr 605.1a",
+            "bun run findings",
+            "bun run queue:plan --cap 4",
+            "bun run format",
+        ]) {
+            const r = runHook(DENY_GUARD, bashBg(cmd, issueWorktree, true));
+            expect(r.code, `expected ALLOW for backgrounded: ${cmd}`).toBe(0);
+        }
+    });
+
+    it("allows a FOREGROUND gate — the flag is what matters, not the command", () => {
+        for (const cmd of ["bun run test", "bun run check:all"]) {
+            // absent entirely (the ordinary case)
+            expect(runHook(DENY_GUARD, bash(cmd, issueWorktree)).code).toBe(0);
+            // explicit boolean false
+            expect(
+                runHook(DENY_GUARD, bashBg(cmd, issueWorktree, false)).code
+            ).toBe(0);
+        }
+    });
+
+    it("allows backgrounding a NON-gate command — this rule is about gates, not about `&` in general", () => {
+        const r = runHook(DENY_GUARD, bashBg("sleep 300", issueWorktree, true));
+        expect(r.code).toBe(0);
+    });
+
+    // The truthiness hint from the issue: the flag can arrive as JSON `true`,
+    // JSON `false`, absent, or the STRING `"true"` depending on the caller —
+    // all four must be read the same way `.tool_input.run_in_background`
+    // itself would be, not just the boolean case.
+    it('treats the STRING "true" the same as the boolean — a naive `== true` jq check would miss it', () => {
+        const r = runHook(
+            DENY_GUARD,
+            bashBg("bun run test", issueWorktree, "true")
+        );
+        expect(denied(r)).toBe(true);
+    });
+
+    it('treats the STRING "false" as not backgrounded', () => {
+        const r = runHook(
+            DENY_GUARD,
+            bashBg("bun run test", issueWorktree, "false")
+        );
+        expect(r.code).toBe(0);
     });
 });
 

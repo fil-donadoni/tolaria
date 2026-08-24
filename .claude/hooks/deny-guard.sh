@@ -195,7 +195,8 @@ esac
 # command: a trailing `\` before EOF is just a literal backslash argument)
 # collapses `_cmd_joined` to empty, which empties `segments`, which makes
 # every rule below (§1 `gh pr merge`, §2 force-push main, §3 the pager gate,
-# §4 discarding git, §5 MAX_PASSES) match nothing. One trailing backslash
+# §3b the backgrounded gate, §4 discarding git, §5 MAX_PASSES) match nothing.
+# One trailing backslash
 # turned a fail-closed guard fully fail-open — the exact bug class this file
 # exists to close, reintroduced by its own fix. `awk`, one line per record,
 # has no such last-line special case — see the script's own header for the
@@ -235,6 +236,45 @@ seg_has() {
         [ -n "$matching" ] || return 1
     done
     return 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# The single "is this a GATE" predicate — shared by §3 (piped into a pager)
+# and §3b (run in the background). Both are the same underlying failure: the
+# gate's exit code, the only done/not-done signal in the workflow, never
+# reaches anyone. Deny-by-default: a script not named anywhere below is still
+# a gate unless it resolves through `bun run` to a name on the ONE
+# informational allowlist, or the invocation is a bare `scripts/gate.ts`.
+# There is deliberately no second copy of this test and no second allowlist —
+# see #2429/#2527 for what a hand-maintained gate-name list already cost once.
+# ─────────────────────────────────────────────────────────────────────────────
+GATE_INFORMATIONAL_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|loop:doctor|loop:scorecard|usage:window|telemetry:dash|format)$'
+
+# True when the given SEGMENT text reaches the gate runner.
+segment_reaches_gate() {
+    _grg_seg="$1"
+
+    # A bare `scripts/gate.ts` invocation is always the gate itself — no
+    # script-name allowlist applies to it.
+    if printf '%s\n' "$_grg_seg" | grep -Eq 'scripts/gate\.ts'; then
+        return 0
+    fi
+
+    # EVERY `bun run <script>` occurrence in the segment must be checked, not
+    # just one: a single greedy extraction picks up the LAST occurrence in a
+    # chained pipeline (`bun run test | bun run cr`), so an allowlisted name
+    # at the tail would launder a non-allowlisted invocation ahead of it.
+    _grg_scripts=$(printf '%s\n' "$_grg_seg" |
+        grep -oE 'bun[[:space:]]+run[[:space:]]+[^[:space:]]+' |
+        sed -E 's/^bun[[:space:]]+run[[:space:]]+//')
+    [ -n "$_grg_scripts" ] || return 1
+
+    for _grg_script in $_grg_scripts; do
+        if ! printf '%s\n' "$_grg_script" | grep -Eq "$GATE_INFORMATIONAL_SCRIPT_RE"; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -406,8 +446,6 @@ fi
 # run …` stays allowed piped — only `bun run <script>` (any script, unless
 # allowlisted above) and a bare `scripts/gate.ts` are in scope.
 # ─────────────────────────────────────────────────────────────────────────────
-GATE_INFORMATIONAL_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|queue:train|loop:doctor|loop:scorecard|usage:window|telemetry:dash|format)$'
-
 _gate_piped=0
 _old_ifs=$IFS
 IFS='
@@ -425,30 +463,10 @@ for _seg in $segments; do
     printf '%s\n' "$_seg" |
         grep -Eq '\|&?[[:space:]]*(tail|head|less|more)([[:space:]]|$)' || continue
 
-    # A bare `scripts/gate.ts` invocation is always the gate itself — no
-    # script-name allowlist applies to it.
-    if printf '%s\n' "$_seg" | grep -Eq 'scripts/gate\.ts'; then
+    if segment_reaches_gate "$_seg"; then
         _gate_piped=1
         break
     fi
-
-    # EVERY `bun run <script>` occurrence in the segment must be checked, not
-    # just one: a single greedy extraction (`.*bun run …`) picks up the LAST
-    # occurrence in a chained pipeline (`bun run test | bun run cr | tail`),
-    # so an allowlisted name at the tail launders every non-allowlisted
-    # invocation ahead of it in the same segment.
-    _gate_scripts=$(printf '%s\n' "$_seg" |
-        grep -oE 'bun[[:space:]]+run[[:space:]]+[^[:space:]]+' |
-        sed -E 's/^bun[[:space:]]+run[[:space:]]+//')
-    [ -n "$_gate_scripts" ] || continue
-
-    for _gate_script in $_gate_scripts; do
-        if ! printf '%s\n' "$_gate_script" | grep -Eq "$GATE_INFORMATIONAL_SCRIPT_RE"; then
-            _gate_piped=1
-            break
-        fi
-    done
-    [ "$_gate_piped" = 1 ] && break
 done
 set +f
 IFS=$_old_ifs
@@ -466,6 +484,77 @@ that instead:
 If this really is a purely informational script whose exit code nobody
 branches on, add its name to GATE_INFORMATIONAL_SCRIPT_RE in
 .claude/hooks/deny-guard.sh § 3 — not before checking what it actually does."
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3b. A GATE may not run in the BACKGROUND either — FAIL CLOSED.
+#
+# Same failure shape as §3, a different producer (issue #2654): nine subagent
+# terminations were observed with this exact pattern — start the gate detached
+# (the Bash tool's own `run_in_background: true`), report "waiting for the
+# notification", and end the turn. Under `claude -p` the end of a turn is the
+# end of the PROCESS: nothing schedules the notification and nothing ever
+# reads the exit code, so the pass stalls holding a claimed batch, no receipt
+# written, nothing released. A backgrounded gate's result is not delayed like
+# a piped one's is not quiet — it is never read at all, which is worse.
+#
+# **Reuses §3's own predicate — not a second notion of what a gate is.**
+# `segment_reaches_gate` (defined above, shared code, one allowlist) is the
+# exact "does this reach the gate runner" test §3 already uses: deny BY
+# DEFAULT, so a gate script named nowhere in this file is still denied, and
+# the SAME informational allowlist (`GATE_INFORMATIONAL_SCRIPT_RE`) exempts
+# the scripts whose exit code nobody branches on either way. There is
+# deliberately no independent "known background-unsafe gates" list — that is
+# exactly the name-list shape §3 already had to be rewritten out of once.
+#
+# Checked against EVERY segment, not only ones with a pipe: backgrounding has
+# nothing to do with pagers, and a gate needs no `|` in the command to be a
+# gate that must not run detached.
+#
+# **The signal is in the TOOL INPUT, not the command string.** `run_in_background`
+# is a field the Bash tool call carries alongside `.tool_input.command` — the
+# same payload `cmd`/`cwd` above are already read from — never a shell
+# feature like a trailing `&` (that shape is real, unrelated, and already has
+# its own documented one-directional tradeoff where the joiner is discussed).
+#
+# **Truthiness, read defensively.** The field can arrive as JSON `true`, JSON
+# `false`, absent (an ordinary foreground call), or the STRING `"true"`
+# depending on the caller. `// false` folds the absent/`false` cases to the
+# literal text `false`; `-r` strips the quotes a JSON string carries, so a
+# real boolean `true` and the string `"true"` both come out as the bare word
+# `true` — comparing that text is what makes every shape count the same way.
+# ─────────────────────────────────────────────────────────────────────────────
+_bg=$(printf '%s' "$payload" | jq -r '.tool_input.run_in_background // false')
+if [ "$_bg" = "true" ]; then
+    _old_ifs=$IFS
+    IFS='
+'
+    set -f
+    for _seg in $segments; do
+        if segment_reaches_gate "$_seg"; then
+            set +f
+            IFS=$_old_ifs
+            deny "BLOCKED: gate script requested to run in the BACKGROUND.
+Backgrounding throws away the exit code exactly like piping into a pager does
+(§3) — and worse, under \`claude -p\` the end of your turn is the end of the
+process, so no notification ever wakes you to read it either. Nine subagent
+passes stalled this exact way (issue #2654). Run it in the FOREGROUND:
+  bun run test
+  bun run check:pr
+  bun run check:all
+
+Genuinely slow and you want to read the output back? Redirect to a file —
+still in the foreground, still waiting for the real exit code:
+  bun run test >/tmp/gate.log 2>&1; echo \"exit=\$?\"; grep -E 'Tests|FAIL' /tmp/gate.log
+
+If this really is a purely informational script whose exit code nobody
+branches on, it belongs on GATE_INFORMATIONAL_SCRIPT_RE in
+.claude/hooks/deny-guard.sh (the same allowlist §3 uses) — not before checking
+what it actually does."
+        fi
+    done
+    set +f
+    IFS=$_old_ifs
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
