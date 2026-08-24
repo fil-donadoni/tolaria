@@ -1,5 +1,6 @@
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
+import { ResendOTPPasswordReset } from "./resendOtpPasswordReset";
 import { v } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
@@ -26,16 +27,23 @@ function normalizeNickname(raw: unknown): string {
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     providers: [
         Password({
+            // Turns on `flow: "reset"` / `flow: "reset-verification"`: an
+            // 8-digit OTP mailed by Resend. See
+            // `convex/resendOtpPasswordReset.ts` for the required deployment
+            // env vars (RESEND_API_KEY, SITE_URL).
+            reset: ResendOTPPasswordReset,
             profile(params) {
                 const email = params.email;
                 if (typeof email !== "string" || email.trim().length === 0) {
                     throw new Error("email is required");
                 }
                 const normalizedEmail = email.trim().toLowerCase();
-                // Password provider invokes `profile()` on both signUp and
-                // signIn flows. Nickname is required only at sign-up; on
-                // sign-in the existing user record already has it, and
-                // params.nickname is undefined.
+                // Password provider invokes `profile()` on EVERY flow —
+                // signUp, signIn, reset and reset-verification. Nickname is
+                // required only at sign-up; on every other flow the existing
+                // user record already has it and params.nickname is
+                // undefined. The reset flows carry only `email`, which is
+                // what looks the account up.
                 const out: Record<string, string> = {
                     email: normalizedEmail,
                 };

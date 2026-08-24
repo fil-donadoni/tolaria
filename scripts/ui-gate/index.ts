@@ -71,6 +71,7 @@ import {
     SURFACES,
     SURFACE_IDS,
     Unreachable,
+    type Surface,
     type WalkContext,
 } from "./surfaces.ts";
 import { VIEWPORTS } from "./viewports.ts";
@@ -444,6 +445,26 @@ async function main(): Promise<number> {
 
         browser = await launchBrowser(opts.headed);
 
+        // Compile the app once before anything is timed. `waitForServer` only
+        // proves the dev server answers for index.html; the first REAL
+        // navigation still pays Vite's cold transform of the whole module
+        // graph, and that used to land on `ensureSignedIn`'s 30s budget. With
+        // signed-out surfaces walked first it lands on a 20s `goto` instead,
+        // and the first surface of the run reported UNWALKED on a screen that
+        // renders fine. Warming here keeps which surface goes first from
+        // deciding whether the run is green.
+        {
+            const warm = await browser.newPage();
+            await warm
+                .goto(baseUrl, {
+                    waitUntil: "domcontentloaded",
+                    timeout: 90_000,
+                })
+                .catch(() => {});
+            await warm.waitForTimeout(1500);
+            await warm.close();
+        }
+
         const ctx: WalkContext = {
             baseUrl,
             stressScenarioLabel: STRESS_SCENARIO_LABEL,
@@ -470,13 +491,18 @@ async function main(): Promise<number> {
                     );
                 }
             });
-            await ensureSignedIn(page, baseUrl, email, password);
-            log(`ui-gate: ${viewport.id} (${viewport.label}) — signed in`);
-
-            for (const surface of selected) {
+            /**
+             * Walk + probe one surface on the CURRENT page.
+             *
+             * Extracted so the `preAuth` surfaces can run through exactly the
+             * same measurement before `ensureSignedIn` — a second copy of this
+             * block is how one of the two groups would quietly stop being
+             * probed, screenshotted or budget-checked.
+             */
+            const measure = async (surface: Surface): Promise<void> => {
                 const budget = budgets.surfaces[surface.id];
-                if (budget?.status === "unwalked") continue;
-                if (unreachable.has(surface.id)) continue;
+                if (budget?.status === "unwalked") return;
+                if (unreachable.has(surface.id)) return;
 
                 try {
                     await surface.walk(page, ctx);
@@ -489,7 +515,7 @@ async function main(): Promise<number> {
                     log(
                         `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} UNWALKED — ${reason}`
                     );
-                    continue;
+                    return;
                 }
 
                 const probe = await runProbe(page);
@@ -521,6 +547,20 @@ async function main(): Promise<number> {
                     detail,
                 });
                 perSurface.set(surface.id, list);
+            };
+
+            // Signed-out surfaces FIRST: `<AuthGate>` makes them unreachable
+            // once a session exists, and `ensureSignedIn` navigates back to
+            // the app root itself, so this costs the signed-in walks nothing.
+            for (const surface of selected.filter((s) => s.preAuth)) {
+                await measure(surface);
+            }
+
+            await ensureSignedIn(page, baseUrl, email, password);
+            log(`ui-gate: ${viewport.id} (${viewport.label}) — signed in`);
+
+            for (const surface of selected.filter((s) => !s.preAuth)) {
+                await measure(surface);
             }
 
             await context.close();
