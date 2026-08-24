@@ -462,11 +462,18 @@ describe("light pre-PR gate", () => {
         // red under a `check:pr` that exited 0. The whole project is ~26s at 2
         // workers. Scope pinned in detail by `check-guards-scope.test.ts`.
         //
-        // The node segment must be followed by nothing or by another `&&`
+        // …and, since #2655, the dom project WHOLE too — every `src/`
+        // component/layout guard (e.g. the shell-height census that killed
+        // #2584) used to be invisible until the merge-train, because an
+        // issue-worktree branch cannot run the full suite (`bun run test:app`)
+        // that carried `--project dom`. Same segment, no path filter, same
+        // reasoning as the node project above.
+        //
+        // The node/dom segment must be followed by nothing or by another `&&`
         // command — never by a positional token, which vitest reads as a path
         // filter. (Issue #2429 appended `&& bun run cr:lint` as a third lane.)
         expect(scripts["check:guards"]).toMatch(
-            /vitest run --project node(?:\s*&&|\s*"?$)/
+            /vitest run --project node --project dom(?:\s*&&|\s*"?$)/
         );
     });
 });
