@@ -14,10 +14,12 @@ import type { CardDefinition, LandEntryStateView } from "../../types";
 //  your graveyard until end of turn. Activate only if there are four or more
 //  card types among cards in your graveyard."
 //
-// TODO(issue #691): Delirium copy ability — {2}{G}{G}: This land becomes a
-// copy of target permanent card in your graveyard until end of turn. Activate
-// only if delirium. Blocked on: copy-from-graveyard infrastructure and the
-// "becomes a copy" semantics for non-creature permanents.
+// TODO (tracked-by: #1841): Delirium copy ability — {2}{G}{G}: This land
+// becomes a copy of target permanent card in your graveyard until end of
+// turn. Activate only if delirium. Blocked on: copy-from-graveyard
+// infrastructure and the "becomes a copy" semantics for non-creature
+// permanents. No live successor issue exists for this stub; #1841 stays
+// open owning this orphan bucket.
 export const shiftingWoodland: CardDefinition = {
     id: "059164e1-894d-4586-9800-e60d6fbd6eb6",
     rarity: "rare",
