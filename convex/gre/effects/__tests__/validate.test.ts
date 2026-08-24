@@ -2206,45 +2206,38 @@ describe("validateEffectScript — forEach simultaneous batch reanimation (CR 40
 });
 
 describe("validateEffectScript — animate colours (CR 613.1e layer 5, issue #1872)", () => {
-    const host = (effects: EffectOp[]) =>
-        ({
-            id: "t",
-            name: "T",
-            types: ["Sorcery"],
-            manaCost: { B: 1 },
-            oracleText: "x",
-            targetRequirement: { type: "Land", count: 1 },
-            effects,
-        }) as unknown as CardDefinition;
-
     it("accepts a non-empty colour list", () => {
         expect(
             validateEffectScript(
-                host([
-                    {
-                        op: "animate",
-                        target: { target: 0 },
-                        power: 3,
-                        toughness: 2,
-                        colors: ["U", "B"],
-                        duration: { phase: "end-of-turn" },
-                    },
-                ])
+                host({
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { target: 0 },
+                            power: 3,
+                            toughness: 2,
+                            colors: ["U", "B"],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                })
             )
         ).toEqual([]);
     });
 
     it("rejects an EMPTY colour list — omit the field instead (CR 105.2)", () => {
         const errors = validateEffectScript(
-            host([
-                {
-                    op: "animate",
-                    target: { target: 0 },
-                    power: 3,
-                    toughness: 2,
-                    colors: [],
-                },
-            ])
+            host({
+                effects: [
+                    {
+                        op: "animate",
+                        target: { target: 0 },
+                        power: 3,
+                        toughness: 2,
+                        colors: [],
+                    },
+                ],
+            })
         );
         expect(errors.some((e) => /"colors" must be non-empty/.test(e))).toBe(
             true
@@ -2259,7 +2252,7 @@ describe("validateEffectScript — animate colours (CR 613.1e layer 5, issue #18
             toughness: 2,
             colors: ["U", "Purple"],
         } as unknown as EffectOp;
-        const errors = validateEffectScript(host([script]));
+        const errors = validateEffectScript(host({ effects: [script] }));
         expect(errors.some((e) => /"colors" has invalid value/.test(e))).toBe(
             true
         );
@@ -2267,16 +2260,6 @@ describe("validateEffectScript — animate colours (CR 613.1e layer 5, issue #18
 });
 
 describe("validateEffectScript — forEach simultaneous players choices-then-actions (CR 101.4, issue #1872)", () => {
-    const host = (extra: Record<string, unknown>) =>
-        ({
-            id: "t",
-            name: "T",
-            types: ["Sorcery"],
-            manaCost: { B: 1 },
-            oracleText: "x",
-            ...extra,
-        }) as unknown as CardDefinition;
-
     const innocentBloodShape: EffectOp = {
         op: "forEach",
         select: { set: "players" },
