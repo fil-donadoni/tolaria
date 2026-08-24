@@ -1,8 +1,7 @@
 import { Button } from "@/components/ui/button";
 import BasicLandArtPicker from "./basic-land-art-picker";
-import CompactChromeDisclosure, {
-    useCompactChromeFold,
-} from "./compact-chrome-disclosure";
+import CompactChromeDisclosure from "./compact-chrome-disclosure";
+import { useCompactChromeFold } from "./useCompactChromeFold";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "./basicLands";
 
 interface PoolBasicLandsBarProps {

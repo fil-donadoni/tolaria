@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, fireEvent, screen } from "@testing-library/react";
 import PoolBasicLandsBar from "../pool-basic-lands-bar";
-import { TABLET_PORTRAIT_QUERY } from "../compact-chrome-disclosure";
+import { TABLET_PORTRAIT_QUERY } from "../useCompactChromeFold";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "../basicLands";
 import type { ViewportMode } from "~/hooks/useViewportMode";
 

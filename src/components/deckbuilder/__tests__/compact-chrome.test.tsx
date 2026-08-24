@@ -19,9 +19,8 @@ import { render, cleanup, fireEvent, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ViewportMode } from "~/hooks/useViewportMode";
-import CompactChromeDisclosure, {
-    TABLET_PORTRAIT_QUERY,
-} from "../compact-chrome-disclosure";
+import CompactChromeDisclosure from "../compact-chrome-disclosure";
+import { TABLET_PORTRAIT_QUERY } from "../useCompactChromeFold";
 
 // The single seam under test — driven explicitly so happy-dom's media-query
 // support never decides the branch (same pattern as
