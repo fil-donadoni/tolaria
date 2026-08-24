@@ -3,6 +3,7 @@ import { playLadderGame, type LadderGameSpec } from "./ladder";
 import {
     getSearchVariant,
     setSearchVariant,
+    LADDER_VARIANTS,
 } from "@convex/gre/ai/searchVariant";
 
 /**
@@ -38,6 +39,23 @@ describe("playLadderGame (micro smoke)", () => {
         }
     });
 
+    it("samples one S0-perspective margin per turn (issue #1929)", () => {
+        const out = playLadderGame(SPEC, null);
+        expect(out.marginSamples.length).toBeGreaterThan(0);
+        // One sample per sampled turn, strictly increasing turn numbers.
+        const turns = out.marginSamples.map((s) => s.turn);
+        expect(new Set(turns).size).toBe(turns.length);
+        for (let i = 1; i < turns.length; i++) {
+            expect(turns[i]).toBeGreaterThan(turns[i - 1]);
+        }
+        // Samples never exceed the game's reported turn count and every
+        // margin is a finite evaluate value.
+        expect(turns[turns.length - 1]).toBeLessThanOrEqual(out.turns);
+        for (const s of out.marginSamples) {
+            expect(Number.isFinite(s.margin)).toBe(true);
+        }
+    });
+
     it("is bit-reproducible: same spec + variant, identical outcome", () => {
         const a = playLadderGame(SPEC, null);
         const b = playLadderGame(SPEC, null);
@@ -53,6 +71,9 @@ describe("playLadderGame (micro smoke)", () => {
         expect(o1.winnerSeat).toBe(o0.winnerSeat);
         expect(o1.turns).toBe(o0.turns);
         expect(o1.plies).toBe(o0.plies);
+        // The margin trace is a property of the game, not of the candidate
+        // attribution — identical across the pair (issue #1929).
+        expect(o1.marginSamples).toEqual(o0.marginSamples);
         if (o0.candidateWon !== null) {
             expect(o1.candidateWon).toBe(!o0.candidateWon);
         }
@@ -147,5 +168,71 @@ describe("playLadderGame: cross-game isolation (issue #2681)", () => {
 
         // The seam is always clean afterward, whatever order it ran in.
         expect(getSearchVariant()).toBeNull();
+    });
+});
+
+/**
+ * The `placebo` variant — the ladder's noise floor (issue #1929).
+ *
+ * A null ladder run cannot measure noise: with no variant both seats run the
+ * same config, so a pair's two orientations are the same game and the result
+ * is exactly 50% by arithmetic (the 2026-08-23 decision run: 20-20 in all 17
+ * matchups, all 340 pairs identical). The placebo supplies the baseline that
+ * run cannot: `searchSeedMask` re-rolls WHICH determinizations the candidate
+ * samples, leaving policy, budget and rules untouched — strength-neutral by
+ * construction, so its distance from 50% is pure chaotic sensitivity.
+ *
+ * For that to be worth measuring, the perturbation must actually reach the
+ * game — hence the precondition test below. Measured 2026-08-24 while
+ * choosing the mechanism: nudging `ucbC` instead, at eps 1e-12 / 1e-9 / 1e-6,
+ * changed NOTHING over four games (UCB scores are not separated that finely),
+ * and a nudge big enough to bite would no longer be neutral.
+ */
+describe("placebo variant / searchSeedMask (issue #1929)", () => {
+    const PLACEBO = LADDER_VARIANTS.placebo;
+
+    it("is registered and carries a seed mask, not a policy knob", () => {
+        expect(PLACEBO).toBeDefined();
+        expect(PLACEBO.searchSeedMask).toBeGreaterThan(0);
+        // Neutrality is the whole point: it must not set any knob that
+        // changes how the search decides.
+        expect(PLACEBO.ucbC).toBeUndefined();
+        expect(PLACEBO.rewardMapping).toBeUndefined();
+    });
+
+    it("demonstrably perturbs the game (precondition — a placebo that changed nothing would measure nothing)", () => {
+        const plain = playLadderGame(SPEC, null);
+        const masked = playLadderGame(SPEC, PLACEBO);
+        expect(masked).not.toEqual(plain);
+    });
+
+    it("stays deterministic, so a placebo run is reproducible from its baseSeed", () => {
+        expect(playLadderGame(SPEC, PLACEBO)).toEqual(
+            playLadderGame(SPEC, PLACEBO)
+        );
+    });
+
+    it("perturbs the CANDIDATE seat only, leaving the control seat's stream alone", () => {
+        // The A/B rests on this: control must play exactly as it does under a
+        // null run, or the comparison measures two changes instead of one.
+        // Sampling starts before either seat has acted, so the very first
+        // margin sample — taken at the opening decision, which belongs to S0
+        // — must be untouched whichever seat the mask is installed on.
+        const onS1 = playLadderGame(SPEC, PLACEBO);
+        const onS0 = playLadderGame({ ...SPEC, candidateSeat: "S0" }, PLACEBO);
+        expect(onS1.marginSamples[0]).toEqual(onS0.marginSamples[0]);
+        // ...and installing it on the other seat yields a different GAME,
+        // which is what "applied per seat" means operationally. Compare the
+        // game itself, never the whole outcome: `candidateWon` is derived
+        // from `candidateSeat` and so differs between these two by
+        // construction, which would make a whole-object `not.toEqual` pass
+        // even with the mask disabled entirely.
+        const game = (o: typeof onS0) => ({
+            winnerSeat: o.winnerSeat,
+            turns: o.turns,
+            plies: o.plies,
+            marginSamples: o.marginSamples,
+        });
+        expect(game(onS0)).not.toEqual(game(onS1));
     });
 });

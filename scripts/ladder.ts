@@ -13,6 +13,15 @@
  * swapped), fixed 400-iteration budget, seeds derived from --baseSeed.
  * Same command + same baseSeed → bit-identical result.
  *
+ * A run with NO --variant is a different thing and is worth naming: it
+ * returns exactly 50% BY ARITHMETIC, because both seats then run the same
+ * config and a pair's two orientations are the same game with the candidate
+ * label moved. Use it as a determinism / seat-attribution self-test and as a
+ * corpus generator — never as a noise-floor measurement, and never as the
+ * baseline a candidate's win rate is judged against. That baseline is the
+ * `placebo` variant (searchVariant.ts), which changes no decision rule but
+ * does perturb the search, so its spread from 50% is the real noise floor.
+ *
  * Output: live line per game on stdout + incremental JSONL under ladder-runs/
  * (gitignored; reproducible from baseSeed, and reused as the calibration /
  * fitting corpus — decision #1895 §4). Crash-safe: resume an interrupted run
@@ -26,6 +35,9 @@
  * Usage:
  *   bun run ladder [--tier smoke|decision] [--baseSeed N] [--variant name]
  *   bun run ladder [--workers N]              # default: ncpu - 1, min 1
+ *   bun run ladder [--orientations 1]         # corpus mode, null runs only:
+ *                                             # skip the bit-identical replay
+ *                                             # of each pair, half the cost
  *   bun run ladder [--pairings deckA:deckB,...] | [--dynamics tag,...] | [--rung R1,...]
  *   bun run ladder --resume ladder-runs/<file>.jsonl
  *   (--iterations N exists for NON-STANDARD dev shakeouts only — a verdict
@@ -61,11 +73,13 @@ import {
     buildGamePlan,
     buildHeader,
     filterGamePlan,
+    orientationZeroOnly,
     headerMismatches,
     parseRunFile,
     remainingGames,
     LADDER_ITERATIONS,
     TIER_SEEDS,
+    toGameRecordFields,
     type LadderGameRecord,
     type LadderRunHeader,
     type LadderTier,
@@ -94,7 +108,7 @@ function parseArgs(argv: string[]) {
     const out: Record<string, string> = {};
     for (let i = 0; i < argv.length; i++) {
         const m =
-            /^--(tier|baseSeed|variant|resume|iterations|pairings|dynamics|rung|workers)$/.exec(
+            /^--(tier|baseSeed|variant|resume|iterations|pairings|dynamics|rung|workers|orientations)$/.exec(
                 argv[i]
             );
         if (!m) fail(`unknown argument "${argv[i]}" (see file header)`);
@@ -147,6 +161,7 @@ if (args.resume) {
         "pairings",
         "dynamics",
         "rung",
+        "orientations",
     ] as const) {
         if (args[k] !== undefined)
             fail(`--${k} conflicts with --resume (config comes from the file)`);
@@ -164,7 +179,8 @@ if (args.resume) {
         header.variant,
         header.iterations,
         LADDER_PAIRINGS,
-        header.filter ?? null
+        header.filter ?? null,
+        header.orientations ?? 2
     );
     const mismatches = headerMismatches(header, expected);
     if (mismatches.length > 0)
@@ -214,13 +230,28 @@ if (args.resume) {
         fail((e as Error).message);
     }
 
+    // Corpus mode (issue #1929): a null run's second orientation is a
+    // bit-identical replay, so for corpus GENERATION it is half the machine
+    // time for zero information. Refused with a variant, where the two
+    // orientations are genuinely different games and the pairing is the
+    // variance reduction the whole A/B design rests on.
+    const orientations = Number(args.orientations ?? 2);
+    if (orientations !== 1 && orientations !== 2)
+        fail(`--orientations must be 1 or 2`);
+    if (orientations === 1 && variant !== null)
+        fail(
+            `--orientations 1 is corpus mode and only valid for a null run;` +
+                ` --variant ${variant} needs both orientations (paired A/B)`
+        );
+
     header = buildHeader(
         tier,
         baseSeed,
         variant,
         iterations,
         LADDER_PAIRINGS,
-        filter
+        filter,
+        orientations
     );
     const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
     runFile = join(
@@ -257,7 +288,11 @@ const allowedIndices = selectPairingIndices(
     LADDER_PAIRINGS,
     header.filter ?? null
 );
-const plan = filterGamePlan(fullPlan, allowedIndices);
+const orientations = header.orientations ?? 2;
+const plan =
+    orientations === 1
+        ? orientationZeroOnly(filterGamePlan(fullPlan, allowedIndices))
+        : filterGamePlan(fullPlan, allowedIndices);
 const todo = remainingGames(plan, priorRecords);
 
 console.log(
@@ -266,7 +301,9 @@ console.log(
         (header.filter
             ? ` [--${header.filter.kind} ${header.filter.values.join(",")}]`
             : "") +
-        ` × 2 seat orders × ${TIER_SEEDS[header.tier]} seeds)` +
+        ` × ${orientations} seat order${orientations === 1 ? "" : "s"}` +
+        ` × ${TIER_SEEDS[header.tier]} seeds)` +
+        (orientations === 1 ? ` [corpus mode: no paired replay]` : "") +
         ` · candidate=${header.variant ?? "control (null run)"}` +
         ` · baseSeed=${header.baseSeed} · ${header.iterations} iterations` +
         ` · workers=${workers}` +
@@ -313,22 +350,7 @@ if (workers === 1) {
             },
             candidate
         );
-        applyRecord({
-            gameIndex: g.gameIndex,
-            pairingIndex: g.pairingIndex,
-            seedIndex: g.seedIndex,
-            orientation: g.orientation,
-            deckSeat0: g.deckSeat0,
-            deckSeat1: g.deckSeat1,
-            seed: g.seed,
-            candidateSeat: g.candidateSeat,
-            winnerSeat: outcome.winnerSeat,
-            candidateWon: outcome.candidateWon,
-            reason: outcome.reason,
-            turns: outcome.turns,
-            plies: outcome.plies,
-            ms: Date.now() - t0,
-        });
+        applyRecord(toGameRecordFields(g, outcome, Date.now() - t0));
     }
 } else {
     // Workers inherit TOLARIA_GATE_HELD=1 from this process's own env (set by

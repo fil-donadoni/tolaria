@@ -7,6 +7,8 @@ import {
     headerMismatches,
     parseRunFile,
     remainingGames,
+    orientationZeroOnly,
+    toGameRecordFields,
     TIER_SEEDS,
     LADDER_ITERATIONS,
     type LadderGameRecord,
@@ -367,5 +369,155 @@ describe("pairing-subset filter (issue #2681)", () => {
         expect(headerMismatches(withFilter, withFilter)).toEqual([]);
         const mismatches = headerMismatches(noFilter, withFilter);
         expect(mismatches.join("\n")).toMatch(/filter/);
+    });
+});
+
+/**
+ * Corpus mode — `--orientations 1` (issue #1929).
+ *
+ * A null run's two orientations are the SAME game: with no variant installed
+ * both seats run the identical config, so only the candidate label differs.
+ * The 2026-08-23 decision run confirmed it across all 340 pairs (identical
+ * winner, turns and plies), which also means its aggregate 50.0% was
+ * arithmetic rather than a measurement. When such a run exists to generate a
+ * calibration corpus, the replay is half the machine time for no information.
+ */
+describe("corpus mode: orientation-0-only plan (issue #1929)", () => {
+    const K = TIER_SEEDS.smoke;
+    const full = buildGamePlan(LADDER_PAIRINGS, K, 1);
+
+    it("keeps exactly half the games — one per (pairing, seed) pair", () => {
+        const corpus = orientationZeroOnly(full);
+        expect(corpus.length).toBe(full.length / 2);
+        expect(corpus.length).toBe(LADDER_PAIRINGS.length * K);
+        expect(corpus.every((g) => g.orientation === 0)).toBe(true);
+        // Every pair is represented exactly once.
+        const keys = corpus.map((g) => `${g.pairingIndex}|${g.seedIndex}`);
+        expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it("leaves every surviving row element-wise identical to the full plan", () => {
+        // The identity guarantee that makes a corpus run comparable to a full
+        // one: filtering happens AFTER buildGamePlan, so gameIndex and seed
+        // are still derived as an unfiltered run derives them — never
+        // renumbered to close the gaps.
+        const corpus = orientationZeroOnly(full);
+        for (const g of corpus) {
+            expect(g).toEqual(full[g.gameIndex]);
+        }
+        // gameIndex therefore stays even-valued and gappy, not 0..n-1.
+        expect(corpus.map((g) => g.gameIndex)).toEqual(
+            full.filter((g) => g.orientation === 0).map((g) => g.gameIndex)
+        );
+    });
+
+    it("halves the header's totalGames and resume refuses to mix the two", () => {
+        const paired = buildHeader(
+            "smoke",
+            1,
+            null,
+            LADDER_ITERATIONS,
+            LADDER_PAIRINGS,
+            null,
+            2
+        );
+        const corpus = buildHeader(
+            "smoke",
+            1,
+            null,
+            LADDER_ITERATIONS,
+            LADDER_PAIRINGS,
+            null,
+            1
+        );
+        expect(corpus.totalGames).toBe(paired.totalGames / 2);
+        expect(headerMismatches(corpus, corpus)).toEqual([]);
+        // Resuming a corpus file as a paired run (or the reverse) is a
+        // DIFFERENT experiment and must be refused, not silently continued.
+        expect(headerMismatches(paired, corpus).join("\n")).toMatch(
+            /orientations/
+        );
+    });
+
+    it("a corpus run can be resumed — the reconstructed header round-trips", () => {
+        // scripts/ladder.ts's --resume branch re-derives the header it EXPECTS
+        // from the fields it read out of the file, then diffs the two. Every
+        // field it forgets to pass through therefore reads as drift and
+        // refuses a legitimate crash-recovery resume. `orientations` was
+        // exactly that: reconstructed as the default 2 against a file saying
+        // 1, so no corpus run could ever be resumed — the failure mode of a
+        // multi-hour run that dies at hour 20.
+        const fromFile = buildHeader(
+            "decision",
+            1,
+            null,
+            LADDER_ITERATIONS,
+            LADDER_PAIRINGS,
+            null,
+            1
+        );
+        const reconstructed = buildHeader(
+            fromFile.tier,
+            fromFile.baseSeed,
+            fromFile.variant,
+            fromFile.iterations,
+            LADDER_PAIRINGS,
+            fromFile.filter ?? null,
+            fromFile.orientations ?? 2
+        );
+        expect(headerMismatches(fromFile, reconstructed)).toEqual([]);
+    });
+
+    it("treats a pre-#1929 header (no orientations field) as paired", () => {
+        const legacy = buildHeader(
+            "smoke",
+            1,
+            null,
+            LADDER_ITERATIONS,
+            LADDER_PAIRINGS
+        );
+        const withoutField = { ...legacy };
+        delete withoutField.orientations;
+        expect(headerMismatches(withoutField, legacy)).toEqual([]);
+    });
+});
+
+/**
+ * `toGameRecordFields` — the single record constructor (issue #1929). Both
+ * dispatch paths (the sequential loop and the worker process) go through it
+ * precisely so a record cannot depend on which one played the game; the
+ * worker's hand-written literal silently dropping `marginSamples` is what
+ * made a 680-game corpus useless.
+ */
+describe("toGameRecordFields (issue #1929)", () => {
+    const plan = buildGamePlan(LADDER_PAIRINGS, TIER_SEEDS.smoke, 1)[0];
+    const outcome = {
+        winnerSeat: "S0" as const,
+        candidateWon: false,
+        reason: "life",
+        turns: 12,
+        plies: 240,
+        marginSamples: [{ turn: 1, margin: 40 }],
+    };
+
+    it("carries every outcome field through, plan fields included", () => {
+        const rec = toGameRecordFields(plan, outcome, 99);
+        expect(rec).toEqual({ ...plan, ...outcome, ms: 99 });
+    });
+
+    it("propagates an outcome field it was never told about", () => {
+        // The actual regression guard: the constructor spreads the outcome, so
+        // a field added to LadderGameOutcome later reaches the run file with
+        // no edit here. A version that re-listed fields by hand would drop
+        // this and stay green.
+        const extended = { ...outcome, futureField: [1, 2, 3] };
+        const rec = toGameRecordFields(
+            plan,
+            extended as unknown as typeof outcome,
+            0
+        );
+        expect((rec as unknown as Record<string, unknown>).futureField).toEqual(
+            [1, 2, 3]
+        );
     });
 });

@@ -108,7 +108,26 @@ export type SeatConfig = {
  *  card (mirrors how `resolvePending` failures are exercised). */
 type SearchFn = typeof search;
 
-const MAX_PLIES = 4000;
+/** Hard ply ceiling — a game past it is a non-terminating loop, not a long
+ *  game, and ends as the `max-plies` guard stop (excluded from win rates).
+ *
+ *  Calibrated on the FULL decision-tier corpus of 2026-08-23 (issue #1929):
+ *  680 real games, played under the old 4000 cap so the distribution is
+ *  uncensored, ran p50 408, p95 726, p99 993, max 1162. This cap therefore
+ *  clears the longest genuine game on record by ~1.7×.
+ *
+ *  It supersedes a 1500 set from a 160-game SMOKE corpus (max 863) — decision
+ *  tier plays longer games than smoke does, and 1500 left only 1.29× over the
+ *  real maximum, close enough that a slightly longer-than-seen game would end
+ *  as a guard stop and be dropped from the win rate rather than counted.
+ *
+ *  The original 4000 was ~4.6× the observed maximum and so not a working
+ *  guard at all: a single degenerate game blocked a corpus run for over an
+ *  hour (a stalled board makes each ply's search far more expensive than the
+ *  median, so the cap's wall-clock cost is superlinear in its value). A PLY
+ *  cap, not a wall-clock one — the outcome must stay deterministic (decision
+ *  #1895 §2). */
+const MAX_PLIES = 2000;
 
 /** List the legal candidate instances for a zone-pick choice, honoring the
  *  precomputed allow-list (`candidateIds`) when present, else the declared zone

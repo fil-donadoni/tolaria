@@ -2,7 +2,10 @@
 //
 // Pure module: no fs, no clock, no engine imports — everything here is
 // derivable arithmetic, so the determinism contract is testable in the
-// application suite. The contract (decision #1895 §2):
+// application suite. (`LadderGameOutcome` is an `import type`, erased at
+// compile time: it buys `toGameRecordFields` a real link to what the game
+// runner returns without pulling the engine in at runtime.) The contract
+// (decision #1895 §2):
 //
 //   * fixed ITERATION budget (never timeMs);
 //   * per-game seeds DERIVED from the run's baseSeed — pairing p, seed-index k
@@ -18,6 +21,7 @@
 // AGENT drives which seat. Seat S0 is always on the play. Deck seating
 // alternates by seed-index parity so both decks get on-the-play coverage.
 
+import type { LadderGameOutcome } from "../../../src/lib/ai/selfplay/ladder";
 import type { LadderPairing } from "./pairings";
 import { selectPairingIndices, type LadderFilterSpec } from "./filter";
 
@@ -63,6 +67,11 @@ export type LadderRunHeader = {
     filter: LadderFilterSpec | null;
     totalGames: number;
     pairings: { deckA: string; deckB: string }[];
+    /** Orientations played per seed (issue #1929). 2 = the standard paired
+     *  A/B. 1 = corpus mode: orientation 0 only, valid ONLY for a null run,
+     *  where the second orientation is a bit-identical replay and so pure
+     *  waste. Absent in pre-#1929 files, which are all 2. */
+    orientations?: 1 | 2;
 };
 
 /** One line per completed game, appended as soon as the game ends — a crash
@@ -84,7 +93,46 @@ export type LadderGameRecord = {
     turns: number;
     plies: number;
     ms: number;
+    /** Per-turn evaluation margin from seat S0's perspective, sampled at the
+     *  FIRST search-decided node of each game turn (issue #1929) — the
+     *  calibration corpus for margin → win-probability fitting. Optional so
+     *  pre-#1929 run files still parse; absent on guard-stop-truncated games
+     *  only when the stop hit before the first sample. */
+    marginSamples?: { turn: number; margin: number }[];
 };
+
+/** Build a finished game's record fields from its plan and its outcome — the
+ *  SINGLE constructor both dispatch paths use (the sequential loop in
+ *  scripts/ladder.ts and the worker process in worker.ts), so a record can
+ *  never depend on WHICH path played the game.
+ *
+ *  Why a shared constructor rather than an object literal per path (issue
+ *  #1929): both paths used to spell every field out by hand, and
+ *  `LadderGameRecord`'s optional fields make an omission type-CORRECT. When
+ *  per-turn margin sampling was added, `marginSamples` was wired into the
+ *  sequential literal only; the worker's literal silently dropped it, so a
+ *  parallel run — the only kind anyone runs at decision tier — wrote a corpus
+ *  with the calibration data missing and no error anywhere. Spreading the
+ *  outcome means a new `LadderGameOutcome` field reaches the run file with no
+ *  edit here at all, and cannot be dropped by one path and not the other. */
+export function toGameRecordFields(
+    plan: LadderGamePlan,
+    outcome: LadderGameOutcome,
+    ms: number
+): Omit<LadderGameRecord, "kind"> {
+    return {
+        gameIndex: plan.gameIndex,
+        pairingIndex: plan.pairingIndex,
+        seedIndex: plan.seedIndex,
+        orientation: plan.orientation,
+        deckSeat0: plan.deckSeat0,
+        deckSeat1: plan.deckSeat1,
+        seed: plan.seed,
+        candidateSeat: plan.candidateSeat,
+        ...outcome,
+        ms,
+    };
+}
 
 /** Expand the pairing registry into the full deterministic game list. */
 export function buildGamePlan(
@@ -124,7 +172,8 @@ export function buildHeader(
     variant: string | null,
     iterations: number,
     pairings: LadderPairing[],
-    filter: LadderFilterSpec | null = null
+    filter: LadderFilterSpec | null = null,
+    orientations: 1 | 2 = 2
 ): LadderRunHeader {
     // totalGames reflects the FILTERED game count (what this run will
     // actually play), while `pairings` below always records the full
@@ -139,8 +188,9 @@ export function buildHeader(
         variant,
         iterations,
         filter,
-        totalGames: selected * TIER_SEEDS[tier] * 2,
+        totalGames: selected * TIER_SEEDS[tier] * orientations,
         pairings: pairings.map(({ deckA, deckB }) => ({ deckA, deckB })),
+        orientations,
     };
 }
 
@@ -201,7 +251,29 @@ export function headerMismatches(
         out.push(
             `filter: file=${JSON.stringify(header.filter ?? null)} run=${JSON.stringify(expected.filter ?? null)}`
         );
+    if ((header.orientations ?? 2) !== (expected.orientations ?? 2))
+        out.push(
+            `orientations: file=${header.orientations ?? 2} run=${expected.orientations ?? 2}`
+        );
     return out;
+}
+
+/** The plan restricted to orientation 0 — corpus mode (issue #1929).
+ *
+ *  In a NULL run the two orientations of a pair are the same game played
+ *  twice: with no variant installed both seats run the identical config, so
+ *  only the candidate LABEL differs, and the second orientation reproduces
+ *  the first bit for bit (verified across all 340 pairs of the 2026-08-23
+ *  run). Playing it buys one guaranteed win and one guaranteed loss — no
+ *  information, half the machine time. When the run exists to GENERATE a
+ *  corpus rather than to compare two agents, drop it.
+ *
+ *  Filtering happens after `buildGamePlan`, like the pairing filter, so every
+ *  field stays exactly what an unfiltered run would derive: a corpus run's
+ *  records are element-wise identical to the orientation-0 rows of a full
+ *  run at the same baseSeed. */
+export function orientationZeroOnly(plan: LadderGamePlan[]): LadderGamePlan[] {
+    return plan.filter((g) => g.orientation === 0);
 }
 
 /** The plan filtered down to the rows a `--pairings`/`--dynamics` filter
