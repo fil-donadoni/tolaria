@@ -55,9 +55,9 @@ looked like a wall-clock explanation independent of the lane. It is ruled out
 on THIS deployment:
 
 - `bunx convex data limitedEvents`: every live draft (`status="started"`) has
-  `timerEnabled=false` — four of them. The only `timerEnabled=true` event is
+  `timerEnabled=false` — five of them. The only `timerEnabled=true` event is
   `status="finished"`, where `areDraftPicksLegal` gates `autoPickSeatTimeout`
-  off (`convex/limitedEvents.ts:2344`).
+  off (`convex/limitedEvents.ts:2343`).
 - `scheduleSeatTimers` (:1320-1327) returns early on `!timerEnabled` —
   `if (!timerEnabled || updates.length === 0) return;` — so no Auto-Pick is
   ever even scheduled here.
@@ -72,7 +72,7 @@ on THIS deployment:
 `openLimitedEvent(page, ctx, i)` for `i` in `0..min(count, 3)` — whichever
 events currently sit first under `/limited`'s `View` button list
 (`scripts/ui-gate/surfaces.ts:252-266`), and returns as soon as one lands on a
-visible pack tile. This deployment carries four `started` drafts created
+visible pack tile. This deployment carries five `started` drafts created
 within about five minutes of each other, plus newer events layered above
 them in the list. A walk run on one day and a walk run on another can land on
 a genuinely different event/seat and read the difference as drift, when it is
