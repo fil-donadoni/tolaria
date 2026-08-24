@@ -651,10 +651,15 @@ describe("check-lane — execution (issue #2741)", () => {
     /**
      * `executePlan` — the ONE function that fans a plan out to
      * `renderPlan`, `runPlan` and `renderJson` (#2748 review, finding 3) —
-     * takes the plan as data and has no access to `classifyLane` or the git
-     * plumbing, so it structurally CANNOT rebuild a second, independently
-     * classified plan for rendering. This is the behavioural form of the
-     * invariant #2741 exists to hold: the executed commands (via `exec`)
+     * takes the plan as a parameter. That makes a rebuild an obvious edit,
+     * NOT an impossible one: `executePlan` is module-scope beside
+     * `classifyLane`, so a rebuild inserted into its body type-checks and
+     * runs (proved in round-2 review of #2748). THIS TEST is the guard, and
+     * it compares CONTENT, not object identity — `renderJson(structuredClone
+     * (plan), …)` still passes here. What it does pin is the failure that
+     * matters: a rendering path fed a differently-CLASSIFIED plan. This is
+     * the behavioural form of the invariant #2741 exists to hold: the
+     * executed commands (via `exec`)
      * and the rendered output (json or human) both derive from the exact
      * plan this test constructs — a rendering path fed by a different
      * plan (e.g. a re-derived one with a different `lane`/`run`/`skip`)
@@ -668,7 +673,7 @@ describe("check-lane — execution (issue #2741)", () => {
      * `plan.run` commands: exactly the "receipt describes a different run"
      * shape). Reverted.
      */
-    it("executePlan renders and executes off the exact same plan object it was given (#2741, #2748)", () => {
+    it("executePlan renders and executes off the plan it was given — same lane, files and run list (#2741, #2748)", () => {
         const plan = classifyLane(["convex/gre/engine.ts"]);
         const { exec, calls } = fakeExec(
             Object.fromEntries(

@@ -535,16 +535,26 @@ function shellRun(
 
 /**
  * The single consumer of ONE plan object (#2748 review, finding 3): given a
- * `LanePlan` and NOTHING that could rebuild one (no access to `classifyLane`
- * or the git plumbing — those live in `main()`, above and outside this
- * function), fans it out to `renderPlan`, `runPlan` and `renderJson`. That
- * is the actual invariant issue #2741 exists to hold — a receipt describing
- * the same run that was executed — expressed as an architectural fact
- * (this function CANNOT construct a second plan, having no way to reach
- * `classifyLane`) rather than the textual "one call site" proxy
- * `check-lane.test.ts` used to rely on alone. `exec` and `log` are injected
- * so a test can drive this with a hand-built plan and a fake shell, with no
- * subprocess — same pattern as `runPlan`'s injectable `exec`.
+ * `LanePlan`, fans it out to `renderPlan`, `runPlan` and `renderJson`, so
+ * the receipt describes the same run that was executed — the invariant
+ * issue #2741 exists to hold.
+ *
+ * WHAT HOLDS THIS IS THE TEST, NOT THE STRUCTURE. `executePlan` is
+ * module-scope in this file, so `classifyLane` and the git plumbing ARE
+ * lexically in scope here: a rebuild inserted into this body type-checks
+ * and runs (round-2 review of #2748, which proved exactly that). An earlier
+ * version of this comment claimed the function "CANNOT" reach
+ * `classifyLane`; that was false, and a false structural claim in the one
+ * file whose thesis is "the receipt must not lie" is the same sin one level
+ * up. The real guard is `check-lane.test.ts` § "executePlan renders and
+ * executes off the plan it was given", which reddens when a rendering path
+ * is fed anything but the passed plan. Taking the plan as a PARAMETER makes
+ * the rebuild an obvious edit rather than an invisible one; it does not
+ * make it impossible.
+ *
+ * `exec` and `log` are injected so a test can drive this with a hand-built
+ * plan and a fake shell, with no subprocess — same pattern as `runPlan`'s
+ * injectable `exec`.
  */
 export function executePlan(
     plan: LanePlan,
