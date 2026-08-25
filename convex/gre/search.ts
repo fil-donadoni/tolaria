@@ -865,7 +865,18 @@ export function applyMoveInSearch(
             // round 2 — the round-2 version skipped the unpayable leg silently
             // and kept the payoff, which is how the bot came to rank a Thallid
             // activation the server rejects above `pass`).
-            const paid = applyActivationCostsForSearch(state, playerId, move);
+            // CR 118.1 / 608.2h — the one cost by-product the pushed item needs
+            // back: the snapshot of a card exiled from a graveyard to pay the
+            // cost, gone by resolution (Necropolis reads it as X).
+            const costOut: {
+                additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+            } = {};
+            const paid = applyActivationCostsForSearch(
+                state,
+                playerId,
+                move,
+                costOut
+            );
             // CR 605.3c — a MANA ability never uses the stack: it resolves
             // immediately and is payment plumbing the search already models
             // through the tap plan. Pushing one would park an item nothing ever
@@ -882,14 +893,18 @@ export function applyMoveInSearch(
                 // resolved above when the ability came from a grant — without
                 // it `resolveTopOfStack` cannot find the granted template and
                 // the item pops as a no-op (issue #2468). The two fields that
-                // do NOT ride the move are derived server-side during payment
-                // and are deliberately absent here, matching what the
-                // search's coarse mana model can know: `notedManaSpent` (CR
-                // 106.10 — needs an exact pool delta, and `applyTapPlan` taps
-                // sources without draining the pool coin-exact) and
-                // `additionalSacrificeSnapshot` (CR 601.2f — the victim IS
-                // removed by the cost helper above, only its
-                // mana-value/power snapshot is not reconstructed).
+                // do NOT ride the move are derived server-side during payment.
+                // `notedManaSpent` (CR 106.10 — needs an exact pool delta, and
+                // `applyTapPlan` taps sources without draining the pool
+                // coin-exact) is deliberately absent. The additional-cost
+                // victim snapshot (CR 118.1 / 608.2h) is reconstructed for the
+                // GRAVEYARD-EXILE leg only, through the cost helper's
+                // out-collector above — an ability that reads it back
+                // (Necropolis' X) would otherwise resolve for zero in the tree
+                // and never be played. The SACRIFICE leg's snapshot stays
+                // unreconstructed: `applySacrificeSelection`'s victim is chosen
+                // inside the helper and its effective POWER (CR 613 layer 7c,
+                // Freyalise Supplicant) is not recoverable after removal.
                 state.stack.push(
                     buildActivatedAbilityStackItem(source, {
                         castById: playerId,
@@ -907,6 +922,12 @@ export function applyMoveInSearch(
                             ? {
                                   grantedSourceCardId:
                                       activatedEntry.grantedSourceCardId,
+                              }
+                            : {}),
+                        ...(costOut.additionalSacrificeSnapshot
+                            ? {
+                                  additionalSacrificeSnapshot:
+                                      costOut.additionalSacrificeSnapshot,
                               }
                             : {}),
                     })

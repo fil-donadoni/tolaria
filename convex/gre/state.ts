@@ -19796,6 +19796,34 @@ export function exileCardFromGraveyard(
     return true;
 }
 
+/** SINGLE AUTHORITY for the `cost.exileThis` activation cost — "Exile this
+ *  card/permanent" (CR 118.1 — a cost is an action necessary to take another
+ *  action; CR 601.2h via CR 602.2b — the cost is paid at ACTIVATION, while the
+ *  ability is being put on the stack, never at resolution).
+ *
+ *  Two source zones, one flag, dispatched on the ability's OWN declared source
+ *  zone (`activateFromGraveyard`) rather than on where the card happens to be
+ *  found — a declared discriminator cannot fail open the way "look for it
+ *  somewhere" would:
+ *   - graveyard source (Eternalize CR 702.129a / Embalm CR 702.128a) → the
+ *     plain graveyard → exile move;
+ *   - battlefield source (Feldon's Cane) → `removePermanentTo(…, "exile")`,
+ *     the same leave-the-battlefield funnel `cost.sacrifice` uses, so aura
+ *     cleanup, PERMANENT_LEFT and a CR 614 leave-replacement all apply.
+ *
+ *  Returns false when the source is no longer where the ability says it lives
+ *  — the vanished-source policy every deferred cost leg shares: the caller
+ *  drops the activation rather than paying a phantom cost. */
+export function payExileThisCost(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string,
+    fromGraveyard: boolean
+): boolean {
+    if (fromGraveyard) return exileCardFromGraveyard(player, cardInstanceId);
+    return removePermanentTo(state, cardInstanceId, "exile") !== null;
+}
+
 export function moveCard(
     player: PlayerState,
     cardInstanceId: string,

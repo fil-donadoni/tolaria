@@ -120,6 +120,7 @@ import {
     applyMayPaySubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import type { CardType } from "../../../types";
+import { activateAbilityOnState } from "../../../../game";
 import {
     UPKEEP_P1,
     blockEvent,
@@ -629,8 +630,11 @@ describe("ATQ free-tranche #275 registration", () => {
     });
 });
 
-describe("Feldon's Cane ({T}, exile self: shuffle graveyard into library, CR 400.7 / 701.24)", () => {
-    it("moves the controller's graveyard into the library and exiles itself", () => {
+describe("Feldon's Cane ({T}, Exile this artifact: shuffle graveyard into library, CR 118.1 / 601.2h)", () => {
+    /** Cane on the battlefield, two cards in the graveyard, one in the
+     *  library, p1 holding priority in their own main phase — the shape
+     *  `activateAbilityOnState` (the real mutation body) requires. */
+    function caneBoard(): GameState {
         const g1 = makeInstance(clayStatue.id, {
             id: "g1",
             controllerId: "p1",
@@ -654,7 +658,7 @@ describe("Feldon's Cane ({T}, exile self: shuffle graveyard into library, CR 400
             ownerId: "p1",
             zone: "library",
         });
-        const state = makeState({
+        return makeState({
             players: [
                 makePlayer("p1", {
                     battlefield: [cane],
@@ -664,16 +668,79 @@ describe("Feldon's Cane ({T}, exile self: shuffle graveyard into library, CR 400
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, cane, "feldons-cane-shuffle");
+    }
+
+    it("exiles the Cane as the COST, before the ability is ever on the stack", () => {
+        // CR 118.1 / 601.2h (via CR 602.2b) — the cost is paid while the
+        // ability is being put on the stack. This is the whole point of the
+        // fix and the only assertion that can tell the two models apart: with
+        // the exile faked inside resolve() the Cane sits on the battlefield
+        // for the entire stack window, and an opponent holding "destroy target
+        // artifact" gets to kill it there (after which the exile silently
+        // no-ops and the Cane ends in the GRAVEYARD instead).
+        const state = caneBoard();
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "cane",
+            abilityId: "feldons-cane-shuffle",
+        });
+
+        // The ability IS on the stack, unresolved…
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].abilityId).toBe("feldons-cane-shuffle");
+        // …and the Cane is ALREADY gone, to exile.
+        expect(state.players[0].exile.some((c) => c.id === "cane")).toBe(true);
+        // Nothing an opponent can target: it is on NO battlefield, so
+        // `findOnBattlefield` (what every removal spell resolves through)
+        // cannot reach it.
+        expect(
+            state.players.some((p) =>
+                p.battlefield.some((c) => c.id === "cane")
+            )
+        ).toBe(false);
+        // The EFFECT has not happened yet — the graveyard is untouched.
+        expect(state.players[0].graveyard).toHaveLength(2);
+    });
+
+    it("closes the destroy-in-response window: artifact removal cannot target the Cane", () => {
+        // The observable consequence the old resolve-body model had. With the
+        // Cane still on the battlefield through the stack window, an opponent
+        // holding Shatter kills it in response; `ctx.exile`'s
+        // `findOnBattlefield` lookup then silently no-ops on resolution and the
+        // Cane ends in the GRAVEYARD — and gets shuffled into the library with
+        // everything else. Paid as a cost, it is not a legal target at all.
+        const state = caneBoard();
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "cane",
+            abilityId: "feldons-cane-shuffle",
+        });
+        const req = shatter.targetRequirement!;
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p2").map(
+            (t) => t.id
+        );
+        expect(ids).not.toContain("cane");
+    });
+
+    it("shuffles the graveyard into the library on resolution, with the Cane in neither zone", () => {
+        const state = caneBoard();
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "cane",
+            abilityId: "feldons-cane-shuffle",
+        });
+        resolveTopOfStack(state);
+
         // Graveyard emptied into library (now 1 original + 2 = 3 cards).
         expect(state.players[0].graveyard).toHaveLength(0);
         expect(state.players[0].library).toHaveLength(3);
         const libIds = state.players[0].library.map((c) => c.id);
         expect(libIds).toContain("g1");
         expect(libIds).toContain("g2");
-        // The Cane exiled itself — not in the library it shuffled.
+        // Paid as a cost, the Cane was never in the graveyard this ability
+        // shuffles, and cannot have been swept into the library with it.
         expect(libIds).not.toContain("cane");
-        expect(state.players[0].battlefield.some((c) => c.id === "cane")).toBe(
+        expect(state.players[0].graveyard.some((c) => c.id === "cane")).toBe(
             false
         );
         expect(state.players[0].exile.some((c) => c.id === "cane")).toBe(true);

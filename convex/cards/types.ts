@@ -1042,22 +1042,38 @@ export interface ActivatedAbility {
          *  (`sets/big/black.ts`) — is an ordinary discard cost, not a cycling
          *  cost, and must not fire a "when you cycle this card" trigger. */
         cyclingCost?: boolean;
-        /** "Exile this card from your graveyard" as an activation cost
-         *  (CR 118.3 / 702.129a — the Eternalize cost's non-mana component;
-         *  CR 702.128a Embalm is the same shape). The SOURCE card itself moves
-         *  graveyard → exile as the ability goes on the stack. Only meaningful
-         *  together with `activateFromGraveyard: true` (the source lives in the
-         *  graveyard); the graveyard-source gate in `activateAbility` is what
-         *  makes the card findable, and this flag is what consumes it.
+        /** "Exile this card" / "Exile this permanent" as an activation cost
+         *  (CR 118.1 — a cost is paid to take the action; CR 601.2h via
+         *  CR 602.2b — costs are paid at ACTIVATION, not at resolution). The
+         *  SOURCE object itself moves to exile as the ability goes on the
+         *  stack. ONE flag, TWO source zones — which one applies is read off
+         *  the ability's own declared source zone, never guessed:
+         *
+         *   - `activateFromGraveyard: true` → GRAVEYARD → exile. The
+         *     Eternalize (CR 702.129a) / Embalm (CR 702.128a) cost's non-mana
+         *     component; the graveyard-source gate in `activateAbility` is
+         *     what makes the card findable, and this flag is what consumes it.
+         *   - otherwise → BATTLEFIELD → exile, the permanent's own
+         *     self-removal cost ("{T}, Exile this artifact: …" — Feldon's
+         *     Cane). Routed through `removePermanentTo(…, "exile")`, the same
+         *     leave-the-battlefield funnel `sacrifice` uses, so aura cleanup,
+         *     PERMANENT_LEFT and CR 614 leave-replacements all apply.
+         *
+         *  Paying it at activation is observable, not cosmetic: the permanent
+         *  is already gone while the ability sits on the stack, so an opponent
+         *  cannot respond by destroying it, and it can never reach the
+         *  graveyard instead of exile.
          *
          *  Deferred to COMMIT, never to announcement: a cancelled mana payment
-         *  must leave the graveyard untouched (CR 601.2h — an illegal/aborted
-         *  activation is rewound), so `PendingActivation.exileThisSource`
-         *  carries the intent and `commitPendingActivation` performs the move.
+         *  must leave the source's zone untouched (CR 601.2h — an
+         *  illegal/aborted activation is rewound), so
+         *  `PendingActivation.exileThisSource` carries the intent and
+         *  `commitPendingActivation` performs the move. Both zones funnel
+         *  through the single authority `payExileThisCost` (`gre/state.ts`).
          *
          *  Distinct from `discardThis` (hand → graveyard, Cycling),
          *  `exileFromGraveyard` (exile OTHER cards, chosen by the payer —
-         *  Night Soil) and `sacrifice` (this permanent from the battlefield).
+         *  Night Soil) and `sacrifice` (this permanent to the GRAVEYARD).
          *  The exiled source is still what the ability's script copies: an
          *  eternalize script's `createTokenCopy { ref: "$source" }` recovers it
          *  from exile, the same last-known-information shape `moveZone` uses
