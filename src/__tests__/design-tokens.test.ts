@@ -8,8 +8,8 @@
 // evaluate stylesheets, so we parse `src/index.css` text (Node fs) — same
 // pattern as motion-gating.test.ts.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { resolve, join, relative } from "node:path";
 import {
     V3_TOKEN_GROUPS,
     V4_TOKEN_GROUPS,
@@ -574,6 +574,86 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
             expect(rule![1], cls).toContain("var(--display-tracking)");
             expect(rule![1], cls).toContain("var(--display-numerals)");
         }
+    });
+
+    // ── The residual-site RATCHET (PR #2783 review) ──────────────────────
+    //
+    // The CSS half of the Beleren retirement is fail-CLOSED: `@apply
+    // font-beleren` is a hard BUILD error now that the utility does not exist
+    // ("Cannot apply unknown utility class"), and the rows above pin the
+    // `@theme inline` export. The TSX half is fail-OPEN, and that asymmetry is
+    // the whole reason this row exists: a `className="… font-beleren …"` added
+    // to a component compiles, type-checks, lints and renders — as Geist,
+    // silently — because a Tailwind class is just a string.
+    //
+    // That matters right now specifically. This slice deliberately leaves ~74
+    // inert `font-beleren` class names in ~56 component files, because those
+    // files belong to thirteen sibling slices of PRD #2721 (#2723, #2724,
+    // #2726, #2727, #2728, #2729-#2733) and editing them here would collide
+    // with every one of them in the merge-train for zero rendered difference.
+    // Each slice deletes its own as it re-skins. Without a ratchet, that
+    // intermediate state can silently GROW instead of shrinking, and #2734's
+    // closure sweep would be the first thing to notice — after the fact.
+    //
+    // So: the count may only ever go DOWN. #2734 ("closure: retire bracket/
+    // filigree atoms and dead v3 recipes") is the slice that drives it to 0,
+    // at which point this row and its constant are deleted with it.
+    const BELEREN_RESIDUAL_CEILING = 78;
+
+    /** Every `.ts`/`.tsx` under `src/`, except this guard file — which names
+     *  the class in its own assertions and would otherwise count itself. */
+    function sourceFiles(dir: string, out: string[] = []): string[] {
+        for (const entry of readdirSync(dir)) {
+            if (entry === "node_modules" || entry === "_generated") continue;
+            const full = join(dir, entry);
+            if (statSync(full).isDirectory()) sourceFiles(full, out);
+            else if (/\.tsx?$/.test(entry)) out.push(full);
+        }
+        return out;
+    }
+
+    it("the residual font-beleren sites only ever go DOWN (ratchet, #2734 drives them to 0)", () => {
+        const root = resolve(process.cwd(), "src");
+        const self = resolve(
+            process.cwd(),
+            "src/__tests__/design-tokens.test.ts"
+        );
+        const perFile: Array<[string, number]> = [];
+        let count = 0;
+        for (const file of sourceFiles(root)) {
+            if (file === self) continue;
+            const n = (readFileSync(file, "utf8").match(/font-beleren/g) ?? [])
+                .length;
+            if (n > 0) {
+                perFile.push([relative(process.cwd(), file), n]);
+                count += n;
+            }
+        }
+        const worst = perFile
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([f, n]) => `${f} (${n})`)
+            .join(", ");
+
+        expect(
+            count,
+            `A NEW font-beleren site was added. The utility no longer exists (ADR 0103 §4) — ` +
+                `the class renders NOTHING and the element silently falls back to Geist, which is ` +
+                `why nothing else in the build complains. Use the display face instead: ` +
+                `\`.text-display\`, or \`var(--font-display)\` + the --display-* tokens. ` +
+                `Ceiling ${BELEREN_RESIDUAL_CEILING}, found ${count}. Heaviest files: ${worst}`
+        ).toBeLessThanOrEqual(BELEREN_RESIDUAL_CEILING);
+
+        // ...and the ceiling may not go slack. Without this, a slice that
+        // deletes ten sites leaves nine spare slots for someone to add five
+        // new ones under the old ceiling, undetected — a ratchet that never
+        // ratchets is just a very patient rubber stamp.
+        expect(
+            count,
+            `${BELEREN_RESIDUAL_CEILING - count} font-beleren site(s) were removed — thank you. ` +
+                `Now LOWER \`BELEREN_RESIDUAL_CEILING\` to ${count} in this file, so the ratchet ` +
+                `keeps its grip. When it reaches 0, delete this row and the constant with it (#2734).`
+        ).toBe(BELEREN_RESIDUAL_CEILING);
     });
 
     it("the display treatment is the ADR's: 500 / −0.025em / lining tabular numerals", () => {

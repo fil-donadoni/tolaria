@@ -10,8 +10,16 @@ import { PALETTE_TOKENS, SIGNAL_TOKENS } from "@/lib/design-tokens";
  *  which point every "on surface" ratio the page printed would have been a
  *  ratio against a ground the app no longer paints — the exact failure mode
  *  the mirror exists to close. */
-const paletteHex = (name: string): string =>
-    PALETTE_TOKENS.find((t) => t.name === name)!.hex;
+const paletteHex = (name: string): string => {
+    const t = [...PALETTE_TOKENS, ...SIGNAL_TOKENS].find(
+        (t) => t.name === name
+    );
+    // Throw rather than fall back: a swatch that silently renders `undefined`
+    // is a census row quietly describing a token that does not exist, which is
+    // the exact failure this lookup replaced.
+    if (!t) throw new Error(`no such design token: ${name}`);
+    return t.hex;
+};
 
 const SURFACES: Array<[string, string]> = [
     ["base", paletteHex("surface-base")],
@@ -257,56 +265,58 @@ export function FoundationsSections() {
                                 [
                                     "emerald-400/300 rings, pills, dots",
                                     "signal-self",
-                                    "#34d399",
+                                    "signal-self",
                                 ],
                                 [
                                     "rose-400/300 opponent pill, pod border",
                                     "signal-opponent",
-                                    "#fb7185",
+                                    "signal-opponent",
                                 ],
                                 [
                                     "amber-400/300 priority, timer, pending",
                                     "signal-pending",
-                                    "#fbbf24",
+                                    "signal-pending",
                                 ],
                                 [
                                     "violet-400/300 targetable hand ring",
                                     "signal-target",
-                                    "#a78bfa",
+                                    "signal-target",
                                 ],
                                 [
                                     "emerald-600 buff / red-700 debuff",
                                     "success / danger",
-                                    "#6fa05a",
+                                    "success",
                                 ],
                                 [
                                     "red-600 damage badge",
                                     "danger (fill)",
-                                    "#b1473a",
+                                    "danger",
                                 ],
                                 [
                                     "combat-colors.ts red/blue/green/yellow-500",
                                     "combat-1..4",
-                                    "#ef4444",
+                                    "combat-1",
                                 ],
                                 [
                                     "white rings (divide targets)",
                                     "parchment",
-                                    "#f3ead2",
+                                    "parchment",
                                 ],
-                            ].map(([from, to, hex]) => (
+                            ].map(([from, to, token]) => (
                                 <div
                                     key={from}
                                     className="flex items-center gap-2 rounded-sm border border-border-subtle/50 px-2 py-1.5"
                                 >
                                     <span
                                         className="h-3 w-3 shrink-0 rounded-full"
-                                        style={{ background: hex }}
+                                        style={{
+                                            background: paletteHex(token),
+                                        }}
                                     />
                                     <span className="text-text-muted">
                                         {from}
                                     </span>
-                                    <span className="text-border-accent">
+                                    <span className="text-text-disabled">
                                         →
                                     </span>
                                     <span className="font-mono text-[11px] text-accent-strong">
