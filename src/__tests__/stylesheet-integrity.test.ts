@@ -52,7 +52,9 @@ const css = readFileSync(resolve(process.cwd(), CSS_PATH), "utf8");
 function allRules(source: string): Rule[] {
     const root = postcss.parse(source, { from: CSS_PATH });
     const rules: Rule[] = [];
-    root.walkRules((rule) => rules.push(rule));
+    root.walkRules((rule) => {
+        rules.push(rule);
+    });
     return rules;
 }
 
