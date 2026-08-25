@@ -355,6 +355,53 @@ process.stdout.write(
     fi
 }
 
+# ── orphan-claim reap (#2627) ───────────────────────────────────────────────
+# A pass that dies holding claims leaves `in-progress` on issues nothing will
+# ever release, and every later pass skips them as somebody else's live work.
+# In a dependency tree that is not merely unlucky, it is systematically the
+# worst case: the loop schedules UNBLOCKED candidates first, the unblocked
+# nodes of a tree are its roots, and the roots are what everything else is
+# blocked by — so the passes that die orphan the highest-fan-out issues first,
+# every time. On 2026-08-19 two such claims froze nine children and the driver
+# stopped, because every remaining candidate was blocked by them.
+#
+# WHY HERE AND NOT IN THE PASS. The skill has asked its pass to run this
+# "every pass, unconditionally, before selection" (SKILL.md §1a) since it was
+# written — as PROSE, which an LLM pass follows or does not. CLAUDE.md states
+# the project rule: a rule that CAN be enforced mechanically belongs in a
+# script the gate runs. The driver is the only place with that property here:
+# it is the thing that decides a pass happens at all, so a sweep it runs is a
+# sweep that ran, whatever the pass then chooses to do.
+#
+# WHY BEFORE THE QUEUE COUNT, specifically. Releasing a claim puts the issue
+# back into `count_unclaimed`. Check 4 below stops the whole RUN with
+# `queue-empty` when that count is zero — which is exactly the state the
+# 2026-08-19 incident produced. Sweeping after it would let the driver quit on
+# a queue that the sweep was about to refill.
+#
+# NON-FATAL BY CONSTRUCTION. This is a janitor, not a guard: a failure to
+# invoke it (no bun, no script, a `gh` outage) must never take down an
+# unattended run that is otherwise fine. Anything it cannot classify it leaves
+# claimed — `classifyClaim` in loop-doctor.ts is the SOLE authority on that,
+# and this script deliberately contains no age rule, no branch scan and no
+# second opinion of its own.
+reap_orphan_claims() {
+    _doctor="$SCRIPT_DIR/loop-doctor.ts"
+    if [ ! -f "$_doctor" ]; then
+        echo "loop-drain: orphan-claim sweep skipped — $_doctor not found." >&2
+        return 0
+    fi
+    if _reap_out=$(bun "$_doctor" --release 2>&1); then
+        printf 'loop-drain: orphan-claim sweep —\n%s\n' "$_reap_out" >&2
+    else
+        # Never silent: a janitor that stops running without saying so is how
+        # the prose version of this rule failed in the first place.
+        echo "loop-drain: orphan-claim sweep FAILED (bun loop-doctor.ts --release) — continuing without it." >&2
+        printf '%s\n' "$_reap_out" >&2
+    fi
+    return 0
+}
+
 if [ "$START_DELAY" -gt 0 ]; then
     echo "loop-drain: waiting ${START_DELAY}s before the first pass (handoff grace period)." >&2
     interruptible_sleep "$START_DELAY" || {
@@ -409,6 +456,12 @@ while :; do
             break
         fi
     fi
+
+    # 3b. reap orphaned claims — BEFORE the queue is counted and before the
+    # pass builds its batch, so anything reclaimed here is selectable by the
+    # pass that is about to run. See `reap_orphan_claims` for why it lives in
+    # the driver rather than in the pass's own prompt.
+    reap_orphan_claims
 
     # 4. queue — nothing unclaimed left to do.
     queue_before=$(count_unclaimed 2>/dev/null) || queue_before=""

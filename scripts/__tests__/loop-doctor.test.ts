@@ -1,9 +1,17 @@
 import { describe, it, expect } from "vitest";
+import { spawnSync } from "node:child_process";
 import {
     classifyClaim,
     buildClaimFacts,
+    parseClaimOwners,
+    isOwnerAlive,
+    interpretPsResult,
+    defaultProcessProbe,
+    releaseRecord,
     type ClaimFacts,
     type ClaimedIssue,
+    type ClaimOwner,
+    type ProcessProbe,
 } from "../loop-doctor";
 
 /**
@@ -20,6 +28,7 @@ const base: ClaimFacts = {
     hasLocalBranch: false,
     hasOpenPr: false,
     ageHours: 48,
+    ownerAlive: null,
 };
 
 describe("loop-doctor — classifyClaim", () => {
@@ -195,5 +204,398 @@ describe("loop-doctor — buildClaimFacts", () => {
             now
         );
         expect(facts.ageHours).toBeCloseTo(30, 5);
+    });
+});
+
+/**
+ * Owner liveness (#2627) — the four acceptance cases of "reap orphaned claims
+ * by evidence, not after 24h".
+ *
+ * The whole point of the fact is that it can only ever HOLD a claim, never
+ * release one: the failure mode of this sweep is unclaiming a healthy
+ * concurrent pass, and a liveness reading we are unsure about must not be
+ * what authorises a release. Every case below is written from that direction.
+ */
+describe("loop-doctor — owner liveness (#2627)", () => {
+    it("AC1 — no branch, no PR and a provably dead owner is an orphan", () => {
+        const v = classifyClaim({ ...base, ownerAlive: false });
+        expect(v.state).toBe("orphan");
+        expect(v.reason).toMatch(/no branch, no PR/);
+    });
+
+    it("AC2 — a PUSHED branch is left alone whatever its age, dead owner or not", () => {
+        // The owner process of a pushed branch is routinely gone — the pass
+        // ended, the branch is waiting on review or the merge-train. Age and
+        // owner-death together must still not touch it.
+        expect(
+            classifyClaim({
+                ...base,
+                hasRemoteBranch: true,
+                ageHours: 500,
+                ownerAlive: false,
+            }).state
+        ).toBe("live");
+        expect(
+            classifyClaim({ ...base, hasOpenPr: true, ownerAlive: false }).state
+        ).toBe("live");
+    });
+
+    it("AC3 — a claim younger than the classifier's threshold survives a dead owner reading", () => {
+        // This is the case a naive "no process → release it" sweep gets
+        // wrong. A pass claims its batch and only THEN spawns the subagents
+        // that push branches; the owner probe can also simply fail to resolve
+        // a pid. Neither may shortcut the age rule the classifier already
+        // owns — otherwise the sweep releases a batch that is mid-claim.
+        const v = classifyClaim({ ...base, ageHours: 0.5, ownerAlive: false });
+        expect(v.state).toBe("suspect");
+        expect(v.reason).toMatch(/healthy pass/);
+    });
+
+    it("AC4 — a live owning process holds the claim, at any age and with no branch", () => {
+        const v = classifyClaim({ ...base, ageHours: 500, ownerAlive: true });
+        expect(v.state).toBe("live");
+        expect(v.reason).toMatch(/owning process still alive/);
+    });
+
+    it("AC4 — a live owner also outranks the local-only-branch orphan rule", () => {
+        // A pass 30h into an implementation without pushing is the shape the
+        // 24h rule was written to reap; if its process is demonstrably still
+        // running, it is not that shape at all.
+        expect(
+            classifyClaim({
+                ...base,
+                hasLocalBranch: true,
+                ageHours: 30,
+                ownerAlive: true,
+            }).state
+        ).toBe("live");
+    });
+
+    it("AC6 — an UNKNOWN owner changes no verdict the classifier would have reached without it", () => {
+        // `null` is what every pre-#2627 ledger row and every failed probe
+        // yields. Reading it as "dead" would quietly widen what the sweep
+        // releases; reading it as "alive" would freeze the queue. It must do
+        // neither: same verdict, same reason, as the ownerAlive-less facts.
+        for (const facts of [
+            base,
+            { ...base, ageHours: 0.5 },
+            { ...base, hasLocalBranch: true, ageHours: 30 },
+            { ...base, hasLocalBranch: true, ageHours: 6 },
+        ]) {
+            expect(classifyClaim({ ...facts, ownerAlive: null })).toEqual(
+                classifyClaim({ ...facts, ownerAlive: false })
+            );
+        }
+    });
+
+    it("adds no second age threshold — liveness is a veto, never a clock", () => {
+        // AC: "The existing claim classifier is the sole authority; no second
+        // age threshold is added." Sweeping the two thresholds across the
+        // whole age range with a DEAD owner must reproduce the pre-#2627
+        // verdict boundaries exactly: 2h with no branch, 24h with a local one.
+        for (const ageHours of [0, 1.99, 2, 5, 23.9, 24, 100]) {
+            expect(
+                classifyClaim({ ...base, ageHours, ownerAlive: false }).state
+            ).toBe(ageHours < 2 ? "suspect" : "orphan");
+            expect(
+                classifyClaim({
+                    ...base,
+                    hasLocalBranch: true,
+                    ageHours,
+                    ownerAlive: false,
+                }).state
+            ).toBe(ageHours < 24 ? "live" : "orphan");
+        }
+    });
+});
+
+/**
+ * The JOIN. `claims.jsonl` keys rows by Claude Code session UUID, and a
+ * session UUID is not a process handle — it is in no argv, and Claude Code
+ * holds no open descriptor on its own transcript (measured 2026-08-25), so it
+ * cannot be resolved to a pid after the fact. The pid is therefore RECORDED at
+ * claim time by `claim-ledger.sh`, and this is the reader.
+ */
+describe("loop-doctor — parseClaimOwners", () => {
+    const row = (o: Record<string, unknown>) => JSON.stringify(o);
+
+    it("reads the owner recorded on a claim row", () => {
+        const owners = parseClaimOwners(
+            row({
+                ts: 1,
+                session: "sess-A",
+                issue: 2627,
+                event: "claim",
+                owner: { pid: 4242, startedAt: "Mon Aug 24 09:00:00 2026" },
+            })
+        );
+        expect(owners.get(2627)).toEqual({
+            session: "sess-A",
+            pid: 4242,
+            startedAt: "Mon Aug 24 09:00:00 2026",
+        });
+    });
+
+    it("yields no owner for a row written before the owner field existed", () => {
+        // Every historical row. Absent owner must read as UNKNOWN, which the
+        // classifier ignores — not as a dead owner, which it would act on.
+        const owners = parseClaimOwners(
+            row({ ts: 1, session: "s", issue: 2627, event: "claim" }) +
+                "\n" +
+                row({
+                    ts: 2,
+                    session: "s",
+                    issue: 2628,
+                    event: "claim",
+                    owner: null,
+                })
+        );
+        expect(owners.has(2627)).toBe(false);
+        expect(owners.has(2628)).toBe(false);
+        expect(isOwnerAlive(owners.get(2627))).toBeNull();
+    });
+
+    it("a release clears the owner, and the LAST row for an issue wins", () => {
+        const owners = parseClaimOwners(
+            [
+                row({
+                    ts: 1,
+                    session: "s",
+                    issue: 7,
+                    event: "claim",
+                    owner: { pid: 1, startedAt: "t1" },
+                }),
+                row({ ts: 2, session: "s", issue: 7, event: "released" }),
+                row({
+                    ts: 3,
+                    session: "s2",
+                    issue: 7,
+                    event: "claim",
+                    owner: { pid: 2, startedAt: "t2" },
+                }),
+            ].join("\n")
+        );
+        expect(owners.get(7)?.pid).toBe(2);
+        expect(
+            parseClaimOwners(
+                [
+                    row({
+                        ts: 1,
+                        session: "s",
+                        issue: 7,
+                        event: "claim",
+                        owner: { pid: 1, startedAt: "t1" },
+                    }),
+                    row({ ts: 2, session: "s", issue: 7, event: "released" }),
+                ].join("\n")
+            ).has(7)
+        ).toBe(false);
+    });
+
+    it("skips a torn or malformed line instead of throwing", () => {
+        // The journal is appended to by a shell hook under `2>/dev/null`; a
+        // half-written last line is a normal thing to find, and refusing to
+        // sweep because of one is worse than ignoring it.
+        const owners = parseClaimOwners(
+            [
+                "{not json",
+                row({ ts: 1, session: "s", issue: 9, event: "claim" }),
+                row({
+                    ts: 2,
+                    session: "s",
+                    issue: 8,
+                    event: "claim",
+                    owner: { pid: 3, startedAt: "t" },
+                }),
+                '{"ts":3,"session":"s","issue":',
+            ].join("\n")
+        );
+        expect(owners.get(8)?.pid).toBe(3);
+    });
+
+    it("rejects an owner whose pid or start time is unusable", () => {
+        const owners = parseClaimOwners(
+            [
+                row({
+                    ts: 1,
+                    session: "s",
+                    issue: 1,
+                    event: "claim",
+                    owner: { pid: 0, startedAt: "t" },
+                }),
+                row({
+                    ts: 1,
+                    session: "s",
+                    issue: 2,
+                    event: "claim",
+                    owner: { pid: 5, startedAt: "" },
+                }),
+                row({
+                    ts: 1,
+                    session: "s",
+                    issue: 3,
+                    event: "claim",
+                    owner: { pid: "5", startedAt: "t" },
+                }),
+            ].join("\n")
+        );
+        expect([...owners.keys()]).toEqual([]);
+    });
+});
+
+describe("loop-doctor — isOwnerAlive", () => {
+    const owner: ClaimOwner = {
+        session: "s",
+        pid: 4242,
+        startedAt: "Mon Aug 24 09:00:00 2026",
+    };
+    const probe =
+        (result: string | null): ProcessProbe =>
+        () =>
+            result;
+
+    it("alive when the pid resolves to a process that started when we recorded", () => {
+        expect(isOwnerAlive(owner, probe("Mon Aug 24 09:00:00 2026"))).toBe(
+            true
+        );
+    });
+
+    it("dead when there is no such process", () => {
+        expect(isOwnerAlive(owner, probe(""))).toBe(false);
+    });
+
+    it("dead when the pid was RECYCLED — same number, different process", () => {
+        // Without the start-time column a dead pass reads as alive again the
+        // moment the OS hands its number to something else, which is the one
+        // way this fact could actively make the bug worse.
+        expect(isOwnerAlive(owner, probe("Tue Aug 25 11:11:11 2026"))).toBe(
+            false
+        );
+    });
+
+    it("UNKNOWN, never dead, when the probe itself could not answer", () => {
+        expect(isOwnerAlive(owner, probe(null))).toBeNull();
+        expect(isOwnerAlive(undefined, probe(""))).toBeNull();
+    });
+
+    it("tolerates whitespace differences in the recorded start time", () => {
+        expect(isOwnerAlive(owner, probe("  Mon Aug 24 09:00:00 2026  "))).toBe(
+            true
+        );
+    });
+});
+
+describe("loop-doctor — release record (#2627 AC5)", () => {
+    it("records what was reclaimed, why, and which session had held it", () => {
+        const verdict = classifyClaim({ ...base, ownerAlive: false });
+        const line = JSON.parse(
+            releaseRecord(
+                2627,
+                verdict,
+                {
+                    session: "sess-dead",
+                    pid: 7,
+                    startedAt: "t",
+                },
+                1_787_590_847_000
+            )
+        );
+        expect(line).toEqual({
+            ts: 1_787_590_847,
+            // Stamped with the OWNING session, not the tool's name, so the
+            // dead session's own SessionEnd sweep folds this claim out too.
+            session: "sess-dead",
+            issue: 2627,
+            event: "released",
+            by: "loop:doctor",
+            verdict: "orphan",
+            reason: verdict.reason,
+        });
+    });
+
+    it("falls back to naming itself when the claim had no recorded owner", () => {
+        const line = JSON.parse(
+            releaseRecord(1, classifyClaim(base), undefined, 0)
+        );
+        expect(line.session).toBe("loop:doctor");
+        expect(line.by).toBe("loop:doctor");
+    });
+});
+
+describe("loop-doctor — buildClaimFacts threads owner liveness", () => {
+    const issue: ClaimedIssue = {
+        number: 2627,
+        title: "reap",
+        updatedAt: "2026-08-17T00:00:00Z",
+    };
+    const facts = (ownerAlive?: boolean | null): ClaimFacts =>
+        buildClaimFacts(
+            issue,
+            new Set(),
+            { local: [], remote: [] },
+            new Date("2026-08-18T00:00:00Z").getTime(),
+            ownerAlive
+        );
+
+    it("carries the caller's liveness reading onto the facts", () => {
+        expect(facts(true).ownerAlive).toBe(true);
+        expect(facts(false).ownerAlive).toBe(false);
+    });
+
+    it("defaults to UNKNOWN so every pre-existing caller keeps its verdicts", () => {
+        // `lib/loop-status.ts` (the verdict engine, #2624) calls this with
+        // four arguments and must be unaffected: the process check is I/O and
+        // belongs at the fact-gathering boundary, not inside a pure
+        // classifier that the dashboard also renders from.
+        expect(facts().ownerAlive).toBeNull();
+        expect(classifyClaim(facts())).toEqual(classifyClaim(facts(null)));
+    });
+});
+
+/**
+ * The real probe. `isOwnerAlive`'s branches are exercised through an injected
+ * probe above — which leaves the injectee itself, the only piece that touches
+ * a process, unasserted. The dangerous confusion lives exactly here: "no such
+ * process" authorises a release, "the probe failed" must not, and both are
+ * non-zero exits of the same command.
+ */
+describe("loop-doctor — defaultProcessProbe / interpretPsResult", () => {
+    it("maps ps's four outcomes, keeping 'probe failed' distinct from 'process gone'", () => {
+        expect(
+            interpretPsResult({
+                status: 0,
+                stdout: " Mon Aug 24 09:00:00 2026 ",
+            })
+        ).toBe("Mon Aug 24 09:00:00 2026");
+        // exit 1 = `ps -p` matched nothing = the process really is gone.
+        expect(interpretPsResult({ status: 1, stdout: "" })).toBe("");
+        // Anything else is the probe failing. Reading it as "gone" would let a
+        // broken `ps` release every claim on the board.
+        expect(interpretPsResult({ status: 2, stdout: "" })).toBeNull();
+        expect(interpretPsResult({ status: null, stdout: "" })).toBeNull();
+        expect(
+            interpretPsResult({ error: new Error("ENOENT"), status: null })
+        ).toBeNull();
+        // Success with nothing to say is not evidence either.
+        expect(interpretPsResult({ status: 0, stdout: "   " })).toBeNull();
+    });
+
+    it("reads a LIVE process's start time, matching what ps itself reports", () => {
+        const mine = defaultProcessProbe(process.pid);
+        expect(mine).not.toBeNull();
+        expect(mine).not.toBe("");
+        expect(mine).toBe(
+            spawnSync("ps", ["-o", "lstart=", "-p", String(process.pid)], {
+                encoding: "utf8",
+            }).stdout.trim()
+        );
+    });
+
+    it("reads a REAPED pid as gone, not as unknown", () => {
+        // A pid that certainly existed and certainly does not now: spawnSync
+        // returns only after the child is reaped.
+        const dead = spawnSync("sh", ["-c", "exit 0"]);
+        expect(dead.pid).toBeGreaterThan(0);
+        expect(defaultProcessProbe(dead.pid!)).toBe("");
     });
 });
