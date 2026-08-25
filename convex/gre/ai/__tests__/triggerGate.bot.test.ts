@@ -220,21 +220,30 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
         });
     });
 
-    describe("Dash (CR 702.109a) — deliberately left UNDECIDED (tracked-by: #1964)", () => {
+    describe("Dash (CR 702.109a) — self-bounce priced as a cost (issue #1964)", () => {
         // Dash's `self.dashed` predicate is decidable in exactly the same way
-        // Evoke's `self.evoked` is, but its trigger BODY is currently
+        // Evoke's `self.evoked` is. Before #1964 the trigger's BODY was
         // wrong-signed in the value model: `delayedTrigger{ moveZone $source →
-        // hand }` scores as a generic bounce (+55 "tempo") when returning your
-        // OWN creature is a cost, plus `grantAbility(haste)` +40. Deciding the
-        // gate would therefore pay the bot +95 to dash. Left as a plain
-        // `condition` until #1964 models the self-bounce as a cost — the
-        // constant is wrong in absolute terms but cannot bias the cast-mode
-        // choice, which is what issue #1936 is about.
-        it("keeps the dash gate UNDECIDABLE rather than deciding it", () => {
-            expect(dashTrigger("Test").gate).toEqual({ undecidable: true });
+        // hand }` scored as a generic bounce (+55 "tempo") when returning your
+        // OWN creature is a cost, so deciding the gate would have paid the bot
+        // +95 to dash (`grantAbility(haste)` +40, the bounce +55) — measured
+        // as `dslRealizedAbilityValueById(Ragavan, Nimble Pilferer)` = 165
+        // dashed vs 70 hard-cast. Left the gate UNDECIDABLE (a plain
+        // `condition`) until the self-bounce was modelled as a cost.
+        //
+        // #1964 fixed the sign (`HAND_RETURN_SELF_COST` in `opValuers.ts`,
+        // threaded through the `delayedTrigger`'s own `capture` so the nested
+        // `{ ref: "$self" }` is recognized as aliasing `$source`) and flipped
+        // `dashTrigger` back to the decidable `conditionOnSelf` — this block
+        // now asserts the CORRECTED behaviour (rewritten, not deleted, per
+        // the #1964 PR: the old assertion of the +95 bonus encoded the bug).
+        it("declares a DECIDABLE { onSelf } gate on the dash trigger", () => {
+            const onSelf = onSelfOf(dashTrigger("Test"));
+            expect(onSelf(selfView({ dashed: true }))).toBe(true);
+            expect(onSelf(selfView())).toBe(false);
         });
 
-        it("scores a dashed permanent exactly as a hard-cast one (no cast-mode bias)", () => {
+        it("no longer pays a board-eval bonus to dash — dashed scores at or below hard-cast", () => {
             const dashed = dslRealizedAbilityValueById(
                 RAGAVAN_ID,
                 selfView({ dashed: true })
@@ -243,7 +252,38 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
                 RAGAVAN_ID,
                 selfView()
             );
-            expect(dashed).toBe(hardCast);
+            // Haste (+40) minus the now-correctly-signed self-bounce cost
+            // (-55, `HAND_RETURN_SELF_COST`) nets NEGATIVE — dashing is
+            // strictly below hard-cast on this static axis, not merely tied.
+            // The real trade (an extra hasty attack step now vs. keeping the
+            // body/tempo) is what `selectRootMove`/`evaluate.ts` weighs at
+            // search time against the actual board (the blade entry below).
+            expect(dashed).toBeLessThan(hardCast);
+        });
+
+        it("holds for every card built on the shared dash template", () => {
+            const cards = getAllCards().filter((def) =>
+                (def.triggeredAbilities ?? []).some(
+                    (t) => t.id === "dash-haste-and-return"
+                )
+            );
+            expect(cards.length).toBeGreaterThanOrEqual(2);
+            for (const def of cards) {
+                const dashed = dslRealizedAbilityScriptValue(
+                    def,
+                    undefined,
+                    selfView({ dashed: true })
+                );
+                const hardCast = dslRealizedAbilityScriptValue(
+                    def,
+                    undefined,
+                    selfView()
+                );
+                expect(
+                    dashed,
+                    `${def.name}: dashing must not score above hard-casting`
+                ).toBeLessThanOrEqual(hardCast);
+            }
         });
     });
 

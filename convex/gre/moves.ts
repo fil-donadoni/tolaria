@@ -1616,6 +1616,53 @@ function enumerateCastMoves(
             });
         }
     }
+
+    // CR 702.109a (issue #1964) — the DASH cast mode: "you may cast this
+    // creature by paying [cost] rather than paying its mana cost. If you do,
+    // it gains haste and it's returned to its owner's hand at the beginning
+    // of the next end step." A FOURTH variant axis, but the simplest one:
+    // unlike Bestow/Morph, Dash changes NOTHING about the object cast — same
+    // creature, same (usually absent) targets — only what the caster PAYS. It
+    // was entirely unreachable to the Bot before this: the printed-cost loop
+    // above reads only `getInstanceManaCost` (the PRINTED cost), so a card
+    // whose printed cost the Bot can't afford — the exact situation Dash
+    // exists for — enumerated ZERO cast moves, and the value-model fix
+    // (`opValuers.ts`/`cardScriptValue.ts`, same issue) has nothing to bite on
+    // without a dash-cast Move for the search to actually choose. No shipped
+    // dash card carries a spell-level `targetRequirement`/`modes` (CR 702.109
+    // dash creatures are never modal, and a creature's own ETB target, if any,
+    // belongs to its TRIGGERED ability — announced when THAT ability goes on
+    // the stack, CR 603.3d, never to the cast itself) — skip enumerating
+    // (fail CLOSED) rather than silently drop a target group a future
+    // dash-with-targets card might carry. Also skipped under the
+    // `lifeInsteadOfMana` replacement (CR 118.9 stacking with another cost
+    // replacement is an edge case no shipped card combination reaches).
+    if (
+        def?.dash &&
+        lifeInsteadOfMana === undefined &&
+        !def.targetRequirement &&
+        !(def.modes && def.modes.length > 0)
+    ) {
+        const dashCost = normalizeManaCost(def.dash.mana ?? {}, {
+            chosenX: 0,
+        });
+        foldFlashSurchargeCost(dashCost, flashSurcharge, flashSurchargeOwed);
+        // CR 601.2f — the same battlefield cost modifiers every other cast
+        // branch folds.
+        const dashModifiers = getCostModifiers(state, card, "spell");
+        applyCostModifiers(dashCost, dashModifiers);
+        const dashTapPlan = planManaPayment(state, player, dashCost);
+        if (dashTapPlan !== null) {
+            moves.push({
+                kind: "cast-spell",
+                cardInstanceId: card.id,
+                alternativeCostId: def.dash.id,
+                targets: [],
+                confirmTargets: false,
+                tapPlan: dashTapPlan,
+            });
+        }
+    }
     return moves;
 }
 

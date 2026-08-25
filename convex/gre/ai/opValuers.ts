@@ -31,6 +31,8 @@ import type {
     EffectOp,
     EffectMoveZone,
     EffectPlayerRef,
+    EffectRef,
+    EffectCaptureSource,
     PlayerCounterKind,
 } from "../../cards/types";
 import { creatureValueRaw } from "../creatureBody";
@@ -50,6 +52,15 @@ const EXILE_VALUE = 175; // exile — no regen / graveyard recursion, worth a ha
 const COUNTER_VALUE = 130; // counter a representative spell/threat
 const REANIMATE_VALUE = 140; // graveyard → battlefield a representative creature
 const HAND_RETURN_VALUE = 55; // bounce (tempo removal) / regrowth (card advantage)
+// Issue #1964 — the EXACT mirror of `HAND_RETURN_VALUE`, the same convention
+// `SKIP_DRAW_STEP_SELF_VALUE`/`_DISRUPTION_VALUE` already use for one clause
+// read from two directions: a `moveZone → hand` naming the ability's own
+// BATTLEFIELD source is the identical primitive as a bounce/regrowth, but
+// losing YOUR OWN board presence (and needing to recast) is a cost, not a
+// gain. Reused, not invented — see `isSourceBattlefieldRefSelector` below for
+// the narrow shape this fires on (never an announced target, never a
+// graveyard-zoned ability's self-regrowth).
+const HAND_RETURN_SELF_COST = -HAND_RETURN_VALUE;
 const TUCK_VALUE = 45; // to library / exile / graveyard from graveyard
 const PUMP_PER_STAT = 9; // per +1 power or +1 toughness
 const TOKEN_DISCOUNT = 0.85; // a token still has to survive — latent discount
@@ -139,6 +150,59 @@ function tagScaling(scaling: boolean, ...tags: ValueTag[]): ValueTag[] {
  *  (a `{ ref }` / `{ player }` selector does not). */
 function isAnnouncedTarget(sel: object): boolean {
     return "target" in sel;
+}
+
+/** issue #1964 — true for a BARE ref selector (`{ ref: string }`) that
+ *  resolves, via `ctx.isSourceBattlefieldRef` (extended per-call by
+ *  `withCapturedSourceAliases` below), to the ability's own BATTLEFIELD
+ *  source. Deliberately narrower than "not an announced target": an
+ *  announced `{ target: n }` slot (`isAnnouncedTarget`) lacks a `ref` key and
+ *  is excluded structurally, as are the positional-graveyard
+ *  (`EffectZonePositionSelector`) and exiled-with-source selector shapes
+ *  (neither carries `ref` either) — a `forEach`-bound `$each` or a
+ *  `choice`-bound picks ref also fails `isSourceBattlefieldRef` (they name
+ *  something OTHER than the resolving source). */
+function isSourceBattlefieldRefSelector(
+    sel: object,
+    ctx: GroundingContext
+): boolean {
+    return "ref" in sel && ctx.isSourceBattlefieldRef(sel as EffectRef);
+}
+
+/** issue #1964 — extends `ctx.isSourceBattlefieldRef` so bound names a
+ *  `delayedTrigger`/`reflexiveTrigger`'s own `capture` map aliases FROM an
+ *  already-recognized battlefield-source ref also test true in the nested
+ *  body. Dash's delayed return captures `$self: { ref: "$source" }`
+ *  (`convex/cards/abilities/dash.ts`) and its nested body only ever names
+ *  `{ ref: "$self" }` — a valuer that recognizes only the literal string
+ *  `"$source"` never fires for that shape, which is exactly why the bug
+ *  survived: the recursion (`delayedTrigger`'s own valuer, below) walks the
+ *  nested script under the SAME ctx unless a caller augments it here.
+ *  Pure passthrough (returns `ctx` itself) when no capture source aliases the
+ *  battlefield source — an announced `{ target: n }` capture, a list-select,
+ *  or a literal string all keep the outer ctx's answer unchanged. */
+function withCapturedSourceAliases(
+    ctx: GroundingContext,
+    capture: Record<string, EffectCaptureSource> | undefined
+): GroundingContext {
+    if (!capture) return ctx;
+    const aliasNames = new Set<string>();
+    for (const [name, source] of Object.entries(capture)) {
+        if (
+            typeof source === "object" &&
+            source !== null &&
+            "ref" in source &&
+            ctx.isSourceBattlefieldRef(source)
+        ) {
+            aliasNames.add(name);
+        }
+    }
+    if (aliasNames.size === 0) return ctx;
+    return {
+        ...ctx,
+        isSourceBattlefieldRef: (ref) =>
+            aliasNames.has(ref.ref) || ctx.isSourceBattlefieldRef(ref),
+    };
 }
 
 /** True for the `{ ref: "$each" }` forEach iteration variable used as a
@@ -349,12 +413,35 @@ function moveZonePoints(to: EffectMoveZone): { points: number; tag: Feature } {
     }
 }
 
-const moveZone: Valuer<"moveZone"> = (op) => {
+const moveZone: Valuer<"moveZone"> = (op, ctx) => {
     // The player/from/to shape (a self-directed library/hand shuffle-in, e.g.
     // "put your hand on the bottom of your library") carries no `to` zone worth
     // scoring as removal/advantage — treat as neutral library manipulation.
     if (!("to" in op) || !("target" in op)) {
         return { points: 0, tags: ["tempo"] };
+    }
+    // Issue #1964 — returning the ability's own BATTLEFIELD source to hand is
+    // a COST (a self-bounce: board presence lost, the permanent must be
+    // recast from scratch, losing summoning sickness' clock too), not the
+    // generic bounce/regrowth benefit `moveZonePoints` prices for every other
+    // `to: "hand"` shape. Dash (CR 702.109a) is the card that surfaced it:
+    // `delayedTrigger{ capture: { $self: {ref:"$source"} }, effects: [
+    // moveZone $self -> hand] }` used to score as a flat +55 "generic bounce"
+    // — wrong-signed for the caster's OWN creature, and worth +95 combined
+    // with the haste grant, an active incentive to dash a creature that
+    // should stay on the battlefield. `isSourceBattlefieldRefSelector` is the
+    // narrow discriminator: it does NOT fire for an announced `{ target: n }`
+    // slot (stays priced as removal/tempo even when the chooser happens to
+    // name their own permanent, mirroring `sacrifice`'s own `target` branch),
+    // nor for a graveyard-zoned ability's `$source` (Master of Death, CR
+    // 603.6e `zone: "graveyard"` — `withGraveyardSource` in
+    // `cardScriptValue.ts` forces `isSourceBattlefieldRef` false there, so
+    // "return it to your hand" keeps scoring as the card advantage it is).
+    if (op.to === "hand" && isSourceBattlefieldRefSelector(op.target, ctx)) {
+        return {
+            points: HAND_RETURN_SELF_COST,
+            tags: ["tempo", "self-cost"],
+        };
     }
     // CR 404.3 (issue #1967) — the positional graveyard shape ("the top
     // creature card of your graveyard" — Shallow Grave, Corpse Dance) needs
@@ -533,15 +620,24 @@ const choiceOp: Valuer<"choice"> = () => {
 // `delayedTrigger`/`divideIntoPiles` recurse into a nested Effect Script, so
 // their valuers are declared where `valueEffectScript` is hoisted (function
 // declarations hoist module-wide, so the forward reference below is safe).
+//
+// Issue #1964 — `withCapturedSourceAliases` extends `ctx` with any `capture`
+// binding that aliases the ability's own battlefield source BEFORE recursing,
+// so a nested self-bounce (Dash's `moveZone { ref: "$self" } -> hand`, where
+// `$self` was captured as `{ ref: "$source" }`) is priced as the self-cost it
+// is rather than the generic bounce benefit — the recursion is exactly where
+// that context has to survive or the fix reaches nothing inside the body.
 const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx) =>
-    valueEffectScript(op.effects, ctx);
+    valueEffectScript(op.effects, withCapturedSourceAliases(ctx, op.capture));
 
 // CR 603.3c — a reflexive trigger's whole value IS its body: the Op itself
 // only queues a stack object. Same recursion as `delayedTrigger`, and — unlike
 // it — with no discount for the wait, since a reflexive ability resolves in
-// the same priority round rather than at a future phase boundary.
+// the same priority round rather than at a future phase boundary. Same
+// `capture`-alias threading as `delayedTrigger` (issue #1964) — a reflexive
+// self-bounce would hit the identical mis-scoring otherwise.
 const reflexiveTrigger: Valuer<"reflexiveTrigger"> = (op, ctx) =>
-    valueEffectScript(op.effects, ctx);
+    valueEffectScript(op.effects, withCapturedSourceAliases(ctx, op.capture));
 
 const digMatchingToHand: Valuer<"digMatchingToHand"> = () => ({
     points: CARD_SELECTION_VALUE,

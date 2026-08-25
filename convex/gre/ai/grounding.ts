@@ -24,6 +24,7 @@ import type {
     EffectSignedValue,
     EffectPlayerRef,
     EffectForEachSelector,
+    EffectRef,
 } from "../../cards/types";
 
 /** Representative magnitudes used in CONTEXT-FREE grounding (PRD #1423). Not
@@ -57,6 +58,25 @@ export interface GroundingContext {
     /** How many members a `forEach` selects (real count context-aware; the
      *  representative 1 context-free), and whether it board-scales. */
     forEachCount(select: EffectForEachSelector): GroundedAmount;
+    /** True when `ref` denotes an OBJECT ref that is BOTH (a) the ability's
+     *  own resolving SOURCE — the literal `{ ref: "$source" }`, or (extended
+     *  per-call by `withCapturedSourceAliases` in `opValuers.ts`) a name a
+     *  `delayedTrigger`/`reflexiveTrigger`'s own `capture` map aliases to it
+     *  — and (b) CURRENTLY ON THE BATTLEFIELD. (b) is the default for every
+     *  activated ability and the common triggered-ability case; `false` only
+     *  when `withGraveyardSource` below has forced it, for a `zone:
+     *  "graveyard"` triggered ability whose `$source` is a GRAVEYARD card
+     *  instead (CR 603.6e — Master of Death's "return it to your hand" is
+     *  card advantage, never a cost, the opposite of Dash's battlefield-zoned
+     *  delayed return).
+     *
+     *  Distinct from `isSelf` above: `isSelf` answers a PLAYER-ref question
+     *  (an announced `target`/`controllerOf` PLAYER slot); this answers an
+     *  OBJECT-ref question (does the ref pick out the resolving permanent
+     *  itself) — the two ref families are never interchangeable, and a
+     *  permanent ref has no player-ref shape `isSelf` could read (issue
+     *  #1964 — the `moveZone`/self-bounce-as-cost fix). */
+    isSourceBattlefieldRef(ref: EffectRef): boolean;
 }
 
 function isNegated(v: EffectSignedValue): v is { negate: EffectValue } {
@@ -140,6 +160,9 @@ export function contextFreeGrounding(): GroundingContext {
         forEachCount() {
             return { amount: CF_ASSUMED_COUNT, scaling: true };
         },
+        isSourceBattlefieldRef(ref) {
+            return ref.ref === "$source";
+        },
     };
 }
 
@@ -182,5 +205,29 @@ export function contextAwareGrounding(
                 scaling: false,
             };
         },
+        // Issue #1964 — no context-aware caller threads an enclosing
+        // ability's `zone` today (`contextAwareGroundingForChoice` values a
+        // CHOICE fragment, not a whole ability), so this stays the same
+        // literal-match default `contextFreeGrounding` uses rather than a
+        // resolver nobody can supply yet. A future context-aware caller that
+        // DOES need the graveyard-zoned exception can extend this the same
+        // way `withGraveyardSource` does for the context-free path.
+        isSourceBattlefieldRef(ref) {
+            return ref.ref === "$source";
+        },
     };
+}
+
+/** Derives a ctx whose `isSourceBattlefieldRef` always answers `false` — for
+ *  an ability whose OWN `zone` is `"graveyard"` (CR 603.6e): its `$source`
+ *  denotes a GRAVEYARD card, not a battlefield permanent, so a `moveZone →
+ *  hand` naming it is card advantage (regrowth — Master of Death, CR 603.6e
+ *  `zone: "graveyard"`, "return it to your hand"), never the self-bounce COST
+ *  `isSourceBattlefieldRef` exists to flag (issue #1964 — the OPPOSITE case
+ *  from Dash's battlefield-zoned delayed return). `dslAbilityScriptOpValue`
+ *  (`cardScriptValue.ts`) applies this per-ability, before walking that
+ *  ability's own script — never globally, since a card's OTHER abilities may
+ *  be ordinary battlefield ones. */
+export function withGraveyardSource(ctx: GroundingContext): GroundingContext {
+    return { ...ctx, isSourceBattlefieldRef: () => false };
 }

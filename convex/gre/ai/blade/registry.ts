@@ -2367,6 +2367,145 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Half 2 of the discriminating pair — PAIRED WITH \"loyalty: activates Liliana's −2 to eat the opponent's only creature\". Neither half is meaningful alone. Measured: the bot takes the +1 on all three seeds and never the illegal −2.",
     },
+    {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #1964).
+        // PAIRED WITH: "discriminating pair: hard-casts Ragavan on an empty
+        // board with nothing to race". NEITHER ENTRY PROVES ANYTHING ALONE —
+        // this half alone would also pass for a bot that dashes on a whim;
+        // its partner proves the bot does NOT dash when there is nothing to
+        // gain from it. Only the pair shows the bot reads the CONSEQUENCE
+        // (unlike the Dreadnought pair above, both halves here use a
+        // `predicate` rather than `moves`/`forbidden`, because `MoveMatcher`
+        // has no field for `alternativeCostId` — the ONLY thing that tells a
+        // dash cast apart from a plain one of the SAME card).
+        //
+        // Ragavan, Nimble Pilferer (printed {R}, dash {1}{R}) with two
+        // Mountains: BOTH cast modes are affordable (this is what makes the
+        // decision real — a position where only one mode is castable proves
+        // reachability, not preference, the way the morph entries above do).
+        // Three Craw Wurms (18 power) + a Llanowar Elves (1 power) are
+        // already on the board, already able to attack (19 power, one short
+        // of the opponent's 20 life): hard-casting Ragavan leaves it
+        // summoning-sick (no attack this turn, CR 302.6), so the best the
+        // Bot can do is 19 — one point short. DASHING grants haste (CR
+        // 702.109a), so Ragavan's 2 power joins the attack and crosses
+        // lethal (21 into 20) — this turn, not a future one, so it needs no
+        // multi-turn lookahead and no life-total tuning (`ScenarioSpec` has
+        // none yet, issue #2147) to construct.
+        //
+        // Before issue #1964 this position was not even REACHABLE — the same
+        // issue's `moves.ts` fix is what put a dash-cast Move on the table at
+        // all (`enumerateCastMoves` used to read only the PRINTED cost).
+        // Measured honestly rather than assumed: reverting ONLY the sign fix
+        // (`opValuers.ts`'s `HAND_RETURN_SELF_COST` branch) does NOT flip
+        // this entry's chosen move — a LETHAL swing lands in the search's
+        // win/loss band (CLAUDE.md's "banded so a win dominates material"),
+        // which dominates the leaf score regardless of the ability-script
+        // term's sign. This entry's job is proving the Bot reaches and
+        // recognizes the lethal dash line at all; the SIGN regression itself
+        // is pinned by the unit tests (`opValuers.bot.test.ts`,
+        // `cardScriptValue.bot.test.ts`, `triggerGate.bot.test.ts`), which DO
+        // measurably fail when the sign is reverted (proof-of-failure in the
+        // PR) — this entry (and its partner below, also checked the same
+        // way) complements that unit coverage by proving the CHOSEN MOVE is
+        // right, not by re-proving the sign.
+        label: "discriminating pair: dashes Ragavan for the lethal attack",
+        spec: {
+            cards: [
+                {
+                    name: "Ragavan, Nimble Pilferer",
+                    owner: "me",
+                    zone: "hand",
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "me", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "me", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "me", zone: "battlefield" },
+                { name: "Llanowar Elves", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // Measured at authoring time (ADR 0070 §2), all 3 seeds: PLAIN at
+        // 2000 (the search has not yet found the "attack with everything,
+        // dashed Ragavan included" line); DASH at 3000, 4000, 5000 and 6000
+        // (a stable plateau); PLAIN again at 8000 — but 8000 iterations is
+        // already far beyond any budget the production bot ever runs
+        // (`difficulty.ts`'s own ceiling, `hard`, is 1200; the Phyrexian
+        // Dreadnought/Raging Kavu entries above already set the precedent
+        // that a `must` budget may exceed every production preset when the
+        // line genuinely needs more search than "hard" gets). 4000 sits
+        // comfortably inside the measured stable band with margin on both
+        // sides, which is why it — not the lower edge, 3000 — is what this
+        // entry pins.
+        budget: { iterations: 4000 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.alternativeCostId === "dash",
+            describe:
+                "casts Ragavan, Nimble Pilferer via its dash cost (not the plain cast)",
+        },
+        note: "Half 1 of the discriminating pair — PAIRED WITH \"discriminating pair: hard-casts Ragavan on an empty board with nothing to race\". Neither half is meaningful alone. 19 power already in play + Ragavan hasty = 21, crossing the opponent's 20 life; hard-casting caps this turn's attack at 19 (summoning sickness, CR 302.6) — one short.",
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #1964).
+        // PAIRED WITH: "discriminating pair: dashes Ragavan for the lethal
+        // attack". Same card, same affordable-both-ways mana, opposite
+        // board: nothing else in play on either side, nothing to race. A
+        // hard-cast Ragavan is a permanent 2/1 that keeps attacking every
+        // future turn it survives; a dashed one gets exactly ONE hit (this
+        // turn, summoning-sick-free via haste) and is gone — back to hand at
+        // the next end step (CR 702.109a), needing to be recast from
+        // scratch. With no combat pressure forcing an immediate swing (no
+        // lethal on the table, no blocker to dodge), keeping the permanent
+        // body is the better long-run line.
+        //
+        // Measured honestly, same as its partner above: reverting ONLY the
+        // sign fix does NOT flip this entry either at its declared budget —
+        // whatever else governs this specific root decision at 400
+        // iterations, it is not dominated by this one static term at THIS
+        // shallow a search. This entry's job is proving the Bot does not
+        // gratuitously dash a card with nothing to gain from it; the SIGN
+        // regression is pinned by the unit tests, not by this blade entry
+        // (see the partner's note for the full explanation).
+        label: "discriminating pair: hard-casts Ragavan on an empty board with nothing to race",
+        spec: {
+            cards: [
+                {
+                    name: "Ragavan, Nimble Pilferer",
+                    owner: "me",
+                    zone: "hand",
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // Measured (ADR 0070 §2): PLAIN on all 3 seeds at BOTH 400 and 800 —
+        // stable well below its partner's budget, so 400 (the suite's
+        // typical `must` floor) is enough here.
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.alternativeCostId === undefined,
+            describe: "casts Ragavan, Nimble Pilferer PLAIN (not via dash)",
+        },
+        note: 'Half 2 of the discriminating pair — PAIRED WITH "discriminating pair: dashes Ragavan for the lethal attack". Neither half is meaningful alone. Proves the Bot correctly avoids dashing on a board with nothing to race; the sign regression itself is proven by the unit tests (opValuers.bot.test.ts / cardScriptValue.bot.test.ts / triggerGate.bot.test.ts), not by this entry (measured: reverting the sign alone does not flip either half of this pair at its declared budget).',
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
