@@ -173,10 +173,30 @@ resolve_owner_pid() {
 # The PID-reuse discriminator. A pid on its own is a number the OS reissues;
 # paired with the process's start time it identifies one specific process, so a
 # dead pass cannot read as alive because something else inherited its number.
+#
+# `LC_ALL=C TZ=UTC` IS LOAD-BEARING, and must stay byte-identical to the read
+# side (`defaultProcessProbe` in scripts/loop-doctor.ts). `ps -o lstart=`
+# renders a human string through the caller's locale AND timezone — measured
+# on this machine, same process, same instant:
+#
+#     (default)          Tue Aug 25 09:15:42 2026
+#     LC_TIME=de_DE      Di. 25 Aug. 09:15:42 2026
+#     TZ=UTC             Tue Aug 25 07:15:42 2026
+#     TZ=Asia/Tokyo      Tue Aug 25 16:15:42 2026
+#
+# The comparison is an exact string equality on the trimmed stamp, so a
+# `LANG`/`TZ` difference between the shell that WRITES this row and the
+# process that later READS it makes a live owner compare unequal — i.e. read
+# as a recycled pid, i.e. dead. The consequence is only that the claim falls
+# back to the age thresholds (pre-#2627 behaviour, never a wrong release), so
+# the failure is the feature going silently inert — which is exactly the kind
+# that is never noticed. Pinning both sides to the same fixed locale and the
+# same fixed zone removes it. DST is a non-issue: this renders one FIXED
+# instant in a FIXED zone, so the same process always stamps the same string.
 owner_json="null"
 owner_pid=$(resolve_owner_pid) || owner_pid=""
 if [ -n "$owner_pid" ]; then
-    owner_started=$(ps -o lstart= -p "$owner_pid" 2>/dev/null | sed -e 's/^ *//' -e 's/ *$//')
+    owner_started=$(LC_ALL=C TZ=UTC ps -o lstart= -p "$owner_pid" 2>/dev/null | sed -e 's/^ *//' -e 's/ *$//')
     if [ -n "$owner_started" ]; then
         owner_json=$(jq -n --argjson pid "$owner_pid" --arg startedAt "$owner_started" \
             '{pid: $pid, startedAt: $startedAt}')

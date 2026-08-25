@@ -225,10 +225,28 @@ export function interpretPsResult(r: {
     return null;
 }
 
+/**
+ * `LC_ALL=C TZ=UTC` IS LOAD-BEARING, and is byte-identical to the WRITE side
+ * (`.claude/hooks/claim-ledger.sh`). `ps -o lstart=` renders a human string
+ * through the caller's locale AND timezone — measured on one machine, same
+ * process, same instant: `Tue Aug 25 09:15:42 2026` by default,
+ * `Di. 25 Aug. 09:15:42 2026` under `LC_TIME=de_DE`,
+ * `Tue Aug 25 07:15:42 2026` under `TZ=UTC`.
+ *
+ * `isOwnerAlive` compares the two stamps as exact trimmed strings, so a
+ * `LANG`/`TZ` divergence between the claiming shell and this reader would make
+ * a LIVE owner compare unequal and read as a recycled pid. That direction is
+ * safe (the claim just falls back to the age thresholds — pre-#2627
+ * behaviour), which is precisely why it would never be noticed: the feature
+ * would simply stop holding live claims. Fixing both ends to one locale and
+ * one zone removes the divergence. DST does not enter into it — a fixed
+ * instant rendered in a fixed zone is a fixed string.
+ */
 export const defaultProcessProbe: ProcessProbe = (pid) =>
     interpretPsResult(
         spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], {
             encoding: "utf8",
+            env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
         })
     );
 

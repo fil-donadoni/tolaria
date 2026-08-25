@@ -385,18 +385,39 @@ process.stdout.write(
 # claimed — `classifyClaim` in loop-doctor.ts is the SOLE authority on that,
 # and this script deliberately contains no age rule, no branch scan and no
 # second opinion of its own.
+#
+# AND IT LANDS NOTHING UNDER --dry-run. That flag's whole contract is that a
+# run makes no changes anywhere — the pass itself is only echoed, never
+# executed — so a sweep that reached the board's label write would be the one
+# mutation a dry run performed, which is a surprise however correct the verdict
+# behind it was. The guard reuses loop-doctor's OWN safe-by-default mode rather than
+# inventing a third convention: without `--release` it does exactly the same
+# reads and prints exactly the same per-claim verdicts, and edits no label
+# (loop-doctor.ts: "SAFE BY DEFAULT: reports and releases nothing"). So a dry
+# run still SHOWS the operator what a real run would reclaim — the same shape
+# as the `[dry-run] pass N would run: …` echo below — while writing nothing.
 reap_orphan_claims() {
     _doctor="$SCRIPT_DIR/loop-doctor.ts"
     if [ ! -f "$_doctor" ]; then
         echo "loop-drain: orphan-claim sweep skipped — $_doctor not found." >&2
         return 0
     fi
-    if _reap_out=$(bun "$_doctor" --release 2>&1); then
-        printf 'loop-drain: orphan-claim sweep —\n%s\n' "$_reap_out" >&2
+    # Empty vs `--release`, expanded UNQUOTED so the empty case contributes no
+    # argument at all (same idiom as $CLAUDE_ARGS at the call site below).
+    if [ "$DRY_RUN" -eq 1 ]; then
+        _reap_flag=""
+        _reap_label="[dry-run] orphan-claim sweep (report-only, nothing released)"
+    else
+        _reap_flag="--release"
+        _reap_label="orphan-claim sweep"
+    fi
+    # shellcheck disable=SC2086
+    if _reap_out=$(bun "$_doctor" $_reap_flag 2>&1); then
+        printf 'loop-drain: %s —\n%s\n' "$_reap_label" "$_reap_out" >&2
     else
         # Never silent: a janitor that stops running without saying so is how
         # the prose version of this rule failed in the first place.
-        echo "loop-drain: orphan-claim sweep FAILED (bun loop-doctor.ts --release) — continuing without it." >&2
+        echo "loop-drain: $_reap_label FAILED (bun loop-doctor.ts $_reap_flag) — continuing without it." >&2
         printf '%s\n' "$_reap_out" >&2
     fi
     return 0

@@ -1962,13 +1962,50 @@ describe("claim-ledger — records the owning process (#2627)", () => {
         // real thing rather than any non-empty string: a recycled pid is a
         // different process, and without this column a dead pass reads as
         // alive again the moment the OS hands its number to something else.
+        //
+        // The reference `ps` is pinned to the same fixed locale and zone the
+        // hook uses — `lstart` is a LOCALISED, ZONED human string, so an
+        // unpinned reference here would only agree with the hook by the
+        // accident of this machine's `LANG`/`TZ` (see the stability test
+        // below and the comment in claim-ledger.sh).
         const lstart = spawnSync(
             "ps",
             ["-o", "lstart=", "-p", String(process.pid)],
-            { encoding: "utf8" }
+            {
+                encoding: "utf8",
+                env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
+            }
         ).stdout.trim();
         expect(lstart).not.toBe("");
         expect(row.owner!.startedAt).toBe(lstart);
+    });
+
+    it("stamps the SAME string whatever LANG/TZ the claiming shell inherits", () => {
+        // `ps -o lstart=` renders through the caller's locale AND timezone.
+        // Measured, same process and same instant: `Tue Aug 25 09:15:42 2026`
+        // by default, `Di. 25 Aug. 09:15:42 2026` under `LC_TIME=de_DE`,
+        // `Tue Aug 25 07:15:42 2026` under `TZ=UTC`. `isOwnerAlive` compares
+        // the write-side and read-side stamps as exact trimmed strings, so an
+        // unpinned stamp makes a LIVE owner read as a recycled pid the moment
+        // the two sides disagree about locale or zone — the whole feature
+        // going silently inert (safe direction, hence never noticed).
+        const comm = path.basename(process.execPath);
+        const plain = claimRow({ TOLARIA_CLAIM_OWNER_COMM: comm });
+        const foreign = claimRow({
+            TOLARIA_CLAIM_OWNER_COMM: comm,
+            LANG: "de_DE.UTF-8",
+            LC_TIME: "de_DE.UTF-8",
+            TZ: "Asia/Tokyo",
+        });
+        expect(plain.owner).not.toBeNull();
+        expect(foreign.owner).not.toBeNull();
+        expect(foreign.owner!.startedAt).toBe(plain.owner!.startedAt);
+        // And it is the C-locale rendering, not whatever this machine's
+        // default happens to be — pinning both ends to the same string is
+        // only worth anything if that string is chosen, not inherited.
+        expect(plain.owner!.startedAt).toMatch(
+            /^[A-Z][a-z]{2} [A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4}$/
+        );
     });
 
     it("records owner: null rather than GUESSING when no owning process resolves", () => {

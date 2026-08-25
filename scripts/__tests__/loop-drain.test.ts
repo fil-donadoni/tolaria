@@ -1272,6 +1272,100 @@ describe("orphan-claim reap (#2627)", () => {
         expect(passLogCount()).toBe(1);
     });
 
+    // ── --dry-run must reach no `gh issue edit` (round-2 review) ─────────
+    //
+    // The sweep runs at step 3b, ABOVE the `--dry-run` branch that only ECHOES
+    // the pass — so before the guard, `loop:drain --dry-run` reclaimed claims
+    // and wrote them to the GitHub board. The verdict behind those writes was
+    // correct; the flag's contract ("lands nothing") was not.
+    //
+    // Deliberately end-to-end through the REAL loop-doctor rather than an argv
+    // assertion on a stub: what the flag promises is that no `gh issue edit`
+    // happens, and only running the thing that would issue it can show that.
+    // `gh` here is a recorder, exactly as the reviewer's repro was.
+    const stubRealSweepAgainstRecordingGh = (): string => {
+        const editLog = path.join(tmp, "gh-issue-edit-calls");
+        const claimedJson = path.join(tmp, "claimed.json");
+        // 30h stale, so `classifyClaim` reads it as an orphan on the
+        // no-branch/no-PR path (2h threshold) and `--release` would edit it.
+        fs.writeFileSync(
+            claimedJson,
+            JSON.stringify([
+                {
+                    number: 9001,
+                    title: "an orphaned claim",
+                    updatedAt: new Date(
+                        Date.now() - 30 * 60 * 60 * 1000
+                    ).toISOString(),
+                },
+            ])
+        );
+        writeStub(
+            "gh",
+            [
+                `args="$*"`,
+                `case "$args" in`,
+                // The one write in the whole subsystem. Recorded, never made.
+                `  *"issue edit"*) echo "$args" >> "${editLog}" ; exit 0 ;;`,
+                `  *"pr list"*) echo '[]' ; exit 0 ;;`,
+                // loop-doctor's claimed-issue read (the driver's own counts
+                // ask for `--json number` only).
+                `  *"number,title,updatedAt"*) cat "${claimedJson}" ; exit 0 ;;`,
+                `  *) cat "${queueFile}" 2>/dev/null || echo 0 ;;`,
+                `esac`,
+            ].join("\n")
+        );
+        // loop-doctor's branch scans: no local branch, no remote branch.
+        writeStub("git", `exit 0`);
+        // Forward everything to the real bun, so the sweep the driver invokes
+        // is the real `scripts/loop-doctor.ts`.
+        writeStub("bun", `exec "${REAL_BUN}" "$@"`);
+        fs.writeFileSync(queueFile, "1");
+        return editLog;
+    };
+
+    /** Hermetic ledger root: without this, an ambient CLAUDE_PROJECT_DIR (set
+     *  in every Claude Code session, including the one running this suite)
+     *  would point the real loop-doctor at the REPO's claims.jsonl and have it
+     *  append a release row there. */
+    const sweepEnv = () => ({ CLAUDE_PROJECT_DIR: tmp });
+
+    it("--dry-run runs the sweep in report-only mode and makes NO board write", () => {
+        const editLog = stubRealSweepAgainstRecordingGh();
+        const r = run({
+            args: ["--claude-args", "x", "--dry-run", "--max-passes", "1"],
+            env: sweepEnv(),
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        // THE assertion: not one `gh issue edit` was reached.
+        expect(
+            fs.existsSync(editLog)
+                ? fs.readFileSync(editLog, "utf8")
+                : "(no gh issue edit call)"
+        ).toBe("(no gh issue edit call)");
+        expect(r.stderr).not.toMatch(/^released {2}#9001/m);
+        // The sweep still RAN and still reported the orphan it can see —
+        // report-only, not skipped, so a dry run still shows the operator
+        // what a real run would reclaim.
+        expect(r.stderr).toMatch(/\[dry-run\] orphan-claim sweep/);
+        expect(r.stderr).toMatch(/#9001/);
+        expect(r.stderr).toMatch(/1 claimed, 1 orphaned/);
+    });
+
+    it("without --dry-run the same setup DOES edit the board (the paired half — proof the recorder works)", () => {
+        const editLog = stubRealSweepAgainstRecordingGh();
+        stubClaudeNoProgress();
+        const r = run({
+            args: ["--claude-args", "x", "--max-passes", "1"],
+            env: sweepEnv(),
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(fs.existsSync(editLog)).toBe(true);
+        expect(fs.readFileSync(editLog, "utf8")).toMatch(
+            /issue edit 9001 --remove-label in-progress/
+        );
+    });
+
     it("sweeps on EVERY pass, not once per run", () => {
         // A pass can die holding claims at any point in an overnight run, so
         // a once-at-startup sweep would leave every later orphan standing

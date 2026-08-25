@@ -584,10 +584,51 @@ describe("loop-doctor — defaultProcessProbe / interpretPsResult", () => {
         const mine = defaultProcessProbe(process.pid);
         expect(mine).not.toBeNull();
         expect(mine).not.toBe("");
+        // The reference `ps` carries the same locale/zone pin the probe does
+        // — `lstart` is a localised, zoned human string, so an unpinned
+        // reference would agree only by the accident of this machine's
+        // LANG/TZ. See the stability test below.
         expect(mine).toBe(
             spawnSync("ps", ["-o", "lstart=", "-p", String(process.pid)], {
                 encoding: "utf8",
+                env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
             }).stdout.trim()
+        );
+    });
+
+    it("returns the SAME stamp whatever LANG/TZ this process inherits", () => {
+        // The read side of the same hazard the claim hook has on the write
+        // side. `ps -o lstart=` renders through locale AND timezone: measured
+        // on one machine, same process, same instant — `Tue Aug 25 09:15:42
+        // 2026` by default, `Di. 25 Aug. 09:15:42 2026` under `LC_TIME=de_DE`,
+        // `Tue Aug 25 07:15:42 2026` under `TZ=UTC`. `isOwnerAlive` compares
+        // write-side and read-side stamps as exact trimmed strings, so if this
+        // reader drifted with its ambient environment a LIVE owner would read
+        // as a recycled pid and the claim would fall back to the age
+        // thresholds — safe, silent, and the feature quietly inert.
+        const saved = {
+            LANG: process.env.LANG,
+            LC_TIME: process.env.LC_TIME,
+            LC_ALL: process.env.LC_ALL,
+            TZ: process.env.TZ,
+        };
+        const plain = defaultProcessProbe(process.pid);
+        try {
+            process.env.LANG = "de_DE.UTF-8";
+            process.env.LC_TIME = "de_DE.UTF-8";
+            delete process.env.LC_ALL;
+            process.env.TZ = "Asia/Tokyo";
+            expect(defaultProcessProbe(process.pid)).toBe(plain);
+        } finally {
+            for (const [k, v] of Object.entries(saved)) {
+                if (v === undefined) delete process.env[k];
+                else process.env[k] = v;
+            }
+        }
+        // …and the pinned string is the C-locale one, chosen rather than
+        // inherited.
+        expect(plain).toMatch(
+            /^[A-Z][a-z]{2} [A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4}$/
         );
     });
 
