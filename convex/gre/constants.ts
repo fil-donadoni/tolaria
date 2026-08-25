@@ -1373,6 +1373,32 @@ const _manaAbilityCostLegsExhaustive: _UnclassifiedManaAbilityCostLeg extends ne
       ] = true;
 void _manaAbilityCostLegsExhaustive;
 
+/** Cheap "could this permanent carry a mana ability that does NOT tap itself?"
+ *  prefilter (issue #2420), reading the PRINTED definition without
+ *  materialising the post-layer set. Deliberately a SUPERSET: a permanent with
+ *  any granted ability at all falls through to the real, post-layer check, and
+ *  ability suppression can only REMOVE abilities, so a `false` here is never
+ *  hiding one.
+ *
+ *  Exists purely for cost. `planManaPayment` (moves.ts) has to know which
+ *  ABILITY backs each colour a source offers — but only when one of them might
+ *  be a non-tap shape (Urza's `tapOtherFilter`, Farrelite Priest's pure
+ *  `cost.mana`). On an ordinary board — lands and `{T}` rocks — this returns
+ *  false for every permanent and the planner skips the post-layer ability walk
+ *  entirely, which is what keeps the hot `enumerateCastMoves` path at its
+ *  pre-issue cost. */
+export function mayHaveNonTapManaAbility(card: CardInstanceState): boolean {
+    if (card.grantedActivatedAbilities?.length) return true;
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return false;
+    const printed = tryGetDefinition(cardId)?.activatedAbilities;
+    if (!printed) return false;
+    for (const ability of printed) {
+        if (!ability.useStack && !ability.cost.tap) return true;
+    }
+    return false;
+}
+
 export function getManaTapOptionsDetailed(
     card: CardInstanceState,
     controllerId?: string,

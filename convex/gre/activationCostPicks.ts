@@ -99,17 +99,15 @@ export function activationDiscardCandidates(
 
 /** Untapped non-source permanents that can pay `cost.tapOtherFilter`
  *  (CR 118.8), with the crew power each contributes (CR 702.122a/b).
- *  `excludeIds` (issue #2420) additionally drops any permanent already
- *  reserved elsewhere in the SAME payment plan — `planManaPayment`
- *  (moves.ts) reuses this same candidate scan for Urza, Lord High
- *  Artificer's mana ability and must not double-tap a permanent it already
- *  committed as a different pip's source. */
+ *  Exported (issue #2420) because it is also the fodder scan the mana
+ *  CONVERTER model reads (`manaConverters.ts`), shared by the castability
+ *  census and the bot's payment planner so "who can be tapped to pay this"
+ *  is decided in exactly one place. */
 export function tapOtherCandidates(
     state: GameState,
     player: PlayerState,
     source: CardInstanceState,
-    ability: ActivatedAbility,
-    excludeIds?: ReadonlySet<string>
+    ability: ActivatedAbility
 ): { id: string; power: number }[] {
     const leg = ability.cost.tapOtherFilter;
     if (!leg) return [];
@@ -118,7 +116,6 @@ export function tapOtherCandidates(
             (c) =>
                 c.id !== source.id &&
                 !c.isTapped &&
-                !excludeIds?.has(c.id) &&
                 // The layered view (`gre/permanentView.ts`, CR 105.2 / 613),
                 // matching the server's own candidate scan
                 // (`tapOtherCandidates`, `game.ts`) and the legality check that

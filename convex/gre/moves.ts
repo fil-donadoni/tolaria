@@ -39,7 +39,7 @@ import {
     isCastableLibraryTopSpell,
     libraryTopCastLifeCost,
     getLegalTargets,
-    getProducibleManaOptions,
+    getProducibleManaSourceView,
     maxAffordableX,
     solvePhyrexianSplit,
     genericManaShortfall,
@@ -68,24 +68,23 @@ import {
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { getEffectivePower } from "./layers";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
-import {
-    canPayTapOtherCost,
-    crewPowerContribution,
-    pickTapOtherPayment,
-} from "./tapOtherCost";
+import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
 import type { ActivationCostPicks } from "./activationCostPicks";
+import { enumerateActivationCostPicks } from "./activationCostPicks";
+// Issue #2420 — the ONE model of a `tapOtherFilter` mana ability (Urza, Lord
+// High Artificer), shared with the castability census (`coloredCostLeftover`,
+// rules.ts) so the plan and the Cast affordance can never disagree.
 import {
-    enumerateActivationCostPicks,
-    tapOtherCandidates,
-} from "./activationCostPicks";
-import type { ManaTapOption } from "./constants";
+    NO_MANA_CONVERTER_LEGS,
+    collectManaConverterLegs,
+} from "./manaConverters";
 import {
     MANA_COLORS,
     declaresAsEntersMode,
-    getManaTapOptionsDetailed,
     isPlaneswalker,
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
+    mayHaveNonTapManaAbility,
     pureGenericManaSubCost,
 } from "./constants";
 import {
@@ -359,46 +358,81 @@ export const MAX_COMBINATIONS = 64;
 // Mana payment planning
 // ---------------------------------------------------------------------------
 
+/** HOW one unit of mana gets produced from a `PlanSource` (issue #2420).
+ *
+ *  The planner's unit of account is a PHYSICAL PERMANENT, never an ability:
+ *  every untapped permanent is at most one `PlanSource`, and consuming it
+ *  removes it from the pool of sources, so the same permanent can never be
+ *  spent twice however the mana is realised. That identity is what makes the
+ *  double-tap impossible by construction rather than by bookkeeping (review
+ *  round 3, finding 1: a `reserved`-set fix that missed the plain-tap leg let
+ *  one Mox Sapphire be tapped once plainly and once as Urza's fodder, a plan
+ *  the search valued as legal and the executor rejected outright). */
+type PlanOption =
+    /** The permanent taps itself — its own `{T}` ability, a basic land
+     *  subtype's intrinsic `{T}: Add C` (CR 305.6), or pool mana. */
+    | { via: "tap"; manaChoiceIndex?: number }
+    /** The permanent's OWN `useStack: false` ability whose whole cost is N
+     *  GENERIC mana (Farrelite Priest's "{1}: Add {W}"). It taps nothing —
+     *  CR 602.1 — and is funded from OTHER plain sources, so the source is
+     *  still spent (one activation per plan; see `fundGenericFromPlain`). */
+    | {
+          via: "mana-cost";
+          abilityId: string;
+          manaChoiceIndex?: number;
+          generic: number;
+      }
+    /** ANOTHER permanent's `tapOtherFilter` mana ability (Urza, Lord High
+     *  Artificer) taps THIS one as its cost. The mana belongs to the
+     *  permanent that gets tapped — see `manaConverters.ts` for why that is
+     *  the exact model and not merely a convenient one. */
+    | { via: "converter"; converterId: string; abilityId: string };
+
+/** Cached `{ via: "tap" }` realisations (issue #2420). Every permanent on an
+ *  ordinary board contributes one per colour it makes; the values are
+ *  immutable and never escape into a `ManaTap`, so one instance per choice
+ *  index is enough and the planner allocates nothing per option. */
+const PLAIN_TAP_OPTION: PlanOption = { via: "tap" };
+const PLAIN_TAP_OPTION_BY_INDEX: PlanOption[] = [];
+function plainTapOption(manaChoiceIndex: number | undefined): PlanOption {
+    if (manaChoiceIndex === undefined) return PLAIN_TAP_OPTION;
+    return (PLAIN_TAP_OPTION_BY_INDEX[manaChoiceIndex] ??= {
+        via: "tap",
+        manaChoiceIndex,
+    });
+}
+
 type PlanSource = {
     /** undefined = mana already in the pool (no tap needed). */
     cardInstanceId?: string;
-    options: Map<Color, number | undefined>;
-    /** Issue #2420 — the SAME `ManaTapOption[]` `getManaTapOptionsDetailed`
-     *  produces for this permanent (the list `getProducibleManaOptions`
-     *  above already derives `options` FROM), carried alongside it so
-     *  `consume()` can recover which ABILITY backs a chosen colour —
-     *  `detailed[choice ?? 0]`, the exact index convention `options`'s
-     *  stored value already encodes (rules.ts `needIndex`) — and route a
-     *  NON-TAP mana ability (Urza's `tapOtherFilter`, Farrelite Priest's
-     *  pure `cost.mana`) through the right `ManaTap` shape instead of
-     *  assuming "the enumerated source taps itself". Undefined for a pool
-     *  source (no `cardInstanceId`, no ability at all). */
-    detailed?: ManaTapOption[];
+    options: Map<Color, PlanOption>;
 };
 
 /** True when `source`'s resolved option for `color` is a PLAIN tap (a {T}
- *  ability, a basic-land-subtype `{T}: Add C`, or pool mana) rather than
- *  ANOTHER non-tap mana ability (issue #2420). Used exclusively to fund a
- *  mana-cost ability's OWN sub-cost: letting Farrelite Priest fund a
+ *  ability, a basic-land-subtype `{T}: Add C`, or pool mana). Used exclusively
+ *  to fund a mana-cost ability's OWN sub-cost: letting Farrelite Priest fund a
  *  DIFFERENT mana-cost ability's activation (or itself) would recurse — one
- *  level of generic-for-colour conversion only. */
+ *  level of generic-for-colour conversion only (issue #2420). A `converter`
+ *  realisation is excluded for the same fail-closed reason: it is a second
+ *  ability activation whose ordering against the funded one this greedy
+ *  planner does not model. */
 function isPlainTapSource(
-    player: PlayerState,
-    source: Pick<PlanSource, "cardInstanceId" | "options" | "detailed">,
+    source: Pick<PlanSource, "cardInstanceId" | "options">,
     color: Color
 ): boolean {
     if (!source.cardInstanceId) return true; // pool mana
-    const choice = source.options.get(color);
-    const opt = source.detailed?.[choice ?? 0];
-    if (!opt || opt.source.kind !== "activated") return true; // basic subtype
-    const abilityId = opt.source.abilityId;
-    const perm = player.battlefield.find((c) => c.id === source.cardInstanceId);
-    const ability = perm
-        ? getEffectiveActivatedAbilities(perm).find(
-              ({ ability: a }) => a.id === abilityId
-          )?.ability
-        : undefined;
-    return !ability || !!ability.cost.tap;
+    return source.options.get(color)?.via === "tap";
+}
+
+/** Selection tie-break rank (issue #2420): a realisation that costs nothing
+ *  beyond the permanent itself (0) is always preferred over one that has to
+ *  BURN ANOTHER SOURCE to fund it (1, the `mana-cost` shape). Without it the
+ *  colour loop's "first index wins" tie-break spent both a Plains and a
+ *  Farrelite Priest to produce the one {W} the Plains alone covers. Every
+ *  option on a board with no such ability ranks 0, so ordinary boards keep
+ *  byte-identical source selection. */
+function planOptionRank(source: PlanSource, color: Color): number {
+    return source.options.get(color)?.via === "mana-cost" ? 1 : 0;
 }
 
 /** Greedy tap plan covering a normalized mana cost (CR 601.2f). Returns the
@@ -447,70 +481,138 @@ export function planManaPayment(
     for (const c of MANA_COLORS) {
         const n = player.manaPool[c] ?? 0;
         for (let i = 0; i < n; i++) {
-            sources.push({ options: new Map([[c, undefined]]) });
+            sources.push({ options: new Map([[c, { via: "tap" }]]) });
         }
     }
+    // Issue #2420 — ONE cheap pass classifying every permanent (tapped ones
+    // included: a `tapOtherFilter` ability carries no {T}, so a tapped Urza
+    // is still a converter). `mayHaveNonTapManaAbility` reads the PRINTED
+    // definition, and on an ordinary board — lands and `{T}` rocks — it is
+    // false throughout, which then skips BOTH the converter scan and the
+    // per-permanent post-layer ability walk below (review round 3, finding 3:
+    // this planner is on `enumerateCastMoves`'s hot path, i.e. every ISMCTS
+    // rollout, and must not make an ordinary board pay for a feature no card
+    // on it has).
+    const nonTapFlags: boolean[] = [];
+    let anyNonTapManaAbility = false;
     for (const perm of player.battlefield) {
+        const flag = mayHaveNonTapManaAbility(perm);
+        nonTapFlags.push(flag);
+        if (flag) anyNonTapManaAbility = true;
+    }
+    // Which permanents ANOTHER permanent's `tapOtherFilter` mana ability
+    // (Urza, Lord High Artificer) can tap for mana, and into which colours.
+    // The SAME authority the castability census reads (`coloredCostLeftover`,
+    // rules.ts), so a board this planner can pay and a board the census
+    // offers "cast" on are decided by one model.
+    const converterLegs = anyNonTapManaAbility
+        ? collectManaConverterLegs(state, player)
+        : NO_MANA_CONVERTER_LEGS;
+    for (
+        let permIndex = 0;
+        permIndex < player.battlefield.length;
+        permIndex++
+    ) {
+        const perm = player.battlefield[permIndex];
         if (perm.isTapped) continue;
         // Issue #1754 — full both-players board view: covers Mox Opal /
         // Fanatic of Rhonas (self-referential) AND Fellwar Stone
         // (opponent-scanning), matching the gate's board visibility exactly.
-        const options = getProducibleManaOptions(
+        // ONE scan per permanent: `view` carries the colour→index map, the
+        // raw option list it was derived from AND the index convention, so
+        // recovering which ABILITY backs a colour costs no second scan
+        // (review round 3, finding 3 — the second scan measured 55-65% on the
+        // hot `enumerateCastMoves` path).
+        const view = getProducibleManaSourceView(
             perm,
             player.id,
             boardBattlefields
         );
-        if (options.size === 0) continue;
-        // Issue #2420 — the SAME detailed list `getProducibleManaOptions`
-        // derived `options` from (same call shape: `requireTap: true`),
-        // carried alongside so `consume()` can recognise a non-tap mana
-        // ability (Urza, Farrelite Priest) instead of assuming every source
-        // taps itself.
-        const detailed = getManaTapOptionsDetailed(
-            perm,
-            player.id,
-            boardBattlefields,
-            { requireTap: true }
-        );
         // CR 302.1 / 302.6 (issue #2420) — summoning sickness restricts only
         // a {T}/{Q}-in-cost ability, never a source's activation in general.
-        // `isTapLockedBySummoningSickness` can't tell which ability backs
-        // which colour, so filter PER OPTION instead of skipping the whole
-        // permanent: a basic-subtype option (always a {T} ability) and a
-        // `cost.tap` activated option drop out while sick-locked, but a
-        // non-tap mana ability (Urza's `tapOtherFilter`, Farrelite Priest's
-        // pure `cost.mana`) stays — its source taps nothing of its own, so
-        // summoning sickness never applied to it in the first place.
-        if (isTapLockedBySummoningSickness(perm)) {
-            for (const [color, idx] of [...options.entries()]) {
-                const opt = detailed[idx ?? 0];
-                const abilityId =
-                    opt && opt.source.kind === "activated"
-                        ? opt.source.abilityId
+        const sick = isTapLockedBySummoningSickness(perm);
+        // From the prefilter pass above: false for every permanent on an
+        // ordinary board, and then the post-layer ability walk below is
+        // skipped entirely and summoning sickness gates the whole permanent
+        // exactly as it did before this issue.
+        const mayBeNonTap = nonTapFlags[permIndex];
+        const options = new Map<Color, PlanOption>();
+        if (mayBeNonTap || !sick) {
+            const abilities = mayBeNonTap
+                ? getEffectiveActivatedAbilities(perm)
+                : undefined;
+            for (let index = 0; index < view.detailed.length; index++) {
+                const opt = view.detailed[index];
+                const src = opt.source;
+                // `undefined` = an intrinsic basic-land-subtype option
+                // (CR 305.6), which is always a plain {T} — as is every
+                // option at all when the prefilter said so.
+                const ability =
+                    abilities && src.kind === "activated"
+                        ? abilities.find(
+                              ({ ability: a }) => a.id === src.abilityId
+                          )?.ability
                         : undefined;
-                const ability = abilityId
-                    ? getEffectiveActivatedAbilities(perm).find(
-                          ({ ability: a }) => a.id === abilityId
-                      )?.ability
-                    : undefined;
-                if (!ability || ability.cost.tap) options.delete(color);
+                // CR 602.1 — a `tapOtherFilter` leg taps a DIFFERENT
+                // permanent, so its mana is never THIS permanent's own unit;
+                // it is attributed to whichever permanent it taps, below.
+                if (ability?.cost.tapOtherFilter) continue;
+                // A basic-subtype option and a `cost.tap` ability both drop
+                // out while sick-locked; a pure `cost.mana` ability
+                // (Farrelite Priest) stays — it taps nothing of its own, so
+                // summoning sickness never applied to it (CR 302.6).
+                if (sick && (!ability || ability.cost.tap)) continue;
+                const manaChoiceIndex = view.needIndex ? index : undefined;
+                let realisation: PlanOption;
+                if (!ability || ability.cost.tap) {
+                    realisation = plainTapOption(manaChoiceIndex);
+                } else {
+                    const generic = pureGenericManaSubCost(
+                        ability.cost.mana ?? {}
+                    );
+                    // `isAutoPayableManaAbilityCost` (constants.ts) admits
+                    // only tap | tapOtherFilter | pure-generic mana, and the
+                    // first two are handled above — so a non-tap ability with
+                    // a non-pure-generic `cost.mana` cannot reach here. Fail
+                    // closed rather than mis-tap if one ever does.
+                    if (generic === null) continue;
+                    realisation = {
+                        via: "mana-cost",
+                        abilityId: ability.id,
+                        manaChoiceIndex,
+                        generic,
+                    };
+                }
+                for (const c of MANA_COLORS) {
+                    if ((opt.mana[c] ?? 0) > 0 && !options.has(c)) {
+                        options.set(c, realisation);
+                    }
+                }
             }
-            if (options.size === 0) continue;
         }
-        sources.push({ cardInstanceId: perm.id, options, detailed });
+        // The converter widening (see `manaConverters.ts`): only for a colour
+        // this permanent cannot already produce by itself — its own tap is
+        // strictly cheaper than an extra activation for the same mana.
+        for (const leg of converterLegs.get(perm.id) ?? []) {
+            for (const c of leg.colors) {
+                if (options.has(c)) continue;
+                options.set(c, {
+                    via: "converter",
+                    converterId: leg.converterId,
+                    abilityId: leg.abilityId,
+                });
+            }
+        }
+        if (options.size === 0) continue;
+        sources.push({ cardInstanceId: perm.id, options });
     }
     if (sources.length < totalRequired) return null;
 
     const remaining = sources.map((s) => ({
         cardInstanceId: s.cardInstanceId,
         options: new Map(s.options),
-        detailed: s.detailed,
     }));
     const taps: ManaTap[] = [];
-    // Issue #2420 — permanents already committed to THIS plan as the "other"
-    // permanent a `tapOtherFilter` leg taps, so a later pick (its own tap
-    // OR a different leg's tapOtherFilter pick) never double-taps one.
-    const reserved = new Set<string>();
 
     /** Fund `count` GENERIC mana strictly from PLAIN sources — never another
      *  non-tap mana ability (`isPlainTapSource`) — pushing the funding taps
@@ -528,7 +630,7 @@ export function planManaPayment(
                     | Color
                     | undefined;
                 if (color === undefined) continue;
-                if (!isPlainTapSource(player, s, color)) continue;
+                if (!isPlainTapSource(s, color)) continue;
                 if (!s.cardInstanceId) {
                     // Pool mana — free, always preferred.
                     idx = i;
@@ -550,119 +652,63 @@ export function planManaPayment(
     const consume = (idx: number, color: Color): boolean => {
         const src = remaining[idx];
         const cardInstanceId = src.cardInstanceId;
-        if (cardInstanceId) {
-            const choice = src.options.get(color);
-            const opt = src.detailed?.[choice ?? 0];
-            const abilityId =
-                opt && opt.source.kind === "activated"
-                    ? opt.source.abilityId
-                    : undefined;
-            const perm = abilityId
-                ? player.battlefield.find((c) => c.id === cardInstanceId)
-                : undefined;
-            const ability =
-                perm && abilityId
-                    ? getEffectiveActivatedAbilities(perm).find(
-                          ({ ability: a }) => a.id === abilityId
-                      )?.ability
-                    : undefined;
-
-            if (ability && !ability.cost.tap) {
-                // Issue #2420 — a NON-TAP mana ability: the source's own {T}
-                // is never part of THIS payment (CR 602.1). Remove it from
-                // the pool before resolving its cost, so it can never be
-                // picked as its own "other" permanent or its own funding.
-                remaining.splice(idx, 1);
-                if (ability.cost.tapOtherFilter) {
-                    const candidates = tapOtherCandidates(
-                        state,
-                        player,
-                        perm!,
-                        ability,
-                        reserved
-                    );
-                    const picked = pickTapOtherPayment(
-                        ability.cost.tapOtherFilter,
-                        candidates
-                    );
-                    if (
-                        !canPayTapOtherCost(ability.cost.tapOtherFilter, picked)
-                    ) {
-                        return false;
-                    }
-                    for (const p of picked) {
-                        reserved.add(p.id);
-                        const ri = remaining.findIndex(
-                            (s) => s.cardInstanceId === p.id
-                        );
-                        if (ri !== -1) remaining.splice(ri, 1);
-                    }
-                    taps.push({
-                        cardInstanceId,
-                        abilityId,
-                        tapOtherIds: picked.map((p) => p.id),
-                        ...(choice !== undefined
-                            ? { manaChoiceIndex: choice }
-                            : {}),
-                    });
-                    return true;
-                }
-                if (ability.cost.mana) {
-                    const generic = pureGenericManaSubCost(ability.cost.mana);
-                    // Issue #2420 review finding 1 — `isAutoPayableManaAbilityCost`
-                    // (constants.ts) now gates admission on this SAME predicate,
-                    // so a non-pure-generic `cost.mana` (Nomadic Elf's
-                    // "{1}{G}: Add one mana of any color") never reaches this
-                    // branch as a source at all; this null-check is
-                    // defense-in-depth, not the primary guard — see
-                    // `pureGenericManaSubCost`'s own doc.
-                    if (generic === null) return false;
-                    if (generic > 0 && !fundGenericFromPlain(generic)) {
-                        return false;
-                    }
-                    taps.push({
-                        cardInstanceId,
-                        abilityId,
-                        ...(choice !== undefined
-                            ? { manaChoiceIndex: choice }
-                            : {}),
-                    });
-                    return true;
-                }
-                // `isAutoPayableManaAbilityCost` (constants.ts) admits only
-                // tap | tapOtherFilter | mana — structurally unreachable, but
-                // fail closed rather than silently mis-tap.
+        if (!cardInstanceId) {
+            // Pool mana — consumed by the server at commit, never a tap.
+            remaining.splice(idx, 1);
+            return true;
+        }
+        const opt = src.options.get(color);
+        if (!opt) return false;
+        // The source is spent whichever way its mana is realised — ONE
+        // physical permanent, ONE unit (issue #2420). Removed BEFORE the
+        // `mana-cost` funding below so an ability can never fund itself.
+        remaining.splice(idx, 1);
+        if (opt.via === "converter") {
+            // CR 602.1 — the ability's cost taps THIS permanent; its own
+            // source (Urza) is never tapped by it and is not a source row at
+            // all, so no plan can spend either of them twice.
+            taps.push({
+                cardInstanceId: opt.converterId,
+                abilityId: opt.abilityId,
+                tapOtherIds: [cardInstanceId],
+            });
+            return true;
+        }
+        if (opt.via === "mana-cost") {
+            if (opt.generic > 0 && !fundGenericFromPlain(opt.generic)) {
                 return false;
             }
-
-            taps.push(
-                choice === undefined
-                    ? { cardInstanceId }
-                    : { cardInstanceId, manaChoiceIndex: choice }
-            );
+            taps.push({
+                cardInstanceId,
+                abilityId: opt.abilityId,
+                ...(opt.manaChoiceIndex !== undefined
+                    ? { manaChoiceIndex: opt.manaChoiceIndex }
+                    : {}),
+            });
+            return true;
         }
-        remaining.splice(idx, 1);
+        taps.push(
+            opt.manaChoiceIndex === undefined
+                ? { cardInstanceId }
+                : { cardInstanceId, manaChoiceIndex: opt.manaChoiceIndex }
+        );
         return true;
     };
 
     // Issue #2420 review round 2 finding 1 — a `consume()` failure must
-    // SKIP the failed source, never null the WHOLE plan. Round 1's fix
-    // (narrowing `isAutoPayableManaAbilityCost` admission to a pure-generic
-    // `cost.mana`) only covers the `cost.mana` branch, because that
-    // branch's executability is SHAPE-dependent (decidable at admission).
-    // `tapOtherFilter`'s executability is BOARD-dependent (Urza, Lord High
-    // Artificer with no untapped artifact to tap): it can only be known by
-    // actually trying `consume()`, so admission-time narrowing can never
-    // close this door. One unexecutable source must not destroy a plan
-    // other sources can still satisfy.
+    // SKIP the failed source, never null the WHOLE plan. Only the
+    // `mana-cost` shape can still fail (Farrelite Priest with nothing plain
+    // left to fund its {1}); the `converter` shape cannot, because the
+    // permanent it taps IS the source row being consumed and that row only
+    // ever holds an UNTAPPED, not-yet-spent permanent. One unexecutable
+    // source must not destroy a plan other sources can still satisfy.
     //
     // `pickCandidate` returns the current best (idx, color) among sources
     // not yet excluded this need, or `null` when none remain. A failed
-    // `consume()` call can partially mutate `remaining` / `taps` /
-    // `reserved` before returning false (a `cost.mana` sub-cost funding
-    // itself from plain sources, then running out) — those partial effects
-    // are rolled back before the source is marked excluded and the next
-    // candidate is tried.
+    // `consume()` call can partially mutate `remaining` / `taps` before
+    // returning false (a `mana-cost` sub-cost funding itself from plain
+    // sources, then running out) — those partial effects are rolled back
+    // before the source is marked excluded and the next candidate is tried.
     const consumeBest = (
         pickCandidate: (
             excluded: Set<PlanSource>
@@ -675,31 +721,37 @@ export function planManaPayment(
             const src = remaining[candidate.idx];
             const remainingSnapshot = [...remaining];
             const tapsLen = taps.length;
-            const reservedSnapshot = new Set(reserved);
             if (consume(candidate.idx, candidate.color)) return true;
             remaining.length = 0;
             remaining.push(...remainingSnapshot);
             taps.length = tapsLen;
-            reserved.clear();
-            for (const id of reservedSnapshot) reserved.add(id);
             excluded.add(src);
         }
     };
 
     // Colored requirements first, taking the least-flexible source that can
-    // produce that color (basic land before dual, etc.).
+    // produce that color (basic land before dual, etc.) — but never one that
+    // has to burn a SECOND source to fund itself while a self-sufficient one
+    // is available (`planOptionRank`, issue #2420).
     for (const c of MANA_COLORS) {
         let need = cost[c] ?? 0;
         while (need > 0) {
             const ok = consumeBest((excluded) => {
                 let bestIdx = -1;
                 let bestSize = Infinity;
+                let bestRank = Infinity;
                 for (let i = 0; i < remaining.length; i++) {
                     const s = remaining[i];
                     if (excluded.has(s)) continue;
-                    if (s.options.has(c) && s.options.size < bestSize) {
+                    if (!s.options.has(c)) continue;
+                    const rank = planOptionRank(s, c);
+                    if (
+                        rank < bestRank ||
+                        (rank === bestRank && s.options.size < bestSize)
+                    ) {
                         bestIdx = i;
                         bestSize = s.options.size;
+                        bestRank = rank;
                     }
                 }
                 return bestIdx === -1 ? null : { idx: bestIdx, color: c };
@@ -717,21 +769,46 @@ export function planManaPayment(
             let idx = remaining.findIndex(
                 (s) => !s.cardInstanceId && !excluded.has(s)
             );
-            if (idx === -1) {
-                let bestSize = Infinity;
-                idx = -1;
-                for (let i = 0; i < remaining.length; i++) {
-                    const s = remaining[i];
-                    if (excluded.has(s)) continue;
-                    if (s.options.size < bestSize) {
-                        bestSize = s.options.size;
-                        idx = i;
+            if (idx !== -1) {
+                const color = remaining[idx].options.keys().next().value as
+                    | Color
+                    | undefined;
+                if (color !== undefined) return { idx, color };
+            }
+            // Least-flexible card, preferring a self-sufficient realisation
+            // over one that has to burn a second source to fund itself
+            // (`planOptionRank`, issue #2420). On a board with no such
+            // ability every rank is 0 and this is the pre-existing
+            // "smallest option set, first colour" pick, unchanged.
+            let bestSize = Infinity;
+            let bestRank = Infinity;
+            let bestColor: Color | undefined;
+            idx = -1;
+            for (let i = 0; i < remaining.length; i++) {
+                const s = remaining[i];
+                if (excluded.has(s)) continue;
+                let rank = Infinity;
+                let color: Color | undefined;
+                for (const c of s.options.keys()) {
+                    const r = planOptionRank(s, c);
+                    if (r < rank) {
+                        rank = r;
+                        color = c;
                     }
                 }
+                if (color === undefined) continue;
+                if (
+                    rank < bestRank ||
+                    (rank === bestRank && s.options.size < bestSize)
+                ) {
+                    bestSize = s.options.size;
+                    bestRank = rank;
+                    bestColor = color;
+                    idx = i;
+                }
             }
-            if (idx === -1) return null;
-            const color = remaining[idx].options.keys().next().value as Color;
-            return { idx, color };
+            if (idx === -1 || bestColor === undefined) return null;
+            return { idx, color: bestColor };
         });
         if (!ok) return null;
         generic--;
