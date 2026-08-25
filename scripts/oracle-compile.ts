@@ -4,8 +4,10 @@
  * `data/oracle-compiled.json`.
  *
  * Deterministic by construction: the corpus rows are sorted by oracle id when
- * the cache is written, the fragment table is sorted by (count desc, text asc),
- * and the serializer emits one row per line with a fixed key order. Two runs on
+ * the cache is written, the fragment table is sorted by
+ * (cards desc, text asc, reason asc) — the full intern key, so the order is
+ * total and never rests on sort stability — and the serializer emits one row
+ * per line with a fixed key order. Two runs on
  * the same tree and the same corpus are byte-identical — asserted in
  * `scripts/__tests__/oracle-compile.test.ts`.
  *
@@ -26,7 +28,7 @@ import {
     type CorpusCard,
 } from "./oracle-corpus";
 import {
-    grammarHash,
+    compilerHash,
     LOCKFILE_GENERATOR,
     registryHash,
     serializeLockfile,
@@ -83,15 +85,18 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
     }
     const pool = poolOracleIds();
 
-    // Fragment table: dedupe by the unconsumed line, count the cards it blocks.
+    // Fragment table: dedupe by the unconsumed line, count the CARDS it blocks.
+    //
+    // U+0000 as the join: it cannot occur in Oracle text, so the key is
+    // unambiguous. Escaped rather than literal — a raw control byte in source
+    // makes the whole FILE binary to git and grep, which took this driver out
+    // of `gh pr diff` entirely.
+    const gapKey = (gap: Gap): string => `${gap.fragment}\u0000${gap.reason}`;
     const fragmentIndex = new Map<string, number>();
     const fragmentOrder: { text: string; reason: string; cards: number }[] = [];
+    /** Callers MUST call this at most once per (card, fragment) — see below. */
     const internFragment = (gap: Gap): number => {
-        // U+0000 as the join: it cannot occur in Oracle text, so the key
-        // is unambiguous. Escaped rather than literal — a raw control
-        // byte in source makes the whole FILE binary to git and grep,
-        // which took this driver out of `gh pr diff` entirely.
-        const key = `${gap.fragment}\u0000${gap.reason}`;
+        const key = gapKey(gap);
         const seen = fragmentIndex.get(key);
         if (seen !== undefined) {
             fragmentOrder[seen]!.cards += 1;
@@ -130,11 +135,20 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
             if (pool.has(card.oracleId)) row.pool += 1;
         }
         if (outcome.state === "unparsed") {
+            // `cards` is the blast radius that ranks the grammar backlog (PRD
+            // #2693 user story 9, and #2697–#2700 are prioritised off it), so a
+            // card tripping the SAME fragment on two lines must count ONCE.
+            // Dedupe BEFORE interning: the counter lives in `internFragment`,
+            // so deduping the row afterwards leaves the count overstated while
+            // the row itself looks right — the shape that shipped 3 wrong rows,
+            // one declaring 5 cards blocked where it blocks 3.
+            const distinctGaps = new Map<string, Gap>();
+            for (const gap of outcome.gaps) distinctGaps.set(gapKey(gap), gap);
             rawRows.push({
                 oracleId: card.oracleId,
                 name: card.name,
                 state: "unparsed",
-                gaps: outcome.gaps.map(internFragment),
+                gaps: [...distinctGaps.values()].map(internFragment),
             });
         } else {
             rawRows.push({
@@ -152,14 +166,20 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
     }
 
     // The fragment table is sorted by blast radius — this IS the backlog that
-    // ranks the next grammar rule (PRD #2693 user story 9). Ties break on text
-    // so the order is total, never insertion-dependent.
+    // ranks the next grammar rule (PRD #2693 user story 9). Ties break on the
+    // rest of the INTERN KEY — text, then reason — so the order is total. Text
+    // alone is not: a row is (text, reason), and 12 texts in the shipped corpus
+    // carry two reasons, 7 of those pairs tying on `cards` as well. Their order
+    // would otherwise rest on `Array.prototype.sort` stability over insertion
+    // order, which is an accidental guarantee, not a deterministic one.
+    const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
     const sortedFragments = fragmentOrder
         .map((f, index) => ({ ...f, index }))
         .sort(
             (a, b) =>
                 b.cards - a.cards ||
-                (a.text < b.text ? -1 : a.text > b.text ? 1 : 0)
+                cmp(a.text, b.text) ||
+                cmp(a.reason, b.reason)
         );
     const remap = new Map<number, number>();
     sortedFragments.forEach((f, newIndex) => remap.set(f.index, newIndex));
@@ -168,14 +188,17 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
         reason: f.reason,
         cards: f.cards,
     }));
+    // No dedupe here: the row's gap indexes are already distinct (deduped at
+    // intern time) and `remap` is a bijection. Deduping again would only hide a
+    // regression in the counting from the rows that are supposed to prove it.
     const cards: CardRow[] = rawRows.map((row) =>
         row.gaps === undefined
             ? row
             : {
                   ...row,
-                  gaps: [...new Set(row.gaps.map((g) => remap.get(g)!))].sort(
-                      (a, b) => a - b
-                  ),
+                  gaps: row.gaps
+                      .map((g) => remap.get(g)!)
+                      .sort((a, b) => a - b),
               }
     );
 
@@ -183,7 +206,7 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
         generator: LOCKFILE_GENERATOR,
         header: {
             grammarVersion: GRAMMAR_VERSION,
-            grammarHash: grammarHash(ROOT),
+            compilerHash: compilerHash(ROOT),
             registryHash: registryHash(),
             corpus: pin,
             counts: { ...counts, total: corpus.length },

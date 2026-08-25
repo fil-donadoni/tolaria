@@ -163,18 +163,26 @@ at 702 Premodern-legal cards wrongly dropped (5,375 → 4,673).
 the gitignored corpus, and the gate is offline by contract, so the guard is
 tiered and every tier that can run, runs:
 
-1. **Header hashes** (always, offline): the lockfile pins a hash of
-   `convex/oracle/**` and a hash of the Mechanics Registry's names and statuses.
-   Either changing changes what the compiler emits. This catches the failure
-   that actually happens — a rule edited without regenerating.
+1. **Header hashes** (always, offline): the lockfile pins a hash of the
+   compiler's own source and a hash of the Mechanics Registry's names and
+   statuses. Either changing changes what the compiler emits. This catches the
+   failure that actually happens — a rule edited without regenerating.
 2. **Pin agreement** (whenever the pin is present).
 3. **Full regenerate-and-diff** (whenever the cache is present).
 
 Tier 1 is not a weaker tier 3; shipping only tier 3 would make the guard a
 silent no-op on every clean checkout, which is the shape of a guard that is not
-there. The grammar hash covers all of `convex/oracle/**`, including files like
-`gold.ts` that cannot change the output — a conservative over-approximation that
-costs one redundant regeneration and never misses a real one.
+there. So "the compiler's own source" has to mean the whole compiler: the
+grammar under `convex/oracle/**` **and** the driver that turns it into the
+lockfile — `scripts/oracle-corpus.ts` (input rows, reported formats),
+`scripts/oracle-compile.ts` (fragment table, format tallies) and
+`scripts/lib/oracle-lockfile.ts` (the serializer). Hashing the grammar alone
+left the hole in exactly the place tier 1 exists to cover: a `buildLockfile`
+change that genuinely alters the output passed tier 1 while tier 3 could not
+run, so `check:oracle` exited 0 on a stale lockfile on the clean checkout
+(review of #2795). The hash is a deliberate over-approximation in the other
+direction too — it covers files like `gold.ts` that cannot change the output —
+because a redundant regeneration is cheap and a missed one is silent.
 
 ## Consequences
 
@@ -213,6 +221,13 @@ costs one redundant regeneration and never misses a real one.
   difference is deliberate — `catalogue:ensure` runs its generator itself, and
   this check must not, because the gate is offline by contract: a check may TELL
   you to hit the network and may never do it for you.
+- **`data/card-index.json` is the same shared-gate coupling and a far more
+  frequent one**: `buildLockfile` derives `formats[*].pool` from it, so every PR
+  that ships or removes a card changes the lockfile and must regenerate, and
+  tier 1 cannot see it (the index is data, not compiler source) — the mismatch
+  surfaces only where the corpus is cached. The remedy is offline
+  (`bun run oracle:compile`), so this is a cost of the guard rather than a hole
+  in it.
 
 ## Alternatives considered
 

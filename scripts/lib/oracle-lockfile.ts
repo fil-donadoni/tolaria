@@ -22,8 +22,12 @@ import type { CorpusPin, ReportedFormat } from "../oracle-corpus";
 
 export interface LockfileHeader {
     readonly grammarVersion: string;
-    /** sha256 of every non-test source file under `convex/oracle/`. */
-    readonly grammarHash: string;
+    /**
+     * sha256 of every source file whose edit can change the bytes of this
+     * lockfile: `convex/oracle/**` (non-test) plus the corpus reader, the
+     * compile driver and this serializer.
+     */
+    readonly compilerHash: string;
     /** sha256 of the Mechanics Registry's names and statuses. */
     readonly registryHash: string;
     readonly corpus: CorpusPin;
@@ -71,8 +75,25 @@ export const LOCKFILE_GENERATOR =
 
 const ORACLE_MODULE_DIR = "convex/oracle";
 
-/** Every source file the grammar's behaviour depends on, in a stable order. */
-export function oracleSourceFiles(root: string): string[] {
+/**
+ * The DRIVER half of the compiler: files outside `convex/oracle/**` that still
+ * decide what the lockfile says.
+ *
+ * `oracle-corpus.ts` shapes every input row and names the reported formats,
+ * `oracle-compile.ts` builds the fragment table and the per-format tallies, and
+ * this file serializes the result. An edit to any of them changes the output
+ * with the grammar untouched — so hashing the grammar alone left tier 1 green
+ * on a lockfile it should have rejected, which is the same "guard that is not
+ * there" shape the tiering exists to avoid (review of #2795, round 2).
+ */
+const DRIVER_FILES = [
+    "scripts/oracle-corpus.ts",
+    "scripts/oracle-compile.ts",
+    "scripts/lib/oracle-lockfile.ts",
+] as const;
+
+/** Every source file the lockfile's contents depend on, in a stable order. */
+export function compilerSourceFiles(root: string): string[] {
     const out: string[] = [];
     const walk = (dir: string): void => {
         for (const entry of readdirSync(join(root, dir)).sort()) {
@@ -86,21 +107,27 @@ export function oracleSourceFiles(root: string): string[] {
         }
     };
     walk(ORACLE_MODULE_DIR);
+    out.push(...DRIVER_FILES);
     return out;
 }
 
 /**
- * Hash of the compiler's own source.
+ * Hash of the compiler's own source — grammar AND driver.
  *
  * This is what makes the drift guard work OFFLINE. The full regenerate-and-diff
  * needs the 24 MB corpus, which is gitignored and absent on a clean checkout;
- * the gate is offline by contract (CLAUDE.md). Hashing the grammar catches the
- * case that actually happens — someone changed a rule and did not regenerate —
- * without any network at all.
+ * the gate is offline by contract (CLAUDE.md). Hashing the sources catches the
+ * case that actually happens — someone changed the compiler and did not
+ * regenerate — without any network at all.
+ *
+ * It has to cover the driver as well as the grammar, and the clean checkout is
+ * precisely where that bites: with only `convex/oracle/**` hashed, a change to
+ * `buildLockfile` that genuinely alters the output left tier 1 passing and tier
+ * 3 unable to run, so `check:oracle` exited 0 on a stale lockfile.
  */
-export function grammarHash(root: string): string {
+export function compilerHash(root: string): string {
     const hash = createHash("sha256");
-    for (const file of oracleSourceFiles(root)) {
+    for (const file of compilerSourceFiles(root)) {
         hash.update(file);
         hash.update(readFileSync(join(root, file)));
     }

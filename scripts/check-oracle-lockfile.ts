@@ -9,11 +9,14 @@
  * every tier that can run, runs:
  *
  *  1. HEADER HASHES (always, offline). The lockfile header pins a hash of the
- *     compiler's own source and a hash of the Mechanics Registry's names and
- *     statuses. Either one changing changes what the compiler emits, so either
- *     one differing from the tree means the lockfile is stale. This catches the
- *     failure that actually happens — a grammar rule edited without
- *     regenerating — with no corpus at all.
+ *     compiler's own source — the grammar under `convex/oracle/**` AND the
+ *     driver that turns it into this file (`scripts/oracle-corpus.ts`,
+ *     `scripts/oracle-compile.ts`, `scripts/lib/oracle-lockfile.ts`) — plus a
+ *     hash of the Mechanics Registry's names and statuses. Any of them changing
+ *     changes what the compiler emits, so any of them differing from the tree
+ *     means the lockfile is stale. This catches the failure that actually
+ *     happens — a rule or a tally edited without regenerating — with no corpus
+ *     at all.
  *  2. PIN AGREEMENT (when `data/oracle-corpus.pin.json` is present). The header
  *     must name the same corpus the pin does, so a lockfile built from a
  *     different Scryfall snapshot than the one the repo pins is caught.
@@ -32,7 +35,7 @@ import { dirname, join } from "node:path";
 import { buildLockfile } from "./oracle-compile";
 import { corpusIsCached, readCorpus, readPin } from "./oracle-corpus";
 import {
-    grammarHash,
+    compilerHash,
     parseLockfile,
     registryHash,
     serializeLockfile,
@@ -83,11 +86,12 @@ function main(): void {
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
 
     // Tier 1 — header hashes.
-    const expectedGrammar = grammarHash(ROOT);
-    if (lock.header.grammarHash !== expectedGrammar) {
+    const expectedCompiler = compilerHash(ROOT);
+    if (lock.header.compilerHash !== expectedCompiler) {
         fail(
-            `grammar hash drift — convex/oracle/** has changed since the lockfile was generated\n` +
-                `    header: ${lock.header.grammarHash}\n    tree:   ${expectedGrammar}`
+            `compiler hash drift — a compiler source file has changed since the lockfile was generated\n` +
+                `    (convex/oracle/**, scripts/oracle-corpus.ts, scripts/oracle-compile.ts, scripts/lib/oracle-lockfile.ts)\n` +
+                `    header: ${lock.header.compilerHash}\n    tree:   ${expectedCompiler}`
         );
     }
     const expectedRegistry = registryHash();
