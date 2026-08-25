@@ -468,12 +468,22 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // the Sphere's own hold on flying must survive the rebuild, keyed to
         // the Sphere, or the next unapply resurrects a keyword that is still
         // being held down.
+        // CR 613.7 (issue #1750) — the fresh board's first two materializing
+        // sources mint consecutive timestamps (`allocStaticTimestamp` starts
+        // at 1): pin the VALUE, not just presence, so a future regression that
+        // drops or garbles `seq` at this write site is caught here rather than
+        // only by an equally-broken `?? 0` reader downstream.
         expect(card.removedKeywords).toEqual([
             expect.objectContaining({
                 keyword: "flying",
                 sourceId: "sphere-5",
+                seq: 1,
             }),
-            expect.objectContaining({ keyword: "trample", sourceId: "null-6" }),
+            expect.objectContaining({
+                keyword: "trample",
+                sourceId: "null-6",
+                seq: 2,
+            }),
         ]);
 
         unapplySourceStaticEffects(state, nullifier);

@@ -35,6 +35,7 @@
 // writes v2 going forward; there is no code path that writes v1 anymore.
 
 import { tryGetDefinition } from "../cards";
+import { getEffectiveStaticEffects } from "./state";
 import type {
     CardInstanceState,
     GameState,
@@ -1784,5 +1785,69 @@ export function expandState(data: Record<string, unknown>): GameState {
                       ),
         })) as GameState["stagedEntries"];
     }
+    backfillLegacyStaticSeq(result);
     return result;
+}
+
+/** CR 613.7 (issue #1750, part c) — backfill `staticSeq` for every
+ *  battlefield card saved before issue #1715/#1730 introduced the field.
+ *  `expandState` is the ONE place that sees a freshly-loaded board before any
+ *  SBA pass touches it, so this is also the only place that can fix the
+ *  order ONCE rather than let it drift.
+ *
+ *  Without this, an undated card reads via `?? 0` everywhere the timestamp is
+ *  consulted (`composeMaterializedSubtypes`, the `keyword-grant`
+ *  `outrankedBy` check) — harmless AS LONG AS it stays undated, since every
+ *  other undated card ties with it the same way. The moment ONE of them is
+ *  next touched by `refreshCounterGatedStatics` (any counter- or
+ *  condition-gated static effect), `applySourceStaticEffects`'s
+ *  `preserveTimestamp && source.staticSeq !== undefined` guard is false, so
+ *  it mints a BRAND NEW timestamp — the current board's highest — jumping
+ *  that one card from "tied earliest with everyone else" to "strictly
+ *  latest" while its still-untouched neighbours stay at 0. That is a real
+ *  reorder, not a restamp: two sources that agreed before now disagree, and
+ *  WHICH one gets refreshed first (an SBA-pass accident, not a rule) decides
+ *  the outcome (Cyclopean Tomb + Blood Moon on a mired nonbasic land: the
+ *  land's type flips between "Mountain" and "Swamp" depending on how many
+ *  SBA passes have run since load).
+ *
+ *  Fix: give every undated card an EXPLICIT, stable timestamp before
+ *  anything can read `?? 0` for it. Assigned NEGATIVE, strictly increasing in
+ *  battlefield encounter order (per player, array order) — negative so a
+ *  backfilled (necessarily pre-#1730) source always sorts BEFORE any card
+ *  that already carries a real (non-negative) timestamp, preserving the one
+ *  piece of relative order the `?? 0` fallback already guaranteed ("undated
+ *  reads as earliest") while making it deterministic per-card instead of a
+ *  tie every reader can break differently. `allocStaticTimestamp`
+ *  (`gre/state.ts`) is untouched by this choice: it only ever takes a MAX
+ *  over live `staticSeq`/grant `seq` values, so a negative backfilled value
+ *  never collides with, or gets exceeded by, a freshly-minted one.
+ *
+ *  **Gated on `getEffectiveStaticEffects` being non-empty** — the SAME
+ *  condition `applySourceStaticEffects` itself early-returns on
+ *  (`effects.length === 0`). The overwhelming majority of battlefield cards
+ *  (a vanilla creature, a basic land) never author a `staticSeq` at all —
+ *  not because they are legacy, but because nothing ever asks them to order
+ *  against anything. Backfilling those too is not just unnecessary, it is a
+ *  live bug: `compactState` never persists a `staticSeq` a card doesn't
+ *  have, so backfilling every seq-less card unconditionally would stamp a
+ *  fresh, made-up timestamp onto EVERY plain permanent on EVERY load,
+ *  failing the compact/expand round-trip for ordinary boards that were never
+ *  the target of this fix (caught by `serialize.test.ts`'s round-trip
+ *  assertion, which is exactly why this gate exists). */
+function backfillLegacyStaticSeq(state: GameState): void {
+    const legacy: CardInstanceState[] = [];
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (card.staticSeq !== undefined) continue;
+            const cardId = (card.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : null;
+            const effects = getEffectiveStaticEffects(def, card.chosenModeId);
+            if (effects.length === 0) continue;
+            legacy.push(card);
+        }
+    }
+    legacy.forEach((card, i) => {
+        card.staticSeq = i - legacy.length;
+    });
 }
