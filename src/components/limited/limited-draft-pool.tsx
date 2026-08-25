@@ -10,6 +10,7 @@ import {
 } from "@convex/limited/poolArrangement";
 import {
     createColumnLayout,
+    type ColumnId,
     type ColumnLayout,
     type GroupingKind,
     type OrderingKind,
@@ -24,6 +25,7 @@ import {
     seededColumnView,
 } from "~/components/deckbuilder/deckZoneColumnView";
 import { toZoneCards } from "~/components/deckbuilder/poolZoneCards";
+import type { DeckZoneSelection } from "~/components/deckbuilder/deckZoneSelection";
 import EmptyState from "~/components/ui/empty-state";
 import { cn } from "~/lib/utils";
 
@@ -59,16 +61,19 @@ import { cn } from "~/lib/utils";
  *   Column resolves through `limited-draft-table.tsx`'s own `onDragEnd` ->
  *   `handleMoveArrangement`, which is where every Pin this screen records
  *   comes from.
- * - **no touch `"move to…"` path.** Issue #2584 removed the per-tile menu
- *   #1633 had added here; on the two BUILD views its capability became the
- *   Peek Panel's "Move to…" CTA, but this surface opens no Peek Panel (the
- *   Draft Room already mounts one for the Booster pack, and two `fixed`
- *   panels would paint on top of each other — one selection model spanning
- *   both is Draft Room work, #2587). So the surface is given no `onPin` at
- *   all rather than a prop it can no longer reach: `DeckZoneSurface` only
- *   offers Columns through a selection, and this screen supplies no
- *   `onCardSelect`. The gap is written up in
- *   `docs/findings/2584-draft-pool-touch-column-pin.md`.
+ * - **the touch `"move to…"` path is the Peek Panel** (issue #2667, closing
+ *   the gap issue #2584 left behind when it removed the per-tile menu here —
+ *   `docs/findings/2584-draft-pool-touch-column-pin.md`, now deleted; this is
+ *   the fix it was waiting on). A tap SELECTS a Pool or Sideboard card —
+ *   `onCardSelect`/`onPin` below,
+ *   supplied by `limited-draft-table.tsx` — which is what puts this Zone's
+ *   Columns on the resulting {@link DeckZoneSelection}. The Table owns the
+ *   ONE Peek Panel this selection shares with the Booster pack's own
+ *   (mutually exclusive: selecting here clears the pack's selection and vice
+ *   versa), because two `fixed` panels painting over each other is exactly
+ *   what a per-surface panel would produce. `onCardSelect`/`onPin` are
+ *   optional so a bare render of this component (its own unit tests) keeps
+ *   the pre-#2667 click-moves-immediately behaviour.
  *
  * The Sideboard beside it is the same surface in `"pane"` drop mode, Grouping
  * `none` (one flat pile, as it has always looked) and no controls at all: a
@@ -86,6 +91,9 @@ export default function LimitedDraftPool({
     pool,
     arrangement,
     arrange = "row",
+    selection = null,
+    onCardSelect,
+    onPin,
 }: {
     eventId: Id<"limitedEvents">;
     pool: LimitedPoolCard[];
@@ -100,6 +108,21 @@ export default function LimitedDraftPool({
      *  BOX question — both arrangements mount the same two `DeckZoneSurface`s
      *  with the same drop models, so a Pin made in either is the same datum. */
     arrange?: "row" | "column";
+    /** The Table's own selection (issue #2667) — echoed back so the tapped
+     *  tile's ring lands on the right copy (`selectedTileKey`, derived per
+     *  Zone below). `null`/absent draws no ring, same as no selection. */
+    selection?: DeckZoneSelection | null;
+    /** Presence is what makes a tap SELECT instead of moving the card
+     *  immediately (mirrors `DeckZoneSurface`'s own `onCardSelect` contract).
+     *  `limited-draft-table.tsx` always supplies it; a bare render of this
+     *  component (its own unit tests) omits it and keeps the pre-#2667
+     *  click-moves-immediately behaviour. */
+    onCardSelect?: (selection: DeckZoneSelection) => void;
+    /** Records a Card Pin from the Peek Panel's "Move to…" sheet — threaded
+     *  to the Pool's OWN `DeckZoneSurface` only (`dropModel: "columns"`); the
+     *  Sideboard has no Columns to pin into, matching the deckbuilder's own
+     *  Maindeck-only wiring (`deck-zones-surface.tsx`). */
+    onPin?: (cardId: string, columnId: ColumnId, pinKey: string) => void;
 }) {
     const { setPoolArrangementEntry } = useLimitedEventMutations();
 
@@ -201,8 +224,17 @@ export default function LimitedDraftPool({
                     onGroupingChange={handleGroupingChange}
                     onOrderingChange={handleOrderingChange}
                     onCardClick={(card) => setSideboard(card, true)}
+                    onCardSelect={onCardSelect}
+                    selectedTileKey={
+                        selection?.zone === "maindeck"
+                            ? selection.tileKey
+                            : null
+                    }
+                    onPin={onPin}
                     cardTitle={(card) =>
-                        `Remove ${card.cardName} (double-click, drag, or click)`
+                        onCardSelect
+                            ? `Remove ${card.cardName} (drag to move zone)`
+                            : `Remove ${card.cardName} (double-click, drag, or click)`
                     }
                     emptyMessage="Every card you pick lands here."
                 />
@@ -225,8 +257,16 @@ export default function LimitedDraftPool({
                     dropModel="pane"
                     filterable={false}
                     onCardClick={(card) => setSideboard(card, false)}
+                    onCardSelect={onCardSelect}
+                    selectedTileKey={
+                        selection?.zone === "sideboard"
+                            ? selection.tileKey
+                            : null
+                    }
                     cardTitle={(card) =>
-                        `Remove ${card.cardName} from the Sideboard (double-click, drag, or click)`
+                        onCardSelect
+                            ? `Remove ${card.cardName} from the Sideboard (drag to move zone)`
+                            : `Remove ${card.cardName} from the Sideboard (double-click, drag, or click)`
                     }
                     emptyMessage="Move a card here to park it out of your working deck."
                 />

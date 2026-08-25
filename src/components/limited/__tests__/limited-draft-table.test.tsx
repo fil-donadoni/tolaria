@@ -26,6 +26,7 @@ vi.mock("motion/react", () => ({
 }));
 
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
+const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // Plains (land)
 
 const submitPickMock = vi.fn().mockResolvedValue(null);
 const setPoolArrangementEntryMock = vi.fn().mockResolvedValue(null);
@@ -70,12 +71,27 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-function eventRow(overrides: {
+type EventRowOverrides = {
     selectedPickId?: string;
     poolLength?: number;
     pickDeadline?: number;
-}): LimitedEventRow {
+    /** Explicit Pool, overriding the auto-generated all-Bolt one — issue
+     *  #2667's Pool/Sideboard tests need a SECOND distinct card (a land) so
+     *  Grouping `mv`'s default view produces more than one Column to "Move
+     *  to…" between. */
+    pool?: { scryfallId: string; cardId: string; cardName: string }[];
+    poolArrangement?: LimitedEventRow["seats"][number]["poolArrangement"];
+};
+
+function eventRow(overrides: EventRowOverrides): LimitedEventRow {
     const poolLength = overrides.poolLength ?? 0;
+    const pool =
+        overrides.pool ??
+        Array.from({ length: poolLength }, (_, i) => ({
+            scryfallId: `s-existing-${i}`,
+            cardId: BOLT_ID,
+            cardName: "Lightning Bolt",
+        }));
     return {
         _id: "event-1",
         createdBy: "admin1",
@@ -88,11 +104,7 @@ function eventRow(overrides: {
                 seatIndex: 0,
                 userId: "user1",
                 nickname: "Alice",
-                pool: Array.from({ length: poolLength }, (_, i) => ({
-                    scryfallId: `s-existing-${i}`,
-                    cardId: BOLT_ID,
-                    cardName: "Lightning Bolt",
-                })),
+                pool,
                 currentPack: [
                     {
                         scryfallId: "s1",
@@ -109,6 +121,7 @@ function eventRow(overrides: {
                 ],
                 selectedPickId: overrides.selectedPickId,
                 pickDeadline: overrides.pickDeadline,
+                poolArrangement: overrides.poolArrangement,
             },
             { seatIndex: 1, isBot: true },
         ],
@@ -117,11 +130,7 @@ function eventRow(overrides: {
     };
 }
 
-function renderTable(overrides: {
-    selectedPickId?: string;
-    poolLength?: number;
-    pickDeadline?: number;
-}) {
+function renderTable(overrides: EventRowOverrides) {
     const view = projectLimitedEvent(eventRow(overrides), "user1");
     const seat = view.seats.find((s) => s.seatIndex === 0)!;
     // `projectLimitedEvent`'s pure return type has no `autoBuiltDeck` — that
@@ -422,6 +431,158 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
             })
         );
         expect(document.querySelector("[data-inspect-panel]")).toBeNull();
+    });
+});
+
+// Issue #2667: the Pool/Sideboard half of the ONE selection model, reusing
+// `DeckZonePeek` byte-for-byte from the deckbuilder rather than a second
+// "Move to…"/Inspect implementation. Run through the real projection → real
+// `LimitedDraftTable` → real `LimitedDraftPool` → real `DeckZoneSurface`, same
+// discipline as the Booster's own Peek Panel suite above — the panel being
+// correct in isolation says nothing about whether this surface ever mounts it.
+describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
+    const panels = () =>
+        [...document.querySelectorAll("[data-peek-panel]")] as HTMLElement[];
+    const actionEls = () =>
+        [
+            ...document.querySelectorAll("[data-editing-action]"),
+        ] as HTMLElement[];
+    const boltInPool = [
+        { scryfallId: "s1", cardId: BOLT_ID, cardName: "Lightning Bolt" },
+    ];
+
+    it("tapping a Pool card opens the Peek Panel targeted at that card, with Inspect in its CTA row", () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+        expect(actionEls().map((el) => el.dataset.editingAction)).toContain(
+            "Inspect"
+        );
+    });
+
+    it("the same holds for a card in the Sideboard", () => {
+        const { getByTitle } = renderTable({
+            pool: boltInPool,
+            poolArrangement: [{ poolIndex: 0, sideboard: true }],
+        });
+        fireEvent.click(getByTitle(/from the Sideboard/));
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+        expect(actionEls().map((el) => el.dataset.editingAction)).toEqual([
+            "→ Pool",
+            "Inspect",
+        ]);
+    });
+
+    it("Inspect from a Pool selection opens the full card read; closing it returns to the Draft Room with the selection intact", () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(
+            actionEls().find((el) => el.dataset.editingAction === "Inspect")!
+        );
+        expect(document.querySelector("[data-inspect-panel]")).toBeTruthy();
+
+        fireEvent.click(
+            document.querySelector('[aria-label="Close inspect overlay"]')!
+        );
+        expect(document.querySelector("[data-inspect-panel]")).toBeNull();
+        // The selection survives closing the OVERLAY — the panel underneath
+        // is still showing the same card.
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+    });
+
+    it("selecting a Pool card while a pack card is selected clears the pack selection, and vice versa — at no point are two panels mounted", () => {
+        const { getByTitle, getAllByRole } = renderTable({
+            selectedPickId: "r0-p0-c0", // pack: "Lightning Bolt"
+            pool: [{ scryfallId: "s1", cardId: PLAINS_ID, cardName: "Plains" }],
+        });
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+
+        fireEvent.click(getByTitle(/^Remove Plains/));
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Plains"
+        );
+        // The pack's own server-side selection is cleared, not merely hidden.
+        expect(selectDraftPickMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            pickId: null,
+        });
+
+        // …and back the other way: picking a Booster card while the Pool
+        // panel is open clears the Pool's own local selection.
+        const boosterCards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(boosterCards[0]);
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+    });
+
+    it("moving a Pool card to a specific Column from the panel persists the same Pool Arrangement entry a long-press drag onto that Column persists", () => {
+        const { getByTitle, getByRole } = renderTable({
+            pool: [
+                ...boltInPool,
+                { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+            ],
+        });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(
+            actionEls().find((el) => el.dataset.editingAction === "Move to…")!
+        );
+        // The Bolt defaults into "MV 1" (`mv:1`); moving it into the OTHER
+        // generated Column this pool has (`mv:lands`, the Plains' own) is
+        // what proves the Pin actually names a DIFFERENT Column rather than
+        // a no-op re-pin of the one it is already in.
+        fireEvent.click(getByRole("button", { name: "Lands" }));
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: false,
+            column: "mv:lands",
+        });
+    });
+
+    it("zone moves (Pool <-> Sideboard) from the panel persist and are reflected in the Main / Sideboard counts", () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(
+            actionEls().find((el) => el.dataset.editingAction === "→ Side")!
+        );
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: true,
+        });
+    });
+
+    // The Booster's own Peek Panel deliberately does NOT reserve on a phone
+    // (its CTAs inline into the strip there, `draft-selection-actions.tsx`);
+    // the Pool's `DeckZonePeek` opens the real FIXED panel at every viewport
+    // (issue #2667 AC), so the surface underneath must reserve for it there
+    // too — unlike the Booster row a few tests up, which asserts NOTHING is
+    // reserved while `phoneOrientation` is set and no card is selected.
+    it("reserves room for the Pool's panel even though the Booster's own panel never mounts on this layout", () => {
+        const { container, getByTitle } = renderTable({ pool: boltInPool });
+        const surface = () =>
+            container.querySelector("[data-slot=draft-surface]") as HTMLElement;
+        expect(surface().style.paddingRight).toBe("");
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        // No `matchMedia` stub here (same default the existing "reserves the
+        // rail's WIDTH on desktop too" test relies on) — `useViewportMode`
+        // falls back to `"desktop"`, i.e. the rail.
+        expect(surface().style.paddingRight).toBe(PEEK_PANEL_RAIL_WIDTH);
     });
 });
 

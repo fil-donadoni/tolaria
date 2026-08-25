@@ -22,6 +22,8 @@ import {
     peekPanelReserve,
 } from "~/components/editing/usePeekPanelLayout";
 import type { EditingSurfaceAction } from "~/components/editing/editing-surface-action";
+import DeckZonePeek from "~/components/deckbuilder/deck-zone-peek";
+import type { DeckZoneSelection } from "~/components/deckbuilder/deckZoneSelection";
 import { cardBase } from "~/lib/cardSizing";
 import { useDraftKeyboardPicks } from "~/hooks/useDraftKeyboardPicks";
 import LimitedDraftPack from "./limited-draft-pack";
@@ -78,8 +80,22 @@ const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");
  *  - the context-menu "Pick to sideboard" / a drag onto the Sideboard →
  *    commits the Pick AND parks the new Pool card in the Sideboard, in one
  *    user gesture.
- *  - Pool ⇄ Sideboard / between Columns: drag OR click
- *    (`LimitedDraftPool`'s own tiles), persisted via `setPoolArrangementEntry`. */
+ *  - Pool ⇄ Sideboard / between Columns: drag, OR a tap that SELECTS the
+ *    card (issue #2667) — see `poolSelection` below.
+ *
+ *  ONE selection model, exclusive (issue #2667): the Booster's own
+ *  `selectedPickId` (server-truth, ADR 0060) and this component's own
+ *  `poolSelection` (a Pool/Sideboard tile) can never both be live. Selecting
+ *  either clears the other, and exactly one Peek Panel is ever mounted below
+ *  — the Booster's own `<PeekPanel>` (desktop/tablet; the phone regimes
+ *  inline its CTAs into the strip instead, unchanged) or the Pool's
+ *  `<DeckZonePeek>`, reused byte-for-byte from the deckbuilder (the SAME
+ *  component `deck-zones-surface.tsx` mounts for its own Maindeck/Sideboard
+ *  pair) rather than a second copy of its CTA-appending logic. Unlike the
+ *  Booster's, the Pool's panel is NOT phone-special-cased: issue #2667's own
+ *  AC asks for the real fixed Peek Panel at 390x844 and 844x390 too, and
+ *  `DeckZonePeek` already behaves that way for the deckbuilder — reusing it
+ *  gets that behaviour for free rather than inventing a third arrangement. */
 export default function LimitedDraftTable({
     eventId,
     seat,
@@ -134,6 +150,18 @@ export default function LimitedDraftTable({
     // derivation site further down.
     const [peekClosedFor, setPeekClosedFor] = useState<string | null>(null);
     const [inspecting, setInspecting] = useState<string | null>(null);
+    // The Pool/Sideboard side of the ONE selection model (issue #2667) — a
+    // full `DeckZoneSelection` rather than a bare card id, because
+    // `DeckZonePeek` (reused unchanged from the deckbuilder) derives its
+    // "Move to…" Column list and its selection ring straight off it.
+    // `poolInspecting` mirrors `deck-zones-surface.tsx`'s own `inspecting`
+    // state for the same reason: the overlay's CTA row is built from the
+    // inspected CARD, not the currently selected one (they can differ for one
+    // render while the overlay is up).
+    const [poolSelection, setPoolSelection] =
+        useState<DeckZoneSelection | null>(null);
+    const [poolInspecting, setPoolInspecting] =
+        useState<DeckZoneSelection | null>(null);
     // Booster zoom slider (ADR 0060, issue #1247, PRD #1107 story 21) —
     // mirrors the deckbuilder's per-zone `useCardZoom`/`CardZoomSlider`
     // wiring, its own "booster" zone so it persists independently of the
@@ -188,7 +216,58 @@ export default function LimitedDraftTable({
         // pack card, that card would have no touch read path left at all for
         // the rest of the draft.
         setPeekClosedFor(null);
+        // Mutual exclusivity (issue #2667): a fresh Booster selection clears
+        // whatever Pool/Sideboard selection was showing, LOCALLY — this side
+        // owns no server field, so there is nothing to await or catch.
+        setPoolSelection(null);
+        setPoolInspecting(null);
         void selectDraftPick({ eventId, pickId }).catch(() => {});
+    };
+
+    // The Pool/Sideboard half of the selection (issue #2667) — a tap on a
+    // Pool or Sideboard tile. Mirrors `handleSelect` the other way: it clears
+    // the Booster's SERVER-side selection (`selectedPickId`) rather than only
+    // a local flag, because that field is what a timer expiry auto-picks
+    // (issue #1249) and a card the player is no longer looking at — they are
+    // down in their Pool — must not be the one that gets auto-committed.
+    // Best-effort, like every other selection write here: a raced clear is
+    // harmless, it only means a stale highlight briefly lingers server-side.
+    const handlePoolSelect = (selection: DeckZoneSelection) => {
+        setPoolSelection(selection);
+        if (seat.selectedPickId) {
+            void selectDraftPick({ eventId, pickId: null }).catch(() => {});
+        }
+    };
+
+    // The Pool's "Move to…" CTA (Peek Panel, issue #2667) and its Peek
+    // Panel's own `onPin` — pins the card into a SPECIFIC Column, the exact
+    // write a long-press drag onto that Column already made
+    // (`handleMoveArrangement` below). `pinKey` is the Pool's own
+    // `poolIndex`, stringified (`poolCopyPinKey`, `poolZoneCards.ts`) — the
+    // SAME parse `resolveDraftDragAction` already does for a drag's payload,
+    // so a click-placed Pin and a dragged one resolve through one function
+    // from here on. Always `sideboard: false`: `onPin` is threaded to the
+    // Pool's ("maindeck") `DeckZoneSurface` only (never the Sideboard's, which
+    // has no Columns), so every card reaching this is already Pool-side.
+    const handlePoolPin = (
+        _cardId: string,
+        columnId: ColumnId,
+        pinKey: string
+    ) => {
+        const poolIndex = Number(pinKey);
+        if (!Number.isInteger(poolIndex)) return;
+        handleMoveArrangement(poolIndex, false, columnId);
+    };
+
+    // The Pool selection's zone-move CTA ("→ Side" / "→ Pool") — the SAME
+    // `setPoolArrangementEntry` write a Pool ⇄ Sideboard DRAG already makes
+    // (`handleMoveArrangement`), with no Column named so any existing Pin
+    // survives the move untouched (`poolArrangementPatch` omits `column`
+    // entirely when `columnId` is `null`).
+    const handlePoolZoneMove = (pinKey: string, sideboard: boolean) => {
+        const poolIndex = Number(pinKey);
+        if (!Number.isInteger(poolIndex)) return;
+        handleMoveArrangement(poolIndex, sideboard, null);
     };
 
     // Commits the Pick AND immediately files the freshly-picked Pool card
@@ -336,6 +415,36 @@ export default function LimitedDraftTable({
             },
         }));
 
+    // The Pool/Sideboard selection's own CTA row (issue #2667) — the zone
+    // move, mirroring `deck-zones-surface.tsx`'s `actionsFor` (same shape,
+    // same "primary CTA is the zone the card is NOT currently in" rule) so a
+    // player who has used the build view's Peek Panel finds an identical row
+    // here. `DeckZonePeek` appends "Move to…" (only offered when
+    // `selection.columns` is non-empty — Pool selections only, since the
+    // Sideboard's `DeckZoneSurface` gets no `onPin`) and "Inspect" itself.
+    const poolActionsFor = (
+        target: DeckZoneSelection
+    ): readonly EditingSurfaceAction[] =>
+        target.zone === "maindeck"
+            ? [
+                  {
+                      label: "→ Side",
+                      primary: true,
+                      onSelect: () => handlePoolZoneMove(target.pinKey, true),
+                  },
+              ]
+            : [
+                  {
+                      label: "→ Pool",
+                      primary: true,
+                      onSelect: () => handlePoolZoneMove(target.pinKey, false),
+                  },
+              ];
+    const poolPeekActions = poolSelection ? poolActionsFor(poolSelection) : [];
+    const poolInspectActions = poolInspecting
+        ? poolActionsFor(poolInspecting)
+        : [];
+
     // The panel is `fixed`, so the surface underneath reserves the room it
     // occupies — on the axis the RESOLVED layout actually eats. At four of
     // the five UI-gate viewports that is WIDTH (the rail), not height.
@@ -356,7 +465,15 @@ export default function LimitedDraftTable({
     // 390x844 that this change deletes from `budgets.json`. §4's actual
     // requirement — the 44px CTA row as the primary touch move path — still
     // holds; only its host moves.
-    const peekPanel = phoneOrientation === null ? peeked : null;
+    //
+    // `!poolSelection` (issue #2667) is a defensive second gate, not the
+    // primary one: `handlePoolSelect` already clears `selectedPickId`
+    // server-side, so `peeked` normally goes null on its own the next time
+    // `seat` updates. This is what keeps the two panels from BOTH painting
+    // for the one render in between — the local selection lands
+    // synchronously, the server clear does not.
+    const peekPanel =
+        phoneOrientation === null && !poolSelection ? peeked : null;
 
     // The two-stop snap scroller and the pack-arrival recall (ADR 0101 §6).
     // Called unconditionally — hooks cannot live behind the layout fork — and
@@ -435,6 +552,9 @@ export default function LimitedDraftTable({
                 eventId={eventId}
                 pool={pool}
                 arrangement={seat.poolArrangement}
+                selection={poolSelection}
+                onCardSelect={handlePoolSelect}
+                onPin={handlePoolPin}
             />
         </>
     );
@@ -457,6 +577,9 @@ export default function LimitedDraftTable({
                 pool={pool}
                 arrangement={seat.poolArrangement}
                 arrange={phoneOrientation === "portrait" ? "column" : "row"}
+                selection={poolSelection}
+                onCardSelect={handlePoolSelect}
+                onPin={handlePoolPin}
             />
         ),
         densityToggle: (
@@ -514,7 +637,16 @@ export default function LimitedDraftTable({
                 data-slot="draft-surface"
                 data-layout={layout}
                 className="flex min-h-0 flex-1 flex-col gap-3"
-                style={peekPanel ? peekPanelReserve(peekLayout) : undefined}
+                // Issue #2667: the Pool's `DeckZonePeek` is ALSO `fixed` and
+                // reserves on the same axis, unlike the Booster's — it opens
+                // at every viewport, phone included (`peekPanel` above is
+                // `null` there by design). Either truthy reserves; the two
+                // are mutually exclusive so this never double-reserves.
+                style={
+                    peekPanel || poolSelection
+                        ? peekPanelReserve(peekLayout)
+                        : undefined
+                }
             >
                 {/* The zoom SLIDER is a desktop control: a phone gets the
                     two-rung density toggle instead, mounted inside the pane
@@ -620,6 +752,34 @@ export default function LimitedDraftTable({
                     onClose={() => setInspecting(null)}
                 />
             )}
+
+            {/* The Pool/Sideboard half of the ONE selection model (issue
+                #2667) — reused byte-for-byte from the deckbuilder rather than
+                a second copy of its CTA-appending ("Move to…"/"Inspect")
+                logic. Mounted unconditionally: `DeckZonePeek` itself renders
+                nothing while `poolSelection` is `null` (its own internal
+                `{selection && (...)}` guards), so this never doubles up with
+                the Booster's `<PeekPanel>` above — the two selections are
+                kept exclusive at the STATE level (`handleSelect` /
+                `handlePoolSelect`), not by a render-time branch here. */}
+            <DeckZonePeek
+                selection={poolSelection}
+                subtitle={
+                    poolSelection?.zone === "maindeck" ? "Pool" : "Sideboard"
+                }
+                onClose={() => setPoolSelection(null)}
+                actions={poolPeekActions}
+                onPin={handlePoolPin}
+                inspecting={poolInspecting}
+                inspectActions={poolInspectActions}
+                onInspect={setPoolInspecting}
+                onCloseInspect={() => setPoolInspecting(null)}
+                // Same PRD #2405 D15 rule the Booster's own Inspect Overlay
+                // above already applies — one Draft Room, one dismissal
+                // convention for both halves of the selection it now shares
+                // this panel between.
+                inspectTapAnywhereCloses
+            />
 
             {menu && (
                 <LimitedPickContextMenu
