@@ -40,6 +40,7 @@ import {
 import type { Color } from "../../../types";
 import { resolveActivated, resolveTrigger } from "./helpers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { buildStateView } from "../../../../gre/replacements";
 
 describe("Army of Allah (attacking creatures +2/+0, CR 611.2)", () => {
     it("pumps only attacking creatures", () => {
@@ -324,15 +325,22 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
 
 describe("Camel (banding + Desert-damage prevention for its band while attacking)", () => {
     it("while attacking, prevents Desert damage to itself and band-mates", () => {
+        // `isAttacking` (issue #1853 review) — Desert's own `combatRoleFilter`
+        // is now re-checked at resolution too (`isTargetStillLegal`,
+        // gre/state.ts), reading the SAME per-card flag the shield's own
+        // `appliesTo` reads `combat.attackerIds` for; both must reflect
+        // "attacking" for this scenario to be reachable through real play.
         const cam = makeInstance(camel.id, {
             id: "camel",
             controllerId: "p2",
             ownerId: "p2",
+            isAttacking: true,
         });
         const ally = makeInstance(grizzlyBears.id, {
             id: "ally",
             controllerId: "p2",
             ownerId: "p2",
+            isAttacking: true,
         });
         const des = makeInstance(desert.id, { id: "des" });
         const state = makeState({
@@ -366,29 +374,47 @@ describe("Camel (banding + Desert-damage prevention for its band while attacking
         ).toBe(0);
     });
 
-    it("does NOT prevent Desert damage while Camel is not attacking", () => {
+    // CR 608.2b (issue #1853 review) — Desert's OWN `targetRequirement`
+    // requires an ATTACKING creature (`combatRoleFilter`), so "deal Desert
+    // damage to a non-attacking Camel" is not a state a real player can ever
+    // reach through Desert — it was never a legal target to begin with, now
+    // enforced at resolution too, same as at selection. Reformulated to probe
+    // the shield's OWN "must be attacking" condition directly
+    // (`camel-band-no-desert-damage`'s `appliesTo`) rather than through an
+    // ability activation the CR itself rules out.
+    it("the shield's appliesTo predicate does NOT fire while Camel is not attacking", () => {
         const cam = makeInstance(camel.id, {
             id: "camel",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const des = makeInstance(desert.id, { id: "des" });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: [des] }),
+                makePlayer("p1"),
                 makePlayer("p2", { battlefield: [cam] }),
             ],
+            // No `combat` block at all — Camel is not attacking.
         });
-        resolveActivated(state, des, "desert-ping", [
-            { type: "permanent", id: "camel" },
-        ]);
-        // Damage lands (not prevented) — the 0/1 Camel takes lethal and dies.
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "camel")
-        ).toBeUndefined();
-        expect(state.players[1].graveyard.some((c) => c.id === "camel")).toBe(
-            true
+        const shield = camel.replacementEffects!.find(
+            (r) => r.id === "camel-band-no-desert-damage"
+        )!;
+        const applies = shield.appliesTo(
+            {
+                kind: "damage",
+                sourceInstanceId: "des",
+                sourceControllerId: "p1",
+                sourceColors: [],
+                sourceTypes: ["Land"],
+                sourceSubtypes: ["Desert"],
+                sourceStaticAbilities: [],
+                target: { type: "permanent", id: "camel" },
+                amount: 1,
+                isCombat: false,
+            },
+            cam,
+            buildStateView(state)
         );
+        expect(applies).toBe(false);
     });
 });
 

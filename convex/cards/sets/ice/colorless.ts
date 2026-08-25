@@ -510,10 +510,15 @@ export const despoticScepter: CardDefinition = {
 };
 // Crown of the Ages — {4}, {T}: Attach target Aura attached to a creature to
 // another creature (CR 605 activated ability; CR 303.4 / 701.3d move-an-aura via
-// `reattachAura`). The targeted Aura is chosen via `subtypeFilter: "Aura"`; the
-// new creature host is picked mid-resolution from all battlefields. We re-read
-// the aura's current host (`getAttachedTo`) and exclude it so the reattach moves
-// the aura to a DIFFERENT creature ("another creature").
+// `reattachAura`). The targeted Aura is chosen via `subtypeFilter: "Aura"` +
+// `attachedToFilter: { types: "Creature" }` (issue #1853 finding 3) — the same
+// declarative host-relation check Pyramids/Savaen Elves/Miracle Worker route
+// through (ADR 0068), scoping the offered set to an Aura already on a creature
+// rather than any Aura in play (including one on a land or unattached, which
+// the oracle text doesn't license). The new creature host is picked
+// mid-resolution from all battlefields. We re-read the aura's current host
+// (`getAttachedTo`) and exclude it so the reattach moves the aura to a
+// DIFFERENT creature ("another creature").
 export const crownOfTheAges: CardDefinition = {
     id: "fce2991f-48e1-4cfe-af0a-18b6d9400493",
     name: "Crown of the Ages",
@@ -532,6 +537,7 @@ export const crownOfTheAges: CardDefinition = {
             targetRequirement: {
                 type: "Enchantment",
                 subtypeFilter: "Aura",
+                attachedToFilter: { types: "Creature" },
                 count: 1,
             },
             resolve: (ctx: SpellContext) => {

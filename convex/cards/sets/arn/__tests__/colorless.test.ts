@@ -457,6 +457,50 @@ describe("Pyramids (modal destroy-aura / save land, CR 614 + ADR 0020)", () => {
         );
     });
 
+    // CR 303.4b — the oracle text restricts mode 1 to a target Aura ATTACHED
+    // TO A LAND. Before issue #1853's fix, `getLegalTargets` had no way to
+    // express that host relation, so an Aura on a creature was a fully legal,
+    // clickable, stack-worthy target that only fizzled once resolve() ran.
+    // `attachedToFilter` (convex/cards/types.ts) closes it at the SAME single
+    // authority `selectTarget` (game.ts) and the client's
+    // `matchesPermanentTargetFilters` also route through — this is the
+    // negative case the OLD test above never exercised.
+    it("mode 1 does NOT offer an Aura attached to a creature as a legal target (issue #1853)", () => {
+        const pyr = makeInstance(pyramids.id, { id: "pyr" });
+        const creature = makeInstance(grizzlyBears.id, { id: "creature" });
+        const land = makeInstance(forest.id, { id: "land" });
+        const auraOnLand = makeInstance(fishliverOil.id, {
+            id: "aura-on-land",
+            attachedTo: "land",
+        });
+        const auraOnCreature = makeInstance(fishliverOil.id, {
+            id: "aura-on-creature",
+            attachedTo: "creature",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        pyr,
+                        creature,
+                        land,
+                        auraOnLand,
+                        auraOnCreature,
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const req = pyramids.activatedAbilities!.find(
+            (a) => a.id === "pyramids-destroy-aura"
+        )!.targetRequirement!;
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
+        expect(ids).toContain("aura-on-land");
+        expect(ids).not.toContain("aura-on-creature");
+    });
+
     it("mode 2 saves the target land from the next destruction this turn", () => {
         const pyr = makeInstance(pyramids.id, { id: "pyr" });
         const land = makeInstance(mountain.id, {

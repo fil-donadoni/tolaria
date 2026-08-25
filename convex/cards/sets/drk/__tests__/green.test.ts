@@ -608,11 +608,78 @@ describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.8)", () =
         ).toBeUndefined();
     });
 
-    it("does NOT destroy an Aura attached to a creature", () => {
+    // CR 303.4b — the oracle text restricts the target to an Aura attached
+    // to a LAND. `attachedToFilter` (issue #1853) enforces this at target
+    // SELECTION (getLegalTargets / selectTarget), not resolution — CR
+    // 608.2b's resolution-time re-check is deliberately zone-existence-only
+    // for permanent targets (`isTargetStillLegal`, gre/state.ts), so an Aura
+    // on a creature is illegal because it was never offered in the first
+    // place, not because resolve() refuses it after the fact.
+    it("does NOT offer an Aura attached to a creature as a legal target", () => {
+        const { state } = setup(false);
+        const req = savaenElves.activatedAbilities!.find(
+            (a) => a.id === "savaen-elves-destroy-aura"
+        )!.targetRequirement!;
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
+        expect(ids).not.toContain("aura");
+    });
+
+    // CR 608.2b (issue #1853 review) — defense-in-depth restoration. The
+    // OFFERED-set test above proves a real player can never HAND-PICK this
+    // target; this one proves that even a target placed on the stack by
+    // some other means still doesn't resolve, because `isTargetStillLegal`
+    // re-checks the SAME `attachedToFilter` at resolution
+    // (`permanentTargetStillMeetsRestrictions`, gre/state.ts) — the
+    // resolution-time half of the single ADR 0068 authority. Was deleted on
+    // the (wrong) premise that CR 608.2b's resolution recheck is
+    // permanently zone-existence-only for permanents; restored now that it
+    // isn't.
+    it("does NOT destroy an Aura attached to a creature, even pushed directly onto the stack", () => {
         const { state, elves } = setup(false);
         resolveActivated(state, elves, "savaen-elves-destroy-aura", [
             { type: "permanent", id: "aura" },
         ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "aura")
+        ).toBeDefined();
+    });
+
+    // The reviewer's second probe (issue #1853 review, finding 1): a
+    // LEGALLY-chosen target (Aura on a land) becomes illegal mid-stack when
+    // an intervening effect re-attaches it to a creature before Savaen Elves
+    // resolves — reachable today via Crown of the Ages (`ice/colorless.ts`),
+    // whose own missing host filter (finding 3, fixed in this same PR) lets
+    // it move an Aura off a land. Modeled here as a direct re-attach (the
+    // observable effect of Crown of the Ages resolving), matching this
+    // suite's existing convention of mutating the board directly between two
+    // `resolveTopOfStack` calls rather than re-deriving a second ability's
+    // full interactive resolve().
+    it("a legally-chosen target that becomes illegal mid-stack (re-attached to a creature) survives (CR 608.2b)", () => {
+        const { state, elves } = setup(true); // aura starts attached to the land
+        state.stack.push({
+            ...elves,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "savaen-elves-destroy-aura",
+            targets: [{ type: "permanent", id: "aura" }],
+        });
+        // Crown of the Ages (or any other re-attach effect) moves the Aura
+        // from the land to the creature host in response.
+        const aura = state.players[1].battlefield.find((c) => c.id === "aura")!;
+        aura.attachedTo = "host2";
+        state.players[1].battlefield.push(
+            makeInstance(getCardByName("Grizzly Bears").id, {
+                id: "host2",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        resolveTopOfStack(state);
+        // The Aura survives: its host is no longer a land, so
+        // `attachedToFilter`'s `types: "Land"` fails at resolution and the
+        // ability fizzles.
         expect(
             state.players[1].battlefield.find((c) => c.id === "aura")
         ).toBeDefined();

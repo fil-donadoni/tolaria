@@ -85,13 +85,16 @@ import {
 } from "./cityBlessing";
 import { effectivePermanentView } from "./permanentView";
 import {
+    effectiveRequirementForSource,
     getExtraLandDrops,
     getLegalTargets,
     NO_TARGETING_SOURCE,
     targetingSourceFromCard,
 } from "./rules";
 import {
+    checkPermanentTargetFilters,
     checkSpellTargetFilters,
+    lowerPermanentFilters,
     lowerSpellOnlyFilters,
     requirementAdmitsSpellTarget,
 } from "./targetFilters";
@@ -3201,6 +3204,19 @@ export type PendingTarget = {
      *  `GameState.controlChangedThisTurn` — both of which the CLIENT must
      *  supply on its synthetic filter state or the check fails CLOSED. */
     controlledSinceTurnStart?: boolean;
+    /** Restricts legal permanent targets by their CURRENT attachment (CR
+     *  303.4b — "target Aura attached to a land" / "... attached to a
+     *  creature you control"). Propagated from
+     *  TargetRequirement.attachedToFilter through `lowerPermanentFilters`.
+     *  Read by the SAME `checkPermanentTargetFilters` authority both
+     *  `getLegalTargets` (offered set) and `selectTarget` (accepted set) run
+     *  against the candidate's OWN `attachedTo` host, never the candidate
+     *  itself. Used by Pyramids/Savaen Elves ("attached to a land") and
+     *  Miracle Worker ("attached to a creature you control"). */
+    attachedToFilter?: {
+        types?: CardType[];
+        controlledBy?: "you" | "opponent" | "any" | "active";
+    };
     /** Targets already selected. */
     selected: TargetSelection[];
     /** Divide-as-you-choose budget (CR 601.2d / 120.4). When set, this spell
@@ -3381,6 +3397,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     sameController: true,
     isToken: true,
     controlledSinceTurnStart: true,
+    attachedToFilter: true,
     playerAttackedThisTurn: true,
     spellStackKind: true,
     stackSourceTypeFilter: true,
@@ -4989,20 +5006,273 @@ function spellTargetStillMeetsRestrictions(
     return checkSpellTargetFilters(ctx, candidate, values) === null;
 }
 
+/** Reconstructs the `TargetRequirement` governing a resolving stack item's
+ *  target(s), read-only, for the CR 608.2b permanent-filter re-check below.
+ *  Mirrors the branches `resolveTopOfStackInner` itself already dispatches
+ *  resolution on (reflexive/delayed inline body, triggered ability,
+ *  activated ability — including a granted one — or a plain/modal spell),
+ *  same lookups. Returns `undefined` for a shape none of those branches
+ *  recognizes (an inline body that carries no requirement, an ability id
+ *  that resolves to nothing, …) — the caller treats that as "nothing more
+ *  provable" and keeps the pre-existing zone-existence answer. */
+function resolvingTargetRequirement(
+    item: StackItem,
+    cardDef: CardDefinition | undefined
+):
+    | {
+          req: TargetRequirement;
+          /** CR 601.2c — the resolved body ALSO declares one or more INDEPENDENT
+           *  additional target groups (Oko's "target ... you control AND target
+           *  ... an opponent controls", `additionalTargetRequirements`). Their
+           *  picks land on the SAME flat `item.targets` array, positionally,
+           *  after this group's (`priorSelected` + `selected`,
+           *  `PendingTarget` above documents the concatenation order) — so
+           *  membership IS recoverable today for every shipped multi-group
+           *  card (inv/ice/pls/eld `multicolor.ts`), all of which declare a
+           *  fixed `count: 1` per group. This flag stays a blanket skip
+           *  anyway (deliberately conservative, not a hard limit): a
+           *  variable-count group ahead of a later one shifts every
+           *  subsequent position by an amount this reconstruction has no
+           *  cheap way to replay, and getting that wrong would apply one
+           *  group's filters to another group's target — worse than not
+           *  rechecking. The caller treats `true` here as "can't confidently
+           *  recheck", the same fail-open answer as an unresolvable body; the
+           *  cost is that a multi-group resolution — e.g. Plague Spores
+           *  (`convex/cards/sets/inv/multicolor.ts`), literally the CR
+           *  608.2b Plague Spores worked example — gets NO CR 608.2b
+           *  permanent-filter recheck at all, on either of its two targets,
+           *  not merely the primary group's own. */
+          hasAdditionalGroups: boolean;
+      }
+    | undefined {
+    // Reflexive / delayed triggers carry their requirement directly on the
+    // stack item (CR 603.3d, ADR 0048 inline-body machinery) — no card-def
+    // lookup applies, and none is needed. Inline bodies never carry
+    // additional target groups (no `additionalTargetRequirements` twin on
+    // `StackItem`).
+    if (item.inlineTargetRequirement)
+        return {
+            req: item.inlineTargetRequirement,
+            hasAdditionalGroups: false,
+        };
+
+    if (item.triggeredAbilityId) {
+        const ability = findTriggeredAbility(item, item.triggeredAbilityId);
+        if (!ability) return undefined;
+        // `TriggeredAbility` (and its `AbilityMode`) declares no
+        // `additionalTargetRequirements` twin — a triggered ability cannot
+        // have independent target groups at the TYPE level, so this half of
+        // the narrowing is unreachable here (unlike the activated-ability
+        // branch below).
+        if (!ability.modes || ability.modes.length === 0) {
+            return ability.targetRequirement
+                ? { req: ability.targetRequirement, hasAdditionalGroups: false }
+                : undefined;
+        }
+        // CR 700.2c/700.2d — a modal trigger targets under its ANNOUNCED
+        // mode's requirement only; no mode chosen yet reads as "unknown".
+        if (!item.chosenModeId) return undefined;
+        const mode = ability.modes.find((m) => m.id === item.chosenModeId);
+        return mode?.targetRequirement
+            ? { req: mode.targetRequirement, hasAdditionalGroups: false }
+            : undefined;
+    }
+
+    if (item.abilityId) {
+        // CR 113.1 — an ability granted by another card reads its template
+        // off the GRANTING card, same lookup `resolveTopOfStackInner` uses.
+        const ability = item.grantedSourceCardId
+            ? tryGetDefinition(item.grantedSourceCardId)?.grantTemplates?.find(
+                  (a) => a.id === item.abilityId
+              )
+            : cardDef?.activatedAbilities?.find((a) => a.id === item.abilityId);
+        if (!ability) return undefined;
+        // `ActivatedAbility.additionalTargetRequirements` (Oko's -5) is an
+        // ABILITY-level field with no per-mode twin on `AbilityMode` — and
+        // `activateAbilityOnState` (game.ts) applies it UNCONDITIONALLY,
+        // independent of the chosen mode: "AbilityMode has no per-mode twin
+        // of this field, so unlike the cast path there is no `chosenMode ??`
+        // leg to prefer" (game.ts, `abilityAdditionalRequirements`). A MODAL
+        // activated ability with ability-level groups therefore DOES trip
+        // this narrowing — `hasAdditionalGroups` below is the same value for
+        // both the modal and non-modal return (round 3 fix, issue #1853
+        // review round 2 finding 2 — the modal leg used to hardcode `false`,
+        // contradicting the announcement path it mirrors).
+        const hasAdditionalGroups =
+            (ability.additionalTargetRequirements?.length ?? 0) > 0;
+        // CR 612.6 / 601.2c (issue #1853 round 3) — reconstruct through the
+        // SAME two merges `activateAbilityOnState`'s `effectiveRequirement`
+        // applies at announcement (colour-word substitution off the
+        // source's OWN `textChanges`, then the reflexive self-exclude), via
+        // the shared helper both sites now call. `item` is the stack item's
+        // clone of the source permanent at activation commit
+        // (`buildActivatedAbilityStackItem`), so `item.textChanges` /
+        // `item.id` are exactly what announcement read off the live `card`.
+        // Skipping this reconstructed a raw, unsubstituted colour filter and
+        // wrongly fizzled a legally-chosen target (Circle of Protection:
+        // White retargeted red by Sleight of Mind, resolving against a red
+        // creature) — not a Circle-of-Protection special case, any
+        // colour-filtered ability with an active colour-word change hits it.
+        if (!ability.modes || ability.modes.length === 0) {
+            return ability.targetRequirement
+                ? {
+                      req: effectiveRequirementForSource(
+                          ability.targetRequirement,
+                          item,
+                          item.id
+                      ),
+                      hasAdditionalGroups,
+                  }
+                : undefined;
+        }
+        if (!item.chosenModeId) return undefined;
+        const mode = ability.modes.find((m) => m.id === item.chosenModeId);
+        return mode?.targetRequirement
+            ? {
+                  req: effectiveRequirementForSource(
+                      mode.targetRequirement,
+                      item,
+                      item.id
+                  ),
+                  hasAdditionalGroups,
+              }
+            : undefined;
+    }
+
+    // Plain (or modal) spell — CR 700.2d, the same chosen-mode read
+    // `spellTargetStillMeetsRestrictions` above makes for its own purposes.
+    // `announceCast` (game.ts) does not currently apply CR 612.6 colour
+    // substitution to a cast's `activeTargetRequirement` (only the
+    // activated-ability path above does), so this branch mirrors that —
+    // nothing to substitute here without inventing behaviour the
+    // announcement path itself doesn't have. `additionalRequirements`
+    // mirrors `announceCast`'s own `chosenMode?.additionalTargetRequirements
+    // ?? cardDef.additionalTargetRequirements ?? []` fallback chain (game.ts)
+    // — a modal spell with only CARD-level groups used to reconstruct as
+    // `hasAdditionalGroups: false` here (issue #1853 review round 2 finding
+    // 2b).
+    if (item.chosenModeId) {
+        const mode = cardDef?.modes?.find((m) => m.id === item.chosenModeId);
+        return mode?.targetRequirement
+            ? {
+                  req: mode.targetRequirement,
+                  hasAdditionalGroups:
+                      ((
+                          mode.additionalTargetRequirements ??
+                          cardDef?.additionalTargetRequirements
+                      )?.length ?? 0) > 0,
+              }
+            : undefined;
+    }
+    return cardDef?.targetRequirement
+        ? {
+              req: cardDef.targetRequirement,
+              hasAdditionalGroups:
+                  (cardDef.additionalTargetRequirements?.length ?? 0) > 0,
+          }
+        : undefined;
+}
+
+/** CR 608.2b, permanent-kind half (issue #1853 review) — re-checks a
+ *  still-on-the-battlefield PERMANENT target against the resolving item's
+ *  own permanent target filters (subtype, tap-state, attachment, …), not
+ *  merely the zone-existence check in `isTargetStillLegal` above. "Other
+ *  changes to the game state may cause a target to no longer be legal; for
+ *  example, its characteristics may have changed" (CR 608.2b, printed) —
+ *  and a permanent's host changing owner mid-stack (Dominate on an Aura's
+ *  creature between Miracle Worker's activation and its resolution) is
+ *  exactly such a change; the zone-existence gate alone let it through
+ *  (proven live: `resolveActivated` handed an Aura-on-the-wrong-host target
+ *  directly to `resolve()` and it destroyed it anyway).
+ *
+ *  Reuses the SAME `PERMANENT_FILTER_KEYS` / `checkPermanentTargetFilters`
+ *  single authority `getLegalTargets` (offered set) and `selectTarget`
+ *  (accepted set) already run at targeting time (ADR 0068) — completing that
+ *  authority rather than adding a third rule beside it, so every REGISTRY
+ *  filter key is covered (`attachedToFilter`, `tappedFilter`,
+ *  `controlledSinceTurnStart`, …), not only the Aura-host clause that
+ *  surfaced the gap. That is narrower than "every characteristic": the
+ *  target's `type: "Creature"` clause of a `TargetRequirement` is not itself
+ *  a `PermanentFilterKey` (`PERMANENT_FILTER_KEYS`, `gre/targetFilters.ts`
+ *  has no bare `type`/`types` entry — only `excludeTypes`), so a target that
+ *  stops being the required type mid-stack (Royal Assassin's creature target
+ *  turned into an Artifact) is still NOT re-checked here. Fail-open,
+ *  pre-existing, and out of this fix's scope (issue #1853 review round 2,
+ *  scope-of-claim note).
+ *
+ *  One deliberate narrowing, mirroring `spellTargetStillMeetsRestrictions`'s
+ *  narrowing 1 above and for the identical reason: **`mvFilter` is stripped
+ *  before the check.** It is X-resolved at ANNOUNCEMENT time
+ *  (`resolveMvFilter` against the announced X / source power); re-lowering
+ *  it here with no `chosenX` bound for the announcing context would
+ *  silently re-derive a wrong bound (falling back to 0) rather than the one
+ *  the target was legally chosen under, and could wrongly fizzle a
+ *  correctly-targeted resolution instead of only ever adding illegality this
+ *  gate can prove.
+ *
+ *  Fails OPEN (returns `true`) whenever the resolving requirement can't be
+ *  reconstructed, or reconstructs with no permanent filter set at all — this
+ *  gate only ever ADDS illegality it can prove, never removes it. */
+function permanentTargetStillMeetsRestrictions(
+    state: GameState,
+    item: StackItem,
+    candidate: CardInstanceState
+): boolean {
+    const cardId = (item.card as { id?: string }).id;
+    const cardDef = cardId
+        ? (tryGetDefinition(cardId) ?? undefined)
+        : undefined;
+    const resolved = resolvingTargetRequirement(item, cardDef);
+    if (!resolved) return true;
+    // CR 601.2c — a body with independent additional target groups packs
+    // every group's picks into the SAME flat `item.targets`, positionally;
+    // applying one group's filters to another group's target would be
+    // wrong (Oko's -5 "you control" half rejecting the OPPONENT-controlled
+    // half). See `resolvingTargetRequirement`'s own doc for why this can't
+    // be disambiguated from here.
+    if (resolved.hasAdditionalGroups) return true;
+    const { req } = resolved;
+    const values = lowerPermanentFilters(req, undefined, undefined);
+    delete values.mvFilter;
+    if (Object.keys(values).length === 0) return true;
+    const ctx: TargetFilterCtx = {
+        state,
+        // CR 109.5 / 702.16b — the source characteristics a filter's check
+        // may narrow by, read off the resolving stack item itself, same as
+        // `spellTargetStillMeetsRestrictions` above. None of the registered
+        // PERMANENT filter keys currently consult these (only `chooserId` /
+        // `activePlayerId` / `state`, per `targetFilters.ts`), but threading
+        // them keeps this ctx literal a drop-in match for that one rather
+        // than a second, narrower shape to keep in sync.
+        sourceColors: STATIC_EFFECT_CTX.getColors(item),
+        sourceTypes: item.types,
+        sourceSubtypes: item.subtypes,
+        chooserId: item.controllerId,
+        activePlayerId: state.activePlayerId,
+    };
+    return checkPermanentTargetFilters(ctx, candidate, values) === null;
+}
+
 /** Re-checks a single chosen target's legality at resolution (CR 608.2b/c).
  *  A target is illegal when the object it points at has left the zone it was
  *  chosen in: a permanent off the battlefield, a spell off the stack, a
- *  graveyard card no longer in that graveyard, or a vanished player.
+ *  graveyard card no longer in that graveyard, or a vanished player — OR
+ *  (issue #1853) when a PERMANENT target no longer meets the resolving
+ *  item's own characteristic-based filters (CR 608.2b: "its characteristics
+ *  may have changed") — see `permanentTargetStillMeetsRestrictions`.
  *
- *  Scope note: for PERMANENT / PLAYER / GRAVEYARD-CARD targets this gate
- *  intentionally checks ZONE EXISTENCE only, the actual crash class it fixes
- *  (a `resolve()` body reading a target that already left, e.g. Swords'
- *  `getController`). Characteristic-based illegality acquired after targeting
- *  — protection (CR 702.16b), shroud/hexproof (CR 702.11/702.18) — is
- *  enforced at target *selection* and at the aura re-check in
- *  `finalizeSpellResolution`; folding it in here would also reject
- *  deliberately-constructed in-isolation effects (e.g. Deathlace recoloring a
- *  protected creature to exercise the layer-3 primitive).
+ *  Scope note: for PLAYER / GRAVEYARD-CARD targets this gate intentionally
+ *  checks ZONE EXISTENCE only, the actual crash class it fixes (a
+ *  `resolve()` body reading a target that already left, e.g. Swords'
+ *  `getController`). Characteristic-based illegality this gate does NOT
+ *  cover on any target kind — protection (CR 702.16b), shroud/hexproof
+ *  (CR 702.11/702.18) — is enforced at target *selection* and at the aura
+ *  re-check in `finalizeSpellResolution`; folding it in here would also
+ *  reject deliberately-constructed in-isolation effects (e.g. Deathlace
+ *  recoloring a protected creature to exercise the layer-3 primitive). That
+ *  scope holds for PERMANENT targets too — the registry's `PERMANENT_FILTER_KEYS`
+ *  has no protection-flavored entry, so `permanentTargetStillMeetsRestrictions`
+ *  can never reach it.
  *
  *  SPELL targets are the exception (issue #1956): their restrictions describe
  *  the candidate's own on-stack STATE (what it targets, how it was cast), not
@@ -5011,8 +5281,9 @@ function spellTargetStillMeetsRestrictions(
 function isTargetStillLegal(
     state: GameState,
     target: TargetSelection,
-    /** The resolving stack item, for the CR 608.2b spell-restriction
-     *  re-check. Omitted by callers that only want zone existence. */
+    /** The resolving stack item, for the CR 608.2b spell-restriction and
+     *  permanent-filter re-checks. Omitted by callers that only want zone
+     *  existence. */
     item?: StackItem
 ): boolean {
     switch (target.type) {
@@ -5035,9 +5306,17 @@ function isTargetStillLegal(
             const owner = state.players.find((p) => p.id === target.playerId);
             return owner?.graveyard.some((c) => c.id === target.id) ?? false;
         }
-        case "permanent":
+        case "permanent": {
             // CR 608.2b — left the battlefield => illegal (the Swords crash).
-            return findOnBattlefield(state, target.id) !== null;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return false;
+            // …and so is one whose CHARACTERISTICS (its own, or — for
+            // `attachedToFilter` — its host's) no longer satisfy the
+            // resolving item's own permanent target filters (issue #1853).
+            return item
+                ? permanentTargetStillMeetsRestrictions(state, item, found.card)
+                : true;
+        }
         default:
             return false;
     }

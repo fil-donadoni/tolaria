@@ -145,11 +145,14 @@ export const exorcist: CardDefinition = {
 };
 
 // Miracle Worker — "{T}: Destroy target Aura attached to a creature you
-// control." (CR 605 activated ability; CR 701.8 destroy.) `subtypeFilter` scopes
-// targets to Auras; the "attached to a creature you control" constraint is
-// enforced in the resolve body (mirrors Pyramids' "Aura attached to a land",
-// which likewise checks the host post-target — there is no host-relation field
-// on TargetRequirement).
+// control." (CR 605 activated ability; CR 701.8 destroy.) `subtypeFilter`
+// scopes targets to Auras; the "attached to a creature you control"
+// host-relation constraint is a declarative TargetRequirement.attachedToFilter
+// (convex/cards/types.ts, issue #1853) routed through the ADR 0068 single
+// target-filter authority (gre/targetFilters.ts) — an Aura attached to
+// anything but a creature you control is never offered as a legal target,
+// not merely a no-op destroy at resolution. Mirrors Pyramids' "attached to a
+// land" clause and Savaen Elves' identical one, both on the same field.
 export const miracleWorker: CardDefinition = {
     id: "35d29bda-096c-44d4-b45e-c2c507f8efbe",
     rarity: "common",
@@ -170,26 +173,10 @@ export const miracleWorker: CardDefinition = {
             targetRequirement: {
                 type: "Enchantment",
                 subtypeFilter: "Aura",
+                attachedToFilter: { types: "Creature", controlledBy: "you" },
                 count: 1,
             },
-            // NOT DSL-migratable (ADR 0045): the destroy is gated on the target
-            // Aura's host being controlled by the controller (getAttachedTo +
-            // getController), a host-relation predicate the destroy Op can't
-            // express. Stays resolve().
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target || target.type !== "permanent") return;
-                // CR 701.8 — only destroy if the Aura's host is a permanent this
-                // player controls. `getAttachedTo` reads the Aura's host id; a
-                // creature host is the only legal attachment for the Auras in
-                // pool, so the operative constraint is the host's controller.
-                const hostId = ctx.getAttachedTo(target.id);
-                if (hostId === undefined) return;
-                const host = { type: "permanent" as const, id: hostId };
-                if (ctx.getController(host) === ctx.controller) {
-                    ctx.destroy(target);
-                }
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };

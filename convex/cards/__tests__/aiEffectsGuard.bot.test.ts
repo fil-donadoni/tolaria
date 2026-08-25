@@ -2131,12 +2131,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
-        cardId: "35d29bda-096c-44d4-b45e-c2c507f8efbe",
-        name: "Miracle Worker",
-        abilityId: "miracle-worker-destroy-aura",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
         cardId: "a8f05d5e-bb7d-4554-b880-f0c6b4688357",
         name: "Mirror Universe",
         abilityId: "mirror-universe-exchange",
@@ -2506,12 +2500,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "0d48fb47-1bed-4791-a014-504515f3d36f",
         name: "Safe Haven",
         abilityId: "safe-haven-return",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "38fb3014-f631-4a75-92cd-7e626b13a4c3",
-        name: "Savaen Elves",
-        abilityId: "savaen-elves-destroy-aura",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {

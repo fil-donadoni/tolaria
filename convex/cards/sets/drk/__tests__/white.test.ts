@@ -41,6 +41,7 @@ import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { advancePhase } from "../../../../gre/phases";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
+import { dominate } from "../../nem/blue";
 import {
     type CardInstanceState,
     type GameState,
@@ -231,7 +232,72 @@ describe("Miracle Worker — destroy your Aura (CR 605 / 701.8)", () => {
         ).toBeUndefined();
     });
 
-    it("does NOT destroy an Aura on an opponent's creature", () => {
+    // CR 303.4b — the oracle text restricts the target to an Aura attached
+    // to a creature the CONTROLLER controls. `attachedToFilter` (issue
+    // #1853) enforces this at target SELECTION (getLegalTargets /
+    // selectTarget) AND, as of the round-2 fix, at resolution too —
+    // `permanentTargetStillMeetsRestrictions` (gre/state.ts) re-checks
+    // `attachedToFilter` (and every other `PERMANENT_FILTER_KEYS` entry)
+    // against the live board, not merely zone existence
+    // (`isTargetStillLegal`). This test only proves the SELECTION half: an
+    // Aura on an opponent's creature is illegal here because it was never
+    // offered in the first place, before resolution's own re-check would
+    // even run.
+    it("does NOT offer an Aura on an opponent's creature as a legal target", () => {
+        const theirCreature = makeInstance(getCardByName("Savannah Lions").id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const theirAura = makeInstance(getCardByName("Holy Strength").id, {
+            id: "aura-theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+            attachedTo: "theirs",
+        });
+        const myCreature = makeInstance(getCardByName("Savannah Lions").id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const myAura = makeInstance(getCardByName("Holy Strength").id, {
+            id: "aura-mine",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "mine",
+        });
+        const mw = makeInstance(miracleWorker.id, {
+            id: "mw",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mw, myCreature, myAura] }),
+                makePlayer("p2", { battlefield: [theirCreature, theirAura] }),
+            ],
+        });
+        const req = miracleWorker.activatedAbilities!.find(
+            (a) => a.id === "miracle-worker-destroy-aura"
+        )!.targetRequirement!;
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
+        expect(ids).toContain("aura-mine");
+        expect(ids).not.toContain("aura-theirs");
+    });
+
+    // CR 608.2b (issue #1853 review) — defense-in-depth restoration. The
+    // OFFERED-set test above proves a real player can never HAND-PICK this
+    // target; this one proves that even a target placed on the stack by
+    // some other means (a hostile mutation, a future bug in the offered-set
+    // gate itself) still doesn't resolve, because `isTargetStillLegal`
+    // re-checks the SAME `attachedToFilter` at resolution
+    // (`permanentTargetStillMeetsRestrictions`, gre/state.ts) — the
+    // resolution-time half of the single ADR 0068 authority, not a second
+    // hand-written rule. Was deleted when the offered-set fix shipped on the
+    // (wrong) premise that CR 608.2b's resolution recheck is permanently
+    // zone-existence-only for permanents; restored now that it isn't.
+    it("does NOT destroy an Aura on an opponent's creature, even pushed directly onto the stack", () => {
         const mw = makeInstance(miracleWorker.id, {
             id: "mw",
             controllerId: "p1",
@@ -256,9 +322,71 @@ describe("Miracle Worker — destroy your Aura (CR 605 / 701.8)", () => {
         resolveActivated(state, mw, "miracle-worker-destroy-aura", [
             { type: "permanent", id: "aura" },
         ]);
-        // Host is an opponent's creature → no destruction.
+        // Host is an opponent's creature → the resolution-time filter
+        // re-check refuses the illegal target; the ability fizzles.
         expect(
             state.players[1].battlefield.find((c) => c.id === "aura")
+        ).toBeDefined();
+    });
+
+    // The reviewer's exact probe (issue #1853 review, finding 1): the target
+    // is LEGAL when chosen (own Aura on own creature), then an intervening
+    // effect at instant speed changes the host's controller before Miracle
+    // Worker resolves (Dominate, NEM — "gain control of target creature").
+    // CR 608.2b: "changes to the game state may cause a target to no longer
+    // be legal... its characteristics may have changed" — the Aura's host is
+    // no longer a creature ITS CONTROLLER controls, so the ability must
+    // fizzle rather than destroy it.
+    it("a legally-chosen target that becomes illegal mid-stack (Dominate on the host) survives (CR 608.2b)", () => {
+        const mw = makeInstance(miracleWorker.id, {
+            id: "mw",
+            controllerId: "p1",
+        });
+        const myCreature = makeInstance(getCardByName("Savannah Lions").id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(getCardByName("Holy Strength").id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "mine",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mw, myCreature, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Miracle Worker activates first, targeting the (legal) own-Aura —
+        // it sits on the stack waiting for both players to pass.
+        state.stack.push({
+            ...mw,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "miracle-worker-destroy-aura",
+            targets: [{ type: "permanent", id: "aura" }],
+        });
+        // p2 responds with Dominate on the host creature — resolves FIRST
+        // (LIFO), handing "mine" to p2 before Miracle Worker gets to.
+        pushSpell(state, dominate.id, "p2", [
+            { type: "permanent", id: "mine" },
+        ]);
+        resolveTopOfStack(state); // Dominate resolves — "mine" changes hands
+        expect(
+            state.players
+                .find((p) => p.id === "p2")!
+                .battlefield.find((c) => c.id === "mine")
+        ).toBeDefined();
+        resolveTopOfStack(state); // Miracle Worker resolves — target now illegal
+        // The Aura survives: its host is a creature p1 (the controller) no
+        // longer controls, so `attachedToFilter`'s `controlledBy: "you"`
+        // fails at resolution and the ability fizzles.
+        expect(
+            state.players
+                .flatMap((p) => p.battlefield)
+                .find((c) => c.id === "aura")
         ).toBeDefined();
     });
 });

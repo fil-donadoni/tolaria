@@ -725,6 +725,34 @@ export interface TargetRequirement {
      *  narrow relative to the accepted set — never widen. Ignored for player /
      *  spell / graveyard targets. */
     controlledSinceTurnStart?: boolean;
+    /** Restricts legal permanent targets by their CURRENT attachment (CR
+     *  303.4b — "target Aura attached to a land" / "... attached to a
+     *  creature you control"). Reads the CANDIDATE's own `attachedTo` host
+     *  (not the candidate itself): `types` requires the host's card types to
+     *  include at least one listed type; `controlledBy` additionally
+     *  restricts the HOST's controller relative to the chooser, reusing
+     *  `controller`'s vocabulary ("you"/"opponent"/"any"/"active") applied to
+     *  the host rather than the candidate. A candidate with no current
+     *  attachment — including one attached to a PLAYER (CR 303.4c "enchant
+     *  player"), which is never a permanent host — fails CLOSED: it can never
+     *  satisfy "attached to X".
+     *
+     *  Used by Pyramids' "Destroy target Aura attached to a land" (issue
+     *  #1853), the identical clause on Savaen Elves, and Miracle Worker's
+     *  "... attached to a creature you control" — previously each re-checked
+     *  the host from a `resolve()` body (`ctx.getAttachedTo` + a manual
+     *  battlefield scan) AFTER the target was already offered/accepted, so an
+     *  Aura on the wrong host was still a legal, clickable, stack-worthy
+     *  target that merely fizzled on resolution. Routing the host relation
+     *  through this field instead makes `getLegalTargets` /
+     *  `selectTarget` / the client's `matchesPermanentTargetFilters` agree by
+     *  construction (ADR 0068's single target-filter authority,
+     *  `gre/targetFilters.ts`) — the illegal host is never offered at all.
+     *  Ignored for player / spell / graveyard targets. */
+    attachedToFilter?: {
+        types?: CardType | CardType[];
+        controlledBy?: "you" | "opponent" | "any" | "active";
+    };
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).
