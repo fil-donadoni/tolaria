@@ -53,7 +53,7 @@ import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
-import { turnFaceDown } from "./faceDown";
+import { turnFaceDown, turnFaceUp } from "./faceDown";
 import {
     revertTransform,
     stampBackFaceForEntry,
@@ -6378,6 +6378,15 @@ function shuffleAfterGraveyardBoundLibraryRedirect(
  *  default destination. */
 function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     const owner = getPlayer(state, item.ownerId);
+    // CR 708.9 (issue #2705) — "If a face-down spell moves from the stack to
+    // any zone other than the battlefield, its owner must reveal it to all
+    // players as they move it." A countered / fizzled face-down morph spell
+    // reaches the graveyard as its real card, not as the 2/2 sentinel. The
+    // battlefield-side half of the same rule lives in `removePermanentTo`;
+    // this chokepoint covers every stack departure that is NOT a resolution
+    // onto the battlefield (which is CR 708.4's face-down permanent and must
+    // stay face down).
+    turnFaceUp(item);
     const { destination, tagCounters } = graveyardDestinationFor(
         state,
         item.id,
@@ -9602,6 +9611,20 @@ export function removePermanentTo(
     // death triggers still read the copied P/T) so the card re-casts and
     // exists in other zones as its true printed self.
     revertCopy(creature);
+    // CR 708.9 (issue #2705) — "If a face-down permanent … moves from the
+    // battlefield to any other zone, its owner must reveal it to all players
+    // as they move it." The morph/Illusionary Mask sibling of the copy revert
+    // directly above, deliberately at the same site and for the same reason:
+    // this is the single battlefield-departure funnel, so it is where a
+    // face-down permanent stops presenting the 2/2 sentinel. Without it a dead
+    // morph creature sits in the graveyard as "Face-down creature" — invisible
+    // to reanimation by name, unmatchable by type or subtype, and shown as the
+    // sentinel to BOTH players rather than revealed to all.
+    //
+    // AFTER the LKI snapshots above, exactly like `revertCopy`: a death
+    // trigger reads the moment-of-death 2/2, which is what the permanent was
+    // when it died (CR 603.10).
+    turnFaceUp(creature);
     // CR 712.8a — while a double-faced card is outside the game or in a zone
     // other than the battlefield or the stack, it has only the characteristics
     // of its FRONT face. The transform sibling of the CR 707.2 copy revert

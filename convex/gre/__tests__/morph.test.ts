@@ -14,6 +14,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup";
 import { getCardByName, FACE_DOWN_CARD_ID } from "../../cards";
 import {
@@ -28,6 +29,7 @@ import {
     turnableFaceUpPermanents,
 } from "../morph";
 import { turnFaceDown, turnFaceUp } from "../faceDown";
+import { removePermanentTo, resolveTopOfStack } from "../state";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { collectTriggers } from "../triggers";
 import { applyTurnPermanentFaceUp, tryAutoCommitPendingCast } from "../../game";
@@ -39,6 +41,7 @@ import type { CardInstanceState, GameState, StackItem } from "../state";
 const ANGEL = getCardByName("Exalted Angel").id;
 const PLAINS = getCardByName("Plains").id;
 const BEARS = getCardByName("Grizzly Bears").id;
+const COUNTERSPELL = getCardByName("Counterspell").id;
 
 /** `n` untapped Plains on p1's battlefield. */
 function plains(n: number): CardInstanceState[] {
@@ -439,6 +442,70 @@ describe("morph — wire redaction (CR 702.37c, issue #2705)", () => {
             own.players[0].battlefield.find((c) => c.id === permanent.id)!
                 .canTurnFaceUp
         ).toBeUndefined();
+    });
+});
+
+describe("morph — revealed as it leaves (CR 708.9)", () => {
+    it("a face-down permanent that dies is revealed in the graveyard as its real card", () => {
+        const { state, permanent } = faceDownBoard(0);
+        removePermanentTo(state, permanent.id, "graveyard", "destroy");
+        const inGraveyard = state.players[0].graveyard.find(
+            (c) => c.id === permanent.id
+        )!;
+        // CR 708.9 — "If a face-down permanent … moves from the battlefield to
+        // any other zone, its owner must reveal it to all players as they move
+        // it." A card that stayed face down would sit in the graveyard as the
+        // 2/2 sentinel: unreanimatable by name, unmatchable by type, and shown
+        // to both players as "Face-down creature".
+        expect(inGraveyard.faceDown).toBeUndefined();
+        expect(inGraveyard.faceDownOf).toBeUndefined();
+        expect((inGraveyard.card as { id: string }).id).toBe(ANGEL);
+        expect(inGraveyard.types).toContain("Creature");
+        expect(inGraveyard.subtypes).toContain("Angel");
+        // …and it is revealed to ALL players, the opponent included.
+        const opp = projectPublicState(state, 1, "p2");
+        expect(opp.players[0].graveyard[0].card.id).toBe(ANGEL);
+    });
+
+    it("a face-down permanent BOUNCED to hand is revealed as it goes (CR 708.9)", () => {
+        const { state, permanent } = faceDownBoard(0);
+        removePermanentTo(state, permanent.id, "hand");
+        const inHand = state.players[0].hand.find(
+            (c) => c.id === permanent.id
+        )!;
+        expect(inHand.faceDown).toBeUndefined();
+        expect((inHand.card as { id: string }).id).toBe(ANGEL);
+    });
+
+    it("a face-down SPELL countered off the stack is revealed in the graveyard", () => {
+        // CR 708.9 second sentence — "If a face-down spell moves from the stack
+        // to any zone other than the battlefield, its owner must reveal it to
+        // all players as they move it."
+        const angel: StackItem = {
+            ...makeInstance(ANGEL, {
+                id: "spell",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+        };
+        turnFaceDown(angel);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        state.stack.push(angel);
+        const counter = pushSpell(state, COUNTERSPELL, "p2", [
+            { type: "spell", id: "spell" },
+        ]);
+        expect(counter.id).toBeTruthy();
+        resolveTopOfStack(state);
+        const inGraveyard = state.players[0].graveyard.find(
+            (c) => c.id === "spell"
+        )!;
+        expect(inGraveyard).toBeDefined();
+        expect(inGraveyard.faceDown).toBeUndefined();
+        expect((inGraveyard.card as { id: string }).id).toBe(ANGEL);
     });
 });
 
