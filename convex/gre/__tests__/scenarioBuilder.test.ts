@@ -22,6 +22,33 @@ import { projectPublicState } from "../../gameProjections";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 
 describe("buildStateFromScenario (issue #1424)", () => {
+    // CR 122.1 (issue #1969) — a debug scenario must be able to START at a
+    // scaled experience total, otherwise the only way to see Otharri make more
+    // than one token is to attack twice by hand. Part of the mechanic, not a
+    // follow-up: the debug-scenario surface is one of the surfaces a whole
+    // mechanic ships on.
+    it("seeds experience counters on both seats (CR 122.1)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [],
+            experience: { me: 3, opp: 1 },
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        expect(state.players[0].experienceCounters).toBe(3);
+        expect(state.players[1].experienceCounters).toBe(1);
+        // Never confused with the sibling player-counter scalars.
+        expect(state.players[0].poisonCounters).toBeUndefined();
+        expect(state.players[0].energyCounters).toBeUndefined();
+    });
+
+    it("leaves experience counters absent when the spec omits them", () => {
+        const state = buildStateFromScenario(makeState(), { cards: [] });
+        expect(state.players[0].experienceCounters).toBeUndefined();
+        expect(state.players[1].experienceCounters).toBeUndefined();
+    });
+
     it("places cards into the requested zones for the requested owner", () => {
         const base = makeState();
         const spec: ScenarioSpec = {

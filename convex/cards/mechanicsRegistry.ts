@@ -2696,11 +2696,11 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.gainLife",
     },
     {
-        op: "getEnergy",
+        op: "addPlayerCounter",
         status: "implemented",
         cr: "122.1",
-        note: 'CR 122.1 — "you get {E}": add energy counters to a player. The GENERATION half of the Energy resource (issue #697, Cube CAP). A thin declarative skin over SpellContext.addEnergy (the dedicated PlayerState.energyCounters scalar, mirroring poisonCounters, ADR 0032). Energy is engine/cost infra with NO MECHANICS_REGISTRY keyword row (it is a resource, not a CR 701/702 keyword), but the "get {E}" effect IS a one-shot Effect Script Op, so it lives here. The SPENDING half ("pay {E}") is a cost-system capability (SpellContext.payEnergy), not an Op — no registry row, same as the alt-cost mechanics (Cycling, Flashback, Escape).',
-        binding: "SpellContext.addEnergy",
+        note: 'CR 122.1 — "A counter is a marker placed on an object or player": put counters of one kind on a PLAYER. The single WRITE half of the player-counter primitive, over the closed PLAYER_COUNTER_KINDS vocabulary (poison / energy / experience), each a dedicated PlayerState scalar reached through PLAYER_COUNTER_FIELD (ADR 0032, never a generic counters[type] map). Its READ half is the `playerCounters` EffectValue member (not an Op — a value-grammar member, like `counters`/`domain`/`lifeGainedThisTurn`). GENERALIZED from the energy-only `getEnergy` Op (issue #1969, primitive reuse: parametrize the almost-right primitive rather than add a third card-shaped sibling); the old name was also a footgun, since the Op `getEnergy` WROTE while SpellContext.getEnergy READS. Covers "you get {E}" (issue #697, Cube CAP), "you get an experience counter" (issue #1969, Otharri) and "target player gets N poison counters" with one executor. Experience counters have no CR rule of their own — `bun run cr grep "experience counter"` matches nothing — they are an ordinary player counter whose meaning is the card text reading them; CR 122.2 (counters lost on a zone change) is scoped to OBJECTS, so a player keeps them when the granting permanent leaves the battlefield. The SPENDING half of energy ("pay {E}") is a cost-system capability (SpellContext.payEnergy), not an Op — no registry row, same as the alt-cost mechanics (Cycling, Flashback, Escape).',
+        binding: "SpellContext.addPlayerCounters",
     },
     {
         op: "loseLife",
@@ -2868,7 +2868,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "117.3a",
         binding: "SpellContext.requestMayPay",
-        note: 'Optional "you may pay {cost}" decision (CR 117.3a / 118.4, issue #806) mapped 1:1 onto the existing `may-pay` Pending Choice pipeline — same enqueue, same generic Pay/Skip prompt UI, same submitMayPay mutation. The interpreter SUSPENDS the script at this Op and resumes here when the player answers; its required `bind` names a BOOLEAN binding (true = paid) read by a later `if` predicate. The counter/punisher primitive: "… unless its controller pays {2}". CR 122.1 (issue #1194) — `cost.energy` is a FIXED-count `MayPayCost` leg ("you may pay {E}{E}{E}", Guide of Souls), the declarative counterpart of the already-shipped `getEnergy` Op\'s generation half: `canPayMayPayCost` gates on `player.energyCounters >= cost.energy`, `payMayPayCost` spends via the existing all-or-nothing `SpellContext.payEnergy` primitive (#697). No new Op — `energy` composes into the SAME cost union `mana`/`life`/`sacrifice`/`discard` already ride. Issue #1958 — the DYNAMIC mana shape (`DynamicMayPayManaCost`, issue #1150) is generalized on both axes it already had implicitly: the base may be a LITERAL `mana` cost as well as a referenced object\'s printed one (`manaCostOf`), and `reducedBy` is now a full `EffectValue` rather than a fixed integer. That covers "pay {10}. This cost is reduced by {2} for each basic land type among lands you control" (Draco) as `{ mana: { X: 10 }, reducedBy: { domain: { of: "controller", times: 2 } } }` — reusing the existing `{ domain }` value member rather than a bespoke reader, and floored at {0} by the same `reduceGenericMana` clamp (CR 118.9). Resolved by the interpreter at Op execution time, so the price is read off the board as the trigger resolves.',
+        note: 'Optional "you may pay {cost}" decision (CR 117.3a / 118.4, issue #806) mapped 1:1 onto the existing `may-pay` Pending Choice pipeline — same enqueue, same generic Pay/Skip prompt UI, same submitMayPay mutation. The interpreter SUSPENDS the script at this Op and resumes here when the player answers; its required `bind` names a BOOLEAN binding (true = paid) read by a later `if` predicate. The counter/punisher primitive: "… unless its controller pays {2}". CR 122.1 (issue #1194) — `cost.energy` is a FIXED-count `MayPayCost` leg ("you may pay {E}{E}{E}", Guide of Souls), the declarative counterpart of the already-shipped `addPlayerCounter` Op\'s generation half: `canPayMayPayCost` gates on `player.energyCounters >= cost.energy`, `payMayPayCost` spends via the existing all-or-nothing `SpellContext.payEnergy` primitive (#697). No new Op — `energy` composes into the SAME cost union `mana`/`life`/`sacrifice`/`discard` already ride. Issue #1958 — the DYNAMIC mana shape (`DynamicMayPayManaCost`, issue #1150) is generalized on both axes it already had implicitly: the base may be a LITERAL `mana` cost as well as a referenced object\'s printed one (`manaCostOf`), and `reducedBy` is now a full `EffectValue` rather than a fixed integer. That covers "pay {10}. This cost is reduced by {2} for each basic land type among lands you control" (Draco) as `{ mana: { X: 10 }, reducedBy: { domain: { of: "controller", times: 2 } } }` — reusing the existing `{ domain }` value member rather than a bespoke reader, and floored at {0} by the same `reduceGenericMana` clamp (CR 118.9). Resolved by the interpreter at Op execution time, so the price is read off the board as the trigger resolves.',
     },
     {
         op: "if",
@@ -3445,7 +3445,20 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  requiring the field forces every card author to transcribe that instead
  *  of the grammar silently assuming one. One operator, one non-literal
  *  operand, that operand a TERMINAL — the value grammar stays depth-1
- *  exactly as `difference`/`scaled` keep it. */
+ *  exactly as `difference`/`scaled` keep it.
+ *  `playerCounters` (issue #1969, `{ playerCounters: { of, type } }`) IS a new
+ *  value-grammar member — the SIXTEENTH — and the PLAYER-scoped sibling of the
+ *  object-scoped `counters` (#1015): `of` is an `EffectPlayerRef`, `type` a
+ *  member of the CLOSED `PLAYER_COUNTER_KINDS` vocabulary (poison / energy /
+ *  experience), each a dedicated `PlayerState` scalar (ADR 0032). Same non-Op,
+ *  non-ADR-0045-reopening status as every member since `X`: a depth-1 read of
+ *  one number, nothing composes it. Reason to exist: CR 122.1 counters sit on
+ *  PLAYERS as well as objects, and no member could read one — Otharri, Suns'
+ *  Glory (ONC) is "create a token for each experience counter you have". It is
+ *  deliberately kind-parametrized rather than an experience-only reader, so
+ *  poison and energy became readable in the same change ("generalize, don't
+ *  add"). Its WRITE half IS an Op — `addPlayerCounter`, itself the
+ *  generalization of the energy-only `getEnergy` Op. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

@@ -23,6 +23,11 @@ import { buildBladeState } from "../blade/runner";
 import type { BladeScenario } from "../blade/types";
 import { misdirectedTargetCount, targetSlotBeneficence } from "../beneficence";
 import { opBeneficence } from "../opValuers";
+import {
+    PLAYER_COUNTER_KINDS,
+    type EffectPlayerRef,
+    type PlayerCounterKind,
+} from "../../../cards/types";
 import { isDominatedNoOpMove, isNoOpChoiceAnswer } from "../dominance";
 import { choiceCandidates } from "../choiceCandidates";
 import { NEUTRAL_PRIOR } from "../choicePriors";
@@ -142,6 +147,49 @@ describe("opBeneficence — the sign of an Op for its recipient (issue #1888)", 
                 action: "tap",
             })
         ).toBe("harmful");
+    });
+
+    // CR 122.1 — "A counter is a marker placed on an object or player". Issue
+    // #1969 generalized the energy-only `getEnergy` Op into `addPlayerCounter`
+    // over a closed kind vocabulary, and DELETED its flat `OP_BENEFICENCE`
+    // row: one Op now covers a gift ("you get {E}", "you get an experience
+    // counter") and an attack ("target player gets three poison counters"), so
+    // the sign has to be read off the KIND. That deletion removes the safety
+    // net — if this switch case is ever dropped, `opBeneficence` falls through
+    // to `OP_BENEFICENCE[op.op] ?? "neutral"` and every player-counter card
+    // silently valuates as neutral in trigger ordering and the target priors.
+    // Hence one assertion per kind, exhaustively.
+    it("reads a player counter's sign off its KIND, exhaustively (CR 122.1, issue #1969)", () => {
+        const sign = (counter: PlayerCounterKind, player: EffectPlayerRef) =>
+            opBeneficence({
+                op: "addPlayerCounter",
+                counter,
+                player,
+                amount: 1,
+            });
+
+        // Gifts: resources the recipient wants.
+        expect(sign("energy", "controller")).toBe("beneficial");
+        expect(sign("experience", "controller")).toBe("beneficial");
+        // CR 122.1f — ten poison counters lose the game: an attack, whoever
+        // the Op happens to name.
+        expect(sign("poison", { target: 0 })).toBe("harmful");
+
+        // The sign is the KIND's, NOT the recipient's — `opBeneficence` scores
+        // the Op for whoever receives it, so naming the opponent must not flip
+        // it (that inversion is `misdirectedTargetCount`'s job, below).
+        expect(sign("energy", "opponent")).toBe("beneficial");
+        expect(sign("experience", { target: 0 })).toBe("beneficial");
+        expect(sign("poison", "controller")).toBe("harmful");
+
+        // Every kind is covered: a new PLAYER_COUNTER_KINDS row without a
+        // decision here is a red, not a silent "neutral".
+        expect(new Set(PLAYER_COUNTER_KINDS)).toEqual(
+            new Set(["poison", "energy", "experience"])
+        );
+        for (const kind of PLAYER_COUNTER_KINDS) {
+            expect(sign(kind, "controller")).not.toBe("neutral");
+        }
     });
 });
 

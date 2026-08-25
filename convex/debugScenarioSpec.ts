@@ -69,6 +69,16 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.number()),
         })
     ),
+    // CR 122.1 (issue #1969) — seed experience counters, so a saved scenario
+    // can start at the SCALING state a "for each experience counter you have"
+    // card reads. Mirrors `debugSetupScenario`'s matching arg
+    // (`convex/game.ts`).
+    experience: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into a slot, bypassing the sideboard/maindeck auto-declare a
     // scenario's synthetic board never runs through. Mirrors
@@ -114,6 +124,10 @@ export type ScenarioSpec = {
     markLastDrawn?: boolean;
     rngSeed?: number;
     poison?: { me?: number; opp?: number };
+    /** CR 122.1 (issue #1969) — seed experience counters on a player, so a
+     *  scenario can start at the SCALING state a card's "for each experience
+     *  counter you have" reads (Otharri, Suns' Glory). */
+    experience?: { me?: number; opp?: number };
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };
 
@@ -365,6 +379,12 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(poison, "me", pickNumber(raw.poison.me));
         set(poison, "opp", pickNumber(raw.poison.opp));
         spec.poison = poison;
+    }
+    if (isRecord(raw.experience)) {
+        const experience: { me?: number; opp?: number } = {};
+        set(experience, "me", pickNumber(raw.experience.me));
+        set(experience, "opp", pickNumber(raw.experience.opp));
+        spec.experience = experience;
     }
     if (isRecord(raw.companion)) {
         const name = pickString(raw.companion.name);

@@ -563,5 +563,13 @@ export function buildStateFromScenario(
         if (spec.poison.opp) p2.poisonCounters = spec.poison.opp;
     }
 
+    // Seed experience counters (CR 122.1, issue #1969). No rule removes them
+    // and no SBA reads them — they exist only for the cards that count them,
+    // so a scenario seeds them to start at the scaling state under test.
+    if (spec.experience) {
+        if (spec.experience.me) p1.experienceCounters = spec.experience.me;
+        if (spec.experience.opp) p2.experienceCounters = spec.experience.opp;
+    }
+
     return state;
 }

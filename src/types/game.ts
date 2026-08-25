@@ -83,6 +83,13 @@ export interface Player {
      *  Absent means zero. Rides the public projection via the `...player`
      *  spread, like `poisonCounters` (issue #697). */
     energyCounters?: number;
+    /** Experience counters on this player (CR 122.1 — a player-owned counter).
+     *  Absent means zero. Public information for BOTH players. Rides the public
+     *  projection via the `...player` spread, like `poisonCounters` (issue
+     *  #1969). No rule removes one, and CR 122.2's zone-change loss is
+     *  OBJECT-scoped, so the total survives its source leaving the
+     *  battlefield. */
+    experienceCounters?: number;
     /** Companion (CR 702.139, ADR 0064) — revealed to BOTH players; only the
      *  slot's own controller's view carries `canSummon` (mirrors every other
      *  viewer-scoped affordance field, e.g. `CardInstance.legalActions`).

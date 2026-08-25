@@ -2140,6 +2140,26 @@ describe("optional field round-trip smoke tests", () => {
         expect(got.players[1].poisonCounters).toBe(9);
     });
 
+    // CR 122.1 (issue #1969). `PlayerState` has NO exhaustiveness guard — the
+    // `_cardKeysExhaustive` check in serialize.ts covers `CardInstanceState`
+    // only, and `PERSISTED_OPTIONAL_KEYS` is `GameState`-level — so this
+    // round trip is the ONLY thing standing between an omitted
+    // `compactPlayer`/`expandPlayer` line and a silent reset of every
+    // experience total at every save point. Load-bearing beyond the usual:
+    // no rule removes an experience counter (CR 122.2's zone-change loss is
+    // OBJECT-scoped), so the total is meant to persist for the whole game.
+    it("experienceCounters on PlayerState (CR 122.1)", () => {
+        const state = freshState();
+        state.players[0].experienceCounters = 4;
+        const got = roundTrip(state);
+        expect(got.players[0].experienceCounters).toBe(4);
+        // Absent when zero (omitted rather than serialized as 0), like poison
+        // and energy — and crucially NOT confused with either of them.
+        expect(got.players[1].experienceCounters).toBeUndefined();
+        expect(got.players[0].poisonCounters).toBeUndefined();
+        expect(got.players[0].energyCounters).toBeUndefined();
+    });
+
     it("Arboria qualifying-action history on PlayerState (CR 508.1c)", () => {
         const state = freshState();
         state.players[0].qualifyingActionThisTurn = true;

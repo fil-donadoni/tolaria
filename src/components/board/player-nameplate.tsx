@@ -11,6 +11,7 @@ import CornerFiligreeFrame from "~/components/ui/corner-filigree-frame";
 import AnimatedLifeTotal from "./animated-life-total";
 import PlayerPoisonCounters from "./player-poison-counters";
 import PlayerEnergyCounters from "./player-energy-counters";
+import PlayerExperienceCounters from "./player-experience-counters";
 
 type PlayerNameplateProps = {
     player: Player;
@@ -289,11 +290,30 @@ export default function PlayerNameplate({
              *  fresh baseline instead of animating a phantom life delta — the
              *  swap is only a change of view, not a real life change. */}
             {compact ? (
-                // Single row — see the `compact` doc above. `flex-nowrap` so a
-                // long name never wraps the row onto a second line (which
-                // would blow the reserved band's exact height budget); a name
-                // that doesn't fit truncates instead via `truncate` + a max
-                // width, not by growing taller.
+                // PORTRAIT: a single row — see the `compact` doc above.
+                // `flex-nowrap` so a long name never wraps the row onto a
+                // second line (which would blow `PORTRAIT_NAMEPLATE_BAND_H`'s
+                // exact height budget); a name that doesn't fit truncates
+                // instead via `truncate` + a max width, not by growing taller.
+                //
+                // LANDSCAPE-COMPACT: `flex-wrap` instead (issue #1969 review
+                // round 1, finding 4 — MEASURED, not reasoned: at 844x390 the
+                // one-row form overflowed its 48px box by 86px, leaving the
+                // poison badge 55% visible and the energy and experience
+                // badges at visibleFrac 0 — invisible, and invisible in a way
+                // no test in the repo could see, since `check:ui` lists
+                // `game-board` as `unwalked` and happy-dom has no layout).
+                // Wrapping is the fix the two variants' budgets allow to
+                // differ on: landscape's box is width-capped at
+                // `calc(var(--landscape-side-gutter)-1rem)` but has NO height
+                // reservation to blow — the seat anchors are absolutely
+                // positioned inside the 4rem left rail
+                // (`LANDSCAPE_OPPONENT_SEAT_ANCHOR` /
+                // `LANDSCAPE_VIEWER_SEAT_ANCHOR`), and every band is already
+                // inset by that rail, so growing DOWNWARD (viewer) or UPWARD
+                // (opponent, `-translate-y-full`) still cannot overlap a card.
+                // Portrait is the exact mirror — unconstrained width, a fixed
+                // reserved height — so it keeps `flex-nowrap`.
                 //
                 // `justify-start` (round-3 review finding 1, was
                 // `justify-center`): with `overflow-hidden` on the parent box,
@@ -303,7 +323,11 @@ export default function PlayerNameplate({
                 // child. `justify-start` pins content flush left, so the life
                 // total sits at x=0 and only what comes AFTER it can ever be
                 // clipped.
-                <div className="flex flex-nowrap items-center justify-start gap-1.5">
+                <div
+                    className={`flex items-center justify-start gap-1.5 ${
+                        landscapeCompact ? "flex-wrap" : "flex-nowrap"
+                    }`}
+                >
                     {lifeRow(true)}
                     {!landscapeCompact && (
                         // Landscape-only drop (round-3 review finding 1): the
@@ -327,6 +351,10 @@ export default function PlayerNameplate({
                         count={player.energyCounters}
                         compact
                     />
+                    <PlayerExperienceCounters
+                        count={player.experienceCounters}
+                        compact
+                    />
                 </div>
             ) : (
                 <>
@@ -336,6 +364,9 @@ export default function PlayerNameplate({
                     </div>
                     <PlayerPoisonCounters count={player.poisonCounters} />
                     <PlayerEnergyCounters count={player.energyCounters} />
+                    <PlayerExperienceCounters
+                        count={player.experienceCounters}
+                    />
                 </>
             )}
             {/* The Monarch designation moved off the nameplate to a marker-card

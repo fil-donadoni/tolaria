@@ -4,7 +4,12 @@
 // diverge — context-aware grounding (the decision-node prior mode).
 
 import { describe, it, expect } from "vitest";
-import type { EffectOp } from "../../../cards/types";
+import type {
+    EffectOp,
+    EffectPlayerRef,
+    EffectValue,
+    PlayerCounterKind,
+} from "../../../cards/types";
 import {
     valueOp,
     valueEffectScript,
@@ -768,6 +773,110 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
             );
             expect(v.points).toBeGreaterThan(0);
             expect(v.tags).not.toContain("self-cost");
+        });
+    });
+
+    // CR 122.1 — "A counter is a marker placed on an object or player". The
+    // `addPlayerCounter` valuer is the ONE place the bot prices a player
+    // counter, and both halves of it are silent when wrong: a flipped sign
+    // makes the bot hand the opponent a resource (or refuse to poison them),
+    // and a zeroed weight makes every player-counter card invisible to trigger
+    // ordering and the target priors. `addPlayerCounter` also has no
+    // `OP_BENEFICENCE` row (that table is a flat Op -> sign map and the sign
+    // here is the KIND's), so a regression falls through to the fail-open
+    // `?? "neutral"` default with nothing else to catch it (issue #1969).
+    describe("addPlayerCounter (CR 122.1) — kind-dependent sign and weight", () => {
+        const counterOp = (
+            counter: PlayerCounterKind,
+            player: EffectPlayerRef,
+            amount: EffectValue
+        ): EffectOp => ({ op: "addPlayerCounter", counter, player, amount });
+
+        it("prices each kind at its own non-zero weight per counter", () => {
+            // Exact weights, so zeroing PLAYER_COUNTER_WEIGHT.points reds this.
+            expect(
+                valueOp(counterOp("energy", "controller", 2), cf).points
+            ).toBe(12); // 2 x 6
+            expect(
+                valueOp(counterOp("experience", "controller", 1), cf).points
+            ).toBe(14); // 1 x 14
+            expect(valueOp(counterOp("poison", "opponent", 3), cf).points).toBe(
+                48
+            ); // 3 x 16
+        });
+
+        it("ranks the kinds: poison > experience > energy, all strictly positive", () => {
+            const per = (c: PlayerCounterKind, p: EffectPlayerRef) =>
+                valueOp(counterOp(c, p, 1), cf).points;
+            expect(per("energy", "controller")).toBeGreaterThan(0);
+            expect(per("experience", "controller")).toBeGreaterThan(
+                per("energy", "controller")
+            );
+            expect(per("poison", "opponent")).toBeGreaterThan(
+                per("experience", "controller")
+            );
+        });
+
+        it("tags a gift `ramp` and an attack `lifeSwing`", () => {
+            expect(
+                valueOp(counterOp("energy", "controller", 1), cf).tags
+            ).toContain("ramp");
+            expect(
+                valueOp(counterOp("experience", "controller", 1), cf).tags
+            ).toContain("ramp");
+            expect(
+                valueOp(counterOp("poison", "opponent", 1), cf).tags
+            ).toContain("lifeSwing");
+        });
+
+        it("inverts the sign when a gift lands on the opponent (a self-cost)", () => {
+            const v = valueOp(counterOp("energy", "opponent", 2), cf);
+            expect(v.points).toBe(-12);
+            expect(v.tags).toContain("self-cost");
+            const x = valueOp(counterOp("experience", "opponent", 1), cf);
+            expect(x.points).toBe(-14);
+            expect(x.tags).toContain("self-cost");
+        });
+
+        it("inverts the sign when poison lands on the CASTER, and never calls it a gift", () => {
+            const v = valueOp(counterOp("poison", "controller", 3), cf);
+            expect(v.points).toBe(-48);
+            // `self-cost` is the gift-on-the-wrong-player tag; a self-inflicted
+            // poison counter is priced negative but is not a squandered gift.
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("defaults an unresolved player slot per kind: gift to the caster, attack to the opponent", () => {
+            // Context-free, `{ target }` is unresolved: `gainLife`/`loseLife`
+            // mirror — "you get {E}" assumes self, "target player gets N poison
+            // counters" assumes the opponent. Both therefore read POSITIVE.
+            expect(
+                valueOp(counterOp("energy", { target: 0 }, 1), cf).points
+            ).toBeGreaterThan(0);
+            expect(
+                valueOp(counterOp("experience", { target: 0 }, 1), cf).points
+            ).toBeGreaterThan(0);
+            expect(
+                valueOp(counterOp("poison", { target: 0 }, 1), cf).points
+            ).toBeGreaterThan(0);
+        });
+
+        it("scales with a context-aware X amount and keeps the kind's sign", () => {
+            const ctx = contextAwareGrounding({
+                resolveValue: () => 4,
+                resolveIsSelf: () => true,
+                resolveForEachCount: () => 1,
+            });
+            const gift = valueOp(
+                counterOp("experience", { target: 0 }, 1),
+                ctx
+            );
+            expect(gift.points).toBe(56); // 4 x 14, resolved to the caster
+            expect(gift.tags).not.toContain("board-scaling");
+            // Same resolution, poison: it landed on the CASTER, so it is bad.
+            expect(
+                valueOp(counterOp("poison", { target: 0 }, 1), ctx).points
+            ).toBe(-64); // -(4 x 16)
         });
     });
 });

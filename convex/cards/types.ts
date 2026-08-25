@@ -236,6 +236,34 @@ export type CardType =
     | "Battle"
     | "Kindred";
 
+/** The counter kinds that sit on a PLAYER rather than on an object (CR 122.1
+ *  — "A counter is a marker placed on an object or player"). Each is a
+ *  DEDICATED scalar on `PlayerState` (ADR 0032 — never an entry in a generic
+ *  `counters[type]` map), and `PLAYER_COUNTER_FIELD`
+ *  (`gre/playerCounters.ts`) is the single map from a kind to its field name.
+ *
+ *  This is the shared vocabulary for BOTH halves of the player-counter
+ *  primitive — the `addPlayerCounter` Op (write) and the `playerCounters`
+ *  `EffectValue` member (read) — so a new player counter kind is one row here
+ *  plus one field, and both halves pick it up. Adding a kind is a deliberate
+ *  engine decision: CR 122.1 enumerates counter kinds with their own rules
+ *  (poison CR 122.1f, rad CR 122.1i), and this list is the set the engine
+ *  models today.
+ *
+ *   - `poison` — CR 122.1f, ten or more loses the game (SBA, `sba.ts`).
+ *   - `energy` — CR 122.1, the {E} resource: "you get {E}" / "you pay {E}".
+ *   - `experience` — CR 122.1. Experience counters have NO rule of their own
+ *     in the CR (`bun run cr grep "experience counter"` matches nothing): they
+ *     are an ordinary player counter whose only meaning is the card text that
+ *     reads them. They are never removed by any rule, and because CR 122.2's
+ *     "counters are not retained when the object changes zones" is scoped to
+ *     OBJECTS, a player's experience counters survive the source permanent
+ *     dying, being exiled or leaving the battlefield in any way. */
+export const PLAYER_COUNTER_KINDS = ["poison", "energy", "experience"] as const;
+
+/** One of {@link PLAYER_COUNTER_KINDS}. */
+export type PlayerCounterKind = (typeof PLAYER_COUNTER_KINDS)[number];
+
 /** Permanent types that can be dealt damage (CR 120.3) and the set of
  *  permanent types matched by a `"any target"` spell (CR 115.4). Lives here in
  *  the leaf `types` module (no runtime imports) so card sets can reference it
@@ -2878,18 +2906,36 @@ export interface SpellContext {
     fight: (target: TargetSelection) => void;
     gainLife: (playerId: string, amount: number) => void;
     loseLife: (playerId: string, amount: number) => void;
-    /** Adds `n` poison counters to a player (CR 122 — counters on a player).
-     *  Mutates the dedicated `PlayerState.poisonCounters` scalar (ADR 0032),
-     *  not the object counter map. No cap; a player reaching ten or more loses
-     *  the game (CR 704.5c), enforced as an SBA in `checkGameOverSBA`. */
+    /** CR 122.1 — "A counter is a marker placed on an object or player": adds
+     *  `n` counters of `kind` to a player. THE player-counter write primitive;
+     *  every kind (`poison`/`energy`/`experience`) mutates its own dedicated
+     *  `PlayerState` scalar via `PLAYER_COUNTER_FIELD` (`gre/playerCounters.ts`),
+     *  never an object counter map (ADR 0032). No cap on any kind; poison's
+     *  "ten or more loses the game" (CR 704.5c) is an SBA (`checkGameOverSBA`),
+     *  not a clamp here. `n <= 0` is a no-op (CR 122 — putting ≤0 counters does
+     *  nothing). The declarative skin is the `addPlayerCounter` Effect Script
+     *  Op. */
+    addPlayerCounters: (
+        playerId: string,
+        kind: PlayerCounterKind,
+        n: number
+    ) => void;
+    /** CR 122.1 — the player's current total of one counter kind (0 when the
+     *  scalar is absent). THE player-counter read primitive; the declarative
+     *  skin is the `playerCounters` `EffectValue` member. */
+    getPlayerCounters: (playerId: string, kind: PlayerCounterKind) => number;
+    /** CR 122.1f — poison-specific spelling of `addPlayerCounters(id,
+     *  "poison", n)`, kept for the imperative `resolve()` callers that predate
+     *  the generalized primitive. Delegates; holds no logic of its own. */
     addPoisonCounters: (playerId: string, n: number) => void;
-    /** CR 122.1 — "you get {E}": adds `n` energy counters to a player. Mutates
-     *  the dedicated `PlayerState.energyCounters` scalar (mirroring
-     *  `addPoisonCounters`), not the object counter map. No cap and no loss
-     *  condition — energy is a pure resource. n <= 0 is a no-op. The declarative
-     *  skin is the `getEnergy` Effect Script Op. */
+    /** CR 122.1 — "you get {E}": energy-specific spelling of
+     *  `addPlayerCounters(id, "energy", n)`. Delegates; no logic of its own. */
     addEnergy: (playerId: string, n: number) => void;
-    /** CR 122.1 — the player's current energy-counter total (0 when none). */
+    /** CR 122.1 — the player's current energy-counter total (0 when none).
+     *  Energy-specific spelling of `getPlayerCounters(id, "energy")`.
+     *  NOTE the asymmetry with the Op vocabulary: this READS, whereas the Op
+     *  once spelled `getEnergy` WROTE — which is exactly why that Op was
+     *  generalized to `addPlayerCounter` (issue #1969). */
     getEnergy: (playerId: string) => number;
     /** CR 122.1 / 118.12 — "pay {E}": spends `n` energy counters, all-or-
      *  nothing. Returns true and deducts when the player has at least `n`
@@ -10703,7 +10749,8 @@ export interface EffectDivideValue {
  *  (issue #1015), a selected object's `manaValue` (issue #680), a player's
  *  `domain` (issue #1066), a permanent's `escaped` flag (issue #695), the
  *  currently-resolving triggered ability's `abilityResolutionCount` (issue
- *  #1189), the `difference` of two terminals (issue #2006), a terminal
+ *  #1189), a player's `playerCounters` of one kind (issue #1969), the
+ *  `difference` of two terminals (issue #2006), a terminal
  *  `scaled` by a fixed multiplier (issue #2366), or a terminal `divide`d by a
  *  fixed divisor with explicit rounding (issue #2385). The value grammar is
  *  capped at these — beyond `difference`'s subtraction, `scaled`'s
@@ -10724,6 +10771,7 @@ export type EffectValue =
     | EffectEscapedValue
     | EffectAbilityResolutionCountValue
     | EffectLifeGainedThisTurnValue
+    | EffectPlayerCountersValue
     | EffectDifferenceValue
     | EffectScaledValue
     | EffectDivideValue;
@@ -10750,6 +10798,32 @@ export type EffectValue =
  *  ("draw cards equal to the life you gained this turn"). */
 export type EffectLifeGainedThisTurnValue = {
     lifeGainedThisTurn: { of: EffectPlayerRef };
+};
+
+/** playerCounters — how many counters of one {@link PlayerCounterKind} a
+ *  PLAYER has (CR 122.1 — "A counter is a marker placed on an object or
+ *  player"), a thin JSON-pure skin over `SpellContext.getPlayerCounters`. A
+ *  FOURTEENTH `EffectValue` grammar member; like `domain` (issue #1066),
+ *  `abilityResolutionCount` (issue #1189) and `lifeGainedThisTurn` (issue
+ *  #1457) it is NOT an Op and NOT a new STRUCTURAL construct — it does not
+ *  reopen ADR 0045 (only a fifth bind/ref/if/forEach-style construct would).
+ *
+ *  The PLAYER-scoped sibling of `counters` (issue #1015), which reads an
+ *  OBJECT's counters: `of` here is an `EffectPlayerRef`, resolved through the
+ *  same `resolvePlayerRef` path every player-scoped Op uses, so `"controller"`,
+ *  an announced slot and `$each` all work; an unresolvable player yields
+ *  undefined (CR 608.2b). Deliberately generalized over the kind rather than
+ *  written as an experience-only reader (primitive reuse — "generalize, don't
+ *  add"): poison and energy become readable by the same member for free.
+ *
+ *  Unlike the object-scoped `counters`, this needs no CR 608.2g last-known-
+ *  information fallback: a player never leaves a zone, so the read can never
+ *  miss the way a sacrificed `$source`'s counters can.
+ *
+ *  Written as `{ playerCounters: { of: "controller", type: "experience" } }`
+ *  — Otharri, Suns' Glory's "for each experience counter you have". */
+export type EffectPlayerCountersValue = {
+    playerCounters: { of: EffectPlayerRef; type: PlayerCounterKind };
 };
 
 /** CR 702.138b — resolves to 1 if the referenced permanent ESCAPED (was cast
@@ -11158,12 +11232,28 @@ export type EffectOp =
     | { op: "draw"; player: EffectPlayerRef; count: EffectValue }
     /** CR 119.3 — `player` gains `amount` life. */
     | { op: "gainLife"; player: EffectPlayerRef; amount: EffectValue }
-    /** CR 122.1 — "you get {E}": `player` gets `amount` energy counters. A thin
-     *  declarative skin over `SpellContext.addEnergy` (mirroring `gainLife`),
-     *  one execution path (ADR 0045). Energy is a player-owned resource counter
-     *  (not on an object), so `player` is a player ref — never an object slot.
-     *  Skipped when the player cannot be resolved (CR 608.2b). */
-    | { op: "getEnergy"; player: EffectPlayerRef; amount: EffectValue }
+    /** CR 122.1 — "A counter is a marker placed on an object or player":
+     *  `player` gets `amount` counters of `counter` kind. A thin declarative
+     *  skin over `SpellContext.addPlayerCounters` (mirroring `gainLife`), one
+     *  execution path (ADR 0045). Covers "you get {E}" (`"energy"`), "you get
+     *  an experience counter" (`"experience"`) and "target player gets N poison
+     *  counters" (`"poison"`) with ONE Op — the WRITE half whose READ half is
+     *  the `playerCounters` `EffectValue` member.
+     *
+     *  Generalized from the energy-only `getEnergy` Op (issue #1969, primitive
+     *  reuse — "parametrize the almost-right primitive"). The old name was also
+     *  a live footgun: the Op `getEnergy` WROTE energy while
+     *  `SpellContext.getEnergy` READS it.
+     *
+     *  A player counter never sits on an object, so `player` is a player ref —
+     *  never an object slot. Skipped when the player cannot be resolved (CR
+     *  608.2b) or when `amount` resolves to ≤ 0. */
+    | {
+          op: "addPlayerCounter";
+          player: EffectPlayerRef;
+          counter: PlayerCounterKind;
+          amount: EffectValue;
+      }
     /** CR 119.3 — `player` loses `amount` life (not damage — no
      *  damage-replacement interaction). */
     | { op: "loseLife"; player: EffectPlayerRef; amount: EffectValue }

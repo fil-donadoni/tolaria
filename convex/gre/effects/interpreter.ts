@@ -733,6 +733,19 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getLifeGainedThisTurn(playerId);
     }
+    // playerCounters (CR 122.1, issue #1969) — how many counters of one kind a
+    // PLAYER has, a thin skin over ctx.getPlayerCounters. The PLAYER-scoped
+    // sibling of `counters` above: `of` is a PLAYER selector resolved through
+    // the SAME resolvePlayerRef path (like domain's / lifeGainedThisTurn's,
+    // unlike counters'/manaValue's object `of`). Undefined when the player
+    // cannot be resolved (CR 608.2b). No CR 608.2g last-known-information
+    // fallback is needed or possible — a player never leaves a zone, so unlike
+    // the object-scoped read this can never miss a sacrificed source.
+    if ("playerCounters" in value) {
+        const playerId = resolvePlayerRef(ctx, value.playerCounters.of);
+        if (playerId === undefined) return undefined;
+        return ctx.getPlayerCounters(playerId, value.playerCounters.type);
+    }
     // difference (issue #2006) — `from` MINUS `minus`, the single arithmetic
     // member of the value grammar. Both operands are TERMINALS (a literal or a
     // `count`), so this cannot recurse into an expression tree; see
@@ -1942,13 +1955,16 @@ export const OP_EXECUTORS: {
         if (amount === undefined || amount <= 0) return;
         ctx.gainLife(playerId, amount);
     },
-    // CR 122.1 — "you get {E}": add energy counters to the player.
-    getEnergy(ctx, op) {
+    // CR 122.1 — "A counter is a marker placed on an object or player": add
+    // counters of one kind to the player. One executor for every player-counter
+    // kind (poison / energy / experience), the WRITE half of the pair whose
+    // READ half is the `playerCounters` value member (issue #1969).
+    addPlayerCounter(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         const amount = resolveValue(ctx, op.amount);
         if (amount === undefined || amount <= 0) return;
-        ctx.addEnergy(playerId, amount);
+        ctx.addPlayerCounters(playerId, op.counter, amount);
     },
     // CR 119.3 — life loss (not damage).
     loseLife(ctx, op) {

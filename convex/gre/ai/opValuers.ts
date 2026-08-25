@@ -31,6 +31,7 @@ import type {
     EffectOp,
     EffectMoveZone,
     EffectPlayerRef,
+    PlayerCounterKind,
 } from "../../cards/types";
 import { creatureValueRaw } from "../creatureBody";
 import type { Feature, OpValue, ValueTag } from "./featureBasis";
@@ -59,6 +60,14 @@ const SAC_SELF_COST = -40; // sacrificing your OWN permanent (a cost)
 // --- Backfill-Op point weights (issue #1430) --------------------------------
 const RAMP_PER_MANA = 12; // one produced mana ≈ evaluate.ts's untapped-mana weight
 const ENERGY_PER_POINT = 6; // an energy counter — a smaller, synergy-gated resource
+const EXPERIENCE_PER_POINT = 14; // CR 122.1 — an experience counter: energy-like, but
+// PERMANENT (no rule removes it, and it survives its source dying — CR 122.2 is
+// object-scoped) and COMPOUNDING (each one makes every later trigger bigger),
+// so it prices above a one-shot energy counter and near a life point's weight.
+const POISON_PER_COUNTER = 16; // CR 122.1f — ten poison counters LOSE the game, so one
+// counter is a tenth of a kill: priced at 2x a life point (LIFE_PER_POINT),
+// the same "life total is 20, poison is 10" ratio, no engine card exposes it
+// yet (the `addPlayerCounter` Op admits it; infect damage has its own path).
 const ATTACH_VALUE = 15; // reconfigure/equip-style self-attach — a small pump bump
 const MONARCH_VALUE = 70; // CR 720 — a recurring end-step draw, contested
 const DISCARD_VALUE = 40; // a single discarded card — a hair under a drawn card
@@ -718,12 +727,32 @@ const gainControl: Valuer<"gainControl"> = (op) => ({
         : ["boardRemoval"],
 });
 
-const getEnergy: Valuer<"getEnergy"> = (op, ctx) => {
+// CR 122.1 — counters put on a PLAYER. The sign depends on the KIND, not just
+// on who receives them (issue #1969): energy and experience are resources the
+// recipient wants, poison is an attack on them (CR 122.1f — ten loses the
+// game). Written as an exhaustive `Record` over `PlayerCounterKind` so a new
+// kind is a type error here rather than a silently-neutral valuation.
+const PLAYER_COUNTER_WEIGHT: Readonly<
+    Record<PlayerCounterKind, { points: number; gift: boolean; tag: ValueTag }>
+> = {
+    energy: { points: ENERGY_PER_POINT, gift: true, tag: "ramp" },
+    experience: { points: EXPERIENCE_PER_POINT, gift: true, tag: "ramp" },
+    poison: { points: POISON_PER_COUNTER, gift: false, tag: "lifeSwing" },
+};
+
+const addPlayerCounter: Valuer<"addPlayerCounter"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.amount);
-    const self = ctx.isSelf(op.player, "self");
+    const weight = PLAYER_COUNTER_WEIGHT[op.counter];
+    // A gift defaults to the caster ("you get {E}"); an attack defaults to the
+    // opponent ("target player gets a poison counter"), mirroring
+    // `gainLife`/`loseLife`.
+    const self = ctx.isSelf(op.player, weight.gift ? "self" : "opponent");
+    const good = weight.gift ? self : !self;
+    const tags = tagScaling(scaling, weight.tag);
+    if (weight.gift && !self) tags.push("self-cost");
     return {
-        points: amount * ENERGY_PER_POINT * (self ? 1 : -1),
-        tags: tagScaling(scaling, "ramp"),
+        points: amount * weight.points * (good ? 1 : -1),
+        tags,
     };
 };
 
@@ -1122,7 +1151,7 @@ export const OP_VALUERS: {
     extraTurn,
     skipNextTurn,
     gainControl,
-    getEnergy,
+    addPlayerCounter,
     grantAbility,
     grantCastFromExile,
     grantCastFromGraveyard,
@@ -1285,7 +1314,6 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     preventDamage: "beneficial",
     grantAbility: "beneficial",
     becomeMonarch: "beneficial",
-    getEnergy: "beneficial",
     grantCastFromExile: "beneficial",
     grantCastFromGraveyard: "beneficial",
     randomExileToHand: "beneficial",
@@ -1378,6 +1406,15 @@ export function opBeneficence(
             const net = op.action === "add" ? sign : -sign;
             return net > 0 ? "beneficial" : "harmful";
         }
+        case "addPlayerCounter":
+            // CR 122.1 — the SIGN is the counter KIND's, not the table's:
+            // energy/experience are resources the recipient wants, poison is
+            // an attack on them (CR 122.1f — ten loses the game). This case is
+            // why `addPlayerCounter` has no `OP_BENEFICENCE` row: that table is
+            // a flat Op→sign map and would have to pick one sign for both.
+            return PLAYER_COUNTER_WEIGHT[op.counter].gift
+                ? "beneficial"
+                : "harmful";
         case "tapUntap":
             return op.action === "untap" ? "beneficial" : "harmful";
         default:
