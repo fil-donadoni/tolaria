@@ -46,6 +46,7 @@ import {
 } from "../ai/choiceCandidates";
 import {
     heuristicChoicePrior,
+    NEUTRAL_PRIOR,
     priorFor,
     resetChoicePriorFn,
     setChoicePriorFn,
@@ -393,6 +394,41 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         expect(keys.every((k) => !/\d{2,}/.test(k))).toBe(true); // no instance-id-shaped key
     });
 
+    it("option-pick (issue #2306): a colour-mode option threads `option.color` onto the candidate's `hint.colorMode`", () => {
+        // The root-cause drop this issue fixes: `toCandidate` used to build
+        // `{ key, move }` with no hint at all, so the colour tag on
+        // `PendingChoice.options[].color` (already threaded verbatim from
+        // `EffectMode.color` by `requestOptionChoice`) never reached the
+        // candidate the prior seam reads.
+        const state = stateWithChoice({
+            kind: "option-pick",
+            options: [
+                {
+                    id: "protection-blue",
+                    label: "Protection from blue",
+                    color: "U",
+                },
+                {
+                    id: "protection-red",
+                    label: "Protection from red",
+                    color: "R",
+                },
+                { id: "primal-clay-3-3", label: "3/3 body" }, // no colour tag
+            ],
+        });
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        const blue = cands.find(
+            (c) => c.key === "option-pick:protection-blue"
+        )!;
+        const red = cands.find((c) => c.key === "option-pick:protection-red")!;
+        const body = cands.find(
+            (c) => c.key === "option-pick:primal-clay-3-3"
+        )!;
+        expect(blue.hint?.colorMode).toBe("U");
+        expect(red.hint?.colorMode).toBe("R");
+        expect(body.hint?.colorMode).toBeUndefined();
+    });
+
     it("random-reveal (CR 705.2 / ADR 0023, issue #1511): a degenerate single-candidate ack", () => {
         // Unlike every other family the chooser makes NO real decision — the
         // outcome was already drawn from the seeded PRNG and persisted on the
@@ -455,6 +491,138 @@ describe("priorFor seam (issue #1425)", () => {
         expect(choiceCandidates(state, head)[0].key).toBe(
             "draw-replacement:no"
         );
+    });
+});
+
+describe("colorModePrior (issue #2306) — protection-colour choice scored against observed opponent colour", () => {
+    const PROTECTION_MODES = [
+        {
+            id: "protection-white",
+            label: "Protection from white",
+            color: "W" as const,
+        },
+        {
+            id: "protection-blue",
+            label: "Protection from blue",
+            color: "U" as const,
+        },
+        {
+            id: "protection-black",
+            label: "Protection from black",
+            color: "B" as const,
+        },
+        {
+            id: "protection-red",
+            label: "Protection from red",
+            color: "R" as const,
+        },
+        {
+            id: "protection-green",
+            label: "Protection from green",
+            color: "G" as const,
+        },
+    ];
+
+    /** p1 is the chooser (Mother of Runes' controller); p2 is the opponent
+     *  whose board the evidence is read from. */
+    function colorChoiceState(opponentBattlefield: string[] = []): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: opponentBattlefield.map((cardId, i) =>
+                        makeInstance(cardId, {
+                            id: `opp-perm-${i}`,
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        })
+                    ),
+                }),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+            pendingChoices: [
+                {
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "optionChoiceMode",
+                    playerId: "p1",
+                    kind: "option-pick",
+                    count: 1,
+                    options: PROTECTION_MODES,
+                    prompt: "Choose a color",
+                },
+            ],
+        });
+    }
+
+    const candidateFor = (id: string, color: string) => ({
+        key: `option-pick:${id}`,
+        move: {
+            kind: "resolution-choice" as const,
+            stackItemId: "stack-1",
+            step: 0,
+            choiceId: "optionChoiceMode",
+            cardInstanceIds: [id],
+        },
+        hint: { colorMode: color as never },
+    });
+
+    it("a colour the opponent's board shows scores ABOVE one it doesn't", () => {
+        const state = colorChoiceState([grizzlyBears.id]); // green permanent
+        const head = state.pendingChoices![0];
+        const green = heuristicChoicePrior(
+            state,
+            head,
+            candidateFor("protection-green", "G")
+        );
+        const red = heuristicChoicePrior(
+            state,
+            head,
+            candidateFor("protection-red", "R")
+        );
+        expect(green).toBeGreaterThan(red);
+    });
+
+    it("no colour evidence at all: every colour stays at the neutral baseline (acceptance criteria — never stalls, any pick legal)", () => {
+        const state = colorChoiceState([]);
+        const head = state.pendingChoices![0];
+        for (const mode of PROTECTION_MODES) {
+            expect(
+                heuristicChoicePrior(
+                    state,
+                    head,
+                    candidateFor(mode.id, mode.color)
+                )
+            ).toBe(NEUTRAL_PRIOR);
+        }
+    });
+
+    it("colourless (`C`, Giver of Runes' extra mode) is scored neutral, never penalised for carrying no colour evidence", () => {
+        const state = colorChoiceState([grizzlyBears.id]);
+        const head = state.pendingChoices![0];
+        const colorless = heuristicChoicePrior(
+            state,
+            head,
+            candidateFor("protection-colorless", "C")
+        );
+        expect(colorless).toBe(NEUTRAL_PRIOR);
+    });
+
+    it("a non-colour option-pick (Primal Clay body modes) is untouched — no `hint.colorMode` stays neutral", () => {
+        const state = colorChoiceState([grizzlyBears.id]);
+        const head = state.pendingChoices![0];
+        const noColor = heuristicChoicePrior(state, head, {
+            key: "option-pick:3-3-body",
+            move: {
+                kind: "resolution-choice",
+                stackItemId: "stack-1",
+                step: 0,
+                choiceId: "optionChoiceMode",
+                cardInstanceIds: ["3-3-body"],
+            },
+        });
+        expect(noColor).toBe(NEUTRAL_PRIOR);
     });
 });
 

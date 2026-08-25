@@ -187,6 +187,15 @@ export function matchesMove(
         return false;
     }
 
+    // issue #2306 — an OPTION id (never a card name, so no
+    // `instanceIdsForName` resolution: an option-pick's ids are
+    // author-supplied semantic strings like "protection-blue"), checked
+    // against a `resolution-choice` move's submitted `cardInstanceIds`.
+    if (matcher.option !== undefined) {
+        if (move.kind !== "resolution-choice") return false;
+        if (!move.cardInstanceIds.includes(matcher.option)) return false;
+    }
+
     return true;
 }
 
@@ -198,6 +207,7 @@ export function describeMatcher(matcher: MoveMatcher): string {
     if (matcher.cards) parts.push(`cards=[${matcher.cards.join(", ")}]`);
     if (matcher.target) parts.push(`target=${matcher.target}`);
     if (matcher.accept !== undefined) parts.push(`accept=${matcher.accept}`);
+    if (matcher.option) parts.push(`option=${matcher.option}`);
     return parts.join(" ");
 }
 

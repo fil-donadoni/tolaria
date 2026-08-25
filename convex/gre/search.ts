@@ -41,7 +41,12 @@
 // that keeps the most material — so a free chump attack never ties "no attacks"
 // on rollout noise.
 
-import type { CardInstanceState, GameState, StackItem } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    StackItem,
+} from "./state";
 import {
     moveCard,
     removeFromZone,
@@ -51,6 +56,8 @@ import {
     getOpponentId,
     tapPermanent,
 } from "./state";
+import type { Color } from "../cards/types";
+import { observedOpponentColors } from "./ai/observedColors";
 import { checkStateBasedActions } from "./sba";
 import {
     advancePhase,
@@ -2184,6 +2191,81 @@ function rootMoveFor(edge: Edge, rootState?: GameState): Move {
     return match?.move ?? edge.move;
 }
 
+/** The colour a `resolution-choice` move answers a colour-mode choice with —
+ *  `headChoice.options[].color` (CR 105.1, `protectionColorModes` /
+ *  `colorChoiceModes`), looked up by the SINGLE submitted option id. `undefined`
+ *  for a multi-id submission, an id with no colour tag (Primal Clay's body
+ *  modes), or an id resolving to no option at all. */
+function colorModeOfMove(
+    move: Move,
+    headChoice: PendingChoice
+): Color | undefined {
+    if (move.kind !== "resolution-choice") return undefined;
+    if (move.cardInstanceIds.length !== 1) return undefined;
+    return (headChoice.options ?? []).find(
+        (o) => o.id === move.cardInstanceIds[0]
+    )?.color;
+}
+
+/** Colour-mode tie-break (issue #2306). "Protection from the colour of your
+ *  choice" (`protectionColorModes`) grants an UNTIL-END-OF-TURN ability, so
+ *  its board effect is gone long before most rollouts reach a scored leaf —
+ *  the same reason `evaluateCreature` deliberately excludes a combat trick
+ *  from a creature's realized body. Absent an actual live threat to answer
+ *  (in which case the real material difference already decides it well
+ *  before any tie-break runs — CR 608.2b's fizzle IS a lasting board fact),
+ *  every colour mode is therefore genuinely REWARD-TIED: `choicePriorBonus`
+ *  (this file) only biases the search's OPENING order and decays too fast to
+ *  hold a skewed visit allocation against UCB1's own exploration term
+ *  (measured: ~40 visits each across 5 colour modes at `iterations: 200`,
+ *  despite a 0.95-vs-0.05 prior split), so the material tie-break above ends
+ *  up choosing among genuinely-tied edges on rollout noise unrelated to
+ *  colour at all.
+ *
+ *  Mirrors `castVariantScore`'s ANNOUNCEMENT-VARIANT shape: pulled from the
+ *  FULL `pool` on outcome-equality alone (never gated on the `VISIT_TOL`
+ *  visit band — a decisively-favoured colour need not have won the visit
+ *  race for this to fire), ranking outcome-equal colour-mode contenders by
+ *  the SAME opponent-observed-colour evidence the prior itself reads
+ *  (`observedOpponentColors`, `ai/observedColors.ts`) so the two can never
+ *  disagree about which colour the position favours. Colourless (`"C"`) and
+ *  a colour with NO evidence at all both score 0 — never preferred over an
+ *  evidenced colour, but no worse than each other, so a no-evidence position
+ *  falls through unchanged (any pick stays acceptable). */
+function colorModeTiebreak(
+    rootState: GameState,
+    pool: Edge[],
+    bestMean: number,
+    mean: (e: Edge) => number
+): Edge | null {
+    const headChoice = rootState.pendingChoices?.[0];
+    if (!headChoice) return null;
+    if (
+        headChoice.kind !== "option-pick" &&
+        headChoice.kind !== "trigger-mode"
+    ) {
+        return null;
+    }
+    const evidence = observedOpponentColors(
+        rootState,
+        getOpponentId(rootState, headChoice.playerId)
+    );
+    const total = Object.values(evidence).reduce((sum, n) => sum + (n ?? 0), 0);
+    if (total <= 0) return null;
+    const shareOf = (e: Edge): number => {
+        const color = colorModeOfMove(e.move, headChoice);
+        if (!color || color === "C") return 0;
+        return (evidence[color] ?? 0) / total;
+    };
+    const contenders = pool.filter((e) => mean(e) >= bestMean - OUTCOME_EPS);
+    if (contenders.length === 0) return null;
+    let winner = contenders[0];
+    for (const e of contenders) {
+        if (shareOf(e) > shareOf(winner)) winner = e;
+    }
+    return shareOf(winner) > 0 ? winner : null;
+}
+
 export function selectRootMove(
     root: Node,
     moves: Move[],
@@ -2250,6 +2332,21 @@ export function selectRootMove(
         }
         return rootMoveFor(edge, rootState);
     };
+
+    // Colour-mode tie-break (issue #2306) — see `colorModeTiebreak`'s own doc
+    // comment for why a "protection from the colour of your choice" pick needs
+    // one at all. Placed BEFORE every move-kind-specific tie-break below: it
+    // only ever fires for a `resolution-choice` answering a colour-mode
+    // choice, so it cannot collide with the attack/block/cast-variant rules
+    // that follow, and firing early keeps this rule visible in `mechanism`
+    // rather than silently overwritten by a later, unrelated pass.
+    if (rootState) {
+        const colorPick = colorModeTiebreak(rootState, pool, bestMean, mean);
+        if (colorPick && colorPick !== best) {
+            best = colorPick;
+            mechanism = "colour-mode-evidence";
+        }
+    }
 
     // Extra-turn structural credit (issue #244). A granted extra turn is washed
     // out of the rollout (ADR 0015 horizon + `extraTurns` popped at the turn

@@ -1761,6 +1761,194 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Twin combo execution. Twin attached to Exarch via attachedTo. Bot should activate '{T}:'. Issue #2469 fixed `enumerateAbilityMoves` to read the granted ability off `getEffectiveActivatedAbilities` — the move IS now enumerated (confirmed: `grantedAbilityEnumeration.bot.test.ts`), but this entry is NOT promoted to `must`: at `iterations: 400`, 3 of 5 seeds (727774 aka 0xb1ade, 2, 3) still choose `pass` over the activation. The gap is now valuation/search depth, not enumeration — the combo payoff (an infinite hasty-copy loop) isn't scored highly enough at this horizon without `comboAnnotations.ts` support, which is explicitly out of scope for #2469. See finding docs/findings/2469-twin-blade-still-stretch.md.",
     },
+    // -----------------------------------------------------------------------
+    // Protection-colour choice (issue #2306) — the Bot's colour pick for
+    // "protection from the colour of your choice" (`protectionColorModes`,
+    // `cards/abilities/index.ts`) read against the opponent's OBSERVED colour
+    // footprint (`ai/observedColors.ts`) rather than an arbitrary generator
+    // order. `setup`'s `activate` step's new `target` field (issue #2306)
+    // reaches the colour choice itself: activate the targeted ability through
+    // the real `enumerateMoves`/`applyMoveInSearch` seam, then `resolve-top`
+    // to hit the `optionChoice` Op's suspending pick — the SAME mechanism the
+    // Chrome Mox imprint entry above uses one Op earlier.
+    // -----------------------------------------------------------------------
+    {
+        label: "protection colour choice: Mother of Runes picks the opponent's shown colour",
+        spec: {
+            cards: [
+                {
+                    name: "Merfolk of the Pearl Trident",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Unsummon", owner: "me", zone: "hand" },
+                {
+                    name: "Mother of Runes",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        // Only "me" (the active player) holds priority in a freshly built
+        // board, so the OBSERVED side casts first — mirrors the seating of
+        // the "Mother of Runes stays available / protects itself" entries
+        // above, Mother on `opp` throughout. "me" shows EXACTLY one colour —
+        // a blue permanent AND a blue spell on the stack (its one Island is
+        // spent paying for Unsummon, so it contributes no UNTAPPED-source
+        // evidence either): unambiguous acceptance-criterion-1 shape. Casting
+        // hands priority to "opp" afterward, who then activates Mother.
+        setup: [
+            {
+                kind: "cast",
+                card: "Unsummon",
+                by: "me",
+                target: "Merfolk of the Pearl Trident",
+            },
+            {
+                kind: "activate",
+                card: "Mother of Runes",
+                target: "Mother of Runes",
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", option: "protection-blue" }],
+        },
+        note: 'Issue #2306 acceptance criterion 1 / the blade coda\'s positive case. Before the fix, `option-pick` candidates scored a flat NEUTRAL_PRIOR regardless of colour (`choiceCandidates.ts` dropped `option.color` in `toCandidate`, and `heuristicChoicePrior` had no branch for a `resolution-choice` move) — the pick was arbitrary generator-array order, which for `protectionColorModes(["W","U","B","R","G"])` is always "protection-white", never blue. Proof-of-failure: reverting the `colorModePrior` wiring in `choicePriors.ts` reds this at every seed (chosen option = protection-white).',
+    },
+    {
+        label: "protection colour choice: Thornscape Master picks the opponent's shown colour (shared seam)",
+        spec: {
+            cards: [
+                {
+                    name: "Merfolk of the Pearl Trident",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Unsummon", owner: "me", zone: "hand" },
+                {
+                    name: "Thornscape Master",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        // A SECOND card built on the shared `protectionColorModes` helper,
+        // proving the fix lives at the seam and not in a Mother-of-Runes-
+        // shaped patch (`feedback_fix_bug_class_not_single_card`).
+        // Thornscape Master's protection ability costs `{W}{W}, {T}` (needs
+        // real mana, unlike Mother/Giver's plain tap) and targets "target
+        // creature" with no controller restriction, so it can protect
+        // itself — the two Plains fund the cost through the real
+        // `enumerateMoves`/`applyMoveInSearch` seam the `activate` step's
+        // `target` field uses. (Giver of Runes was tried first and dropped:
+        // its `getTargetRequirement` closure hits a documented, pre-existing
+        // gap in `moves.ts`'s ability enumerator — "conditional abilities
+        // need a runtime predicate we don't replicate" — so the Bot can
+        // never activate it at all, unrelated to colour choice. Out of
+        // scope for #2306; see the PR description / findings note.)
+        setup: [
+            {
+                kind: "cast",
+                card: "Unsummon",
+                by: "me",
+                target: "Merfolk of the Pearl Trident",
+            },
+            {
+                kind: "activate",
+                card: "Thornscape Master",
+                ability: "thornscape-master-protection",
+                target: "Thornscape Master",
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", option: "protection-blue" }],
+        },
+        note: "Issue #2306 acceptance criterion 2 — the SAME fix at the shared `protectionColorModes` seam, proven on a SECOND card.",
+    },
+    {
+        label: "protection colour choice: negative control — the lethal threat's colour wins over evidence share",
+        spec: {
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                {
+                    name: "Mother of Runes",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        // The opponent's OBSERVED footprint favours GREEN (two green
+        // permanents = evidence 6) over red (the Bolt on the stack alone =
+        // evidence 3; the Mountain that paid for it is tapped by the time the
+        // choice is scored, so it contributes no untapped-source evidence).
+        // The heuristic is a PRIOR, not a filter (acceptance criteria): with
+        // Bolt on the stack aimed at Mother herself, the search's real reward
+        // — fizzling it (CR 608.2b) versus dying — must still win over the
+        // evidence-led green bias.
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "me",
+                target: "Mother of Runes",
+            },
+            {
+                kind: "activate",
+                card: "Mother of Runes",
+                target: "Mother of Runes",
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", option: "protection-red" }],
+        },
+        note: "Issue #2306's blade-coda negative control: proves `colorModePrior` stays a SOFT ordering bias — every mode is still opened (CHOICE_TOP_K comfortably covers 5 colours) and the search still finds the mechanically-forced correct answer even when it is the evidence-LOWER colour. Guards against the fix over-correcting into a hard filter that would drop this exact save.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

@@ -194,6 +194,38 @@ describe("matchesMove — partial-match semantics (issue #1427)", () => {
             })
         ).toBe(false);
     });
+
+    it("`option` (issue #2306) matches a resolution-choice by its submitted OPTION id, never a card name", () => {
+        const { state } = boltVsBearsState();
+        const move: Move = {
+            kind: "resolution-choice",
+            stackItemId: "stack-1",
+            step: 0,
+            choiceId: "optionChoiceMode",
+            cardInstanceIds: ["protection-blue"],
+        };
+        expect(
+            matchesMove(state, move, {
+                kind: "resolution-choice",
+                option: "protection-blue",
+            })
+        ).toBe(true);
+        expect(
+            matchesMove(state, move, {
+                kind: "resolution-choice",
+                option: "protection-red",
+            })
+        ).toBe(false);
+        // Wrong move kind: `option` never resolves a card name, so a
+        // non-resolution-choice move rejects on kind alone, not on a throw.
+        const pass: Move = { kind: "pass" };
+        expect(
+            matchesMove(state, pass, {
+                kind: "resolution-choice",
+                option: "protection-blue",
+            })
+        ).toBe(false);
+    });
 });
 
 describe("matchesMove — stack-resident names (finding 1, issue #1427)", () => {
