@@ -22,8 +22,9 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //  of turn." (CR 118.5 exile-from-graveyard cost; CR 611.2a temporary keyword
 //  grant via `grantStaticAbility`.)
 //
-// FLAGGED SIMPLIFICATION (CR 602.1 / 118.3): the cost union has no "discard a (out of scope)
-// CHOSEN card" activation cost (only `discardLastDrawn` / `discardAtRandom`), so
+// FLAGGED SIMPLIFICATION (out of scope) (CR 602.1 / 118.3): the cost union has
+// no "discard a CHOSEN card" activation cost (only `discardLastDrawn` /
+// `discardAtRandom`), so
 // the discard ability is modelled as a stack ability with an empty cost whose
 // resolve performs the discard via a `requestChoice` and only adds the counter
 // when a card is actually discarded. This mirrors the established Necropolis

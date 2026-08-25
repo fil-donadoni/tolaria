@@ -1140,8 +1140,8 @@ export const jestersMask: CardDefinition = {
 // `addNotedMana`. Both gate on the no-counter / has-counter invariant so only
 // one charge sits on the artifact at a time (CR 122 counters).
 //
-// SIMPLIFICATION (flagged, CR 605.1a): the "add the noted mana" ability is a (out of scope)
-// mana ability and should not use the stack. The engine's mana-ability path
+// SIMPLIFICATION (out of scope) (flagged, CR 605.1a): the "add the noted
+// mana" ability is a mana ability and should not use the stack. The engine's mana-ability path
 // (`useStack: false` / `manaProduced`) produces only fixed, definition-time
 // mana; it cannot read the artifact's stored note to produce a variable colour.
 // Both abilities are therefore `useStack: true` (resolve-driven). The only

@@ -487,8 +487,8 @@ export const counterspellIce: CardPrint = {
 // resolution it enters a `retarget` phase via `requestRetarget`, asking the
 // caster to pick a new legal target for that spell.
 //
-// SIMPLIFICATION (flagged, no engine change): TargetRequirement has no (out of scope)
-// "spell with a single target" filter, so Deflection may be cast at any spell
+// SIMPLIFICATION (out of scope) (flagged, no engine change): TargetRequirement
+// has no "spell with a single target" filter, so Deflection may be cast at any spell
 // on the stack. The retarget then re-validates against "any target"; for a
 // multi-target spell only one target would be re-chosen, which is a minor
 // deviation from the printed "single target" restriction. Acceptable for the

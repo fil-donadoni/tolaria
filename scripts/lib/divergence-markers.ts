@@ -50,7 +50,7 @@
 // only the state being confessed — found empirically, issue #1900 fixup
 // round 2, finding 2, after the widened regex forced bogus `tracked-by:`
 // dispositions onto four comments that say, in their own words, they are not
-// divergences. `isNegatedConfession` below excludes only these two words
+// divergences. `isNegatedConfession` below BLANKS only these two words
 // (never `not implemented`/`not modelled`/`not enforced`, which are
 // themselves two-word confessions — "not" there is part of the vocabulary,
 // not a negation of it) when a `not`/`no` sits within 24 characters before
@@ -67,6 +67,18 @@
 // correctly-tracked markers (`mid/white.ts`, `pls/black.ts`,
 // `leg/black.ts`) whose nearby "no"/"not" belongs to unrelated prose ("no
 // engine event", "no legal choice"), not a negation of the confession.
+//
+// BLANK-AND-RETEST, not drop-the-hit (issue #1900 fixup round 3, finding 1).
+// The round-2 shape dropped the ENTIRE marker hit at `lines[i]` whenever the
+// negation window matched anywhere nearby — but a line can carry a genuine,
+// independent confession word ALONGSIDE an unrelated "no"/"not …
+// divergence/approximat*" phrase that isn't negating it at all ("Deferred:
+// no Op models this divergence yet, so the clause is dropped" — "no Op
+// models this divergence" trips the window, but "Deferred" is its own,
+// unnegated confession). Blanking only the matched negated span and
+// re-testing `MARKER` against what's left fixes this: an independent
+// confession elsewhere on the line still counts, and a line whose ONLY
+// confession word was the negated one still gets suppressed.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -123,19 +135,59 @@ export function isStubContext(lines: string[], i: number): boolean {
 export const NEGATED_CONFESSION =
     /\b(?:not|no)\b.{0,24}?\b(?:approximat\w*|divergence)\b/i;
 
-/** True when the marker candidate at `lines[i]` is actually a comment
- *  DISCLAIMING a divergence/approximation rather than confessing one — "this
- *  is not an approximation of the clause, it IS the clause" reads exactly
- *  like a confession to the unanchored `MARKER` regex, but is the opposite
- *  claim. Checked against the marker's own line AND the line immediately
- *  above it joined together (comment-prefix stripped first), because a wrapped
- *  comment can split the negation from its object across the line break
- *  (`neo/red.ts`'s "so this is not an\n// approximation of the clause"). */
+const strip = (line: string) => line.replace(/^\s*\/\/\s?/, "");
+
+/** Blanks every NEGATED-CONFESSION span that falls (even partially) on
+ *  `line` — the marker candidate's own line — leaving every OTHER word,
+ *  including an unrelated, un-negated confession elsewhere on the same
+ *  line, untouched. Matches against `prevLine + " " + line` (comment
+ *  prefixes stripped from both) so a negation split across the wrapped-
+ *  comment boundary (`neo/red.ts`'s "so this is not an\n// approximation of
+ *  the clause") is still caught, but only the portion of each match that
+ *  actually lands on `line` gets blanked — the negation cue itself can live
+ *  entirely on `prevLine` and still consume its object on `line`. Exported
+ *  for direct unit testing (issue #1900 fixup round 3, finding 1). */
+export function blankNegatedConfessions(
+    prevLine: string,
+    line: string
+): string {
+    const prevBody = strip(prevLine);
+    const body = strip(line);
+    const boundary = prevBody.length + 1; // +1 for the joining space
+    const joined = `${prevBody} ${body}`;
+    const re = new RegExp(NEGATED_CONFESSION.source, "gi");
+    let blanked = body;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(joined)) !== null) {
+        const matchStart = m.index;
+        const matchEnd = m.index + m[0].length;
+        const start = Math.max(matchStart, boundary) - boundary;
+        const end = Math.max(matchEnd, boundary) - boundary;
+        if (end > start) {
+            blanked =
+                blanked.slice(0, start) +
+                " ".repeat(end - start) +
+                blanked.slice(end);
+        }
+    }
+    return blanked;
+}
+
+/** True when the marker candidate at `lines[i]` should be suppressed as a
+ *  DISCLAIMED divergence/approximation rather than counted as a confession.
+ *  Blanks the negated span(s) via `blankNegatedConfessions` and re-tests
+ *  `MARKER` on what remains of `lines[i]` — `true` (suppress) only when NO
+ *  confession word survives the blanking, so a line carrying an independent,
+ *  unnegated confession word alongside the negated one still counts as a
+ *  hit ("Deferred: no Op models this divergence yet, so the clause is
+ *  dropped" — the negation window matches "no Op models this divergence",
+ *  but "Deferred" is untouched and still trips `MARKER`). Round-2 shape
+ *  dropped the whole hit on any nearby negation match; this is the fix
+ *  (issue #1900 fixup round 3, finding 1). */
 export function isNegatedConfession(lines: string[], i: number): boolean {
-    const strip = (line: string) => line.replace(/^\s*\/\/\s?/, "");
-    const prev = i > 0 ? strip(lines[i - 1]) : "";
-    const joined = `${prev} ${strip(lines[i])}`;
-    return NEGATED_CONFESSION.test(joined);
+    const prev = i > 0 ? lines[i - 1] : "";
+    const blanked = blankNegatedConfessions(prev, lines[i]);
+    return !MARKER.test(`// ${blanked}`);
 }
 
 /** Anchor for the sanctioned `aiEffects`/AI-valuation shadow-script idiom

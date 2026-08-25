@@ -392,9 +392,9 @@ export const cloakOfConfusion: CardDefinition = {
 //     each upkeep to untap the creature (CR 603.6a, 117.3a).
 //   - leftTrigger (self) — when this Aura leaves, the host's controller
 //     sacrifices it (CR 603.10 last-known-info), identical to Animate Dead.
-// SIMPLIFICATION (flagged, no engine change): the printed "loses 'enchant (out of scope)
-// creature card in a graveyard' and gains 'enchant creature put onto the
-// battlefield with this Aura'" self-text-change is a no-op in practice — it only
+// SIMPLIFICATION (out of scope) (flagged, no engine change): the printed "loses
+// 'enchant creature card in a graveyard' and gains 'enchant creature put onto
+// the battlefield with this Aura'" self-text-change is a no-op in practice — it only
 // re-scopes the attachment target after reanimation, which the engine already
 // handles by attaching to the reanimated permanent. The observable behavior
 // (reanimate tapped, +1/+1, untap-lock with pay-to-untap, sacrifice on leave) is

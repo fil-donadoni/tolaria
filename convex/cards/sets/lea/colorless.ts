@@ -718,8 +718,8 @@ export const icyManipulator: CardDefinition = {
 // standard digital reading — mana value <= X (CR 202.3b: X counts as 0 in the
 // candidate's printed cost).
 //
-// "Activate only as a sorcery" is approximated by a main-phase + own-turn (out of scope)
-// restriction; the empty-stack requirement is not enforced (minor).
+// "Activate only as a sorcery" is approximated (out of scope) by a
+// main-phase + own-turn restriction; the empty-stack requirement is not enforced (minor).
 //
 // Turn-up (the "would deal/be dealt damage or become tapped -> turn face up"
 // clause) is out of scope for this slice and lands in #124.

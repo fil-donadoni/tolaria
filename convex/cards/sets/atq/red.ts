@@ -170,9 +170,9 @@ export const goblinArtisans: CardDefinition = {
 // onto the stack item so `getAdditionalSacrificeMv()` reads it at resolve
 // (Priest of Yawgmoth). See PRD #269 cluster A, issue #282.
 //
-// NOTE (CR 605.1a deviation): Ashnod's Altar and Priest of Yawgmoth are (out of scope)
-// technically mana abilities (no target, can add mana). They are modeled here
-// as `useStack: true` activated abilities because their cost requires a player
+// NOTE (out of scope) (CR 605.1a deviation): Ashnod's Altar and Priest of
+// Yawgmoth are technically mana abilities (no target, can add mana). They are
+// modeled here as `useStack: true` activated abilities because their cost requires a player
 // CHOICE of which permanent to sacrifice, and the engine's instant mana-ability
 // path (`tapUntap`) has no choice step. Routing them through the stack reuses
 // the sacrifice-choice machinery wholesale. The practical cost is that their

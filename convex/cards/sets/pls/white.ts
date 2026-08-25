@@ -865,9 +865,9 @@ export const voiceOfAll: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Deferred (engine capability gap) — of the two PLS White cards below, only (tracked-by: #2003)
-// Planeswalker's Mirth still needs a genuinely unbuilt engine capability,
-// tracked-by: #2003. Sunscape Battlemage's OWN blocker (issue #1328) is
+// Deferred (engine capability gap, tracked-by: #2003) — of the two PLS White
+// cards below, only Planeswalker's Mirth still needs a genuinely unbuilt
+// engine capability, tracked-by: #2003. Sunscape Battlemage's OWN blocker (issue #1328) is
 // resolved — see its bullet — so it stays documented here for the
 // implementation notes but is no longer a Guard-B divergence; it is
 // intentionally NOT registered (no exported CardDefinition) to keep the card
