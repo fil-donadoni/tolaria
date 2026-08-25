@@ -130,9 +130,18 @@ export default function AiDecisionTrace() {
                 <span className="text-label">AI · last decision</span>
                 {trace && (
                     <span className="flex items-baseline gap-2">
-                        <span className="text-[10px] text-text-disabled tabular-nums">
-                            {trace.iterations} iters · {trace.candidates.length}{" "}
-                            moves
+                        <span
+                            className="text-[10px] text-text-disabled tabular-nums"
+                            title={
+                                trace.stoppedBy === "time"
+                                    ? "Stopped by the wall-clock bound before the iteration budget completed"
+                                    : "Ran the full iteration budget"
+                            }
+                        >
+                            {trace.iterationsCompleted}/
+                            {trace.iterationsRequested} iters ({trace.stoppedBy}
+                            ) · {Math.round(trace.elapsedMs)}
+                            ms · {trace.candidates.length} moves
                         </span>
                         <button
                             onClick={() => setShowLegend((v) => !v)}

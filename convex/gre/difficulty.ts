@@ -28,8 +28,20 @@ export const DIFFICULTIES: readonly Difficulty[] = [
 
 /** Search budget per difficulty. Strictly increasing search effort — and
  *  nothing else — separates the presets. `medium` matches the historical
- *  `DEFAULT_BUDGET`, so the default-difficulty bot is exactly as strong as
- *  before this slice.
+ *  `DEFAULT_BUDGET` (`{ iterations: 400, timeMs: 1500 }`, ADR 0015's ~1.5s
+ *  ceiling for a full-round rollout), so the default-difficulty bot is
+ *  exactly as strong as before this slice. Issue #2682 is what fixed this:
+ *  before it, `medium.timeMs` was 300 — a stale value nobody had re-derived
+ *  against the ADR 0015 rollout, and iterations never actually completed
+ *  against the wall clock in a real game (only the untimed blade suite ran
+ *  the full 400).
+ *
+ *  `hard.timeMs` keeps its PRE-#2682 ratio to `medium.timeMs` — 600 / 300 =
+ *  2× — rather than being bumped by the same +1200ms delta medium got, so
+ *  `hard` stays proportionally the deepest search of the three:
+ *  `1500 * 2 = 3000`. `easy.timeMs` is untouched (#2682 only re-scales
+ *  `medium`/`hard`; `easy`'s 120ms was never claimed to match anything).
+ *  Monotonicity (120 < 1500 < 3000) is asserted in `difficulty.bot.test.ts`.
  *
  *  `easy` is deliberately SHALLOW: a handful of iterations explores so little of
  *  the tree that the bot misses lines a deeper search finds (it even misreads
@@ -38,8 +50,8 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *  positions. The strength gradient is verified in `difficulty.test.ts`. */
 export const DIFFICULTY_BUDGETS: Record<Difficulty, SearchBudget> = {
     easy: { iterations: 3, timeMs: 120 },
-    medium: { iterations: 400, timeMs: 300 },
-    hard: { iterations: 1200, timeMs: 600 },
+    medium: { iterations: 400, timeMs: 1500 },
+    hard: { iterations: 1200, timeMs: 3000 },
 };
 
 /** Sensible default when the player has not chosen yet. */

@@ -96,7 +96,16 @@ describe("consultBrain always settles (issue #2284)", () => {
         const hardest = Math.max(
             ...Object.values(DIFFICULTY_BUDGETS).map((b) => b.timeMs ?? 0)
         );
-        expect(BRAIN_CONSULT_TIMEOUT_MS).toBeGreaterThan(hardest * 5);
+        // A flat 5× margin (the original formula here) was calibrated against
+        // the PRE-#2682 `hard.timeMs = 600`; a literal `hardest * 5` at
+        // today's scale (`hard` = 3000, issue #2682) would demand a 15s+
+        // consult timeout — worse for the player, since a genuinely wedged
+        // Worker would then take 15s+ to surface instead of 5s, not safer.
+        // What the margin actually protects is unchanged: enough slack that a
+        // legitimately slow `hard` think is never mistaken for a wedge. 1s of
+        // headroom above the hardest real budget is that slack.
+        expect(BRAIN_CONSULT_TIMEOUT_MS).toBeGreaterThan(hardest);
+        expect(BRAIN_CONSULT_TIMEOUT_MS - hardest).toBeGreaterThanOrEqual(1000);
         // …and below the watchdog, so a wedged consult has released the driver's
         // in-flight guard by the time the first escalation deadline arrives.
         expect(BRAIN_CONSULT_TIMEOUT_MS).toBeLessThan(BOT_WATCHDOG_MS);

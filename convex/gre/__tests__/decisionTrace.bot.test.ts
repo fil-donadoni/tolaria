@@ -213,4 +213,39 @@ describe("searchWithTrace (DecisionTrace by-product)", () => {
         expect(move).toBeNull();
         expect(trace).toBeNull();
     });
+
+    // Issue #2682 — before this slice `runSearchWithTrace` computed the real
+    // per-decision iteration count and threw it away (never compared against
+    // the budget or the wall clock). These two cases are the acceptance
+    // criteria: an iteration-only budget completes exactly what it asked for,
+    // a time-starved budget stops short.
+    it('reports stoppedBy "iterations" and iterationsCompleted === iterationsRequested with no timeMs bound', () => {
+        const state = botMainWithLand();
+        // BUDGET = { iterations: 200 }, no timeMs — the loop can only stop by
+        // exhausting the iteration count.
+        const { trace } = searchWithTrace(state, "p1", BUDGET, SEED);
+        expect(trace!.stoppedBy).toBe("iterations");
+        expect(trace!.iterationsCompleted).toBe(trace!.iterationsRequested);
+        expect(trace!.iterationsCompleted).toBe(BUDGET.iterations);
+    });
+
+    it('reports stoppedBy "time" and iterationsCompleted < iterationsRequested under a tiny wall-clock bound (injected clock)', () => {
+        const state = botMainWithLand();
+        // Clock jumps 10ms per read; a 5ms budget allows a single iteration —
+        // same pattern as search.test.ts's "stops on the wall-clock bound".
+        let t = 0;
+        const now = () => (t += 10);
+        const { trace } = searchWithTrace(
+            state,
+            "p1",
+            { iterations: 1_000_000, timeMs: 5, now },
+            SEED
+        );
+        expect(trace!.stoppedBy).toBe("time");
+        expect(trace!.iterationsCompleted).toBeLessThan(
+            trace!.iterationsRequested
+        );
+        expect(trace!.iterationsRequested).toBe(1_000_000);
+        expect(trace!.elapsedMs).toBeGreaterThanOrEqual(5);
+    });
 });

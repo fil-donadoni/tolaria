@@ -70,6 +70,23 @@ function expectWellFormed(r: RootDecisionRecord): void {
     }
     expect(r.moveKind.length).toBeGreaterThan(0);
     expect(r.phase.length).toBeGreaterThan(0);
+    // Issue #2682 — every REAL decision (self-play or blade) flows through
+    // `runSearchWithTrace`, the sole `selectRootMove` caller that supplies
+    // `SearchStats`, so these are never absent here (only the ~30 unit-test
+    // call sites that hand-build a `Node` omit them — `Partial<SearchStats>`
+    // exists for those, not for this corpus). `toBeDefined()` first, so a
+    // regression that stops threading `searchStats` fails loudly here rather
+    // than on the `!` below silently asserting against `undefined`.
+    expect(r.iterationsCompleted).toBeDefined();
+    expect(r.iterationsRequested).toBeDefined();
+    expect(r.elapsedMs).toBeDefined();
+    expect(r.stoppedBy).toBeDefined();
+    expect(r.iterationsCompleted!).toBeGreaterThan(0);
+    expect(r.iterationsRequested!).toBeGreaterThan(0);
+    expect(r.iterationsCompleted!).toBeLessThanOrEqual(r.iterationsRequested!);
+    expect(Number.isFinite(r.elapsedMs!)).toBe(true);
+    expect(r.elapsedMs!).toBeGreaterThanOrEqual(0);
+    expect(["iterations", "time"]).toContain(r.stoppedBy!);
 }
 
 const SMOKE_CONFIG: SelfPlayCorpusConfig = {
@@ -91,8 +108,22 @@ describe("decision-telemetry corpus (issue #1893, smoke)", () => {
     }, 120_000);
 
     it("is deterministic: same config, identical record stream", () => {
-        const a = collectSelfPlayDecisions(SMOKE_CONFIG).records;
-        const b = collectSelfPlayDecisions(SMOKE_CONFIG).records;
+        // `elapsedMs` (issue #2682) is real wall-clock — the one field on
+        // `RootDecisionRecord` NOT claimed to be deterministic even under a
+        // fixed seed and an iterations-only budget (`now` defaults to
+        // `performance.now()`, matching production; the corpus deliberately
+        // does not inject a fixed clock, since that would make the
+        // MEASUREMENT itself synthetic). Strip it before comparing — every
+        // other field, including `iterationsCompleted`/`iterationsRequested`/
+        // `stoppedBy`, stays byte-identical run to run.
+        const strip = (rs: RootDecisionRecord[]) =>
+            rs.map((r) => {
+                const { elapsedMs, ...rest } = r;
+                void elapsedMs; // deliberately discarded, not a mistake
+                return rest;
+            });
+        const a = strip(collectSelfPlayDecisions(SMOKE_CONFIG).records);
+        const b = strip(collectSelfPlayDecisions(SMOKE_CONFIG).records);
         expect(b).toEqual(a);
     }, 240_000);
 
