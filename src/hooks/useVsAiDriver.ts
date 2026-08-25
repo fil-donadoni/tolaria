@@ -124,12 +124,17 @@ const THINK_DELAY_MS = 200;
  *  the bot before the driver escalates (issue #2284). Tuned in this one place.
  *
  *  The floor is the hardest search the bot can run: `DIFFICULTY_BUDGETS.hard` is
- *  `{ iterations: 1200, timeMs: 600 }`, plus `THINK_DELAY_MS` and the Worker
- *  round-trip. 6 s is an order of magnitude above that, so a legitimately slow
- *  think is never mistaken for a hang (`useVsAiDriver-liveness.bot.test.ts`
- *  asserts exactly that), while a real freeze is over in seconds rather than
- *  forever. A decision that is already KNOWN to be missing does not wait at
- *  all — see `escalateImmediately` below. */
+ *  `{ iterations: 1200, timeMs: 3000 }` (raised from 600 by issue #2682,
+ *  keeping `hard`'s pre-#2682 2× ratio to `medium.timeMs` once `medium` was
+ *  re-aligned to the real `DEFAULT_BUDGET`, 1500ms). Plus `THINK_DELAY_MS`
+ *  and the Worker round-trip, a legitimate think still sits comfortably
+ *  inside the watchdog interval (`useVsAiDriver-liveness.bot.test.ts` asserts
+ *  exactly that against the real constants — no longer "an order of
+ *  magnitude" above at this scale, but still ample: ~2× hard's own budget),
+ *  so a legitimately slow think is never mistaken for a hang, while a real
+ *  freeze is over in seconds rather than forever. A decision that is already
+ *  KNOWN to be missing does not wait at all — see `escalateImmediately`
+ *  below. */
 export const BOT_WATCHDOG_MS = 6000;
 
 /** How many times a thrown bot submission is retried — with the state re-read —

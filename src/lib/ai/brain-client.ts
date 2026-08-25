@@ -54,10 +54,11 @@ type Pending = (result: BrainResult) => void;
  *  escalation ladder already handles.
  *
  *  It must stay comfortably ABOVE the hardest search budget
- *  (`DIFFICULTY_BUDGETS.hard.timeMs = 600`) and BELOW `BOT_WATCHDOG_MS`, so a
- *  wedged consult settles in time for the watchdog's first deadline to escalate
- *  rather than to find a still-in-flight dispatch. `brain-client-timeout.bot.test.ts`
- *  asserts both relations against the real constants. */
+ *  (`DIFFICULTY_BUDGETS.hard.timeMs = 3000`, raised from 600 by issue #2682)
+ *  and BELOW `BOT_WATCHDOG_MS`, so a wedged consult settles in time for the
+ *  watchdog's first deadline to escalate rather than to find a still-in-flight
+ *  dispatch. `brain-client-timeout.bot.test.ts` asserts both relations against
+ *  the real constants. */
 export const BRAIN_CONSULT_TIMEOUT_MS = 5000;
 
 let worker: Worker | null = null;

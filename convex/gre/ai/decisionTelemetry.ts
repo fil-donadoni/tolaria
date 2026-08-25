@@ -33,10 +33,39 @@ export type RootDecisionMechanism =
     | "hold-trick"
     | "colour-mode-evidence";
 
+/** Which bound ended a search loop — the iteration budget (`SearchBudget.
+ *  iterations`) was reached, or the wall-clock bound (`SearchBudget.timeMs`)
+ *  fired first (issue #2682: before this, `runSearchWithTrace` computed the
+ *  real per-decision iteration count and threw it away — nobody could tell
+ *  whether a `medium`-preset decision in the browser Worker actually
+ *  completed its 400-iteration budget or got cut short by the wall clock).
+ *  Shared by `DecisionTrace` (`search.ts`) and `RootDecisionRecord` below. */
+export type SearchStopReason = "iterations" | "time";
+
+/** Real iteration/time stats for one completed search loop (issue #2682).
+ *  `iterationsRequested` is the budget's target count (`SearchBudget.
+ *  iterations`, or the completed count itself when the budget left
+ *  `iterations` unset — an unbounded-iterations budget has no target to
+ *  report against). `elapsedMs` is wall-clock, measured with the budget's
+ *  own `now` (injectable for deterministic tests; `performance.now()` in
+ *  production/the Worker). */
+export type SearchStats = {
+    iterationsCompleted: number;
+    iterationsRequested: number;
+    elapsedMs: number;
+    stoppedBy: SearchStopReason;
+};
+
 /** One record per `selectRootMove` call (i.e. per real bot decision with at
  *  least one visited root edge). All reward quantities are in the [0, 1]
  *  reward band; `gapMarginPoints` converts through the open-band slope so the
- *  gap reads in `evaluate` margin points (the map's own currency). */
+ *  gap reads in `evaluate` margin points (the map's own currency).
+ *
+ *  The `SearchStats` fields (issue #2682) are `Partial` — only
+ *  `runSearchWithTrace`'s call to `selectRootMove` can supply them (it is the
+ *  only caller that actually ran a search loop); every other call site in the
+ *  test suite hand-builds a `Node` with no loop to report on, so those
+ *  records simply omit them. */
 export type RootDecisionRecord = {
     /** Game phase at the root (e.g. "PRECOMBAT_MAIN"); "unknown" when the
      *  caller passed no root state. */
@@ -68,7 +97,7 @@ export type RootDecisionRecord = {
     mechanism: RootDecisionMechanism;
     /** True when the chosen edge is also the strict mean-reward argmax. */
     pickIsMeanArgmax: boolean;
-};
+} & Partial<SearchStats>;
 
 export type RootDecisionSink = (record: RootDecisionRecord) => void;
 

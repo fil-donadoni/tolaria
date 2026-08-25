@@ -32,6 +32,20 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup";
 import type { GameState } from "../state";
+import type { SearchStats } from "../ai/decisionTelemetry";
+
+/** Stub `SearchStats` for a `buildTrace` call site that hand-builds a `Node`
+ *  (no real search loop ran, so there is nothing genuine to report — issue
+ *  #2682 replaced `buildTrace`'s bare `iterations: number` param with this
+ *  struct). */
+function stubStats(iterationsCompleted: number): SearchStats {
+    return {
+        iterationsCompleted,
+        iterationsRequested: iterationsCompleted,
+        elapsedMs: 0,
+        stoppedBy: "iterations",
+    };
+}
 
 const GIANT = getCardByName("Hill Giant").id; // 3/3
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2
@@ -417,7 +431,9 @@ describe("buildTrace — tolerates a stale-fallback edge (issue #1516)", () => {
         };
         const root: Node = { children: new Map([[edge.key, edge]]) };
 
-        expect(() => buildTrace(root, state, "p1", 3, staleMove)).not.toThrow();
+        expect(() =>
+            buildTrace(root, state, "p1", stubStats(3), staleMove)
+        ).not.toThrow();
     });
 
     it("marks the stale-fallback edge unavailable instead of faking a resolved eval", () => {
@@ -441,7 +457,7 @@ describe("buildTrace — tolerates a stale-fallback edge (issue #1516)", () => {
         };
         const root: Node = { children: new Map([[edge.key, edge]]) };
 
-        const trace = buildTrace(root, state, "p1", 3, staleMove);
+        const trace = buildTrace(root, state, "p1", stubStats(3), staleMove);
         expect(trace.candidates).toHaveLength(1);
         expect(trace.candidates[0]?.unavailable).toBe(true);
         // Still a well-formed PositionBreakdown (the unresolved-root fallback),
@@ -471,7 +487,7 @@ describe("buildTrace — tolerates a stale-fallback edge (issue #1516)", () => {
         };
         const root: Node = { children: new Map([[edge.key, edge]]) };
 
-        const trace = buildTrace(root, state, "p1", 5, realMove);
+        const trace = buildTrace(root, state, "p1", stubStats(5), realMove);
         expect(trace.candidates).toHaveLength(1);
         expect(trace.candidates[0]?.unavailable).toBeUndefined();
     });

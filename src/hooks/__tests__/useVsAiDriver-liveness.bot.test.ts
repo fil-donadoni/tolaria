@@ -596,15 +596,23 @@ describe("bot liveness invariant (issue #2284)", () => {
     });
 
     it("never escalates a slow search at the HARDEST budget", async () => {
-        // `DIFFICULTY_BUDGETS.hard` is `{ iterations: 1200, timeMs: 600 }`; with
-        // `THINK_DELAY_MS` and a Worker round-trip on top, a legitimate think is
-        // an order of magnitude inside the watchdog interval. Asserted against
-        // the real constant so tightening one without the other fails here.
+        // `DIFFICULTY_BUDGETS.hard` is `{ iterations: 1200, timeMs: 3000 }`
+        // (raised from 600 by issue #2682, keeping `hard`'s pre-#2682 2×
+        // ratio to `medium.timeMs` once `medium` was re-aligned to the real
+        // `DEFAULT_BUDGET`, 1500ms). With `THINK_DELAY_MS` and a Worker
+        // round-trip on top, a legitimate think still sits comfortably inside
+        // the watchdog interval — no longer "an order of magnitude" at this
+        // scale (that flat 5× margin was calibrated against the old 600ms
+        // figure; literally preserving it here would demand a 15s+ watchdog,
+        // which would make a REAL freeze take 15s+ to surface — worse for the
+        // player, not safer), but still ample headroom. Asserted against the
+        // real constant so tightening one without the other fails here.
         const { DIFFICULTY_BUDGETS } = await import("@convex/gre/difficulty");
         const hardest = Math.max(
             ...Object.values(DIFFICULTY_BUDGETS).map((b) => b.timeMs ?? 0)
         );
-        expect(BOT_WATCHDOG_MS).toBeGreaterThan(hardest * 5);
+        expect(BOT_WATCHDOG_MS).toBeGreaterThan(hardest);
+        expect(BOT_WATCHDOG_MS - hardest).toBeGreaterThanOrEqual(2000);
 
         // And end-to-end: with the real gate, a plain priority window is
         // answered by the bot's OWN decision well before the watchdog, and the

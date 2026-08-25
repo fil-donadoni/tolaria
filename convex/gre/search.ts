@@ -147,6 +147,8 @@ import {
 import {
     getRootDecisionSink,
     type RootDecisionMechanism,
+    type SearchStats,
+    type SearchStopReason,
 } from "./ai/decisionTelemetry";
 // Ladder A/B config seam (issue #1924) — null in live play, so every knob
 // below stays at its production default outside a ladder run.
@@ -1845,8 +1847,20 @@ export type DecisionTrace = {
     botId: string;
     /** Label of the move the search ultimately chose. */
     chosen: string;
-    /** Iterations actually spent. */
-    iterations: number;
+    /** Iterations actually completed before the loop stopped (renamed from
+     *  the old bare `iterations` field, issue #2682 — `iterationsCompleted`
+     *  reads unambiguously next to `iterationsRequested`, and the old name
+     *  invited exactly the "well obviously it ran the whole budget" reading
+     *  that turned out to be false in a real game: the wall clock, not the
+     *  iteration cap, is usually what stops `medium`). */
+    iterationsCompleted: number;
+    /** The budget's target iteration count (`SearchBudget.iterations`, or the
+     *  completed count itself when the budget left `iterations` unset). */
+    iterationsRequested: number;
+    /** Wall-clock milliseconds the search loop actually took. */
+    elapsedMs: number;
+    /** Which bound ended the loop. */
+    stoppedBy: SearchStopReason;
     /** Every root candidate weighed, most-visited first. */
     candidates: CandidateTrace[];
 };
@@ -1881,7 +1895,7 @@ export function buildTrace(
     root: Node,
     rootState: GameState,
     botId: string,
-    iterations: number,
+    stats: SearchStats,
     chosen: Move
 ): DecisionTrace {
     const candidates: CandidateTrace[] = [];
@@ -1928,7 +1942,10 @@ export function buildTrace(
     return {
         botId,
         chosen: describeMove(chosen, rootState),
-        iterations,
+        iterationsCompleted: stats.iterationsCompleted,
+        iterationsRequested: stats.iterationsRequested,
+        elapsedMs: stats.elapsedMs,
+        stoppedBy: stats.stoppedBy,
         candidates,
     };
 }
@@ -2388,7 +2405,13 @@ export function selectRootMove(
     root: Node,
     moves: Move[],
     rootState?: GameState,
-    botId?: string
+    botId?: string,
+    // Real per-decision iteration/time stats (issue #2682) — supplied only by
+    // `runSearchWithTrace`, the sole caller that actually ran a search loop.
+    // Every other call site (the whole rest of the test suite) hand-builds a
+    // `Node`, so this stays optional and the telemetry record simply omits
+    // the fields when absent.
+    searchStats?: SearchStats
 ): Move {
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
@@ -2446,6 +2469,7 @@ export function selectRootMove(
                 chosenDeficitReward: bestMean - mean(edge),
                 mechanism: mech,
                 pickIsMeanArgmax: mean(edge) === bestMean,
+                ...(searchStats ?? {}),
             });
         }
         return rootMoveFor(edge, rootState);
@@ -2852,7 +2876,11 @@ function runSearchWithTrace(
     const maxIter = budget.iterations ?? Infinity;
     const timeMs = budget.timeMs;
     const now = budget.now ?? (() => performance.now());
-    const start = timeMs !== undefined ? now() : 0;
+    // Always captured (issue #2682) — an iteration-only budget (the untimed
+    // blade suite) still wants to know its real wall-clock cost, not just a
+    // timed one. `performance.now()` is cheap enough that measuring it
+    // unconditionally is not worth the branch.
+    const start = now();
 
     const prunedRootKeys = new Set(
         dominatedAtRoot.map((m) =>
@@ -2861,14 +2889,31 @@ function runSearchWithTrace(
     );
 
     let i = 0;
+    // `i` IS the real per-decision iteration count (issue #2682) — until this
+    // slice it was computed and immediately discarded: passed to `buildTrace`
+    // only as the now-removed bare `iterations` field, never compared against
+    // what the budget actually asked for or against the wall clock that (in
+    // a real game) usually cuts it short.
+    let stoppedBy: SearchStopReason = "iterations";
     while (i < maxIter) {
         iterate(root, state, playerId, rng, prunedRootKeys);
         i++;
-        if (timeMs !== undefined && now() - start >= timeMs) break;
+        if (timeMs !== undefined && now() - start >= timeMs) {
+            stoppedBy = "time";
+            break;
+        }
     }
+    const stats: SearchStats = {
+        iterationsCompleted: i,
+        // No `iterations` bound → nothing was "requested" beyond what ran;
+        // report the completed count so the field never reads as Infinity.
+        iterationsRequested: maxIter === Infinity ? i : maxIter,
+        elapsedMs: now() - start,
+        stoppedBy,
+    };
 
-    const move = selectRootMove(root, moves, state, playerId);
-    return { move, trace: buildTrace(root, state, playerId, i, move) };
+    const move = selectRootMove(root, moves, state, playerId, stats);
+    return { move, trace: buildTrace(root, state, playerId, stats, move) };
 }
 
 /** Choose a move for `playerId` by ISMCTS. Deterministic given `seed` and an

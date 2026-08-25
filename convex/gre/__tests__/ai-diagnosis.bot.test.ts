@@ -528,7 +528,9 @@ describe("AI diagnosis harness (Forge comparison)", () => {
             // sparse the hold line was barely explored. The prior now drives a
             // substantial share of visits down it, so holding is a genuine,
             // explored contender rather than rollout dust.
-            expect(hold!.visits).toBeGreaterThan(trace.iterations * 0.2);
+            expect(hold!.visits).toBeGreaterThan(
+                trace.iterationsCompleted * 0.2
+            );
 
             // NON-DOMINATION: holding is no longer a clearly-worse line — it
             // sits within the outcome band of the precombat dump (the seam tests
