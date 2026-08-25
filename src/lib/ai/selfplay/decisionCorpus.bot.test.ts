@@ -26,8 +26,14 @@ import { REWARD_PER_MARGIN_POINT } from "@convex/gre";
 import { BLADE_SCENARIOS } from "@convex/gre/ai/blade";
 import { collectBladeDecisions } from "@convex/gre/ai/blade/decisionCorpus";
 import {
+    LADDER_VARIANTS,
+    setSearchVariant,
+} from "@convex/gre/ai/searchVariant";
+import {
     collectSelfPlayDecisions,
+    resolveCorpusVariant,
     type SelfPlayCorpusConfig,
+    type SelfPlayCorpusReport,
 } from "./decisionCorpus";
 
 const MECHANISMS = [
@@ -155,6 +161,33 @@ describe("summarizeRootDecisions (pure aggregation)", () => {
     });
 });
 
+describe("corpus variant resolution (issue #1929)", () => {
+    it("returns null when no variant is requested", () => {
+        expect(resolveCorpusVariant(undefined)).toBeNull();
+        expect(resolveCorpusVariant("")).toBeNull();
+    });
+
+    it("resolves a registered variant to its LADDER_VARIANTS entry", () => {
+        expect(resolveCorpusVariant("reward-calibrated")).toBe(
+            LADDER_VARIANTS["reward-calibrated"]
+        );
+        expect(resolveCorpusVariant("placebo")).toBe(LADDER_VARIANTS.placebo);
+    });
+
+    // The load-bearing one. A typo'd name must ABORT the run, never fall back
+    // to the baseline config: a leg collected with no variant installed and
+    // reported under the variant's name reads as "the variant changed
+    // nothing", which is indistinguishable from a real null finding. Same
+    // failure shape as the silent `marginSamples` drop #2747 fixed.
+    it("throws on an unknown variant instead of silently running the baseline", () => {
+        expect(() => resolveCorpusVariant("reward-calibrted")).toThrow(
+            /unknown DECISION_CORPUS_VARIANT "reward-calibrted"/
+        );
+        // The message names what IS available, so the typo is self-correcting.
+        expect(() => resolveCorpusVariant("nope")).toThrow(/placebo/);
+    });
+});
+
 // `process` isn't in the browser-typed src tsconfig; read env off globalThis.
 const ENV: Record<string, string | undefined> =
     (globalThis as { process?: { env?: Record<string, string | undefined> } })
@@ -182,7 +215,35 @@ describe.runIf(RUN)("decision-telemetry corpus (runner)", () => {
             seed,
             budget: { iterations },
         };
-        const selfPlay = collectSelfPlayDecisions(config);
+        // Optional search-variant leg (issue #1929). With
+        // DECISION_CORPUS_VARIANT=<name from LADDER_VARIANTS> the whole corpus
+        // is collected with that variant installed, so the mechanism split
+        // (search-decided vs tie-break-decided) can be compared leg-by-leg
+        // against the unset baseline on identical seeds. This is the CHEAP
+        // half of a strength question: the ladder says how much a variant wins
+        // by, this says WHAT it changed about how decisions get made — and for
+        // a variant that only rescales the reward, the mechanism split is the
+        // whole mechanism.
+        //
+        // READ THE RIGHT COLUMNS on a variant leg. `gapMarginPoints` (and so
+        // `gapHistogram`) divides the reward gap by the PRODUCTION open-band
+        // slope `REWARD_PER_MARGIN_POINT`; a variant that rescales the reward
+        // invalidates that conversion, so those two are comparable only within
+        // a leg, never across legs. `byMechanism`, `multiContenderShare` and
+        // `meanArgmaxShare` are counts of what decided the pick and stay
+        // comparable whatever the reward scale is.
+        const variantName = ENV.DECISION_CORPUS_VARIANT;
+        const variant = resolveCorpusVariant(variantName);
+        if (variant) setSearchVariant(variant);
+        let selfPlay: SelfPlayCorpusReport;
+        try {
+            selfPlay = collectSelfPlayDecisions(config);
+        } finally {
+            // Always uninstall: a leaked variant would silently contaminate
+            // every later search in this process (the blade corpus below
+            // included).
+            if (variant) setSearchVariant(null);
+        }
         // Sharding: parallel self-play shards differ only by seed; exactly
         // one shard includes the (deterministic, seed-independent) blade
         // corpus so a merged run never double-counts it.
@@ -196,6 +257,7 @@ describe.runIf(RUN)("decision-telemetry corpus (runner)", () => {
                 pairings: config.pairings,
                 iterations,
                 seed,
+                variant: variantName ?? null,
                 selfPlayGames: selfPlay.gamesPlayed,
                 selfPlayDecisive: selfPlay.decisive,
                 selfPlayReasons: selfPlay.reasons,
