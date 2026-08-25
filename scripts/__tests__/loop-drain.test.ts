@@ -41,6 +41,17 @@ vi.setConfig({ testTimeout: 15_000 });
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const DRIVER = path.join(REPO_ROOT, "scripts", "loop-drain.sh");
 
+/**
+ * The REAL `bun`, resolved once from the outer PATH. `beforeEach` installs a
+ * default `bun` stub (see below) that forwards everything it does not itself
+ * answer to this — without the forward, installing a default stub at all would
+ * break the `claims-held` tests, which deliberately let `claims_held_check`
+ * reach the real `bun -e`.
+ */
+const REAL_BUN = spawnSync("sh", ["-c", "command -v bun"], {
+    encoding: "utf8",
+}).stdout.trim();
+
 let tmp: string;
 let bin: string;
 let queueFile: string;
@@ -181,6 +192,36 @@ const writeBunUsageWindowStub = (body: string): void => {
     );
 };
 
+/** Body of the default `bun` stub: no-op the orphan-claim sweep, forward
+ * everything else to the real `bun`. */
+const stubBunDefaultBody = (): string =>
+    [
+        `case "$*" in`,
+        `  *loop-doctor.ts*) exit 0 ;;`,
+        `esac`,
+        `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+        `echo "unstubbed bun invocation in test: $*" >&2`,
+        `exit 1`,
+    ].join("\n");
+
+/** `bun` stub whose `loop-doctor.ts --release` branch runs `body` (which owns
+ * its own exit code — that is the point, each test picks a different sweep
+ * outcome). Everything else forwards to the real `bun`, as the default does. */
+const stubBunReap = (body: string): void => {
+    writeStub(
+        "bun",
+        [
+            `case "$*" in`,
+            `  *loop-doctor.ts*)`,
+            body,
+            `    ;;`,
+            `esac`,
+            `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+            `exit 1`,
+        ].join("\n")
+    );
+};
+
 interface RunOpts {
     args?: string[];
     env?: Record<string, string>;
@@ -236,6 +277,13 @@ beforeEach(() => {
         "claude",
         `echo "unstubbed claude invocation in test" >&2\nexit 99`
     );
+    // Default `bun` stub for the orphan-claim sweep (#2627). The driver now
+    // runs `bun scripts/loop-doctor.ts --release` on EVERY pass, so without
+    // this every test in the file would fork the real loop:doctor against a
+    // scratch cwd and a counter-printing `gh` stub. Answering only that one
+    // invocation and forwarding the rest keeps `claims_held_check`'s real
+    // `bun -e` working exactly as it did.
+    writeStub("bun", stubBunDefaultBody());
 });
 
 afterEach(() => {
@@ -1127,4 +1175,214 @@ describe("bad arguments", () => {
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).toMatch(/reason=max-passes/);
     }, 15000);
+});
+
+/**
+ * Orphan-claim reap (#2627).
+ *
+ * A pass that dies holding claims leaves `in-progress` on issues nothing will
+ * ever release; every later pass skips them as somebody else's live work. The
+ * skill has asked its pass to sweep "every pass, unconditionally, before
+ * selection" since it was written — as PROSE in SKILL.md §1a, which an LLM
+ * pass follows or does not. These tests pin the mechanical half: the DRIVER
+ * runs the sweep, before it counts the queue, and never decides for itself
+ * what is stale.
+ */
+describe("orphan-claim reap (#2627)", () => {
+    it("delegates the verdict to loop-doctor instead of carrying a claim rule of its own", () => {
+        // AC: "The existing claim classifier is the sole authority; no second
+        // age threshold is added." A source check, deliberately — the
+        // behavioural tests below would pass just as happily against a shell
+        // re-implementation that greps `gh issue list` for old claims, which
+        // is exactly the drift this AC forbids (and the shape already sitting
+        // in queue-plan.ts's `staleClaimHours`, a second opinion this driver
+        // must not reach for).
+        const source = fs.readFileSync(DRIVER, "utf8");
+        expect(source).toMatch(/loop-doctor\.ts/);
+        expect(source).toMatch(/--release/);
+        // The driver must not edit labels itself, nor own an hours
+        // threshold. (`--remove-label` appears once in a COMMENT about the
+        // handoff grace period, so the label assertion is on the invocation
+        // shape, not the flag string.)
+        expect(source).not.toMatch(/gh\s+issue\s+edit/);
+        expect(source).not.toMatch(/STALE_CLAIM_HOURS|staleClaimHours/i);
+    });
+
+    it("sweeps BEFORE the queue is counted, so a reclaimed issue is work this pass can pick up", () => {
+        // The 2026-08-19 shape end to end: the queue reads empty because the
+        // only remaining candidates are claimed by a pass that died. Sweeping
+        // after the count would let the driver quit with `queue-empty` on a
+        // queue the sweep was about to refill — so the ordering IS the fix,
+        // and this test is the only thing that pins it.
+        stubGhCountingFrom(0);
+        stubBunReap(
+            [
+                // Release exactly once: the "orphan" it reclaims returns to
+                // the unclaimed queue.
+                `    if [ ! -f "${path.join(tmp, "reaped")}" ]; then`,
+                `      : > "${path.join(tmp, "reaped")}"`,
+                `      echo 1 > "${queueFile}"`,
+                `      echo "released  #1841 — no branch, no PR, untouched for 30h"`,
+                `    fi`,
+                `    exit 0`,
+            ].join("\n")
+        );
+        stubClaudeProgress();
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toMatch(/reason=queue-empty/);
+        // One pass ran: without the sweep preceding the count, the driver
+        // would have seen 0 and stopped before running any.
+        expect(passLogCount()).toBe(1);
+    });
+
+    it("reports what the sweep reclaimed, so an operator can see it in the driver's own output", () => {
+        // AC: "The release is recorded, so an operator can see what was
+        // reclaimed and why." loop-doctor writes the durable record into the
+        // claim journal; the driver's job is not to swallow it.
+        stubGhCountingFrom(1);
+        stubBunReap(
+            [
+                `    echo "released  #1841 — no branch, no PR, untouched for 30h"`,
+                `    exit 0`,
+            ].join("\n")
+        );
+        stubClaudeProgress();
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.stderr).toMatch(/orphan-claim sweep/);
+        expect(r.stderr).toMatch(/released {2}#1841 — no branch, no PR/);
+    });
+
+    it("is a janitor, not a guard — a failing sweep is reported and the run continues", () => {
+        // An unattended run must not die because `gh` rate-limited the
+        // sweep. But it must not go quiet either: a janitor that stopped
+        // running without saying so is how the prose version of this rule
+        // failed in the first place.
+        stubGhCountingFrom(1);
+        stubBunReap(
+            [`    echo "gh: API rate limit exceeded" >&2`, `    exit 1`].join(
+                "\n"
+            )
+        );
+        stubClaudeProgress();
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stderr).toMatch(/orphan-claim sweep FAILED/);
+        expect(r.stderr).toMatch(/API rate limit exceeded/);
+        expect(passLogCount()).toBe(1);
+    });
+
+    // ── --dry-run must reach no `gh issue edit` (round-2 review) ─────────
+    //
+    // The sweep runs at step 3b, ABOVE the `--dry-run` branch that only ECHOES
+    // the pass — so before the guard, `loop:drain --dry-run` reclaimed claims
+    // and wrote them to the GitHub board. The verdict behind those writes was
+    // correct; the flag's contract ("lands nothing") was not.
+    //
+    // Deliberately end-to-end through the REAL loop-doctor rather than an argv
+    // assertion on a stub: what the flag promises is that no `gh issue edit`
+    // happens, and only running the thing that would issue it can show that.
+    // `gh` here is a recorder, exactly as the reviewer's repro was.
+    const stubRealSweepAgainstRecordingGh = (): string => {
+        const editLog = path.join(tmp, "gh-issue-edit-calls");
+        const claimedJson = path.join(tmp, "claimed.json");
+        // 30h stale, so `classifyClaim` reads it as an orphan on the
+        // no-branch/no-PR path (2h threshold) and `--release` would edit it.
+        fs.writeFileSync(
+            claimedJson,
+            JSON.stringify([
+                {
+                    number: 9001,
+                    title: "an orphaned claim",
+                    updatedAt: new Date(
+                        Date.now() - 30 * 60 * 60 * 1000
+                    ).toISOString(),
+                },
+            ])
+        );
+        writeStub(
+            "gh",
+            [
+                `args="$*"`,
+                `case "$args" in`,
+                // The one write in the whole subsystem. Recorded, never made.
+                `  *"issue edit"*) echo "$args" >> "${editLog}" ; exit 0 ;;`,
+                `  *"pr list"*) echo '[]' ; exit 0 ;;`,
+                // loop-doctor's claimed-issue read (the driver's own counts
+                // ask for `--json number` only).
+                `  *"number,title,updatedAt"*) cat "${claimedJson}" ; exit 0 ;;`,
+                `  *) cat "${queueFile}" 2>/dev/null || echo 0 ;;`,
+                `esac`,
+            ].join("\n")
+        );
+        // loop-doctor's branch scans: no local branch, no remote branch.
+        writeStub("git", `exit 0`);
+        // Forward everything to the real bun, so the sweep the driver invokes
+        // is the real `scripts/loop-doctor.ts`.
+        writeStub("bun", `exec "${REAL_BUN}" "$@"`);
+        fs.writeFileSync(queueFile, "1");
+        return editLog;
+    };
+
+    /** Hermetic ledger root: without this, an ambient CLAUDE_PROJECT_DIR (set
+     *  in every Claude Code session, including the one running this suite)
+     *  would point the real loop-doctor at the REPO's claims.jsonl and have it
+     *  append a release row there. */
+    const sweepEnv = () => ({ CLAUDE_PROJECT_DIR: tmp });
+
+    it("--dry-run runs the sweep in report-only mode and makes NO board write", () => {
+        const editLog = stubRealSweepAgainstRecordingGh();
+        const r = run({
+            args: ["--claude-args", "x", "--dry-run", "--max-passes", "1"],
+            env: sweepEnv(),
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        // THE assertion: not one `gh issue edit` was reached.
+        expect(
+            fs.existsSync(editLog)
+                ? fs.readFileSync(editLog, "utf8")
+                : "(no gh issue edit call)"
+        ).toBe("(no gh issue edit call)");
+        expect(r.stderr).not.toMatch(/^released {2}#9001/m);
+        // The sweep still RAN and still reported the orphan it can see —
+        // report-only, not skipped, so a dry run still shows the operator
+        // what a real run would reclaim.
+        expect(r.stderr).toMatch(/\[dry-run\] orphan-claim sweep/);
+        expect(r.stderr).toMatch(/#9001/);
+        expect(r.stderr).toMatch(/1 claimed, 1 orphaned/);
+    });
+
+    it("without --dry-run the same setup DOES edit the board (the paired half — proof the recorder works)", () => {
+        const editLog = stubRealSweepAgainstRecordingGh();
+        stubClaudeNoProgress();
+        const r = run({
+            args: ["--claude-args", "x", "--max-passes", "1"],
+            env: sweepEnv(),
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(fs.existsSync(editLog)).toBe(true);
+        expect(fs.readFileSync(editLog, "utf8")).toMatch(
+            /issue edit 9001 --remove-label in-progress/
+        );
+    });
+
+    it("sweeps on EVERY pass, not once per run", () => {
+        // A pass can die holding claims at any point in an overnight run, so
+        // a once-at-startup sweep would leave every later orphan standing
+        // until morning — the exact latency #2627 is about.
+        const counter = path.join(tmp, "reap-calls");
+        stubGhCountingFrom(3);
+        stubBunReap(
+            [
+                `    n=$(cat "${counter}" 2>/dev/null || echo 0)`,
+                `    echo $((n + 1)) > "${counter}"`,
+                `    exit 0`,
+            ].join("\n")
+        );
+        stubClaudeProgress();
+        const r = run({ args: ["--claude-args", "x", "--max-passes", "3"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(passLogCount()).toBe(3);
+        expect(Number(fs.readFileSync(counter, "utf8").trim())).toBe(3);
+    });
 });

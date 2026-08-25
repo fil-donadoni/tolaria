@@ -1910,3 +1910,112 @@ describe("Agent spawns declare their role", () => {
         expect(r.code).toBe(0);
     });
 });
+
+/**
+ * The owner join (#2627).
+ *
+ * `loop:doctor` releases claims whose evidence is dead, and the strongest
+ * evidence — "the process that took this claim is gone" — had nowhere to come
+ * from. A claim row named a Claude Code SESSION UUID, and a session UUID is
+ * not a process handle: it appears in no argv, and Claude Code holds no open
+ * descriptor on its own transcript (measured 2026-08-25), so it cannot be
+ * resolved to a pid after the fact. This hook is the only code that runs
+ * INSIDE the claiming session at the moment of the claim, so the join is
+ * recorded here or nowhere.
+ */
+describe("claim-ledger — records the owning process (#2627)", () => {
+    const claimRow = (env: NodeJS.ProcessEnv) => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-owner-"));
+        const r = runHook(
+            CLAIM_LEDGER,
+            bash(
+                "gh issue edit 2627 --add-label in-progress",
+                "/x",
+                "sess-owner"
+            ),
+            { CLAUDE_PROJECT_DIR: dir, ...env }
+        );
+        expect(r.code).toBe(0);
+        const file = path.join(dir, ".claude", "telemetry", "claims.jsonl");
+        const row = JSON.parse(fs.readFileSync(file, "utf8").trim()) as {
+            owner: { pid: number; startedAt: string } | null;
+        };
+        fs.rmSync(dir, { recursive: true, force: true });
+        return row;
+    };
+
+    it("stamps the row with the nearest owning process and its start time", () => {
+        // `runHook` spawns the hook directly from THIS process, so the walk's
+        // correct answer is knowable exactly: `process.pid`. Matching on this
+        // process's own binary name is the injection seam
+        // (`TOLARIA_CLAIM_OWNER_COMM`) standing in for `claude`, the same role
+        // `isAlive` plays in `lib/loop-status.ts` — a vitest-spawned hook has
+        // no `claude` ancestor, so without it the recording path could only
+        // ever be asserted against a real Claude Code process, i.e. never.
+        const row = claimRow({
+            TOLARIA_CLAIM_OWNER_COMM: path.basename(process.execPath),
+        });
+        expect(row.owner).not.toBeNull();
+        expect(row.owner!.pid).toBe(process.pid);
+
+        // The start time is the PID-REUSE discriminator, so it has to be the
+        // real thing rather than any non-empty string: a recycled pid is a
+        // different process, and without this column a dead pass reads as
+        // alive again the moment the OS hands its number to something else.
+        //
+        // The reference `ps` is pinned to the same fixed locale and zone the
+        // hook uses — `lstart` is a LOCALISED, ZONED human string, so an
+        // unpinned reference here would only agree with the hook by the
+        // accident of this machine's `LANG`/`TZ` (see the stability test
+        // below and the comment in claim-ledger.sh).
+        const lstart = spawnSync(
+            "ps",
+            ["-o", "lstart=", "-p", String(process.pid)],
+            {
+                encoding: "utf8",
+                env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
+            }
+        ).stdout.trim();
+        expect(lstart).not.toBe("");
+        expect(row.owner!.startedAt).toBe(lstart);
+    });
+
+    it("stamps the SAME string whatever LANG/TZ the claiming shell inherits", () => {
+        // `ps -o lstart=` renders through the caller's locale AND timezone.
+        // Measured, same process and same instant: `Tue Aug 25 09:15:42 2026`
+        // by default, `Di. 25 Aug. 09:15:42 2026` under `LC_TIME=de_DE`,
+        // `Tue Aug 25 07:15:42 2026` under `TZ=UTC`. `isOwnerAlive` compares
+        // the write-side and read-side stamps as exact trimmed strings, so an
+        // unpinned stamp makes a LIVE owner read as a recycled pid the moment
+        // the two sides disagree about locale or zone — the whole feature
+        // going silently inert (safe direction, hence never noticed).
+        const comm = path.basename(process.execPath);
+        const plain = claimRow({ TOLARIA_CLAIM_OWNER_COMM: comm });
+        const foreign = claimRow({
+            TOLARIA_CLAIM_OWNER_COMM: comm,
+            LANG: "de_DE.UTF-8",
+            LC_TIME: "de_DE.UTF-8",
+            TZ: "Asia/Tokyo",
+        });
+        expect(plain.owner).not.toBeNull();
+        expect(foreign.owner).not.toBeNull();
+        expect(foreign.owner!.startedAt).toBe(plain.owner!.startedAt);
+        // And it is the C-locale rendering, not whatever this machine's
+        // default happens to be — pinning both ends to the same string is
+        // only worth anything if that string is chosen, not inherited.
+        expect(plain.owner!.startedAt).toMatch(
+            /^[A-Z][a-z]{2} [A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4}$/
+        );
+    });
+
+    it("records owner: null rather than GUESSING when no owning process resolves", () => {
+        // An unusual spawn chain, or no `ps`. `loop:doctor` reads a missing
+        // owner as UNKNOWN and changes no verdict on it — whereas a guessed
+        // pid would be a liveness reading about the wrong process, in either
+        // direction: freezing a real orphan, or releasing live work.
+        const row = claimRow({
+            TOLARIA_CLAIM_OWNER_COMM: "no-such-process-name-anywhere",
+        });
+        expect(row.owner).toBeNull();
+    });
+});

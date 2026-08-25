@@ -31,6 +31,25 @@
 # it produces a NEWER plan file for the same session, and "latest plan for
 # this session" is exactly what this hook reads, so a real replan simply
 # joins clean against its own, more recent, plan.
+#
+# ── Owner join (issue #2627) ────────────────────────────────────────────────
+# A claim row said WHICH SESSION took the claim but never which OS PROCESS, so
+# nothing downstream could ask the one question that separates "a pass is still
+# working on this" from "the pass that took this died": is the owner alive?
+# The session UUID is not a join key onto a process — it appears in no argv,
+# and Claude Code holds no open descriptor on its own transcript (measured
+# 2026-08-25), so there is nothing to look it up in after the fact.
+#
+# It has to be recorded at claim time, and this hook is the only code that runs
+# INSIDE the claiming session at that moment. It walks its own process ancestry
+# to the nearest `claude` process and stamps the row with that pid plus the
+# process's start time. The start time is not decoration: a pid alone is
+# worthless once the OS recycles it, and a recycled pid would make a dead pass
+# read as alive forever — the exact failure this fact exists to prevent.
+#
+# Best-effort by construction: if the walk finds nothing (an unusual spawn
+# chain, no `ps`), the row carries `owner: null` and `loop:doctor` reads that
+# as "unknown", which changes no verdict it would have reached before.
 
 set -u
 
@@ -117,6 +136,73 @@ if [ -n "$plan_file" ] && [ -f "$plan_file" ]; then
     [ -n "$planned" ] || planned="[]"
 fi
 
+# ── owner join (#2627) ──────────────────────────────────────────────────────
+# Nearest ancestor process whose command basename is `claude` — this hook is a
+# descendant of the session that is making the claim, so the walk terminates on
+# the session's own process. Depth-bounded (a runaway `ps` loop in a PreToolUse
+# hook would stall every Bash call) and silent on failure: printing nothing
+# means "unknown owner", which downstream reads as "changes no verdict".
+#
+# `TOLARIA_CLAIM_OWNER_COMM` is the injection seam the tests use — the same
+# role `isAlive` plays in `lib/loop-status.ts`. A vitest-spawned hook has no
+# `claude` ancestor, so without a seam the recording path could only ever be
+# asserted against a real Claude Code process, i.e. never.
+owner_comm="${TOLARIA_CLAIM_OWNER_COMM:-claude}"
+resolve_owner_pid() {
+    _p=$$
+    _depth=0
+    while [ "$_depth" -lt 16 ]; do
+        _depth=$((_depth + 1))
+        _info=$(ps -o ppid=,comm= -p "$_p" 2>/dev/null) || return 1
+        [ -n "$_info" ] || return 1
+        _ppid=$(printf '%s\n' "$_info" | awk 'NR==1 {print $1}')
+        _comm=$(printf '%s\n' "$_info" | awk 'NR==1 {print $2}')
+        if [ "${_comm##*/}" = "$owner_comm" ]; then
+            printf '%s' "$_p"
+            return 0
+        fi
+        case "$_ppid" in
+            '' | 0 | 1) return 1 ;;
+            *[!0-9]*) return 1 ;;
+        esac
+        _p=$_ppid
+    done
+    return 1
+}
+
+# The PID-reuse discriminator. A pid on its own is a number the OS reissues;
+# paired with the process's start time it identifies one specific process, so a
+# dead pass cannot read as alive because something else inherited its number.
+#
+# `LC_ALL=C TZ=UTC` IS LOAD-BEARING, and must stay byte-identical to the read
+# side (`defaultProcessProbe` in scripts/loop-doctor.ts). `ps -o lstart=`
+# renders a human string through the caller's locale AND timezone — measured
+# on this machine, same process, same instant:
+#
+#     (default)          Tue Aug 25 09:15:42 2026
+#     LC_TIME=de_DE      Di. 25 Aug. 09:15:42 2026
+#     TZ=UTC             Tue Aug 25 07:15:42 2026
+#     TZ=Asia/Tokyo      Tue Aug 25 16:15:42 2026
+#
+# The comparison is an exact string equality on the trimmed stamp, so a
+# `LANG`/`TZ` difference between the shell that WRITES this row and the
+# process that later READS it makes a live owner compare unequal — i.e. read
+# as a recycled pid, i.e. dead. The consequence is only that the claim falls
+# back to the age thresholds (pre-#2627 behaviour, never a wrong release), so
+# the failure is the feature going silently inert — which is exactly the kind
+# that is never noticed. Pinning both sides to the same fixed locale and the
+# same fixed zone removes it. DST is a non-issue: this renders one FIXED
+# instant in a FIXED zone, so the same process always stamps the same string.
+owner_json="null"
+owner_pid=$(resolve_owner_pid) || owner_pid=""
+if [ -n "$owner_pid" ]; then
+    owner_started=$(LC_ALL=C TZ=UTC ps -o lstart= -p "$owner_pid" 2>/dev/null | sed -e 's/^ *//' -e 's/ *$//')
+    if [ -n "$owner_started" ]; then
+        owner_json=$(jq -n --argjson pid "$owner_pid" --arg startedAt "$owner_started" \
+            '{pid: $pid, startedAt: $startedAt}')
+    fi
+fi
+
 now=$(date +%s)
 for issue in $issues; do
     mismatch_json="null"
@@ -140,7 +226,8 @@ for issue in $issues; do
         --argjson issue "$issue" \
         --argjson plan "$plan_json" \
         --argjson planMismatch "$mismatch_json" \
-        '{ts: $ts, session: $session, issue: $issue, event: "claim", plan: $plan, planMismatch: $planMismatch}' \
+        --argjson owner "$owner_json" \
+        '{ts: $ts, session: $session, issue: $issue, event: "claim", plan: $plan, planMismatch: $planMismatch, owner: $owner}' \
         >>"$dir/claims.jsonl" 2>/dev/null
 done
 

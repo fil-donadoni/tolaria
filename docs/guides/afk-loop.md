@@ -217,12 +217,20 @@ bun run wt:gc              # worktrees the dead pass never tore down; --yes remo
 ```
 
 `loop:doctor` is the **single authority** on whether a [claim](#g-claim) is
-alive, and the skill runs it with `--release` at the start of every
-[pass](#g-pass) — so by the time you read a stopped run's residue it has usually
-already been cleaned. Its rule, in order: an open PR is alive; a branch **on the
-remote** is alive; a **local-only** branch is alive for 24h and an
-[orphan](#g-orphan) after that; no branch at all is `suspect` for two hours and
-an [orphan](#g-orphan) after that.
+alive. The [driver](#g-driver) itself runs it with `--release` before every
+[pass](#g-pass) — ahead of the queue count, so anything it reclaims is work that
+pass can pick up — and the skill runs it again as its own first step, so by the
+time you read a stopped run's residue it has usually already been cleaned. Its
+rule, in order: an open PR is alive; a branch **on the remote** is alive; the
+claim's **owning process still running** is alive at any age; a **local-only**
+branch is alive for 24h and an [orphan](#g-orphan) after that; no branch at all
+is `suspect` for two hours and an [orphan](#g-orphan) after that.
+
+Every release is written back into the claim journal
+(`.claude/telemetry/claims.jsonl`) as a `released` row carrying `by:
+"loop:doctor"` and the verdict's reason, so "what reclaimed this issue, and on
+what evidence" is answerable after the fact:
+`jq 'select(.by == "loop:doctor")' .claude/telemetry/claims.jsonl`.
 
 **The local/remote distinction is the load-bearing part.** A local branch
 outlives the process that made it — a killed [pass](#g-pass) leaves its

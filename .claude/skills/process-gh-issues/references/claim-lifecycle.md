@@ -9,12 +9,12 @@ on 2026-08-20 while a driver ran continuously past them.
 
 ## Who takes a claim off, and when
 
-| Mechanism                             | Runs              | Scope                        | Releases                                      |
-| ------------------------------------- | ----------------- | ---------------------------- | --------------------------------------------- |
-| SKILL.md § Release                    | end of every pass | that pass's own batch        | everything it claimed, on every exit path     |
-| `.claude/hooks/claim-sweep.sh`        | `SessionEnd`      | what the ledger says WE took | what this session claimed and did not release |
-| **`bun run loop:doctor --release`**   | **SKILL.md §1a**  | **every claim on the board** | **any claim nothing is going to release**     |
-| `staleClaims` in `bun run queue:plan` | batch planning    | `ready-for-agent` only       | nothing — it only reports                     |
+| Mechanism                             | Runs                                                    | Scope                        | Releases                                      |
+| ------------------------------------- | ------------------------------------------------------- | ---------------------------- | --------------------------------------------- |
+| SKILL.md § Release                    | end of every pass                                       | that pass's own batch        | everything it claimed, on every exit path     |
+| `.claude/hooks/claim-sweep.sh`        | `SessionEnd`                                            | what the ledger says WE took | what this session claimed and did not release |
+| **`bun run loop:doctor --release`**   | **SKILL.md §1a**, and `loop-drain.sh` before every pass | **every claim on the board** | **any claim nothing is going to release**     |
+| `staleClaims` in `bun run queue:plan` | batch planning                                          | `ready-for-agent` only       | nothing — it only reports                     |
 
 The first two are **best-effort and cannot be relied on**, which is the whole
 reason the third exists:
@@ -27,6 +27,16 @@ reason the third exists:
 `loop:doctor` is therefore the **authority**, and §1a runs it on every pass:
 unconditionally, before selection, whether or not the planner is used. Everything
 else is a safety net under it.
+
+**Under the AFK driver it is not left to the pass to remember (#2627).**
+`scripts/loop-drain.sh` runs the sweep itself at the top of each iteration,
+before it counts the queue and before it spawns the pass. Ordering is
+load-bearing in both directions: after the count, a reclaimed issue would not be
+selectable until the NEXT pass, and worse, a driver whose queue reads empty stops
+the whole run — which is the 2026-08-19 incident, where two orphaned roots froze
+nine children and the driver quit with `queue-empty` on a queue the sweep would
+have refilled. The driver contains no claim rule of its own: it invokes
+`loop-doctor.ts --release` and reports what came back.
 
 ## Why it is NOT part of the planner
 
@@ -50,14 +60,15 @@ disagree, `loop:doctor` wins.
 
 `classifyClaim` in `scripts/loop-doctor.ts`, in order:
 
-| Fact                            | Verdict | Why                                                        |
-| ------------------------------- | ------- | ---------------------------------------------------------- |
-| open PR for `feat\|fix/issue-N` | live    | something downstream may still be holding it               |
-| branch **on the remote**        | live    | the work left this machine                                 |
-| branch **local only**, < 24h    | live    | a pass may legitimately implement for hours before pushing |
-| branch **local only**, ≥ 24h    | orphan  | nothing here stays unpushed for a day                      |
-| no branch at all, < 2h          | suspect | what a healthy pass looks like before `git worktree add`   |
-| no branch at all, ≥ 2h          | orphan  | —                                                          |
+| Fact                             | Verdict | Why                                                        |
+| -------------------------------- | ------- | ---------------------------------------------------------- |
+| open PR for `feat\|fix/issue-N`  | live    | something downstream may still be holding it               |
+| branch **on the remote**         | live    | the work left this machine                                 |
+| **owning process still running** | live    | the claim's own pass is demonstrably still working (#2627) |
+| branch **local only**, < 24h     | live    | a pass may legitimately implement for hours before pushing |
+| branch **local only**, ≥ 24h     | orphan  | nothing here stays unpushed for a day                      |
+| no branch at all, < 2h           | suspect | what a healthy pass looks like before `git worktree add`   |
+| no branch at all, ≥ 2h           | orphan  | —                                                          |
 
 **The local/remote split is the correction, and the reason this file exists.**
 The rule used to be "any branch anywhere ⇒ live", which sounds conservative and
@@ -71,6 +82,18 @@ The two thresholds are not interchangeable. A claim with no branch is either
 seconds old or dead, and two hours separates them cleanly. A claim with a local
 branch belongs to a pass that got as far as its worktree, so releasing it at two
 hours would unclaim live work.
+
+**Owner liveness is a veto, never a clock (#2627).** A claim journal row
+(`.claude/telemetry/claims.jsonl`) now carries `owner: {pid, startedAt}`,
+stamped by `claim-ledger.sh` at the moment of the claim — the session UUID is in
+no argv and Claude Code holds no open descriptor on its own transcript, so the
+join cannot be made after the fact and has to be recorded. `startedAt` exists to
+defeat PID reuse: a recycled number is a different process. A POSITIVE liveness
+reading holds a claim at any age; "dead" and "could not tell" both do nothing at
+all, leaving the two thresholds above exactly as they were. No third threshold
+was added, and none may be: this fact can only ever move a verdict towards
+`live`, because the failure mode of the whole sweep is unclaiming a healthy
+concurrent pass.
 
 ## What nobody may do
 
