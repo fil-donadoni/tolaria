@@ -422,6 +422,17 @@ export default function LimitedDraftTable({
     // here. `DeckZonePeek` appends "Move to…" (only offered when
     // `selection.columns` is non-empty — Pool selections only, since the
     // Sideboard's `DeckZoneSurface` gets no `onPin`) and "Inspect" itself.
+    //
+    // `setPoolSelection(null)` after firing (review finding #2797-1): without
+    // it the panel stayed open holding a now-STALE selection whose zone no
+    // longer matched reality, and `handlePoolPin`'s `sideboard: false` is
+    // hard-coded on the assumption `onPin` is only ever reachable from a Pool
+    // (not Sideboard) selection — an assumption a stale selection breaks. A
+    // player who tapped "→ Side" and then "Move to… → Lands" on the still-open
+    // panel got the card silently pulled back OUT of the Sideboard. Mirrors
+    // `deck-zones-surface.tsx`'s `actionsFor`, which clears `selection` the
+    // same way; the Inspect Overlay's own copy of this row closes via
+    // `DeckZonePeek`'s `onCloseInspect` wrapper already, same as there.
     const poolActionsFor = (
         target: DeckZoneSelection
     ): readonly EditingSurfaceAction[] =>
@@ -430,14 +441,20 @@ export default function LimitedDraftTable({
                   {
                       label: "→ Side",
                       primary: true,
-                      onSelect: () => handlePoolZoneMove(target.pinKey, true),
+                      onSelect: () => {
+                          handlePoolZoneMove(target.pinKey, true);
+                          setPoolSelection(null);
+                      },
                   },
               ]
             : [
                   {
                       label: "→ Pool",
                       primary: true,
-                      onSelect: () => handlePoolZoneMove(target.pinKey, false),
+                      onSelect: () => {
+                          handlePoolZoneMove(target.pinKey, false);
+                          setPoolSelection(null);
+                      },
                   },
               ];
     const poolPeekActions = poolSelection ? poolActionsFor(poolSelection) : [];
@@ -611,9 +628,23 @@ export default function LimitedDraftTable({
         // the number of picks made is its length.
         pickNumber: pool.length + 1,
         packLeft: pack.length,
-        selected: selectedCard
-            ? { cardId: selectedCard.cardId, cardName: selectedCard.cardName }
-            : null,
+        // `!poolSelection` (review finding #2797-5): the SAME defensive gate
+        // `peekPanel` already carries above. Without it, on a phone the
+        // pack's inline CTA row — including the destructive "Pick" — kept
+        // rendering beside an OPEN Pool/Sideboard panel until
+        // `selectDraftPick({pickId:null})` round-tripped, and indefinitely if
+        // that write rejected (`handlePoolSelect` swallows the rejection,
+        // matching every other best-effort selection write on this screen —
+        // `handleSelect`'s own `.catch(() => {})` above is the same
+        // contract). Gating locally is what keeps the strip honest in the
+        // interim regardless of whether the server write ever lands.
+        selected:
+            selectedCard && !poolSelection
+                ? {
+                      cardId: selectedCard.cardId,
+                      cardName: selectedCard.cardName,
+                  }
+                : null,
         actions: peekActions,
         pulsing,
     };

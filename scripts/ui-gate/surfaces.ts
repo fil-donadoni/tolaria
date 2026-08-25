@@ -148,6 +148,20 @@ const DRAFT_SNAP_SCROLLER = "[data-slot=draft-snap-scroller]";
 const DRAFT_STRIP_DROP = "[data-slot=draft-strip-drop]";
 const DRAFT_POOL = "[data-slot=draft-pool]";
 
+/** A card tile inside the Pool/Sideboard pane, matched by the tooltip
+ *  `DeckCardTile` always carries (`title="Remove <name>…"`,
+ *  `limited-draft-pool.tsx`) — the same handle the component test suite
+ *  drives (`getByTitle(/^Remove /)`). Scoped to `DRAFT_POOL`'s subtree so a
+ *  desktop/tablet pane never accidentally matches a Booster tile instead
+ *  (issue #2667, `draft-pool-peek`). */
+const DRAFT_POOL_TILE = `${DRAFT_POOL} [data-card-tile][title^='Remove ']`;
+
+/** The Peek Panel primitive both the Booster's own selection and the Pool's
+ *  `DeckZonePeek` mount (`peek-panel.tsx`). Shared constant so `draft-pick`'s
+ *  Booster panel and `draft-pool-peek`'s Pool panel assert the SAME mount
+ *  point rather than two copies of the literal. */
+const DRAFT_PEEK_PANEL = "[data-peek-panel]";
+
 /**
  * Pins the Draft Room's Selected Card state (issue #2677). `seat.selectedPickId`
  * is SERVER state (`selectDraftPick`, ADR 0060) that survives across gate runs
@@ -237,6 +251,84 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
     throw new Unreachable(
         "no Limited event is in the drafting phase with a live pack for this seat (the pick screen is /limited/<id>/draft since issue #2587)"
     );
+}
+
+/**
+ * Reach the Draft Room's POOL stop — the SECOND state of `/draft`, and the
+ * biggest new surface issue #2588 shipped. The `draft-pick` walk returns as
+ * soon as a pack tile is visible, so it always measures the PACK stop; the
+ * pool pane went in with no browser measurement at all (review finding 1 on
+ * PR #2652), which is exactly the #2511 shape: in portrait `LimitedDraftPool`
+ * runs `arrange="column"`, so two `DeckZoneSurface`s share ~70% of a 390x844
+ * screen, and a collapsed MV row passes every happy-dom test there is.
+ *
+ * Off a phone there is no snap surface (`useViewportMode` calls both tablets
+ * "desktop"), so the equivalent state is the split's pool column scrolled to
+ * its end — still the pool at its far extent, still a state `draft-pick`
+ * never probes.
+ *
+ * Extracted (issue #2667 review) so `draft-pool-peek` can reach the SAME pool
+ * stop and then go one gesture further (select a tile, mount the Peek Panel)
+ * instead of duplicating this reach logic.
+ */
+async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
+    await reachDraftRoom(page, ctx);
+    await assertTwoSnapStops(page);
+
+    if (await visible(page, DRAFT_SNAP_SCROLLER, 2000)) {
+        if (
+            !(await clickIfVisible(
+                page,
+                `${DRAFT_STRIP_DROP}[data-zone=maindeck]`,
+                4000
+            ))
+        ) {
+            throw new Unreachable(
+                "the phone Draft Room rendered a snap scroller but no pool strip drop target to swipe with"
+            );
+        }
+        await page.waitForTimeout(700);
+        const stop = await page
+            .locator(DRAFT_SNAP_SCROLLER)
+            .first()
+            .getAttribute("data-stop");
+        if (stop !== "pool") {
+            throw new Unreachable(
+                `tapping the pool strip left the Draft Room at data-stop="${stop ?? "null"}" instead of "pool"`
+            );
+        }
+        // Reaching the stop is NOT reaching the pool. `pool.length === 0`
+        // makes `LimitedDraftPool` return an `EmptyState` with no
+        // `[data-slot=draft-pool]` at all, and neither `probe.js` (no
+        // card-count floor) nor `budgets.ts` (no minimum-n rule) can
+        // tell an empty pane from a healthy one: a Pick #1 seat would
+        // score `zero0 occ0 stranded0 starved0` and pass GREEN, making
+        // the one measurement that discharges the pool pane's layout
+        // claims silently vacuous. Same guard the split branch below
+        // runs — the fixture, not the stop, is what must be asserted.
+        if (!(await visible(page, DRAFT_POOL, 4000))) {
+            throw new Unreachable(
+                'the phone Draft Room reached the pool stop but rendered no pool pane — this surface needs a seat with a NON-EMPTY pool (make a few picks in the room first: select a tile, then [data-editing-action="Pick"])'
+            );
+        }
+        return;
+    }
+
+    if (!(await visible(page, DRAFT_POOL, 4000))) {
+        throw new Unreachable(
+            "the Draft Room rendered no pool pane — this seat's pool toggle may be off, or the pool is empty (this surface needs a NON-EMPTY pool: make a few picks first)"
+        );
+    }
+    await page.evaluate(`(() => {
+        const pool = document.querySelector("${DRAFT_POOL}");
+        for (let p = pool && pool.parentElement; p; p = p.parentElement) {
+            if (p.scrollHeight > p.clientHeight + 2) {
+                p.scrollTop = p.scrollHeight;
+                return;
+            }
+        }
+    })()`);
+    await page.waitForTimeout(400);
 }
 
 /**
@@ -785,76 +877,36 @@ export const SURFACES: readonly Surface[] = [
         id: "draft-pool-stop",
         label: "Draft Room, pool stop (/limited/<id>/draft, swiped)",
         async walk(page, ctx) {
-            // The SECOND state of the same route, and the biggest new surface
-            // issue #2588 shipped. The `draft-pick` walk returns as soon as a
-            // pack tile is visible, so it always measures the PACK stop — the
-            // pool pane went in with no browser measurement at all (review
-            // finding 1 on PR #2652), which is exactly the #2511 shape: in
-            // portrait `LimitedDraftPool` runs `arrange="column"`, so two
-            // `DeckZoneSurface`s share ~70% of a 390x844 screen, and a
-            // collapsed MV row passes every happy-dom test there is.
-            //
-            // Off a phone there is no snap surface (`useViewportMode` calls
-            // both tablets "desktop"), so the equivalent state is the split's
-            // pool column scrolled to its end — still the pool at its far
-            // extent, still a state `draft-pick` never probes.
-            await reachDraftRoom(page, ctx);
-            await assertTwoSnapStops(page);
-
-            if (await visible(page, DRAFT_SNAP_SCROLLER, 2000)) {
-                if (
-                    !(await clickIfVisible(
-                        page,
-                        `${DRAFT_STRIP_DROP}[data-zone=maindeck]`,
-                        4000
-                    ))
-                ) {
-                    throw new Unreachable(
-                        "the phone Draft Room rendered a snap scroller but no pool strip drop target to swipe with"
-                    );
-                }
-                await page.waitForTimeout(700);
-                const stop = await page
-                    .locator(DRAFT_SNAP_SCROLLER)
-                    .first()
-                    .getAttribute("data-stop");
-                if (stop !== "pool") {
-                    throw new Unreachable(
-                        `tapping the pool strip left the Draft Room at data-stop="${stop ?? "null"}" instead of "pool"`
-                    );
-                }
-                // Reaching the stop is NOT reaching the pool. `pool.length === 0`
-                // makes `LimitedDraftPool` return an `EmptyState` with no
-                // `[data-slot=draft-pool]` at all, and neither `probe.js` (no
-                // card-count floor) nor `budgets.ts` (no minimum-n rule) can
-                // tell an empty pane from a healthy one: a Pick #1 seat would
-                // score `zero0 occ0 stranded0 starved0` and pass GREEN, making
-                // the one measurement that discharges the pool pane's layout
-                // claims silently vacuous. Same guard the split branch below
-                // runs — the fixture, not the stop, is what must be asserted.
-                if (!(await visible(page, DRAFT_POOL, 4000))) {
-                    throw new Unreachable(
-                        'the phone Draft Room reached the pool stop but rendered no pool pane — this surface needs a seat with a NON-EMPTY pool (make a few picks in the room first: select a tile, then [data-editing-action="Pick"])'
-                    );
-                }
-                return;
-            }
-
-            if (!(await visible(page, DRAFT_POOL, 4000))) {
+            await reachDraftPoolStop(page, ctx);
+        },
+    },
+    {
+        id: "draft-pool-peek",
+        label: "Draft Room, Pool Peek Panel open (/limited/<id>/draft, pool tile selected)",
+        async walk(page, ctx) {
+            // Review finding (PR #2797 round 1, MEDIUM, issue #2667): no walk
+            // ever opened the Pool's own `DeckZonePeek` — `draft-pick`
+            // measures the pack stop, `draft-pool-stop` measures the pool
+            // PANE but never TAPS a tile in it, so `poolSelection` stayed
+            // `null` and the fixed panel stayed unmounted through all 60 prior
+            // rows, including the two phone viewports issue #2667's own AC
+            // names (390x844x3 / 844x390x3) — exactly the state
+            // `draft-selection-actions.tsx` records was MEASURED to occlude
+            // in portrait before this feature deleted that budget row. This
+            // surface is `draft-pool-stop` plus the one gesture that was
+            // missing: select a Pool tile and measure with the panel open.
+            await reachDraftPoolStop(page, ctx);
+            if (!(await clickIfVisible(page, DRAFT_POOL_TILE, STEP_TIMEOUT))) {
                 throw new Unreachable(
-                    "the Draft Room rendered no pool pane — this seat's pool toggle may be off, or the pool is empty (this surface needs a NON-EMPTY pool: make a few picks first)"
+                    "reached the Draft Room's pool stop but found no Pool card tile to select — this surface needs the same NON-EMPTY pool `draft-pool-stop` does"
                 );
             }
-            await page.evaluate(`(() => {
-                const pool = document.querySelector("${DRAFT_POOL}");
-                for (let p = pool && pool.parentElement; p; p = p.parentElement) {
-                    if (p.scrollHeight > p.clientHeight + 2) {
-                        p.scrollTop = p.scrollHeight;
-                        return;
-                    }
-                }
-            })()`);
-            await page.waitForTimeout(400);
+            if (!(await visible(page, DRAFT_PEEK_PANEL, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "selected a Pool card tile but the Pool's Peek Panel (`[data-peek-panel]`) never mounted"
+                );
+            }
+            await page.waitForTimeout(300);
         },
     },
     {

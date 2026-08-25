@@ -929,6 +929,82 @@
                     "knownDebt": "RE-RECORDED against `mono-red-burn` (see 1440x900x2's note for why). Same Mana Pile View fan-stacking, pre-existing. `starved` cleared 1->0 against this deck's card count. `small7` at this touch viewport (`pointer: coarse` -> the 44px `--control-h-coarse` branch, `src/index.css:942,946-948`) is REAL sub-44px tap-target debt, not a measurement artifact. Recorded as a ceiling (issue #2658) so it cannot deepen; #2659 owns lowering it as the surface's controls are fixed."
                 }
             }
+        },
+        "draft-pool-peek": {
+            "label": "Draft Room, Pool Peek Panel open (/limited/<id>/draft, pool tile selected)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 4,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 11,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "FIRST measurement ever of the Pool's `DeckZonePeek` actually mounted (review finding, PR #2797 round 1) \u2014 every prior walk left `poolSelection` null, so this state was never probed. `ctrlsOcc 4` / `small 11` are byte-identical to `draft-pool-stop`'s own row at this viewport: same 224px rail, same 4-item room-bar gap (Table/Pool/More/Report a bug) it occludes regardless of WHICH selection (Booster's or Pool's) opened it. `cardsOcc 0`: no card tile sits under the rail at this seat's current pool size/grouping. Re-measured twice (`--record` run to run) with identical numbers \u2014 stable, not a load-timing artifact."
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 3,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 3,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 10,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "FIRST measurement ever of the Pool's `DeckZonePeek` at this viewport \u2014 the one issue #2667's own AC names and the one PR #2797's Peek Panel deletes `budgets.json`'s prior `cardsOcc 3` debt line for (that old line was the BOOSTER'S bottom-sheet Peek Panel, moved off-phone by this PR; this is a DIFFERENT panel, the Pool's, which is NOT phone-special-cased by design). Named defect: `cardsOcc 3` / `ctrlsOcc 3` \u2014 the sheet reserve (`peekPanelReserve`, `PEEK_PANEL_SHEET_RESERVE`) is sized for the panel's own chrome, not for how many pool-tile rows sit above it at this seat's current pool size, so the reserved band's bottom edge does not clear the last row of tiles or the strip's own controls. Real, non-zero, re-measured twice with identical numbers (stable, not a load-timing artifact); the individual DOM node under each occluded point was not traced (no `elementFromPoint` walk was run against this exact live pool state), so this note names the MECHANISM, not a per-element list. Lowering this ceiling means growing the reserve (or shrinking the tile grid) for a bigger pool \u2014 a sizing change outside this issue's scope, flagged as a candidate follow-up in the PR body \u2014 not zeroing out everything the measurement finds."
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 1,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 5,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 3,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "FIRST measurement ever of the Pool's `DeckZonePeek` at this viewport \u2014 the other phone viewport issue #2667's AC names. The rail here is the Pool panel's own (not the sneak-peek column's \u2014 that collision is what keeps the BOOSTER'S panel off a phone; the Pool's panel is not phone-special-cased). Named defect: against `draft-pool-stop`'s own unpanelled baseline at this exact viewport (`cardsOcc 2` / `ctrlsOcc 2`), opening the Peek Panel raises `ctrlsOcc` by three (2 \u2192 5) and lowers `cardsOcc` by one (2 \u2192 1) \u2014 the panel's rail is the one variable between the two rows, so it is the mechanism claiming that extra control room, even though the individual DOM node under each occluded point was not traced element-by-element. `cardsOcc 1` / `ctrlsOcc 5` are real, non-zero, re-measured twice with identical numbers (stable). Flagged as a candidate follow-up in the PR body alongside the portrait row above rather than resized here."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 5,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 4,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "FIRST measurement ever of the Pool's `DeckZonePeek` at this viewport (review finding, PR #2797 round 1). `ctrlsOcc 5` / `starved 1` are byte-identical to `draft-pool-stop`'s own row here \u2014 the same 4-item Peek Panel rail gap plus the Sideboard zone's `View \u25be` self-occlusion (`deck-zone-surface.tsx:587`, `useIsTabletPortrait`/#2755, unrelated to this issue). `cardsOcc 0`: no card tile sits under the rail at this seat's current pool size/grouping."
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 2,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 6,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 4,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "FIRST measurement ever of the Pool's `DeckZonePeek` at this viewport (review finding, PR #2797 round 1). Named defect: `ctrlsOcc 6` is TWO more than `draft-pool-stop`'s `4` at the same viewport \u2014 the Pool zone's own Group/Order control row is one of the two extra occluders (the Booster's panel never sits over it; the Pool's own, opened from inside the pool pane, does), and the rail claims one further room-bar control this seat's baseline does not lose. `cardsOcc 2`: two Pool tiles sit under the SAME 224px rail at this seat's current pool size/grouping, one more than `draft-pool-stop`'s own `1` here \u2014 real, non-zero, re-measured twice with identical numbers (stable, not a load-timing artifact). The rail's fixed 224px width (sized for desktop) is the named mechanism for both deltas; the second `ctrlsOcc` occluder was not traced past that. Flagged as a candidate follow-up in the PR body rather than resized here."
+                }
+            }
         }
     }
 }

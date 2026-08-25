@@ -28,6 +28,26 @@ vi.mock("motion/react", () => ({
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
 const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // Plains (land)
 
+/** `useViewportMode` reads two media queries and happy-dom has no
+ *  `matchMedia` at all, so every test in this file runs in whichever regime
+ *  the fallback happens to pick — which is `"desktop"`, i.e. the RAIL. That is
+ *  exactly how a reserve once shipped on the wrong axis: a test named
+ *  "reserves room for the sheet" ran in the configuration where it did
+ *  nothing (issue #2583 review). Stub the queries so both branches are
+ *  reachable. Module-scoped (not a per-`describe` helper) so every describe
+ *  block below — including the Pool/Sideboard one added by issue #2667 — can
+ *  reach the phone/sheet regime, not only the Booster's own Peek Panel suite. */
+function stubViewport(mode: "portrait" | "landscape") {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+        matches:
+            mode === "portrait"
+                ? query.includes("orientation: portrait")
+                : query.includes("max-height: 500px"),
+        addEventListener() {},
+        removeEventListener() {},
+    }));
+}
+
 const submitPickMock = vi.fn().mockResolvedValue(null);
 const setPoolArrangementEntryMock = vi.fn().mockResolvedValue(null);
 const selectDraftPickMock = vi.fn().mockResolvedValue(null);
@@ -69,7 +89,14 @@ beforeEach(() => {
     });
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+    cleanup();
+    // `stubViewport` (module-scoped, used by several describe blocks below)
+    // stubs `matchMedia` globally — a no-op here when nothing was stubbed,
+    // and otherwise what stops one test's viewport regime leaking into the
+    // next.
+    vi.unstubAllGlobals();
+});
 
 type EventRowOverrides = {
     selectedPickId?: string;
@@ -251,23 +278,6 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
                 "[data-inspect-panel] [data-editing-action]"
             ),
         ] as HTMLElement[];
-
-    /** `useViewportMode` reads two media queries and happy-dom has no
-     *  `matchMedia` at all, so every test here runs in whichever regime the
-     *  fallback happens to pick — which is `"desktop"`, i.e. the RAIL. That is
-     *  exactly how the reserve shipped on the wrong axis: the one test named
-     *  "reserves room for the sheet" ran in the configuration where it does
-     *  nothing. Stub the queries so both branches are reachable. */
-    function stubViewport(mode: "portrait" | "landscape") {
-        vi.stubGlobal("matchMedia", (query: string) => ({
-            matches:
-                mode === "portrait"
-                    ? query.includes("orientation: portrait")
-                    : query.includes("max-height: 500px"),
-            addEventListener() {},
-            removeEventListener() {},
-        }));
-    }
 
     afterEach(() => vi.unstubAllGlobals());
 
@@ -567,22 +577,87 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
         });
     });
 
+    // Review finding (PR #2797 round 1, HIGH): the zone-move CTA used to leave
+    // `poolSelection` STALE after firing — the panel stayed open holding a
+    // selection whose zone (`"maindeck"`) no longer matched reality (the card
+    // was now in the Sideboard). A player who then tapped "Move to…" on that
+    // stale panel reached `handlePoolPin`, which hard-codes `sideboard: false`
+    // on the assumption `onPin` is only ever reachable from a Pool selection —
+    // an assumption the stale selection broke, silently pulling the card back
+    // OUT of the Sideboard the very next write. Asserting the panel is GONE
+    // after "→ Side" is what proves the stale path is now unreachable: with
+    // no open selection there is no "Move to…" CTA left to tap at all.
+    it("→ Side clears the Pool selection so the panel cannot be walked into the stale-selection trap", () => {
+        const { getByTitle } = renderTable({
+            pool: [
+                ...boltInPool,
+                { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+            ],
+        });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(panels()).toHaveLength(1);
+
+        fireEvent.click(
+            actionEls().find((el) => el.dataset.editingAction === "→ Side")!
+        );
+        expect(setPoolArrangementEntryMock).toHaveBeenLastCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: true,
+        });
+
+        // The panel — and with it, the "Move to…" CTA — is gone. There is no
+        // longer a stale selection to walk into a Column pin through.
+        expect(panels()).toHaveLength(0);
+        expect(
+            actionEls().find((el) => el.dataset.editingAction === "Move to…")
+        ).toBeUndefined();
+
+        // Nothing further was written: in particular no SECOND
+        // `setPoolArrangementEntry` call reverting `sideboard` back to
+        // `false` (the exact corruption the stale selection produced).
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledTimes(1);
+    });
+
     // The Booster's own Peek Panel deliberately does NOT reserve on a phone
     // (its CTAs inline into the strip there, `draft-selection-actions.tsx`);
     // the Pool's `DeckZonePeek` opens the real FIXED panel at every viewport
     // (issue #2667 AC), so the surface underneath must reserve for it there
     // too — unlike the Booster row a few tests up, which asserts NOTHING is
-    // reserved while `phoneOrientation` is set and no card is selected.
-    it("reserves room for the Pool's panel even though the Booster's own panel never mounts on this layout", () => {
+    // reserved while no card is selected.
+    //
+    // No `matchMedia` stub here (same default the existing "reserves the
+    // rail's WIDTH on desktop too" test relies on) — `useViewportMode`
+    // falls back to `"desktop"`, i.e. the RAIL. This is the desktop/tablet
+    // half of the pair; the phone/SHEET half is the next test.
+    it("reserves the rail's WIDTH for the Pool's panel on desktop, even though the Booster's own panel never mounts here", () => {
         const { container, getByTitle } = renderTable({ pool: boltInPool });
         const surface = () =>
             container.querySelector("[data-slot=draft-surface]") as HTMLElement;
         expect(surface().style.paddingRight).toBe("");
         fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
-        // No `matchMedia` stub here (same default the existing "reserves the
-        // rail's WIDTH on desktop too" test relies on) — `useViewportMode`
-        // falls back to `"desktop"`, i.e. the rail.
         expect(surface().style.paddingRight).toBe(PEEK_PANEL_RAIL_WIDTH);
+    });
+
+    // Review finding (PR #2797 round 1): the test above was NAMED as if it
+    // covered the phone/sheet geometry issue #2667's AC actually names
+    // (390x844x3 / 844x390x3), but ran with no `matchMedia` stub at all, so
+    // `useViewportMode` never resolved anything but `"desktop"` — the sheet
+    // reserve the AC's phone viewports depend on had evidence at NO layer.
+    // Stubbed `"portrait"` the way `stubViewport` a few tests up already
+    // does, this is that missing coverage: the Pool's panel is NOT
+    // phone-special-cased (unlike the Booster's), so it must reserve the
+    // sheet's HEIGHT in portrait exactly like the Booster panel does when IT
+    // is the one open (see "reserves the sheet's HEIGHT in portrait" above).
+    it("reserves the sheet's HEIGHT for the Pool's panel in portrait, even though the Booster's own panel never mounts there", () => {
+        stubViewport("portrait");
+        const { container, getByTitle } = renderTable({ pool: boltInPool });
+        const surface = () =>
+            container.querySelector("[data-slot=draft-surface]") as HTMLElement;
+        expect(surface().style.paddingBottom).toBe("");
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(surface().style.paddingBottom).toBe(PEEK_PANEL_SHEET_RESERVE);
+        expect(surface().style.paddingRight).toBe("");
     });
 });
 
