@@ -294,17 +294,12 @@ export const obeliskOfUndoing: CardDefinition = {
 // library, then shuffleLibrary randomizes — exactly "shuffle your graveyard
 // into your library".
 //
-// PRIMITIVE GAP / DIVERGENCE (flagged, no engine change, tracked-by: #2232):
-// there is no `exile` activation-cost kind on ActivatedAbility (only
-// tap/mana/sacrifice/life/counter/discard/exile-from-graveyard). "Exile this
-// artifact" is a *cost* (CR 118.1 / 601.2h), so it should be paid at
-// activation; here it's modeled inside resolve() via `exile(sourceInstanceId)`.
-// The difference IS observable, contrary to what this note claimed before the
-// 2026-08-05 audit: today the Cane stays on the battlefield while the ability
-// is on the stack, so an opponent can destroy it in response — and `exile`'s
-// `findOnBattlefield` lookup then silently no-ops on resolution, leaving the
-// Cane in the graveyard instead of exile. Under a real cost it is already gone
-// when the ability is announced.
+// "Exile this artifact" is a COST (CR 118.1; CR 601.2h via CR 602.2b — costs
+// are paid while the ability is put on the stack), declared as
+// `cost.exileThis` and paid at activation: the Cane is already in exile before
+// the ability is on the stack, so an opponent cannot destroy it in response and
+// it can never end up in the graveyard instead. Being gone by resolution also
+// means it is not among the cards this ability shuffles back in.
 export const feldonsCane: CardDefinition = {
     id: "bb6af436-bcfd-4d47-a1aa-e84b587a725a",
     rarity: "uncommon",
@@ -318,13 +313,9 @@ export const feldonsCane: CardDefinition = {
             id: "feldons-cane-shuffle",
             oracleText:
                 "{T}, Exile this artifact: Shuffle your graveyard into your library.",
-            cost: { tap: true },
+            cost: { tap: true, exileThis: true },
             useStack: true,
             resolve: (ctx: SpellContext) => {
-                // Exile-as-cost modeled in the resolve body (no `exile` cost
-                // kind — see divergence note above). Exile self FIRST so the
-                // Cane is not among the cards shuffled into the library.
-                ctx.exile({ type: "permanent", id: ctx.sourceInstanceId });
                 ctx.moveZone(ctx.controller, "graveyard", "library");
                 ctx.shuffleLibrary(ctx.controller);
             },

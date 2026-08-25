@@ -890,6 +890,11 @@ export function isProbeEligibleMove(
             cost.tapOtherFilter ||
             cost.discardFilter ||
             cost.discardThis ||
+            // CR 118.1 / 601.2h — "Exile this permanent" spends the source
+            // itself, and the payoff of spending it can BE the point (Feldon's
+            // Cane trades the artifact for a whole graveyard). Same exclusion
+            // as `sacrifice`, its graveyard-bound twin.
+            cost.exileThis ||
             cost.discardLastDrawn ||
             cost.discardAtRandom !== undefined ||
             cost.exileFromGraveyard ||

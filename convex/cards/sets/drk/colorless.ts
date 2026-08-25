@@ -243,19 +243,16 @@ export const livingArmor: CardDefinition = {
 
 // Necropolis — "Defender\nExile a creature card from your graveyard: Put X +0/+1
 // counters on this creature, where X is the exiled card's mana value." (CR 702.3 defender;
-// CR 605 activated ability. `getManaValue` returns 0 for graveyard
-// cards, so X is read from `getGraveyardCards`. CR 122.1 counters; +0/+1 is a
-// layer-7d counter.)
+// CR 605 activated ability. CR 122.1 counters; +0/+1 is a layer-7d counter.)
 //
-// DIVERGENCE (flagged, tracked-by: #2232): "exile a creature card from your
-// graveyard" is a COST (CR 118.1 / 601.2h) but is modeled here as a
-// graveyard-card TARGET, so it is announced, re-checked on resolution, and can
-// be made illegal in response. The old note claimed "the cost union has no
-// graveyard-exile-as-cost field" — FALSE, corrected in the 2026-08-05 #1212
-// audit: `cost.exileFromGraveyard` ships (Grim Lavamancer, Night Soil). What is
-// genuinely missing is a snapshot of the cards that cost exiles, so the effect
-// can read the exiled card's mana value — the mirror of
-// `sacrificeSnapshotFromSelection` / `StackItem.additionalSacrificeSnapshot`.
+// "Exile a creature card from your graveyard" is a COST (CR 118.1; CR 601.2h
+// via CR 602.2b), declared as `cost.exileFromGraveyard` and paid at activation
+// — not a target: it is never announced as one, never re-checked on
+// resolution, and cannot be made illegal in response. X is read back from the
+// cost snapshot the commit path takes before the card leaves the graveyard
+// (`exileCostSnapshot` → `StackItem.additionalSacrificeSnapshot`, CR 608.2h
+// last-known information), because the card is already in exile by the time
+// this ability resolves.
 export const necropolis: CardDefinition = {
     id: "893e8e9c-983e-4db1-8d93-10637025a559",
     rarity: "uncommon",
@@ -273,27 +270,24 @@ export const necropolis: CardDefinition = {
             id: "necropolis-counters",
             oracleText:
                 "Exile a creature card from your graveyard: Put X +0/+1 counters on this creature, where X is the exiled card's mana value.",
-            cost: {},
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                zone: "graveyard",
-                controller: "you",
+            cost: {
+                exileFromGraveyard: {
+                    count: 1,
+                    cardType: "Creature",
+                    owner: "you",
+                },
             },
-            // NOT DSL-migratable (ADR 0045): planned-migratable, blocked on a
-            // value construct. The counter count X is the exiled graveyard
-            // card's mana value (`getGraveyardCards` → `manaValue`), which the
-            // `count` grammar cannot express. Stays resolve() until a mana-value
-            // value member exists.
+            useStack: true,
+            // protocol card: the counter count X is the MANA VALUE of a card
+            // the COST already exiled — read back through
+            // `getAdditionalSacrificeMv()` (CR 118.1 / 608.2h). The Op
+            // vocabulary has no value construct for a cost-paid object's mana
+            // value, the same reason Priest of Yawgmoth and Freyalise
+            // Supplicant stay imperative; `addCounter`'s `count` grammar
+            // cannot express it. Not a missing-Op stub — the engine capability
+            // ships, only the DSL surface for it does not.
             resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "graveyard-card" || !t.playerId) return;
-                const gc = ctx
-                    .getGraveyardCards(t.playerId)
-                    .find((c) => c.id === t.id);
-                const x = gc?.manaValue ?? 0;
-                ctx.moveCardById(t.playerId, t.id, "graveyard", "exile");
+                const x = ctx.getAdditionalSacrificeMv() ?? 0;
                 if (x > 0) {
                     ctx.addCounter(
                         { type: "permanent", id: ctx.sourceInstanceId },

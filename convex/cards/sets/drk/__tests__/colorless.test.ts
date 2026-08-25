@@ -49,6 +49,7 @@ import {
 import {
     finalizeTargetSelection,
     activateAbilityOnState,
+    selectActivationExileCostOnState,
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -352,8 +353,10 @@ describe("Living Armor — sac: X +0/+1 counters, X = target's mana value (CR 12
     });
 });
 
-describe("Necropolis — exile a graveyard creature: +0/+1 counters = its MV (CR 122.1)", () => {
-    it("exiles the chosen card and grows by its mana value", () => {
+describe("Necropolis — exile a graveyard creature as a COST: +0/+1 counters = its MV (CR 118.1 / 608.2h)", () => {
+    /** Necropolis on the battlefield with one creature card in its
+     *  controller's graveyard, p1 holding priority. */
+    function necroBoard(): GameState {
         const necro = makeInstance(necropolis.id, {
             id: "necro",
             controllerId: "p1",
@@ -365,7 +368,7 @@ describe("Necropolis — exile a graveyard creature: +0/+1 counters = its MV (CR
             ownerId: "p1",
             zone: "graveyard",
         });
-        const state = makeState({
+        return makeState({
             players: [
                 makePlayer("p1", {
                     battlefield: [necro],
@@ -374,19 +377,86 @@ describe("Necropolis — exile a graveyard creature: +0/+1 counters = its MV (CR
                 makePlayer("p2"),
             ],
         });
-        const baseT = getEffectiveToughness(state, necro);
-        resolveActivated(state, necro, "necropolis-counters", [
-            { type: "graveyard-card", id: "corpse", playerId: "p1" },
-        ]);
+    }
+
+    it("announces NO target — the graveyard card is a cost pick, not a target", () => {
+        // CR 118.1 / 601.2h via CR 602.2b. Modelled as a target the pick would
+        // be revealed on announcement, re-checked for legality on resolution,
+        // and could be made illegal in response; as a cost it is none of those.
+        const state = necroBoard();
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "necro",
+            abilityId: "necropolis-counters",
+        });
+        expect(state.pendingTarget).toBeUndefined();
+        expect(state.pendingActivation?.exileFromGraveyardChoice).toBeDefined();
+        // Nothing on the stack until the cost is actually paid.
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("exiles the picked card as the cost, while the ability is still on the stack", () => {
+        const state = necroBoard();
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "necro",
+            abilityId: "necropolis-counters",
+        });
+        selectActivationExileCostOnState(state, {
+            playerId: "p1",
+            graveyardOwnerId: "p1",
+            cardInstanceIds: ["corpse"],
+        });
+
+        // Cost paid at activation: the card is in exile with the ability still
+        // unresolved, so no response can make the payment illegal.
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].abilityId).toBe("necropolis-counters");
         expect(state.players[0].graveyard).toHaveLength(0);
         expect(state.players[0].exile.some((c) => c.id === "corpse")).toBe(
             true
         );
+        // The EFFECT has not happened yet.
+        const beforeResolve = state.players[0].battlefield.find(
+            (c) => c.id === "necro"
+        )!;
+        expect(beforeResolve.counters?.["+0/+1"]).toBeUndefined();
+    });
+
+    it("grows by the exiled card's mana value, read from the cost snapshot", () => {
+        const state = necroBoard();
+        const baseT = getEffectiveToughness(
+            state,
+            state.players[0].battlefield[0]
+        );
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "necro",
+            abilityId: "necropolis-counters",
+        });
+        selectActivationExileCostOnState(state, {
+            playerId: "p1",
+            graveyardOwnerId: "p1",
+            cardInstanceIds: ["corpse"],
+        });
+        resolveTopOfStack(state);
+
         const grown = state.players[0].battlefield.find(
             (c) => c.id === "necro"
         )!;
+        // CR 608.2h — the card is already in exile by resolution, so X can only
+        // come from the snapshot taken when the cost was paid.
         expect(grown.counters?.["+0/+1"]).toBe(2);
         expect(getEffectiveToughness(state, grown)).toBe(baseT + 2);
+
+        // SURFACE — the counters and the resulting toughness survive the wire
+        // projection the client actually reads.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "necro"
+        )!;
+        expect(slim.counters?.["+0/+1"]).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(baseT + 2);
     });
 });
 

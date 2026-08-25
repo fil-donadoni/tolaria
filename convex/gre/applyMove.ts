@@ -40,7 +40,7 @@ import {
     tapPermanent,
     canPayMayPayCost,
     discardToGraveyard,
-    exileCardFromGraveyard,
+    payExileThisCost,
     moveCard,
     normalizeManaCost,
     applyCostModifiers,
@@ -64,7 +64,7 @@ import {
 // different answers to "which ability is this" is how an ability gets pushed
 // and resolved with its costs unpaid.
 import { effectiveAbilityOf } from "./ai/abilityTiming";
-import { isPlaneswalker, manaGateBattlefields } from "./constants";
+import { isPlaneswalker, manaGateBattlefields, manaValue } from "./constants";
 import {
     activationSacrificeVictims,
     planActivationCostPicks,
@@ -329,7 +329,17 @@ export function applyRetraceCastForSearch(
 export function applyActivationCostsForSearch(
     state: GameState,
     playerId: string,
-    move: Extract<Move, { kind: "activate-ability" }>
+    move: Extract<Move, { kind: "activate-ability" }>,
+    /** OUT-collector for the one cost by-product the resulting stack item needs
+     *  (CR 118.1 / 608.2h): the snapshot of a single card exiled from a
+     *  graveyard to pay `cost.exileFromGraveyard`, which is gone by the time
+     *  the ability resolves and which Necropolis reads back as X. Optional so
+     *  every existing caller keeps the plain boolean contract; the search's
+     *  push site (`applyMoveInSearch`, `search.ts`) passes one so the tree
+     *  resolves the ability with the same X live play would. */
+    out?: {
+        additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+    }
 ): boolean {
     // CR 113.3c — the source may be on another player's battlefield ("any
     // player may activate"), so search globally.
@@ -356,7 +366,7 @@ export function applyActivationCostsForSearch(
               )?.activatedAbilities?.find((a) => a.id === move.abilityId)
             : undefined;
         if (owner && gvAbility?.cost.exileThis) {
-            exileCardFromGraveyard(owner, move.cardInstanceId);
+            payExileThisCost(state, owner, move.cardInstanceId, true);
         }
         // CR 113.6 / 702.29a — a HAND-source activation (Cycling, Harvester of
         // Misery's `activateFromHand` discard ability). Its one board-changing
@@ -462,6 +472,16 @@ export function applyActivationCostsForSearch(
     if (ability.cost.sacrifice) {
         removePermanentTo(state, src.id, "graveyard", "sacrifice");
     }
+    // CR 118.1 / 601.2h — the self-EXILE cost's battlefield leg (Feldon's
+    // Cane): the source is gone, to exile rather than the graveyard, before the
+    // ability is ever on the stack. Applied in the search slice for the same
+    // reason the sacrifice leg above is — a line that kept the permanent (or
+    // banked it as a graveyard resource) would evaluate a position live play
+    // never reaches. The GRAVEYARD leg of the same flag is paid in the `!src`
+    // branch above, where the source is not on any battlefield.
+    if (ability.cost.exileThis && !ability.activateFromGraveyard) {
+        removePermanentTo(state, src.id, "exile");
+    }
     // CR 602.1 / 118 — the DEFERRED cost legs (sacrifice, tap-other,
     // exile-from-graveyard, discard). The payer is the ACTIVATING player, NOT
     // the source's controller — see the header note on CR 113.3c.
@@ -496,6 +516,29 @@ export function applyActivationCostsForSearch(
         const gyOwner = state.players.find(
             (p) => p.id === exile.graveyardOwnerId
         );
+        // CR 118.1 / 608.2h — snapshot the single exiled card BEFORE it leaves
+        // the graveyard, so the item this move pushes carries the same
+        // "the exiled card's mana value" the mutation path captures
+        // (`exileCostSnapshot`, `game.ts`). Single-card costs only, matching
+        // that authority: "the exiled card" has no referent above one.
+        if (out && exile.cardInstanceIds.length === 1) {
+            const snap = gyOwner?.graveyard.find(
+                (c) => c.id === exile.cardInstanceIds[0]
+            );
+            if (snap) {
+                const snapDefId = (snap.card as { id?: string }).id;
+                const snapDef = snapDefId
+                    ? tryGetDefinition(snapDefId)
+                    : undefined;
+                out.additionalSacrificeSnapshot = {
+                    cardInstanceId: snap.id,
+                    mv: manaValue(snapDef?.manaCost),
+                    ...(snap.subtypes && snap.subtypes.length > 0
+                        ? { subtypes: [...snap.subtypes] }
+                        : {}),
+                };
+            }
+        }
         for (const id of exile.cardInstanceIds) {
             const idx = gyOwner?.graveyard.findIndex((c) => c.id === id) ?? -1;
             if (!gyOwner || idx < 0) continue;

@@ -33,7 +33,7 @@ import {
     drawCard as drawCardFromLibrary,
     emitCardDrawn,
     discardToGraveyard,
-    exileCardFromGraveyard,
+    payExileThisCost,
     matchesPermanentFilter,
     moveCard,
     removeFromZone,
@@ -3182,14 +3182,15 @@ export function tryAutoCommitPendingActivation(
             return null;
         }
     }
-    // CR 702.129a / 118.3 — the Eternalize "Exile this card from your
-    // graveyard" cost. The source moves graveyard → exile as the ability goes
-    // on the stack. Re-check at commit: the card may have left the graveyard
+    // CR 118.1 / 601.2h — the "Exile this card/permanent" cost, paid as the
+    // ability goes on the stack: graveyard → exile for an Eternalize-shaped
+    // ability, battlefield → exile for a permanent's own self-exile cost
+    // (Feldon's Cane). Re-check at commit: the source may have left that zone
     // while mana was tapped; if so, drop the payment silently (lands stay
     // tapped, mirroring the vanished-source policy above). Runs BEFORE the
     // stack-item clone below so the ability's source is captured while valid.
     if (pa.exileThisSource) {
-        if (!exileCardFromGraveyard(player, card.id)) {
+        if (!payExileThisCost(state, player, card.id, !!pa.fromGraveyard)) {
             state.pendingActivation = undefined;
             return null;
         }
@@ -3225,6 +3226,7 @@ export function tryAutoCommitPendingActivation(
     // cost: move each picked card from that owner's graveyard to their exile.
     // Re-check presence at commit (vanished-card policy): if any picked card
     // is no longer in the chosen graveyard, drop the activation silently.
+    let activationExileSnapshot: StackItem["additionalSacrificeSnapshot"];
     if (pa.exileFromGraveyardChoice?.pickedCardIds) {
         const ownerId = pa.exileFromGraveyardChoice.pickedGraveyardOwnerId;
         const owner = ownerId
@@ -3239,6 +3241,10 @@ export function tryAutoCommitPendingActivation(
             state.pendingActivation = undefined;
             return null;
         }
+        activationExileSnapshot = exileCostSnapshot(
+            owner,
+            pa.exileFromGraveyardChoice.pickedCardIds
+        );
         for (const id of pa.exileFromGraveyardChoice.pickedCardIds) {
             moveCard(owner, id, "graveyard", "exile");
         }
@@ -3277,8 +3283,17 @@ export function tryAutoCommitPendingActivation(
         ...(pa.grantedSourceCardId
             ? { grantedSourceCardId: pa.grantedSourceCardId }
             : {}),
-        ...(activationSacrificeSnapshot
-            ? { additionalSacrificeSnapshot: activationSacrificeSnapshot }
+        // CR 118.1 / 608.2h — the additional-cost victim's snapshot, from
+        // whichever leg this activation actually paid. No shipped ability
+        // declares BOTH a snapshot-flagged sacrifice cost and a single-card
+        // graveyard-exile cost; if one ever does, the SACRIFICE leg wins, so
+        // adding an exile leg can never silently change what an existing card
+        // (Priest of Yawgmoth, Freyalise Supplicant) reads back.
+        ...((activationSacrificeSnapshot ?? activationExileSnapshot)
+            ? {
+                  additionalSacrificeSnapshot:
+                      activationSacrificeSnapshot ?? activationExileSnapshot,
+              }
             : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
     });
@@ -6673,11 +6688,18 @@ export function finalizeTargetSelection(
                 ability.cost.cyclingCost ? "cycling" : undefined
             );
         }
-        // CR 702.129a / 118.3 — the "Exile this card from your graveyard"
-        // activation cost (Eternalize). Runs BEFORE the stack-item clone below
-        // (the card object persists after the move).
+        // CR 118.1 / 601.2h — the "Exile this card/permanent" activation cost:
+        // graveyard → exile for an Eternalize-shaped ability, battlefield →
+        // exile for a permanent's own self-exile cost (Feldon's Cane). Runs
+        // BEFORE the stack-item clone below (the card object persists after
+        // the move, so the item keeps CR 608.2h last-known information).
         if (ability.cost.exileThis) {
-            exileCardFromGraveyard(player, card.id);
+            payExileThisCost(
+                state,
+                player,
+                card.id,
+                !!ability.activateFromGraveyard
+            );
         }
         // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
         // sacrifice (Drought / fungible own cost) as the ability commits.
@@ -7496,6 +7518,43 @@ function sacrificeSnapshotFromSelection(
         mv: snap.mv,
         ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
         ...(snap.power !== undefined ? { power: snap.power } : {}),
+    };
+}
+
+/** Snapshot the card a `cost.exileFromGraveyard` activation cost is about to
+ *  exile, for the resulting stack item (CR 118.1 — the cost is paid at
+ *  activation; CR 608.2h — the object is gone by the time the ability
+ *  resolves, so an effect reading "the exiled card's mana value" must read a
+ *  snapshot, never the live zone). Necropolis ("Exile a creature card from
+ *  your graveyard: Put X +0/+1 counters on this creature, where X is the
+ *  exiled card's mana value").
+ *
+ *  The exile twin of `sacrificeSnapshotFromSelection`, writing the SAME
+ *  `StackItem.additionalSacrificeSnapshot` field — which is already the
+ *  additional-cost-victim snapshot for both departures, sacrifice AND exile
+ *  (Soul Exchange's `additionalCosts.exileFilter` fills it on the cast path),
+ *  and is read back through the same `SpellContext.getAdditionalSacrificeMv` /
+ *  `getAdditionalCostSubtypes`.
+ *
+ *  Taken ONLY for a single-card cost, matching `sacrificeFilterCount`'s own
+ *  documented policy: "the exiled card" has no referent once the cost exiles
+ *  two (Night Soil, Grim Lavamancer — neither reads one back). MUST be called
+ *  BEFORE the cards leave the graveyard. */
+function exileCostSnapshot(
+    owner: PlayerState,
+    pickedCardIds: string[]
+): StackItem["additionalSacrificeSnapshot"] | undefined {
+    if (pickedCardIds.length !== 1) return undefined;
+    const exiled = owner.graveyard.find((c) => c.id === pickedCardIds[0]);
+    if (!exiled) return undefined;
+    const defId = (exiled.card as { id?: string }).id;
+    const def = defId ? tryGetDefinition(defId) : undefined;
+    return {
+        cardInstanceId: exiled.id,
+        mv: manaValue(def?.manaCost),
+        ...(exiled.subtypes && exiled.subtypes.length > 0
+            ? { subtypes: [...exiled.subtypes] }
+            : {}),
     };
 }
 
@@ -14252,12 +14311,19 @@ export function activateAbilityOnState(
             ability.cost.cyclingCost ? "cycling" : undefined
         );
     }
-    // CR 702.129a / 118.3 — the "Exile this card from your graveyard"
-    // activation cost (Eternalize): the source moves graveyard → exile as the
-    // ability commits. Runs BEFORE the stack-item clone below (the card object
-    // persists after the move).
+    // CR 118.1 / 601.2h — the "Exile this card/permanent" activation cost, paid
+    // as the ability commits: graveyard → exile for an Eternalize-shaped
+    // ability, battlefield → exile for a permanent's own self-exile cost
+    // (Feldon's Cane). Runs BEFORE the stack-item clone below (the card object
+    // persists after the move, so the item keeps CR 608.2h last-known
+    // information).
     if (ability.cost.exileThis) {
-        exileCardFromGraveyard(player, card.id);
+        payExileThisCost(
+            state,
+            player,
+            card.id,
+            !!ability.activateFromGraveyard
+        );
     }
     // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
     // sacrifice (Drought / fungible own cost) as the ability commits.
