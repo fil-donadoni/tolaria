@@ -57,9 +57,14 @@ with that very AC UNMET and parked the gap in its own drawer draft,
 `docs/findings/2593-coarse-pointer-touch-targets-below-44px.md` (see that
 file's table — the deck-builder surface alone still carries 39–65 sub-44px
 controls at the coarse viewports). This dock trigger's gap, and #2593's
-whole census, are now tracked by **#2670** ("a11y: coarse-pointer targets
+whole census, were tracked by **#2670** ("a11y: coarse-pointer targets
 below the ADR 0101 §2 44px rung — #2593's unmet AC, currently drawer-only"),
-a #2405 sub-issue, P0 on the board.
+a #2405 sub-issue, P0 on the board. #2670 closed with a partial fix (see
+below) that could not reach this trigger; the remaining gap is now tracked
+by **#2793** (unlabelled — human triage decides if/when it becomes agent
+work). #2670's own `budgets.json` `knownDebt` notes briefly mis-cited #2659
+for this gap; #2659's real scope is Limited list/overflow-menu controls, no
+deckbuilder file, so #2670 review round 1 corrected the citation.
 
 **For #2670:** do not re-apply the naive `minHeight: var(--control-h)` patch
 verified above without first finding ~20px to reclaim elsewhere in the
@@ -80,4 +85,6 @@ its own floor (the header's `deck-source-dock:py-2` is already spent; the
 strip below is governed by `docs/findings/2581-deckbuilder-toolbar-starved-
 by-touch-rung.md`'s own zero-slack finding). The trigger stays 73×22px.
 Recorded as debt, not traded for a reopened #2585 floor — the hard constraint
-this issue was given.
+this issue was given. Now tracked by **#2793** (see above); #2670 review
+round 1 found the PR's own text had briefly pointed this gap at #2659,
+which does not cover it.

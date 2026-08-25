@@ -105,12 +105,16 @@ add-basic-dock-trigger-touch-target.md`). Recorded as debt, not traded for
 - **§ design-system** is unchanged — its three demo specimens use
   `src/components/ui/button.tsx`'s `xs`/`icon`/`icon-sm`/`icon-xs` size
   variants, whose retarget to the pointer-aware `--control-h-coarse` token
-  is a DIFFERENT, separately-scoped slice (#2583) — "enlarging every board
-  HUD glyph to a 44px square is a layout change that belongs to the touch-
-  primitives slice (#2583), not the token slice" (`button.tsx`'s own
-  comment). #2670 does not do #2583's work even though `src/components/ui/`
-  is nominally a target dir here.
+  is a layout change with cross-surface blast radius (it reflows every
+  consumer's row, board HUD glyphs included) — "enlarging every board HUD
+  glyph to a 44px square is a layout change with cross-surface blast
+  radius" (`button.tsx`'s own comment). Previously mis-pointed at #2583
+  (whose real scope — gesture engine, Peek Panel, Inspect Overlay — never
+  covered `button.tsx`); corrected and now tracked by **#2792**, filed as
+  an unlabelled (no `ready-for-agent`) tracking issue, not done here even
+  though `src/components/ui/` is nominally a target dir in this issue.
 
 This draft is superseded by #2670 and the `knownDebt` notes it left in
 `scripts/ui-gate/budgets.json` (the load-bearing, gate-enforced record going
-forward); no further action on this file.
+forward). The 21 design-system controls this row names are now tracked by
+**#2792**; no further action on this file.
