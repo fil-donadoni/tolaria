@@ -6,6 +6,7 @@ import {
     PopoverTrigger,
 } from "~/components/ui/popover";
 import { cn } from "~/lib/utils";
+import { pickerRingClass } from "~/lib/picker-ring";
 import { legalBasicLandPrintings, type BasicLandSubtype } from "./basicLands";
 
 interface BasicLandArtPickerProps {
@@ -90,11 +91,19 @@ export default function BasicLandArtPicker({
                                 // applied needs the id itself, not just its
                                 // set. No visual/behavioral role.
                                 data-print-id={p.printId}
+                                // A grid of card tiles where every tile is a
+                                // legal pick and one is chosen — the same two
+                                // meanings every zone picker draws, so it
+                                // takes the same authority (`pickerRingClass`
+                                // → `src/lib/card-ring.ts`, issue #2724)
+                                // rather than its own outward `ring-accent`
+                                // pair on a `rounded-sm` corner. `.card-ring`
+                                // carries the proportional corner with it.
                                 className={cn(
-                                    "aspect-5/7 overflow-hidden rounded-sm ring-2 transition",
-                                    p.printId === currentPrintId
-                                        ? "ring-accent"
-                                        : "ring-transparent hover:ring-accent/50"
+                                    "aspect-5/7 overflow-hidden transition",
+                                    pickerRingClass(
+                                        p.printId === currentPrintId
+                                    )
                                 )}
                             >
                                 <CardImage

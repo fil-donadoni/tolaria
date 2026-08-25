@@ -725,17 +725,21 @@ export function useBattlefieldVisualState(
         // replacing it — the two are different CSS properties now.
         let targetGlow = false;
         // "Attack with all" destination sequence (design 2026-07-23) — the
-        // attacker currently choosing its target PULSES, distinct from the
-        // static ring on the attackers already declared below, so the player
-        // can tell "already declared" from "now assigning this one's target".
-        // Both are attackers, so both read `attacking`: the animation carries
-        // the distinction that a second colour used to. Highest priority
-        // during the sequence.
+        // attacker currently choosing its target reads differently from the
+        // attackers already declared below, so the player can tell "already
+        // declared" from "now assigning this one's target". Both are attackers,
+        // so both read `attacking`: the distinction a second colour used to
+        // carry is carried by TWO channels now — `card-ring-current` (a heavier
+        // ring + inner halo, STATIC) and `card-ring-pulse` (ambient motion).
+        // The static one is load-bearing: the pulse's animation is declared
+        // inside `index.css`'s `prefers-reduced-motion: no-preference` gate, so
+        // with motion reduced it is the only thing left telling the two apart.
+        // Highest priority during the sequence.
         const isCurrentSequenceAttacker =
             attackSequence.active &&
             attackSequence.currentAttackerId === card.id;
         if (isCurrentSequenceAttacker) {
-            ringClass = `${cardRingClass("attacking")} card-ring-pulse`;
+            ringClass = `${cardRingClass("attacking")} card-ring-current card-ring-pulse`;
         } else if (pendingBlockerId === card.id) {
             ringClass = cardRingClass("pending");
         } else if (

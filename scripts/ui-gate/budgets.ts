@@ -96,9 +96,23 @@ export interface ProbeCounts {
 export interface ProbeResult {
     vp: string;
     cards: ProbeCounts;
-    /** Card surfaces whose extreme corner hit-tests to the card itself — i.e.
-     *  a SQUARE card (ADR 0103 §7, issue #2724). A hard floor of 0 everywhere:
-     *  no card may show page background inside its own rectangle. */
+    /** SQUARE card surfaces (ADR 0103 §7, issue #2724) — a card showing page
+     *  background inside its own rectangle instead of the printed rounded
+     *  corner. A hard floor of 0 everywhere.
+     *
+     *  Measured by COMPUTED RADIUS, not by a hit test and not by pixels
+     *  (`probe.js`'s square-corner block): the probe walks the card's own box
+     *  chain — the image plus any ancestor with the same rect — takes the
+     *  largest `border-top-left-radius` on an element that actually CLIPS to it
+     *  (the image itself, or an ancestor with non-visible `overflow` / paint
+     *  containment), and reds when that radius is under 2.4% of the card's
+     *  width, half the printed fraction. A hit test at the corner was the FIRST
+     *  implementation and was withdrawn: the corner is an ellipse quadrant, so
+     *  the usable inset is under ~0.29·r — ~1.1px on a 78px phone tile — and
+     *  `elementFromPoint` snaps CSS pixels to device pixels, which made it
+     *  report 36 square cards on a tree whose cards were all correctly rounded.
+     *  A pixel read is impossible at all: card art is cross-origin, so the
+     *  canvas is tainted. */
     cardsSquareN: number;
     cardsSquare: SquareExample[];
     ctrls: ProbeCounts;

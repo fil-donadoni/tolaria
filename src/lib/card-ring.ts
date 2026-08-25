@@ -26,6 +26,21 @@
  *  - `combat-1..4` — combat-group identity: WHICH attacker a blocker is paired
  *    with (`src/lib/combat-colors.ts`). Not a state, a pairing, and the one
  *    axis the three ADR roles do not cover — kept unchanged.
+ *
+ *  Two MODIFIERS compose with a role rather than being one, and both land on
+ *  the attacker currently choosing its target during the attack-with-all
+ *  sequence (`useBattlefieldVisualState`):
+ *
+ *  - `card-ring-current` — a heavier ring and a soft inner halo, in the role's
+ *    own colour. STATIC.
+ *  - `card-ring-pulse` — the same ring, breathing. Motion-gated in
+ *    `index.css`, so it is ambient reinforcement only.
+ *
+ *  The static one is not decoration. `attacking` is one token for both the
+ *  current attacker and the ones already declared, so with
+ *  `prefers-reduced-motion: reduce` the pulse never runs and the two would be
+ *  pixel-identical — a distinction carried by motion alone is a distinction a
+ *  reduced-motion player never receives (issue #2724 review).
  */
 export type CardRingRole =
     | "candidate"

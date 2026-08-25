@@ -698,18 +698,43 @@
     .card-ring-combat-4 {
         --card-ring-color: var(--color-combat-4);
     }
-    /* The attacker currently choosing its target pulses its RING, not the whole
-       card: `animate-pulse` on the wrapper used to fade the art itself, which
-       under v4 reads as "this card is disabled". Same tempo as Tailwind's.
-       Ambient motion, so it is OPT-IN behind the `prefers-reduced-motion:
-       no-preference` gate — the same pattern the ambient glows, the runic ring
-       and the deck-row pulse use further down this file (#2593).
-       A `--motion-*` token would be wrong here: those collapse to 1ms, which
-       for a looping animation is a strobe, not a stillness. Reduced motion
-       leaves a STATIC attacking ring, which still carries the meaning. The
-       `animation` itself lives in the ONE `no-preference` gate near the end of
-       this file — `motion-gating.test.ts` reads that block by name and fails on
-       any animation declared outside it. */
+    /* ── The attacker currently choosing its target ──
+       Two channels, and it needs BOTH.
+
+       `.card-ring-current` is the STATIC one: a heavier ring plus a soft inner
+       halo, in the same `attacking` colour. `.card-ring-pulse` is the ambient
+       one, and it is motion-gated.
+
+       That split is the fix for a real hole (issue #2724 review). The current
+       attacker and the attackers already declared both resolve to
+       `card-ring-attacking` — one token, on purpose (see above). Before v4 they
+       differed by HUE (emerald vs red); after the collapse the only thing left
+       between them was the pulse, whose `animation` lives inside the single
+       `prefers-reduced-motion: no-preference` gate near the end of this file.
+       So with motion reduced the two states were pixel-identical, and a
+       reduced-motion player could not see which attacker was aiming — a
+       distinction carried by motion ALONE is a distinction that audience does
+       not get. Width and a second inset stop are static, so they survive the
+       gate; the pulse is then reinforcement, never the only channel.
+
+       The pulse itself moved from the CARD to the RING: `animate-pulse` on the
+       wrapper faded the art, which under v4 reads as "this card is disabled".
+       Same tempo as Tailwind's. A `--motion-*` token would be wrong for it —
+       those collapse to 1ms, which for a looping animation is a strobe, not a
+       stillness — so the `animation` is declared in the ONE `no-preference`
+       gate near the end of this file, which `motion-gating.test.ts` reads by
+       name and fails on any animation declared outside. */
+    .card-ring-current::after {
+        box-shadow:
+            inset 0 0 0 var(--card-ring-w-current, 3px)
+                var(--card-ring-color, transparent),
+            inset 0 0 0 calc(var(--card-ring-w-current, 3px) + 3px)
+                color-mix(
+                    in oklab,
+                    var(--card-ring-color, transparent) 28%,
+                    transparent
+                );
+    }
     @keyframes card-ring-pulse {
         50% {
             opacity: 0.4;

@@ -257,7 +257,13 @@ export function useManualDrag(runtime: ManualRuntime) {
                     height: 140,
                 }}
             >
-                <div className="w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-lg">
+                {/* Byte-for-byte the shape `gre-hand-card.tsx` wraps its own
+                    art in, so it takes the same corner: `.card-corner` (ADR
+                    0103 §7), not a fixed `rounded-sm` that reads right at one
+                    card size and square at every other. The `ring-1
+                    ring-black/40` here is the card's black HAIRLINE, not a
+                    state ring — it stays a Tailwind ring (issue #2724). */}
+                <div className="w-full h-full card-corner overflow-hidden ring-1 ring-black/40 shadow-lg">
                     <CardImage
                         card={{ id: dragCard.card.id }}
                         sizes="100px"

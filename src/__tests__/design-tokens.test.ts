@@ -464,6 +464,44 @@ describe("identity v4 — inset card rings (ADR 0103 §8, issue #2724)", () => {
             ).toBeTruthy();
         }
     });
+
+    it("the current attacker differs from a declared attacker WITHOUT motion", () => {
+        // The hole this closes (review of #2724): `attacking` is one token for
+        // the attacker currently choosing its target AND for the attackers
+        // already declared. Before v4 they differed by hue. After the collapse
+        // the only difference left was `card-ring-pulse` — whose `animation`
+        // is declared inside the single `prefers-reduced-motion: no-preference`
+        // gate. With motion reduced the two states were pixel-identical, so a
+        // reduced-motion player could not see which attacker was aiming.
+        //
+        // Hence the assertion is specifically about WHERE the static half is
+        // declared: inside the gate it would be worth nothing.
+        const gate = css.indexOf(
+            "@media (prefers-reduced-motion: no-preference)"
+        );
+        expect(gate, "the motion gate is present").toBeGreaterThan(-1);
+
+        const current = css.indexOf(".card-ring-current::after");
+        expect(
+            current,
+            "the current attacker carries a static differentiator"
+        ).toBeGreaterThan(-1);
+        expect(
+            current,
+            "a differentiator declared INSIDE the motion gate does not exist for a reduced-motion player"
+        ).toBeLessThan(gate);
+
+        // And it must actually differ from the plain ring: same colour var,
+        // different geometry (a heavier ring plus a second inset stop).
+        const body = ruleBody(".card-ring-current::after");
+        expect(body).toMatch(/box-shadow:[\s\S]*inset/);
+        expect(body).toContain("--card-ring-w-current");
+        expect(
+            body.match(/inset/g)?.length,
+            "two inset stops, so the halo reads at a glance"
+        ).toBeGreaterThanOrEqual(2);
+        expect(body).not.toContain("animation");
+    });
 });
 
 describe("identity v4 — hairlines (ADR 0103 §5)", () => {
