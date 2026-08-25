@@ -335,7 +335,7 @@ claims_held_check() {
     _after="$2"
     _merges="$3"
     _lib_path="$SCRIPT_DIR/lib/loop-status"
-    CLAIMS_BEFORE="$_before" CLAIMS_AFTER="$_after" CLAIMS_MERGES="$_merges" \
+    if _out=$(CLAIMS_BEFORE="$_before" CLAIMS_AFTER="$_after" CLAIMS_MERGES="$_merges" \
         bun -e "
 import { claimsHeld } from \"$_lib_path\";
 const claimsBefore = Number(process.env.CLAIMS_BEFORE);
@@ -344,7 +344,15 @@ const merges = Number(process.env.CLAIMS_MERGES);
 process.stdout.write(
     claimsHeld({ claimsBefore, claimsAfter, merges }) ? \"true\" : \"false\"
 );
-" 2>/dev/null || echo "false"
+" 2>/dev/null); then
+        printf '%s' "$_out"
+    else
+        # Fail CLOSED (see the comment above) but never SILENT — this is a
+        # discriminator whose whole purpose is diagnosability, so a swallowed
+        # failure here would defeat #2626 as quietly as the bug it fixed.
+        echo "loop-drain: claims-held discriminator unavailable (bun -e lib/loop-status failed) — falling back to no-progress" >&2
+        echo "false"
+    fi
 }
 
 if [ "$START_DELAY" -gt 0 ]; then

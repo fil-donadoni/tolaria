@@ -852,6 +852,33 @@ describe("claims-held (#2626)", () => {
         expect(lines[0].split(" ").pop()).toBe("-");
         expect(lines[1].split(" ").pop()).toBe("claims-held");
     });
+
+    it("does NOT flag claims-held when claims already standing from before the window stay flat (review finding, #2626)", () => {
+        // The companion test above ("only counts claims taken during THIS
+        // pass's own window") starts every window at claims_before=0 — its
+        // own pass 1 decrements the unclaimed and total counters in
+        // lockstep, so `claims_before` is always 0 by the time pass 2 (the
+        // one that matters) runs. That leaves the window's LOWER bound
+        // itself unexercised: `claims_held_check "0" "$claims_after" 0`
+        // (hardcoding the bound away) still passes the whole suite green.
+        //
+        // This test starts with 2 claims ALREADY standing from a prior,
+        // unmodeled pass (unclaimed=3, total=5) and a `claude` stub that
+        // changes nothing. The correct reading is `claims_before=2`,
+        // `claims_after=2` — flat, not a rise — so this is ordinary
+        // no-progress, never claims-held. Under the mutation above,
+        // `claims_before` is forced to "0" regardless of the real value, so
+        // `claimsHeld({claimsBefore: 0, claimsAfter: 2, merges: 0})` reads
+        // true and this test goes red on pass 1 with `reason=claims-held`
+        // instead of the correct `reason=no-progress` — exactly the
+        // every-pass-reports-claims-held noise the AC forbids.
+        stubGhTwoCounters(3, 5);
+        stubClaudeNoProgress();
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=no-progress/);
+        expect(r.stdout).not.toMatch(/reason=claims-held/);
+    });
 });
 
 describe("--max-passes", () => {
