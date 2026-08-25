@@ -1,0 +1,462 @@
+:root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --plane: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.1);
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #4a3aa7;
+    --series-8: #e34948;
+}
+@media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+        color-scheme: dark;
+        --surface-1: #1a1a19;
+        --plane: #0d0d0d;
+        --text-primary: #ffffff;
+        --text-secondary: #c3c2b7;
+        --muted: #898781;
+        --grid: #2c2c2a;
+        --axis: #383835;
+        --border: rgba(255, 255, 255, 0.1);
+        --series-1: #3987e5;
+        --series-2: #d95926;
+        --series-3: #199e70;
+        --series-4: #c98500;
+        --series-5: #d55181;
+        --series-6: #008300;
+        --series-7: #9085e9;
+        --series-8: #e66767;
+    }
+}
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --plane: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.1);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+}
+
+* {
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+    background: var(--plane);
+    color: var(--text-primary);
+    font:
+        14px/1.5 system-ui,
+        -apple-system,
+        "Segoe UI",
+        sans-serif;
+}
+.wrap {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 20px 64px;
+}
+header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+h1 {
+    font-size: 20px;
+    margin: 0;
+    font-weight: 600;
+}
+.sub {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+button.theme {
+    margin-left: auto;
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+}
+
+/* One filter row above everything it scopes. */
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    align-items: flex-end;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+}
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.field > label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+select,
+input[type="date"] {
+    background: var(--plane);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: inherit;
+    font-size: 13px;
+    min-width: 130px;
+}
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+}
+.chip {
+    border: 1px solid var(--border);
+    background: var(--plane);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+}
+.chip[aria-pressed="true"] {
+    background: var(--text-primary);
+    color: var(--surface-1);
+    border-color: var(--text-primary);
+}
+
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+.tile .k {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.tile .v {
+    font-size: 26px;
+    font-weight: 600;
+    margin-top: 4px;
+    line-height: 1.15;
+}
+.tile .n {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+.card h2 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 2px;
+}
+.card .h-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+.scroll {
+    overflow-x: auto;
+}
+svg {
+    display: block;
+    max-width: 100%;
+}
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.legend span.sw {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    margin-right: 5px;
+    vertical-align: -1px;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+}
+th,
+td {
+    text-align: right;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--grid);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+th:first-child,
+td:first-child {
+    text-align: left;
+    font-variant-numeric: normal;
+}
+th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+    position: sticky;
+    top: 0;
+    background: var(--surface-1);
+}
+tbody tr:hover {
+    background: var(--plane);
+}
+.tbl-wrap {
+    max-height: 520px;
+    overflow: auto;
+}
+
+/* Loop status panel (#2519). */
+.ls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+.ls-driver {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+.ls-driver b {
+    color: var(--text-primary);
+}
+.ls-pass {
+    font-size: 11px;
+    color: var(--muted);
+}
+.ls-mark {
+    display: inline-block;
+    width: 14px;
+    text-align: center;
+}
+.ls-mark.orphan {
+    color: var(--series-2);
+}
+.ls-mark.suspect {
+    color: var(--series-4);
+}
+.ls-mark.live {
+    color: var(--series-3);
+}
+.ls-stage {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--plane);
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.ls-empty {
+    color: var(--muted);
+    font-size: 12px;
+}
+.ls-unavailable {
+    color: var(--series-2);
+    font-size: 12px;
+}
+
+/* Verdict band (#2624) — the loop's health is the LOUDEST thing
+   on this card, not a grey 11px third clause. The wording comes
+   from `deriveLoopVerdict` server-side, so this page and
+   `bun run loop:status` cannot word the same state differently. */
+.ls-verdict {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.ls-verdict-state {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-primary);
+}
+.ls-verdict-state.bad {
+    color: var(--series-2);
+}
+.ls-verdict-state.warn {
+    color: var(--series-4);
+}
+.ls-verdict-state.good {
+    color: var(--series-3);
+}
+.ls-verdict-sentence {
+    font-size: 13px;
+    color: var(--text-primary);
+}
+.ls-verdict-remedy {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.ls-finding {
+    font-size: 11px;
+    color: var(--series-4);
+}
+
+#tip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--surface-1);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+    opacity: 0;
+    transition: opacity 0.09s;
+    z-index: 20;
+    max-width: 280px;
+}
+#tip b {
+    font-weight: 600;
+}
+.err {
+    color: #d03b3b;
+    font-size: 13px;
+}
+.mini {
+    color: var(--muted);
+}
+.row-filters {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 6px 0 10px;
+    font-size: 12px;
+    color: var(--muted);
+}
+.row-filters label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.row-filters select,
+.row-filters input {
+    background: var(--plane);
+    color: var(--text-primary);
+    border: 1px solid var(--grid);
+    border-radius: 6px;
+    padding: 3px 6px;
+    font: inherit;
+}
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+tr.expand {
+    cursor: pointer;
+}
+tr.drill > td {
+    padding: 0 0 10px 24px;
+    background: var(--plane);
+}
+tr.drill table {
+    font-size: 12px;
+}
+tr.drill td:first-child,
+tr.drill th:first-child {
+    text-align: left;
+}
+
+/* ── Now / History tabs (#2625) ────────────────────────────────────────────
+   Two explicit modes in one page, selected by `?view=now|history`. The tab
+   strip is chrome, not a card: it sits between the header and whichever view
+   is mounted, and only the active view is in the layout at all. */
+.tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+.tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 14px;
+    margin-bottom: -1px;
+}
+.tab:hover {
+    color: var(--text-primary);
+}
+.tab[aria-selected="true"] {
+    color: var(--text-primary);
+    border-bottom-color: var(--text-primary);
+    font-weight: 600;
+}
+/* `hidden` alone loses to any `display` a view's own rule sets, and both
+   views are plain blocks today — the `!important` is what keeps that true if
+   a later ticket gives one of them `display: grid`. */
+.view[hidden] {
+    display: none !important;
+}

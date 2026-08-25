@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { createServer } from "node:net";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -162,5 +162,198 @@ describe("telemetry-serve — handleRequest routes (#2623)", () => {
         );
         expect(res.status).toBe(404);
         await expect(res.text()).resolves.toBe("not found");
+    });
+});
+
+/**
+ * #2625 — the dashboard stopped being one 1853-line file and became a shell
+ * plus a stylesheet plus one ES module per concern, served by a new static
+ * route. These are that route's guards plus the two invariants the split could
+ * silently break: which files are reachable, and which data each view reads.
+ *
+ * `REPO_DASHBOARD_DIR` is the real checkout, deliberately NOT
+ * `CLAUDE_PROJECT_DIR` (pinned to an empty temp dir above so the module never
+ * finds a telemetry store): the census below asks what is actually committed.
+ */
+const REPO_DASHBOARD_DIR = join(import.meta.dirname, "..", "dashboard");
+
+describe("telemetry-serve — dashboard asset allow-list (#2625)", () => {
+    it("serves an allow-listed asset, and asks the filesystem for the LIST's path — never for the request's text", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        const asked: string[] = [];
+        const res = await handleRequest(
+            new Request("http://127.0.0.1/assets/main.js"),
+            {
+                readAsset: async (p) => {
+                    asked.push(p);
+                    return "// served";
+                },
+            }
+        );
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toBe(
+            "text/javascript; charset=utf-8"
+        );
+        await expect(res.text()).resolves.toBe("// served");
+        expect(asked).toHaveLength(1);
+        expect(asked[0].endsWith(join("scripts", "dashboard", "main.js"))).toBe(
+            true
+        );
+    });
+
+    it("serves the stylesheet as CSS", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        const res = await handleRequest(
+            new Request("http://127.0.0.1/assets/dashboard.css"),
+            { readAsset: async () => "body{}" }
+        );
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toBe("text/css; charset=utf-8");
+    });
+
+    /**
+     * PROOF-OF-FAILURE (recorded in the PR): replacing the `Map.get`
+     * allow-list lookup in `handleRequest` with the naive
+     * `readAsset(join(DASHBOARD_DIR, name))` reds every case below — the
+     * traversals resolve and return file contents instead of 404, and
+     * `evil.js` reaches the filesystem. Reverted after watching it fail.
+     *
+     * Each row is a DIFFERENT way of spelling "not on the list", because the
+     * failure mode of a sanitiser is that it handles the spelling its author
+     * thought of. An allow-list has no spellings to handle: the request text
+     * is a Map key, so every one of these is simply absent.
+     */
+    it.each([
+        ["a name that is not on the list", "/assets/evil.js"],
+        ["a plain traversal", "/assets/../telemetry-serve.ts"],
+        ["a deep traversal", "/assets/../../package.json"],
+        ["a percent-encoded traversal", "/assets/%2e%2e%2ftelemetry-serve.ts"],
+        ["a double-encoded traversal", "/assets/%252e%252e%252fpackage.json"],
+        ["a backslash traversal", "/assets/..\\telemetry-serve.ts"],
+        ["an absolute path", "/assets//etc/passwd"],
+        ["a nested path under a listed name", "/assets/main.js/../../.env"],
+        ["a prototype key", "/assets/__proto__"],
+        ["a constructor key", "/assets/constructor"],
+        ["the empty name", "/assets/"],
+        ["a listed name with a query-ish suffix", "/assets/main.js%00.txt"],
+    ])("refuses %s", async (_label, pathname) => {
+        const { handleRequest } = await import("../telemetry-serve");
+        let reads = 0;
+        const res = await handleRequest(
+            new Request(`http://127.0.0.1${pathname}`),
+            {
+                readAsset: async () => {
+                    reads += 1;
+                    return "LEAKED";
+                },
+            }
+        );
+        expect(res.status).toBe(404);
+        await expect(res.text()).resolves.toBe("not found");
+        // The stronger claim: refused BY CONSTRUCTION. Nothing was read.
+        expect(reads).toBe(0);
+    });
+
+    it("the allow-list and scripts/dashboard/ are the same set — a module that lands without an entry would 404", async () => {
+        const { DASHBOARD_ASSET_NAMES } = await import("../telemetry-serve");
+        const onDisk = readdirSync(REPO_DASHBOARD_DIR).sort();
+        expect([...DASHBOARD_ASSET_NAMES].sort()).toEqual(onDisk);
+    });
+
+    it("every relative import in every dashboard module resolves to an allow-listed file", async () => {
+        const { DASHBOARD_ASSET_NAMES } = await import("../telemetry-serve");
+        const allowed = new Set<string>(DASHBOARD_ASSET_NAMES);
+        for (const name of readdirSync(REPO_DASHBOARD_DIR)) {
+            if (!name.endsWith(".js")) continue;
+            const src = readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8");
+            for (const m of src.matchAll(/["']\.\/([^"']+)["']/g)) {
+                expect(
+                    allowed.has(m[1]),
+                    `${name} imports ./${m[1]}, which is not served`
+                ).toBe(true);
+            }
+        }
+    });
+
+    it("the shell loads the entry module and the stylesheet through /assets/", () => {
+        const shell = readFileSync(
+            join(import.meta.dirname, "..", "telemetry-dashboard.html"),
+            "utf8"
+        );
+        expect(shell).toContain('href="/assets/dashboard.css"');
+        expect(shell).toContain(
+            '<script type="module" src="/assets/main.js"></script>'
+        );
+        // The shell is a shell: no inline behaviour or styling survived.
+        expect(shell).not.toContain("<style");
+        expect(shell).not.toMatch(/<script(?![^>]*\bsrc=)/);
+    });
+});
+
+/**
+ * Comments out. Every assertion below is about what the CODE does, and these
+ * modules document their own data boundary in prose — `main.js`'s banner names
+ * `/api/meta` to explain why History is loaded the way it is. Scanning the raw
+ * text would let a comment fail the guard, and (the direction that matters)
+ * would let a comment SATISFY one, which is the exact trap #2624 recorded.
+ */
+const stripComments = (src: string) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
+    /** Everything reachable from `main.js` WITHOUT loading History. */
+    const NOW_MODULES = [
+        "main.js",
+        "tabs.js",
+        "theme.js",
+        "now-loop-status.js",
+        "now-verdict-band.js",
+        "now-claims-table.js",
+        "format.js",
+    ];
+
+    it("Now reads /api/loop-status and nothing else — no database route, direct or transitive", () => {
+        for (const name of NOW_MODULES) {
+            const src = stripComments(
+                readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8")
+            );
+            for (const m of src.matchAll(/\/api\/[a-z-]+/g)) {
+                expect(m[0], `${name} reaches ${m[0]}`).toBe(
+                    "/api/loop-status"
+                );
+            }
+        }
+    });
+
+    it("no Now module imports a History module — a static edge would drag the store-backed graph into the Now load", () => {
+        for (const name of NOW_MODULES) {
+            const src = stripComments(
+                readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8")
+            );
+            for (const m of src.matchAll(
+                /import\s[^;]*["']\.\/([^"']+)["']/g
+            )) {
+                expect(
+                    m[1].startsWith("history-"),
+                    `${name} statically imports ${m[1]}`
+                ).toBe(false);
+            }
+        }
+    });
+
+    it("History is reached only through a dynamic import inside main.js's try/catch — #2519's guarantee, preserved across the module split", () => {
+        const main = stripComments(
+            readFileSync(join(REPO_DASHBOARD_DIR, "main.js"), "utf8")
+        );
+        // Now is started before History is even fetched…
+        const pollAt = main.indexOf("startLoopStatusPolling()");
+        const historyAt = main.indexOf('import("./history-boot.js")');
+        expect(pollAt).toBeGreaterThan(-1);
+        expect(historyAt).toBeGreaterThan(pollAt);
+        // …and History's whole load+bootstrap sits inside a catch.
+        expect(main.slice(historyAt)).toMatch(/}\s*catch/);
+        // A static import of history-boot would defeat all of the above:
+        // statically imported modules evaluate before main.js's first line.
+        expect(main).not.toMatch(/^import\s[^;]*history-/m);
     });
 });
