@@ -859,6 +859,49 @@ describe("loop-status — deriveLoopVerdict (#2624)", () => {
         expect(v.findings.map((f) => f.code)).toContain("claims-held");
     });
 
+    it("STALLED, not IDLE, when the loop is NOT armed and a dead driver still holds claims", () => {
+        // Gating the claims-held escalation on `armed` painted this world
+        // IDLE — the dashboard's `good` tone — while five issues sat stuck.
+        // Not-armed is durable, not a corner case: `--disarm` deliberately
+        // does not stop a running driver (`loop-handoff.sh`), and an
+        // interactive `/process-gh-issues` checkout is never armed at all.
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: { ...EMPTY_DRIVER, armed: false, pid: 99 },
+                claims: [
+                    verdictClaim(1, "live"),
+                    verdictClaim(2, "live"),
+                    verdictClaim(3, "live"),
+                    verdictClaim(4, "live"),
+                    verdictClaim(5, "live"),
+                ],
+                queueDepth: queue(0),
+            })
+        );
+        expect(v.state).toBe("STALLED");
+        expect(v.findings.map((f) => f.code)).toContain("claims-held");
+        // The sentence must not claim the loop is armed, and must not say
+        // there is nothing outstanding.
+        expect(v.sentence).toContain("not armed");
+        expect(v.sentence).toContain("5 issue(s) are still claimed");
+        expect(v.remedy).toContain("loop:afk");
+    });
+
+    it("stays IDLE when the loop is NOT armed, the driver is dead and NOTHING is claimed — a queue nobody asked to run", () => {
+        // The companion bound: only the CLAIMS half of STALLED is
+        // armed-independent. An unarmed loop with a full queue has taken no
+        // work, so IDLE ('arm it') remains the honest verdict.
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: { ...EMPTY_DRIVER, armed: false, pid: 99 },
+                claims: [],
+                queueDepth: queue(195),
+            })
+        );
+        expect(v.state).toBe("IDLE");
+        expect(v.findings).toEqual([]);
+    });
+
     it("reports NO claims-held finding while the driver is alive — ordinary work in progress", () => {
         const v = deriveLoopVerdict(
             verdictInput({

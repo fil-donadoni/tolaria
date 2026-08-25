@@ -526,6 +526,20 @@ const REMEDY = {
  *      the unclaimed queue (`count_unclaimed` in `loop-drain.sh`), so a dead
  *      driver holding every remaining issue would otherwise read as `IDLE`
  *      — precisely the 2026-08-19 shape, one pass later.
+ *
+ *      `claims-held` escalates REGARDLESS of `armed` (PR #2771 review). Only
+ *      the queue-depth half of STALLED is armed-gated: an unarmed loop with a
+ *      full queue is a loop nobody asked to run, which IDLE describes
+ *      correctly. Held claims are not that — the work was already TAKEN, and
+ *      nothing unarmed will give it back. Not-armed is a durable state, not a
+ *      corner case: `--disarm` deliberately does not stop a running driver
+ *      (`scripts/loop-handoff.sh`, `docs/guides/afk-loop.md`), so the pass
+ *      that dies after a disarm holds its claims with `armed: false`, and an
+ *      interactive `/process-gh-issues` checkout is never armed at all.
+ *      Gating on `armed` painted both worlds IDLE — the dashboard's `good`
+ *      tone — for the whole 24h `classifyClaim` rope before the claims turn
+ *      orphan, which is exactly the "looks healthy, makes no progress" shape
+ *      this module exists to kill.
  *   2. A stop-file suppresses STALLED rather than losing to it. A deliberate
  *      stop is not a stall: with the stop-file present a dead driver is the
  *      EXPECTED state, so the STALLED condition does not hold and STOPPED
@@ -575,10 +589,9 @@ export function deriveLoopVerdict(input: LoopVerdictInput): LoopVerdict {
     );
     const queueTotal = input.queueDepth?.total ?? 0;
     const stalled =
-        d.armed &&
         !d.pidAlive &&
         !d.stopFilePresent &&
-        (queueTotal > 0 || heldWithDriverDown);
+        (heldWithDriverDown || (d.armed && queueTotal > 0));
 
     if (needsAttention) {
         // Failed reads first: when a read failed, every other number on the
@@ -596,10 +609,14 @@ export function deriveLoopVerdict(input: LoopVerdictInput): LoopVerdict {
     }
 
     if (stalled) {
+        // The unarmed branch must not borrow the armed sentence: "the loop is
+        // armed" would be false, and the remedy has to ARM as well as start.
         return {
             state: "STALLED",
-            sentence: `The loop is armed but no driver is running, and there is still work outstanding (queue ${queueTotal}, claimed ${claims.length}).`,
-            remedy: REMEDY.start,
+            sentence: d.armed
+                ? `The loop is armed but no driver is running, and there is still work outstanding (queue ${queueTotal}, claimed ${claims.length}).`
+                : `No driver is running and the loop is not armed, yet ${claims.length} issue(s) are still claimed (queue ${queueTotal}) — that work will not move on its own.`,
+            remedy: d.armed ? REMEDY.start : REMEDY.arm,
             findings,
         };
     }
