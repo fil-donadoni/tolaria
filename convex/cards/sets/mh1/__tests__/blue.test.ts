@@ -27,8 +27,9 @@ import {
 import { grizzlyBears } from "../../lea";
 import { lightningBolt } from "../../lea/red";
 import { ornithopter } from "../../atq/colorless";
+import { brainstorm } from "../../ice/blue";
 import { projectPublicState } from "../../../../gameProjections";
-import { activateManaAbility } from "../../../../game";
+import { activateManaAbility, announceCast } from "../../../../game";
 import {
     makeMutationCtx,
     runMutation,
@@ -378,6 +379,103 @@ describe("Urza, Lord High Artificer — tap-another-artifact mana ability (CR 60
         const after = stub.state();
         expect(perm(after, "bear").isTapped).toBe(false);
         expect(perm(after, "art").isTapped).toBe(false);
+    });
+});
+
+// issue #2420 — the bot's `tapPlan` executor routes a non-tap mana ability
+// through THIS mutation mid-payment (CR 605.3b: "a mana ability may be
+// activated ... while paying a cost"), never `tapForPayment`. Every OTHER
+// payment mutation re-checks and auto-commits the pending cast once its pool
+// covers the cost (`tapForPayment`, `tapForActivationPayment`); before this
+// fix `activateManaAbility` did not, so a cast whose LAST unpaid leg was
+// Urza's mana ability floated {U} into the pool and then sat parked forever
+// — a silent bot freeze (CLAUDE.md "Bot never freezes a game").
+describe("Urza, Lord High Artificer — activateManaAbility auto-commits a pending cast (CR 605.3b, issue #2420)", () => {
+    const GAME_ID = "game-1" as Id<"games">;
+    type AnnounceCastArgs = {
+        gameId: Id<"games">;
+        playerId: string;
+        cardInstanceId: string;
+    };
+    type ActivateManaArgs = {
+        gameId: Id<"games">;
+        playerId: string;
+        cardInstanceId: string;
+        abilityId: string;
+        tapOtherIds?: string[];
+    };
+
+    function castState(): GameState {
+        const urza = makeInstance(urzaLordHighArtificer.id, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const artifact = makeInstance(ornithopter.id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const spell = makeInstance(brainstorm.id, {
+            id: "spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [spell],
+                    battlefield: [urza, artifact],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+    }
+
+    it("activating Urza's mana ability mid-payment commits the parked cast — Brainstorm reaches the stack", async () => {
+        const stub = makeMutationCtx("p1", [gameStateSeed(castState())]);
+
+        await runMutation<AnnounceCastArgs, void>(
+            announceCast as unknown as Handler<AnnounceCastArgs, void>,
+            stub.ctx,
+            { gameId: GAME_ID, playerId: "p1", cardInstanceId: "spell" }
+        );
+
+        // Parked: Brainstorm's {U} isn't in the pool yet (no other blue
+        // source on this board), so the cast can't auto-commit at announce.
+        let after = stub.state();
+        expect(after.pendingCast).toBeDefined();
+        expect(after.stack).toHaveLength(0);
+
+        await runMutation<ActivateManaArgs, void>(
+            activateManaAbility as unknown as Handler<ActivateManaArgs, void>,
+            stub.ctx,
+            {
+                gameId: GAME_ID,
+                playerId: "p1",
+                cardInstanceId: "urza",
+                abilityId: "urza-lha-mana",
+                tapOtherIds: ["art"],
+            }
+        );
+
+        after = stub.state();
+        // Before the fix: `pendingCast` stayed parked forever here — the
+        // assertion that goes red when `tryAutoCommitPendingCast` /
+        // `tryAutoCommitPendingActivation` are removed from
+        // `activateManaAbility`'s resolve-immediately branch.
+        expect(after.pendingCast).toBeUndefined();
+        expect(after.stack).toHaveLength(1);
+        expect(
+            after.players[0].battlefield.find((c) => c.id === "urza")!.isTapped
+        ).toBe(false);
+        expect(
+            after.players[0].battlefield.find((c) => c.id === "art")!.isTapped
+        ).toBe(true);
     });
 });
 

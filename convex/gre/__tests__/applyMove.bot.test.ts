@@ -521,3 +521,97 @@ describe("graveyard-source activations pay `exileThis` in the search leaves (CR 
         expect(sandbox.players[0].exile).toHaveLength(0);
     });
 });
+
+// issue #2420 — the search-side coarse tap applier (`applyTapPlan`,
+// applyMove.ts) previously assumed every `tapPlan` entry taps the ENUMERATED
+// source, which is wrong for a non-tap mana ability: Urza, Lord High
+// Artificer's `tapOtherFilter` leg taps a DIFFERENT permanent, never Urza
+// (CR 602.1). Covers BOTH search leaves (`applyMoveForSearch` and
+// `applyMoveInSearch`), matching the delve suite's own convention above.
+describe("applyMoveForSearch / applyMoveInSearch — Urza's tapOtherFilter mana ability (issue #2420)", () => {
+    const BRAINSTORM = getCardByName("Brainstorm").id; // {U}, instant
+    const URZA = getCardByName("Urza, Lord High Artificer").id;
+    const ORNITHOPTER = getCardByName("Ornithopter").id;
+
+    function urzaState(): GameState {
+        const BOT = "p2";
+        const brainstorm = makeInstance(BRAINSTORM, {
+            id: "brainstorm",
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "hand",
+        });
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: BOT,
+            ownerId: BOT,
+        });
+        const art = makeInstance(ORNITHOPTER, {
+            id: "art",
+            controllerId: BOT,
+            ownerId: BOT,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer(BOT, {
+                    hand: [brainstorm],
+                    battlefield: [urza, art],
+                }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+    }
+
+    function brainstormMove(state: GameState): Move {
+        const moves = enumerateMoves(state, "p2");
+        const move = moves.find(
+            (m) => m.kind === "cast-spell" && m.cardInstanceId === "brainstorm"
+        );
+        if (!move) throw new Error("Brainstorm cast move not enumerated");
+        return move;
+    }
+
+    it("applyMoveForSearch: never taps Urza itself, taps the OTHER artifact", () => {
+        const state = urzaState();
+        const move = brainstormMove(state);
+        expect(
+            (move as Extract<Move, { kind: "cast-spell" }>).tapPlan.some(
+                (t) => t.abilityId === "urza-lha-mana"
+            )
+        ).toBe(true);
+
+        const next = applyMoveForSearch(state, "p2", move);
+        const nextBot = next.players.find((p) => p.id === "p2")!;
+        expect(nextBot.battlefield.find((c) => c.id === "urza")!.isTapped).toBe(
+            false
+        );
+        expect(nextBot.battlefield.find((c) => c.id === "art")!.isTapped).toBe(
+            true
+        );
+
+        // The original state is untouched (search leaves clone).
+        expect(
+            state.players
+                .find((p) => p.id === "p2")!
+                .battlefield.find((c) => c.id === "urza")!.isTapped
+        ).toBe(false);
+    });
+
+    it("applyMoveInSearch: never taps Urza itself, taps the OTHER artifact, in place", () => {
+        const state = urzaState();
+        const move = brainstormMove(state);
+
+        applyMoveInSearch(state, "p2", move);
+
+        const bot = state.players.find((p) => p.id === "p2")!;
+        expect(bot.battlefield.find((c) => c.id === "urza")!.isTapped).toBe(
+            false
+        );
+        expect(bot.battlefield.find((c) => c.id === "art")!.isTapped).toBe(
+            true
+        );
+    });
+});

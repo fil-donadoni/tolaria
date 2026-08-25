@@ -416,15 +416,38 @@ function isNoOpChoiceDelta(baseline: GameState, probe: GameState): boolean {
  *  mover's pool is untouched by cost payment — which is exactly what lets
  *  `isNoOpDelta` COMPARE the pool and see only what the resolution added. The
  *  tap itself is forgiven there (untapped → tapped is a cost, untapping is a
- *  delta). */
+ *  delta).
+ *
+ *  Issue #2420 — an `abilityId`-carrying entry ACTIVATES the source's own
+ *  non-tap mana ability (Urza's `tapOtherFilter`, Farrelite Priest's pure
+ *  `cost.mana`) rather than tapping the source: `cardInstanceId` itself is
+ *  never tapped by this payment (CR 602.1); only the permanent(s) named in
+ *  `tapOtherIds`, if any, are. A wrong model here isn't merely a cosmetic
+ *  mismatch — `isNoOpDelta` compares tap state to decide whether a move is
+ *  pruned as dominated by `pass`, so leaving Urza tapped-by-mistake could
+ *  mask a real cost/benefit delta. Mirrors the identical fix in
+ *  `applyMove.ts` / `search.ts`'s own `applyTapPlan` — kept as a third
+ *  separate copy by this module's own isolation rule (see the section header
+ *  above), so all three need the same fix. */
 function applyTapPlan(
     state: GameState,
     pid: string,
-    tapPlan: { cardInstanceId: string }[]
+    tapPlan: {
+        cardInstanceId: string;
+        abilityId?: string;
+        tapOtherIds?: string[];
+    }[]
 ): void {
     const player = state.players.find((p) => p.id === pid);
     if (!player) return;
     for (const tap of tapPlan) {
+        if (tap.abilityId) {
+            for (const otherId of tap.tapOtherIds ?? []) {
+                const other = player.battlefield.find((c) => c.id === otherId);
+                if (other) other.isTapped = true;
+            }
+            continue;
+        }
         const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
         if (src) src.isTapped = true;
     }

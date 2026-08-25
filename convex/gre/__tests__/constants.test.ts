@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     isTapLockedBySummoningSickness,
+    isAutoPayableManaAbilityCost,
     manaValue,
     manaCostsEqual,
     getDefinitionProducibleColors,
@@ -8,7 +9,7 @@ import {
 } from "../constants";
 import { makeInstance } from "../../cards/__tests__/setup";
 import { getCardByName, getDefinition } from "../../cards";
-import type { CardDefinition } from "../../cards/types";
+import type { ActivatedAbility, CardDefinition } from "../../cards/types";
 
 describe("manaValue (CR 202.3)", () => {
     it("returns 0 when cost is undefined (lands)", () => {
@@ -300,5 +301,77 @@ describe("getDefinitionProducibleColors (CR 106.4)", () => {
         const def = getDefinition(id);
         expect(getDefinitionProducibleColors(def).size).toBe(0);
         expect(getProducibleColors(makeInstance(id)).size).toBe(0);
+    });
+});
+
+// issue #2420 — the AUTOMATIC planner's allow-list for a `useStack: false`
+// mana ability's cost shape. Direct unit coverage of the function itself:
+// `planManaPayment` (moves.ts) ALSO fails closed on an unrecognised cost
+// shape in its own `consume()` (a defense-in-depth fallback), so an
+// integration-level test through the full planner does not, by itself,
+// distinguish "the gate correctly excludes this" from "the gate admits it,
+// but `consume()` catches it anyway" — only a direct call to this function
+// pins the allow-list itself.
+describe("isAutoPayableManaAbilityCost (issue #2420)", () => {
+    const cost = (c: ActivatedAbility["cost"]) => c;
+
+    it("admits a plain {T} cost, regardless of what else rides along (pre-existing behaviour, unchanged)", () => {
+        expect(isAutoPayableManaAbilityCost(cost({ tap: true }))).toBe(true);
+        // A {T}+Sacrifice ability (Basal Thrull) was already admitted here
+        // before this issue — `cost.tap` short-circuits first.
+        expect(
+            isAutoPayableManaAbilityCost(cost({ tap: true, sacrifice: true }))
+        ).toBe(true);
+    });
+
+    it("admits a tapOtherFilter-only cost (Urza, Lord High Artificer)", () => {
+        expect(
+            isAutoPayableManaAbilityCost(
+                cost({
+                    tapOtherFilter: {
+                        filter: {
+                            types: "Artifact",
+                            controllerRelation: "you",
+                        },
+                        count: 1,
+                    },
+                })
+            )
+        ).toBe(true);
+    });
+
+    it("admits a pure cost.mana (Farrelite Priest / Initiates of the Ebon Hand)", () => {
+        expect(isAutoPayableManaAbilityCost(cost({ mana: { X: 1 } }))).toBe(
+            true
+        );
+    });
+
+    it("EXCLUDES a sacrifice-only cost (the pre-existing, load-bearing exclusion — Lion's Eye Diamond hazard)", () => {
+        expect(isAutoPayableManaAbilityCost(cost({ sacrifice: true }))).toBe(
+            false
+        );
+    });
+
+    it("EXCLUDES a removeCounter-only cost (Rasputin Dreamweaver) — deliberately out of this issue's scope", () => {
+        expect(
+            isAutoPayableManaAbilityCost(
+                cost({ removeCounter: { type: "dream", count: 1 } })
+            )
+        ).toBe(false);
+    });
+
+    it("EXCLUDES a life-only cost (Channel's granted mana ability) — deliberately out of this issue's scope", () => {
+        expect(isAutoPayableManaAbilityCost(cost({ life: 1 }))).toBe(false);
+    });
+
+    it("EXCLUDES a tapOtherFilter cost that ALSO carries a never-payable leg (fail-closed on any extra leg)", () => {
+        expect(
+            isAutoPayableManaAbilityCost(
+                cost({
+                    tapOtherFilter: { filter: {}, count: 1 },
+                    life: 1,
+                })
+            )
+        ).toBe(false);
     });
 });

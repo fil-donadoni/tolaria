@@ -556,15 +556,32 @@ export function applyActivationCostsForSearch(
 
 /** Tap the planned mana sources on the (already cloned) state. Coarse model:
  *  a source listed in the tap plan is marked tapped so the resulting position
- *  reflects the spent mana; exact pool accounting is unnecessary for eval. */
+ *  reflects the spent mana; exact pool accounting is unnecessary for eval.
+ *
+ *  Issue #2420 — an `abilityId`-carrying entry ACTIVATES the source's own
+ *  non-tap mana ability (Urza's `tapOtherFilter`, Farrelite Priest's pure
+ *  `cost.mana`) rather than tapping the source: `cardInstanceId` itself is
+ *  never tapped by this payment (CR 602.1 — Urza is never tapped by its own
+ *  cost); only the permanent(s) named in `tapOtherIds`, if any, are. */
 function applyTapPlan(
     state: GameState,
     playerId: string,
-    tapPlan: { cardInstanceId: string }[]
+    tapPlan: {
+        cardInstanceId: string;
+        abilityId?: string;
+        tapOtherIds?: string[];
+    }[]
 ): void {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return;
     for (const tap of tapPlan) {
+        if (tap.abilityId) {
+            for (const otherId of tap.tapOtherIds ?? []) {
+                const other = player.battlefield.find((c) => c.id === otherId);
+                if (other) other.isTapped = true;
+            }
+            continue;
+        }
         const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
         if (src) src.isTapped = true;
     }

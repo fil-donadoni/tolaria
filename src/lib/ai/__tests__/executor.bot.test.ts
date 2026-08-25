@@ -20,6 +20,7 @@ function fakeMutations() {
         selectTargets: vi.fn().mockResolvedValue(null),
         confirmTargets: vi.fn().mockResolvedValue(null),
         tapForPayment: vi.fn().mockResolvedValue(null),
+        activateManaAbility: vi.fn().mockResolvedValue(null),
         activateAbility: vi.fn().mockResolvedValue(null),
         tapForActivationPayment: vi.fn().mockResolvedValue(null),
         selectSacrifice: vi.fn().mockResolvedValue(null),
@@ -185,6 +186,82 @@ describe("executeMove (issue #110)", () => {
         expect(m.confirmTargets).not.toHaveBeenCalled();
     });
 
+    // issue #2420 — a `tapPlan` entry carrying `abilityId` (Urza's
+    // `tapOtherFilter` leg, Farrelite Priest's pure `cost.mana`) ACTIVATES
+    // the ability via `activateManaAbility`, never `tapForPayment`; a MIXED
+    // plan still batches its consecutive PLAIN runs.
+    it("cast-spell → an abilityId tapPlan entry funds via activateManaAbility, not tapForPayment", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "brainstorm",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            confirmTargets: false,
+            targets: [],
+            tapPlan: [
+                {
+                    cardInstanceId: "urza",
+                    abilityId: "urza-lha-mana",
+                    tapOtherIds: ["art"],
+                },
+            ],
+        });
+        expect(m.activateManaAbility).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "urza",
+            abilityId: "urza-lha-mana",
+            manaChoiceIndex: undefined,
+            tapOtherIds: ["art"],
+        });
+        expect(m.tapForPayment).not.toHaveBeenCalled();
+    });
+
+    it("cast-spell → a MIXED tapPlan runs its plain taps as batches around each ability activation, in order", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "spell",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            confirmTargets: false,
+            targets: [],
+            tapPlan: [
+                { cardInstanceId: "mtn1", manaChoiceIndex: undefined },
+                {
+                    cardInstanceId: "priest",
+                    abilityId: "farrelite-priest-mana",
+                },
+                { cardInstanceId: "mtn2", manaChoiceIndex: undefined },
+            ],
+        });
+        // The generic funding tap for Farrelite's OWN cost.mana leg (mtn1)
+        // and the activation itself (priest) must both fire, in order,
+        // BEFORE the unrelated trailing plain tap (mtn2) — `runTapPlan`
+        // splits the plan into runs, not one call per plan.
+        expect(m.tapForPayment).toHaveBeenCalledTimes(2);
+        expect(m.tapForPayment).toHaveBeenNthCalledWith(1, {
+            ...GP,
+            payments: [{ cardInstanceId: "mtn1", manaChoiceIndex: undefined }],
+        });
+        expect(m.activateManaAbility).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "priest",
+            abilityId: "farrelite-priest-mana",
+            manaChoiceIndex: undefined,
+            tapOtherIds: undefined,
+        });
+        expect(m.tapForPayment).toHaveBeenNthCalledWith(2, {
+            ...GP,
+            payments: [{ cardInstanceId: "mtn2", manaChoiceIndex: undefined }],
+        });
+        // Call order: tapForPayment(1) → activateManaAbility → tapForPayment(2).
+        const order = [
+            m.tapForPayment.mock.invocationCallOrder[0],
+            m.activateManaAbility.mock.invocationCallOrder[0],
+            m.tapForPayment.mock.invocationCallOrder[1],
+        ];
+        expect(order).toEqual([...order].sort((a, b) => a - b));
+    });
+
     it("cast-spell → confirmTargets only for variable-count targets", async () => {
         const m = await run({
             kind: "cast-spell",
@@ -265,6 +342,36 @@ describe("executeMove (issue #110)", () => {
             cardInstanceId: "isl",
             manaChoiceIndex: undefined,
         });
+    });
+
+    // issue #2420 — an activated ability's OWN cost can be co-funded by a
+    // non-tap mana ability (Urza, Farrelite Priest) exactly like a spell's
+    // cost: an `abilityId` tapPlan entry activates it via
+    // `activateManaAbility`, never `tapForActivationPayment`.
+    it("activate-ability → an abilityId tapPlan entry funds via activateManaAbility, not tapForActivationPayment", async () => {
+        const m = await run({
+            kind: "activate-ability",
+            cardInstanceId: "src",
+            abilityId: "ping",
+            chosenX: undefined,
+            confirmTargets: false,
+            targets: [],
+            tapPlan: [
+                {
+                    cardInstanceId: "urza",
+                    abilityId: "urza-lha-mana",
+                    tapOtherIds: ["art"],
+                },
+            ],
+        });
+        expect(m.activateManaAbility).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "urza",
+            abilityId: "urza-lha-mana",
+            manaChoiceIndex: undefined,
+            tapOtherIds: ["art"],
+        });
+        expect(m.tapForActivationPayment).not.toHaveBeenCalled();
     });
 
     it("declare-attackers → toggle each then confirm", async () => {

@@ -15250,6 +15250,20 @@ export const activateManaAbility = mutation({
             args.manaChoiceIndex
         );
         if (chosen) {
+            // CR 605.3b / 602.1 (issue #2420) — this activation may itself be
+            // FUNDING a pending cast's or activation's mana cost (Urza's
+            // `tapOtherFilter` leg, Farrelite Priest's pure `cost.mana` —
+            // both routed through this mutation by the bot's `tapPlan`
+            // executor, never `tapForPayment`/`tapForActivationPayment`).
+            // Every OTHER payment mutation re-checks and auto-commits after
+            // adding pool mana (`tapForPayment`, `tapForActivationPayment`);
+            // without the same check here a fully-covered pending cast/
+            // activation whose LAST leg was this ability would never commit —
+            // a silent bot freeze (CLAUDE.md "Bot never freezes a game").
+            // Both are no-ops when the corresponding pending record is absent
+            // or not yet covered.
+            tryAutoCommitPendingCast(state, args.playerId);
+            tryAutoCommitPendingActivation(state, args.playerId);
             await saveGameState(
                 ctx,
                 args.gameId,
@@ -15281,6 +15295,11 @@ export const activateManaAbility = mutation({
         // Flush any ABILITY_ACTIVATED / mana-add triggers queued during the
         // immediate resolve (CR 603.2/603.3).
         processPendingActionTriggers(state);
+
+        // See the matching comment above the OTHER `saveGameState` in this
+        // mutation (issue #2420) — same reasoning, the fixed-effect path.
+        tryAutoCommitPendingCast(state, args.playerId);
+        tryAutoCommitPendingActivation(state, args.playerId);
 
         await saveGameState(
             ctx,

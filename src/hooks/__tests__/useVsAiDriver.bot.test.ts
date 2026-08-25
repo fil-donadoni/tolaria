@@ -117,6 +117,7 @@ vi.mock("@convex/_generated/api", () => ({
             selectTargets: "selectTargets",
             confirmTargets: "confirmTargets",
             tapForPayment: "tapForPayment",
+            activateManaAbility: "activateManaAbility",
             activateAbility: "activateAbility",
             tapForActivationPayment: "tapForActivationPayment",
             toggleAttacker: "toggleAttacker",

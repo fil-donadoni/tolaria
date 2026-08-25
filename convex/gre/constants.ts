@@ -1255,6 +1255,65 @@ function minimalManaGateView(
     };
 }
 
+/** CR 602.1 — every OTHER activation-cost leg besides `tap`, `tapOtherFilter`
+ *  and `mana` (issue #2420: `ActivatedAbility["cost"]`'s full field list).
+ *  `isAutoPayableManaAbilityCost` fails CLOSED on any of these being present
+ *  — none of them may be spent on the payer's behalf by an automatic
+ *  planner. Kept as an explicit list (not "everything but the three allowed
+ *  keys") so a NEW cost leg added to the type is excluded by default until
+ *  someone deliberately reviews it here. */
+const NEVER_AUTO_PAYABLE_COST_LEGS = [
+    "sacrifice",
+    "sacrificeFilter",
+    "sacrificeFilterCount",
+    "life",
+    "loyalty",
+    "removeCounter",
+    "discardLastDrawn",
+    "discardThis",
+    "cyclingCost",
+    "exileThis",
+    "discardAtRandom",
+    "discardFilter",
+    "exileFromGraveyard",
+    "xFromTargetSpellMv",
+    "manaEqualToEnchantedCreatureCost",
+    "manaEqualToCounterCount",
+] as const satisfies readonly (keyof ActivatedAbility["cost"])[];
+
+/** CR 602.1 / 605.1a (issue #2420) — which `useStack: false` mana-ability
+ *  cost shapes the AUTOMATIC planner (the bot's `planManaPayment`, the
+ *  shared castability census) may fund without asking the player.
+ *
+ *  `cost.tap` keeps its exact pre-existing behaviour — always payable
+ *  regardless of what else rides along (a {T}+Sacrifice ability like Basal
+ *  Thrull was already admitted here before this issue; unchanged).
+ *
+ *  NEWLY admitted, and ONLY when no leg in `NEVER_AUTO_PAYABLE_COST_LEGS`
+ *  is also present:
+ *   - `cost.tapOtherFilter` alone (Urza, Lord High Artificer — CR 602.1: the
+ *     cost taps a DIFFERENT permanent, never the source itself).
+ *   - `cost.mana` alone (Farrelite Priest / Initiate's Ebon Hand's "{1}: Add
+ *     <color>." — a repeatable generic-for-colour conversion, itself funded
+ *     by the planner's OTHER sources; see `planManaPayment`'s recursion
+ *     guard, moves.ts).
+ *
+ *  Still EXCLUDED, deliberately, because the issue's acceptance criteria
+ *  name only the two shapes above: a `removeCounter` cost (Rasputin
+ *  Dreamweaver's dream counters) and a `life` cost (Channel's granted "Pay 1
+ *  life: Add {C}.") spend a resource the bot should choose to spend, not
+ *  have auto-committed — same rationale `sacrifice` already carried, now
+ *  applied structurally instead of leaving them reachable by accident. */
+export function isAutoPayableManaAbilityCost(
+    cost: ActivatedAbility["cost"]
+): boolean {
+    if (cost.tap) return true;
+    if (NEVER_AUTO_PAYABLE_COST_LEGS.some((leg) => cost[leg] !== undefined)) {
+        return false;
+    }
+    return !!cost.tapOtherFilter || !!cost.mana;
+}
+
 export function getManaTapOptionsDetailed(
     card: CardInstanceState,
     controllerId?: string,
@@ -1286,13 +1345,17 @@ export function getManaTapOptionsDetailed(
             if (ability.useStack) continue;
             // A one-shot mana ability activated by tapping AND/OR sacrificing the
             // source (ADR 0039 — Lion's Eye Diamond sacrifices without tapping).
-            // A pure mana-COST ability (Farrelite Priest "{1}: Add {W}") is
-            // repeatable and routed through `activateManaAbility`, not a tap
-            // option. The affordability/auto-tap planner passes `requireTap` so
-            // it never auto-commits a sacrifice-only source (discarding the hand
-            // to LED is a strategic choice, never an auto-payment).
+            // `requireTap` gates the AUTOMATIC planner (issue #2420): it now
+            // admits `tap`, a `tapOtherFilter`-only cost (Urza, Lord High
+            // Artificer — taps a DIFFERENT permanent, never this source) and a
+            // pure `cost.mana` (Farrelite Priest "{1}: Add {W}") — see
+            // `isAutoPayableManaAbilityCost` for the exact, fail-closed
+            // allow-list. It still never auto-commits a sacrifice-only source
+            // (discarding the hand to LED is a strategic choice, never an
+            // auto-payment) or any other resource-spending leg (life, loyalty,
+            // counters, discard, exile, …).
             if (requireTap) {
-                if (!ability.cost.tap) continue;
+                if (!isAutoPayableManaAbilityCost(ability.cost)) continue;
             } else if (!ability.cost.tap && !ability.cost.sacrifice) {
                 continue;
             }

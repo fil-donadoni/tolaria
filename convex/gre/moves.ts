@@ -18,7 +18,12 @@
 // boards are capped to a representative bounded sample (see comments at each
 // site) rather than exploding. Caps are documented, never silent.
 
-import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
+import type {
+    Color,
+    ManaCost,
+    TargetRequirement,
+    TargetSelection,
+} from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import {
     normalizeManaCost,
@@ -68,12 +73,21 @@ import {
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { getEffectivePower } from "./layers";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
-import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
+import {
+    canPayTapOtherCost,
+    crewPowerContribution,
+    pickTapOtherPayment,
+} from "./tapOtherCost";
 import type { ActivationCostPicks } from "./activationCostPicks";
-import { enumerateActivationCostPicks } from "./activationCostPicks";
+import {
+    enumerateActivationCostPicks,
+    tapOtherCandidates,
+} from "./activationCostPicks";
+import type { ManaTapOption } from "./constants";
 import {
     MANA_COLORS,
     declaresAsEntersMode,
+    getManaTapOptionsDetailed,
     isPlaneswalker,
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
@@ -104,8 +118,29 @@ import { choiceCandidates } from "./ai/choiceCandidates";
 // dominated by `pass`" seam. Opt-in per caller (see `EnumerateMovesOptions`).
 import { isDominatedNoOpMove, isProbeEligibleMove } from "./ai/dominance";
 
-/** One land tap the executor must perform to fund a cast/activation. */
-export type ManaTap = { cardInstanceId: string; manaChoiceIndex?: number };
+/** One land tap the executor must perform to fund a cast/activation.
+ *
+ *  `abilityId` (issue #2420) is present ONLY when this entry ACTIVATES the
+ *  source's own non-tap mana ability (CR 605.1a / 605.3c — `useStack: false`,
+ *  cost has no `cost.tap`) rather than tapping the source for {T} mana; the
+ *  executor and the search-side coarse applier both branch on it, routing
+ *  through `activateManaAbility` instead of `tapForPayment`. Two shapes ride
+ *  it:
+ *   - `tapOtherIds` present — a `cost.tapOtherFilter` leg (Urza, Lord High
+ *     Artificer): the permanent(s) the cost ACTUALLY taps. `cardInstanceId`
+ *     itself (the ability's source) is never tapped by this payment
+ *     (CR 602.1).
+ *   - `tapOtherIds` absent — a pure `cost.mana` leg (Farrelite Priest /
+ *     Initiate's Ebon Hand's "{1}: Add <color>."). Its generic sub-cost is
+ *     funded by whichever plain (non-ability) `ManaTap` entries precede it in
+ *     the SAME plan — `planManaPayment` always orders them first so the pool
+ *     already covers this activation by the time it runs. */
+export type ManaTap = {
+    cardInstanceId: string;
+    manaChoiceIndex?: number;
+    abilityId?: string;
+    tapOtherIds?: string[];
+};
 
 /** A single legal macro-move. Each kind is realised by the executor through a
  *  fixed sequence of EXISTING mutations (see `executeMove`). */
@@ -332,7 +367,57 @@ type PlanSource = {
     /** undefined = mana already in the pool (no tap needed). */
     cardInstanceId?: string;
     options: Map<Color, number | undefined>;
+    /** Issue #2420 — the SAME `ManaTapOption[]` `getManaTapOptionsDetailed`
+     *  produces for this permanent (the list `getProducibleManaOptions`
+     *  above already derives `options` FROM), carried alongside it so
+     *  `consume()` can recover which ABILITY backs a chosen colour —
+     *  `detailed[choice ?? 0]`, the exact index convention `options`'s
+     *  stored value already encodes (rules.ts `needIndex`) — and route a
+     *  NON-TAP mana ability (Urza's `tapOtherFilter`, Farrelite Priest's
+     *  pure `cost.mana`) through the right `ManaTap` shape instead of
+     *  assuming "the enumerated source taps itself". Undefined for a pool
+     *  source (no `cardInstanceId`, no ability at all). */
+    detailed?: ManaTapOption[];
 };
+
+/** CR 602.1 (issue #2420) — the fixed generic amount a `cost.mana` leg
+ *  declares when it is EXACTLY "N generic, nothing else" (Farrelite Priest /
+ *  Initiate's Ebon Hand's "{1}: Add <color>." — `{ X: 1 }`, a literal number,
+ *  never the player-chosen `"X"` marker a spell's variable cost uses).
+ *  `null` for any other shape (a coloured sub-cost, a variable `"X"`, …) —
+ *  the automatic planner funds only this one shape; anything else fails
+ *  closed rather than mis-funding. */
+function pureGenericManaSubCost(mana: ManaCost): number | null {
+    if (typeof mana.X !== "number") return null;
+    const keys = Object.keys(mana) as (keyof ManaCost)[];
+    if (keys.some((k) => k !== "X" && mana[k] !== undefined)) return null;
+    return mana.X;
+}
+
+/** True when `source`'s resolved option for `color` is a PLAIN tap (a {T}
+ *  ability, a basic-land-subtype `{T}: Add C`, or pool mana) rather than
+ *  ANOTHER non-tap mana ability (issue #2420). Used exclusively to fund a
+ *  mana-cost ability's OWN sub-cost: letting Farrelite Priest fund a
+ *  DIFFERENT mana-cost ability's activation (or itself) would recurse — one
+ *  level of generic-for-colour conversion only. */
+function isPlainTapSource(
+    player: PlayerState,
+    source: Pick<PlanSource, "cardInstanceId" | "options" | "detailed">,
+    color: Color
+): boolean {
+    if (!source.cardInstanceId) return true; // pool mana
+    const choice = source.options.get(color);
+    const opt = source.detailed?.[choice ?? 0];
+    if (!opt || opt.source.kind !== "activated") return true; // basic subtype
+    const abilityId = opt.source.abilityId;
+    const perm = player.battlefield.find((c) => c.id === source.cardInstanceId);
+    const ability = perm
+        ? getEffectiveActivatedAbilities(perm).find(
+              ({ ability: a }) => a.id === abilityId
+          )?.ability
+        : undefined;
+    return !ability || !!ability.cost.tap;
+}
 
 /** Greedy tap plan covering a normalized mana cost (CR 601.2f). Returns the
  *  ordered land taps to perform, or `null` when the cost cannot be paid.
@@ -385,8 +470,6 @@ export function planManaPayment(
     }
     for (const perm of player.battlefield) {
         if (perm.isTapped) continue;
-        // CR 302.1 — a summoning-sick creature can't pay {T}.
-        if (isTapLockedBySummoningSickness(perm)) continue;
         // Issue #1754 — full both-players board view: covers Mox Opal /
         // Fanatic of Rhonas (self-referential) AND Fellwar Stone
         // (opponent-scanning), matching the gate's board visibility exactly.
@@ -396,29 +479,183 @@ export function planManaPayment(
             boardBattlefields
         );
         if (options.size === 0) continue;
-        sources.push({ cardInstanceId: perm.id, options });
+        // Issue #2420 — the SAME detailed list `getProducibleManaOptions`
+        // derived `options` from (same call shape: `requireTap: true`),
+        // carried alongside so `consume()` can recognise a non-tap mana
+        // ability (Urza, Farrelite Priest) instead of assuming every source
+        // taps itself.
+        const detailed = getManaTapOptionsDetailed(
+            perm,
+            player.id,
+            boardBattlefields,
+            { requireTap: true }
+        );
+        // CR 302.1 / 302.6 (issue #2420) — summoning sickness restricts only
+        // a {T}/{Q}-in-cost ability, never a source's activation in general.
+        // `isTapLockedBySummoningSickness` can't tell which ability backs
+        // which colour, so filter PER OPTION instead of skipping the whole
+        // permanent: a basic-subtype option (always a {T} ability) and a
+        // `cost.tap` activated option drop out while sick-locked, but a
+        // non-tap mana ability (Urza's `tapOtherFilter`, Farrelite Priest's
+        // pure `cost.mana`) stays — its source taps nothing of its own, so
+        // summoning sickness never applied to it in the first place.
+        if (isTapLockedBySummoningSickness(perm)) {
+            for (const [color, idx] of [...options.entries()]) {
+                const opt = detailed[idx ?? 0];
+                const abilityId =
+                    opt && opt.source.kind === "activated"
+                        ? opt.source.abilityId
+                        : undefined;
+                const ability = abilityId
+                    ? getEffectiveActivatedAbilities(perm).find(
+                          ({ ability: a }) => a.id === abilityId
+                      )?.ability
+                    : undefined;
+                if (!ability || ability.cost.tap) options.delete(color);
+            }
+            if (options.size === 0) continue;
+        }
+        sources.push({ cardInstanceId: perm.id, options, detailed });
     }
     if (sources.length < totalRequired) return null;
 
     const remaining = sources.map((s) => ({
         cardInstanceId: s.cardInstanceId,
         options: new Map(s.options),
+        detailed: s.detailed,
     }));
     const taps: ManaTap[] = [];
-    const consume = (idx: number, color: Color) => {
+    // Issue #2420 — permanents already committed to THIS plan as the "other"
+    // permanent a `tapOtherFilter` leg taps, so a later pick (its own tap
+    // OR a different leg's tapOtherFilter pick) never double-taps one.
+    const reserved = new Set<string>();
+
+    /** Fund `count` GENERIC mana strictly from PLAIN sources — never another
+     *  non-tap mana ability (`isPlainTapSource`) — pushing the funding taps
+     *  onto `taps` BEFORE the caller's own entry so the pool already covers
+     *  it when that entry is realised. `false` when the plain pool can't
+     *  cover it (issue #2420). */
+    const fundGenericFromPlain = (count: number): boolean => {
+        let need = count;
+        while (need > 0) {
+            let idx = -1;
+            let bestSize = Infinity;
+            for (let i = 0; i < remaining.length; i++) {
+                const s = remaining[i];
+                const color = s.options.keys().next().value as
+                    | Color
+                    | undefined;
+                if (color === undefined) continue;
+                if (!isPlainTapSource(player, s, color)) continue;
+                if (!s.cardInstanceId) {
+                    // Pool mana — free, always preferred.
+                    idx = i;
+                    break;
+                }
+                if (s.options.size < bestSize) {
+                    bestSize = s.options.size;
+                    idx = i;
+                }
+            }
+            if (idx === -1) return false;
+            const color = remaining[idx].options.keys().next().value as Color;
+            if (!consume(idx, color)) return false;
+            need--;
+        }
+        return true;
+    };
+
+    const consume = (idx: number, color: Color): boolean => {
         const src = remaining[idx];
-        if (src.cardInstanceId) {
+        const cardInstanceId = src.cardInstanceId;
+        if (cardInstanceId) {
             const choice = src.options.get(color);
+            const opt = src.detailed?.[choice ?? 0];
+            const abilityId =
+                opt && opt.source.kind === "activated"
+                    ? opt.source.abilityId
+                    : undefined;
+            const perm = abilityId
+                ? player.battlefield.find((c) => c.id === cardInstanceId)
+                : undefined;
+            const ability =
+                perm && abilityId
+                    ? getEffectiveActivatedAbilities(perm).find(
+                          ({ ability: a }) => a.id === abilityId
+                      )?.ability
+                    : undefined;
+
+            if (ability && !ability.cost.tap) {
+                // Issue #2420 — a NON-TAP mana ability: the source's own {T}
+                // is never part of THIS payment (CR 602.1). Remove it from
+                // the pool before resolving its cost, so it can never be
+                // picked as its own "other" permanent or its own funding.
+                remaining.splice(idx, 1);
+                if (ability.cost.tapOtherFilter) {
+                    const candidates = tapOtherCandidates(
+                        state,
+                        player,
+                        perm!,
+                        ability,
+                        reserved
+                    );
+                    const picked = pickTapOtherPayment(
+                        ability.cost.tapOtherFilter,
+                        candidates
+                    );
+                    if (
+                        !canPayTapOtherCost(ability.cost.tapOtherFilter, picked)
+                    ) {
+                        return false;
+                    }
+                    for (const p of picked) {
+                        reserved.add(p.id);
+                        const ri = remaining.findIndex(
+                            (s) => s.cardInstanceId === p.id
+                        );
+                        if (ri !== -1) remaining.splice(ri, 1);
+                    }
+                    taps.push({
+                        cardInstanceId,
+                        abilityId,
+                        tapOtherIds: picked.map((p) => p.id),
+                        ...(choice !== undefined
+                            ? { manaChoiceIndex: choice }
+                            : {}),
+                    });
+                    return true;
+                }
+                if (ability.cost.mana) {
+                    const generic = pureGenericManaSubCost(ability.cost.mana);
+                    // Fail closed on any shape other than "pure generic" —
+                    // see `pureGenericManaSubCost`'s own doc.
+                    if (generic === null) return false;
+                    if (generic > 0 && !fundGenericFromPlain(generic)) {
+                        return false;
+                    }
+                    taps.push({
+                        cardInstanceId,
+                        abilityId,
+                        ...(choice !== undefined
+                            ? { manaChoiceIndex: choice }
+                            : {}),
+                    });
+                    return true;
+                }
+                // `isAutoPayableManaAbilityCost` (constants.ts) admits only
+                // tap | tapOtherFilter | mana — structurally unreachable, but
+                // fail closed rather than silently mis-tap.
+                return false;
+            }
+
             taps.push(
                 choice === undefined
-                    ? { cardInstanceId: src.cardInstanceId }
-                    : {
-                          cardInstanceId: src.cardInstanceId,
-                          manaChoiceIndex: choice,
-                      }
+                    ? { cardInstanceId }
+                    : { cardInstanceId, manaChoiceIndex: choice }
             );
         }
         remaining.splice(idx, 1);
+        return true;
     };
 
     // Colored requirements first, taking the least-flexible source that can
@@ -436,7 +673,7 @@ export function planManaPayment(
                 }
             }
             if (bestIdx === -1) return null;
-            consume(bestIdx, c);
+            if (!consume(bestIdx, c)) return null;
             need--;
         }
     }
@@ -456,7 +693,7 @@ export function planManaPayment(
             }
         }
         const color = remaining[idx].options.keys().next().value as Color;
-        consume(idx, color);
+        if (!consume(idx, color)) return null;
         generic--;
     }
 
