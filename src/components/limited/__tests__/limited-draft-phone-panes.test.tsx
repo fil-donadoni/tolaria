@@ -407,7 +407,6 @@ describe("the single-mount primitives survive the layout fork (issue #2588)", ()
             draftStripDropId("maindeck"),
             draftStripDropId("sideboard"),
         ],
-        split: [zonePaneDropId("maindeck"), zonePaneDropId("sideboard")],
         stacked: [zonePaneDropId("maindeck"), zonePaneDropId("sideboard")],
     };
 
