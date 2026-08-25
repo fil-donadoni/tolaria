@@ -375,8 +375,16 @@ describe("LimitedDraftPool — selection wiring (issue #2667)", () => {
                 onCardSelect={onCardSelect}
             />
         );
+        // The selection cue moved from an outward Tailwind `ring-accent-soft`
+        // utility to an inset `.card-ring` pseudo-element carrying
+        // `--card-ring-color: var(--color-accent-soft)` as an arbitrary-value
+        // class (ADR 0103 §8, issue #2724/PR #2803) — `ring-accent-soft` no
+        // longer appears anywhere in the tree, so the selector now matches on
+        // the surviving `accent-soft` substring, which is unique to the
+        // selection cue (the hover cue uses `danger-strong`; the `featured`
+        // cue uses the `card-ring-selected` role class with no inline var).
         const ringed = getAllByTitle(/^Remove Lightning Bolt/).filter((el) =>
-            el.querySelector("[class*=ring-accent-soft]")
+            el.querySelector("[class*=accent-soft]")
         );
         expect(ringed).toHaveLength(1);
     });
