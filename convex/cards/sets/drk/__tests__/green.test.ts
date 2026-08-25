@@ -608,14 +608,22 @@ describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.8)", () =
         ).toBeUndefined();
     });
 
-    it("does NOT destroy an Aura attached to a creature", () => {
-        const { state, elves } = setup(false);
-        resolveActivated(state, elves, "savaen-elves-destroy-aura", [
-            { type: "permanent", id: "aura" },
-        ]);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "aura")
-        ).toBeDefined();
+    // CR 303.4b — the oracle text restricts the target to an Aura attached
+    // to a LAND. `attachedToFilter` (issue #1853) enforces this at target
+    // SELECTION (getLegalTargets / selectTarget), not resolution — CR
+    // 608.2b's resolution-time re-check is deliberately zone-existence-only
+    // for permanent targets (`isTargetStillLegal`, gre/state.ts), so an Aura
+    // on a creature is illegal because it was never offered in the first
+    // place, not because resolve() refuses it after the fact.
+    it("does NOT offer an Aura attached to a creature as a legal target", () => {
+        const { state } = setup(false);
+        const req = savaenElves.activatedAbilities!.find(
+            (a) => a.id === "savaen-elves-destroy-aura"
+        )!.targetRequirement!;
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
+        expect(ids).not.toContain("aura");
     });
 });
 

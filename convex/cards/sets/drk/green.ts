@@ -370,11 +370,15 @@ export const peopleOfTheWoods: CardDefinition = {
     ],
 };
 
-// Savaen Elves — "{G}{G}, {T}: Destroy target Aura attached to a land." (CR 605
-// activated ability; CR 701.8 destroy.) The target is any Aura (`subtypeFilter`),
-// and the "attached to a LAND" host constraint is enforced in the resolve body —
-// there is no host-relation field on TargetRequirement, exactly as Pyramids
-// (arn.ts) and Miracle Worker (drk.ts) do it via `ctx.getAttachedTo`.
+// Savaen Elves — "{G}{G}, {T}: Destroy target Aura attached to a land." (CR
+// 605 activated ability; CR 701.8 destroy.) The target is any Aura
+// (`subtypeFilter`), and the "attached to a LAND" host constraint is a
+// declarative TargetRequirement.attachedToFilter (convex/cards/types.ts,
+// issue #1853) routed through the ADR 0068 single target-filter authority
+// (gre/targetFilters.ts) — identical to Pyramids' clause and the field
+// Miracle Worker's sibling "attached to a creature you control" clause also
+// uses, so all three share ONE implementation instead of three resolve()
+// bodies re-checking the host post-target.
 export const savaenElves: CardDefinition = {
     id: "38fb3014-f631-4a75-92cd-7e626b13a4c3",
     rarity: "common",
@@ -394,27 +398,10 @@ export const savaenElves: CardDefinition = {
             targetRequirement: {
                 type: "Enchantment",
                 subtypeFilter: "Aura",
+                attachedToFilter: { types: "Land" },
                 count: 1,
             },
-            // NOT DSL-migratable (ADR 0045): the destroy is gated on the target
-            // Aura's host being a land (getAttachedTo + battlefield membership),
-            // a host-relation predicate the destroy Op can't express. Stays
-            // resolve().
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target || target.type !== "permanent") return;
-                // CR 701.8 — only destroy if the Aura's host is a land. There
-                // is no type-reading SpellContext helper, so test membership in
-                // any player's Land battlefield (mirrors Pyramids' host check).
-                const hostId = ctx.getAttachedTo(target.id);
-                if (hostId === undefined) return;
-                const hostIsLand = ctx.allPlayerIds.some((pid) =>
-                    ctx
-                        .getBattlefieldIds(pid, { types: "Land" })
-                        .includes(hostId)
-                );
-                if (hostIsLand) ctx.destroy(target);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };

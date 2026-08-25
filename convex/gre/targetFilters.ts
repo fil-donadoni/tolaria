@@ -639,6 +639,74 @@ const controlledSinceTurnStartDescriptor = defineFilter<boolean>({
     },
 });
 
+/** Finds a card on any player's battlefield by instance id — the same
+ *  linear scan `state.ts`'s (module-private) `findOnBattlefield` runs, kept
+ *  as a local duplicate rather than an import so this module stays free of
+ *  a dependency on `./state`'s internals (this file's own header: "NO
+ *  dependency on `./rules`" — `state.ts` exports only the PUBLIC
+ *  `getAttachedTo`-style helpers via `SpellContext`, not a raw by-id finder,
+ *  and the registry check runs against a bare `GameState`, not a
+ *  `SpellContext`). */
+function findBattlefieldHost(
+    state: GameState,
+    hostId: string
+): CardInstanceState | undefined {
+    for (const player of state.players) {
+        const found = player.battlefield.find((c) => c.id === hostId);
+        if (found) return found;
+    }
+    return undefined;
+}
+
+// CR 303.4b — host-relation filter ("target Aura attached to a land" /
+// "... attached to a creature you control"). Reads the CANDIDATE's own
+// `attachedTo` id, resolves the host permanent, and checks the host's card
+// types / controller — never the candidate's own. A candidate with no
+// current attachment (unattached, or attached to a PLAYER rather than a
+// permanent — CR 303.4c "enchant player") has no host permanent to satisfy
+// the filter and fails CLOSED.
+const attachedToFilterDescriptor = defineFilter<{
+    types?: CardType[];
+    controlledBy?: TargetRequirement["controller"];
+}>({
+    lower: (req) => {
+        const f = req.attachedToFilter;
+        if (!f) return undefined;
+        return { types: arr(f.types), controlledBy: f.controlledBy };
+    },
+    checks: {
+        permanent: (card, value, ctx) => {
+            const hostId = card.attachedTo;
+            const host = hostId
+                ? findBattlefieldHost(ctx.state, hostId)
+                : undefined;
+            if (!host) return "Target must be attached to a permanent";
+            if (
+                value.types &&
+                !value.types.some((t) => host.types.includes(t))
+            ) {
+                return `Target must be attached to ${value.types.join(" or ")}`;
+            }
+            if (
+                value.controlledBy &&
+                !matchesBattlefieldController(
+                    host.controllerId,
+                    ctx.chooserId,
+                    ctx.activePlayerId,
+                    value.controlledBy
+                )
+            ) {
+                return value.controlledBy === "you"
+                    ? "Target must be attached to a permanent you control"
+                    : value.controlledBy === "opponent"
+                      ? "Target must be attached to a permanent an opponent controls"
+                      : "Target must be attached to a permanent the active player controls";
+            }
+            return null;
+        },
+    },
+});
+
 // CR 202.2 — color-exclude filter (Terror's "nonblack").
 const excludeColorsDescriptor = defineFilter<Color[]>({
     lower: (req) => arr(req.excludeColors),
@@ -1178,6 +1246,7 @@ export const PERMANENT_FILTER_KEYS = [
     "sameController",
     "isToken",
     "controlledSinceTurnStart",
+    "attachedToFilter",
 ] as const;
 
 export type PermanentFilterKey = (typeof PERMANENT_FILTER_KEYS)[number];
@@ -1268,6 +1337,7 @@ export const REGISTRY = {
     isToken: isTokenDescriptor as FilterDescriptor<unknown>,
     controlledSinceTurnStart:
         controlledSinceTurnStartDescriptor as FilterDescriptor<unknown>,
+    attachedToFilter: attachedToFilterDescriptor as FilterDescriptor<unknown>,
 } satisfies Record<FilterKey, FilterDescriptor<unknown>>;
 
 /** The requirement-derived filter VALUES for the permanent kind — the
@@ -1297,6 +1367,10 @@ export type PermanentFilterValues = Partial<{
     sameController: boolean;
     isToken: boolean;
     controlledSinceTurnStart: boolean;
+    attachedToFilter: {
+        types?: CardType[];
+        controlledBy?: TargetRequirement["controller"];
+    };
 }>;
 
 /** Runs every SET filter in `values` against `candidate` through the

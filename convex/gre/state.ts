@@ -3201,6 +3201,19 @@ export type PendingTarget = {
      *  `GameState.controlChangedThisTurn` — both of which the CLIENT must
      *  supply on its synthetic filter state or the check fails CLOSED. */
     controlledSinceTurnStart?: boolean;
+    /** Restricts legal permanent targets by their CURRENT attachment (CR
+     *  303.4b — "target Aura attached to a land" / "... attached to a
+     *  creature you control"). Propagated from
+     *  TargetRequirement.attachedToFilter through `lowerPermanentFilters`.
+     *  Read by the SAME `checkPermanentTargetFilters` authority both
+     *  `getLegalTargets` (offered set) and `selectTarget` (accepted set) run
+     *  against the candidate's OWN `attachedTo` host, never the candidate
+     *  itself. Used by Pyramids/Savaen Elves ("attached to a land") and
+     *  Miracle Worker ("attached to a creature you control"). */
+    attachedToFilter?: {
+        types?: CardType[];
+        controlledBy?: "you" | "opponent" | "any" | "active";
+    };
     /** Targets already selected. */
     selected: TargetSelection[];
     /** Divide-as-you-choose budget (CR 601.2d / 120.4). When set, this spell
@@ -3381,6 +3394,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     sameController: true,
     isToken: true,
     controlledSinceTurnStart: true,
+    attachedToFilter: true,
     playerAttackedThisTurn: true,
     spellStackKind: true,
     stackSourceTypeFilter: true,

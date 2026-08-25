@@ -402,9 +402,23 @@ export const pyramids: CardDefinition = {
             oracleText: "{2}: Destroy target Aura attached to a land.",
             cost: { mana: { X: 2 } },
             useStack: true,
+            // CR 303.4b host-relation ("attached to a land") is a
+            // declarative TargetRequirement filter (attachedToFilter,
+            // convex/cards/types.ts), not a resolve() re-check: without it,
+            // the ability could legally target and destroy ANY Aura in play,
+            // not just ones on a land (issue #1853). `attachedToFilter`
+            // routes through the ADR 0068 single target-filter authority
+            // (gre/targetFilters.ts), so getLegalTargets, selectTarget and
+            // the client's matchesPermanentTargetFilters all agree — an Aura
+            // on a creature is never offered as a legal target at all, not
+            // merely a no-op destroy at resolution. Mirrors the identical
+            // clause on Savaen Elves and the sibling "attached to a creature
+            // you control" clause on Miracle Worker, both migrated onto the
+            // same field in this change.
             targetRequirement: {
                 type: "Enchantment",
                 subtypeFilter: "Aura",
+                attachedToFilter: { types: "Land" },
                 count: 1,
             },
             effects: [{ op: "destroy", target: { target: 0 } }],

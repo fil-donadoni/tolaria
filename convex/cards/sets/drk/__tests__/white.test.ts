@@ -231,35 +231,55 @@ describe("Miracle Worker — destroy your Aura (CR 605 / 701.8)", () => {
         ).toBeUndefined();
     });
 
-    it("does NOT destroy an Aura on an opponent's creature", () => {
-        const mw = makeInstance(miracleWorker.id, {
-            id: "mw",
-            controllerId: "p1",
-        });
+    // CR 303.4b — the oracle text restricts the target to an Aura attached
+    // to a creature the CONTROLLER controls. `attachedToFilter` (issue
+    // #1853) enforces this at target SELECTION (getLegalTargets /
+    // selectTarget), not resolution — CR 608.2b's resolution-time re-check
+    // is deliberately zone-existence-only for permanent targets
+    // (`isTargetStillLegal`, gre/state.ts), so an Aura on an opponent's
+    // creature is illegal because it was never offered in the first place,
+    // not because resolve() refuses it after the fact.
+    it("does NOT offer an Aura on an opponent's creature as a legal target", () => {
         const theirCreature = makeInstance(getCardByName("Savannah Lions").id, {
             id: "theirs",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const aura = makeInstance(getCardByName("Holy Strength").id, {
-            id: "aura",
+        const theirAura = makeInstance(getCardByName("Holy Strength").id, {
+            id: "aura-theirs",
             controllerId: "p2",
             ownerId: "p2",
             attachedTo: "theirs",
         });
+        const myCreature = makeInstance(getCardByName("Savannah Lions").id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const myAura = makeInstance(getCardByName("Holy Strength").id, {
+            id: "aura-mine",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "mine",
+        });
+        const mw = makeInstance(miracleWorker.id, {
+            id: "mw",
+            controllerId: "p1",
+        });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: [mw] }),
-                makePlayer("p2", { battlefield: [theirCreature, aura] }),
+                makePlayer("p1", { battlefield: [mw, myCreature, myAura] }),
+                makePlayer("p2", { battlefield: [theirCreature, theirAura] }),
             ],
         });
-        resolveActivated(state, mw, "miracle-worker-destroy-aura", [
-            { type: "permanent", id: "aura" },
-        ]);
-        // Host is an opponent's creature → no destruction.
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "aura")
-        ).toBeDefined();
+        const req = miracleWorker.activatedAbilities!.find(
+            (a) => a.id === "miracle-worker-destroy-aura"
+        )!.targetRequirement!;
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
+        expect(ids).toContain("aura-mine");
+        expect(ids).not.toContain("aura-theirs");
     });
 });
 

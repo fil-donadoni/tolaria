@@ -2256,6 +2256,10 @@ export interface IntrinsicPermanentTargetFilters {
     toughnessFilter?: { min?: number; max?: number };
     mvFilter?: { min?: number; max?: number; equals?: number };
     isToken?: boolean;
+    attachedToFilter?: {
+        types?: CardType | CardType[];
+        controlledBy?: TargetRequirement["controller"];
+    };
 }
 
 /** THE single authority on whether a permanent passes a target requirement's
@@ -2318,6 +2322,12 @@ export function intrinsicPermanentTargetViolation(
         toughnessFilter: f.toughnessFilter,
         mvFilter: f.mvFilter,
         isToken: f.isToken,
+        attachedToFilter: f.attachedToFilter
+            ? {
+                  types: arr(f.attachedToFilter.types),
+                  controlledBy: f.attachedToFilter.controlledBy,
+              }
+            : undefined,
     };
     return checkPermanentTargetFilters(ctx, card, values);
 }

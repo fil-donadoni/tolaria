@@ -946,6 +946,131 @@ describe("intrinsicPermanentTargetViolation — shared offered/accepted gate", (
         ).toBeNull();
     });
 
+    // CR 303.4b host-relation filter (issue #1853 — Pyramids "destroy target
+    // Aura attached to a land" could legally target ANY Aura, including one
+    // on a creature, with no host-relation field to express the restriction).
+    describe("attachedToFilter (CR 303.4b, issue #1853)", () => {
+        it("types: an Aura attached to a land is legal, one attached to a creature is not", () => {
+            const land = makeCard({ id: "land-host", card: LAND });
+            const creature = makeCard({ id: "creature-host", card: CREATURE });
+            // `makeCard` doesn't forward `attachedTo` (it isn't in its
+            // fixed field whitelist) — set it post-construction.
+            const auraOnLand = {
+                ...makeCard({ id: "aura-on-land", card: ENCHANTMENT }),
+                attachedTo: "land-host",
+            };
+            const auraOnCreature = {
+                ...makeCard({ id: "aura-on-creature", card: ENCHANTMENT }),
+                attachedTo: "creature-host",
+            };
+            const gs = makeGameState({
+                players: [
+                    makePlayer({
+                        id: "p1",
+                        battlefield: [
+                            land,
+                            creature,
+                            auraOnLand,
+                            auraOnCreature,
+                        ],
+                    }),
+                    makePlayer({ id: "p2" }),
+                ],
+            });
+            expect(
+                intrinsicPermanentTargetViolation(gs, auraOnLand, {
+                    attachedToFilter: { types: "Land" },
+                })
+            ).toBeNull();
+            expect(
+                intrinsicPermanentTargetViolation(gs, auraOnCreature, {
+                    attachedToFilter: { types: "Land" },
+                })
+            ).not.toBeNull();
+        });
+
+        it("an unattached candidate fails CLOSED — never a legal 'attached to X' target", () => {
+            const loose = makeCard({ id: "loose", card: ENCHANTMENT });
+            const gs = makeGameState({
+                players: [
+                    makePlayer({ id: "p1", battlefield: [loose] }),
+                    makePlayer({ id: "p2" }),
+                ],
+            });
+            expect(
+                intrinsicPermanentTargetViolation(gs, loose, {
+                    attachedToFilter: { types: "Land" },
+                })
+            ).not.toBeNull();
+        });
+
+        // controlledBy needs a real chooser (`intrinsicPermanentTargetViolation`
+        // never threads one — see its own doc comment), so this half runs
+        // through `getLegalTargets`, the SAME shared authority `selectTarget`
+        // (game.ts) and the client's `matchesPermanentTargetFilters` also call.
+        it("controlledBy: Miracle Worker's 'attached to a creature you control' excludes an opponent's creature host", () => {
+            const yourCreature = makeCard({
+                id: "your-creature",
+                card: CREATURE,
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const theirCreature = makeCard({
+                id: "their-creature",
+                card: CREATURE,
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            // `makeCard` doesn't forward `attachedTo` — set it
+            // post-construction (see the sibling test above). `subtypes:
+            // ["Aura"]` overrides ENCHANTMENT's bare fixture (no subtypes of
+            // its own) so the requirement's `subtypeFilter: "Aura"` matches.
+            const auraOnYours = {
+                ...makeCard({
+                    id: "aura-on-yours",
+                    card: ENCHANTMENT,
+                    subtypes: ["Aura"],
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+                attachedTo: "your-creature",
+            };
+            const auraOnTheirs = {
+                ...makeCard({
+                    id: "aura-on-theirs",
+                    card: ENCHANTMENT,
+                    subtypes: ["Aura"],
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }),
+                attachedTo: "their-creature",
+            };
+            const gs = makeGameState({
+                players: [
+                    makePlayer({
+                        id: "p1",
+                        battlefield: [yourCreature, auraOnYours],
+                    }),
+                    makePlayer({
+                        id: "p2",
+                        battlefield: [theirCreature, auraOnTheirs],
+                    }),
+                ],
+            });
+            const req: TargetRequirement = {
+                type: "Enchantment",
+                subtypeFilter: "Aura",
+                attachedToFilter: { types: "Creature", controlledBy: "you" },
+                count: 1,
+            };
+            const ids = getLegalTargets(gs, req, NO_TARGETING_SOURCE, "p1").map(
+                (t) => t.id
+            );
+            expect(ids).toContain("aura-on-yours");
+            expect(ids).not.toContain("aura-on-theirs");
+        });
+    });
+
     // Carry-completeness anti-drift guard: a requirement that sets every
     // intrinsic filter must round-trip ALL of them onto the PendingTarget via
     // pendingTargetFiltersFromRequirement. If a new filter is added to the
@@ -972,6 +1097,7 @@ describe("intrinsicPermanentTargetViolation — shared offered/accepted gate", (
             powerFilter: { min: 2 },
             toughnessFilter: { max: 4 },
             mvFilter: { equals: 3 },
+            attachedToFilter: { types: "Land", controlledBy: "you" },
         };
         const pt = pendingTargetFiltersFromRequirement(req, undefined);
         expect(pt.subtypeFilter).toEqual(["Goblin"]);
@@ -990,6 +1116,10 @@ describe("intrinsicPermanentTargetViolation — shared offered/accepted gate", (
         expect(pt.powerFilter).toEqual({ min: 2 });
         expect(pt.toughnessFilter).toEqual({ max: 4 });
         expect(pt.mvFilter).toEqual({ equals: 3 });
+        expect(pt.attachedToFilter).toEqual({
+            types: ["Land"],
+            controlledBy: "you",
+        });
     });
 
     // getLegalTargets end-to-end: the offered set runs the SAME shared gate,
@@ -2493,7 +2623,7 @@ describe("checkCardTargetFilters — shared offered/accepted gate (ADR 0068, iss
 describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068, issue #1411)", () => {
     it("REGISTRY is non-empty and covers every filter migrated by T1-T3", () => {
         const keys = Object.keys(REGISTRY);
-        // 21 permanent + 10 spell-only + 1 player-only (T1 + T2 + T3) — see
+        // 22 permanent + 10 spell-only + 1 player-only (T1 + T2 + T3) — see
         // PERMANENT_FILTER_KEYS / SPELL_ONLY_FILTER_KEYS / PLAYER_ONLY_FILTER_KEYS
         // in targetFilters.ts. Card-kind reuses `controller`/`mvFilter`, both
         // already counted under the permanent set — no additional keys.
@@ -2503,8 +2633,10 @@ describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068
         // issue #1195; `spellTargetsTypeFilter` + `spellWasKicked` joined the
         // spell-only set with Confound / Ertai's Trickery, issue #1956;
         // `controlledSinceTurnStart` joined the permanent set with Norritt /
-        // Arcum's Whistle, issue #1824.)
-        expect(keys.length).toBe(32);
+        // Arcum's Whistle, issue #1824; `attachedToFilter` joined the
+        // permanent set with Pyramids / Savaen Elves / Miracle Worker's host
+        // relation, issue #1853.)
+        expect(keys.length).toBe(33);
     });
 
     it("every registered filter has a `lower` function and at least one `checks` predicate", () => {
@@ -2656,6 +2788,9 @@ describe("getLegalTargets: the OFFERED set honours EVERY PERMANENT_FILTER_KEYS e
         },
         isToken: { req: { isToken: true } },
         controlledSinceTurnStart: { req: { controlledSinceTurnStart: true } },
+        // SUBJECT has no `attachedTo` (it isn't an Aura) — an unattached
+        // candidate fails CLOSED against any attachedToFilter (issue #1853).
+        attachedToFilter: { req: { attachedToFilter: { types: "Land" } } },
     } satisfies Record<PermanentFilterKey, Case>;
 
     it("no filter at all — the subject IS offered (the positive control this whole sweep rests on)", () => {

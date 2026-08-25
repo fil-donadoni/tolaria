@@ -1714,9 +1714,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // AFK-ready. Net across the three: total 471->474, FREE 316->319,
         // AFK-ready 307->310; X-only unchanged at 15, Op-blocked unchanged at
         // 140. Partition: 319+15+140=474.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(474);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(319);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(310);
+        //
+        // Issue #1853 (Pyramids / Savaen Elves / Miracle Worker): the
+        // "target Aura attached to a land/creature" host-relation clause on
+        // all three moves off `resolve()` entirely onto a new declarative
+        // TargetRequirement.attachedToFilter (routed through the ADR 0068
+        // target-filter registry, gre/targetFilters.ts) — the host check now
+        // gates which targets are LEGAL, not which destroy a no-op-ed
+        // resolve() body. Each card's ability reverts to the plain
+        // `effects: [{ op: "destroy", ... }]` DSL script, so all three
+        // closures leave the catalogue outright. Measured directly (`bun
+        // scripts/migration-classifier.mjs`), not hand-picked: total
+        // 474->472, FREE 319->317, AFK-ready 310->308; X-only unchanged at
+        // 15, Op-blocked unchanged at 140. Partition: 317+15+140=472.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(472);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(317);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(308);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });
