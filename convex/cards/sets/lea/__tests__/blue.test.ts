@@ -3800,6 +3800,77 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         expect(substituteColorFilter(slimCop, baseReq.colorFilter!)).toBe("R");
     });
 
+    // CR 608.2b + 612.6 (issue #1853 review round 2, round 3 fixup) — a
+    // regression test that goes all the way to `preventionEffects`, not just
+    // to `getLegalTargets` like the test above. The round-2 fix
+    // (`permanentTargetStillMeetsRestrictions`) reconstructs the resolving
+    // ability's `TargetRequirement` from RAW static card data
+    // (`resolvingTargetRequirement`, gre/state.ts) to re-check the target at
+    // resolution — but the first cut of that reconstruction skipped the SAME
+    // colour-word substitution `activateAbilityOnState`'s
+    // `effectiveRequirement` (game.ts) applies at announcement, so a Circle
+    // of Protection: White retargeted red by Sleight of Mind wrongly
+    // fizzled against a legally-chosen red source: the announcement offered
+    // it under the substituted "R" filter, then resolution re-lowered the
+    // raw static "W" and ruled it illegal. `effectiveRequirementForSource`
+    // (gre/rules.ts) is now the single helper both sites call.
+    it("resolves and registers the prevention effect for a colour-substituted, legally-chosen target (CR 608.2b, issue #1853 round 3)", () => {
+        const cop = makeInstance(circleOfProtectionWhite.id, {
+            id: "cop",
+            controllerId: "p1",
+            ownerId: "p1",
+            textChanges: [{ kind: "color-word", from: "white", to: "red" }],
+        });
+        const redSrc = makeInstance(monssGoblinRaiders.id, {
+            id: "r",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cop] }),
+                makePlayer("p2", { battlefield: [redSrc] }),
+            ],
+        });
+        const baseReq =
+            circleOfProtectionWhite.activatedAbilities![0].targetRequirement!;
+
+        // Announcement half: the substituted filter offers the red source —
+        // exactly what `effectiveRequirement` computes in
+        // `activateAbilityOnState` before `getLegalTargets` runs.
+        const effColor = substituteColorFilter(cop, baseReq.colorFilter!);
+        const legal = getLegalTargets(
+            state,
+            { ...baseReq, colorFilter: effColor },
+            NO_TARGETING_SOURCE,
+            "p1"
+        );
+        expect(legal.some((t) => t.type === "permanent" && t.id === "r")).toBe(
+            true
+        );
+
+        // Push the ability on the stack the way `buildActivatedAbilityStackItem`
+        // does — a clone of the source `card` (carrying its `textChanges`)
+        // plus the already-legally-chosen target — then resolve it.
+        const item: StackItem = {
+            ...cop,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "cop-prevent",
+            targets: [{ type: "permanent", id: "r" }],
+        };
+        state.stack.push(item);
+        resolveTopOfStack(state);
+
+        // CR 608.2b: a target legal when chosen and still legal at
+        // resolution must resolve normally. Before the fix,
+        // `resolvingTargetRequirement` re-lowered the unsubstituted static
+        // "W" filter, ruled the red source illegal, and
+        // `state.preventionEffects` stayed `[]`.
+        expect(state.preventionEffects).toHaveLength(1);
+        expect(state.preventionEffects?.[0]?.sourceInstanceId).toBe("r");
+    });
+
     it("does not change the object's own color (CR 612.1)", () => {
         const knight = makeInstance(blackKnight.id, {
             id: "bk",

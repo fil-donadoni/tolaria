@@ -85,6 +85,7 @@ import {
 } from "./cityBlessing";
 import { effectivePermanentView } from "./permanentView";
 import {
+    effectiveRequirementForSource,
     getExtraLandDrops,
     getLegalTargets,
     NO_TARGETING_SOURCE,
@@ -5023,12 +5024,24 @@ function resolvingTargetRequirement(
           /** CR 601.2c — the resolved body ALSO declares one or more INDEPENDENT
            *  additional target groups (Oko's "target ... you control AND target
            *  ... an opponent controls", `additionalTargetRequirements`). Their
-           *  picks land on the SAME flat `item.targets` array, positionally, after
-           *  this group's — but the count actually picked for a variable-count
-           *  group isn't recoverable from `TargetRequirement.count` alone, so
-           *  there is no safe way to say which filter set applies to which
-           *  position from here. The caller treats this as "can't confidently
-           *  reconstruct", the same fail-open answer as an unresolvable body. */
+           *  picks land on the SAME flat `item.targets` array, positionally,
+           *  after this group's (`priorSelected` + `selected`,
+           *  `PendingTarget` above documents the concatenation order) — so
+           *  membership IS recoverable today for every shipped multi-group
+           *  card (inv/ice/pls/eld `multicolor.ts`), all of which declare a
+           *  fixed `count: 1` per group. This flag stays a blanket skip
+           *  anyway (deliberately conservative, not a hard limit): a
+           *  variable-count group ahead of a later one shifts every
+           *  subsequent position by an amount this reconstruction has no
+           *  cheap way to replay, and getting that wrong would apply one
+           *  group's filters to another group's target — worse than not
+           *  rechecking. The caller treats `true` here as "can't confidently
+           *  recheck", the same fail-open answer as an unresolvable body; the
+           *  cost is that a multi-group resolution — e.g. Plague Spores
+           *  (`convex/cards/sets/inv/multicolor.ts`), literally the CR
+           *  608.2b Plague Spores worked example — gets NO CR 608.2b
+           *  permanent-filter recheck at all, on either of its two targets,
+           *  not merely the primary group's own. */
           hasAdditionalGroups: boolean;
       }
     | undefined {
@@ -5074,33 +5087,80 @@ function resolvingTargetRequirement(
               )
             : cardDef?.activatedAbilities?.find((a) => a.id === item.abilityId);
         if (!ability) return undefined;
-        // `ActivatedAbility.additionalTargetRequirements` (Oko's -5) — its
-        // `AbilityMode`, unlike `SpellMode`, declares no twin, so a MODAL
-        // activated ability can never trip this narrowing (only the
-        // ability-level, non-modal shape can).
+        // `ActivatedAbility.additionalTargetRequirements` (Oko's -5) is an
+        // ABILITY-level field with no per-mode twin on `AbilityMode` — and
+        // `activateAbilityOnState` (game.ts) applies it UNCONDITIONALLY,
+        // independent of the chosen mode: "AbilityMode has no per-mode twin
+        // of this field, so unlike the cast path there is no `chosenMode ??`
+        // leg to prefer" (game.ts, `abilityAdditionalRequirements`). A MODAL
+        // activated ability with ability-level groups therefore DOES trip
+        // this narrowing — `hasAdditionalGroups` below is the same value for
+        // both the modal and non-modal return (round 3 fix, issue #1853
+        // review round 2 finding 2 — the modal leg used to hardcode `false`,
+        // contradicting the announcement path it mirrors).
         const hasAdditionalGroups =
             (ability.additionalTargetRequirements?.length ?? 0) > 0;
+        // CR 612.6 / 601.2c (issue #1853 round 3) — reconstruct through the
+        // SAME two merges `activateAbilityOnState`'s `effectiveRequirement`
+        // applies at announcement (colour-word substitution off the
+        // source's OWN `textChanges`, then the reflexive self-exclude), via
+        // the shared helper both sites now call. `item` is the stack item's
+        // clone of the source permanent at activation commit
+        // (`buildActivatedAbilityStackItem`), so `item.textChanges` /
+        // `item.id` are exactly what announcement read off the live `card`.
+        // Skipping this reconstructed a raw, unsubstituted colour filter and
+        // wrongly fizzled a legally-chosen target (Circle of Protection:
+        // White retargeted red by Sleight of Mind, resolving against a red
+        // creature) — not a Circle-of-Protection special case, any
+        // colour-filtered ability with an active colour-word change hits it.
         if (!ability.modes || ability.modes.length === 0) {
             return ability.targetRequirement
-                ? { req: ability.targetRequirement, hasAdditionalGroups }
+                ? {
+                      req: effectiveRequirementForSource(
+                          ability.targetRequirement,
+                          item,
+                          item.id
+                      ),
+                      hasAdditionalGroups,
+                  }
                 : undefined;
         }
         if (!item.chosenModeId) return undefined;
         const mode = ability.modes.find((m) => m.id === item.chosenModeId);
         return mode?.targetRequirement
-            ? { req: mode.targetRequirement, hasAdditionalGroups: false }
+            ? {
+                  req: effectiveRequirementForSource(
+                      mode.targetRequirement,
+                      item,
+                      item.id
+                  ),
+                  hasAdditionalGroups,
+              }
             : undefined;
     }
 
     // Plain (or modal) spell — CR 700.2d, the same chosen-mode read
     // `spellTargetStillMeetsRestrictions` above makes for its own purposes.
+    // `announceCast` (game.ts) does not currently apply CR 612.6 colour
+    // substitution to a cast's `activeTargetRequirement` (only the
+    // activated-ability path above does), so this branch mirrors that —
+    // nothing to substitute here without inventing behaviour the
+    // announcement path itself doesn't have. `additionalRequirements`
+    // mirrors `announceCast`'s own `chosenMode?.additionalTargetRequirements
+    // ?? cardDef.additionalTargetRequirements ?? []` fallback chain (game.ts)
+    // — a modal spell with only CARD-level groups used to reconstruct as
+    // `hasAdditionalGroups: false` here (issue #1853 review round 2 finding
+    // 2b).
     if (item.chosenModeId) {
         const mode = cardDef?.modes?.find((m) => m.id === item.chosenModeId);
         return mode?.targetRequirement
             ? {
                   req: mode.targetRequirement,
                   hasAdditionalGroups:
-                      (mode.additionalTargetRequirements?.length ?? 0) > 0,
+                      ((
+                          mode.additionalTargetRequirements ??
+                          cardDef?.additionalTargetRequirements
+                      )?.length ?? 0) > 0,
               }
             : undefined;
     }
@@ -5127,11 +5187,18 @@ function resolvingTargetRequirement(
  *
  *  Reuses the SAME `PERMANENT_FILTER_KEYS` / `checkPermanentTargetFilters`
  *  single authority `getLegalTargets` (offered set) and `selectTarget`
- *  (accepted set) already run at targeting time (ADR 0068) — completing
- *  that authority rather than adding a third rule beside it, so EVERY
- *  characteristic-based permanent filter is covered (`attachedToFilter`,
- *  `tappedFilter`, `controlledSinceTurnStart`, …), not only the Aura-host
- *  clause that surfaced the gap.
+ *  (accepted set) already run at targeting time (ADR 0068) — completing that
+ *  authority rather than adding a third rule beside it, so every REGISTRY
+ *  filter key is covered (`attachedToFilter`, `tappedFilter`,
+ *  `controlledSinceTurnStart`, …), not only the Aura-host clause that
+ *  surfaced the gap. That is narrower than "every characteristic": the
+ *  target's `type: "Creature"` clause of a `TargetRequirement` is not itself
+ *  a `PermanentFilterKey` (`PERMANENT_FILTER_KEYS`, `gre/targetFilters.ts`
+ *  has no bare `type`/`types` entry — only `excludeTypes`), so a target that
+ *  stops being the required type mid-stack (Royal Assassin's creature target
+ *  turned into an Artifact) is still NOT re-checked here. Fail-open,
+ *  pre-existing, and out of this fix's scope (issue #1853 review round 2,
+ *  scope-of-claim note).
  *
  *  One deliberate narrowing, mirroring `spellTargetStillMeetsRestrictions`'s
  *  narrowing 1 above and for the identical reason: **`mvFilter` is stripped

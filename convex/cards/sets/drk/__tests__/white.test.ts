@@ -235,11 +235,14 @@ describe("Miracle Worker — destroy your Aura (CR 605 / 701.8)", () => {
     // CR 303.4b — the oracle text restricts the target to an Aura attached
     // to a creature the CONTROLLER controls. `attachedToFilter` (issue
     // #1853) enforces this at target SELECTION (getLegalTargets /
-    // selectTarget), not resolution — CR 608.2b's resolution-time re-check
-    // is deliberately zone-existence-only for permanent targets
-    // (`isTargetStillLegal`, gre/state.ts), so an Aura on an opponent's
-    // creature is illegal because it was never offered in the first place,
-    // not because resolve() refuses it after the fact.
+    // selectTarget) AND, as of the round-2 fix, at resolution too —
+    // `permanentTargetStillMeetsRestrictions` (gre/state.ts) re-checks
+    // `attachedToFilter` (and every other `PERMANENT_FILTER_KEYS` entry)
+    // against the live board, not merely zone existence
+    // (`isTargetStillLegal`). This test only proves the SELECTION half: an
+    // Aura on an opponent's creature is illegal here because it was never
+    // offered in the first place, before resolution's own re-check would
+    // even run.
     it("does NOT offer an Aura on an opponent's creature as a legal target", () => {
         const theirCreature = makeInstance(getCardByName("Savannah Lions").id, {
             id: "theirs",

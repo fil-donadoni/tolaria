@@ -69,6 +69,7 @@ import {
     hasEscape,
 } from "./escape";
 import { canPayRetraceDiscard, hasRetrace } from "./retrace";
+import { substituteColorFilter } from "./textChanges";
 import {
     convokeEligibleCreatures,
     coverColoredAndHybridPips,
@@ -3107,6 +3108,36 @@ export function applySelfExclusion(
             sourceInstanceId,
         ],
     };
+}
+
+/** CR 612.6 (colour-word text change) + the reflexive self-exclude above,
+ *  folded into ONE merge so a requirement governed by a given source
+ *  instance gets the IDENTICAL two substitutions wherever it is computed —
+ *  originally inlined once, at ability announcement
+ *  (`activateAbilityOnState`, `convex/game.ts`); reused as of issue #1853
+ *  round 3 by the CR 608.2b resolution-time reconstruction
+ *  (`resolvingTargetRequirement`, `convex/gre/state.ts`) so a source whose
+ *  colour word was changed (Sleight of Mind on a Circle of Protection)
+ *  re-checks a resolving target against the SAME effective filter that
+ *  governed its selection, rather than the raw static `"W"` — the mirror of
+ *  the round-1 finding (an illegal target sneaking through): reconstructing
+ *  from unsubstituted static data instead killed a LEGALLY-chosen target at
+ *  resolution. Not a Circle-of-Protection special case — any source with an
+ *  active `textChanges` colour-word entry takes the same path. */
+export function effectiveRequirementForSource(
+    req: TargetRequirement,
+    source: Pick<CardInstanceState, "textChanges">,
+    sourceInstanceId: string
+): TargetRequirement {
+    return applySelfExclusion(
+        req.colorFilter !== undefined
+            ? {
+                  ...req,
+                  colorFilter: substituteColorFilter(source, req.colorFilter),
+              }
+            : req,
+        sourceInstanceId
+    );
 }
 
 function triggerTargetLegality(

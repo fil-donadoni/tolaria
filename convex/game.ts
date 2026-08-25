@@ -239,7 +239,7 @@ import {
     genericManaShortfall,
     flashSurchargeRequired,
     foldFlashSurchargeCost,
-    applySelfExclusion,
+    effectiveRequirementForSource,
 } from "./gre/rules";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
@@ -355,7 +355,6 @@ import {
     computeOwedPlayerIds,
     refreshExpectedInput,
 } from "./gre/expectedInput";
-import { substituteColorFilter } from "./gre/textChanges";
 import {
     advancePhase,
     drainAutoPasses,
@@ -13755,20 +13754,16 @@ export function activateAbilityOnState(
     // filter flows into both getLegalTargets and the stored pendingTarget.
     // Both merges the primary requirement gets (CR 612.6 colour substitution
     // and the CR 601.2c reflexive self-exclude below) are folded into ONE
-    // helper so the ADDITIONAL target groups (issue #2361) cannot silently
-    // skip a merge the primary receives — an extra group declaring
-    // `targetIsAnother` or a `colorFilter` must behave identically to a
-    // primary that declares it.
+    // shared helper (`effectiveRequirementForSource`, `gre/rules.ts`) so the
+    // ADDITIONAL target groups (issue #2361) cannot silently skip a merge
+    // the primary receives — an extra group declaring `targetIsAnother` or a
+    // `colorFilter` must behave identically to a primary that declares it —
+    // AND so the CR 608.2b resolution-time re-check
+    // (`resolvingTargetRequirement`, `gre/state.ts`, issue #1853 round 3) can
+    // reconstruct the IDENTICAL effective requirement instead of drifting
+    // from this announcement-time computation.
     const effectiveRequirement = (req: TargetRequirement): TargetRequirement =>
-        applySelfExclusion(
-            req.colorFilter !== undefined
-                ? {
-                      ...req,
-                      colorFilter: substituteColorFilter(card, req.colorFilter),
-                  }
-                : req,
-            card.id
-        );
+        effectiveRequirementForSource(req, card, card.id);
     // Reflexive self-EXCLUDE (issue #2399) — "ANOTHER target nonlegendary
     // creature you control" (Reflection of Kiki-Jiki). An activated ability's
     // source is always the on-battlefield `card` itself (unlike a triggered
