@@ -1042,12 +1042,16 @@ export const fertileGroundInv: CardPrint = {
 // Kavu Titan — "Kicker {2}{G}. If this creature was kicked, it enters with
 // three +1/+1 counters on it and with trample." The counters half composes
 // via three `entersWith.counters` entries each `count: "kicker"` (see
-// Llanowar Elite / Pincer Spider above), but the conditional PERMANENT
-// trample grant has no declarative path — same shape as Faerie Squadron
-// (`inv/blue.ts`): `grantAbility`'s `duration` is mandatory, and
-// `entersWith` is counters-only. Never ships a silent partial (counters
-// without trample), so the whole card stays a stub.
-// tracked-by: #1841
+// Llanowar Elite / Pincer Spider above).
+//
+// FREED 2026-08-25 (#1841 audit): the old marker read "the conditional
+// PERMANENT trample grant has no declarative path — `grantAbility`'s
+// `duration` is mandatory". WRONG at HEAD. `duration` on the `grantAbility`
+// Op is OPTIONAL, and omitting it means INDEFINITE (CR 611.2b, issue #1746) —
+// the interpreter routes an omitted duration straight to
+// `grantStaticAbilityPermanent`. Same correction applies to Faerie Squadron
+// (`inv/blue.ts`), which carried the identical wrong claim.
+// tracked-by: #2761
 // export const kavuTitan: CardDefinition = {
 //     id: "2c5fb86d-1d9a-4da2-bb5b-4266faa20197",
 //     name: "Kavu Titan",
@@ -1062,10 +1066,14 @@ export const fertileGroundInv: CardPrint = {
 // second clause was a BULK graveyard-set move with no selector — that gap is
 // now CLOSED: `EffectForEachSelector` has `{ set: "graveyard", controller?,
 // filter? }` (issue #1056, shipped; see `convex/cards/types.ts`), which is
-// exactly the FILTERED bulk move this needed. RE-AUDIT candidate: the card is
-// probably free today (forEach graveyard creature cards → moveZone to library
-// → shuffle, under a `mayPay` exile-self gate).
-// tracked-by: #1841
+// exactly the FILTERED bulk move this needed.
+//
+// FREED 2026-08-25 (#1841 audit) — the RE-AUDIT this marker asked for was
+// done and the card is free: `forEach { set: "graveyard", filter }` +
+// `moveZone` to the library + a `libraryLook` shuffle, under a `mayPay`
+// gate whose body is `exileSelf` — a registered Op used further down THIS
+// file. No engine work remains.
+// tracked-by: #2761
 // export const rootingKavu: CardDefinition = {
 //     id: "12c25a4c-d93a-402b-999f-0b9919123cc5",
 //     name: "Rooting Kavu",

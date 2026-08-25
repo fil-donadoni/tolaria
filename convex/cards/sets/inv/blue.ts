@@ -16,18 +16,33 @@
 // field on `ReplacementStateView`'s battlefield snapshot, and unstubbed nine
 // of the nineteen cards below: Blind Seer, Distorting Wake, Dream Thrush,
 // Metathran Aerostat, Metathran Transport, Rainbow Crow, Sway of Illusion,
-// Tidal Visionary, Well-Laid Plans. The remaining ten (Barrin's Unmaking,
-// Breaking Wave, Crystal Spray, Essence Leak, Faerie Squadron, Mana Maze,
-// Psychic Battle, Shoreline Raider, Teferi's Response, Temporal Distortion)
-// hit gaps genuinely beyond this slice's scope (a colour-census one-shot
-// predicate, a text-changing Op, a dynamic mayPay cost, a permanent
-// kicked-ETB ability grant, a flash-for-more alt cost + tap/untap toggle,
-// countering an ability, an hourglass-counter untap lock, a
-// reveal-and-compare retarget protocol, and creature-type protection — the
-// last, Shoreline Raider, was never in #1083's own gap list; it hits an
-// unrelated CR 702.16k protection-from-creature-type engine gap) and stay
-// commented stubs, each still tagged `// tracked-by: #1841` — a
-// stop-and-issue case (not an invented Op, not a `resolve()` paper-over).
+// Tidal Visionary, Well-Laid Plans.
+//
+// RE-DERIVED 2026-08-25 (#1841 audit). The paragraph that used to stand here
+// listed ten remaining stubs all pointing at #1841 and named creature-type
+// protection as a CR 702.16k gap; both were stale. Current disposition of
+// the stubs below, each carrying its own owner:
+//
+//   FREED — no engine work left, ships with #2761:
+//     Faerie Squadron (the "grantAbility needs a duration" claim was wrong;
+//     omitting `duration` grants indefinitely, CR 611.2b / issue #1746)
+//
+//   OWNED BY A CAPABILITY ISSUE:
+//     Crystal Spray      -> #2763  one-shot text-changing Op (CR 612)
+//     Shoreline Raider   -> #2765  the CR 702.16a SUBTYPE protection quality
+//                                  (NOT CR 702.16k, a player quality that
+//                                  already ships)
+//     Breaking Wave      -> #2146 (cast rider) + #1332 (tapped-state filter)
+//
+//   ONE-OFF PRIMITIVE GAPS, on the INV assorted-gaps slice #1332:
+//     Barrin's Unmaking, Essence Leak, Mana Maze, Psychic Battle,
+//     Teferi's Response, Temporal Distortion
+//
+// Two of those markers carried claims this audit disproved outright and
+// corrected in place: Essence Leak's (`MayPayCost` has had a dynamic form
+// since #1150/#1958) and Teferi's Response's (Stifle counters abilities
+// today). Each remaining stub is a stop-and-issue case — not an invented Op,
+// not a `resolve()` paper-over.
 import type {
     CardDefinition,
     Color,
@@ -737,7 +752,7 @@ export const factOrFiction: CardDefinition = {
 // supports a boolean-binding test or a numeric comparison of two EffectValues
 // (no colour-census value member) — the continuous-CDA closure form that
 // covers Zanam Djinn above does not apply to a one-shot conditional.
-// tracked-by: #1841
+// tracked-by: #1332
 // export const barrinsUnmaking: CardDefinition = {
 //     id: "4d4cecb0-12b5-4678-b5e7-8cec8fc86cef",
 //     name: "Barrin's Unmaking",
@@ -815,7 +830,7 @@ export const blindSeer: CardDefinition = {
 // all instances of one color word with another or one basic land type with
 // another until end of turn. Draw a card." No Op or sanctioned protocol wraps
 // a one-shot text-changing effect (CR 613.1c) on an arbitrary target.
-// tracked-by: #1841
+// tracked-by: #2763
 // export const crystalSpray: CardDefinition = {
 //     id: "8798a4f1-34bb-449d-a8cc-faf8bda8e0ab",
 //     name: "Crystal Spray",
@@ -903,10 +918,17 @@ export const dreamThrush: CardDefinition = {
 
 // Essence Leak — "Enchant permanent. As long as enchanted permanent is red or
 // green, it has 'At the beginning of your upkeep, sacrifice this permanent
-// unless you pay its mana cost.'" The granted trigger's `mayPay` cost would
-// need to read the ENCHANTED PERMANENT's own printed mana cost dynamically;
-// `MayPayCost` is a static literal with no such dynamic form.
-// tracked-by: #1841
+// unless you pay its mana cost.'"
+//
+// NARROWED 2026-08-25 (#1841 audit): the old marker said "`MayPayCost` is a
+// static literal with no such dynamic form". WRONG at HEAD —
+// `DynamicMayPayManaCost` (issue #1150, generalized #1958) is a second shape
+// on the `mayPay` Op's `cost` field, and its `manaCostOf` leg is exactly
+// "pay ITS mana cost" (Flash, MIR). What is still missing is narrower: the
+// conditional STATIC grant of a triggered ability gated on the enchanted
+// permanent's live colours, and a `manaCostOf` ref naming the granted
+// ability's own source rather than an earlier `choice` Op's picks.
+// tracked-by: #1332
 // export const essenceLeak: CardDefinition = {
 //     id: "9099b2e6-9ed8-4a9c-97ca-77cc47678228",
 //     name: "Essence Leak",
@@ -919,11 +941,16 @@ export const dreamThrush: CardDefinition = {
 // with two +1/+1 counters on it and with flying." The counters clause IS now
 // expressible: `resolveEntersWithCounters` sums same-type entries, so two
 // `{ count: "kicker" }` rows yield 2 when kicked and none otherwise (issue
-// #1693; Vodalian Serpent above uses four such rows). The remaining blocker is
-// only the flying clause, which needs a PERMANENT (non-duration) ability grant
-// on a conditional ETB — `grantAbility`'s `duration` is mandatory and
-// `grantStaticAbilityPermanent` has no Op wrapper.
-// tracked-by: #1841
+// #1693; Vodalian Serpent above uses four such rows).
+//
+// FREED 2026-08-25 (#1841 audit): the old marker said the flying clause
+// "needs a PERMANENT (non-duration) ability grant on a conditional ETB —
+// `grantAbility`'s `duration` is mandatory and `grantStaticAbilityPermanent`
+// has no Op wrapper". WRONG on both halves. `duration` on the `grantAbility`
+// Op is OPTIONAL and omitting it means INDEFINITE (CR 611.2b, issue #1746);
+// the interpreter routes an omitted duration to `grantStaticAbilityPermanent`
+// directly. Same correction applies to Kavu Titan (`inv/green.ts`).
+// tracked-by: #2761
 // export const faerieSquadron: CardDefinition = {
 //     id: "4c707c81-dbbd-43be-a79a-7bc92a584839",
 //     name: "Faerie Squadron",
@@ -936,7 +963,7 @@ export const dreamThrush: CardDefinition = {
 // most recently cast this turn." No game-state field tracks the most
 // recently cast spell for a `StaticCastRestriction.forbids` predicate to
 // read (`StaticEffectStateView` has no such history).
-// tracked-by: #1841
+// tracked-by: #1332
 // export const manaMaze: CardDefinition = {
 //     id: "3323b377-4f9c-55b1-b969-7e3a271344a4",
 //     name: "Mana Maze",
@@ -1065,7 +1092,7 @@ export const metathranTransport: CardDefinition = {
 // card with the greatest mana value may change the target or targets. ..."
 // A full new continuous reveal-and-compare-mana-value retargeting protocol —
 // no existing primitive comes close.
-// tracked-by: #1841
+// tracked-by: #1332
 // export const psychicBattle: CardDefinition = {
 //     id: "8758ca24-e613-43bf-be58-4cf557f82d0c",
 //     name: "Psychic Battle",
@@ -1106,11 +1133,19 @@ export const rainbowCrow: CardDefinition = {
     ],
 };
 
-// Shoreline Raider — "Protection from Kavu." `convex/gre/protection.ts` only
-// parses "protection from <color|colorless>" — creature-type protection
-// (CR 702.16k) is not engine-enforced; shipping the string as decorative-only
-// staticAbilities would silently diverge from the printed rules text.
-// tracked-by: #1841
+// Shoreline Raider — "Protection from Kavu."
+//
+// CORRECTED 2026-08-25 (#1841 audit) on both counts. (1) The rule is
+// CR 702.16a, which says a protection quality may be a card type, subtype or
+// supertype — NOT CR 702.16k, which is protection from a PLAYER and is a
+// family this engine already ships. (2) `convex/gre/protection.ts` does not
+// "only parse protection from <color|colorless>": four quality families ship
+// behind one parser (colour/colourless, player, characteristic types +
+// supertypes, coloured spell). The genuine gap is one leg — a SUBTYPE
+// quality, which that module excludes deliberately for lack of a closed
+// subtype vocabulary. Shipping the string anyway is not an option: the
+// parser fails closed and the catalogue guard reds CI.
+// tracked-by: #2765
 // export const shorelineRaider: CardDefinition = {
 //     id: "d895b3b8-2acc-4c9f-8341-f651c1255b7c",
 //     name: "Shoreline Raider",
@@ -1162,10 +1197,18 @@ export const swayOfIllusion: CardDefinition = {
 
 // Teferi's Response — "Counter target spell or ability an opponent controls
 // that targets a land you control. If a permanent's ability is countered
-// this way, destroy that permanent. Draw two cards." No target requirement
-// expresses "spell or ability that targets a land you control", and
-// countering an ACTIVATED/TRIGGERED ability (not just a spell) is unbuilt.
-// tracked-by: #1841
+// this way, destroy that permanent. Draw two cards."
+//
+// NARROWED 2026-08-25 (#1841 audit): the old marker also claimed
+// "countering an ACTIVATED/TRIGGERED ability (not just a spell) is unbuilt".
+// WRONG at HEAD — Stifle (`convex/cards/sets/scg/blue.ts`) ships exactly
+// that today with `targetRequirement: { type: "spell", spellStackKind:
+// "ability" }` + the `counter` Op, and `spellStackKind` also has an
+// `"activated-ability"` member. The surviving blockers are narrower: no
+// target requirement expresses "spell or ability that TARGETS A LAND YOU
+// CONTROL", and no Op expresses the "if a permanent's ability is countered
+// this way, destroy that permanent" rider.
+// tracked-by: #1332
 // export const teferisResponse: CardDefinition = {
 //     id: "f3bb2df8-c559-4a34-83b0-d48fbc694cc8",
 //     name: "Teferi's Response",
@@ -1180,7 +1223,7 @@ export const swayOfIllusion: CardDefinition = {
 // player's upkeep, remove all hourglass counters from permanents that player
 // controls." A bespoke marker-counter-driven untap lock (CR 502.3) with no
 // existing primitive.
-// tracked-by: #1841
+// tracked-by: #1332
 // export const temporalDistortion: CardDefinition = {
 //     id: "74bd0d14-8d26-403f-9405-d0dcdecd1a49",
 //     name: "Temporal Distortion",

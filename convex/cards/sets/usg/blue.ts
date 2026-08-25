@@ -124,14 +124,13 @@ export const showAndTell: CardDefinition = {
 // NOT DSL-migratable (ADR 0045): the middle clause WAS the EXACT Timetwister
 // shape (lea/blue.ts's `timetwister`, now migrated to `effects[]` on
 // `moveZone`'s bulk whole-zone shape, issue #1279 — CLOSED), but Time Spiral
-// itself stays `resolveSteps`, blocked on the OTHER two clauses riding the
-// same body: "Exile Time Spiral" (a self-redirect, `exileSelf()`, no Op skin)
-// and "untap up to six lands" (a ranged 0..6 cross-battlefield pick), neither
-// of which has been re-assessed against the current Op vocabulary — left
-// unmigrated here to stay in scope for #1279 (whole-zone-move only).
-// tracked-by: #1841 (#1279, which shipped the whole-zone move, is closed —
-// the two blockers above outlived it and had no owner; #1841 owns them until
-// they are split out)
+// itself stays `resolveSteps`. CORRECTED 2026-08-25 (#1841 audit): of the two
+// clauses this comment listed as blockers, only ONE survives. "Exile Time
+// Spiral" is NOT a blocker — `exileSelf` is a registered Op (see its
+// EFFECT_OP_REGISTRY row) and `inv/green.ts` uses it. The single remaining
+// blocker is "untap up to six lands": a ranged 0..6 pick over BOTH
+// battlefields, which is exactly the gap Teferi, Hero of Dominaria is already
+// deferred on. tracked-by: #1727
 //
 // Two more clauses ride the same `resolveSteps` body (CR 608.2) rather than a
 // bare `resolve`, since the seven-card draws are IRREVERSIBLE and must run

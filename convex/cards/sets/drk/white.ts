@@ -402,10 +402,15 @@ export const martyrsCry: CardDefinition = {
         "Exile all white creatures. For each creature exiled this way, its controller draws a card.",
     manaCost: { W: 2 },
     types: ["Sorcery"],
-    // NOT DSL-migratable (ADR 0045): "all white creatures" needs a colour
-    // filter (EffectCardFilter is type/subtype only), and the per-controller
-    // draw count is a snapshot the value grammar can't express. Stays
-    // resolve(). tracked-by: #1841
+    // NOT DSL-migratable (ADR 0045). CORRECTED 2026-08-25 (#1841 audit): the
+    // colour half is NOT a blocker — `EffectCardFilter.color` and
+    // `excludeColor` both ship, so "all white creatures" is expressible.
+    // The one remaining blocker is the per-controller draw: `EffectPlayerRef`'s
+    // `{ controllerOf }` variant takes an `EffectTargetRef` (an announced slot)
+    // and cannot name the controller of a `forEach` `$each` member, so
+    // "for each creature exiled this way, ITS controller draws a card" has no
+    // declarative form. Stays resolve() until `controllerOf` accepts an object
+    // ref. tracked-by: #1438
     resolve: (ctx: SpellContext) => {
         // Snapshot per-controller white creatures first (CR 608.2g — the count
         // is fixed by what is exiled, not by post-exile board state).

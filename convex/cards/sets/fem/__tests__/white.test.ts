@@ -584,7 +584,7 @@ describe("Farrel's Mantle — CR 603.3d targeted unblocked-attack trigger", () =
         );
     });
 
-    it("DIVERGENCE (tracked-by #1841): the enchanted creature is still a legal target — excludeSource excludes the Aura, not the attacker", () => {
+    it("DIVERGENCE (tracked-by #2016): the enchanted creature is still a legal target — excludeSource excludes the Aura, not the attacker", () => {
         // "another target creature" should exclude the ENCHANTED creature, but
         // the trigger's source is the Aura (not a creature). No requirement
         // facet excludes the attacker, so the engine offers it as a legal

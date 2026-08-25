@@ -1072,14 +1072,15 @@ export const gravebind: CardDefinition = {
     manaCost: { B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    // NOT DSL-migratable (ADR 0045): the regeneration-lock half now HAS an Op
-    // (`preventRegeneration`, CR 701.19c, #1283 — shipped), but the next-upkeep
-    // cantrip rider keeps this resolve(): it arms a card-specific delayed
-    // trigger (`scheduleNextUpkeepDraw` + the `delayedTriggers` entry below)
-    // with a draw body, which the `scheduleDelayedTrigger` Op vocabulary
-    // doesn't yet express as a self-contained effect.
-    // Blocked on: a delayed-trigger-with-draw-body Op skin.
-    // tracked-by: #1841
+    // FREED 2026-08-25 (#1841 audit). The old marker read "Blocked on: a
+    // delayed-trigger-with-draw-body Op skin" — WRONG at HEAD. The
+    // `delayedTrigger` Op (ADR 0048) takes an inline `effects` body, and
+    // Krovikan Fetish IN THIS FILE already ships exactly
+    // `{ op: "delayedTrigger", timing: "next-upkeep", effects: [{ op: "draw" }] }`.
+    // The regeneration-lock half has had its Op (`preventRegeneration`,
+    // CR 701.19c) since #1283. Both halves are expressible; this resolve() is
+    // a migration, not a blocker.
+    // tracked-by: #2761
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (t?.type === "permanent") {
@@ -1934,7 +1935,7 @@ export const limDLsCohort: CardDefinition = {
             // Blocked on: a CONDITIONAL `$event.<field>`-style object selector
             // (the OTHER creature in the pair) for a plain (non-factory)
             // triggered ability.
-            // tracked-by: #1841
+            // tracked-by: #2762
             resolve: (ctx: SpellContext, event: GameEvent) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const ev = event as BlockersConfirmedEvent;
