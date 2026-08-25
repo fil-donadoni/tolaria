@@ -8,10 +8,16 @@
 // fetch/tutor generator (CR 701.23, issue #1429).
 
 import { describe, it, expect, afterEach, vi } from "vitest";
-import type { GameState, PendingChoice } from "../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    StackItem,
+} from "../state";
 import { resolveTopOfStack } from "../state";
 import type { CardDefinition, EffectOp, MayPayCost } from "../../cards/types";
 import { registerTokenDefinition } from "../../cards";
+import { projectPublicState } from "../../gameProjections";
 
 /** A fixed-cardinal sacrifice leg (CR 701.21a) over creatures. */
 const SAC_ONE_CREATURE: MayPayCost = {
@@ -65,6 +71,8 @@ import { lightningBolt } from "../../cards/sets/lea/red";
 import { blackLotus } from "../../cards/sets/lea/colorless";
 import { mindStone } from "../../cards/sets/wth/colorless";
 import { mirrisGuile } from "../../cards/sets/tmp/green";
+import { kavuChameleon } from "../../cards/sets/inv/green";
+import { motherOfRunes } from "../../cards/sets/ulg/white";
 
 afterEach(() => resetChoicePriorFn());
 
@@ -701,6 +709,108 @@ describe("colorModePrior (issue #2306) — protection-colour choice scored again
         for (const cand of cands) {
             expect(heuristicChoicePrior(state, head, cand)).toBe(NEUTRAL_PRIOR);
         }
+    });
+});
+
+// issue #2306 review round 2 (PR #2774) — every test above hand-builds
+// `PendingChoice.options[]`, so none of them ever reach `modeProtectionColor`
+// (`gre/effects/interpreter.ts:311`), the seam that actually DECIDES whether
+// `protectionColor` gets set. Mutating that helper back to round 1's bug
+// (`return mode.color` — tag every colour-tagged mode as protection intent)
+// left the WHOLE suite green, including every test above. These two push the
+// cards' REAL activated abilities onto the stack and resolve them through the
+// real interpreter, so the seam itself is under test.
+describe("modeProtectionColor through the REAL interpreter (issue #2306 review round 2)", () => {
+    function stateWithGreenOpponent(
+        controllerBattlefield: CardInstanceState[]
+    ) {
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: controllerBattlefield }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "opp-bear",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("Kavu Chameleon's real `colorChoiceModes` ability raises options with NO protectionColor — every candidate stays NEUTRAL_PRIOR even against strong opponent evidence", () => {
+        const kavu = makeInstance(kavuChameleon.id, {
+            id: "kavu",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = stateWithGreenOpponent([kavu]);
+        state.stack.push({
+            ...kavu,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "kavu-chameleon-color",
+            targets: [],
+        } as StackItem);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the color pick
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.options!.length).toBeGreaterThan(0);
+        for (const option of head.options!) {
+            expect(option.color).toBeDefined(); // the rendering tag IS set…
+            expect(option.protectionColor).toBeUndefined(); // …but never protection intent
+        }
+
+        const cands = choiceCandidates(state, head);
+        expect(cands.length).toBeGreaterThan(0);
+        for (const cand of cands) {
+            expect(heuristicChoicePrior(state, head, cand)).toBe(NEUTRAL_PRIOR);
+        }
+    });
+
+    it("Mother of Runes' real protection ability raises options WITH protectionColor set, scored against opponent evidence, and the field survives the wire projection", () => {
+        const mother = makeInstance(motherOfRunes.id, {
+            id: "mother",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = stateWithGreenOpponent([mother]);
+        state.stack.push({
+            ...mother,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "mother-of-runes-protect",
+            targets: [{ type: "permanent", id: "mother" }],
+        } as StackItem);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the color pick
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        const greenOption = head.options!.find((o) => o.color === "G")!;
+        expect(greenOption).toBeDefined();
+        expect(greenOption.protectionColor).toBe("G");
+
+        // Scored against the opponent's board, which shows ONLY green: a 100%
+        // evidence share clamps to PRIOR_MAX (0.95, `choicePriors.ts`).
+        const cands = choiceCandidates(state, head);
+        const green = cands.find(
+            (c) => c.key === `option-pick:${greenOption.id}`
+        )!;
+        expect(heuristicChoicePrior(state, head, green)).toBe(0.95);
+
+        // Wire format: `projectPublicState` spreads `...state` for
+        // `pendingChoices` (gameProjections.ts) rather than rebuilding it
+        // field-by-field, but that is exactly the shape a future refactor
+        // could break — assert the newly-projected field survives for real.
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedHead = projected.pendingChoices![0];
+        const projectedGreen = projectedHead.options!.find(
+            (o) => o.id === greenOption.id
+        )!;
+        expect(projectedGreen.protectionColor).toBe("G");
     });
 });
 
