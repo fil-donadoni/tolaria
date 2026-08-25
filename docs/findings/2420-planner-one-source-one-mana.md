@@ -1,8 +1,8 @@
 ---
-issue: 2420
 title: planManaPayment models one source = one mana, the castability census counts one unit per mana
+discoveredBy: 2420
+status: draft
 confidence: high
-area: gre/bot
 ---
 
 ## What
