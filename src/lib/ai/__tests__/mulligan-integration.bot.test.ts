@@ -40,6 +40,7 @@ function engineMutations(state: GameState): MoveMutations {
     return {
         playCard: reject,
         summonCompanion: reject,
+        turnPermanentFaceUp: reject,
         announceCast: reject,
         selectTarget: reject,
         selectTargets: reject,

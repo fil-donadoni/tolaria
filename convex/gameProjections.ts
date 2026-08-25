@@ -6,7 +6,7 @@ import type {
     PlayerState,
     StackItem,
 } from "./gre/state";
-import { getPendingChoiceMax } from "./gre/state";
+import { getPendingChoiceMax, getPlayer } from "./gre/state";
 import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import {
@@ -21,6 +21,7 @@ import {
     flashSurchargeRequired,
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
+import { canTurnFaceUp } from "./gre/morph";
 import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
@@ -223,7 +224,7 @@ export type PublicPlayer = Omit<
     revealedHand?: SlimCardInstance[];
     graveyard: SlimGraveyardCard[];
     exile: SlimExileCard[];
-    battlefield: SlimCardInstance[];
+    battlefield: SlimBattlefieldCard[];
     grantedAbilities?: PublicGrantedAbility[];
     companion?: SlimCompanionSlot;
 };
@@ -256,7 +257,7 @@ export type FullPlayer = Omit<
     revealedHand?: SlimCardInstance[];
     graveyard: SlimGraveyardCard[];
     exile: SlimExileCard[];
-    battlefield: SlimCardInstance[];
+    battlefield: SlimBattlefieldCard[];
     grantedAbilities?: PublicGrantedAbility[];
     companion?: SlimCompanionSlot;
 };
@@ -266,7 +267,16 @@ export type FullPlayer = Omit<
  *  face-up), so identity is not hidden beyond the normal face-down rule that
  *  `projectBattlefieldCard` already applies per card. */
 export type SlimPhasedOutBundle = Omit<PhasedOutBundle, "cards"> & {
-    cards: SlimCardInstance[];
+    cards: SlimBattlefieldCard[];
+};
+
+/** A battlefield permanent on the wire. Adds the ONE server-derived affordance
+ *  the client cannot compute for itself: whether its controller may take the
+ *  CR 116.2b / 702.37e turn-face-up special action on it right now. Absent
+ *  (rather than `false`) whenever the action is unavailable, so the flag costs
+ *  nothing on the overwhelming majority of permanents, which are face up. */
+export type SlimBattlefieldCard = SlimCardInstance & {
+    canTurnFaceUp?: boolean;
 };
 
 export type PublicGameState = Omit<
@@ -421,16 +431,62 @@ function projectLibrary(
  *  is hidden. */
 function projectBattlefieldCard(
     card: CardInstanceState,
-    viewerId: string
-): SlimCardInstance {
+    viewerId: string,
+    state?: GameState
+): SlimBattlefieldCard {
+    // CR 116.2b / 702.37e (issue #2705) — the turn-face-up affordance. Derived
+    // server-side and carried on the wire for the same reason the companion's
+    // `canSummon` is: the board never runs the GRE, so it cannot ask whether
+    // this face-down permanent has a morph cost (it does not even know which
+    // card it is when the viewer is the opponent) nor whether that cost is
+    // affordable. Only ever true for the CONTROLLER — `canTurnFaceUp` checks
+    // control — so it leaks nothing: an opponent already knows the permanent is
+    // face down, and the flag says nothing about which card it is.
+    //
+    // `state` is optional and absent for PHASED-OUT bundles, which is deliberate
+    // rather than an oversight: a phased-out permanent is treated as though it
+    // does not exist (CR 702.26b), so no special action may be taken on it and
+    // the affordance must not appear.
+    const turnUp =
+        state !== undefined &&
+        card.faceDown === true &&
+        canTurnFaceUp(state, getPlayer(state, card.controllerId), card);
+    const decorate = (slim: SlimCardInstance): SlimBattlefieldCard =>
+        turnUp && viewerId === card.controllerId
+            ? { ...slim, canTurnFaceUp: true }
+            : slim;
     if (!card.faceDown) return slimCard(card);
     if (viewerId === card.controllerId && card.faceDownOf) {
         // The controller knows what they cast — expose the real id.
-        return slimCard({ ...card, card: { id: card.faceDownOf } });
+        return decorate(slimCard({ ...card, card: { id: card.faceDownOf } }));
     }
     // Opponents/spectators: hide the true identity entirely. slimCard returns
     // a fresh object, so deleting the leaked id doesn't mutate live state.
     const slimmed = slimCard(card);
+    delete (slimmed as { faceDownOf?: string }).faceDownOf;
+    return slimmed;
+}
+
+/** Projects one STACK item for a given viewer (CR 702.37c / 708.2, issue
+ *  #2705). Exactly the battlefield rule, applied to the zone that had no rule
+ *  at all: a face-down morph spell sits on the stack for a whole priority round
+ *  before it resolves, and `state.stack.map(slimCard)` was viewer-blind — the
+ *  sentinel `card.card.id` was correct for everyone (it is mutated in place at
+ *  `turnFaceDown` time, not derived per viewer), but the sibling `faceDownOf`
+ *  carrying the REAL card id rode straight through to the opponent. The
+ *  battlefield zone had stripped that field per viewer since ADR 0013; the
+ *  stack never did.
+ *
+ *  Deliberately NOT applied to `pendingTriggerBatch`: a triggered ability is
+ *  never a face-down object (CR 708 covers spells and permanents), and its
+ *  StackItem's `card` is its SOURCE, whose identity is public. */
+function projectStackItem(item: StackItem, viewerId: string): SlimStackItem {
+    if (!item.faceDown) return slimCard(item);
+    if (viewerId === item.castById && item.faceDownOf) {
+        // The caster knows what they cast — expose the real id.
+        return slimCard({ ...item, card: { id: item.faceDownOf } });
+    }
+    const slimmed = slimCard(item);
     delete (slimmed as { faceDownOf?: string }).faceDownOf;
     return slimmed;
 }
@@ -1102,7 +1158,7 @@ export function projectPublicState(
                 })
             ),
             battlefield: player.battlefield.map((c) =>
-                projectBattlefieldCard(c, viewerId)
+                projectBattlefieldCard(c, viewerId, state)
             ),
             // ADR 0026 — sparse library: only cards the viewer knows
             // (`viewer ∈ knownTo`) cross the wire, each at its top-relative
@@ -1235,7 +1291,7 @@ export function projectPublicState(
         ...state,
         seq,
         players,
-        stack: state.stack.map(slimCard),
+        stack: state.stack.map((item) => projectStackItem(item, viewerId)),
         // CR 603.3b / ADR 0058 — the off-stack simultaneous-trigger batch is
         // public (the triggers are going on the stack); slim it like `stack` so
         // the ordering picker can render card art without the raw `...state`

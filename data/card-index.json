@@ -4248,6 +4248,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Exalted Angel",
+        "scryfallId": "c2213eac-cea4-4dfd-90c4-c1f466967e2e",
+        "oracleId": "2f6e9ab8-6951-4c5f-bcde-0e96e0fe87f2",
+        "firstSet": "ons",
+        "firstPrintId": "c2213eac-cea4-4dfd-90c4-c1f466967e2e",
+        "firstPrintSet": "ons"
+    },
+    {
         "name": "Exclude",
         "scryfallId": "aeb359c8-209c-455f-84b2-970e5678a9fa",
         "oracleId": "a8c9f91a-b1e7-451d-b6db-ae865e2b853c",

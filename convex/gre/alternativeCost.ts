@@ -52,6 +52,7 @@ import { hasLegalBestowHost } from "./bestow";
 import { liveSupertypesOf } from "./snow";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { getDefinition, tryGetDefinition } from "../cards";
+import { MORPH_CAST_ALT_COST_ID, morphCastAlternativeCost } from "./morph";
 import { resolveZoneCharacteristics } from "./zoneCharacteristics";
 import type {
     SacrificeRequirement,
@@ -352,6 +353,14 @@ export function getAlternativeCost(
     // CR 702.103a — same treatment for `def.bestow` ("casting a spell using
     // its bestow ability follows the rules for paying alternative costs").
     if (def?.bestow?.id === altCostId) return def.bestow;
+    // CR 702.37a — the morph face-down cast ("pay {3} rather than pay its mana
+    // cost … This follows the rules for paying alternative costs"). Unlike
+    // every branch above it is SYNTHESIZED, not a field the card declares: the
+    // {3} belongs to the rule, so no card can state it differently. See
+    // `morphCastAlternativeCost` (convex/gre/morph.ts).
+    if (def?.morph && altCostId === MORPH_CAST_ALT_COST_ID) {
+        return morphCastAlternativeCost(def);
+    }
     return def?.alternativeCosts?.find((a) => a.id === altCostId);
 }
 
@@ -376,6 +385,7 @@ export function affordableAlternativeCosts(
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return [];
+    const morphCast = morphCastAlternativeCost(def);
     const variants = [
         ...(def.alternativeCosts ?? []),
         ...(def.evoke ? [def.evoke] : []),
@@ -387,6 +397,13 @@ export function affordableAlternativeCosts(
         // click would hard-reject at `announceCast`). `hasLegalBestowHost`
         // (`convex/gre/bestow.ts`) is that gate.
         ...(def.bestow && hasLegalBestowHost(state) ? [def.bestow] : []),
+        // CR 702.37a — the morph face-down cast, offered on the same terms.
+        // Its {3} mana leg is not checked here for exactly the reason Dash's
+        // isn't (see the doc above): affordability of a MANA leg is the "cast"
+        // legality gate's job (`convex/gre/rules.ts`), not the cast-option
+        // picker's. Offered from ANY zone the card could be cast from, per CR
+        // 702.37a ("functions in any zone from which you could play the card").
+        ...(morphCast ? [morphCast] : []),
     ];
     if (variants.length === 0) return [];
     return variants.filter((a) =>

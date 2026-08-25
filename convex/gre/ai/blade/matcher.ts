@@ -86,6 +86,12 @@ export function movingCardIds(move: Move): string[] {
         case "play-land":
         case "cast-spell":
         case "activate-ability":
+        // CR 116.2b / 702.37e (issue #2705) — the turn-face-up special action
+        // acts with exactly one permanent. NOTE for authors: naming that
+        // permanent's real card in a matcher will NOT resolve — a face-down
+        // object presents the `FACE_DOWN_CARD_ID` sentinel, which is
+        // deliberately absent from the name registry. Match on `kind` alone.
+        case "turn-face-up":
             return [move.cardInstanceId];
         case "declare-attackers":
             return move.attackerIds;

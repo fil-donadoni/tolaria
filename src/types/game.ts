@@ -435,6 +435,24 @@ export interface CardInstance {
      *  client mirror of `controlledSinceTurnStart` so the sacrifice picker
      *  highlights exactly the permanents the server will accept. */
     enteredOnTurn?: number;
+    /** CR 708.2 / ADR 0013 — this permanent (or stack item) is FACE DOWN: a
+     *  2/2 colourless nameless vanilla creature whatever the real card is. Its
+     *  `card.id` is the `FACE_DOWN_CARD_ID` sentinel, which is what makes
+     *  `CardImage` render a card back. Mirrors `CardInstanceState.faceDown`. */
+    faceDown?: boolean;
+    /** CR 708.2 — the REAL definition id behind a face-down object. Present
+     *  ONLY in the controller's / caster's own projection: `projectBattlefieldCard`
+     *  and `projectStackItem` (`convex/gameProjections.ts`) restore the real id
+     *  into `card.id` for them and delete this field for every other viewer, so
+     *  a client that reads it can never be reading an opponent's secret. */
+    faceDownOf?: string;
+    /** CR 116.2b / 702.37e (issue #2705) — the controller may take the morph
+     *  turn-face-up special action on this permanent right now. Server-derived
+     *  (`canTurnFaceUp`, `convex/gre/morph.ts`) because the board never runs the
+     *  GRE: it cannot know whether the hidden card has a morph cost, let alone
+     *  whether that cost is affordable. Only ever set on the controller's own
+     *  projection. */
+    canTurnFaceUp?: boolean;
 }
 
 export interface Combat {

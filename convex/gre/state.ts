@@ -2255,6 +2255,21 @@ export type PendingCast = {
      *  `evoked`/`dashed` above, and the same reason: the choice is made at
      *  announcement (CR 601.2b) but the stack item is not built until commit. */
     bestowed?: boolean;
+    /** CR 702.37a/c — true iff the alternative cost chosen for this cast is the
+     *  card's MORPH face-down cast (`isMorphCastAlternativeCost` at
+     *  announcement). Carried through the parked cast so the deferred commit
+     *  (`tryAutoCommitPendingCast`) can still turn the resulting stack item
+     *  FACE DOWN once the {3} is covered. Same shape and same reason as
+     *  `bestowed` above — the choice is made at announcement (CR 601.2b), the
+     *  stack item is not built until commit — and, like `bestowed`, this is not
+     *  a marker for a later trigger but a rewrite of the object put on the
+     *  stack (CR 702.37c: "Put it onto the stack (as a face-down spell with the
+     *  same characteristics)").
+     *
+     *  The parked cast leaks nothing: `PendingCast` carries only a
+     *  `cardInstanceId`, and the card is still in the caster's HAND while the
+     *  payment is open, where the opponent's projection nulls it. */
+    morphed?: boolean;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the "a sorcery
      *  couldn't have been cast right now" snapshot, taken at ANNOUNCEMENT
      *  (`announceCast`, before any cost is paid) and carried here so the

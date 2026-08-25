@@ -7,6 +7,7 @@
 // Each Move kind maps to a fixed, ordered call sequence:
 //   play-land        → playCard
 //   summon-companion → summonCompanion (CR 116.2 / 702.139a, ADR 0064)
+//   turn-face-up     → turnPermanentFaceUp (CR 116.2b / 702.37e, issue #2705)
 //   cast-spell       → announceCast → selectTargets? [→ confirmTargets] → tapForPayment?
 //   activate-ability → activateAbility → selectTargets? [→ confirmTargets] → tapForActivationPayment*
 //   declare-attackers→ toggleAttacker* → confirmAttackers
@@ -47,6 +48,12 @@ export type MoveMutations = {
      *  action. No card id (the source is the player's companion slot, not a
      *  hand card); the {3} is solved and applied server-side in one call. */
     summonCompanion: (a: GP) => Promise<unknown>;
+    /** CR 116.2b / 702.37e — the turn-face-up special action. Per-permanent
+     *  (hence `cardInstanceId`) and variable-cost, unlike `summonCompanion`;
+     *  the morph cost is solved and paid server-side in this one call. */
+    turnPermanentFaceUp: (
+        a: GP & { cardInstanceId: string }
+    ) => Promise<unknown>;
     announceCast: (
         a: GP & {
             cardInstanceId: string;
@@ -323,6 +330,16 @@ export async function executeMove(
             await mutations.summonCompanion(base);
             return;
 
+        // CR 116.2b / 702.37e — the turn-face-up special action. One mutation,
+        // no payment round-trip: the morph cost is auto-tapped server-side
+        // (`turnPermanentFaceUp`, game.ts), exactly like the companion's {3}.
+        case "turn-face-up":
+            await mutations.turnPermanentFaceUp({
+                ...base,
+                cardInstanceId: move.cardInstanceId,
+            });
+            return;
+
         case "cast-spell": {
             await mutations.announceCast({
                 ...base,
@@ -496,5 +513,19 @@ export async function executeMove(
             await mutations.confirmBlockers(base);
             return;
         }
+
+        default:
+            // COMPILE-TIME EXHAUSTIVE (issue #2705). This switch is the client
+            // seam where a Move becomes real mutations, so an unhandled kind
+            // is not a no-op: the driver believes it acted, the server state
+            // never changes, and the bot re-enumerates the same move forever —
+            // a freeze, not a misplay. Before this line a new `Move` kind
+            // compiled cleanly and fell straight through, which is how the
+            // `turn-face-up` special action would have shipped inert.
+            return assertNever(move);
     }
+}
+
+function assertNever(x: never): never {
+    throw new Error(`Unhandled move kind: ${JSON.stringify(x)}`);
 }

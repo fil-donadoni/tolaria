@@ -86,6 +86,8 @@ import {
 } from "./pendingTargetOrigin";
 import { manaValue } from "./constants";
 import { getInstanceManaCost } from "../cards";
+import { isMorphCastId, morphTurnUpPaymentPlan } from "./morph";
+import { turnFaceDown, turnFaceUp } from "./faceDown";
 import {
     applyActivationCostsForSearch,
     applyAdditionalCostLegForSearch,
@@ -746,6 +748,36 @@ export function applyMoveInSearch(
             return;
         }
 
+        case "turn-face-up": {
+            // CR 116.2b / 702.37e — the turn-face-up special action. Coarse
+            // mana model (see file header): taps a representative source set
+            // for the morph cost without draining the pool coin-exact.
+            // Legality AND affordability were established by `canTurnFaceUp` at
+            // enumeration time. No stack item (CR 116) — so, like `play-land`
+            // and `summon-companion`, this resets the pass cycle and keeps
+            // priority with the actor.
+            //
+            // CR 708.8 — `turnFaceUp` mutates the permanent in place; nothing
+            // re-enters the battlefield, so no ETB trigger of its own or of any
+            // other permanent can fire. Structural, not a suppression flag.
+            const permanent = player.battlefield.find(
+                (c) => c.id === move.cardInstanceId
+            );
+            if (permanent) {
+                const plan = morphTurnUpPaymentPlan(state, player, permanent);
+                if (plan) {
+                    const tapped = new Set(plan.map((step) => step.cardId));
+                    for (const src of player.battlefield) {
+                        if (tapped.has(src.id)) src.isTapped = true;
+                    }
+                }
+                turnFaceUp(permanent);
+            }
+            state.passCount = 0;
+            checkStateBasedActions(state);
+            return;
+        }
+
         case "cast-spell": {
             // CR 702.66b / 601.2g (issue #1661) — pay the delve exile BEFORE
             // the tap plan runs (`applyDelveExileForSearch`'s forced-minimum
@@ -824,6 +856,25 @@ export function applyMoveInSearch(
                 // `graveyardCastStackFlags`'s retrace branch (`convex/game.ts`).
                 ...(retraceZone ? { castFromGraveyard: true } : {}),
             };
+            // CR 702.37c (issue #2705) — a MORPH cast puts a face-down 2/2 on
+            // the stack, not the printed card: "It becomes a 2/2 face-down
+            // creature card with no text, no name, no subtypes, and no mana
+            // cost … When the spell resolves, it enters the battlefield with
+            // the same characteristics the spell had." Without this the ISMCTS
+            // tree would resolve every morph line into the REAL creature — the
+            // bot would price a hidden 2/2 as a 4/5 flier and never notice that
+            // the unmorph still has to be paid for, which is the entire
+            // decision morph poses.
+            if (
+                isMorphCastId(
+                    tryGetDefinition(
+                        (spellCard.card as { id?: string }).id ?? ""
+                    ) ?? undefined,
+                    move.alternativeCostId
+                )
+            ) {
+                turnFaceDown(stackItem);
+            }
             state.stack.push(stackItem);
             // CR 117: the caster gets priority but auto-passes it (no Ctrl), so
             // the opponent gets to respond before the spell resolves.
