@@ -21,6 +21,10 @@ import {
     type RootDecisionRecord,
 } from "@convex/gre/ai/decisionTelemetry";
 import { createInitialGameState, type SearchBudget } from "@convex/gre";
+import {
+    LADDER_VARIANTS,
+    type SearchVariant,
+} from "@convex/gre/ai/searchVariant";
 import { presetToPlayerInput } from "./decks";
 import { runHeadlessGame, type GameEndReason } from "./playGame";
 
@@ -86,4 +90,28 @@ export function collectSelfPlayDecisions(
         setRootDecisionSink(null);
     }
     return { records, gamesPlayed, decisive, reasons };
+}
+
+/** Resolve the optional search-variant leg of a corpus run (issue #1929).
+ *
+ *  An unknown name THROWS rather than falling back to "no variant", and that
+ *  is the whole point of the helper existing. A typo'd variant that silently
+ *  resolved to `undefined` would collect a leg identical to the baseline and
+ *  report it under the variant's name — the comparison would then read "the
+ *  variant changes nothing", which is indistinguishable from a real null
+ *  result and wrong. That is exactly the shape #2747 fixed on the ladder side
+ *  (a worker silently dropping `marginSamples`, so an entire decision-tier run
+ *  wrote a corpus with the calibration data missing and no error anywhere):
+ *  the failure of a MEASUREMENT to measure has to be loud, because nothing
+ *  downstream can tell it apart from a finding. */
+export function resolveCorpusVariant(
+    name: string | undefined
+): SearchVariant | null {
+    if (!name) return null;
+    const variant = LADDER_VARIANTS[name];
+    if (!variant)
+        throw new Error(
+            `unknown DECISION_CORPUS_VARIANT "${name}" — known: ${Object.keys(LADDER_VARIANTS).join(", ")}`
+        );
+    return variant;
 }

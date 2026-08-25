@@ -261,10 +261,33 @@ function materialSignal(margin: number): number {
 /** Calibrated margin → win-probability slope (issue #1929, map #1892 step 3):
  *  P(win | margin m) = σ(CALIBRATED_REWARD_K · m), fitted on the ladder
  *  self-play corpus by `bun scripts/fit-reward-mapping.ts` (one-parameter
- *  logistic MLE, intercept pinned to 0 by game symmetry). Consulted only under
- *  the `rewardMapping: "calibrated"` search variant until the ladder verdict
- *  lands it as the default. */
-export const CALIBRATED_REWARD_K = 2.3e-3; // placeholder — set by the fit
+ *  logistic MLE, intercept pinned to 0 by game symmetry).
+ *
+ *  MEASURED 2026-08-25 on the two decision-tier corpora #2747 unblocked —
+ *  the `--orientations 1` null run (340 games, 7 739 samples, k = 9.188e-4)
+ *  and the `placebo` run (680 games, 15 569 samples, k = 1.039e-3), pooled:
+ *  1 020 games, 23 308 samples. Two independent corpora agreeing to 12% is
+ *  the reproducibility check; the value below is the pooled fit.
+ *
+ *  WHAT IT SAYS, and why it does NOT become the default (findings:
+ *  docs/research/reward-calibration.md): 75% win probability sits at ~1 100
+ *  margin points — six vanilla 2/2s — where the production linear clip
+ *  declares certainty at 500. The honest curve is FLATTER than the guess it
+ *  would replace, because the eval margin barely predicts the winner at all
+ *  (log-loss 0.665 against 0.693 for a coin flip; ~0.692 — no information —
+ *  before turn 8). Swapping it in therefore WIDENS the indifference band at
+ *  margin 0 from 100 points to 400 and cuts the mean reward slope over real
+ *  positions to 0.33×, which is the #1893 pathology amplified, not fixed.
+ *  MEASURED on two matched legs of the decision-telemetry corpus (identical
+ *  seeds/decks/budget, 1 162 vs 1 139 root decisions): the share of picks the
+ *  SEARCH decides falls 16.7% → 5.9%, and 93.2% of decisions reach the
+ *  selection rules as a tie to break, up from 81.6%.
+ *
+ *  Kept behind the variant flag as the measurement it is: the constant is
+ *  refitted by the same script once `evaluate` itself carries more signal
+ *  (#2686 eval fidelity, then the fitted eval of map step 5), which is where
+ *  the calibration becomes worth landing. */
+export const CALIBRATED_REWARD_K = 9.983957e-4;
 
 /** Calibrated replacement for `materialSignal` in the OPEN band: the fitted
  *  win probability rescaled to [-1, 1]. The terminal bands keep the linear
