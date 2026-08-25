@@ -35,6 +35,12 @@
  * position. Every token must be consumed by an adjective, the noun or a
  * qualifier; a token nothing claims fails the descriptor, which is what keeps
  * "target creature you don't control" from being read as "target creature".
+ *
+ * The uniqueness branch is watched, not merely asserted: no phrase in the
+ * shipped vocabulary can reach it, so `descriptorRuleWith` takes the two token
+ * readers as a PARAMETER and the test injects a pair that makes two readings
+ * possible — the same seam, for the same reason, as `routeLineWith` in
+ * `grammar/router.ts`.
  */
 
 import { PERMANENT_TYPES } from "../../../cards/types";
@@ -129,7 +135,14 @@ function plural(word: string): string | null {
 
 // ── Adjectives ─────────────────────────────────────────────────────────────
 
-interface Mutable {
+/**
+ * The descriptor being assembled, one token at a time.
+ *
+ * Exported for ONE reason — `descriptorRuleWith`'s injected readers need to
+ * name it. It is not part of the sub-grammar's interface: every consumer takes
+ * the finished `DescriptorIR`.
+ */
+export interface DescriptorState {
     player?: "any" | "opponent";
     anyTarget?: true;
     types?: CardType[];
@@ -156,7 +169,7 @@ interface Mutable {
     plural?: true;
 }
 
-function emptyMutable(): Mutable {
+function emptyState(): DescriptorState {
     return {
         typeAdjectives: [],
         subtypes: [],
@@ -180,7 +193,7 @@ function emptyMutable(): Mutable {
  */
 function readAdjective(
     token: string,
-    into: Mutable
+    into: DescriptorState
 ): "unknown" | string | null {
     const lower = token.toLowerCase();
 
@@ -280,7 +293,7 @@ function typeOfSubtype(token: string): CardType | null {
 
 // ── Qualifiers (trailing phrases) ──────────────────────────────────────────
 
-type Qualifier = (into: Mutable) => string | null;
+type Qualifier = (into: DescriptorState) => string | null;
 
 const KEYWORDS = keywordVocabulary();
 
@@ -315,7 +328,10 @@ const QUALIFIERS: readonly (readonly [string, Qualifier])[] = [
     [" in a graveyard", (into) => setGraveyard(into, "any")],
 ];
 
-function setGraveyard(into: Mutable, owner: "you" | "any"): string | null {
+function setGraveyard(
+    into: DescriptorState,
+    owner: "you" | "any"
+): string | null {
     if (into.zone !== undefined) return "two zone clauses";
     into.zone = "graveyard";
     into.zoneOwner = owner;
@@ -329,7 +345,7 @@ const COMPARISON =
 /** `"with flying"` / `"without flying"` (CR 702). */
 function readKeywordQualifier(
     suffix: string,
-    into: Mutable
+    into: DescriptorState
 ): "unknown" | string | null {
     for (const [prefix, field] of [
         [" with ", "requireAbility"],
@@ -356,7 +372,7 @@ function readKeywordQualifier(
  */
 function peelQualifiers(
     span: string,
-    into: Mutable
+    into: DescriptorState
 ): { head: string } | { error: string } {
     let head = span;
     for (;;) {
@@ -386,7 +402,10 @@ function peelQualifiers(
     }
 }
 
-function readComparison(head: string, into: Mutable): string | null | "error" {
+function readComparison(
+    head: string,
+    into: DescriptorState
+): string | null | "error" {
     const at = head.lastIndexOf(" with ");
     if (at === -1) return null;
     const match = head.slice(at).match(COMPARISON);
@@ -405,7 +424,7 @@ function readComparison(head: string, into: Mutable): string | null | "error" {
 
 function lastKeywordQualifier(
     head: string,
-    into: Mutable
+    into: DescriptorState
 ): { head: string } | string | null {
     for (const prefix of [" without ", " with "]) {
         const at = head.lastIndexOf(prefix);
@@ -429,7 +448,10 @@ function lastKeywordQualifier(
  * the reason `manaAbility.ts` gives: `", or "` contains `" or "`, so an `oneOf`
  * over the two would report every three-way list as ambiguous.
  */
-function readNoun(tokens: readonly string[], into: Mutable): string | null {
+function readNoun(
+    tokens: readonly string[],
+    into: DescriptorState
+): string | null {
     const phrase = tokens.join(" ");
     const parts = phrase.includes(", or ")
         ? phrase.replace(", or ", ", ").split(", ")
@@ -515,68 +537,114 @@ function dedupe(types: readonly CardType[]): CardType[] {
 // ── The descriptor rule ────────────────────────────────────────────────────
 
 /**
+ * The two token readers the split loop runs, as an INJECTABLE pair.
+ *
+ * Same seam, same reason as `routeLineWith` in `grammar/router.ts`: the unique
+ * -split guarantee is this file's headline claim, and with the real vocabulary
+ * no phrase reaches the 2+ branch — a token is either an adjective or a noun
+ * head, never both in a way that yields two whole readings. So deleting
+ * `if (hits.length > 1) return fail(...)` turns the unique split into a
+ * first-hit split and leaves every test in this directory green, which is
+ * exactly the mutation ADR 0105 forbids and nothing was watching. Injecting
+ * the readers makes the branch reachable today, so the regression is caught
+ * now rather than when #2698–#2700 make it reachable for real.
+ */
+export interface DescriptorReaders {
+    /** `null` = consumed, `"unknown"` = not an adjective, else an error. */
+    readonly adjective: (
+        token: string,
+        into: DescriptorState
+    ) => "unknown" | string | null;
+    /** `null` = consumed, else an error. */
+    readonly noun: (
+        tokens: readonly string[],
+        into: DescriptorState
+    ) => string | null;
+}
+
+/** The vocabulary this grammar actually ships. */
+export const DESCRIPTOR_READERS: DescriptorReaders = {
+    adjective: readAdjective,
+    noun: readNoun,
+};
+
+/**
  * `"creature"`, `"nonbasic land"`, `"black creature you control"`,
  * `"creature card from your graveyard"`, `"artifact, creature, or land"`.
+ *
+ * Over an INJECTED reader pair — see `DescriptorReaders`.
  */
-export const descriptorRule: Rule<DescriptorIR> = rule(DESCRIPTOR, (span) => {
-    if (span.length === 0) return fail("empty descriptor", span);
-    if (span === "any target") {
-        return ok({ anyTarget: true as const });
-    }
-    const withQualifiers = emptyMutable();
-    const peeled = peelQualifiers(span, withQualifiers);
-    if ("error" in peeled) return fail(peeled.error, span);
-    const tokens = peeled.head.split(" ").filter((t) => t.length > 0);
-    if (tokens.length === 0) return fail("descriptor has no noun", span);
+export function descriptorRuleWith(
+    readers: DescriptorReaders
+): Rule<DescriptorIR> {
+    return rule(DESCRIPTOR, (span) => {
+        if (span.length === 0) return fail("empty descriptor", span);
+        if (span === "any target") {
+            return ok({ anyTarget: true as const });
+        }
+        const withQualifiers = emptyState();
+        const peeled = peelQualifiers(span, withQualifiers);
+        if ("error" in peeled) return fail(peeled.error, span);
+        const tokens = peeled.head.split(" ").filter((t) => t.length > 0);
+        if (tokens.length === 0) return fail("descriptor has no noun", span);
 
-    // Every split of the head into [adjectives][noun phrase] is tried and
-    // exactly one must work — see the header on why a unique split rather than
-    // the first or the longest.
-    const hits: Mutable[] = [];
-    const misses: string[] = [];
-    for (let at = 0; at < tokens.length; at += 1) {
-        const state: Mutable = { ...withQualifiers };
-        state.typeAdjectives = [...withQualifiers.typeAdjectives];
-        state.subtypes = [...withQualifiers.subtypes];
-        state.supertypes = [...withQualifiers.supertypes];
-        state.excludeTypes = [...withQualifiers.excludeTypes];
-        state.excludeSubtypes = [...withQualifiers.excludeSubtypes];
-        state.colors = [...withQualifiers.colors];
-        state.excludeColors = [...withQualifiers.excludeColors];
-        state.excludeSupertypes = [...withQualifiers.excludeSupertypes];
-        if (state.combatRole !== undefined)
-            state.combatRole = [...state.combatRole];
-        let failed: string | null = null;
-        for (let i = 0; i < at; i += 1) {
-            const outcome = readAdjective(tokens[i]!, state);
-            if (outcome === null) continue;
-            failed =
-                outcome === "unknown"
-                    ? `"${tokens[i]}" is not an adjective this grammar knows`
-                    : outcome;
-            break;
+        // Every split of the head into [adjectives][noun phrase] is tried and
+        // exactly one must work — see the header on why a unique split rather than
+        // the first or the longest.
+        const hits: DescriptorState[] = [];
+        const misses: string[] = [];
+        for (let at = 0; at < tokens.length; at += 1) {
+            const state: DescriptorState = { ...withQualifiers };
+            state.typeAdjectives = [...withQualifiers.typeAdjectives];
+            state.subtypes = [...withQualifiers.subtypes];
+            state.supertypes = [...withQualifiers.supertypes];
+            state.excludeTypes = [...withQualifiers.excludeTypes];
+            state.excludeSubtypes = [...withQualifiers.excludeSubtypes];
+            state.colors = [...withQualifiers.colors];
+            state.excludeColors = [...withQualifiers.excludeColors];
+            state.excludeSupertypes = [...withQualifiers.excludeSupertypes];
+            if (state.combatRole !== undefined)
+                state.combatRole = [...state.combatRole];
+            let failed: string | null = null;
+            for (let i = 0; i < at; i += 1) {
+                const outcome = readers.adjective(tokens[i]!, state);
+                if (outcome === null) continue;
+                failed =
+                    outcome === "unknown"
+                        ? `"${tokens[i]}" is not an adjective this grammar knows`
+                        : outcome;
+                break;
+            }
+            if (failed !== null) {
+                misses.push(failed);
+                continue;
+            }
+            const nounError = readers.noun(tokens.slice(at), state);
+            if (nounError !== null) {
+                misses.push(nounError);
+                continue;
+            }
+            hits.push(state);
         }
-        if (failed !== null) {
-            misses.push(failed);
-            continue;
-        }
-        const nounError = readNoun(tokens.slice(at), state);
-        if (nounError !== null) {
-            misses.push(nounError);
-            continue;
-        }
-        hits.push(state);
-    }
-    if (hits.length === 0)
-        return fail(
-            `no reading of "${span}" as a descriptor (${[...new Set(misses)].join("; ")})`,
-            span
-        );
-    if (hits.length > 1) return fail(`ambiguous descriptor "${span}"`, span);
-    return finish(hits[0]!, span);
-});
+        if (hits.length === 0)
+            return fail(
+                `no reading of "${span}" as a descriptor (${[...new Set(misses)].join("; ")})`,
+                span
+            );
+        if (hits.length > 1)
+            return fail(`ambiguous descriptor "${span}"`, span);
+        return finish(hits[0]!, span);
+    });
+}
 
-function finish(state: Mutable, span: string): RuleResult<DescriptorIR> {
+/** The descriptor rule over the vocabulary this grammar ships. */
+export const descriptorRule: Rule<DescriptorIR> =
+    descriptorRuleWith(DESCRIPTOR_READERS);
+
+function finish(
+    state: DescriptorState,
+    span: string
+): RuleResult<DescriptorIR> {
     // A colour/subtype/supertype restriction on a PLAYER is a phrase we have
     // misread, not a filter the engine could honour.
     if (state.player !== undefined || state.anyTarget === true) {

@@ -25,7 +25,7 @@
  * the line rather than being dropped.
  */
 
-import type { CardType, TargetRequirement } from "../../../cards/types";
+import type { TargetRequirement } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
 import { fail, ok, rule, type Rule } from "../../rule";
 import { keywordVocabulary } from "../slots/keywordLine";
@@ -445,17 +445,3 @@ function effectSentence(span: string, ctx: unknown) {
 
     return fail("not an effect sentence this grammar knows", span);
 }
-
-/** The card types a `type` word may name in a filter position (CR 205.2a). */
-export const EFFECT_CARD_TYPES: ReadonlyMap<string, CardType> = new Map<
-    string,
-    CardType
->([
-    ["artifact", "Artifact"],
-    ["creature", "Creature"],
-    ["enchantment", "Enchantment"],
-    ["instant", "Instant"],
-    ["land", "Land"],
-    ["planeswalker", "Planeswalker"],
-    ["sorcery", "Sorcery"],
-]);

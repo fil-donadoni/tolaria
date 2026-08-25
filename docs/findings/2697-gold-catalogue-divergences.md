@@ -1,5 +1,5 @@
 ---
-title: The gold harness found four hand-written cards that disagree with their own Oracle text
+title: The gold harness found four hand-written cards that disagree with their own Oracle text — one of the four deliberately
 discoveredBy: 2697
 status: draft
 confidence: high
@@ -34,9 +34,19 @@ the lockfile and each fix changes a card's behaviour.
    hand-written ability is `useStack: true` with an `addMana` Op. CR 605.1a:
    it requires no target, could add mana, is not a loyalty ability and neither
    its cost nor its effect moves a card to or from a library — so it IS a mana
-   ability and must not use the stack (CR 605.3a). Observable: as shipped, an
-   opponent gets priority in response to it, and it cannot be activated while
-   paying a cost.
+   ability and must not use the stack (CR 605.3a).
+
+    **This one is a DELIBERATE, documented deviation, not a defect — do NOT
+    "fix" it by flipping `useStack`.** `convex/cards/sets/atq/red.ts:163-180`
+    carries a box comment naming the exact reason: the engine's non-stack mana
+    path has no step that pays a `sacrificeFilter`, so the card is modelled on
+    the stack to reuse the sacrifice-choice machinery, at the known price that
+    its mana is not available mid-cast. Priest of Yawgmoth is deviated the same
+    way and for the same reason. Flipping either to `useStack: false` today
+    makes the ability payable without paying its cost — see the sibling finding
+    `2697-mana-ability-filter-cost-engine-gap.md`, which is where this belongs
+    as work. The compiler's READING is still the CR-faithful one; the catalogue
+    is right to disagree with it until the engine can honour the reading.
 
 4. **Horror of Horrors** — `sacrificeFilter: { types: "Land", subtypes: "Swamp" }`
    for `"Sacrifice a Swamp"`, where Dark Heart of the Wood, Orcish Lumberjack
@@ -46,10 +56,12 @@ the lockfile and each fix changes a card's behaviour.
    documented string/array and `{0}` shorthands are canonicalised.
 
 **Why it may not deserve its own issue.** (4) is cosmetic and could be closed by
-picking a house style for subtype-only filters rather than by a ticket. (1)–(3)
-are real rules bugs, but each is one card and none is in a Tier-1 deck, so they
-may belong as three lines on a catalogue-audit tracker rather than as three
-issues. What argues the other way: (3) changes when a player gets priority, and
-(2) means a shipped card silently does nothing for its `{G}` — both are the
-"passes its own tests, plays wrong" shape, and both were invisible until a
-second reader (the compiler) was pointed at the same Oracle text.
+picking a house style for subtype-only filters rather than by a ticket. (1) and
+(2) are real rules bugs, but each is one card and neither is in a Tier-1 deck,
+so they may belong as two lines on a catalogue-audit tracker rather than as two
+issues. (3) is not a catalogue ticket at all — it is a deliberate deviation
+whose retirement is gated on the engine gap in the sibling finding, and touching
+the card before that gap closes is a regression. What argues for tickets anyway:
+(2) means a shipped card silently does nothing for its `{G}` — the "passes its
+own tests, plays wrong" shape — and it was invisible until a second reader (the
+compiler) was pointed at the same Oracle text.

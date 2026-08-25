@@ -325,6 +325,33 @@ function applyRestrictions(
     return null;
 }
 
+/**
+ * Declare the announced targets on the ability (CR 601.2c).
+ *
+ * Exported, and taking the requirement list as a PARAMETER rather than reading
+ * `slots` from the closure, for the reason `routeLineWith` gives one directory
+ * over: `TargetSlots.allocate` already refuses the second allocation, so no
+ * input to `lowerActivatedAbility` can reach the >1 branch today. A refusal no
+ * test can enter is a refusal nobody has watched hold — and this one is the
+ * second, independent line of defence, the one that decides what happens if
+ * `allocate` ever stops being the first. Injecting the list makes the branch
+ * reachable now rather than when #2698's anaphora work allocates twice.
+ *
+ * >1 is UNLOWERABLE, not a silent drop: the ops already reference `{target: 0}`
+ * and `{target: 1}` positionally, so dropping the requirements would emit a
+ * definition whose script points at targets nothing declares. An unparsed card
+ * costs nothing; a dangling target ref is a card that is broken on the stack.
+ */
+export function declareTargets(
+    ability: ActivatedAbility,
+    requirements: readonly TargetRequirement[]
+): string | null {
+    if (requirements.length > 1)
+        return `${requirements.length} targets were announced but grammar v0 declares at most one (CR 601.2c)`;
+    if (requirements.length === 1) ability.targetRequirement = requirements[0];
+    return null;
+}
+
 export function lowerActivatedAbility(input: {
     readonly id: string;
     readonly oracleText: string;
@@ -352,8 +379,8 @@ export function lowerActivatedAbility(input: {
         useStack: true,
         effects: ops,
     };
-    const requirements = slots.requirements();
-    if (requirements.length === 1) ability.targetRequirement = requirements[0];
+    const targetError = declareTargets(ability, slots.requirements());
+    if (targetError !== null) return { ok: false, reason: targetError };
 
     const restrictionError = applyRestrictions(ability, input.restrictions);
     if (restrictionError !== null)

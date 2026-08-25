@@ -19,6 +19,7 @@ import { playerRefRule } from "../grammar/shared/playerRef";
 import { forEachRule, quantityRule } from "../grammar/shared/quantity";
 import {
     descriptorRule,
+    descriptorRuleWith,
     permanentFilterFromDescriptor,
     targetFilterRule,
 } from "../grammar/shared/targetFilter";
@@ -178,6 +179,42 @@ describe("descriptor sub-grammar (CR 109.1, CR 115.1)", () => {
             player: "opponent",
         });
         expect(refuses(descriptorRule, "black player")).toBe(true);
+    });
+
+    it("REFUSES a phrase two splits both read, rather than taking the first", () => {
+        // The unique-split guarantee is this sub-grammar's headline claim, and
+        // no phrase in the shipped vocabulary reaches its 2+ branch: a token is
+        // either an adjective or a noun head, never both in a way that yields
+        // two WHOLE readings. So the branch is exercised through injected
+        // readers, the seam `routeLineWith` already uses for the router's own
+        // ambiguity branch. Deleting `if (hits.length > 1) return fail(...)`
+        // turns the unique split into a first-hit split, and without this test
+        // nothing in the directory notices.
+        const ambiguous = descriptorRuleWith({
+            adjective: () => null,
+            noun: (_tokens, into) => {
+                into.types = ["Creature"];
+                return null;
+            },
+        });
+        const r = ambiguous.run("alpha beta", ctx);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.reason).toMatch(/ambiguous descriptor/);
+    });
+
+    it("splits through the injected readers, so a single reading still wins", () => {
+        // Without this, the test above would also pass on a rule that refused
+        // unconditionally.
+        const single = descriptorRuleWith({
+            adjective: () => "unknown",
+            noun: (_tokens, into) => {
+                into.types = ["Creature"];
+                return null;
+            },
+        });
+        const r = single.run("alpha beta", ctx);
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.value).toEqual({ types: ["Creature"] });
     });
 });
 
