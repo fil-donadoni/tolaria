@@ -6,8 +6,23 @@
 // NEVER commits; double click / the context-menu commit; "Pick to
 // sideboard" composes submitPick + setPoolArrangementEntry with the
 // resolved poolIndex; a selected card renders highlighted.
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeAll,
+    beforeEach,
+    afterEach,
+} from "vitest";
+import {
+    render,
+    fireEvent,
+    waitFor,
+    cleanup,
+    within,
+} from "@testing-library/react";
+import { DragDropManager } from "@dnd-kit/dom";
 import {
     PEEK_PANEL_RAIL_WIDTH,
     PEEK_PANEL_SHEET_RESERVE,
@@ -16,7 +31,22 @@ import {
     projectLimitedEvent,
     type LimitedEventRow,
 } from "@convex/limited/eventProjection";
+import {
+    dragOnto,
+    installDndJsdomShims,
+} from "~/components/deckbuilder/__tests__/dragHarness";
+import { paneOf } from "~/components/deckbuilder/__tests__/zoneQueries";
 import LimitedDraftTable from "../limited-draft-table";
+
+// A real dnd-kit drag (`dragOnto`, driven through the REAL droppable
+// registry rather than synthetic pointer coordinates — jsdom has no layout)
+// needs a few browser APIs jsdom does not implement. Installed once: it only
+// sets fallbacks (`matches: false` when nothing else stubs `matchMedia`,
+// `elementFromPoint`, `getAnimations`), so it changes nothing for every other
+// test in this file, which already runs with no `matchMedia` at all
+// (`useViewportMode` falls back to `"desktop"` either way — see
+// `stubViewport`'s own doc comment above).
+beforeAll(() => installDndJsdomShims());
 
 // LimitedDraftTable mounts LimitedDraftTimer (issue #2238), which reads
 // `useReducedMotion` from `motion/react` — jsdom has no `matchMedia`, so
@@ -26,6 +56,27 @@ vi.mock("motion/react", () => ({
 }));
 
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
+const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // Plains (land)
+
+/** `useViewportMode` reads two media queries and happy-dom has no
+ *  `matchMedia` at all, so every test in this file runs in whichever regime
+ *  the fallback happens to pick — which is `"desktop"`, i.e. the RAIL. That is
+ *  exactly how a reserve once shipped on the wrong axis: a test named
+ *  "reserves room for the sheet" ran in the configuration where it did
+ *  nothing (issue #2583 review). Stub the queries so both branches are
+ *  reachable. Module-scoped (not a per-`describe` helper) so every describe
+ *  block below — including the Pool/Sideboard one added by issue #2667 — can
+ *  reach the phone/sheet regime, not only the Booster's own Peek Panel suite. */
+function stubViewport(mode: "portrait" | "landscape") {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+        matches:
+            mode === "portrait"
+                ? query.includes("orientation: portrait")
+                : query.includes("max-height: 500px"),
+        addEventListener() {},
+        removeEventListener() {},
+    }));
+}
 
 const submitPickMock = vi.fn().mockResolvedValue(null);
 const setPoolArrangementEntryMock = vi.fn().mockResolvedValue(null);
@@ -68,14 +119,36 @@ beforeEach(() => {
     });
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+    cleanup();
+    // `stubViewport` (module-scoped, used by several describe blocks below)
+    // stubs `matchMedia` globally — a no-op here when nothing was stubbed,
+    // and otherwise what stops one test's viewport regime leaking into the
+    // next.
+    vi.unstubAllGlobals();
+});
 
-function eventRow(overrides: {
+type EventRowOverrides = {
     selectedPickId?: string;
     poolLength?: number;
     pickDeadline?: number;
-}): LimitedEventRow {
+    /** Explicit Pool, overriding the auto-generated all-Bolt one — issue
+     *  #2667's Pool/Sideboard tests need a SECOND distinct card (a land) so
+     *  Grouping `mv`'s default view produces more than one Column to "Move
+     *  to…" between. */
+    pool?: { scryfallId: string; cardId: string; cardName: string }[];
+    poolArrangement?: LimitedEventRow["seats"][number]["poolArrangement"];
+};
+
+function eventRow(overrides: EventRowOverrides): LimitedEventRow {
     const poolLength = overrides.poolLength ?? 0;
+    const pool =
+        overrides.pool ??
+        Array.from({ length: poolLength }, (_, i) => ({
+            scryfallId: `s-existing-${i}`,
+            cardId: BOLT_ID,
+            cardName: "Lightning Bolt",
+        }));
     return {
         _id: "event-1",
         createdBy: "admin1",
@@ -88,11 +161,7 @@ function eventRow(overrides: {
                 seatIndex: 0,
                 userId: "user1",
                 nickname: "Alice",
-                pool: Array.from({ length: poolLength }, (_, i) => ({
-                    scryfallId: `s-existing-${i}`,
-                    cardId: BOLT_ID,
-                    cardName: "Lightning Bolt",
-                })),
+                pool,
                 currentPack: [
                     {
                         scryfallId: "s1",
@@ -109,6 +178,7 @@ function eventRow(overrides: {
                 ],
                 selectedPickId: overrides.selectedPickId,
                 pickDeadline: overrides.pickDeadline,
+                poolArrangement: overrides.poolArrangement,
             },
             { seatIndex: 1, isBot: true },
         ],
@@ -117,11 +187,7 @@ function eventRow(overrides: {
     };
 }
 
-function renderTable(overrides: {
-    selectedPickId?: string;
-    poolLength?: number;
-    pickDeadline?: number;
-}) {
+function renderTable(overrides: EventRowOverrides, manager?: DragDropManager) {
     const view = projectLimitedEvent(eventRow(overrides), "user1");
     const seat = view.seats.find((s) => s.seatIndex === 0)!;
     // `projectLimitedEvent`'s pure return type has no `autoBuiltDeck` — that
@@ -136,6 +202,10 @@ function renderTable(overrides: {
             eventId={"event-1" as never}
             seat={seatView}
             round={0}
+            // `manager` is only ever supplied by a test that needs to drive a
+            // REAL drag (`dragOnto`) — omitted, `LimitedDraftTable` mints its
+            // own private one, exactly as the app does.
+            manager={manager}
         />
     );
 }
@@ -242,23 +312,6 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
                 "[data-inspect-panel] [data-editing-action]"
             ),
         ] as HTMLElement[];
-
-    /** `useViewportMode` reads two media queries and happy-dom has no
-     *  `matchMedia` at all, so every test here runs in whichever regime the
-     *  fallback happens to pick — which is `"desktop"`, i.e. the RAIL. That is
-     *  exactly how the reserve shipped on the wrong axis: the one test named
-     *  "reserves room for the sheet" ran in the configuration where it does
-     *  nothing. Stub the queries so both branches are reachable. */
-    function stubViewport(mode: "portrait" | "landscape") {
-        vi.stubGlobal("matchMedia", (query: string) => ({
-            matches:
-                mode === "portrait"
-                    ? query.includes("orientation: portrait")
-                    : query.includes("max-height: 500px"),
-            addEventListener() {},
-            removeEventListener() {},
-        }));
-    }
 
     afterEach(() => vi.unstubAllGlobals());
 
@@ -422,6 +475,297 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
             })
         );
         expect(document.querySelector("[data-inspect-panel]")).toBeNull();
+    });
+});
+
+// Issue #2667: the Pool/Sideboard half of the ONE selection model, reusing
+// `DeckZonePeek` byte-for-byte from the deckbuilder rather than a second
+// "Move to…"/Inspect implementation. Run through the real projection → real
+// `LimitedDraftTable` → real `LimitedDraftPool` → real `DeckZoneSurface`, same
+// discipline as the Booster's own Peek Panel suite above — the panel being
+// correct in isolation says nothing about whether this surface ever mounts it.
+describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
+    const panels = () =>
+        [...document.querySelectorAll("[data-peek-panel]")] as HTMLElement[];
+    const actionEls = () =>
+        [
+            ...document.querySelectorAll("[data-editing-action]"),
+        ] as HTMLElement[];
+    const boltInPool = [
+        { scryfallId: "s1", cardId: BOLT_ID, cardName: "Lightning Bolt" },
+    ];
+
+    it("tapping a Pool card opens the Peek Panel targeted at that card, with Inspect in its CTA row", () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+        expect(actionEls().map((el) => el.dataset.editingAction)).toContain(
+            "Inspect"
+        );
+    });
+
+    it("the same holds for a card in the Sideboard", () => {
+        const { getByTitle } = renderTable({
+            pool: boltInPool,
+            poolArrangement: [{ poolIndex: 0, sideboard: true }],
+        });
+        fireEvent.click(getByTitle(/from the Sideboard/));
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+        expect(actionEls().map((el) => el.dataset.editingAction)).toEqual([
+            "→ Pool",
+            "Inspect",
+        ]);
+    });
+
+    it("Inspect from a Pool selection opens the full card read; closing it returns to the Draft Room with the selection intact", () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(
+            actionEls().find((el) => el.dataset.editingAction === "Inspect")!
+        );
+        expect(document.querySelector("[data-inspect-panel]")).toBeTruthy();
+
+        fireEvent.click(
+            document.querySelector('[aria-label="Close inspect overlay"]')!
+        );
+        expect(document.querySelector("[data-inspect-panel]")).toBeNull();
+        // The selection survives closing the OVERLAY — the panel underneath
+        // is still showing the same card.
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+    });
+
+    it("selecting a Pool card while a pack card is selected clears the pack selection, and vice versa — at no point are two panels mounted", () => {
+        const { getByTitle, getAllByRole } = renderTable({
+            selectedPickId: "r0-p0-c0", // pack: "Lightning Bolt"
+            pool: [{ scryfallId: "s1", cardId: PLAINS_ID, cardName: "Plains" }],
+        });
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+
+        fireEvent.click(getByTitle(/^Remove Plains/));
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Plains"
+        );
+        // The pack's own server-side selection is cleared, not merely hidden.
+        expect(selectDraftPickMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            pickId: null,
+        });
+
+        // …and back the other way: picking a Booster card while the Pool
+        // panel is open clears the Pool's own local selection.
+        const boosterCards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(boosterCards[0]);
+        expect(panels()).toHaveLength(1);
+        expect(panels()[0].getAttribute("aria-label")).toBe(
+            "Selected card: Lightning Bolt"
+        );
+    });
+
+    // Issue #2667 round 3 (PR #2797 review round 2): a column pin from the
+    // panel used to send `sideboard: false` unconditionally, on the
+    // assumption a Pool selection can never go stale about its own Zone — an
+    // assumption a concurrent drag breaks (see the DRAG regression test
+    // below). The pin now sends NO `sideboard` field at all — "don't touch
+    // the Zone", the same contract the build view's own `handlePin`
+    // (`pool-deck-builder-form.tsx`) has always used for a pin — so the
+    // resolved Arrangement below still comes out unsideboarded, but via
+    // "never asserted" rather than "explicitly asserted false".
+    it("moving a Pool card to a specific Column from the panel persists the same Pool Arrangement entry a long-press drag onto that Column persists, without asserting the Zone", () => {
+        const { getByTitle, getByRole } = renderTable({
+            pool: [
+                ...boltInPool,
+                { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+            ],
+        });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(
+            actionEls().find((el) => el.dataset.editingAction === "Move to…")!
+        );
+        // The Bolt defaults into "MV 1" (`mv:1`); moving it into the OTHER
+        // generated Column this pool has (`mv:lands`, the Plains' own) is
+        // what proves the Pin actually names a DIFFERENT Column rather than
+        // a no-op re-pin of the one it is already in.
+        fireEvent.click(getByRole("button", { name: "Lands" }));
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            column: "mv:lands",
+        });
+    });
+
+    it("zone moves (Pool <-> Sideboard) from the panel persist and are reflected in the Main / Sideboard counts", () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(
+            actionEls().find((el) => el.dataset.editingAction === "→ Side")!
+        );
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: true,
+        });
+    });
+
+    // Review finding (PR #2797 round 1, HIGH): the zone-move CTA used to leave
+    // `poolSelection` STALE after firing — the panel stayed open holding a
+    // selection whose zone (`"maindeck"`) no longer matched reality (the card
+    // was now in the Sideboard). A player who then tapped "Move to…" on that
+    // stale panel reached `handlePoolPin`, which hard-codes `sideboard: false`
+    // on the assumption `onPin` is only ever reachable from a Pool selection —
+    // an assumption the stale selection broke, silently pulling the card back
+    // OUT of the Sideboard the very next write. Asserting the panel is GONE
+    // after "→ Side" is what proves the stale path is now unreachable: with
+    // no open selection there is no "Move to…" CTA left to tap at all.
+    it("→ Side clears the Pool selection so the panel cannot be walked into the stale-selection trap", () => {
+        const { getByTitle } = renderTable({
+            pool: [
+                ...boltInPool,
+                { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+            ],
+        });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(panels()).toHaveLength(1);
+
+        fireEvent.click(
+            actionEls().find((el) => el.dataset.editingAction === "→ Side")!
+        );
+        expect(setPoolArrangementEntryMock).toHaveBeenLastCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: true,
+        });
+
+        // The panel — and with it, the "Move to…" CTA — is gone. There is no
+        // longer a stale selection to walk into a Column pin through.
+        expect(panels()).toHaveLength(0);
+        expect(
+            actionEls().find((el) => el.dataset.editingAction === "Move to…")
+        ).toBeUndefined();
+
+        // Nothing further was written: in particular no SECOND
+        // `setPoolArrangementEntry` call reverting `sideboard` back to
+        // `false` (the exact corruption the stale selection produced).
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Review round 2 (PR #2797), the reason this is round 3: round 1's fix
+    // above only closed the CTA door — `setPoolSelection(null)` fires from
+    // the PANEL's own "→ Side"/"→ Pool" buttons, so it can only ever save a
+    // player who moved the card THROUGH the panel. A Pool ⇄ Sideboard DRAG
+    // is a second, independent door onto the exact same stale-selection
+    // trap: `handleDragEnd` → `handleMoveArrangement` writes the Arrangement
+    // directly and never touches `poolSelection` at all, so the panel stays
+    // open, still reading the PRE-drag zone, with "Move to…" still offered.
+    // This reproduces that exact path and proves the ROOT fix — a column pin
+    // no longer asserts a Zone (`handlePoolPin`/`poolArrangementPatch`) — is
+    // what makes it safe now, not a second per-door clear.
+    it("a DRAG to the Sideboard, with the panel still open, does not let a follow-up 'Move to…' pin pull the card back out of the Sideboard", async () => {
+        const manager = new DragDropManager();
+        const { container, getByTitle, getByRole } = renderTable(
+            {
+                pool: [
+                    ...boltInPool,
+                    { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+                ],
+            },
+            manager
+        );
+
+        // Tap-select the Bolt: opens the panel with `poolSelection.zone ===
+        // "maindeck"`.
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(panels()).toHaveLength(1);
+
+        // Drag the SAME tile into the Sideboard — NOT the panel's own "→
+        // Side" CTA, so `poolSelection` never hears about the move.
+        const pool = paneOf(container, /^Pool 2/);
+        const sideboardPane = paneOf(container, /^Sideboard 0/);
+        await dragOnto(
+            manager,
+            within(pool).getByTitle(/^Remove Lightning Bolt/),
+            sideboardPane
+        );
+        expect(setPoolArrangementEntryMock).toHaveBeenLastCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: true,
+        });
+
+        // The panel is STILL open, holding the now-stale "maindeck"
+        // selection — the exact trap the reviewer walked.
+        expect(panels()).toHaveLength(1);
+        const moveTo = actionEls().find(
+            (el) => el.dataset.editingAction === "Move to…"
+        );
+        expect(moveTo).toBeTruthy();
+        fireEvent.click(moveTo!);
+        fireEvent.click(getByRole("button", { name: "Lands" }));
+
+        // The pin write must never assert a Zone: no call ever sends
+        // `sideboard: false`, so the card the drag just sideboarded is not
+        // silently pulled back into the Pool.
+        for (const [args] of setPoolArrangementEntryMock.mock.calls) {
+            expect((args as { sideboard?: boolean }).sideboard).not.toBe(false);
+        }
+        expect(setPoolArrangementEntryMock).toHaveBeenLastCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            column: "mv:lands",
+        });
+    });
+
+    // The Booster's own Peek Panel deliberately does NOT reserve on a phone
+    // (its CTAs inline into the strip there, `draft-selection-actions.tsx`);
+    // the Pool's `DeckZonePeek` opens the real FIXED panel at every viewport
+    // (issue #2667 AC), so the surface underneath must reserve for it there
+    // too — unlike the Booster row a few tests up, which asserts NOTHING is
+    // reserved while no card is selected.
+    //
+    // No `matchMedia` stub here (same default the existing "reserves the
+    // rail's WIDTH on desktop too" test relies on) — `useViewportMode`
+    // falls back to `"desktop"`, i.e. the RAIL. This is the desktop/tablet
+    // half of the pair; the phone/SHEET half is the next test.
+    it("reserves the rail's WIDTH for the Pool's panel on desktop, even though the Booster's own panel never mounts here", () => {
+        const { container, getByTitle } = renderTable({ pool: boltInPool });
+        const surface = () =>
+            container.querySelector("[data-slot=draft-surface]") as HTMLElement;
+        expect(surface().style.paddingRight).toBe("");
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(surface().style.paddingRight).toBe(PEEK_PANEL_RAIL_WIDTH);
+    });
+
+    // Review finding (PR #2797 round 1): the test above was NAMED as if it
+    // covered the phone/sheet geometry issue #2667's AC actually names
+    // (390x844x3 / 844x390x3), but ran with no `matchMedia` stub at all, so
+    // `useViewportMode` never resolved anything but `"desktop"` — the sheet
+    // reserve the AC's phone viewports depend on had evidence at NO layer.
+    // Stubbed `"portrait"` the way `stubViewport` a few tests up already
+    // does, this is that missing coverage: the Pool's panel is NOT
+    // phone-special-cased (unlike the Booster's), so it must reserve the
+    // sheet's HEIGHT in portrait exactly like the Booster panel does when IT
+    // is the one open (see "reserves the sheet's HEIGHT in portrait" above).
+    it("reserves the sheet's HEIGHT for the Pool's panel in portrait, even though the Booster's own panel never mounts there", () => {
+        stubViewport("portrait");
+        const { container, getByTitle } = renderTable({ pool: boltInPool });
+        const surface = () =>
+            container.querySelector("[data-slot=draft-surface]") as HTMLElement;
+        expect(surface().style.paddingBottom).toBe("");
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(surface().style.paddingBottom).toBe(PEEK_PANEL_SHEET_RESERVE);
+        expect(surface().style.paddingRight).toBe("");
     });
 });
 

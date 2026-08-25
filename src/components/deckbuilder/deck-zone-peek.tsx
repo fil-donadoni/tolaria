@@ -32,6 +32,14 @@ export interface DeckZonePeekProps {
     inspectActions: readonly EditingSurfaceAction[];
     onInspect: (selection: DeckZoneSelection) => void;
     onCloseInspect: () => void;
+    /** Forwarded to the Inspect Overlay's own `tapAnywhereCloses` (issue
+     *  #2667). Off by default — unset, the two deck builders keep the
+     *  overlay put while the player reads, unchanged since #2584. The Draft
+     *  Room's Pool/Sideboard adoption sets it, matching the SAME "tap
+     *  anywhere closes" rule its Booster pack selection already established
+     *  (PRD #2405 D15, `limited-draft-table.tsx`) — one room, one dismissal
+     *  convention for both selections it now shares this panel between. */
+    inspectTapAnywhereCloses?: boolean;
 }
 
 /**
@@ -66,6 +74,7 @@ export default function DeckZonePeek({
     inspectActions,
     onInspect,
     onCloseInspect,
+    inspectTapAnywhereCloses,
 }: DeckZonePeekProps) {
     const [pickingColumn, setPickingColumn] = useState(false);
 
@@ -122,6 +131,7 @@ export default function DeckZonePeek({
                     cardId={inspecting.cardId}
                     actions={overlayActions}
                     onClose={onCloseInspect}
+                    tapAnywhereCloses={inspectTapAnywhereCloses}
                 />
             )}
 

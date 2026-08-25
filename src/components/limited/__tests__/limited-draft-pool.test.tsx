@@ -261,12 +261,12 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
 describe("LimitedDraftPool — no per-card overlay buttons (issue #2584)", () => {
     // The per-tile `"move to…"` popover (issue #1633 bundled finding 2) went
     // away with every other per-card overlay button in issue #2584. On the two
-    // BUILD views its capability moved to the Peek Panel's "Move to…" CTA; on
-    // THIS surface it did not, because the Draft Room already mounts a Peek
-    // Panel for the Booster pack and two `fixed` panels would paint on top of
-    // each other (`docs/findings/2584-draft-pool-touch-column-pin.md`). A
-    // long-press drag onto a Column is the remaining touch path here, and the
-    // `setPoolArrangementEntry` write it reaches is unchanged.
+    // BUILD views its capability moved to the Peek Panel's "Move to…" CTA; the
+    // draft Pool's own touch path to it arrived later, in issue #2667
+    // (`limited-draft-table.tsx` now supplies `onCardSelect`/`onPin`, see the
+    // describe block below) — but it is still a SELECTION, not a per-tile
+    // button, so this assertion (no `<button>` inside a card tile) stays true
+    // either way.
     it("renders no button inside a Pool card tile", () => {
         const view = projectLimitedEvent(eventRow(undefined), "user1");
         const own = view.seats.find((s) => s.seatIndex === 0)!;
@@ -285,6 +285,108 @@ describe("LimitedDraftPool — no per-card overlay buttons (issue #2584)", () =>
         for (const tile of rendered.getAllByTitle(/Remove Lightning Bolt/)) {
             expect(tile.querySelectorAll("button")).toHaveLength(0);
         }
+    });
+});
+
+describe("LimitedDraftPool — selection wiring (issue #2667)", () => {
+    // `onCardSelect`/`onPin`/`selection` are OPTIONAL: a bare render (every
+    // test above) keeps the pre-#2667 click-moves-immediately behaviour, and
+    // `limited-draft-table.tsx` is the only caller that ever supplies them —
+    // proven directly here rather than only through the Table, since this is
+    // the component whose `onClick` branch (`onCardSelect ? select :
+    // onCardClick`, `deck-zone-surface.tsx`) actually changes.
+    it("with onCardSelect supplied, a click SELECTS the card instead of moving it immediately", () => {
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        const onCardSelect = vi.fn();
+        const onPin = vi.fn();
+
+        const { getAllByTitle } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+                onCardSelect={onCardSelect}
+                onPin={onPin}
+            />
+        );
+
+        fireEvent.click(getAllByTitle(/^Remove Lightning Bolt/)[0]);
+        expect(onCardSelect).toHaveBeenCalledTimes(1);
+        expect(setPoolArrangementEntryMock).not.toHaveBeenCalled();
+        const selection = onCardSelect.mock.calls[0][0];
+        expect(selection.zone).toBe("maindeck");
+        expect(selection.cardId).toBe(BOLT_ID);
+        // The Column list a "Move to…" CTA would offer — non-empty only when
+        // BOTH this Zone's own `dropModel: "columns"` AND `onPin` are present
+        // (`deck-zone-surface.tsx`'s `moveMenuColumns` derivation).
+        expect(selection.columns.length).toBeGreaterThan(0);
+    });
+
+    it("a Sideboard click selects too, but offers NO Columns — onPin is threaded to the Pool zone only", () => {
+        const view = projectLimitedEvent(
+            eventRow([{ poolIndex: 2, sideboard: true }]), // Plains sideboarded
+            "user1"
+        );
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        const onCardSelect = vi.fn();
+        const onPin = vi.fn();
+
+        const { getByTitle } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+                onCardSelect={onCardSelect}
+                onPin={onPin}
+            />
+        );
+
+        fireEvent.click(getByTitle(/from the Sideboard/));
+        expect(onCardSelect).toHaveBeenCalledTimes(1);
+        const selection = onCardSelect.mock.calls[0][0];
+        expect(selection.zone).toBe("sideboard");
+        expect(selection.columns).toEqual([]);
+    });
+
+    it("the selection's tileKey draws the ring on the tapped copy only", () => {
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        const onCardSelect = vi.fn();
+
+        const { getAllByTitle, rerender } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+                onCardSelect={onCardSelect}
+            />
+        );
+        const bolts = getAllByTitle(/^Remove Lightning Bolt/);
+        fireEvent.click(bolts[0]);
+        const selection = onCardSelect.mock.calls[0][0];
+
+        rerender(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+                selection={selection}
+                onCardSelect={onCardSelect}
+            />
+        );
+        // The selection cue moved from an outward Tailwind `ring-accent-soft`
+        // utility to an inset `.card-ring` pseudo-element carrying
+        // `--card-ring-color: var(--color-accent-soft)` as an arbitrary-value
+        // class (ADR 0103 §8, issue #2724/PR #2803) — `ring-accent-soft` no
+        // longer appears anywhere in the tree, so the selector now matches on
+        // the surviving `accent-soft` substring, which is unique to the
+        // selection cue (the hover cue uses `danger-strong`; the `featured`
+        // cue uses the `card-ring-selected` role class with no inline var).
+        const ringed = getAllByTitle(/^Remove Lightning Bolt/).filter((el) =>
+            el.querySelector("[class*=accent-soft]")
+        );
+        expect(ringed).toHaveLength(1);
     });
 });
 

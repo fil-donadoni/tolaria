@@ -46,6 +46,7 @@ its own ADR, and changing its pick gesture is not in this slice's scope.
 **Why it may not deserve its own issue.** It is a z-order/discoverability
 annoyance, not data loss — both surfaces are dismissible and the pick itself is
 the LEFT click, which is unaffected. It may be better folded into whichever
-slice next touches the Draft Room's gesture model (the same one that owes the
-Pool a selection model, see
-`docs/findings/2584-draft-pool-touch-column-pin.md`) than ticketed alone.
+slice next touches the pack card's own gesture set — issue #2667 gave the Pool
+a selection model (retiring the sibling finding this used to point at), but
+left the BOOSTER pack card's `contextmenu` binding untouched, so this collision
+is still live.
