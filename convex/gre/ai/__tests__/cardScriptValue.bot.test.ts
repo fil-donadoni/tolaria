@@ -41,6 +41,7 @@ describe("dslAbilityScriptOpValue — zone-aware self-bounce (issue #1964)", () 
             id: "t",
             oracleText: "t",
             event: "CREATURE_DIED",
+            matches: () => true,
             // No `zone` — defaults to battlefield (the overwhelming common
             // case: every ActivatedAbility and most TriggeredAbility rows).
             effects: selfBounceToHand,
@@ -56,6 +57,7 @@ describe("dslAbilityScriptOpValue — zone-aware self-bounce (issue #1964)", () 
             oracleText: "t",
             event: "PHASE_BEGIN",
             zone: "graveyard",
+            matches: () => true,
             effects: selfBounceToHand,
         });
         const v = dslAbilityScriptOpValue(def);
