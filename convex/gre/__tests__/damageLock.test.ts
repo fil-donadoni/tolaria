@@ -33,14 +33,15 @@ import { lashknifeBarrier } from "../../cards/sets/pls/white";
 import { projectPublicState } from "../../gameProjections";
 import { runDamageReplacement, resolveTopOfStack } from "../state";
 import { applyAllCombatDamage, finalizeCleanup } from "../phases";
-import type { GameState, StackItem } from "../state";
+import type { GameState } from "../state";
+import type { TargetSelection } from "../../cards/types";
 import { compactState, expandState } from "../serialize";
 
 /** Casts Lava Burst at `target` with X = `x` and resolves it. */
 function castLavaBurst(
     state: GameState,
     x: number,
-    target: StackItem["targets"][number]
+    target: TargetSelection
 ): void {
     const item = pushSpell(state, lavaBurst.id, "p1", [target]);
     item.chosenX = x;
@@ -145,7 +146,11 @@ describe("Lava Burst rider (CR 615.12 / 614.9 / 702.16e)", () => {
         ).toBe(3);
         expect(state.players[0].life).toBe(20); // nothing landed on p1
         // CR 614.9 — the redirect "does nothing"; its charge is not spent.
-        expect(state.damageRedirections?.[0].remaining).toBe(1);
+        const shield = state.damageRedirections?.[0];
+        expect(shield?.kind).toBe("from-source-to-permanent-redirect");
+        expect(
+            shield && "remaining" in shield ? shield.remaining : undefined
+        ).toBe(1);
     });
 
     it("does NOT lock damage aimed at a player — a shield still prevents it", () => {
