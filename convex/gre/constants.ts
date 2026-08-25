@@ -1281,6 +1281,28 @@ const NEVER_AUTO_PAYABLE_COST_LEGS = [
     "manaEqualToCounterCount",
 ] as const satisfies readonly (keyof ActivatedAbility["cost"])[];
 
+/** CR 602.1 (issue #2420) — the fixed generic amount a `cost.mana` leg
+ *  declares when it is EXACTLY "N generic, nothing else" (Farrelite Priest /
+ *  Initiate's Ebon Hand's "{1}: Add <color>." — `{ X: 1 }`, a literal number,
+ *  never the player-chosen `"X"` marker a spell's variable cost uses).
+ *  `null` for any other shape (a coloured sub-cost, a variable `"X"`, a mixed
+ *  generic+coloured leg like Nomadic Elf's "{1}{G}: Add one mana of any
+ *  color" — `{ X: 1, G: 1 }` — …) — the automatic planner
+ *  (`planManaPayment`'s `consume()`, moves.ts) funds only this one shape;
+ *  anything else fails closed rather than mis-funding. Hoisted here (out of
+ *  moves.ts) so `isAutoPayableManaAbilityCost` below can gate admission on
+ *  the SAME predicate that decides executability, instead of the two
+ *  drifting apart (review finding, issue #2420 round 2 — Nomadic Elf's
+ *  `{X:1,G:1}` cost.mana used to be ADMITTED here but was never executable by
+ *  `consume()`, which nulled the WHOLE plan instead of skipping the one
+ *  unexecutable source). */
+export function pureGenericManaSubCost(mana: ManaCost): number | null {
+    if (typeof mana.X !== "number") return null;
+    const keys = Object.keys(mana) as (keyof ManaCost)[];
+    if (keys.some((k) => k !== "X" && mana[k] !== undefined)) return null;
+    return mana.X;
+}
+
 /** CR 602.1 / 605.1a (issue #2420) — which `useStack: false` mana-ability
  *  cost shapes the AUTOMATIC planner (the bot's `planManaPayment`, the
  *  shared castability census) may fund without asking the player.
@@ -1293,10 +1315,19 @@ const NEVER_AUTO_PAYABLE_COST_LEGS = [
  *  is also present:
  *   - `cost.tapOtherFilter` alone (Urza, Lord High Artificer — CR 602.1: the
  *     cost taps a DIFFERENT permanent, never the source itself).
- *   - `cost.mana` alone (Farrelite Priest / Initiate's Ebon Hand's "{1}: Add
+ *   - a PURE-GENERIC `cost.mana` alone — `pureGenericManaSubCost` returns
+ *     non-null (Farrelite Priest / Initiate's Ebon Hand's "{1}: Add
  *     <color>." — a repeatable generic-for-colour conversion, itself funded
  *     by the planner's OTHER sources; see `planManaPayment`'s recursion
- *     guard, moves.ts).
+ *     guard, moves.ts). A `cost.mana` leg that ALSO demands a coloured
+ *     component (Nomadic Elf's "{1}{G}: Add one mana of any color",
+ *     `{X:1,G:1}`) is deliberately EXCLUDED — `planManaPayment`'s `consume()`
+ *     can only execute the pure-generic shape, so admitting anything wider
+ *     here would hand the planner a source it cannot actually pay for
+ *     (review finding, issue #2420 round 2: this used to admit ANY
+ *     `cost.mana` shape, and an unexecutable one nulled the entire plan
+ *     instead of the planner simply not offering it as a source — measured
+ *     regression on Nomadic Elf, `convex/cards/sets/inv/green.ts`).
  *
  *  Still EXCLUDED, deliberately, because the issue's acceptance criteria
  *  name only the two shapes above: a `removeCounter` cost (Rasputin
@@ -1311,8 +1342,36 @@ export function isAutoPayableManaAbilityCost(
     if (NEVER_AUTO_PAYABLE_COST_LEGS.some((leg) => cost[leg] !== undefined)) {
         return false;
     }
-    return !!cost.tapOtherFilter || !!cost.mana;
+    if (cost.tapOtherFilter) return true;
+    return !!cost.mana && pureGenericManaSubCost(cost.mana) !== null;
 }
+
+/** Compile-time witness that every leg of `ActivatedAbility["cost"]` has been
+ *  deliberately classified by `isAutoPayableManaAbilityCost` above — either
+ *  admitted inline (`tap`, `tapOtherFilter`, a pure-generic `mana`) or
+ *  excluded via `NEVER_AUTO_PAYABLE_COST_LEGS`. `NEVER_AUTO_PAYABLE_COST_LEGS
+ *  satisfies readonly (keyof …)[]` only checks that each LISTED member is a
+ *  valid cost key — it says nothing about a cost key that's missing from
+ *  every list. This does: a leg newly added to `ActivatedAbility["cost"]`
+ *  and left off both the admitted set and the never-list narrows
+ *  `_UnclassifiedManaAbilityCostLeg` away from `never`, and the assignment
+ *  below fails to compile until someone puts it on one list or the other
+ *  (same idiom as `expectedInput.ts`'s `_expectedInputKindsExhaustive` and
+ *  `serialize.ts`'s `_cardKeysExhaustive`). */
+type _UnclassifiedManaAbilityCostLeg = Exclude<
+    keyof ActivatedAbility["cost"],
+    | "tap"
+    | "mana"
+    | "tapOtherFilter"
+    | (typeof NEVER_AUTO_PAYABLE_COST_LEGS)[number]
+>;
+const _manaAbilityCostLegsExhaustive: _UnclassifiedManaAbilityCostLeg extends never
+    ? true
+    : [
+          "unclassified ActivatedAbility cost legs:",
+          _UnclassifiedManaAbilityCostLeg,
+      ] = true;
+void _manaAbilityCostLegsExhaustive;
 
 export function getManaTapOptionsDetailed(
     card: CardInstanceState,

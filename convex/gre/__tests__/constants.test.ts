@@ -374,4 +374,17 @@ describe("isAutoPayableManaAbilityCost (issue #2420)", () => {
             )
         ).toBe(false);
     });
+
+    // Review round 2 (issue #2420) — this used to admit ANY `cost.mana`
+    // shape via `!!cost.mana`, so Nomadic Elf's "{1}{G}: Add one mana of any
+    // color" (`{X:1,G:1}`, a mixed generic+coloured sub-cost) was ADMITTED
+    // here even though `planManaPayment`'s `consume()` (moves.ts) can only
+    // ever execute a PURE-generic `cost.mana` — an admitted-but-unexecutable
+    // source that nulled the WHOLE plan instead of simply not being offered.
+    // See `pureGenericManaSubCost` (constants.ts) for the exact shape test.
+    it("EXCLUDES a non-pure-generic cost.mana (Nomadic Elf's {1}{G}: Add one mana of any color) — regression, review round 2", () => {
+        expect(
+            isAutoPayableManaAbilityCost(cost({ mana: { X: 1, G: 1 } }))
+        ).toBe(false);
+    });
 });

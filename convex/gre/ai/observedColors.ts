@@ -130,7 +130,27 @@ function isNonDestructiveManaOption(
  *  Petal) — a real decision the opponent hasn't made — is not counted as a
  *  shown colour (see the module header's evidence boundary). Board-
  *  conditional choosers (Fellwar Stone) resolve against the real, public
- *  board and DO count. */
+ *  board and DO count.
+ *
+ *  Issue #2420 review finding 2 (lower-severity third consumer) — the
+ *  widened `requireTap` gate this shares with `getProducibleManaUnits`
+ *  (rules.ts) and `planManaPayment` (moves.ts) now also returns a
+ *  PURE-GENERIC `cost.mana` option (Farrelite Priest's "{1}: Add {W}"),
+ *  which is NET ZERO mana, not a free unit. Deliberately UN-netted here,
+ *  unlike `getProducibleManaUnits`: this function answers a different
+ *  question — "could this permanent EVER put colour C into play" (a boolean
+ *  membership test, counted as WEAKER evidence per the module header, not a
+ *  legality/affordability gate) — not "how much free mana is on this board"
+ *  (`getProducibleManaUnits`'s counting question, where the same net-zero
+ *  shape genuinely mis-fed a human Cast affordance). Farrelite Priest CAN
+ *  genuinely produce {W} once its own {1} is funded by something else, so
+ *  colour W remains real evidence; only its WEIGHT would need revisiting,
+ *  which this module's `HIDDEN-INFORMATION` header already reserves for a
+ *  future evidence-strength rework, not this fix. A structurally
+ *  unexecutable shape (Nomadic Elf's `{X:1,G:1}`) needs no equivalent
+ *  carve-out: `isAutoPayableManaAbilityCost` (constants.ts) now excludes it
+ *  from `requireTap`'s result upstream, so it never reaches `options` here
+ *  either (review finding 1). */
 function untappedProducibleColors(
     state: GameState,
     opponent: PlayerState

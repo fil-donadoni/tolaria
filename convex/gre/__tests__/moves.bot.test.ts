@@ -473,6 +473,153 @@ describe("planManaPayment — non-tap mana abilities (issue #2420)", () => {
     });
 });
 
+// Review round 2, finding 1 (issue #2420) — Nomadic Elf's "{1}{G}: Add one
+// mana of any color" is a NON-pure-generic `cost.mana` (`{X:1,G:1}`, unlike
+// Farrelite Priest's pure-generic `{X:1}` above). `isAutoPayableManaAbilityCost`
+// used to admit ANY `cost.mana` shape; `planManaPayment`'s `consume()` can
+// only EXECUTE a pure-generic one, so the admitted-but-unexecutable source
+// nulled the WHOLE plan — a bot regression on the ORDINARY {T} source sharing
+// the board (Birds of Paradise / Island), measured order-dependent: swapping
+// the two permanents used to restore the plan, because the greedy tie-break
+// (`options.size < bestSize`) just happened to prefer whichever equally-
+// flexible source came first. Both permanent orders are asserted below so
+// the order-dependence cannot come back silently.
+describe("planManaPayment — Nomadic Elf's unexecutable mana ability never nulls the whole plan (issue #2420 review round 2)", () => {
+    function stateWith(p: PlayerState): GameState {
+        return makeState({ players: [p, makePlayer("p2")] });
+    }
+    const NOMADIC_ELF = getCardByName("Nomadic Elf").id;
+    const BIRDS = getCardByName("Birds of Paradise").id;
+
+    it("[Nomadic Elf, Birds of Paradise] paying {1}: taps Birds, does not null", () => {
+        const elf = makeInstance(NOMADIC_ELF, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const birds = makeInstance(BIRDS, {
+            id: "birds",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [elf, birds] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("birds");
+    });
+
+    it("[Birds of Paradise, Nomadic Elf] (swapped order) paying {1}: taps Birds, does not null", () => {
+        const birds = makeInstance(BIRDS, {
+            id: "birds",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const elf = makeInstance(NOMADIC_ELF, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [birds, elf] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("birds");
+    });
+
+    it("[Nomadic Elf, Birds of Paradise, Island] paying {2}: a 2-tap plan, does not null", () => {
+        const elf = makeInstance(NOMADIC_ELF, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const birds = makeInstance(BIRDS, {
+            id: "birds",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(getCardByName("Island").id, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [elf, birds, island] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 2 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "birds",
+            "island",
+        ]);
+    });
+
+    it("[Nomadic Elf, Utopia Tree] paying {W}: taps Utopia Tree via its manaChoices, does not null", () => {
+        const elf = makeInstance(NOMADIC_ELF, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const tree = makeInstance(getCardByName("Utopia Tree").id, {
+            id: "tree",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [elf, tree] });
+
+        const plan = planManaPayment(stateWith(p), p, { W: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("tree");
+    });
+});
+
+// Review round 2, finding 3 (issue #2420) — the summoning-sickness check
+// moved from unconditional-per-permanent to PER-OPTION (CR 302.6 is correct
+// either way for a {T}-cost ability), but nothing guarded the over-relaxed
+// direction: deleting the per-option `cost.tap` filter (moves.ts) left a
+// summoning-sick {T}-cost creature's options untouched, and 16 test files /
+// 1770 tests stayed green under that exact mutation. These two pin the
+// direction the prior proof-of-failure (#2 in the original PR) never
+// exercised.
+describe("planManaPayment — summoning sickness still gates a {T}-cost source (CR 302.6, issue #2420 review round 2 finding 3)", () => {
+    function stateWith(p: PlayerState): GameState {
+        return makeState({ players: [p, makePlayer("p2")] });
+    }
+    const LLANOWAR_ELVES = getCardByName("Llanowar Elves").id;
+    const BIRDS = getCardByName("Birds of Paradise").id;
+
+    it("does NOT auto-tap a summoning-sick Llanowar Elves for mana", () => {
+        const elf = makeInstance(LLANOWAR_ELVES, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const p = makePlayer("p1", { battlefield: [elf] });
+
+        expect(planManaPayment(stateWith(p), p, { G: 1 })).toBeNull();
+    });
+
+    it("does NOT auto-tap a summoning-sick Birds of Paradise for mana", () => {
+        const birds = makeInstance(BIRDS, {
+            id: "birds",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const p = makePlayer("p1", { battlefield: [birds] });
+
+        expect(planManaPayment(stateWith(p), p, { G: 1 })).toBeNull();
+    });
+});
+
 describe("enumerateAbilityMoves — non-tap mana abilities stay OFF the standalone Move list (issue #2420)", () => {
     // The macro-move enumerator's `if (!ability.useStack) continue` guard
     // (moves.ts, `enumerateAbilityMoves`) is a DELIBERATE design decision,

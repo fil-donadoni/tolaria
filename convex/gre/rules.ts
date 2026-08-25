@@ -31,6 +31,7 @@ import {
     manaGateBattlefields,
     manaValue,
     pendingSourceIsSpell,
+    pureGenericManaSubCost,
     resolvePendingTargetKind,
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
@@ -1563,11 +1564,39 @@ function getProducibleManaUnits(
         }
     );
 
+    // Issue #2420 review finding 2 — the widened `requireTap` gate now also
+    // returns a PURE-GENERIC `cost.mana` option (Farrelite Priest's
+    // repeatable "{1}: Add {W}"), which is NET ZERO: activating it spends as
+    // much generic mana as it returns, unlike a genuine {T} source. Counting
+    // its produced colour as a free +1 unit (the pre-fix behaviour) let
+    // `canPotentiallyPayCost` (below) offer "Cast" on a spell that was NOT
+    // actually payable — measured on [Farrelite Priest, Plains] casting
+    // Island Sanctuary {1}{W}. Net the ability's own funding requirement out
+    // of its produced units so this affordance census matches what
+    // `planManaPayment` (moves.ts) can ACTUALLY realise (it funds the same
+    // sub-cost from an OTHER plain source, `fundGenericFromPlain`) —
+    // deliberately still an OVER-approximation elsewhere (this function's own
+    // header), never an under-approximation: a net-negative shape
+    // (Nomadic Elf's `{X:1,G:1}`) is excluded upstream by
+    // `isAutoPayableManaAbilityCost` (constants.ts) and never reaches
+    // `detailed` at all, so it needs no clamp here.
     const perOptionUnits: Set<Color>[][] = detailed.map((opt) => {
         const units: Set<Color>[] = [];
         for (const c of MANA_COLORS) {
             const amount = opt.mana[c] ?? 0;
             for (let i = 0; i < amount; i++) units.push(new Set<Color>([c]));
+        }
+        if (opt.source.kind === "activated") {
+            const abilityId = opt.source.abilityId;
+            const ability = getEffectiveActivatedAbilities(card).find(
+                (r) => r.ability.id === abilityId
+            )?.ability;
+            const generic = ability?.cost.mana
+                ? pureGenericManaSubCost(ability.cost.mana)
+                : null;
+            if (generic !== null && generic > 0) {
+                units.splice(Math.max(0, units.length - generic));
+            }
         }
         return units;
     });

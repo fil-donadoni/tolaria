@@ -18,12 +18,7 @@
 // boards are capped to a representative bounded sample (see comments at each
 // site) rather than exploding. Caps are documented, never silent.
 
-import type {
-    Color,
-    ManaCost,
-    TargetRequirement,
-    TargetSelection,
-} from "../cards/types";
+import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import {
     normalizeManaCost,
@@ -91,6 +86,7 @@ import {
     isPlaneswalker,
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
+    pureGenericManaSubCost,
 } from "./constants";
 import {
     getRequiredAttackerIds,
@@ -380,20 +376,6 @@ type PlanSource = {
     detailed?: ManaTapOption[];
 };
 
-/** CR 602.1 (issue #2420) — the fixed generic amount a `cost.mana` leg
- *  declares when it is EXACTLY "N generic, nothing else" (Farrelite Priest /
- *  Initiate's Ebon Hand's "{1}: Add <color>." — `{ X: 1 }`, a literal number,
- *  never the player-chosen `"X"` marker a spell's variable cost uses).
- *  `null` for any other shape (a coloured sub-cost, a variable `"X"`, …) —
- *  the automatic planner funds only this one shape; anything else fails
- *  closed rather than mis-funding. */
-function pureGenericManaSubCost(mana: ManaCost): number | null {
-    if (typeof mana.X !== "number") return null;
-    const keys = Object.keys(mana) as (keyof ManaCost)[];
-    if (keys.some((k) => k !== "X" && mana[k] !== undefined)) return null;
-    return mana.X;
-}
-
 /** True when `source`'s resolved option for `color` is a PLAIN tap (a {T}
  *  ability, a basic-land-subtype `{T}: Add C`, or pool mana) rather than
  *  ANOTHER non-tap mana ability (issue #2420). Used exclusively to fund a
@@ -627,8 +609,13 @@ export function planManaPayment(
                 }
                 if (ability.cost.mana) {
                     const generic = pureGenericManaSubCost(ability.cost.mana);
-                    // Fail closed on any shape other than "pure generic" —
-                    // see `pureGenericManaSubCost`'s own doc.
+                    // Issue #2420 review finding 1 — `isAutoPayableManaAbilityCost`
+                    // (constants.ts) now gates admission on this SAME predicate,
+                    // so a non-pure-generic `cost.mana` (Nomadic Elf's
+                    // "{1}{G}: Add one mana of any color") never reaches this
+                    // branch as a source at all; this null-check is
+                    // defense-in-depth, not the primary guard — see
+                    // `pureGenericManaSubCost`'s own doc.
                     if (generic === null) return false;
                     if (generic > 0 && !fundGenericFromPlain(generic)) {
                         return false;

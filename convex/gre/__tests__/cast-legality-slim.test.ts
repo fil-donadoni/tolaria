@@ -16,9 +16,12 @@ import {
 import {
     ankhOfMishra,
     copyArtifact,
+    crusade,
     elvishArchers,
     forest,
+    grizzlyBears,
     island,
+    islandSanctuary,
     lightningBolt,
     mountain,
     plains,
@@ -29,7 +32,12 @@ import {
 } from "../../cards/sets/lea";
 import { metallicRebuke } from "../../cards/sets/aer";
 import { startingTown } from "../../cards/sets/fin";
-import { archaeologicalDig } from "../../cards/sets/inv";
+import {
+    archaeologicalDig,
+    nomadicElf,
+    utopiaTree,
+} from "../../cards/sets/inv";
+import { farrelitePriest } from "../../cards/sets/fem";
 import { moxOpal } from "../../cards/sets/som";
 import { firebolt } from "../../cards/sets/ody";
 import { nethergoyf } from "../../cards/sets/mh3";
@@ -420,6 +428,84 @@ describe("cast affordability — Archaeological Dig's sacrifice colors aren't pa
         const state = withTurnOf(makeState({ players: [player] }), "p1");
 
         expect(getLegalActions(state, player, bolt)).not.toContain("cast");
+    });
+});
+
+// Issue #2420 review round 2, finding 2 — the widened `requireTap` gate
+// (`getManaTapOptionsDetailed`, constants.ts) taught `planManaPayment` about
+// a `useStack: false` mana ability whose cost is `cost.mana` (Farrelite
+// Priest's "{1}: Add {W}") but NOT `getProducibleManaUnits`, which still
+// counted every such option as a free +1 mana unit. A `cost.mana` ability is
+// NET ZERO (Farrelite Priest: spends {1}, returns {W}) or net NEGATIVE
+// (Nomadic Elf: spends {1}{G}, returns one mana of any color) — never a free
+// unit — so `canPotentiallyPayCost` → `getLegalActions` offered "cast" on a
+// spell that was NOT actually payable, the exact false-positive-Cast-button
+// class issue #1695 (above) exists to prevent. Same shape as Archaeological
+// Dig above: the fix must net the ability's own funding cost out of what it
+// contributes, not merely admit or exclude it wholesale.
+describe("cast affordability — a cost.mana ability is NET mana, not a free unit (issue #2420 review round 2 finding 2)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("[Farrelite Priest, Plains] cannot cast Island Sanctuary ({1}{W}) — Farrelite Priest is net ZERO mana", () => {
+        const spell = makeInstance(islandSanctuary.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [spell],
+            battlefield: [
+                onBattlefield(farrelitePriest.id, "priest"),
+                onBattlefield(plains.id, "plains"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, spell)).not.toContain("cast");
+    });
+
+    it("[Nomadic Elf, Forest] cannot cast Grizzly Bears ({1}{G}) — Nomadic Elf is net NEGATIVE mana", () => {
+        const spell = makeInstance(grizzlyBears.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [spell],
+            battlefield: [
+                onBattlefield(nomadicElf.id, "elf"),
+                onBattlefield(forest.id, "forest"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, spell)).not.toContain("cast");
+    });
+
+    it("[Nomadic Elf, Utopia Tree] cannot cast Crusade ({W}{W}) — Nomadic Elf contributes nothing net", () => {
+        const spell = makeInstance(crusade.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [spell],
+            battlefield: [
+                onBattlefield(nomadicElf.id, "elf"),
+                onBattlefield(utopiaTree.id, "tree"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, spell)).not.toContain("cast");
     });
 });
 
