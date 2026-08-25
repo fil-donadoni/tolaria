@@ -247,6 +247,91 @@ describe("isDominatedNoOpMove — activated abilities (CR 602.2, issue #1887)", 
     });
 });
 
+describe("isDominatedNoOpMove — reanimation into a creature-less graveyard (issue #2490)", () => {
+    // Shallow Grave's `moveZone` positional scan finds no creature to return,
+    // so `$revived` never binds — before the fix, the `delayedTrigger` Op
+    // scheduled "exile it" anyway, leaving an inert `delayedTriggers[]` entry
+    // as the ONLY difference from `pass` (the moveZone/grantAbility/exile
+    // that touch board state all no-op on their own, CR 608.2b). That residue
+    // used to defeat this exact proof.
+    it("proves Shallow Grave into a creature-less graveyard is dominated by pass", () => {
+        const state = build({
+            cards: [{ name: "Shallow Grave", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        const casts = castsOf(state, "Shallow Grave", false);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const move of casts) {
+            expect(isDominatedNoOpMove(state, me(state), move)).toBe(true);
+        }
+        expect(castsOf(state, "Shallow Grave", true)).toHaveLength(0);
+    });
+
+    // NEGATIVE CONTROL against the OTHER wrong fix (blanket-ignoring
+    // `delayedTriggers` in `IGNORED_STATE_KEYS` — do not do this, see
+    // dominance.ts's own comment on that list): Battle Cry cast with no white
+    // creature on the caster's battlefield. "Untap all white creatures you
+    // control" iterates an empty set (no board diff at all), so the ENTIRE
+    // observable delta from `pass` is the scheduled "this-turn-creature-blocks"
+    // delayed trigger itself (no `capture`, so this fix's own guard cannot
+    // touch it either) — a real, armed effect, not residue. A blanket ignore
+    // of `delayedTriggers` would make this scenario indistinguishable from
+    // `pass` and wrongly prune it; comparing the field (the actual fix)
+    // keeps it.
+    it("NEGATIVE CONTROL: Battle Cry with no white creatures out still arms its delayed trigger — never dominated", () => {
+        const state = build({
+            cards: [{ name: "Battle Cry", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        const myBattlefield = state.players.find(
+            (p) => p.id === me(state)
+        )!.battlefield;
+        expect(
+            myBattlefield.some((c) => {
+                const def = tryGetDefinition(
+                    (c.card as { id?: string }).id ?? ""
+                );
+                return def?.types.includes("Creature") ?? false;
+            })
+        ).toBe(false);
+        const casts = castsOf(state, "Battle Cry", false);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const move of casts) {
+            expect(isDominatedNoOpMove(state, me(state), move)).toBe(false);
+        }
+        expect(castsOf(state, "Battle Cry", true).length).toBeGreaterThan(0);
+    });
+
+    it("NEGATIVE CONTROL: Shallow Grave with a creature in the graveyard is never dominated — the cast IS chosen", () => {
+        const state = build({
+            cards: [
+                { name: "Shallow Grave", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        const casts = castsOf(state, "Shallow Grave", false);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const move of casts) {
+            expect(isDominatedNoOpMove(state, me(state), move)).toBe(false);
+        }
+        expect(castsOf(state, "Shallow Grave", true).length).toBeGreaterThan(0);
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Review finding 1 (issue #1905): the mover's MANA POOL is a delta, not a cost.
 // ---------------------------------------------------------------------------

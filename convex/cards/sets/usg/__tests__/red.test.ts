@@ -485,14 +485,20 @@ describe("Sneak Attack — {R}: put a creature from hand, gain haste, sacrifice 
             state.players[0].battlefield.some((c) => c.id === "sneak-bear")
         ).toBe(false);
         expect(state.players[0].exile.map((c) => c.id)).toContain("sneak-bear");
-        // Any delayed sacrifice trigger captured no creature (the bear never
-        // entered), so it is a no-op at fire time — the bear stays in exile.
+        // The bear never reached the battlefield, so `moveZone`'s `bind`
+        // never captured it — `$sneak` is unresolved, and the `delayedTrigger`
+        // Op does not schedule an instance with nothing to act on (CR 608.2b,
+        // issue #2490: an unresolved scalar capture is the missing third
+        // member of the family alongside an unresolved `targetPlayer`/`watch`
+        // — scheduling anyway would leave inert residue in
+        // `state.delayedTriggers[]` forever).
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
         fireDelayedTriggers(state, "next-end-step");
-        resolveTopOfStack(state);
+        if (state.stack.length > 0) resolveTopOfStack(state);
         expect(state.players[0].exile.map((c) => c.id)).toContain("sneak-bear");
     });
 
-    it("declining the 'you may' leaves the hand untouched and the delayed trigger (if scheduled) is a no-op at fire time", () => {
+    it("declining the 'you may' leaves the hand untouched and schedules no delayed-trigger residue (issue #2490)", () => {
         const sneak = makeInstance(sneakAttack.id, {
             id: "sneak-perm-decline",
             controllerId: "p1",
@@ -527,12 +533,13 @@ describe("Sneak Attack — {R}: put a creature from hand, gain haste, sacrifice 
         );
         expect(state.players[0].battlefield).toHaveLength(1); // just Sneak Attack
         // `$sneak` never bound (the moveZone loop ran zero iterations), so
-        // the delayed trigger's `capture` resolves nothing — the interpreter
-        // still schedules the instance (CR 608.2b — "as much as possible" is
-        // the general Op-scheduling policy, not a per-capture gate), but its
-        // body has no captured object to act on. Whether or not an instance
-        // is present, firing it must be a complete no-op: nothing to
-        // sacrifice, nothing observable changes.
+        // the delayed trigger's `capture` never resolves — the interpreter
+        // does NOT schedule an instance with nothing to act on (CR 608.2b,
+        // issue #2490). Before the fix it scheduled anyway, leaving an inert
+        // `delayedTriggers[]` entry that would fire and do nothing at the
+        // next end step — exactly the residue that defeated the bot's
+        // no-op dominance pruning on Shallow Grave (`mir/black.ts`).
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
         fireDelayedTriggers(state, "next-end-step");
         if (state.stack.length > 0) resolveTopOfStack(state);
         expect(state.players[0].hand.map((c) => c.id)).toContain(

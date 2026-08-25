@@ -150,12 +150,15 @@ describe("Corpse Dance (CR 404.3 ordered graveyard, CR 702.27 buyback, CR 702.10
             "cd-only-spite",
         ]);
         expect(state.stack).toHaveLength(0);
-        // CR 608.2b — the delayed trigger IS still created (the Op runs; its
-        // `capture` simply resolves to nothing, exactly as Sneak Attack's
-        // does when the player declines the optional put), and firing it is
-        // harmless: there is no captured creature to exile.
+        // `$revived` never bound (the positional scan found no creature), so
+        // the `delayedTrigger` Op does not schedule an instance with nothing
+        // to act on (CR 608.2b, issue #2490) — before the fix it scheduled
+        // anyway, leaving inert `delayedTriggers[]` residue that would fire
+        // and exile nothing at the next end step (the exact Shallow Grave
+        // bug, `mir/black.ts`, shares this script shape).
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
         fireDelayedTriggers(state, "next-end-step");
-        resolveTopOfStack(state);
+        if (state.stack.length > 0) resolveTopOfStack(state);
         expect(state.players[0].battlefield).toHaveLength(0);
         expect(state.players[0].exile).toHaveLength(0);
     });
