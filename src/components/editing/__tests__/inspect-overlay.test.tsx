@@ -201,6 +201,26 @@ describe("InspectOverlay (issue #2583)", () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
+    // Issue #2668 review — the class-based exemption must actually be a
+    // CLASS: a button-only selector reproduces the issue's own bug one level
+    // up (a non-<button> control silently fails to join the exemption, the
+    // exact shape #2668 was filed to remove). Nothing this component renders
+    // today is a <select>, so this inserts a real one directly into the real
+    // header row and fires a real click through the panel's actual dismiss
+    // handler — proving the mechanism is generic, not proving a component
+    // that does not exist.
+    it("tapAnywhereCloses: the header row's exemption covers every interactive control kind, not just <button>", () => {
+        const onClose = vi.fn();
+        renderOverlay({ onClose, tapAnywhereCloses: true });
+
+        const controlRow = document.querySelector("[data-inspect-controls]")!;
+        const select = document.createElement("select");
+        controlRow.appendChild(select);
+
+        fireEvent.click(select);
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
     it("steps with ‹ ›, disabling the arrow the surface has no card for", () => {
         const previous = vi.fn();
         renderOverlay({ onStep: { previous } });

@@ -17,15 +17,20 @@ const SCRIM_PAD_REM = 0.75;
 
 /** The overlay's own controls — Oracle/Printed, ‹ ›, × — sit in the header
  *  row marked `data-inspect-controls` below. Tap-anywhere dismissal exempts
- *  them AS A CLASS (issue #2668): any interactive element rendered inside
+ *  them AS A CLASS (issue #2668): ANY interactive element rendered inside
  *  that row matches this selector and is exempt automatically, so a future
  *  control (or the face toggle, which used to be missing) never has to opt
  *  out by hand — the shape that let the toggle silently fall through the
- *  old per-control list. Scoped to the header row on purpose: it must NOT
- *  reach the action row below (`actions.length > 0`), whose primary/
- *  non-primary distinction is a separate, unrelated exemption (see
- *  `EditingActionButton`'s `stopPropagation` prop). */
-const CONTROL_ROW_SELECTOR = "[data-inspect-controls] button";
+ *  old per-control list. `:is(...)` lists every interactive tag CR-adjacent
+ *  UI actually uses, not just `<button>` — a review on this same issue
+ *  measured that a `<select>` dropped into the row was NOT exempt under a
+ *  `button`-only selector, i.e. it reproduced the exact bug one level up.
+ *  Scoped to the header row on purpose: it must NOT reach the action row
+ *  below (`actions.length > 0`), whose primary/non-primary distinction is a
+ *  separate, unrelated exemption (see `EditingActionButton`'s
+ *  `stopPropagation` prop). */
+const CONTROL_ROW_SELECTOR =
+    '[data-inspect-controls] :is(button, a, input, select, textarea, [role="button"])';
 
 export interface InspectOverlayProps {
     /** Registry card id being inspected. */
