@@ -943,10 +943,18 @@ describe("identity v4 — primitive recipes (ADR 0103, issue #2723)", () => {
         );
 
         it("a control edge is border-strong or danger — never the decorative hairline", () => {
-            // ivory/30 is 2.37:1 on `surface`; a button whose only boundary is
+            // ivory/30 is 2.37:1 on `surface`; a control whose only boundary is
             // the decorative hairline fails WCAG 1.4.11's 3:1 for a control
             // boundary. Decoration and control edges are different roles.
+            //
+            // `.segment-pill` joined this list in PR #2827's round-1 review: it
+            // shipped on `--hairline` (1.344:1) one describe-block from here.
+            // The rule is about CONTROLS, not about buttons — scoping it to the
+            // two button tones is what let a segmented control slip past it.
             expect(ruleBody(css, ".btn-tone-secondary")).toContain(
+                "border-color: var(--color-border-strong)"
+            );
+            expect(ruleBody(css, ".segment-pill")).toContain(
                 "border-color: var(--color-border-strong)"
             );
             expect(ruleBody(css, ".btn-tone-destructive")).toContain(
@@ -955,6 +963,7 @@ describe("identity v4 — primitive recipes (ADR 0103, issue #2723)", () => {
             for (const selector of [
                 ".btn-tone-secondary",
                 ".btn-tone-destructive",
+                ".segment-pill",
             ]) {
                 expect(ruleBody(css, selector), selector).not.toContain(
                     "var(--hairline"
@@ -973,12 +982,17 @@ describe("identity v4 — primitive recipes (ADR 0103, issue #2723)", () => {
     });
 
     describe("Segmented control", () => {
-        it("a segment is a recessed dark field with a hairline edge", () => {
+        it("a segment is a recessed dark field with a control-strength edge", () => {
             const body = ruleBody(css, ".segment-pill");
             expect(body).toContain(
                 "background-color: var(--color-surface-base)"
             );
-            expect(body).toContain("border-color: var(--hairline)");
+            // NOT the decorative `--hairline` the ADR's prose names (PR #2827
+            // round-1 review). Measured: the recessed field is 1.083:1 against
+            // the panel, so it does not identify the control on its own and
+            // this border is the SOLE boundary. `--hairline` is 1.344:1 there,
+            // under WCAG 1.4.11's 3:1; `--color-border-strong` is 3.383:1.
+            expect(body).toContain("border-color: var(--color-border-strong)");
         });
 
         it("a segment keeps its pointer-token height", () => {

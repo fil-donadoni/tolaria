@@ -788,7 +788,8 @@
      * worse defect than an undersized one, so the rung waits for the slice
      * that re-homes that row: #2585 (filters into a bottom sheet / popover,
      * deck ≥60% height). Ship it there, in the same change. */
-    * v4 (ADR 0103, issue #2723): the FIELD is now the recessed ground
+
+    /* v4 (ADR 0103, issue #2723): the FIELD is now the recessed ground
      * (`surface-base`) rather than a lift off the panel — a v4 input reads as
      * a hole cut in the panel, not as a raised plate. Colour only: the
      * geometry above is untouched, so the deferral it documents is unaffected
@@ -832,11 +833,23 @@
        group wrapper the way the prototype draws them: each segment carries
        its own recessed ground and edge, and the selected one is the ivory
        plate. Geometry is unchanged apart from the 1px edge (the pills are
-       `border-box`), so no control changes height. */
+       `border-box`), so no control changes height.
+
+       The edge is `--color-border-strong`, NOT the decorative `--hairline`
+       the ADR's prose names (PR #2827 round-1 review). Measured on these
+       tokens: the recessed field is only 1.083:1 against the panel
+       (`surface-base` #0b0d11 on `surface` #14171c), so the field does not
+       identify the control on its own and the BORDER is the sole boundary.
+       `--hairline` (ivory/12) is 1.344:1 there — under WCAG 1.4.11's 3:1 for
+       a control boundary; `--color-border-strong` is 3.383:1 on the panel and
+       3.663:1 against the field. Same rule the button tones already follow,
+       and `.input-field` right above uses `border-strong` over this identical
+       dark field. Decoration and control edges are different roles: where a
+       hairline is the ONLY thing bounding a control, it is not decoration. */
     .segment-pill {
         @apply inline-flex items-center justify-center rounded-sm border px-2 py-1 transition;
         min-height: var(--control-h-sm);
-        border-color: var(--hairline);
+        border-color: var(--color-border-strong);
         background-color: var(--color-surface-base);
     }
     .segment-pill:focus-visible {
