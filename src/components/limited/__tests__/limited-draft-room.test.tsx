@@ -235,10 +235,30 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
         expect(desktopSurface.getAttribute("data-layout")).toBe("stacked");
         // The stacked arrangement's distinguishing structure: the Booster
         // full width on top, the Pool in its own scrolling band underneath —
-        // never the split's narrow side pane.
-        expect(
-            document.querySelector("[data-slot=draft-stacked-pool]")
-        ).toBeTruthy();
+        // never the split's narrow side pane. `flex-col` on the surface is
+        // what MAKES it top-over-bottom rather than side-by-side: flipping
+        // it to `flex-row` silently re-creates the exact split arrangement
+        // issue #2820 exists to reverse, with every data-slot still present.
+        expect(desktopSurface.className).toContain("flex-col");
+        expect(desktopSurface.className).not.toContain("flex-row");
+        const stackedPool = document.querySelector(
+            "[data-slot=draft-stacked-pool]"
+        )!;
+        expect(stackedPool).toBeTruthy();
+        // Each band scrolls on its own — the same each-half-scrolls-in-its-
+        // own-band discipline the (now-removed) split arm used. A missing
+        // `overflow-y-auto` on either band means the OTHER band absorbs all
+        // the overflow instead: on the Pool band that starves the Pool and
+        // the Sideboard beside it (the exact regression a round of this
+        // issue's own fixup shipped); on the Booster band it starves the
+        // Pool band the same way, since the Booster then eats the surface's
+        // full height before the Pool gets any.
+        expect(stackedPool.className).toContain("overflow-y-auto");
+        const stackedBooster = document.querySelector(
+            "[data-slot=draft-stacked-booster]"
+        )!;
+        expect(stackedBooster).toBeTruthy();
+        expect(stackedBooster.className).toContain("overflow-y-auto");
         expect(document.querySelector("[data-slot=draft-split]")).toBeNull();
         expect(
             document.querySelector("[data-slot=draft-snap-scroller]")

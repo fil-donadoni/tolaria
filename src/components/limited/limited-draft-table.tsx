@@ -740,18 +740,26 @@ export default function LimitedDraftTable({
                     // Tablet / desktop (ADR 0101 §6, restored by issue
                     // #2820): the Booster grid full width on top, the Pool
                     // (with its Sideboard rail beside it, `arrange="row"`,
-                    // the `LimitedDraftPool` default) beneath. The Booster
-                    // band is `shrink-0` — a pack is bounded to one booster's
-                    // worth of cards, so it never needs to scroll and must
-                    // never be squeezed to make room for the Pool below it.
-                    // The Pool band is `min-h-0 flex-1 overflow-y-auto`: it
-                    // absorbs whatever height the Booster didn't use and
-                    // scrolls WITHIN that band, so a long Pool never pushes
-                    // the Booster off screen — the same each-half-scrolls-
-                    // on-its-own discipline the (now-removed) split arm used,
-                    // just stacked vertically instead of side by side.
+                    // the `LimitedDraftPool` default) beneath. Both bands are
+                    // `min-h-0 ... overflow-y-auto`, each-half-scrolls-on-
+                    // its-own discipline the (now-removed) split arm used,
+                    // just stacked vertically instead of side by side. The
+                    // Booster band is NOT `shrink-0`: the persisted Booster
+                    // zoom slider (`useCardZoom`, zone `limited-booster`, max
+                    // 2.2, localStorage) can grow the pack grid past the
+                    // surface height on its own — a pack is NOT bounded to a
+                    // fixed pixel footprint — so without its own scroller the
+                    // Booster instead steals height from the Pool band below
+                    // it, collapsing the Pool (and the Sideboard beside it)
+                    // to a sliver. The Pool band's `flex-1` (`flex-basis: 0`)
+                    // keeps all shrink pressure on the Booster first, so a
+                    // pack short enough to fit the surface leaves the Pool
+                    // band untouched and un-scrolled.
                     <>
-                        <div className="flex shrink-0 flex-col gap-3">
+                        <div
+                            className="flex min-h-0 shrink flex-col gap-3 overflow-y-auto"
+                            data-slot="draft-stacked-booster"
+                        >
                             {packPane}
                         </div>
                         {showPool && (
