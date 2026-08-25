@@ -271,6 +271,24 @@ export interface ResultRow {
     screenshot?: string;
 }
 
+/**
+ * The exact text of one printed row. Pulled out (issue #2760) so `index.ts`'s
+ * printer and the PR-receipt verifier (`verify-receipt.ts`) share the SAME
+ * format string instead of two copies that can drift — the verifier's whole
+ * job is catching a receipt that no longer matches what this function would
+ * print, so it must call this, never re-implement it.
+ *
+ * `viewport` prints as an em dash for a whole-surface row (declared
+ * unwalked / unreachable / no budget entry). Fixed-width via `padEnd`,
+ * which is why the verifier's parser does NOT split on column offsets: a
+ * surface id at or past 20 chars, or a detail containing extra whitespace,
+ * makes a positional split lossy. It matches against the real, finite
+ * surface/viewport vocabularies instead.
+ */
+export function formatResultRow(row: ResultRow): string {
+    return `${row.verdict.padEnd(8)} ${row.surface.padEnd(20)} ${(row.viewport ?? "—").padEnd(12)} ${row.detail}`;
+}
+
 export interface Evaluation {
     rows: ResultRow[];
     /** One line per reason the run is red. Empty ⇒ exit 0. */

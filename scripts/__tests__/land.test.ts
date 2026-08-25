@@ -40,6 +40,7 @@ describe("land.ts — refusal matrix", () => {
         dirty: false,
         prState: "OPEN",
         prHeadRefName: "fix/issue-2517",
+        skinReceiptInvalid: false,
     };
 
     it("allows a clean branch with a matching open PR", () => {
@@ -84,6 +85,40 @@ describe("land.ts — refusal matrix", () => {
     // Proof-of-failure: commented out the `if (facts.dirty)` branch in
     // refusalReason — "refuses a dirty tree" went red (refusalReason
     // returned null instead of the dirty-tree reason). Reverted.
+
+    // Issue #2760 — `land` refuses a `skin` landing diff whose pasted
+    // check:ui receipt failed verification. `skinReceiptInvalid` is a
+    // PRE-COMPUTED fact (`lane === "skin" && !verifyReceiptText(body).ok`)
+    // by the time it reaches `refusalReason` — this suite proves only the
+    // refusal-matrix side (the flag is checked, and checked last, after the
+    // cheaper structural facts); `verify-receipt.test.ts` proves the flag
+    // itself is computed correctly.
+    it("refuses a skin diff with an invalid receipt", () => {
+        expect(refusalReason({ ...clean, skinReceiptInvalid: true })).toMatch(
+            /check:ui receipt failed verification/
+        );
+    });
+
+    it("does not refuse when the receipt verified clean (or the diff never reached skin)", () => {
+        expect(
+            refusalReason({ ...clean, skinReceiptInvalid: false })
+        ).toBeNull();
+    });
+
+    it("checks head-branch match before the receipt — a branch mismatch never needs the (expensive) receipt fact to fire", () => {
+        expect(
+            refusalReason({
+                ...clean,
+                prHeadRefName: "someone-elses-branch",
+                skinReceiptInvalid: true,
+            })
+        ).toMatch(/head branch/);
+    });
+
+    // Proof-of-failure: commented out the `if (facts.skinReceiptInvalid)`
+    // branch — "refuses a skin diff with an invalid receipt" went red
+    // (refusalReason returned null instead of naming the receipt failure).
+    // Reverted.
 });
 
 describe("land.ts — the locked command", () => {

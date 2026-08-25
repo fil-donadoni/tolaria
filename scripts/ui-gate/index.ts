@@ -61,6 +61,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import {
     coverageLine,
     evaluateRun,
+    formatResultRow,
     metricsOf,
     planRecord,
     receiptKindLine,
@@ -690,9 +691,7 @@ async function main(): Promise<number> {
         );
         log(receiptKindLine(ev));
         for (const row of ev.rows) {
-            log(
-                `${row.verdict.padEnd(8)} ${row.surface.padEnd(20)} ${(row.viewport ?? "—").padEnd(12)} ${row.detail}`
-            );
+            log(formatResultRow(row));
         }
         log(coverageLine(ev));
         log(
