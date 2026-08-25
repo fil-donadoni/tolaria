@@ -695,7 +695,7 @@
         "game-stress": {
             "label": "Game board — UI stress scenario",
             "status": "unwalked",
-            "reason": "needs a game the lane created ITSELF (it refuses to load a debug scenario into a match it did not create — that would clobber someone's game) AND the `UI stress — full board, full hand, deep piles` row on the deployment. An active game was in progress when these budgets were recorded. Re-record from an empty lobby: `bun run check:ui -- --record --surface=game-stress`."
+            "reason": "needs a game the lane created ITSELF (it refuses to load a debug scenario into a match it did not create — that would clobber someone's game) AND the `UI stress — full board, full hand, deep piles` row on the deployment. An active game was in progress when these budgets were recorded. The scenario itself is no longer something to invent: `scripts/ui-gate/stress-scenario.json` IS the seed payload (issue #2725) — `bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/stress-scenario.json)\"`, upsert-by-label, deployment-local by design (ADR 0044). Then re-record from an empty lobby: `bun run check:ui -- --record --surface=game-stress`. This row is what makes the battlefield budgetable at all — `game-board` above stays unwalked until it closes."
         },
         "limited-build": {
             "label": "Limited pool builder (/limited/<id>/build)",
