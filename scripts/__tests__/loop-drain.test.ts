@@ -731,14 +731,24 @@ describe("no-progress", () => {
 });
 
 describe("progress is measured on the total open count, not the claim-adjusted unclaimed count", () => {
-    it("does NOT treat claiming issues (unclaimed drops, total doesn't) as progress", () => {
+    it("reports claims-held, not no-progress, when a pass claims work and lands nothing (#2626)", () => {
         // Simulates a pass that claims work (adds `in-progress`, dropping
         // the UNCLAIMED count) but lands nothing (TOTAL open ready-for-agent
-        // stays put, green-sha never moves). Before the fix, the no-progress
-        // check compared the unclaimed count and saw it drop every pass —
-        // "progress" — resetting the streak and never stopping, so a batch
-        // that claims-and-abandons could burn through the whole queue
-        // without landing a single PR.
+        // stays put, green-sha never moves) — the exact shape of a pass
+        // forcibly terminated mid-batch (#2621): it exits 0, so from the
+        // outside it is indistinguishable from a pass that genuinely found
+        // nothing to do UNLESS the claim count itself is consulted.
+        //
+        // Historical note: BEFORE this behaviour existed, an earlier bug had
+        // the no-progress check compare the UNCLAIMED count directly, which
+        // dropped every pass here and read as "progress" — resetting the
+        // streak forever, so a batch that claims-and-abandons could burn
+        // through the whole queue without landing a single PR. That bug is
+        // what `count_total_open` (deliberately distinct from
+        // `count_unclaimed`) already guards against. This test now asserts
+        // the CURRENT, more specific diagnosis (#2626): claiming without
+        // landing is a `claims-held` FAULT, reported immediately — not a
+        // generic `no-progress` streak that takes two passes to notice.
         stubGhTwoCounters(5, 5);
         writeStub(
             "claude",
@@ -752,8 +762,10 @@ describe("progress is measured on the total open count, not the claim-adjusted u
         );
         const r = run({ args: ["--claude-args", "x"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
-        expect(r.stdout).toMatch(/reason=no-progress/);
-        expect(passLogCount()).toBe(2);
+        expect(r.stdout).toMatch(/reason=claims-held/);
+        expect(r.stdout).not.toMatch(/reason=no-progress/);
+        // Immediate — a fault, not a 2-pass streak like ordinary no-progress.
+        expect(passLogCount()).toBe(1);
     });
 
     it("DOES treat a real landing (total open count drops) as progress", () => {
@@ -776,6 +788,96 @@ describe("progress is measured on the total open count, not the claim-adjusted u
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).toMatch(/reason=queue-empty/);
         expect(passLogCount()).toBe(3);
+    });
+});
+
+describe("claims-held (#2626)", () => {
+    it("consumes claimsHeld from lib/loop-status rather than re-implementing the comparison in shell", () => {
+        // AC: "The predicate is imported from the verdict engine, not
+        // re-implemented in shell or duplicated in TypeScript." A source
+        // check rather than a behavioural one — the behavioural tests above
+        // and below would pass just as well against a hand-rolled
+        // `[ "$claims_after" -gt "$claims_before" ]` shell comparison, which
+        // is exactly the drift this AC exists to prevent (this log and the
+        // dashboard's `claims-held` alarm disagreeing about what happened).
+        const source = fs.readFileSync(DRIVER, "utf8");
+        expect(source).toMatch(/import\s*\{\s*claimsHeld\s*\}\s*from/);
+        expect(source).toMatch(/lib\/loop-status/);
+    });
+
+    it("only counts claims taken during THIS pass's own window, not a prior pass's", () => {
+        // Pass 1 is a real landing (total drops, green-sha moves) — ordinary
+        // progress, no claim left outstanding from it. Pass 2 claims one
+        // issue and lands nothing. If `claims_before`/`claims_after` were
+        // measured cumulatively from the run's start (or from a stale
+        // snapshot) rather than bracketing pass 2's own before/after, pass 1's
+        // drop in `total` could pollute the comparison; bracketing per-pass
+        // is what keeps a concurrent session's or an earlier pass's claims
+        // from being attributed to a pass that didn't take them.
+        stubGhTwoCounters(5, 5);
+        writeStub(
+            "claude",
+            [
+                `STATE="${path.join(tmp, "call-count")}"`,
+                `c=$(cat "$STATE" 2>/dev/null || echo 0)`,
+                `c=$((c+1))`,
+                `echo "$c" > "$STATE"`,
+                `if [ "$c" -eq 1 ]; then`,
+                // Pass 1: a real landing.
+                `  n=$(cat "${queueFile}" 2>/dev/null || echo 0)`,
+                `  if [ "$n" -gt 0 ]; then n=$((n-1)); fi`,
+                `  echo "$n" > "${queueFile}"`,
+                `  t=$(cat "${totalFile}" 2>/dev/null || echo 0)`,
+                `  if [ "$t" -gt 0 ]; then t=$((t-1)); fi`,
+                `  echo "$t" > "${totalFile}"`,
+                `  echo "sha-$t" > "${greenShaFile}"`,
+                `  echo "landed a PR"`,
+                `  exit 0`,
+                `fi`,
+                // Pass 2: claims one more, lands nothing.
+                `n=$(cat "${queueFile}" 2>/dev/null || echo 0)`,
+                `if [ "$n" -gt 0 ]; then n=$((n-1)); fi`,
+                `echo "$n" > "${queueFile}"`,
+                `echo "claimed one issue, landed nothing"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=claims-held/);
+        expect(passLogCount()).toBe(2);
+        // pass 1's own log line must NOT itself read claims-held/no-progress
+        // — it made real progress, so it carries the "-" placeholder.
+        const lines = logLines();
+        expect(lines[0].split(" ").pop()).toBe("-");
+        expect(lines[1].split(" ").pop()).toBe("claims-held");
+    });
+
+    it("does NOT flag claims-held when claims already standing from before the window stay flat (review finding, #2626)", () => {
+        // The companion test above ("only counts claims taken during THIS
+        // pass's own window") starts every window at claims_before=0 — its
+        // own pass 1 decrements the unclaimed and total counters in
+        // lockstep, so `claims_before` is always 0 by the time pass 2 (the
+        // one that matters) runs. That leaves the window's LOWER bound
+        // itself unexercised: `claims_held_check "0" "$claims_after" 0`
+        // (hardcoding the bound away) still passes the whole suite green.
+        //
+        // This test starts with 2 claims ALREADY standing from a prior,
+        // unmodeled pass (unclaimed=3, total=5) and a `claude` stub that
+        // changes nothing. The correct reading is `claims_before=2`,
+        // `claims_after=2` — flat, not a rise — so this is ordinary
+        // no-progress, never claims-held. Under the mutation above,
+        // `claims_before` is forced to "0" regardless of the real value, so
+        // `claimsHeld({claimsBefore: 0, claimsAfter: 2, merges: 0})` reads
+        // true and this test goes red on pass 1 with `reason=claims-held`
+        // instead of the correct `reason=no-progress` — exactly the
+        // every-pass-reports-claims-held noise the AC forbids.
+        stubGhTwoCounters(3, 5);
+        stubClaudeNoProgress();
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=no-progress/);
+        expect(r.stdout).not.toMatch(/reason=claims-held/);
     });
 });
 

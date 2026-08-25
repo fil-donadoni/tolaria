@@ -26,6 +26,15 @@
 
 set -eu
 
+# This script's OWN directory, absolute — resolved from `$0` rather than
+# `pwd`, because every other path in this file is deliberately relative to
+# the CALLER's cwd (see the header above), which the tests exploit by
+# running with `cwd` pointed at a scratch directory. `claims_held_check`
+# (below) needs to `import` `lib/loop-status.ts` regardless of where the
+# caller's cwd happens to be, so it is the one thing in this script anchored
+# to the script's own location instead.
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+
 # ── flags / env fallbacks ───────────────────────────────────────────────────
 BUDGET="${TOLARIA_LOOP_TOKEN_BUDGET:-}"
 MAX_PCT=80
@@ -308,6 +317,44 @@ read_green_sha() {
     fi
 }
 
+# `claims-held` discriminator (#2626 / #2624 AC). A pass that is forcibly
+# terminated exits 0, so it looks identical to a pass that genuinely found
+# nothing to do — both leave `total_open`/green-sha unchanged. The only
+# durable signal that distinguishes them is whether the CLAIM count (issues
+# labelled `in-progress`) rose while nothing landed, which is exactly the
+# `claimsHeld` predicate the verdict engine exports
+# (`scripts/lib/loop-status.ts`). It is CONSUMED here via `bun -e`, never
+# re-implemented as a shell comparison, so this log and the dashboard's
+# `claims-held` alarm can never disagree about what happened (AC: "imported
+# from the verdict engine, not re-implemented in shell or duplicated in
+# TypeScript"). A failure to invoke `bun` (missing binary, crash) fails
+# CLOSED to "false" — the pre-existing no-progress streak is always a safe
+# fallback, never a driver crash.
+claims_held_check() {
+    _before="$1"
+    _after="$2"
+    _merges="$3"
+    _lib_path="$SCRIPT_DIR/lib/loop-status"
+    if _out=$(CLAIMS_BEFORE="$_before" CLAIMS_AFTER="$_after" CLAIMS_MERGES="$_merges" \
+        bun -e "
+import { claimsHeld } from \"$_lib_path\";
+const claimsBefore = Number(process.env.CLAIMS_BEFORE);
+const claimsAfter = Number(process.env.CLAIMS_AFTER);
+const merges = Number(process.env.CLAIMS_MERGES);
+process.stdout.write(
+    claimsHeld({ claimsBefore, claimsAfter, merges }) ? \"true\" : \"false\"
+);
+" 2>/dev/null); then
+        printf '%s' "$_out"
+    else
+        # Fail CLOSED (see the comment above) but never SILENT — this is a
+        # discriminator whose whole purpose is diagnosability, so a swallowed
+        # failure here would defeat #2626 as quietly as the bug it fixed.
+        echo "loop-drain: claims-held discriminator unavailable (bun -e lib/loop-status failed) — falling back to no-progress" >&2
+        echo "false"
+    fi
+}
+
 if [ "$START_DELAY" -gt 0 ]; then
     echo "loop-drain: waiting ${START_DELAY}s before the first pass (handoff grace period)." >&2
     interruptible_sleep "$START_DELAY" || {
@@ -502,17 +549,55 @@ while :; do
                 backoff_secs="$ERROR_BACKOFF_MAX_SECS"
         fi
     elif [ "$total_after" = "$total_before" ] && [ "$green_after" = "$green_before" ]; then
-        # 6. no-progress — neither the TOTAL open ready-for-agent count nor
-        # main's tip moved. Deliberately NOT `queue_after`/`queue_before`
-        # (the unclaimed count): a pass that only CLAIMS issues (adds
-        # `in-progress`) drops the unclaimed count without landing anything,
-        # which would otherwise look like progress and reset this streak
-        # forever. `total_*` only moves when an issue actually closes (or
-        # loses the label) — a real landing — or green-sha moves.
-        no_progress_streak=$((no_progress_streak + 1))
-        if [ "$no_progress_streak" -ge 2 ]; then
-            reason_field="no-progress"
+        # 6. neither the TOTAL open ready-for-agent count nor main's tip
+        # moved. Deliberately NOT `queue_after`/`queue_before` (the unclaimed
+        # count): a pass that only CLAIMS issues (adds `in-progress`) drops
+        # the unclaimed count without landing anything, which would
+        # otherwise look like progress and reset this streak forever.
+        # `total_*` only moves when an issue actually closes (or loses the
+        # label) — a real landing — or green-sha moves.
+        #
+        # That still leaves two DIFFERENT causes reaching this branch: a pass
+        # that genuinely found nothing to do, and a pass that was forcibly
+        # terminated mid-batch (exits 0, same as clean) while still holding
+        # the claims it took. `claims_held_check` (see above) tells them
+        # apart off the one durable signal that survives a kill: whether
+        # `total_open − unclaimed` (issues this driver's own queue has
+        # labelled `in-progress`, bracketed to exactly this pass's
+        # before/after window — never a cross-pass or cumulative count, so a
+        # concurrent session's claims outside that window are not attributed
+        # here) rose while `merges` — provably 0 in this branch, since its
+        # own guard already established `total_after == total_before` — is
+        # zero. `merges` is real, not a proxy: it is not computed from a
+        # separate `gh pr list --state merged` read (see
+        # docs/findings/2624-receipts-cannot-express-a-landing.md) because
+        # this branch's guard already proves it.
+        claims_before=""
+        claims_after=""
+        if is_uint "$total_before" && is_uint "$queue_before"; then
+            claims_before=$((total_before - queue_before))
+        fi
+        if is_uint "$total_after" && is_uint "$queue_after"; then
+            claims_after=$((total_after - queue_after))
+        fi
+        claims_held_now=0
+        if is_uint "$claims_before" && is_uint "$claims_after"; then
+            if [ "$(claims_held_check "$claims_before" "$claims_after" 0)" = "true" ]; then
+                claims_held_now=1
+            fi
+        fi
+        if [ "$claims_held_now" -eq 1 ]; then
+            # A fault, not a quiet stop — reported immediately, no streak
+            # (a died pass is urgent evidence, unlike "ran twice and found
+            # nothing").
+            reason_field="claims-held"
             stop_now=1
+        else
+            no_progress_streak=$((no_progress_streak + 1))
+            if [ "$no_progress_streak" -ge 2 ]; then
+                reason_field="no-progress"
+                stop_now=1
+            fi
         fi
     else
         no_progress_streak=0
