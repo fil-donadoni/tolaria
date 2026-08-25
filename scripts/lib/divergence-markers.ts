@@ -155,12 +155,23 @@ export function blankNegatedConfessions(
     const body = strip(line);
     const boundary = prevBody.length + 1; // +1 for the joining space
     const joined = `${prevBody} ${body}`;
-    const re = new RegExp(NEGATED_CONFESSION.source, "gi");
+    // Capture the negated OBJECT (`approximation`/`divergence`) so only that
+    // word is blanked, never the whole `not … <object>` span: a confession
+    // word sitting BETWEEN the cue and its object ("not implemented; the
+    // divergence stands") must survive, or Guard B loses coverage it has on
+    // main. Round-3 review finding, issue #1900.
+    const re = new RegExp(
+        NEGATED_CONFESSION.source.replace(
+            "(?:approximat\\w*|divergence)",
+            "((?:approximat\\w*|divergence))"
+        ),
+        "gi"
+    );
     let blanked = body;
     let m: RegExpExecArray | null;
     while ((m = re.exec(joined)) !== null) {
-        const matchStart = m.index;
         const matchEnd = m.index + m[0].length;
+        const matchStart = matchEnd - (m[1]?.length ?? 0);
         const start = Math.max(matchStart, boundary) - boundary;
         const end = Math.max(matchEnd, boundary) - boundary;
         if (end > start) {

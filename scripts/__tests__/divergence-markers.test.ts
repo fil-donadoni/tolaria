@@ -91,6 +91,27 @@ describe("isNegatedConfession (issue #1900 fixup round 3, finding 1)", () => {
         expect(isNegatedConfession(lines, 1)).toBe(true);
     });
 
+    it("regression: a confession word BETWEEN the negation cue and its object survives — blanking takes the object, never the whole span (round-3 review finding)", () => {
+        // The round-3 implementation blanked the entire `not … <object>`
+        // span, so a confession sitting INSIDE that window was swallowed and
+        // Guard B lost coverage it has on main. Each of these is a HIT on
+        // main; each must stay a hit here.
+        for (const line of [
+            "// not implemented; the divergence stands at resolution.",
+            "// not implemented — the approximation below applies.",
+            "// not modelled, so the divergence persists.",
+            "// not enforced; the approximation holds.",
+        ]) {
+            expect(isNegatedConfession([line], 0)).toBe(false);
+        }
+
+        // Still suppressed: the confession word exists ONLY as the negated
+        // object, so nothing survives the blanking.
+        expect(
+            isNegatedConfession(["// so this is not an approximation."], 0)
+        ).toBe(true);
+    });
+
     it("regression: does NOT suppress the whole hit when an INDEPENDENT confession word survives the blanking (the round-2 bug the reviewer broke)", () => {
         // Round 2's `isNegatedConfession` dropped the entire hit whenever
         // ANY `not|no … approximat*/divergence` window matched anywhere on
