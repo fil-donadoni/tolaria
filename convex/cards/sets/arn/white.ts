@@ -151,6 +151,7 @@ export const camel: CardDefinition = {
             oracleText:
                 "As long as this creature is attacking, prevent all damage Deserts would deal to this creature and to creatures banded with this creature.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             appliesTo: (event, self, state) => {
                 if (event.kind !== "damage") return false;
                 if (event.target.type !== "permanent") return false;

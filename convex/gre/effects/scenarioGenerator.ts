@@ -1060,6 +1060,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "lockDamage":
+            // `lockDamage` (CR 615.12 / 614.9, issue #2231) sets an IMMEDIATE
+            // `damageLockThisTurn` flag on the target creature — the same shape
+            // as `exileOnDeath` right above, observable in the same resolution.
+            // A `$source` / `$each` target is not modelled — skip and let the
+            // card's own per-card test cover it.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "lockDamage" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "markAssignsNoCombatDamage":
             // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) pushes a
             // combat-only, id-scoped entry onto the IMMEDIATE
@@ -2254,6 +2266,32 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: perm.exileOnDeath === true,
                     detail: `exileOnDeath ${perm.exileOnDeath}, expected true`,
+                };
+            },
+        };
+    },
+    // `lockDamage` (CR 615.12 / 614.9, issue #2231) — the turn-scoped
+    // anti-prevention / anti-redirection lock on an announced permanent slot is
+    // observable as the `damageLockThisTurn` flag flipping undefined→true on
+    // the seeded filler creature (the generator seeds CREATURES, which is what
+    // `setDamageLockThisTurn` requires). `$source`/`$each` targets are skipped
+    // upstream in `analyseOp` (returns null defensively here).
+    lockDamage(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "lockDamage" }>;
+        if (!("target" in op.target)) return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `damage-lock permanent ${permId} (damageLockThisTurn undefined→true)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                return {
+                    ok: perm.damageLockThisTurn === true,
+                    detail: `damageLockThisTurn ${perm.damageLockThisTurn}, expected true`,
                 };
             },
         };

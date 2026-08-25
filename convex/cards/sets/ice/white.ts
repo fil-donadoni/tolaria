@@ -941,6 +941,7 @@ export const energyStorm: CardDefinition = {
             oracleText:
                 "Prevent all damage that would be dealt by instant and sorcery spells.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             // CR 615.1 — prevent damage whose source is an instant or sorcery
             // spell (read from the event's source card types).
             appliesTo: (event) => {
@@ -1852,6 +1853,7 @@ export const prismaticWard: CardDefinition = {
             oracleText:
                 "Prevent all damage that would be dealt to enchanted creature by sources of the chosen color.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             appliesTo: (event, self) => {
                 if (event.kind !== "damage") return false;
                 if (self.attachedTo === undefined) return false;

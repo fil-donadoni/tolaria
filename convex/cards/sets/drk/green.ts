@@ -742,17 +742,21 @@ export const venom: CardDefinition = {
 // turn, exile the creature." (CR 605 activated ability; CR 614.1a exile-instead-
 // of-death + regeneration suppression.)
 //
-// The exile-on-death + no-regeneration clauses are the gameplay core and are
-// implemented exactly via `setExileOnDeath` (the Disintegrate primitive: marks
-// the creature so it is exiled rather than dying, and suppresses regeneration,
-// cleared at CLEANUP). DEFERRED (documented simplification, NOT a new card-
-// specific primitive, tracked-by: #2231): the middle clause — "damage ... can't
-// be prevented or dealt instead to another permanent or player" — is an
-// anti-prevention / anti-redirection lock (CR 615 / 614.9, and CR 702.16e —
-// protection's damage leg is prevention) for which no engine primitive exists.
-// Same gap as ICE Lava Burst, at the turn-scoped end: this one locks damage to
-// the TARGETED creature from any source for the turn. Until the 2026-08-05
-// #1212 audit this deferral carried no tracking ref at all.
+// All three clauses are one activation. The exile-on-death + no-regeneration
+// pair rides `setExileOnDeath` (the Disintegrate primitive: marks the creature
+// so it is exiled rather than dying, and suppresses regeneration, cleared at
+// CLEANUP). The middle clause is `setDamageLockThisTurn` (issue #2231), its
+// sibling flag: TARGET-bound and turn-scoped, so damage from ANY source —
+// combat included, long after this ability has left the stack — can't be
+// prevented (CR 615.12, protection's damage leg included per CR 702.16e) and
+// can't be dealt instead to another permanent or player (CR 614.9). Also
+// cleared at CLEANUP (CR 514.2).
+//
+// protocol card: the ability arms three turn-scoped flags on one target from a
+// single Oracle sentence and predates the DSL; migrating it off `resolve()`
+// would move the migration-classifier census baseline, which is out of scope
+// here. Both primitives it calls are exposed as Ops (`exileOnDeath`,
+// `lockDamage`) for cards authored after this one.
 export const whippoorwill: CardDefinition = {
     id: "e56146bf-5db0-4bef-83bb-efa5ebec6684",
     rarity: "uncommon",
@@ -769,13 +773,16 @@ export const whippoorwill: CardDefinition = {
         {
             id: "whippoorwill-doom",
             oracleText:
-                "{G}{G}, {T}: Target creature can't be regenerated this turn. When the creature dies this turn, exile the creature.",
+                "{G}{G}, {T}: Target creature can't be regenerated this turn. Damage that would be dealt to that creature this turn can't be prevented or dealt instead to another permanent or player. When the creature dies this turn, exile the creature.",
             cost: { mana: { G: 2 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             resolve: (ctx: SpellContext) => {
                 const [target] = ctx.targets;
-                if (target?.type === "permanent") ctx.setExileOnDeath(target);
+                if (target?.type !== "permanent") return;
+                ctx.setExileOnDeath(target);
+                // CR 615.12 / 614.9 — the middle clause (issue #2231).
+                ctx.setDamageLockThisTurn(target);
             },
         },
     ],

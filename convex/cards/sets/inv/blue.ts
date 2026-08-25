@@ -1242,6 +1242,7 @@ export const wellLaidPlans: CardDefinition = {
         {
             id: "well-laid-plans-shared-color",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             oracleText:
                 "Prevent all damage that would be dealt to a creature by another creature if they share a color.",
             appliesTo: (event, _self, state) => {

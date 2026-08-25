@@ -385,6 +385,7 @@ setRegistryEntry(FACE_DOWN_CARD_ID, {
             oracleText:
                 "If this creature would deal damage, turn it face up, then it deals that damage.",
             eventKind: "damage",
+            damageEffectKind: "other",
             appliesTo: (event, self) =>
                 event.kind === "damage" && event.sourceInstanceId === self.id,
             replace: (event, ctx) => {
@@ -403,6 +404,7 @@ setRegistryEntry(FACE_DOWN_CARD_ID, {
             oracleText:
                 "If this creature would be dealt damage, turn it face up, then the damage is dealt.",
             eventKind: "damage",
+            damageEffectKind: "other",
             appliesTo: (event, self) =>
                 event.kind === "damage" &&
                 event.target.type === "permanent" &&

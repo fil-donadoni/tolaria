@@ -662,6 +662,7 @@ export const uncleIstvan: CardDefinition = {
             oracleText:
                 "Prevent all damage that would be dealt to this creature by creatures.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             appliesTo: (event, self) =>
                 event.kind === "damage" &&
                 event.target.type === "permanent" &&

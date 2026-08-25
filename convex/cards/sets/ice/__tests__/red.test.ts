@@ -267,6 +267,60 @@ describe("Lava Burst (CR 120.1 X damage)", () => {
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(16);
     });
+
+    it("locks damage to a CREATURE against prevention and redirection (CR 615.12 / 614.9)", () => {
+        // The rider (issue #2231). Full coverage of what the lock beats lives
+        // in `convex/gre/__tests__/damageLock.test.ts`; this asserts the card's
+        // own `if` branch picks the locked path for a creature target.
+        const bear = vanilla("bear", 2, 5, {
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: "fake-bear" },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+            targetPreventionShields: [
+                {
+                    targetType: "permanent",
+                    targetId: "bear",
+                    remaining: 100,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        });
+        const item = pushSpell(state, lavaBurst.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        item.chosenX = 4;
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")!
+                .damageMarked
+        ).toBe(4);
+    });
+
+    it("does NOT lock damage to a PLAYER — the same shield still prevents it", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
+            targetPreventionShields: [
+                {
+                    targetType: "player",
+                    targetId: "p2",
+                    remaining: 100,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        });
+        const item = pushSpell(state, lavaBurst.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 4;
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20);
+    });
 });
 
 // --- Jokulhaups (destroy all artifacts/creatures/lands, CR 701.8) ----------

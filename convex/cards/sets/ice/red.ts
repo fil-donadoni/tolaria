@@ -1497,16 +1497,17 @@ export const karplusanYeti: CardDefinition = {
         },
     ],
 };
-// Lava Burst — "Lava Burst deals X damage to any target." (CR 120.1, X folded
-// from the cost.)
+// Lava Burst — "Lava Burst deals X damage to any target. If Lava Burst would
+// deal damage to a creature, that damage can't be prevented or dealt instead to
+// another permanent or player." (CR 120.1, X folded from the cost.)
 //
-// DEFERRED (documented simplification, NOT a card-specific primitive — same gap
-// as DRK Whippoorwill, tracked-by: #2231): the rider "If Lava Burst would deal
-// damage to a creature, that damage can't be prevented or dealt instead to
-// another permanent or player" is an anti-prevention / anti-redirection lock
-// (CR 615 / 614.9, and CR 702.16e — protection's damage leg is prevention).
-// `dealDamage.unpreventable` covers only the prevention half and is not passed
-// here; the redirection half has no engine primitive at all.
+// The rider is a two-clause lock under two different CR chapters, so it is two
+// independent Op fields, not one: `unpreventable` (CR 615.12 — and with it
+// protection's damage leg, which CR 702.16e words as "is prevented") and
+// `unredirectable` (CR 614.9 — "dealt instead to another permanent or player").
+// It is CONDITIONAL on the target being a creature, hence the `if` construct:
+// aimed at a player or a planeswalker, Lava Burst is ordinary preventable,
+// redirectable damage, and a Circle of Protection: Red still stops it.
 export const lavaBurst: CardDefinition = {
     id: "79dc0e20-5790-4927-8432-cf0e9b7381d4",
     name: "Lava Burst",
@@ -1517,10 +1518,32 @@ export const lavaBurst: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #852): X damage to any target
-    // (CR 120.1) via the chosen-cost `{ X: true }` amount. The anti-prevention /
-    // anti-redirection rider was already DEFERRED in the closure (no engine
-    // primitive) — the migration preserves that; the rider stays unmodelled.
-    effects: [{ op: "dealDamage", amount: { X: true }, to: { target: 0 } }],
+    // (CR 120.1) via the chosen-cost `{ X: true }` amount. The rider (issue
+    // #2231) is the `if` branch: `objectMatchesFilter` reads the LIVE target
+    // and is false for a player, a planeswalker and a creature that has already
+    // left the battlefield — which is exactly "if Lava Burst WOULD deal damage
+    // to a creature".
+    effects: [
+        {
+            op: "if",
+            predicate: {
+                objectMatchesFilter: { target: 0 },
+                filter: { type: "Creature" },
+            },
+            then: [
+                {
+                    op: "dealDamage",
+                    amount: { X: true },
+                    to: { target: 0 },
+                    unpreventable: true,
+                    unredirectable: true,
+                },
+            ],
+            else: [
+                { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+            ],
+        },
+    ],
 };
 // Márton Stromgald — {2}{R}{R} 1/1 Legendary Human Knight. Two combat triggers
 // (CR 603.6 — "whenever ~ attacks/blocks"), each pumping the OTHER attackers /

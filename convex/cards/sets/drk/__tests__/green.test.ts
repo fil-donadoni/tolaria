@@ -1014,6 +1014,37 @@ describe("Whippoorwill — exile-on-death + no regeneration (CR 605 / 614.1a)", 
         )!;
         expect(marked.exileOnDeath).toBe(true);
     });
+
+    it("also arms the CR 615.12 / 614.9 damage lock from the same activation", () => {
+        // The middle Oracle clause (issue #2231): "damage that would be dealt
+        // to that creature this turn can't be prevented or dealt instead to
+        // another permanent or player". Its behaviour against real shields and
+        // redirects — including combat damage — is in
+        // `convex/gre/__tests__/damageLock.test.ts`; this asserts the card's
+        // own activation reaches the primitive.
+        const whip = makeInstance(whippoorwill.id, {
+            id: "whip",
+            controllerId: "p1",
+        });
+        const victim = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [whip] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, whip, "whippoorwill-doom", [
+            { type: "permanent", id: "victim" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")!
+                .damageLockThisTurn
+        ).toBe(true);
+    });
 });
 
 // ───────────────────────────────────────────────────────────────────────────

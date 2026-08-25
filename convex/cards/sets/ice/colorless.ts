@@ -2096,6 +2096,7 @@ export const glacialChasm: CardDefinition = {
             id: "glacial-chasm-prevent-damage-to-you",
             oracleText: "Prevent all damage that would be dealt to you.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             // CR 615.1 — prevent damage that would be dealt to the source's
             // controller (a player-targeted damage event).
             appliesTo: (event, self) => {

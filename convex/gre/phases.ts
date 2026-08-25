@@ -39,6 +39,8 @@ import {
     getPlayer,
     phaseInUntapCycleBundles,
     isCombatDamageImmune,
+    anyDamageLockOnBoard,
+    isDamageLockedTarget,
     matchesPermanentFilter,
     discardToGraveyard,
     resolveTopOfStack,
@@ -1175,9 +1177,16 @@ export function applyAllCombatDamage(
     // path byte-identical for every already-shipped card; when one does, the
     // per-source `unpreventable` check inside `applyOneCombatDamage` below is
     // the authority instead.
+    //
+    // The TARGET-bound lock (Whippoorwill, issue #2231) punches through the
+    // same hole and so must widen the same guard: its flag makes damage TO one
+    // creature unpreventable, and a step-level short-circuit would skip the
+    // per-event check that reads it. Board-wide rather than per-creature
+    // because the decision here is whether the step runs at all.
     if (
         state.preventAllCombatDamageThisTurn &&
-        !anyCombatDamageUnpreventableStatic(state)
+        !anyCombatDamageUnpreventableStatic(state) &&
+        !anyDamageLockOnBoard(state)
     ) {
         return;
     }
@@ -1228,14 +1237,30 @@ export function applyAllCombatDamage(
         // mode already uses on the spell/ability damage path
         // (`SpellContext.dealDamage`), so there is one concept, not two.
         //
-        // What it does NOT bypass, deliberately: CR 614 replacement effects
-        // (a distinct rule — redirects still redirect), CR 702.16 protection
-        // (`isProtectedFromSource` below — the engine's standing convention,
-        // documented at `SpellContext.dealDamage`: a card would have to say so
-        // explicitly, and none in the catalogue does), and the CR 510.1c
-        // "assigns no combat damage" entries inside `runDamageReplacement`
-        // (no damage event is produced at all, so there is nothing to protect).
-        const unpreventable = isCombatDamageUnpreventable(state, source);
+        // What it does NOT bypass, deliberately: CR 614 REDIRECTION effects (a
+        // distinct rule — a redirect still redirects unpreventable damage,
+        // which is why `unredirectable` below is a separate boolean), and the
+        // CR 510.1c "assigns no combat damage" entries inside
+        // `runDamageReplacement` (no damage event is produced at all, so there
+        // is nothing to protect).
+        //
+        // It DOES bypass CR 702.16e protection (issue #2231): that rule words
+        // itself as "is prevented", so it is a prevention effect and CR 615.12
+        // overrides it like any other. This changed Questing Beast's behaviour
+        // — its combat damage now goes through protection from green — and that
+        // is the CR-correct outcome, not a side effect.
+        //
+        // CR 615.12 / 614.9 — the TARGET-bound turn-scoped lock (Whippoorwill:
+        // "damage that would be dealt to that creature this turn can't be
+        // prevented or dealt instead to another permanent or player"). Read off
+        // the RAW target, before CR 614 can move the event, and ORed into the
+        // source-side flag: the two are independent grants of the same
+        // override. Whippoorwill's lock is the ONLY thing that makes combat
+        // damage unredirectable today, hence `unredirectable` reads only it.
+        const targetLocked = isDamageLockedTarget(state, rawTarget);
+        const unpreventable =
+            isCombatDamageUnpreventable(state, source) || targetLocked;
+        const unredirectable = targetLocked;
         // CR 615 — a resolved Fog. Checked per damage event rather than once
         // for the whole step (see `applyAllCombatDamage` above): with an
         // immunity on the board, the Fog still stops every OTHER creature.
@@ -1265,7 +1290,8 @@ export function applyAllCombatDamage(
             rawTarget,
             rawAmount,
             true,
-            unpreventable
+            unpreventable,
+            unredirectable
         );
         if (!repl) return;
         const finalTarget = repl.target;
@@ -1386,7 +1412,16 @@ export function applyAllCombatDamage(
             if (!targetCard) return;
             // CR 112.1 — a combat damage source is the attacking/blocking
             // CREATURE, never a spell.
-            if (isProtectedFromSource(targetCard, source, false)) return;
+            // CR 615.12 (issue #2231) — CR 702.16e's damage leg is worded "is
+            // prevented", so unpreventable combat damage is dealt through
+            // protection. Protection still stops the BLOCK (CR 702.16c,
+            // enforced in combat.ts) — this only reaches a protected creature
+            // that is itself the attacker/blocker on the other side.
+            if (
+                !unpreventable &&
+                isProtectedFromSource(targetCard, source, false)
+            )
+                return;
             // CR 615 / 611 — continuous source-filtered combat-damage
             // prevention (Enchanted Being, Wall of Vapor). Re-evaluated live
             // each combat: prevents all combat damage from a matching source.
@@ -2510,6 +2545,12 @@ export function finalizeCleanup(state: GameState): void {
             // CR 614.1a — Disintegrate's exile-on-death flag is turn-scoped.
             if (card.exileOnDeath !== undefined) {
                 card.exileOnDeath = undefined;
+            }
+            // CR 514.2 (issue #2231) — Whippoorwill's "damage … this turn can't
+            // be prevented or dealt instead to another permanent or player"
+            // lock wears off here (CR 615.12 / 614.9).
+            if (card.damageLockThisTurn !== undefined) {
+                card.damageLockThisTurn = undefined;
             }
             // CR 701.19c — "can't be regenerated this turn" wears off here
             // (Clergy of the Holy Nimbus's {1} ability).

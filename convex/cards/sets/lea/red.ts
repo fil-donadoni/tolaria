@@ -992,6 +992,7 @@ export const rockHydra: CardDefinition = {
             oracleText:
                 "For each 1 damage that would be dealt to Rock Hydra, if it has a +1/+1 counter on it, remove a +1/+1 counter from it and prevent that 1 damage.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             appliesTo: (event, self) => {
                 if (event.kind !== "damage") return false;
                 if (event.target.type !== "permanent") return false;

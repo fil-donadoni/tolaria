@@ -220,6 +220,7 @@ function artifactSourcePreventionEffect(opts: {
         id: opts.id,
         oracleText: opts.oracleText,
         eventKind: "damage",
+        damageEffectKind: "prevention",
         appliesTo: (event, self) => {
             if (event.kind !== "damage") return false;
             if (event.target.type !== "permanent") return false;

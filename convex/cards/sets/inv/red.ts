@@ -312,6 +312,7 @@ export const callousGiant: CardDefinition = {
             oracleText:
                 "If a source would deal 3 or less damage to this creature, prevent that damage.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             appliesTo: (event, self) =>
                 event.kind === "damage" &&
                 event.target.type === "permanent" &&
