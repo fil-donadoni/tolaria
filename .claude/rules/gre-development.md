@@ -48,32 +48,23 @@ the Op vocabulary.
   stub. The registry guard (`mechanicsRegistry.test.ts`) fails CI regardless.
 - **Guard A — keyword-must-be-implemented (#962).** A shipped card's
   `staticAbilities[]` must resolve to a registry row with
-  `status: "implemented"` — a `planned` keyword ships silently inert (the
-  deathtouch/hexproof shape, #957/#958). Enforced catalogue-wide in
-  `mechanicsRegistry.test.ts`. To satisfy: ship the mechanic first, or add a
-  narrow `{ cardId, keyword, issue }` row to `KEYWORD_ALLOWLIST` with a real
-  open issue (the allowlist empties out, never a standing hatch).
-- **Guard B — documented-divergence-needs-issue (#962, vocabulary/window
-  widened in #1900).** Every confession-shaped marker in
-  `convex/cards/sets/**` MUST carry a tracking ref (`tracked-by: #NNN`) or an
-  explicit "out of scope" note. The vocabulary is `Deferred` / `divergence` /
-  `not implemented` / `TODO` / `simplif*` / `approximat*` / `not model(l)?ed`
-  / `not enforced` / `deviat*` / `unimplemented` / `unbuilt`, matched
-  UNANCHORED — anywhere in a `//` comment line, not only as its first word
-  (#1900: most per-card divergence prose opens with the card's own name, not
-  a marker word, so anchoring silently missed roughly half the confessions
-  that existed). The disposition must sit **on the marker's own line, the
-  line immediately following it, or an earlier line of the same paragraph
-  that is itself a dispositioned marker** — narrower than the old
-  whole-paragraph scan (#1900 closed a leak one level down from #962's: an
-  UNRELATED ref elsewhere in the same paragraph — a provenance citation, a
-  different clause's own ref — no longer vouches for a marker it isn't
-  attached to; a shared section-footer header's ref still vouches for the
-  marker-word bullets listed under it). `ADR NNNN` is still provenance, never
-  a work ticket. A marker sitting inside a commented-out card stub's comment
-  run is out of scope here — `check-stub-coverage.ts`'s domain. Enforced by
-  `divergenceMarkers.test.ts`; scanner shared with the liveness sweep in
-  `scripts/lib/divergence-markers.ts`.
+  `status: "implemented"` — a `planned` keyword ships silently inert.
+  Enforced catalogue-wide in `mechanicsRegistry.test.ts`. To satisfy: ship
+  the mechanic first, or add a narrow `{ cardId, keyword, issue }` row to
+  `KEYWORD_ALLOWLIST` with a real open issue (the allowlist empties out,
+  never a standing hatch). History: `docs/agents/gre-guards.md`.
+- **Guard B — documented-divergence-needs-issue (#962, widened #1900).**
+  Every confession marker in `convex/cards/sets/**` (vocabulary:
+  `Deferred`/`divergence`/`not implemented`/`TODO`/`simplif*`/`approximat*`/
+  `not model(l)?ed`/`not enforced`/`deviat*`/`unimplemented`/`unbuilt`,
+  matched anywhere in a `//` line, not only its first word) MUST carry a
+  tracking ref (`tracked-by: #NNN`) or an "out of scope" note **on its own
+  line, the next line, or an earlier same-paragraph line that is itself
+  dispositioned**. `ADR NNNN` is provenance, never a ticket. A commented-out
+  stub's own comment run is `check-stub-coverage.ts`'s domain, not this
+  guard's. Enforced by `divergenceMarkers.test.ts`; scanner shared with the
+  liveness sweep in `scripts/lib/divergence-markers.ts`. Derivation:
+  `docs/agents/gre-guards.md`.
 
 **Guard B polices markers; it does not licence them.** A `tracked-by:` ref
 makes an already-accepted divergence findable — it never makes one
@@ -86,9 +77,9 @@ affordance, bot Move + valuation, serialization, debug scenario). A missing
 capability the rule text implies is part of the work, scoped up front — not a
 follow-up. The cost of a missing clause is that nobody knows it's missing: a
 partial mechanic passes its own tests and reads as done while its tracking
-issue rots (#957/#958). What stays outside scope: a DIFFERENT card's effect
+issue rots. What stays outside scope: a DIFFERENT card's effect
 that merely references the mechanic — but build the engine-side primitive its
-own rule text implies (Foretell/CR 702.143d, PRD #2091). If genuinely too
+own rule text implies (Foretell, CR 702.143d). If genuinely too
 large for one PR, slice so intermediate states are engine capabilities with no
 card exposing them, registry row `planned` until the last slice.
 
@@ -154,17 +145,15 @@ non-trivial card gets a `describe` block in the parallel per-colour test file
 
 `staticAbilities[]` (keywords) has no row: it needs **no per-card test at all**.
 `mechanicsRegistry.test.ts` already fails CI catalogue-wide when a shipped
-keyword does not resolve to an `implemented` registry row (Guard A above) — a
-strictly stronger check than the "snapshot the definition" row that used to sit
-here, which only proved the definition equals itself.
+keyword does not resolve to an `implemented` registry row (Guard A above).
 
 **Every per-card test MUST call something.** A block that reads definition
 fields and asserts them, with no engine entry point, no fixture builder and no
 reducer between the read and the `expect`, is the definition written twice: it
 goes red on correct edits, green on a card that is inert in the engine, and
-counts as coverage while proving nothing. 916 such blocks were deleted in
-#2363; `scripts/__tests__/identity-only-card-tests.test.ts` now fails CI on a
-new one, with an allowlist that is empty and meant to stay empty.
+counts as coverage while proving nothing.
+`scripts/__tests__/identity-only-card-tests.test.ts` fails CI on a new one
+(allowlist empty, meant to stay empty). History: `docs/agents/gre-guards.md`.
 
 **Why wire tests are mandatory for visible effects:** the projection
 (`convex/gameProjections.ts`) strips `card.card` → `{ id }`, reshapes arrays
@@ -208,7 +197,7 @@ affordance appears. **Walk the reducers before marking done.**
 | Reducer                                     | Lives in                                          | Drives                                               | Drop symptom                                                      |
 | ------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------- |
 | `projectPublicState` / `FullGameState`      | `convex/gameProjections.ts`                       | everything the board renders                         | effect reads a stripped fat field → wrong client-side             |
-| `buildTriggerStateView`                     | `src/lib/card-utils.ts`                           | `getStackAbilities` hints + `canActivate` predicates | ability never offered (Grim Lavamancer: dropped `graveyard`)      |
+| `buildTriggerStateView`                     | `src/lib/card-utils.ts`                           | `getStackAbilities` hints + `canActivate` predicates | ability never offered (a dropped view field)                      |
 | `getStackAbilities` gates                   | `src/lib/card-utils.ts`                           | whether an ability appears in the menu               | new cost shape ungated (always shown) or gated on a missing field |
 | `matchesTargetRequirement` / `TARGET_LABEL` | `src/lib/card-utils.ts` / `src/components/board/` | clickable targets + prompt label                     | new type unhandled → nothing clickable / raw fallback             |
 
@@ -281,7 +270,7 @@ When adding/modifying cards in `convex/cards/sets/`:
   `$event` in a script — an event-inspecting trigger stays scalar `event` +
   `resolve`.)
 - **Token/emblem art is mandatory setup (CR 114/111)** — a missing image
-  renders a placeholder (and once crashed `<StackRow>`), silently
+  renders a placeholder, silently
   server-side:
     - **Tokens (`createToken`)**: prefer a shared spec from
       `convex/cards/sharedTokens.ts`. New token: regenerate the lockfile
