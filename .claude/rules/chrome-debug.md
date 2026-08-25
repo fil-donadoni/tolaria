@@ -19,21 +19,11 @@ receipt — paste it. A surface it could not reach prints `UNWALKED` and reds
 the run; that is a coverage failure, not a pass. Drive CDP by hand only for
 what the lane does not cover, or to diagnose what it flagged.
 
-**Paste it byte-exact, banner included** (issue #2760). `bun run land`
-re-derives the `RECEIPT`/`DIAGNOSTIC` banner, the coverage line and every
-verdict row from the pasted text and refuses to merge a `skin`-lane PR whose
-paste does not match (`scripts/ui-gate/verify-receipt.ts` —
-`bun run verify:ui-receipt <PR#>` re-runs the same check by hand). Concretely
-that means: include the `RECEIPT — full lane run, …` / `DIAGNOSTIC — NOT a PR
-receipt: …` banner line at the top and the `coverage: N/M surfaces measured, K
-declared unwalked` line at the bottom, verbatim — never reflow, retype or
-hand-summarize a row (padding collapsed to single spaces still reads as a
-mismatch, even though the numbers are the same). Paste only a
-`RECEIPT`-labelled run; a `DIAGNOSTIC` (`--surface=` subset) is for your own
-iteration, never the PR body. The ONE region you may shorten is the "known
-debt carried by the budgets" trailer at the bottom, and only behind the
-literal marker `verify-receipt.ts` defines — never a verdict row, a ceiling,
-the coverage line or the banner itself.
+**Paste it byte-exact, banner + coverage line included** (#2760) —
+`bun run land` re-derives them and refuses a `skin`-lane PR that doesn't match
+(`bun run verify:ui-receipt <PR#>` checks by hand). Only a `RECEIPT` run,
+never `DIAGNOSTIC`; never reflow a row. Only the "known debt" trailer may be
+elided, behind its marker.
 
 **Five viewports per surface touched** (ADR 0101), via `emulate`: desktop
 `1440x900x2`, phone `390x844x3,mobile,touch` and
