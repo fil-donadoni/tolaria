@@ -40,7 +40,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // `scheduleDelayedTrigger`, and the combat read getters (`getIsAttacking`,
 // `getBlockersByAttacker`, attack/block-restriction static effects).
 //
-// DEFERRED (remain commented stubs, owned by a later cluster):
+// DEFERRED (remain commented stubs, owned by a later cluster) (tracked-by: #2785):
 //   • Cumulative upkeep — Brand of Ill Omen (ADR 0042 cluster).
 //   • Snow-matters — Avalanche (destroy snow lands), Barbarian Guides (snow
 //     landwalk grant), Glacial Crevasses / Goblin Ski Patrol / Karplusan Giant

@@ -1398,7 +1398,7 @@ export const scorchingLava: CardDefinition = {
 // chosen by one of their opponents of their choice. Destroy all lands in the
 // chosen piles. Tap all lands in the other piles." (CR 701.8 destroy,
 // CR 701.26 tap, ADR 0053 pile division.) CR 102.2 (2-player + solo engine
-// scope) simplification: "each player" / "one of their opponents of their
+// scope) simplification (tracked-by: #2785): "each player" / "one of their opponents of their
 // choice" is UNROLLED to the fixed two players as two sibling
 // `divideIntoPiles` Ops rather than an outer `forEach { set: "players" }` —
 // with exactly one opponent, "of their choice" is not a real decision, and

@@ -336,9 +336,9 @@ const IS_NONCREATURE_ARTIFACT: (
 // noncreature artifact on the battlefield — including ones that enter after
 // the Song resolves, via `applyExistingGrantsTo`.)
 //
-// DIVERGENCE (flagged, no engine change): "becomes an artifact creature" only
-// needs to ADD Creature — the affected permanents are already artifacts, so no
-// Artifact type-add is required. The leave-the-battlefield "continues until end
+// DIVERGENCE (tracked-by: #2064) (flagged, no engine change): "becomes an
+// artifact creature" only needs to ADD Creature — the affected permanents are
+// already artifacts, so no Artifact type-add is required. The leave-the-battlefield "continues until end
 // of turn" linger clause is NOT modeled: when the Song leaves play the engine
 // reverts the type/ability changes immediately (the standard
 // `unapplySourceStaticEffects` path). This is observable only in the window

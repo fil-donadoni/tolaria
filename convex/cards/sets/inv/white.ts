@@ -443,7 +443,7 @@ export const orimsTouch: CardDefinition = {
 // Divine Presence — "If a source would deal 4 or more damage to a permanent
 // or player, that source deals 3 damage to that permanent or player
 // instead." A flat clamp: no color/board scan needed (unlike Spirit of
-// Resistance, deferred — see the stub section), just the event's own
+// Resistance, deferred (tracked-by: #2785) — see the stub section), just the event's own
 // `amount` field.
 export const divinePresence: CardDefinition = {
     id: "28cb898d-d6ce-410a-83bf-37962cca2735",

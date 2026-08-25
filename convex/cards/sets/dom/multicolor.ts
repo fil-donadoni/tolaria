@@ -55,7 +55,7 @@ export const teferiHeroOfDominaria: CardDefinition = {
                     // target); the body's `choice` suspends/resumes through
                     // the standard Pending Choice pipeline.
                     //
-                    // DIVERGENCE: the pick is restricted to the controller's
+                    // DIVERGENCE (tracked-by: #2785): the pick is restricted to the controller's
                     // OWN lands — the `choice` Op picks from one player's
                     // zone, and a cross-battlefield permanent pick is not yet
                     // expressible (CR text allows ANY lands). Overwhelmingly

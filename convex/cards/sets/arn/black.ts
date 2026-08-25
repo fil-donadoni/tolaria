@@ -343,10 +343,10 @@ export const oubliette: CardDefinition = {
 // `choose-damage-target` mid-resolution choice (twin of Demonic Hordes' opponent
 // pick, but over "any target" rather than a battlefield zone, so the candidate
 // set spans damageable permanents AND players). The original printed text
-// ("damage is inflicted simultaneously") is simplified: our engine applies the
-// two pings sequentially within the single resolve step. With 1 damage each and
-// no replacement interaction between the two, the observable outcome is
-// identical, so the simplification is safe.
+// ("damage is inflicted simultaneously") is simplified (out of scope): our
+// engine applies the two pings sequentially within the single resolve step.
+// With 1 damage each and no replacement interaction between the two, the
+// observable outcome is identical, so the simplification is safe.
 export const cuombajjWitches: CardDefinition = {
     id: "7995c3f9-a147-43c9-9f82-470924818a4c",
     rarity: "common",
@@ -428,8 +428,8 @@ export const cuombajjWitches: CardDefinition = {
                 }
 
                 // Both pings land now (CR 115.4 — original "simultaneously"
-                // simplified to sequential; identical observable outcome for
-                // 1 damage each).
+                // simplified (out of scope) to sequential; identical
+                // observable outcome for 1 damage each).
                 if (own) ctx.dealDamage(own, 1);
                 if (opponentTarget) ctx.dealDamage(opponentTarget, 1);
             },
@@ -456,7 +456,7 @@ export const cuombajjWitches: CardDefinition = {
 // Auras already attached" is automatic — the enchant gate only blocks NEW
 // attachment; auras already on a guarded artifact are untouched.
 //
-// Simplification (flagged): the printed "if something would destroy Guardian
+// Simplification (tracked-by: #2785) (flagged): the printed "if something would destroy Guardian
 // Beast and your artifacts simultaneously, only Guardian Beast is destroyed"
 // rider is handled implicitly — our engine resolves "destroy" effects
 // sequentially and the indestructible guard is read at each destroy, so a mass

@@ -96,7 +96,7 @@ function makeUpkeepPayOrElse(args: {
 // Glaciers, Skeleton Ship, Spectral Shield, Storm Spirit, Stormbind, Wings of
 // Aesthir).
 //
-// DEFERRED (remain commented stubs, owned by a later capability cluster):
+// DEFERRED (remain commented stubs, owned by a later capability cluster) (tracked-by: #2785):
 //   • Divided-as-you-choose damage / counters — Fire Covenant, Fiery Justice,
 //     Meteor Shower, Spoils of War: SHIPPED (#664). Player-chosen ≥1-each
 //     division (`dealDamageDividedAsChosen` / `distributeCountersAsChosen` +

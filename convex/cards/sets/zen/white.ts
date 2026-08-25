@@ -12,7 +12,7 @@ import type { CardDefinition } from "../../types";
 // `controller` scope) and each member is destroyed via the `$each` object
 // ref. Destroy routes through the replacement layer, so indestructible
 // indestructible creatures survive (CR 702.12) and regeneration shields apply — modern
-// oracle text carries no "can't be regenerated" rider. Engine simplification
+// oracle text carries no "can't be regenerated" rider. Engine simplification (tracked-by: #2785)
 // (flagged): members are destroyed sequentially in APNAP controller order
 // rather than simultaneously; a member that leaves the battlefield
 // mid-iteration is skipped (CR 608.2b).

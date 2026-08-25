@@ -12,7 +12,7 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 // through the shared discard choke point, so cycling ANOTHER card while the
 // Mako is on the battlefield grows it (issue #689).
 //
-// Simplification (documented): the engine emits one CARD_DISCARDED per card, so
+// Simplification (tracked-by: #2785) (documented): the engine emits one CARD_DISCARDED per card, so
 // a simultaneous "discard N cards" fires this trigger N times (one +1/+1 counter
 // each) rather than once with a count of N. The net counter total is identical;
 // only single-card discards occur in this batch (Cycling always discards one).

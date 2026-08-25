@@ -75,7 +75,7 @@ export const ladyOrca: CardDefinition = {
 //   • Control-change-to-opponent upkeep penalty + named anthem (cluster-shaped):
 //     Rohgahh of Kher Keep.
 //
-// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here):
+// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
 //   • Axelrod Gunnarson — "whenever a creature dealt damage by Axelrod this
 //     turn dies, ..." needs a per-source combat-damage tally keyed to the
 //     dealer; no such surface exists (same gap flagged for Blazing Effigy).
@@ -859,7 +859,7 @@ export const bartelRuneaxe: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// C6 deferred (need an unbuilt primitive — left for a future batch):
+// C6 deferred (need an unbuilt primitive — left for a future batch) (tracked-by: #2785):
 //   • Tetsuo Umezawa — its "{U}{B}{B}{R}, {T}: Destroy target tapped or blocking
 //     creature" needs a disjunctive "tapped OR blocking" target filter across
 //     two different axes (tappedFilter vs combatRoleFilter, today combined as

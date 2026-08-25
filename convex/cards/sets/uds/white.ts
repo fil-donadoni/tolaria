@@ -23,7 +23,7 @@ import type {
 // Aura-with-nothing-to-enchant (CR 303.4c, issue #1094): an Aura in the swept
 // set with no legal host — not even a non-Aura sibling entering as part of
 // this SAME event — stays in the graveyard rather than entering unattached.
-// SIMPLIFICATION: when more than one legal host exists, the batch primitive
+// SIMPLIFICATION (tracked-by: #2785): when more than one legal host exists, the batch primitive
 // auto-picks the first one (deterministic order) — no player choice is
 // modeled, matching this sweep's own "no per-card choice" design for which
 // enchantments return.

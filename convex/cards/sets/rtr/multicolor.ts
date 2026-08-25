@@ -28,7 +28,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // creature card from a graveyard"). This is a real, official ruling (WotC,
 // 2016-06-08: "Because the first ability requires a target, it is not a
 // mana ability. It uses the stack and can be responded to."), not a
-// simplification — all three abilities are ordinary `useStack: true`
+// simplification (tracked-by: #2785) — all three abilities are ordinary `useStack: true`
 // activated abilities. `zone: "graveyard", controller: "any"` targets a
 // card in ANY player's graveyard (CR 400.7), matching "a graveyard" (not
 // "your graveyard") in the Oracle text — same shape as Grave Robbers / Eater

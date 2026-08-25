@@ -90,7 +90,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //   • Flow of Maggots — cumulative upkeep {1} (ADR 0042 template) + Walls-only
 //     block restriction.
 //
-// STILL DEFERRED (remain commented stubs, owned by a later cluster):
+// STILL DEFERRED (remain commented stubs, owned by a later cluster) (tracked-by: #2785):
 //   • Cumulative upkeep — Infernal Darkness (mana-color-replacement clause).
 //   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
 //     Gravebind, Krovikan Fetish, Mind Ravel, Touch of Death: ACTIVE (#660 —
@@ -392,9 +392,9 @@ export const cloakOfConfusion: CardDefinition = {
 //     each upkeep to untap the creature (CR 603.6a, 117.3a).
 //   - leftTrigger (self) — when this Aura leaves, the host's controller
 //     sacrifices it (CR 603.10 last-known-info), identical to Animate Dead.
-// SIMPLIFICATION (flagged, no engine change): the printed "loses 'enchant
-// creature card in a graveyard' and gains 'enchant creature put onto the
-// battlefield with this Aura'" self-text-change is a no-op in practice — it only
+// SIMPLIFICATION (out of scope) (flagged, no engine change): the printed "loses
+// 'enchant creature card in a graveyard' and gains 'enchant creature put onto
+// the battlefield with this Aura'" self-text-change is a no-op in practice — it only
 // re-scopes the attachment target after reanimation, which the engine already
 // handles by attaching to the reanimated permanent. The observable behavior
 // (reanimate tapped, +1/+1, untap-lock with pay-to-untap, sacrifice on leave) is
@@ -608,7 +608,7 @@ export const demonicConsultation: CardDefinition = {
 // that declaration a materialized grant is evaluated once, at ETB, and both
 // clauses ship inert.
 //
-// DIVERGENCE (CR 611.2c): pieces 2 and 3 are sourced from Dread Wight's own
+// DIVERGENCE (tracked-by: #2785) (CR 611.2c): pieces 2 and 3 are sourced from Dread Wight's own
 // `staticEffects[]`, so the untap lock and the {4} ability end if Dread Wight
 // leaves the battlefield, whereas the Oracle text creates them once as
 // indefinite effects of the resolved trigger. The paralyzation counters
@@ -1374,7 +1374,7 @@ export const infernalDenizen: CardDefinition = {
             // is COVERED (the card's ACTIVATED ability migrated), this UPKEEP
             // trigger also reads APNAP order (`ctx.apNapOrder()`) to pick the
             // opponent who chooses, then drives an opponent choose-permanents +
-            // a per-pick gainControl. `apNapOrder` is an unimplemented backlog
+            // a per-pick gainControl. `apNapOrder` is an unimplemented (tracked-by: #2785) backlog
             // Op and the choice-picked gainControl target is not expressible.
             // Blocked on: the apNapOrder Op + a choice-picked object selector —
             // stays resolve().
@@ -1702,7 +1702,7 @@ export const krovikanFetish: CardDefinition = {
 // that turn's end step and reanimates the card under the Vampire's controller
 // via `returnToBattlefield(..., "graveyard")`.
 //
-// SIMPLIFICATION (flagged, no engine change): the "sacrifice it when you lose
+// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the "sacrifice it when you lose
 // control of this creature" linkage requires per-permanent control-loss
 // tracking the engine doesn't model yet. The reanimation (the card's main
 // effect) is faithful; the sacrifice-on-loss-of-control clause — only reachable

@@ -93,7 +93,7 @@ export const nethergoyf: CardDefinition = {
 // The counter itself is placed by a plain `counters` Op (`counter:
 // "finality"`) — no new Op, no card-specific closure.
 //
-// Multi-candidate note (documented simplification, see the SIXTH `moveZone`
+// Multi-candidate note (documented simplification (tracked-by: #2785), see the SIXTH `moveZone`
 // shape's own doc comment): if 2+ creature cards are exiled with Emperor at
 // once, the reanimation deterministically picks the FIRST in stable order
 // rather than prompting a choice — mirrors Shallow Grave's own "deliberately

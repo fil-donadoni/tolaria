@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { scanText } from "../lib/divergence-markers";
+import {
+    scanText,
+    isNegatedConfession,
+    isAiEffectsShadowContext,
+    blankNegatedConfessions,
+} from "../lib/divergence-markers";
 
 /**
  * `scripts/lib/divergence-markers.ts` (issue #2560) — the scanner extracted
@@ -66,5 +71,105 @@ describe("scanText — issueNumbers extraction (issue #2560)", () => {
         // #833 lives in the paragraph ABOVE the blank-`//` break — must not
         // leak into this marker's issueNumbers.
         expect(hits[0].issueNumbers).toEqual([]);
+    });
+});
+
+// Direct unit coverage for the two false-positive suppressors added in issue
+// #1900's widening — until now both were exercised only INDIRECTLY, via the
+// catalogue sweep in `convex/cards/__tests__/divergenceMarkers.test.ts`
+// (which just asserts the whole-repo offender list is empty and would not
+// pin down WHY a given site is or isn't suppressed). Issue #1900 fixup round
+// 3, finding 1.
+describe("isNegatedConfession (issue #1900 fixup round 3, finding 1)", () => {
+    it("suppresses a line whose ONLY confession word is the negated one", () => {
+        // neo/red.ts's real shape: the negation ('not') sits on the line
+        // above, its object ('approximation') on the marker's own line.
+        const lines = [
+            "// cards. CR 121.2 makes this not an",
+            "// approximation of the clause, it IS the clause.",
+        ];
+        expect(isNegatedConfession(lines, 1)).toBe(true);
+    });
+
+    it("regression: a confession word BETWEEN the negation cue and its object survives — blanking takes the object, never the whole span (round-3 review finding)", () => {
+        // The round-3 implementation blanked the entire `not … <object>`
+        // span, so a confession sitting INSIDE that window was swallowed and
+        // Guard B lost coverage it has on main. Each of these is a HIT on
+        // main; each must stay a hit here.
+        for (const line of [
+            "// not implemented; the divergence stands at resolution.",
+            "// not implemented — the approximation below applies.",
+            "// not modelled, so the divergence persists.",
+            "// not enforced; the approximation holds.",
+        ]) {
+            expect(isNegatedConfession([line], 0)).toBe(false);
+        }
+
+        // Still suppressed: the confession word exists ONLY as the negated
+        // object, so nothing survives the blanking.
+        expect(
+            isNegatedConfession(["// so this is not an approximation."], 0)
+        ).toBe(true);
+    });
+
+    it("regression: does NOT suppress the whole hit when an INDEPENDENT confession word survives the blanking (the round-2 bug the reviewer broke)", () => {
+        // Round 2's `isNegatedConfession` dropped the entire hit whenever
+        // ANY `not|no … approximat*/divergence` window matched anywhere on
+        // the joined text — so this line, an unambiguous 'Deferred'
+        // confession that merely happens to also contain an unrelated 'no
+        // Op models this divergence' phrase, silently vanished from Guard B.
+        const confession =
+            "// Deferred: no Op models this divergence yet, so the clause is dropped.";
+        expect(isNegatedConfession([confession], 0)).toBe(false);
+
+        // Control — the same shape with no independent confession word: the
+        // suppression should NOT fire (nothing to negate), same as before.
+        const noNegation = "// Deferred: the clause is dropped.";
+        expect(isNegatedConfession([noNegation], 0)).toBe(false);
+
+        // Same shape with a SIMPLIFICATION confession instead of Deferred,
+        // and the negation window landing on 'divergence' instead of
+        // 'approximat*' — both vocabulary branches must survive blanking.
+        const simplification =
+            "// SIMPLIFICATION: no engine seam, so the divergence stands, tracked-by: #1.";
+        expect(isNegatedConfession([simplification], 0)).toBe(false);
+    });
+
+    it("blankNegatedConfessions removes only the negated span, not the whole line", () => {
+        const blanked = blankNegatedConfessions(
+            "",
+            "// Deferred: no Op models this divergence yet, so the clause is dropped."
+        );
+        expect(blanked).toContain("Deferred:");
+        expect(blanked).not.toMatch(/divergence/i);
+    });
+
+    it("does not suppress a genuine, unrelated confession with no nearby negation", () => {
+        const lines = [
+            "// DEFERRED: this thing is not built yet, no ref here.",
+        ];
+        // "not built" / "no ref" are nowhere near 'approximat*'/'divergence'
+        // — MARKER still fires and nothing here is a disclaimer.
+        expect(isNegatedConfession(lines, 0)).toBe(false);
+    });
+});
+
+describe("isAiEffectsShadowContext (issue #1900 fixup round 3, finding 1)", () => {
+    it("suppresses a confession word inside an aiEffects shadow-script paragraph", () => {
+        // big/green.ts's real shape: the `aiEffects (PRD #1423, ...)` anchor
+        // sits several comment lines above the word 'Approximates'.
+        const lines = [
+            "// aiEffects (PRD #1423, issue #1431/#2364) — bare resolve() closure,",
+            "// so the bot's value model has nothing to walk without a shadow",
+            "// script.",
+            "// Approximates",
+            "// the real effect closely enough for valuation.",
+        ];
+        expect(isAiEffectsShadowContext(lines, 3)).toBe(true);
+    });
+
+    it("does not suppress a confession word with no aiEffects anchor nearby", () => {
+        const lines = ["// SIMPLIFICATION: approximates the printed clause."];
+        expect(isAiEffectsShadowContext(lines, 0)).toBe(false);
     });
 });

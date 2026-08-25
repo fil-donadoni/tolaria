@@ -461,7 +461,7 @@ export const dropOfHoney: CardDefinition = {
 // "Any one color" is modelled as five modes (one per color) picked at
 // announcement. CR 700.2 puts a modal choice at announcement; the printed card
 // chooses the color on resolution. Choosing at announcement is a deliberate,
-// invisible simplification — all five colors are always legal and nothing
+// invisible simplification (tracked-by: #2785) — all five colors are always legal and nothing
 // between announcement and resolution can change that — and it reuses the
 // engine's existing, fully-wired modal cast flow (incl. the UI mode picker)
 // instead of a bespoke resolution-time color picker.

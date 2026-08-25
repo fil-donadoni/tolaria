@@ -128,14 +128,14 @@ export const sylvanLibrary: CardDefinition = {
 //     counter on its own combat-damage end-step trigger).
 //   • World rule (C2) — Concordant Crossroads, Living Plane, Revelation. These
 //     carry the World supertype; like every other World-supertype LEG card they
-//     are deferred to the world-rule cluster so the supertype and its SBA ship
+//     are deferred (tracked-by: #2785) to the world-rule cluster so the supertype and its SBA ship
 //     together (mirrors the blue/black/red tranches).
 //   • C9 conditional attack restriction (World) — Arboria. SHIPPED in the C9
 //     section at the foot of this file (#386).
 //
 // Out of scope for the whole set (per #369): Rebirth (ante, ADR 0010).
 //
-// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here):
+// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
 //   • Aisling Leprechaun / Floral Spuzzem — "whenever this blocks / becomes
 //     blocked" and "whenever this attacks and isn't blocked" need a combat
 //     attack/block triggered-ability factory; only ETB/death/tap/cast/phase
