@@ -57,6 +57,7 @@ export const BUDGET_KEYS = [
     "cardsZero",
     "cardsOcc",
     "cardsStranded",
+    "cardsSquare",
     "ctrlsZero",
     "ctrlsOcc",
     "ctrlsStranded",
@@ -95,6 +96,25 @@ export interface ProbeCounts {
 export interface ProbeResult {
     vp: string;
     cards: ProbeCounts;
+    /** SQUARE card surfaces (ADR 0103 §7, issue #2724) — a card showing page
+     *  background inside its own rectangle instead of the printed rounded
+     *  corner. A hard floor of 0 everywhere.
+     *
+     *  Measured by COMPUTED RADIUS, not by a hit test and not by pixels
+     *  (`probe.js`'s square-corner block): the probe walks the card's own box
+     *  chain — the image plus any ancestor with the same rect — takes the
+     *  largest `border-top-left-radius` on an element that actually CLIPS to it
+     *  (the image itself, or an ancestor with non-visible `overflow` / paint
+     *  containment), and reds when that radius is under 2.4% of the card's
+     *  width, half the printed fraction. A hit test at the corner was the FIRST
+     *  implementation and was withdrawn: the corner is an ellipse quadrant, so
+     *  the usable inset is under ~0.29·r — ~1.1px on a 78px phone tile — and
+     *  `elementFromPoint` snaps CSS pixels to device pixels, which made it
+     *  report 36 square cards on a tree whose cards were all correctly rounded.
+     *  A pixel read is impossible at all: card art is cross-origin, so the
+     *  canvas is tainted. */
+    cardsSquareN: number;
+    cardsSquare: SquareExample[];
     ctrls: ProbeCounts;
     starvedN: number;
     starved: unknown[];
@@ -102,6 +122,18 @@ export interface ProbeResult {
     tinyText: number;
     hOverflow: number;
     cardW: { min: number; max: number } | null;
+}
+
+/** One square-cornered card, named so the run says WHICH card (issue #2724).
+ *  `t` is the image's `alt` (the card name), `cls` the first 40 chars of its
+ *  class list. */
+export interface SquareExample {
+    t: string;
+    cls: string;
+    w: number;
+    h: number;
+    /** The largest corner radius found on the card's own box chain, in px. */
+    r: number;
 }
 
 /** axe-core's violation counts for one viewport (issue #2580/#2593). */
@@ -127,6 +159,7 @@ export function metricsOf(probe: ProbeResult, axe: AxeCount): Ceilings {
         cardsZero: probe.cards.zero,
         cardsOcc: probe.cards.occ,
         cardsStranded: probe.cards.stranded,
+        cardsSquare: probe.cardsSquareN,
         ctrlsZero: probe.ctrls.zero,
         ctrlsOcc: probe.ctrls.occ,
         ctrlsStranded: probe.ctrls.stranded,
@@ -261,7 +294,7 @@ export interface Evaluation {
 
 function fmtMetrics(m: Ceilings): string {
     return [
-        `cards zero${m.cardsZero} occ${m.cardsOcc} stranded${m.cardsStranded}`,
+        `cards zero${m.cardsZero} occ${m.cardsOcc} stranded${m.cardsStranded} square${m.cardsSquare}`,
         `ctrls zero${m.ctrlsZero} occ${m.ctrlsOcc} stranded${m.ctrlsStranded}`,
         `starved${m.starved}`,
         `small${m.small}`,

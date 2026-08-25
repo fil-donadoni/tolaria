@@ -130,14 +130,14 @@ describe("GraveyardTargetDialog routing (#314)", () => {
         renderDialog(pending({ controller: "you" }), [me], me);
 
         const btn = screen.getByTestId("card-img-m1").closest("button")!;
-        expect(btn.className).toContain("ring-signal-pending");
-        expect(btn.className).not.toContain("ring-signal-self");
+        expect(btn.className).toContain("card-ring-candidate");
+        expect(btn.className).not.toContain("card-ring-selected");
     });
 
     // QA (Restock): a 2-target spell's first pick stayed on the yellow
     // candidate ring forever — `GraveyardCardPicker` never read
     // `pendingTarget.selected`. It must switch to the green picked ring
-    // (ring-signal-self) once a card is already selected, mirroring the
+    // (card-ring-selected) once a card is already selected, mirroring the
     // battlefield/hand target flows.
     it("already-selected candidates show the green picked ring, not yellow", () => {
         const me = player("me", "Me", [gyCard("m1", "me"), gyCard("m2", "me")]);
@@ -152,14 +152,14 @@ describe("GraveyardTargetDialog routing (#314)", () => {
         );
 
         const pickedBtn = screen.getByTestId("card-img-m1").closest("button")!;
-        expect(pickedBtn.className).toContain("ring-signal-self");
-        expect(pickedBtn.className).not.toContain("ring-signal-pending");
+        expect(pickedBtn.className).toContain("card-ring-selected");
+        expect(pickedBtn.className).not.toContain("card-ring-candidate");
 
         const candidateBtn = screen
             .getByTestId("card-img-m2")
             .closest("button")!;
-        expect(candidateBtn.className).toContain("ring-signal-pending");
-        expect(candidateBtn.className).not.toContain("ring-signal-self");
+        expect(candidateBtn.className).toContain("card-ring-candidate");
+        expect(candidateBtn.className).not.toContain("card-ring-selected");
     });
 
     it("two eligible graveyards (controller: any) → persistent tabs, first shown by default", () => {

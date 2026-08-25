@@ -121,7 +121,7 @@ export default function LimitedDraftPackCard({
                 // grid and `draft-portrait-panes.tsx` /
                 // `draft-landscape-panes.tsx`'s outer scroller) — this class
                 // only decides whether the INNERMOST scroll can start.
-                "group relative block aspect-5/7 w-full cursor-grab touch-pan-y rounded-[7%] ring-accent transition select-none",
+                "group relative block aspect-5/7 w-full cursor-grab touch-pan-y card-corner transition select-none",
                 pending
                     ? "cursor-not-allowed opacity-60"
                     : "hover:-translate-y-0.5",
@@ -150,11 +150,19 @@ export default function LimitedDraftPackCard({
                 rendered AFTER `<CardImage>` so it paints on top, carrying the
                 inset ring — same shape `deck-card-tile.tsx` already uses for
                 its own selected/featured overlays. Inset + its own box keeps
-                it unclippable by the scroller with no tile-width cost. */}
+                it unclippable by the scroller with no tile-width cost.
+
+                Issue #2724 generalised exactly this shape into the shared
+                `.card-ring` recipe (a `::after` pseudo-element, so it needs no
+                overlay of its own) — but this tile keeps ITS overlay, because
+                the reason for it here is the DOM order the test above pins,
+                not the paint order. `[--card-ring-w:4px]` preserves the pack
+                card's heavier ring; every other card surface takes the 2px
+                default. */}
             {selected && (
                 <div
                     data-testid="selection-ring"
-                    className="pointer-events-none absolute inset-0 rounded-[7%] ring-4 ring-inset ring-accent"
+                    className="pointer-events-none absolute inset-0 card-ring card-ring-selected [--card-ring-w:4px]"
                 />
             )}
         </div>

@@ -156,14 +156,14 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
     it("renders the combat grouping ring + offset but NOT the numeric badge", () => {
         const vs: CardVisualState = {
             ...NEUTRAL_VS,
-            ringClass: "ring-2 ring-combat-1 rounded-sm",
+            ringClass: "card-ring card-ring-combat-1",
             badge: { color: "bg-combat-1", index: 0 },
             combatOffset: "-translate-y-8",
         };
         const { container, queryByText } = renderCard(makeCreature(), vs);
         // Ring is applied to the framed face element.
         expect(
-            container.querySelector(".ring-combat-1.rounded-sm")
+            container.querySelector(".card-ring.card-ring-combat-1")
         ).toBeTruthy();
         // Combat offset is applied to the outer slot wrapper.
         expect(container.querySelector(".-translate-y-8")).toBeTruthy();
@@ -330,10 +330,13 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         expect(container.querySelector(".bg-black\\/40")).toBeTruthy();
     });
 
-    it("renders the accent-strong glow overlay for a legal target (matching a targetable player nameplate)", () => {
+    it("renders the outer signal-target glow for a legal target (matching a targetable player nameplate)", () => {
         // During target selection getVisualState sets targetGlow so the
-        // permanent reads the SAME accent-strong glow ring a targetable player
-        // nameplate gets — a box-shadow overlay, not a ringClass.
+        // permanent reads the SAME soft outer glow a targetable player
+        // nameplate gets. It is the wrapper's OWN box-shadow (an
+        // `overflow-hidden` wrapper clips a descendant's outward shadow), and
+        // since #2724 it composes with the inset candidate ring instead of
+        // replacing it.
         const vs: CardVisualState = {
             ...NEUTRAL_VS,
             interactive: true,
@@ -342,7 +345,7 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         };
         const { container } = renderCard(makeCreature(), vs);
         const glow = container.querySelector(
-            '[style*="--color-accent-strong"]'
+            '[style*="--color-signal-target"]'
         );
         expect(glow).toBeTruthy();
     });

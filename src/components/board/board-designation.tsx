@@ -38,7 +38,7 @@ export default function BoardDesignation({
                 className="relative w-full h-full"
                 aria-label={`Designation: ${designation.name}.`}
             >
-                <div className="w-full h-full rounded-sm overflow-hidden ring-1 ring-border-accent/60 bg-surface-base">
+                <div className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60 bg-surface-base">
                     <img
                         {...(jpgFallback
                             ? { src: getImageFallbackUrl(imageId) }

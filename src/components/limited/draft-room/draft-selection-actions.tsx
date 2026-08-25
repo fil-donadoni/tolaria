@@ -66,7 +66,7 @@ export default function DraftSelectionActions({
                         src={thumb}
                         alt=""
                         draggable={false}
-                        className="w-7 shrink-0 rounded-[6%]"
+                        className="w-7 shrink-0 card-corner"
                     />
                 )}
                 <span className="truncate font-beleren text-[13px] text-parchment">

@@ -118,9 +118,11 @@ describe("LimitedDraftPackCard gestures (ADR 0060, issue #1248)", () => {
         const ring = getByTestId("selection-ring");
         const art = getByAltText("Lightning Bolt");
 
-        // The ring carries the inset ring utilities...
-        expect(ring.className).toContain("ring-inset");
-        expect(ring.className).toContain("ring-4");
+        // The ring carries the shared INSET card-ring recipe (#2724) at the
+        // pack card's own 4px weight...
+        expect(ring.className).toContain("card-ring ");
+        expect(ring.className).toContain("card-ring-selected");
+        expect(ring.className).toContain("[--card-ring-w:4px]");
 
         // ...on an element that is a DIRECT CHILD of the tile (a sibling of
         // the whole CardImage subtree, not nested inside its own

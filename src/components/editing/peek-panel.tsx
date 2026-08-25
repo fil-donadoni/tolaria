@@ -99,7 +99,7 @@ export default function PeekPanel({
                     src={thumb}
                     alt=""
                     draggable={false}
-                    className="w-10 shrink-0 rounded-[6%]"
+                    className="w-10 shrink-0 card-corner"
                 />
             )}
             <div className="min-w-0 flex-1">

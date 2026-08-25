@@ -36,7 +36,7 @@ export default function DeckMock({
                     src="/img/card-back.webp"
                     alt=""
                     draggable={false}
-                    className="absolute rounded-[7%] border border-border object-cover shadow-md"
+                    className="absolute card-corner border border-border object-cover shadow-md"
                     style={{
                         width: cardW,
                         height: cardH,

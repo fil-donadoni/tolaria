@@ -187,8 +187,8 @@ describe("DeckBuilder — Constructed zones on the shared surface (issue #1622)"
         const { container } = renderBuilder(deck([BOLT, SERRA], []));
         const bolt = container.querySelector('[data-column="mv:1"]')!;
         const serra = container.querySelector('[data-column="mv:5"]')!;
-        expect(bolt.querySelectorAll(".ring-accent")).toHaveLength(1);
-        expect(serra.querySelectorAll(".ring-accent")).toHaveLength(0);
+        expect(bolt.querySelectorAll(".card-ring-selected")).toHaveLength(1);
+        expect(serra.querySelectorAll(".card-ring-selected")).toHaveLength(0);
         // …and no TILE carries a button any more (the Column's own
         // rename/delete control is a column affordance, not a card one).
         expect(

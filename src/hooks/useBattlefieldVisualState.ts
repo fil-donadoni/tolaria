@@ -36,7 +36,8 @@ import {
     activeSacrificeSelection,
     nextSacrificeRequirement,
 } from "~/lib/sacrifice-selection";
-import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
+import { COMBAT_GROUP_BG } from "~/lib/combat-colors";
+import { cardRingClass, COMBAT_GROUP_ROLE } from "~/lib/card-ring";
 import type { CardVisualState } from "~/components/board/battlefield-card";
 
 /** A NON-stack (`useStack: false`) mana ability's `cost.tapOtherFilter` pick,
@@ -344,7 +345,7 @@ export function useBattlefieldVisualState(
         let colorIdx = 0;
         for (const attackerId of combat.attackerIds) {
             if (attackersWithBlockers.has(attackerId)) {
-                map[attackerId] = colorIdx % COMBAT_GROUP_RING.length;
+                map[attackerId] = colorIdx % COMBAT_GROUP_ROLE.length;
                 colorIdx++;
             }
         }
@@ -710,72 +711,84 @@ export function useBattlefieldVisualState(
             combatOffset = towardCenter;
         }
 
-        // Ring class
+        // Ring class. Every branch below resolves to a `cardRingClass` ROLE
+        // (ADR 0103 §8, issue #2724) — an inset pseudo-element ring on the
+        // card's own printed corner, never an outward Tailwind `ring-*`. The
+        // ten branches this used to have spoke five palettes for three
+        // meanings; `src/lib/card-ring.ts` documents the collapse and the two
+        // distinctions that survive it (`pending`, `combat-N`).
         let ringClass = "";
-        // A legal target of the spell/ability on the stack currently choosing
-        // targets reads with the SAME accent-strong glow ring a targetable
-        // player nameplate gets (player-nameplate.tsx) — a box-shadow overlay,
-        // not a `ringClass` (glow can't be a Tailwind ring). Set below when the
-        // faded valid-target branch would otherwise have fired.
+        // A legal target ALSO gets a soft OUTER glow, matching the targetable
+        // player nameplate (player-nameplate.tsx). It is the wrapper's own
+        // box-shadow rather than a `ringClass` (a glow cannot be a ring), and
+        // since #2724 it composes WITH the inset candidate ring instead of
+        // replacing it — the two are different CSS properties now.
         let targetGlow = false;
         // "Attack with all" destination sequence (design 2026-07-23) — the
-        // attacker currently choosing its target reads with a DEDICATED
-        // pulsing emerald ring, distinct from the static red "declared" ring
-        // below, so the player can tell "already declared" from "now assigning
-        // this one's target". Highest priority during the sequence.
+        // attacker currently choosing its target reads differently from the
+        // attackers already declared below, so the player can tell "already
+        // declared" from "now assigning this one's target". Both are attackers,
+        // so both read `attacking`: the distinction a second colour used to
+        // carry is carried by TWO channels now — `card-ring-current` (a heavier
+        // ring + inner halo, STATIC) and `card-ring-pulse` (ambient motion).
+        // The static one is load-bearing: the pulse's animation is declared
+        // inside `index.css`'s `prefers-reduced-motion: no-preference` gate, so
+        // with motion reduced it is the only thing left telling the two apart.
+        // Highest priority during the sequence.
         const isCurrentSequenceAttacker =
             attackSequence.active &&
             attackSequence.currentAttackerId === card.id;
         if (isCurrentSequenceAttacker) {
-            ringClass = "ring-2 ring-signal-self animate-pulse rounded-sm";
+            ringClass = `${cardRingClass("attacking")} card-ring-current card-ring-pulse`;
         } else if (pendingBlockerId === card.id) {
-            ringClass = "ring-2 ring-signal-pending rounded-sm";
+            ringClass = cardRingClass("pending");
         } else if (
             card.isAttacking &&
             combatGroupColors[card.id] !== undefined
         ) {
-            ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[card.id]]} rounded-sm`;
+            ringClass = cardRingClass(
+                COMBAT_GROUP_ROLE[combatGroupColors[card.id]]
+            );
         } else {
             const targetAtkIds = blockerAssignments[card.id];
             const firstAtkId = targetAtkIds?.[0];
             if (firstAtkId && combatGroupColors[firstAtkId] !== undefined) {
-                ringClass = `ring-2 ${COMBAT_GROUP_RING[combatGroupColors[firstAtkId]]} rounded-sm`;
+                ringClass = cardRingClass(
+                    COMBAT_GROUP_ROLE[combatGroupColors[firstAtkId]]
+                );
             } else if (
                 selectedAttackerIds.includes(card.id) &&
                 !combat?.confirmed
             ) {
-                ringClass = "ring-2 ring-danger rounded-sm";
+                // Declared this combat, not yet confirmed. Was `ring-danger`;
+                // "attacking" is the ADR role and `signal-pending` its token —
+                // an unconfirmed declaration is exactly a pending attack.
+                ringClass = cardRingClass("attacking");
             }
         }
         if (!ringClass && isTargetSelected) {
-            // An already-picked target reads GREEN — the same emerald
-            // selection ring the card piles use (`selectionRing`,
-            // cards-pile.tsx) — so multi-target picks (Pyrokinesis's divided
-            // damage, Force of Vigor's up-to-two destroy) are unmistakable
-            // against the faded-gold "valid but unpicked" ring below.
-            ringClass = "ring-2 ring-signal-self rounded-sm";
+            // An already-picked target: multi-target picks (Pyrokinesis's
+            // divided damage, Force of Vigor's up-to-two destroy) must be
+            // unmistakable against the `candidate` ring on the legal-but-
+            // unpicked permanents below.
+            ringClass = cardRingClass("selected");
         } else if (!ringClass && isValidTarget) {
-            // Legal target of a spell/ability on the stack — mirror the player
-            // nameplate's accent-strong glow (player-nameplate.tsx) so a
-            // targetable permanent reads the SAME as a targetable player.
+            // Legal target of a spell/ability on the stack (CR 601.2c): the
+            // inset candidate ring plus the nameplate's outer glow, so a
+            // targetable permanent still reads the SAME as a targetable player.
+            ringClass = cardRingClass("candidate");
             targetGlow = true;
         }
         if (!ringClass && isChoiceSelected) {
-            // A committed pick reads GREEN — the same emerald selection ring the
-            // card piles (`selectionRing`, cards-pile.tsx), the in-hand choice
-            // toggle (board-hand-card.tsx) and target-selection (above) use — so
-            // the selected permanents are unmistakable against the faded-bronze
-            // "valid but unpicked" ring below. Bronze-solid vs bronze/40 differ
-            // only in opacity and don't read as a distinct selection.
-            ringClass = "ring-2 ring-signal-self rounded-sm";
+            ringClass = cardRingClass("selected");
         } else if (!ringClass && isValidChoice) {
-            ringClass = "ring-2 ring-accent/40 rounded-sm";
+            ringClass = cardRingClass("candidate");
         }
 
         // Non-mana cost picker highlight (CR 118.8 spell additional cost /
-        // CR 602.1 activated-ability sacrifice or tap-other cost). Same gold
-        // ring as a resolution choice so eligible permanents read as
-        // clickable.
+        // CR 602.1 activated-ability sacrifice or tap-other cost). Same
+        // `candidate` ring as a resolution choice so eligible permanents read
+        // as clickable.
         const isValidSacrificePick =
             (isPickingSacrifice && matchesSacrificePick(card)) ||
             (isPickingAdditionalCost &&
@@ -791,8 +804,8 @@ export function useBattlefieldVisualState(
         // two Mountains, Thwart's three Islands, Hand of Justice's tap-others).
         // `matches*Pick` excludes picked ids, so without this branch a chosen
         // permanent would lose its ring — the player couldn't see what they
-        // already selected. Emerald ring mirrors the choose-permanents selected
-        // state (`isChoiceSelected` above). CR 701.21a / 602.1.
+        // already selected. Reads `selected`, like the choose-permanents state
+        // (`isChoiceSelected` above). CR 701.21a / 602.1.
         const isCostPicked =
             (isPickingSacrifice &&
                 !!sacrificeSelection?.picked.includes(card.id)) ||
@@ -803,19 +816,20 @@ export function useBattlefieldVisualState(
             (isPickingManaTapOther &&
                 !!manaTapOtherPick?.picked.some((p) => p.id === card.id));
         if (!ringClass && isCostPicked) {
-            ringClass = "ring-2 ring-signal-self rounded-sm";
+            ringClass = cardRingClass("selected");
         } else if (!ringClass && isValidSacrificePick) {
-            ringClass = "ring-2 ring-accent/40 rounded-sm";
+            ringClass = cardRingClass("candidate");
         }
 
-        // CR 508.1a (issue #1220) — a planeswalker under attack reads GREEN (a
-        // committed attack target), the same emerald selection ring targets and
-        // choices use; a clickable-but-unchosen defending planeswalker reads with
-        // the faded-accent "valid target" ring.
+        // CR 508.1a (issue #1220) — a planeswalker under attack is a committed
+        // attack target and reads `selected`, like every other committed pick;
+        // a clickable-but-unchosen defending planeswalker reads `candidate`.
+        // The two used to differ by `accent/40` vs `accent/50`, a 10% opacity
+        // step nobody could see.
         if (!ringClass && isAttackTargetPw && isAttackedPlaneswalker(card)) {
-            ringClass = "ring-2 ring-signal-self rounded-sm";
+            ringClass = cardRingClass("selected");
         } else if (!ringClass && isAttackTargetPw) {
-            ringClass = "ring-2 ring-accent/50 rounded-sm";
+            ringClass = cardRingClass("candidate");
         }
 
         // Tooltip for ineligible creatures

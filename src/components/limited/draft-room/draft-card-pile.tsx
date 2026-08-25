@@ -69,7 +69,7 @@ export default function DraftCardPile({
                         alt=""
                         draggable={false}
                         className={cn(
-                            "absolute left-0 rounded-[6%] shadow",
+                            "absolute left-0 card-corner shadow",
                             card.highlight && "ring-1 ring-secondary-accent"
                         )}
                         style={{ top: index * STEP_PX, width: CARD_W_PX }}

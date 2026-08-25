@@ -606,14 +606,149 @@
      * still show the same corner. `--card-radius` is that fraction
      * (horizontal / vertical), and this is the one recipe that applies it.
      *
-     * SCOPE: the token and this recipe ship here; the ~20 call sites still
-     * hard-coding `rounded-[7%]` / `[6%]` / `[8%]` (card-image, board card,
+     * Issue #2724 migrated every card surface onto it: the ~20 sites that used
+     * to hard-code `rounded-[7%]` / `[6%]` / `[8%]` (card-image, board card,
      * battlefield card, pile cards, drag ghost, peek panel, draft piles, the
-     * `CardTilt3D` wrapper and its glare box) are issue #2724's, which owns
-     * "card surfaces: proportional corners everywhere" and its corner probe.
-     * Splitting it that way keeps THIS diff values-only. */
+     * `CardTilt3D` wrapper and its glare box) plus every card-shaped container
+     * that used to carry `rounded-sm` / `rounded-md`. `scripts/ui-gate/probe.js`
+     * hit-tests a card's extreme corner and reds the lane when a card surface
+     * is square (`cardsSquare`), so a new hard-coded radius cannot come back
+     * unnoticed. NOT a card corner: buttons, badges, pills, panels, dialogs and
+     * the preview DOCK chrome — those keep their own radii. */
     .card-corner {
         border-radius: var(--card-radius);
+    }
+
+    /* ── Inset card state ring (ADR 0103 §8) ──
+     * A card's state ring is drawn INSIDE the card's own printed corner, as a
+     * pseudo-element `box-shadow`. Three reasons it is not a Tailwind `ring-*`:
+     *
+     *  1. Zero layout impact and no bleed: an outward ring on a card in a tight
+     *     zone overlaps its neighbours and escapes the card's corner, so a
+     *     rounded card wore a square-ish halo.
+     *  2. `--tw-ring-color` is already contended on the battlefield card: the
+     *     black hairline, the state ring and the outer legal-target glow are
+     *     all that one property, and Tailwind's class-name ordering decides the
+     *     winner (see `board-battlefield-card.tsx` — an accent ring painted
+     *     BLACK for months). A pseudo-element takes the state ring out of that
+     *     competition entirely, so the hairline and the soft OUTER glow can
+     *     coexist with it.
+     *  3. Tailwind's own `ring-inset` cannot do this job: an inset box-shadow
+     *     paints BELOW the element's content, and every card wrapper is filled
+     *     edge-to-edge by its art — the ring would be invisible. Hence `::after`
+     *     with a `z-index` above the art.
+     *
+     * `.card-ring` implies the card corner, so the ring can never disagree with
+     * the surface it outlines. Colour comes from `--card-ring-color`, set by
+     * one of the role classes below; `src/lib/card-ring.ts` is the single
+     * authority that maps a game state to a role.
+     *
+     * `position: relative` is a DEFAULT, not a constraint: this rule sits in
+     * `@layer components`, so an `absolute`/`fixed` utility on the same element
+     * still wins (the draft pack card's inset overlay and the drag ghost both
+     * rely on that) and the `::after` anchors to it either way. */
+    .card-ring {
+        position: relative;
+        border-radius: var(--card-radius);
+    }
+    .card-ring::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: inset 0 0 0 var(--card-ring-w, 2px)
+            var(--card-ring-color, transparent);
+        pointer-events: none;
+        /* Above the art and its tint overlays (z-[5]), below the arrow
+           highlight (z-30) and the counter badges. */
+        z-index: 25;
+    }
+    /* The three ADR 0103 §8 roles. */
+    .card-ring-candidate {
+        --card-ring-color: var(--color-signal-target);
+    }
+    .card-ring-selected {
+        --card-ring-color: var(--color-accent);
+    }
+    .card-ring-attacking {
+        --card-ring-color: var(--color-signal-pending);
+    }
+    /* Same token as `attacking`, a different NAME: the blocker whose attacker
+       assignment is still being chosen is a pending state, not an attack. It
+       has read amber since before v4 and cannot co-occur with an attacker ring
+       (declared attackers carry a combat-group ring by then), so sharing the
+       token loses no information — but a branch reading `card-ring-attacking`
+       for a blocker would be a lie in the source. */
+    .card-ring-pending {
+        --card-ring-color: var(--color-signal-pending);
+    }
+    /* Combat-group identity (which attacker a blocker is paired with) is a
+       FOURTH axis the three roles do not cover — it carries pairing, not
+       state. It predates v4 (`src/lib/combat-colors.ts`) and keeps its four
+       hues; only the ring's geometry changes. */
+    .card-ring-combat-1 {
+        --card-ring-color: var(--color-combat-1);
+    }
+    .card-ring-combat-2 {
+        --card-ring-color: var(--color-combat-2);
+    }
+    .card-ring-combat-3 {
+        --card-ring-color: var(--color-combat-3);
+    }
+    .card-ring-combat-4 {
+        --card-ring-color: var(--color-combat-4);
+    }
+    /* ── The attacker currently choosing its target ──
+       Two channels, and it needs BOTH.
+
+       `.card-ring-current` is the STATIC one: a heavier ring plus a soft inner
+       halo, in the same `attacking` colour. `.card-ring-pulse` is the ambient
+       one, and it is motion-gated.
+
+       That split is the fix for a real hole (issue #2724 review). The current
+       attacker and the attackers already declared both resolve to
+       `card-ring-attacking` — one token, on purpose (see above). Before v4 they
+       differed by HUE (emerald vs red); after the collapse the only thing left
+       between them was the pulse, whose `animation` lives inside the single
+       `prefers-reduced-motion: no-preference` gate near the end of this file.
+       So with motion reduced the two states were pixel-identical, and a
+       reduced-motion player could not see which attacker was aiming — a
+       distinction carried by motion ALONE is a distinction that audience does
+       not get. Width and a second inset stop are static, so they survive the
+       gate; the pulse is then reinforcement, never the only channel.
+
+       The pulse itself moved from the CARD to the RING: `animate-pulse` on the
+       wrapper faded the art, which under v4 reads as "this card is disabled".
+       Same tempo as Tailwind's. A `--motion-*` token would be wrong for it —
+       those collapse to 1ms, which for a looping animation is a strobe, not a
+       stillness — so the `animation` is declared in the ONE `no-preference`
+       gate near the end of this file, which `motion-gating.test.ts` reads by
+       name and fails on any animation declared outside. */
+    .card-ring-current::after {
+        box-shadow:
+            inset 0 0 0 var(--card-ring-w-current, 3px)
+                var(--card-ring-color, transparent),
+            inset 0 0 0 calc(var(--card-ring-w-current, 3px) + 3px)
+                color-mix(
+                    in oklab,
+                    var(--card-ring-color, transparent) 28%,
+                    transparent
+                );
+    }
+    @keyframes card-ring-pulse {
+        50% {
+            opacity: 0.4;
+        }
+    }
+    /* Hover brightens a ring only where a pointer can hover — the picker
+       dialogs relied on `hover:ring-*-strong` for this. */
+    @media (hover: hover) {
+        .card-ring-candidate:hover {
+            --card-ring-color: var(--color-signal-target-strong);
+        }
+        .card-ring-selected:hover {
+            --card-ring-color: var(--color-accent-strong);
+        }
     }
 
     /* ── Panel heading + divider ── */
@@ -996,6 +1131,13 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+    /* 0. The pulsing ring on the attacker currently choosing its target
+       (`.card-ring-pulse`, ADR 0103 §8). Ambient: reduced motion leaves the
+       ring static, which still says "attacking". */
+    .card-ring-pulse::after {
+        animation: card-ring-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
     /* 1. Slowly-rotating runic ring on the Title Treatment. */
     .runic-ring {
         animation: runicSpin 64s linear infinite;
@@ -1210,8 +1352,8 @@
          * `--card-radius` is a PERCENTAGE PAIR, not a length: the printed
          * Magic corner is a fraction of the card, so one token gives a 63mm
          * hand card and a 40px battlefield thumb the same corner. Applied by
-         * `.card-corner`; the ~20 hard-coded `rounded-[7%]` call sites are
-         * issue #2724's to migrate. */
+         * `.card-corner` (and by `.card-ring`, which implies it); issue #2724
+         * migrated every card surface onto the two recipes. */
         --hairline-w: 1px;
         --hairline: rgb(232 226 210 / 0.12);
         --hairline-strong: rgb(232 226 210 / 0.3);

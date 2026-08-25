@@ -122,7 +122,13 @@ export default function ResultCard({
                         holdPreview={false}
                     />
                 </div>
-                <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-accent/60" />
+                {/* The "this click adds it" hover cue — the twin of
+                    `deck-card-tile.tsx`'s hover-REMOVE overlay, and the same
+                    shape: not one of the `card-ring` ROLES (ADR 0103 §8), so
+                    it borrows `.card-ring`'s inset geometry and proportional
+                    corner and supplies its own colour. Transparent until
+                    hovered (issue #2724). */}
+                <div className="card-ring pointer-events-none absolute inset-0 group-hover:[--card-ring-color:color-mix(in_oklab,var(--color-accent)_60%,transparent)]" />
             </DraggableCard>
             {renderFooter(
                 options.length > 1 ||

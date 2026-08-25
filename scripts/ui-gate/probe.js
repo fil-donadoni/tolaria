@@ -264,6 +264,99 @@ window.__tolariaProbe = () => {
           }
         : null;
 
+    // ── Square-corner check (ADR 0103 §7, issue #2724) ──
+    //
+    // A Magic card has a rounded corner, and the corner is a FRACTION of the
+    // card (`--card-radius`, 4.8% by 3.45%), not a fixed length. When a card
+    // surface loses that — a tile hand-rolling `rounded-sm`, a wrapper clipping
+    // with `overflow-hidden` and no radius of its own, a `--card-radius` that
+    // failed to resolve — the corner shows page background inside the card's
+    // own rectangle, and every other metric here reads clean: the image is
+    // present, the right size, unoccluded and reachable. Only the SHAPE is
+    // wrong, and shape is exactly what happy-dom cannot see.
+    //
+    // HOW. Walk the card's own box chain — the image plus any ancestor whose
+    // rect is the same box (within 2px) — and take the largest corner radius on
+    // an element that actually CLIPS to it (the image itself, or an ancestor
+    // with a non-visible `overflow` / paint containment). Anything further up
+    // is a different box and cannot be this card's corner.
+    //
+    // Why not a hit test at the corner. That was the first version, and it was
+    // wrong in a way worth recording: the corner is an ellipse quadrant, so a
+    // point inset by `i` on both axes only sits outside it when
+    // ((rx-i)/rx)^2 + ((ry-i)/ry)^2 > 1, i.e. i < ~0.29*r. On a 78x109 phone
+    // deck tile r is ~3.7px, which leaves a usable window under ~1.1px — and
+    // `elementFromPoint` takes CSS-pixel coordinates that the browser snaps to
+    // device pixels, so a sub-pixel inset is not reliably where you put it. It
+    // measured `cardsSquare 36` at 390x844x3 on a tree whose cards were all
+    // visibly, correctly rounded (screenshot-confirmed).
+    //
+    // Why not pixels. Card art is cross-origin, so a canvas read is tainted.
+    //
+    // The threshold is PROPORTIONAL, because that is what the token is for: a
+    // fixed radius looks right at one card size and wrong at every other. The
+    // floor is half the printed fraction (2.4% of the width), which
+    // `--card-radius` clears at every size and a fixed `rounded-sm` fails on
+    // anything bigger than a thumbnail. It does NOT catch a fixed radius that
+    // happens to land near the right fraction on one small card — that case is
+    // also visually indistinguishable, and the CSS recipe is what holds it.
+    const MIN_RADIUS_FRACTION = 0.024;
+    /** `border-top-left-radius`'s horizontal component in px. Chrome reports a
+     *  percentage radius AS a percentage, so resolve it against the box. */
+    const radiusPx = (value, boxW) => {
+        if (!value) return 0;
+        const first = String(value).trim().split(/\s+/)[0];
+        if (first.endsWith("%")) {
+            const pct = parseFloat(first);
+            return isNaN(pct) ? 0 : (pct / 100) * boxW;
+        }
+        const px = parseFloat(first);
+        return isNaN(px) ? 0 : px;
+    };
+    const sameBox = (a, b) =>
+        Math.abs(a.left - b.left) <= 2 &&
+        Math.abs(a.top - b.top) <= 2 &&
+        Math.abs(a.right - b.right) <= 2 &&
+        Math.abs(a.bottom - b.bottom) <= 2;
+    const cornerSquare = [];
+    for (const e of imgs) {
+        const r = e.getBoundingClientRect();
+        // Cards with no box are the other counters' business (`zero`).
+        if (r.width < 8 || r.height < 8) continue;
+        let best = 0;
+        let node = e;
+        for (
+            let depth = 0;
+            node && depth < 6;
+            depth++, node = node.parentElement
+        ) {
+            const nr = node.getBoundingClientRect();
+            if (depth > 0 && !sameBox(nr, r)) break;
+            const cs = getComputedStyle(node);
+            // A radius only shapes the card if that element clips to it. On the
+            // image itself the radius always applies; on an ancestor it needs
+            // `overflow` or paint containment, or the square art paints over
+            // the rounded corner and the card still reads square.
+            const clips =
+                node === e ||
+                !/^visible/.test(cs.overflow) ||
+                /paint|strict|content/.test(cs.contain || "");
+            if (!clips) continue;
+            best = Math.max(
+                best,
+                radiusPx(cs.borderTopLeftRadius || cs.borderRadius, nr.width)
+            );
+        }
+        if (best < MIN_RADIUS_FRACTION * r.width)
+            cornerSquare.push({
+                t: (e.getAttribute("alt") || e.tagName).trim().slice(0, 24),
+                cls: (e.className || "").toString().slice(0, 40),
+                w: Math.round(r.width),
+                h: Math.round(r.height),
+                r: Math.round(best * 100) / 100,
+            });
+    }
+
     // Fixed/sticky chrome eating the top and bottom of the viewport.
     let topChrome = 0,
         bottomChrome = 0;
@@ -291,6 +384,8 @@ window.__tolariaProbe = () => {
         mainTop: Math.round(mr.top),
         cards: probe(imgs),
         cardW,
+        cardsSquareN: cornerSquare.length,
+        cardsSquare: cornerSquare.slice(0, 6),
         ctrls: probe(ctrls),
         starvedN: starved.length,
         starved: starved.slice(0, 4),

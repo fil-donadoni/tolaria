@@ -16,11 +16,11 @@ export default function DivideTargetChip({ item }: { item: DivideTargetItem }) {
         <div className="flex flex-col items-center gap-2.5">
             <div className="relative w-16">
                 {item.type === "permanent" ? (
-                    <div className="w-16 aspect-[5/7] rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_4px_10px_rgba(0,0,0,0.5)]">
+                    <div className="w-16 aspect-[5/7] card-corner overflow-hidden ring-1 ring-black/40 shadow-[0_4px_10px_rgba(0,0,0,0.5)]">
                         <CardImage card={item.card} sizes="64px" />
                     </div>
                 ) : (
-                    <div className="w-16 aspect-[5/7] rounded-sm border border-border-subtle bg-surface-elevated flex flex-col items-center justify-center gap-1 px-1 text-center">
+                    <div className="w-16 aspect-[5/7] card-corner border border-border-subtle bg-surface-elevated flex flex-col items-center justify-center gap-1 px-1 text-center">
                         <span className="text-2xl font-beleren text-accent-strong tabular-nums leading-none">
                             {item.life}
                         </span>

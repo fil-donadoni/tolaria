@@ -239,8 +239,8 @@ describe("DeckZoneSurface — no per-card overlay buttons (issue #2584)", () => 
         });
         const bolt = getByTitle(/Remove Lightning Bolt/);
         const plains = getByTitle(/Remove Plains/);
-        expect(bolt.querySelectorAll(".ring-accent")).toHaveLength(1);
-        expect(plains.querySelectorAll(".ring-accent")).toHaveLength(0);
+        expect(bolt.querySelectorAll(".card-ring-selected")).toHaveLength(1);
+        expect(plains.querySelectorAll(".card-ring-selected")).toHaveLength(0);
     });
 
     it("a click SELECTS instead of moving once the host supplies onCardSelect (the touch path)", () => {

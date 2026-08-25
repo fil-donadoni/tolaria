@@ -61,7 +61,7 @@ function EmptyPilePlaceholder({
 }) {
     return (
         <div
-            className={`group ${PILE_TILE_BOX} flex justify-center items-center text-center p-2 border border-border-subtle rounded-sm`}
+            className={`group ${PILE_TILE_BOX} flex justify-center items-center text-center p-2 border border-border-subtle card-corner`}
         >
             {zoneIcon ? (
                 <span
@@ -334,12 +334,12 @@ function FanLayout({
                                         onCardClick(cardInstance);
                                         onClose();
                                     }}
-                                    className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${pickerRingClass(isSelected)}`}
+                                    className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer ${pickerRingClass(isSelected)}`}
                                 >
                                     {inner}
                                 </button>
                             ) : isIneligible ? (
-                                <div className="w-full h-full rounded opacity-40">
+                                <div className="w-full h-full card-corner opacity-40">
                                     {inner}
                                 </div>
                             ) : (
@@ -458,12 +458,12 @@ function GridCard({
                             onCardClick(cardInstance);
                             onClose();
                         }}
-                        className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${pickerRingClass(isSelected)}`}
+                        className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer ${pickerRingClass(isSelected)}`}
                     >
                         {inner}
                     </button>
                 ) : isIneligible ? (
-                    <div className="w-full h-full rounded opacity-40">
+                    <div className="w-full h-full card-corner opacity-40">
                         {inner}
                     </div>
                 ) : (

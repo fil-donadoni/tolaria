@@ -6,7 +6,7 @@ import { Section, Specimen, Where } from "./lib";
 
 function MockCard({ label }: { label: string }) {
     return (
-        <div className="flex h-28 w-20 items-center justify-center rounded-[7%] border border-border-accent/60 bg-linear-to-b from-surface-elevated to-surface">
+        <div className="flex h-28 w-20 items-center justify-center card-corner border border-border-accent/60 bg-linear-to-b from-surface-elevated to-surface">
             <span className="text-display px-1 text-center text-[10px] text-text-muted">
                 {label}
             </span>
@@ -27,7 +27,7 @@ export function BoardDeadSections() {
             >
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <Specimen label="card-preview-dock glow" tone="plain">
-                        <div className="card-preview-dock w-fit rounded-[7%]">
+                        <div className="card-preview-dock w-fit card-corner">
                             <MockCard label="Preview dock" />
                         </div>
                         <Where>index.css .card-preview-dock (#332)</Where>
@@ -45,7 +45,7 @@ export function BoardDeadSections() {
                         </button>
                         <div className="relative w-fit" key={glowKey}>
                             <MockCard label="Arrived" />
-                            <span className="arrival-glow pointer-events-none absolute inset-0 rounded-[8%]" />
+                            <span className="arrival-glow pointer-events-none absolute inset-0 card-corner" />
                         </div>
                     </Specimen>
                     <Specimen label="minimized-choice pill" tone="plain">

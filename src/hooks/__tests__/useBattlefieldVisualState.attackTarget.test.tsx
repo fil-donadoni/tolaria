@@ -146,7 +146,9 @@ describe("useBattlefieldVisualState — attack a planeswalker (#1220, CR 508.1a)
         });
 
         const vs = result.current.getVisualState(pw);
-        expect(vs.ringClass).toContain("signal-self");
+        // A planeswalker being attacked is a COMMITTED pick and reads with the
+        // shared `selected` role, like every other committed pick (#2724).
+        expect(vs.ringClass).toContain("card-ring-selected");
     });
 
     it("with no attacker declared yet, the planeswalker is not an attack target", () => {
@@ -230,12 +232,39 @@ describe("useBattlefieldVisualState — attack-with-all current-attacker ring", 
         const { result } = renderOwnBoardWithSequence(me, opp, seq());
 
         const vs = result.current.getVisualState(atk1);
-        expect(vs.ringClass).toContain("animate-pulse");
-        expect(vs.ringClass).toContain("signal-self");
+        expect(vs.ringClass).toContain("card-ring-pulse");
+        expect(vs.ringClass).toContain("card-ring-attacking");
         // The non-current attacker keeps the plain declared ring, not the pulse.
         expect(result.current.getVisualState(atk2).ringClass).not.toContain(
-            "animate-pulse"
+            "card-ring-pulse"
         );
+    });
+
+    it("the current attacker is distinguishable with motion REDUCED, not only by the pulse", () => {
+        // `card-ring-pulse`'s animation is declared inside `index.css`'s single
+        // `prefers-reduced-motion: no-preference` gate (pinned in
+        // `design-tokens.test.ts`). If the pulse were the only difference, the
+        // current attacker and the already-declared attackers — both
+        // `card-ring-attacking`, one token on purpose — would be identical for
+        // a reduced-motion player, who then cannot see which attacker is
+        // choosing its target. So the hook must emit a STATIC differentiator
+        // too. Strip the motion-gated class from both and they must still
+        // differ.
+        const atk1 = creature({ id: "atk1" });
+        const atk2 = creature({ id: "atk2" });
+        const me = player("me", [atk1, atk2]);
+        const opp = player("opp", [planeswalker()]);
+        const { result } = renderOwnBoardWithSequence(me, opp, seq());
+
+        const withoutMotion = (id: typeof atk1) =>
+            result.current
+                .getVisualState(id)
+                .ringClass.replace("card-ring-pulse", "")
+                .trim();
+
+        expect(withoutMotion(atk1)).toContain("card-ring-current");
+        expect(withoutMotion(atk2)).not.toContain("card-ring-current");
+        expect(withoutMotion(atk1)).not.toBe(withoutMotion(atk2));
     });
 
     it("the pulse follows the cursor to the next attacker", () => {
@@ -250,10 +279,10 @@ describe("useBattlefieldVisualState — attack-with-all current-attacker ring", 
         );
 
         expect(result.current.getVisualState(atk2).ringClass).toContain(
-            "animate-pulse"
+            "card-ring-pulse"
         );
         expect(result.current.getVisualState(atk1).ringClass).not.toContain(
-            "animate-pulse"
+            "card-ring-pulse"
         );
     });
 });

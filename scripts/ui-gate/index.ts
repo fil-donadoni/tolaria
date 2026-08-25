@@ -68,6 +68,7 @@ import {
     type BudgetFile,
     type Measurement,
     type ProbeResult,
+    type SquareExample,
     type RecordChange,
     type SurfaceWalk,
 } from "./budgets.ts";
@@ -588,9 +589,24 @@ async function main(): Promise<number> {
                     );
                     await page.screenshot({ path: shot });
 
+                    // `cardsSquare` names its offenders inline (issue #2724):
+                    // "5 cards are square" is not actionable, and the whole
+                    // point of a shape check is that the reader cannot see the
+                    // shape from a count.
+                    const squareEx = probe.cardsSquareN
+                        ? ` square${probe.cardsSquareN}[` +
+                          (probe.cardsSquare as SquareExample[])
+                              .map(
+                                  (c) =>
+                                      `${c.t} ${c.w}x${c.h} r${c.r} "${c.cls}"`
+                              )
+                              .join("; ") +
+                          `]`
+                        : ` square0`;
                     const detail =
                         `cards n${probe.cards.n} zero${probe.cards.zero} occ${probe.cards.occ} ` +
-                        `stranded${probe.cards.stranded} reach${probe.cards.reachable} | ` +
+                        `stranded${probe.cards.stranded} reach${probe.cards.reachable}` +
+                        `${squareEx} | ` +
                         `ctrls n${probe.ctrls.n} zero${probe.ctrls.zero} occ${probe.ctrls.occ} ` +
                         `stranded${probe.ctrls.stranded} | starved${probe.starvedN} | ` +
                         `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +

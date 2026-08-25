@@ -138,7 +138,7 @@ export function IdentityV4Sections() {
                 <Specimen
                     label="Proportional corner at three card sizes"
                     tone="plain"
-                    note="the token and .card-corner ship here; the ~20 hard-coded rounded-[7%] call sites migrate in #2724"
+                    note="every card surface consumes it via .card-corner (and .card-ring, which implies it) since #2724"
                 >
                     <CardCornerSpecimen />
                 </Specimen>

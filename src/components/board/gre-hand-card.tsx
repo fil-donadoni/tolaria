@@ -24,6 +24,7 @@ import HandCardActionMenu, {
 } from "./hand-card-action-menu";
 import HandCardConfirmPill from "./hand-card-confirm-pill";
 import type { BoardHandCardProps } from "./board-hand-card";
+import { cardRingClass } from "~/lib/card-ring";
 
 /** Upward travel (px) of a card STAGED by a touch tap (#1767) — the same
  *  "lifting out of the hand" read as the drag gesture, at a rest offset. */
@@ -308,19 +309,19 @@ export default function GreHandCard({
     // the rules-of-hooks contract holds; the drag pipeline is already inert
     // (`commitEnabled` is false during a hand choice) so the card never casts.
     // A click toggles the buffer; the ring mirrors `selectable-card`
-    // (emerald = picked, violet = pickable). Hover-zoom still rides along via
+    // (`selected` = picked, `candidate` = pickable). Hover-zoom rides along via
     // the mounted CardImage. Keyed by the same `data-board-hand-card` handle so
     // tests / arrows find the card on either path.
     if (isHandChoice) {
         const ringClass = isChoiceSelected
-            ? "ring-2 ring-signal-self"
-            : "ring-2 ring-signal-target/60 cursor-pointer hover:ring-signal-target-strong";
+            ? cardRingClass("selected")
+            : `${cardRingClass("candidate")} cursor-pointer`;
         return (
             <div
                 data-board-hand-card={card.id}
                 data-choice-selectable="true"
                 data-choice-selected={isChoiceSelected ? "true" : undefined}
-                className={`relative rounded-md ${ringClass}`}
+                className={`relative ${ringClass}`}
                 onClick={() => {
                     if (activeChoice) bufferCtx.toggle(card.id);
                 }}
@@ -444,7 +445,7 @@ export default function GreHandCard({
             <CardTilt3D suppressTilt={state.dragging}>
                 <div
                     className={
-                        "w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 " +
+                        "w-full h-full card-corner overflow-hidden ring-1 ring-black/40 " +
                         (state.dragging
                             ? "shadow-[0_18px_40px_rgba(0,0,0,0.6)]"
                             : "shadow-[0_6px_16px_rgba(0,0,0,0.55)]")
