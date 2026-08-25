@@ -149,14 +149,56 @@ const DRAFT_STRIP_DROP = "[data-slot=draft-strip-drop]";
 const DRAFT_POOL = "[data-slot=draft-pool]";
 
 /**
- * Land on `/limited/<id>/draft` with a live pack for this seat.
+ * Pins the Draft Room's Selected Card state (issue #2677). `seat.selectedPickId`
+ * is SERVER state (`selectDraftPick`, ADR 0060) that survives across gate runs
+ * on the SAME deployment — it is not reset by loading the room, and there is
+ * no UI affordance to clear it (`setPeekClosedFor`, the Peek Panel's own
+ * close button, only hides the panel locally; the mutation's `pickId: null`
+ * clear path is never called from the client). That made the two Draft Room
+ * surfaces' readings depend on whatever a PRIOR session left selected on this
+ * seat rather than on anything this run controls — three runs on one pass
+ * produced three different occlusion counts.
+ *
+ * Of the two states, only "has a Selected Card" is reachable
+ * DETERMINISTICALLY: a single click on whichever tile the pack shows on top
+ * OVERWRITES any prior selection with that tile's own `pickId`
+ * (`selectDraftPick`'s handler always overwrites, never toggles) — idempotent
+ * regardless of what the deployment already held. "No Selected Card" has no
+ * such reachable action from this walk, so it is the state left unpinned.
+ *
+ * Waits for the tile's OWN aria-label to grow the "(selected)" suffix
+ * (`limited-draft-pack-card.tsx`) rather than for the Peek Panel to mount,
+ * because the panel does NOT mount on a phone at all (issue #2588 inlines its
+ * CTA row into the snap strip there) — the aria-label flip is the one
+ * completion signal common to every viewport this lane walks.
+ */
+async function pinDraftSelection(page: Page): Promise<void> {
+    await page
+        .locator(DRAFT_PICK_TILE)
+        .first()
+        .click({ timeout: STEP_TIMEOUT });
+    const selected = await visible(
+        page,
+        "[role=button][aria-label*='(selected)']",
+        STEP_TIMEOUT
+    );
+    if (!selected) {
+        throw new Unreachable(
+            'clicked a Draft Room pack tile to pin the Selected Card seat state, but no tile\'s aria-label ever gained "(selected)" — the selectDraftPick round-trip did not land'
+        );
+    }
+}
+
+/**
+ * Land on `/limited/<id>/draft` with a live pack for this seat, with the
+ * Selected Card seat state pinned (`pinDraftSelection`, issue #2677).
  *
  * Issue #2587 moved the pick screen OFF the event page onto its own immersive
  * route. Two ways in, and the walk takes whichever the deployment offers: the
  * event page redirects a seated player while a Pick is pending (one-shot per
  * tab), and once that shot is spent the event page offers "Enter the Draft
  * Room". Shared by both draft surfaces, so the two can never drift apart
- * about what "the room" means.
+ * about what "the room" means OR what seat state they measure in.
  */
 async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
     const count = await limitedEventCount(page, ctx);
@@ -187,7 +229,10 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
         // The room renders for a Sealed seat too (reveal mode), so reaching
         // the URL is not enough: the surface these rows budget is the PICK
         // screen, and its tiles are the proof.
-        if (await visible(page, DRAFT_PICK_TILE, 4000)) return;
+        if (await visible(page, DRAFT_PICK_TILE, 4000)) {
+            await pinDraftSelection(page);
+            return;
+        }
     }
     throw new Unreachable(
         "no Limited event is in the drafting phase with a live pack for this seat (the pick screen is /limited/<id>/draft since issue #2587)"
