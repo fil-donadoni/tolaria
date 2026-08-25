@@ -374,10 +374,16 @@ describe("Sky Weaver ({2}: target white or black creature gains flying EOT; CR 6
             controllerId: "p1",
             ownerId: "p1",
         });
+        // `colorOverride` (CR 613.1d layer 5) makes this fixture GENUINELY
+        // white (issue #1853 review) — `colorFilterAny` is now re-checked at
+        // resolution too (`isTargetStillLegal`, gre/state.ts), same as at
+        // selection, so a green stand-in (Grizzly Bears) would make the
+        // ability correctly fizzle instead of granting flying.
         const wight = makeInstance(grizzlyBears.id, {
             id: "target",
             controllerId: "p1",
             ownerId: "p1",
+            colorOverride: ["W"],
         });
         const state = makeState({
             players: [

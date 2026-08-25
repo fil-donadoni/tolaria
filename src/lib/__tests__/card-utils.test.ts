@@ -114,6 +114,8 @@ import {
     clergyOfTheHolyNimbus,
     karakas,
 } from "@convex/cards/sets/leg";
+import { miracleWorker } from "@convex/cards/sets/drk";
+import { holyStrength } from "@convex/cards/sets/lea/white";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
 import { projectPublicState } from "@convex/gameProjections";
 import {
@@ -582,6 +584,147 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
                 undefined
             )
         ).toBe(true);
+    });
+
+    // CR 303.4b (issue #1853 review, finding 2) — `attachedToFilter` is the
+    // FIRST permanent filter that dereferences a SECOND card (the candidate's
+    // OWN host) out of the client's synthetic board
+    // (`matchesPermanentTargetFilters` builds it from `allPlayers`,
+    // card-utils.ts) rather than reading only the candidate itself, and it
+    // fails CLOSED when that host can't be resolved. No prior test exercised
+    // it client-side (unlike its direct precedent, `controlledSinceTurnStart`
+    // / #1824, covered just below) — a future narrowing of the synthetic
+    // board would silently make Miracle Worker/Pyramids/Savaen Elves
+    // unclickable with every other test green. Built the same way
+    // `projectScenario` builds its Karakas fixture — a real server
+    // `GameState` through the REAL wire projection — but standalone, since
+    // this filter needs a SECOND card (the host) per candidate rather than
+    // `projectScenario`'s one-override-per-candidate shape.
+    function projectAttachedToScenario(req: TargetRequirement) {
+        const myCreature = makeInstance(MERFOLK_ID, {
+            id: "my-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const myLand = makeInstance(forestCard.id, {
+            id: "my-land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const auraOnCreature = makeInstance(holyStrength.id, {
+            id: "aura-on-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "my-creature",
+        });
+        const auraOnLand = makeInstance(holyStrength.id, {
+            id: "aura-on-land",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "my-land",
+        });
+        const miracleWorkerInstance = makeInstance(miracleWorker.id, {
+            id: "mw-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", {
+                    battlefield: [
+                        miracleWorkerInstance,
+                        myCreature,
+                        myLand,
+                        auraOnCreature,
+                        auraOnLand,
+                    ],
+                }),
+                makeServerPlayer("p2", { battlefield: [] }),
+            ],
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "mw-1",
+                targetType: req.type,
+                count: 1,
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(req, undefined),
+            } as PendingTarget,
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const p1Battlefield = projected.players.find(
+            (p) => p.id === "p1"
+        )!.battlefield;
+        return {
+            players: projected.players as unknown as Player[],
+            pendingTarget: projected.pendingTarget as unknown as PendingTarget,
+            auraOnCreatureClient: p1Battlefield.find(
+                (c) => c.id === "aura-on-creature"
+            ) as unknown as CardInstance,
+            auraOnLandClient: p1Battlefield.find(
+                (c) => c.id === "aura-on-land"
+            ) as unknown as CardInstance,
+        };
+    }
+
+    it("attachedToFilter (CR 303.4b, issue #1853, Miracle Worker's 'attached to a creature you control'): rejects an Aura on a land, accepts one on a creature, through the real wire projection", () => {
+        const req = miracleWorker.activatedAbilities!.find(
+            (a) => a.id === "miracle-worker-destroy-aura"
+        )!.targetRequirement!;
+        const {
+            players,
+            pendingTarget,
+            auraOnCreatureClient,
+            auraOnLandClient,
+        } = projectAttachedToScenario(req);
+
+        // Proves the host lookup runs at all: the OLD narrow check (structural
+        // type only) would accept both — they're both Auras.
+        expect(
+            matchesTargetRequirement(auraOnLandClient, pendingTarget.targetType)
+        ).toBe(true);
+
+        expect(
+            matchesPermanentTargetFilters(
+                auraOnLandClient,
+                pendingTarget,
+                players,
+                "p1",
+                undefined
+            )
+        ).toBe(false);
+        expect(
+            matchesPermanentTargetFilters(
+                auraOnCreatureClient,
+                pendingTarget,
+                players,
+                "p1",
+                undefined
+            )
+        ).toBe(true);
+    });
+
+    it("attachedToFilter (issue #1853): FAILS CLOSED when the candidate's host can't be resolved on the synthetic board (unattached candidate)", () => {
+        const req = miracleWorker.activatedAbilities!.find(
+            (a) => a.id === "miracle-worker-destroy-aura"
+        )!.targetRequirement!;
+        const { players, pendingTarget, auraOnCreatureClient } =
+            projectAttachedToScenario(req);
+        // A candidate with no `attachedTo` at all (never legal for "attached
+        // to X") must read as non-clickable, not as an unfiltered pass.
+        const unattached: CardInstance = {
+            ...auraOnCreatureClient,
+            id: "aura-loose",
+            attachedTo: undefined,
+        };
+        expect(
+            matchesPermanentTargetFilters(
+                unattached,
+                pendingTarget,
+                players,
+                "p1",
+                undefined
+            )
+        ).toBe(false);
     });
 
     it("controlledSinceTurnStart (CR 302.6 / 400.7, issue #1824, Norritt): rejects a creature that entered this turn, accepts one held since before it, through the real wire projection", () => {

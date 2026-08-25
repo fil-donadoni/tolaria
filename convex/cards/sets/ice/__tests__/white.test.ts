@@ -479,10 +479,16 @@ describe("Snow Hound (self + green/blue bounce, CR 701.14)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
+        // `colorOverride` (CR 613.1d layer 5) makes this fixture GENUINELY
+        // blue rather than colorless (issue #1853 review) — `colorFilterAny`
+        // is now re-checked at resolution too (`isTargetStillLegal`,
+        // gre/state.ts), same as at selection, so a colorless stand-in would
+        // make the ability correctly fizzle instead of bouncing.
         const blueCreature = vanilla("blu", 2, 2, {
             controllerId: "p1",
             ownerId: "p1",
             card: { id: "fake-blue" },
+            colorOverride: ["U"],
         });
         const state = makeState({
             players: [

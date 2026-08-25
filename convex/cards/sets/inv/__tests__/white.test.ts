@@ -551,10 +551,16 @@ describe("Shackles (CR 502.1 does-not-untap Aura + return-to-hand ability)", () 
 
 describe("Restrain (CR 615 source-scoped prevention shield + draw)", () => {
     it("shields the attacker and draws a card", () => {
+        // `isAttacking` (issue #1853 review) — `combatRoleFilter` is now
+        // re-checked at resolution too (`isTargetStillLegal`, gre/state.ts),
+        // reading the SAME per-card flag `combatRoleFilterDescriptor` always
+        // has (never derived from `combat.attackerIds` alone); without it
+        // the target is correctly found illegal and the shield never applies.
         const attacker = makeInstance(balduvianBears.id, {
             id: "atk",
             controllerId: "p2",
             ownerId: "p2",
+            isAttacking: true,
         });
         const topOfLibrary = makeInstance(savannahLions.id, {
             id: "lib-top",

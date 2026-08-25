@@ -1166,6 +1166,68 @@ describe("Crown of the Ages ({4},{T}: move an Aura, CR 303.4 / 701.3d)", () => {
         )!;
         expect(getEffectivePower(state, nh)).toBe(4);
     });
+
+    // Issue #1853 finding 3 — Crown of the Ages had no host-relation check on
+    // its `targetRequirement`, so it could legally target ANY Aura in play,
+    // including one attached to a land or unattached, not just one already
+    // on a creature (the oracle text's premise for "another creature").
+    // `attachedToFilter: { types: "Creature" }` (ADR 0068, the same
+    // declarative filter Pyramids/Savaen Elves/Miracle Worker route through)
+    // scopes the offered set to match.
+    it("does NOT offer an Aura attached to a land as a legal target", () => {
+        const crown = makeInstance(crownOfTheAges.id, {
+            id: "crown",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(getCardByName("Forest").id, {
+            id: "land-host",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const creature = vanilla("host", 2, 2, {
+            id: "creature-host",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const auraOnLand = makeInstance(armorOfFaith.id, {
+            id: "aura-on-land",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "land-host",
+        });
+        const auraOnCreature = makeInstance(armorOfFaith.id, {
+            id: "aura-on-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "creature-host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        crown,
+                        land,
+                        creature,
+                        auraOnLand,
+                        auraOnCreature,
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const req = crownOfTheAges.activatedAbilities!.find(
+            (a) => a.id === "crown-of-the-ages-move-aura"
+        )!.targetRequirement!;
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("aura-on-creature");
+        expect(legal).not.toContain("aura-on-land");
+    });
 });
 
 describe("Goblin Lyre (sac + coin flip damage, CR 705 / 120.1)", () => {

@@ -1067,14 +1067,19 @@ describe("Norritt (untap blue / force-attack, CR 701.26b / 508.1d)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const blue = makeInstance(getCardByName("Balduvian Bears").id, {
-            id: "blue",
-            controllerId: "p1",
-            ownerId: "p1",
-            isTapped: true,
-            // Balduvian Bears is green; fake the colour via a blue instance is
-            // out of scope — we only assert the untap effect on the target.
-        });
+        // A GENUINELY blue creature (issue #1853 review) — `colorFilter` is
+        // now re-checked at resolution too (`isTargetStillLegal`,
+        // gre/state.ts), same as at selection, so a green stand-in fixture
+        // would make the ability correctly fizzle instead of untapping.
+        const blue = makeInstance(
+            getCardByName("Merfolk of the Pearl Trident").id,
+            {
+                id: "blue",
+                controllerId: "p1",
+                ownerId: "p1",
+                isTapped: true,
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [norr, blue] }),

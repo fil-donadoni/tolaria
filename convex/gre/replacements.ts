@@ -149,7 +149,11 @@ function collectReplacements(
     return out;
 }
 
-function buildStateView(state: GameState): ReplacementStateView {
+/** Exported for tests that need to call a `ReplacementEffect.appliesTo`
+ *  predicate directly (issue #1853 review) — the SAME conversion the engine
+ *  itself runs before every `appliesTo` call, so a hand-built `GameState`
+ *  fixture and the real dispatch loop can never disagree on the view shape. */
+export function buildStateView(state: GameState): ReplacementStateView {
     let combat: ReplacementStateView["combat"];
     if (state.combat) {
         const blockersByAttacker: Record<string, string[]> = {};
