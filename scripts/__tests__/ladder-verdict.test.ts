@@ -338,6 +338,34 @@ describe("orientations:1 corpus mode prints no candidate verdict (issue #2779)",
         expect(block).not.toContain("REGRESSION");
         expect(block).not.toContain("INCONCLUSIVE");
     });
+
+    // Review finding #2802/2: the header lines above read as a seat
+    // advantage, but the matchup TABLE below them used to stay unchanged
+    // ("| matchup | candidate | win-rate [95% CI] |" with rows keyed off
+    // candidateWon) — in corpus mode the candidate label sits on S1 in every
+    // game, so those were per-matchup SEAT rates presented as candidate
+    // results, the exact misreading NO_VERDICT exists to remove, just
+    // relocated from the aggregate line into the table. This pins the
+    // table's actual content, not merely the absence of the verdict words.
+    it("the matchup table reads as a seat result, not a candidate result, in corpus mode", () => {
+        const records: LadderGameRecord[] = [
+            rec(0, false, 0, { seedIndex: 0, orientation: 0 }), // S0 won, candidate (S1) lost
+        ];
+        const header = buildHeader("smoke", 9, null, 400, PAIRINGS, null, 1);
+        const summary = summarizeRun(records, PAIRINGS, header);
+        const block = formatVerdictBlock(summary, header);
+        // column is relabeled — never "candidate" when there is no
+        // candidate reading to report.
+        expect(block).toContain("| matchup | S0 seat | win-rate [95% CI] |");
+        expect(block).not.toContain(
+            "| matchup | candidate | win-rate [95% CI] |"
+        );
+        // the row reports the SEAT winner (S0 won this game): 1-0. Under the
+        // old candidate-keyed rendering the same game would show 0-1 (the
+        // candidate's loss) — the exact mislabeling this finding flags.
+        expect(block).toContain("| a vs b | 1–0");
+        expect(block).not.toContain("| a vs b | 0–1");
+    });
 });
 
 describe("incomplete pairs fall back cleanly and are reported (issue #2779)", () => {
@@ -356,6 +384,38 @@ describe("incomplete pairs fall back cleanly and are reported (issue #2779)", ()
             )
         );
         expect(summary.verdict).toBe("INCONCLUSIVE");
+    });
+
+    // NOTE: the test above is a weak guard for the fallback itself — with a
+    // single orphan half-pair, the degenerate paired interval (rate 0.5,
+    // [0,1]) and the unpaired Wilson aggregate BOTH straddle 50% and BOTH
+    // read INCONCLUSIVE, so it stays green even if `paired.pairs > 0 ?
+    // paired : aggregate` at verdict.ts is replaced by bare `paired` (review
+    // finding #2802/1, verified empirically: all 28 pre-existing tests
+    // stayed green under that exact mutation). This test is the actual
+    // guard: 30 orphan half-pairs, all losses, none paired — the fallback
+    // and the bare-`paired` reading disagree on the VERDICT, not just the
+    // interval, so a deleted fallback shows up as a wrong verdict.
+    it("many orphan half-pairs, all losses: verdict comes from the unpaired fallback, not the degenerate paired interval (guards the fallback itself, review finding #2802/1)", () => {
+        const records: LadderGameRecord[] = [];
+        for (let i = 0; i < 30; i++) {
+            records.push(rec(0, false, i, { seedIndex: i, orientation: 0 }));
+        }
+        const summary = summarizeRun(records, PAIRINGS, { orientations: 2 });
+        expect(summary.paired.pairs).toBe(0);
+        expect(summary.paired.excludedPairs).toBe(30);
+        // the degenerate paired interval alone is [0, 1] — straddles 50% —
+        // so a verdict computed from bare `paired` would read INCONCLUSIVE.
+        // The unpaired Wilson aggregate over 30 straight losses clears
+        // REGRESSION instead; the fallback must select IT.
+        expect(summary.aggregate.hi).toBeLessThan(0.5);
+        expect(summary.verdict).toBe(
+            computeVerdict(
+                summary.aggregate,
+                summary.matchups.map((m) => m.ci)
+            )
+        );
+        expect(summary.verdict).toBe("REGRESSION");
     });
 
     it("one incomplete pair alongside otherwise-complete pairs: excluded, not folded in, complete pairs still drive the verdict", () => {

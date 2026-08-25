@@ -322,7 +322,7 @@ independent-trials estimate. The paired 95% interval is built from the
 discordant count alone (`pairedAggregate`, `scripts/lib/ladder/verdict.ts`),
 which is why it reads roughly 2x tighter than treating every game as an
 independent trial, measured on the 2026-08-24 placebo corpus (issue #2779:
-±2.00pp paired vs. ±3.76pp unpaired on the same 680 games). A seed whose
+±2.00pp paired vs. ±3.75pp unpaired on the same 680 games). A seed whose
 partner game is missing — a guard stop on one side, or a resumed/filtered run
 that never played it — is an **excluded pair**: dropped from the paired
 statistic and reported separately, never folded in as a half-pair.

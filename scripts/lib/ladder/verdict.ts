@@ -187,6 +187,13 @@ export type MatchupSummary = {
     decisive: number;
     guardStops: number;
     ci: WilsonInterval;
+    /** S0-seat wins for this matchup, independent of which side carries the
+     *  "candidate" label — the reading `formatVerdictBlock` renders in the
+     *  matchup table on a NO_VERDICT (orientations:1) run, so the table
+     *  never presents a fixed-seat rate as a candidate result (issue #2779
+     *  review finding 2). */
+    seatWins: number;
+    seatCI: WilsonInterval;
 };
 
 export type LadderSummary = {
@@ -252,6 +259,8 @@ export function summarizeRun(
             decisive: 0,
             guardStops: 0,
             ci: wilson(0, 0),
+            seatWins: 0,
+            seatCI: wilson(0, 0),
         };
     });
     const byIndex = new Map(matchups.map((m) => [m.pairingIndex, m]));
@@ -271,12 +280,16 @@ export function summarizeRun(
             m.decisive++;
             if (r.candidateWon) m.wins++;
             else m.losses++;
+            if (r.winnerSeat === "S0") m.seatWins++;
         }
         decisive++;
         if (r.candidateWon) wins++;
         if (r.winnerSeat === "S0") s0Wins++;
     }
-    for (const m of matchups) m.ci = wilson(m.wins, m.decisive);
+    for (const m of matchups) {
+        m.ci = wilson(m.wins, m.decisive);
+        m.seatCI = wilson(m.seatWins, m.decisive);
+    }
     const aggregate = wilson(wins, decisive);
     const seatCI = wilson(s0Wins, decisive);
     const paired = pairedAggregate(records);
@@ -348,17 +361,27 @@ export function formatVerdictBlock(
         );
     }
 
+    // NO_VERDICT (orientations:1, corpus mode): the "candidate" label sits
+    // on one fixed seat in every game, so a per-matchup rate keyed off
+    // candidateWon is a SEAT rate wearing a candidate label — precisely the
+    // misreading this mode exists to remove from the aggregate line above
+    // (issue #2779 review finding 2). Render the seat reading instead, and
+    // relabel the column so nobody scans it as a candidate result.
     lines.push(
         summary.guardStops > 0
             ? `- ⚠ guard stops: ${summary.guardStops} (excluded from win-rates — investigate)`
             : `- guard stops: 0`,
         "",
-        "| matchup | candidate | win-rate [95% CI] |",
+        noVerdict
+            ? "| matchup | S0 seat | win-rate [95% CI] |"
+            : "| matchup | candidate | win-rate [95% CI] |",
         "|---|---|---|",
-        ...summary.matchups.map(
-            (m) =>
-                `| ${m.deckA} vs ${m.deckB} | ${m.wins}–${m.losses}` +
-                `${m.guardStops ? ` (+${m.guardStops} stops)` : ""} | ${ciStr(m.ci)} |`
+        ...summary.matchups.map((m) =>
+            noVerdict
+                ? `| ${m.deckA} vs ${m.deckB} | ${m.seatWins}–${m.decisive - m.seatWins}` +
+                  `${m.guardStops ? ` (+${m.guardStops} stops)` : ""} | ${ciStr(m.seatCI)} |`
+                : `| ${m.deckA} vs ${m.deckB} | ${m.wins}–${m.losses}` +
+                  `${m.guardStops ? ` (+${m.guardStops} stops)` : ""} | ${ciStr(m.ci)} |`
         )
     );
     return lines.join("\n");
