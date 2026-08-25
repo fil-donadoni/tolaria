@@ -301,16 +301,31 @@ const stripComments = (src: string) =>
     src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
 /**
- * A STATIC import edge, and only a static one: `import` followed by
- * whitespace, so `await import("./history-boot.js")` — no whitespace after
- * the keyword — is deliberately not matched. That exclusion is the point:
- * statically imported modules evaluate before the importer's first line,
- * while the dynamic edge is exactly the one #2519 requires History to stay
- * behind. `[^;]*` spans newlines, so a multi-line named-import list is one
- * match. (Same shape as the allow-list census above, narrowed from "any
- * relative specifier" to "an import".)
+ * A STATIC module edge, and only a static one. Two keywords, because BOTH
+ * evaluate the target before the importer's first line: `import ... from` and
+ * the re-export `export { x } from "./y.js"`. Matching only `import` left the
+ * re-export invisible, and a single `export { state } from
+ * "./history-state.js"` reintroduced the eager History load and the `/api/meta`
+ * read #2519 forbids with every assertion below still green (measured — see the
+ * PR's proof-of-failure table). Nothing else in the repo would have caught it:
+ * `eslint.config.js` scopes every rule to `**\/*.{ts,tsx}`, so
+ * `scripts/dashboard/*.js` is unlinted.
+ *
+ * The keyword is followed by whitespace, so `await import("./history-boot.js")`
+ * — no whitespace after the keyword — is deliberately not matched. That
+ * exclusion is the point: the dynamic edge is exactly the one #2519 requires
+ * History to stay behind. `[^;]*` spans newlines, so a multi-line named-import
+ * list (`history-narrative.js:3-8`) is one match; it also stops at the first
+ * `;`, so `export const leak = () => fetch(...)` cannot be mistaken for an
+ * edge.
+ *
+ * One shape stays outside, and only the formatter keeps it there: a
+ * semicolon-less pair (`import { a } from "./x.js"` newline `import { b } from
+ * "./y.js";`) loses the first specifier to the greedy `[^;]*`. `.prettierrc`
+ * sets `semi: true`, `scripts/dashboard/` is not prettier-ignored, and
+ * `check:all` VERIFIES formatting — so that input cannot reach `main`.
  */
-const STATIC_IMPORT_RE = /import\s[^;]*["']\.\/([^"']+)["']/g;
+const STATIC_IMPORT_RE = /(?:import|export)\s[^;]*["']\.\/([^"']+)["']/g;
 
 /**
  * Everything reachable from `main.js` over static import edges — the
@@ -319,7 +334,9 @@ const STATIC_IMPORT_RE = /import\s[^;]*["']\.\/([^"']+)["']/g;
  * history-state.js` reintroduces both the eager History load and the DB read
  * #2519 forbids while every assertion below stays green (measured — see the
  * PR's proof-of-failure table). Deriving the set means a new static edge at
- * any depth, in any module, is inside the guards the moment it is written.
+ * any depth, in any module — `import ... from` or a re-export alike — is
+ * inside the guards the moment it is written, with the single
+ * formatter-excluded shape named on `STATIC_IMPORT_RE` above.
  */
 const nowClosure = (): string[] => {
     const seen = new Set<string>();
