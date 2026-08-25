@@ -175,13 +175,21 @@ export default function DeckCardTile({
                 card is read through the Peek Panel's Inspect CTA instead. */}
             <CardImage card={{ id: cardId }} holdPreview={false} />
             {/* A "removable" hover cue (parity with the pre-#1581 deckbuilder
-                tile), keyed off the group so it only lights the hovered card. */}
-            <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-danger-strong/70" />
+                tile), keyed off the group so it only lights the hovered card.
+                Not one of the three card-ring ROLES (ADR 0103 §8) — it says
+                "this click destroys", not "candidate / selected / attacking" —
+                so it borrows the `.card-ring` recipe for the inset geometry and
+                supplies its own colour. Transparent until hovered. */}
+            <div className="card-ring pointer-events-none absolute inset-0 group-hover:[--card-ring-color:color-mix(in_oklab,var(--color-danger-strong)_70%,transparent)]" />
             {isFeatured && (
-                <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-accent" />
+                <div className="card-ring card-ring-selected pointer-events-none absolute inset-0" />
             )}
             {isSelected && (
-                <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-accent-soft" />
+                /* The editor's own selection, distinct from `featured` above
+                   and stacked over it: a card can be both. Keeps its softer
+                   wash — the lifted `-translate-y-0.5` on the tile is the
+                   loud half of this cue. */
+                <div className="card-ring pointer-events-none absolute inset-0 [--card-ring-color:var(--color-accent-soft)]" />
             )}
             {/* Issue #2584: the `xN` badge of a collapsed MV row tile. A
                 non-interactive LABEL — `pointer-events-none`, no role, no tab

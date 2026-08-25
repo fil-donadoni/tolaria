@@ -146,7 +146,9 @@ describe("useBattlefieldVisualState — attack a planeswalker (#1220, CR 508.1a)
         });
 
         const vs = result.current.getVisualState(pw);
-        expect(vs.ringClass).toContain("signal-self");
+        // A planeswalker being attacked is a COMMITTED pick and reads with the
+        // shared `selected` role, like every other committed pick (#2724).
+        expect(vs.ringClass).toContain("card-ring-selected");
     });
 
     it("with no attacker declared yet, the planeswalker is not an attack target", () => {
@@ -230,11 +232,11 @@ describe("useBattlefieldVisualState — attack-with-all current-attacker ring", 
         const { result } = renderOwnBoardWithSequence(me, opp, seq());
 
         const vs = result.current.getVisualState(atk1);
-        expect(vs.ringClass).toContain("animate-pulse");
-        expect(vs.ringClass).toContain("signal-self");
+        expect(vs.ringClass).toContain("card-ring-pulse");
+        expect(vs.ringClass).toContain("card-ring-attacking");
         // The non-current attacker keeps the plain declared ring, not the pulse.
         expect(result.current.getVisualState(atk2).ringClass).not.toContain(
-            "animate-pulse"
+            "card-ring-pulse"
         );
     });
 
@@ -250,10 +252,10 @@ describe("useBattlefieldVisualState — attack-with-all current-attacker ring", 
         );
 
         expect(result.current.getVisualState(atk2).ringClass).toContain(
-            "animate-pulse"
+            "card-ring-pulse"
         );
         expect(result.current.getVisualState(atk1).ringClass).not.toContain(
-            "animate-pulse"
+            "card-ring-pulse"
         );
     });
 });

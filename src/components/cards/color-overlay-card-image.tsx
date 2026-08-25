@@ -28,7 +28,7 @@ export default function ColorOverlayCardImage({
             />
             {colorDisplay && (
                 <div
-                    className="absolute inset-0 pointer-events-none rounded-[7%] z-[5]"
+                    className="absolute inset-0 pointer-events-none card-corner z-[5]"
                     style={{
                         boxShadow: `inset 0 0 0 4px ${colorDisplay.inner}`,
                         background: [

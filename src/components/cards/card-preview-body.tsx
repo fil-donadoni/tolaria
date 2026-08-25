@@ -90,7 +90,7 @@ export default function CardPreviewBody({
                             ? content.displayName
                             : `${content.displayName} (printed)`
                     }
-                    className="w-full rounded-2xl"
+                    className="w-full card-corner"
                     onLoad={onImageLoaded}
                 />
             </div>

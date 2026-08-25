@@ -160,7 +160,7 @@ export default function StackRow({
                         // bare card image for a non-spell stack object).
                         <span className="block">
                             <span
-                                className="relative block overflow-hidden rounded-sm"
+                                className="relative block overflow-hidden card-corner"
                                 style={{ aspectRatio: ART_CROP_RATIO }}
                             >
                                 {imageId ? (

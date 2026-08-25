@@ -131,7 +131,7 @@ export default function CardTilt3D({
     return (
         <div
             data-card-tilt-root
-            className="relative w-full h-full"
+            className="relative w-full h-full card-corner"
             style={{ perspective: `${CARD_TILT.perspectivePx}px` }}
             onPointerMove={inert ? undefined : handlePointerMove}
             onPointerLeave={inert ? undefined : reset}
@@ -152,7 +152,7 @@ export default function CardTilt3D({
             <div
                 ref={innerRef}
                 data-card-tilt
-                className="relative w-full h-full will-change-transform"
+                className="relative w-full h-full will-change-transform card-corner"
                 style={{ transformStyle: "preserve-3d" }}
             >
                 {children}
@@ -160,15 +160,22 @@ export default function CardTilt3D({
                     so it never intercepts the card's click / hover-zoom.
                     `inset-0` is the same box the rotated visual layer starts
                     from, so carrying the SAME rotation makes the two coincide
-                    exactly: right aspect, `rounded-sm` on the card's own
-                    corners, covering the rotated face's long-side overhang
-                    instead of the portrait slot's short-side strips (#2551).
-                    The gradient centre is then a percentage of the card's own
-                    box, which is precisely what `cardTiltFrame` returns. */}
+                    exactly: right aspect, the card's own corner, covering the
+                    rotated face's long-side overhang instead of the portrait
+                    slot's short-side strips (#2551). The gradient centre is
+                    then a percentage of the card's own box, which is precisely
+                    what `cardTiltFrame` returns.
+
+                    `card-corner`, not a fixed radius: the art box beneath is on
+                    `--card-radius` since #2724, and a glare whose corner does
+                    not match the art's shows as a bright wedge outside the
+                    printed corner — the whole reason this box is not square.
+                    The tilt maths (`cardTiltFrame`) is untouched: this changes
+                    the glare's CLIP, never where its centre lands. */}
                 <div
                     ref={glareRef}
                     data-card-glare
-                    className="absolute inset-0 rounded-sm pointer-events-none mix-blend-overlay opacity-0"
+                    className="absolute inset-0 card-corner pointer-events-none mix-blend-overlay opacity-0"
                     style={
                         visualRotationDeg
                             ? { transform: `rotate(${visualRotationDeg}deg)` }

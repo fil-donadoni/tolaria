@@ -57,6 +57,7 @@ export const BUDGET_KEYS = [
     "cardsZero",
     "cardsOcc",
     "cardsStranded",
+    "cardsSquare",
     "ctrlsZero",
     "ctrlsOcc",
     "ctrlsStranded",
@@ -95,6 +96,11 @@ export interface ProbeCounts {
 export interface ProbeResult {
     vp: string;
     cards: ProbeCounts;
+    /** Card surfaces whose extreme corner hit-tests to the card itself — i.e.
+     *  a SQUARE card (ADR 0103 §7, issue #2724). A hard floor of 0 everywhere:
+     *  no card may show page background inside its own rectangle. */
+    cardsSquareN: number;
+    cardsSquare: SquareExample[];
     ctrls: ProbeCounts;
     starvedN: number;
     starved: unknown[];
@@ -102,6 +108,18 @@ export interface ProbeResult {
     tinyText: number;
     hOverflow: number;
     cardW: { min: number; max: number } | null;
+}
+
+/** One square-cornered card, named so the run says WHICH card (issue #2724).
+ *  `t` is the image's `alt` (the card name), `cls` the first 40 chars of its
+ *  class list. */
+export interface SquareExample {
+    t: string;
+    cls: string;
+    w: number;
+    h: number;
+    /** The largest corner radius found on the card's own box chain, in px. */
+    r: number;
 }
 
 /** axe-core's violation counts for one viewport (issue #2580/#2593). */
@@ -127,6 +145,7 @@ export function metricsOf(probe: ProbeResult, axe: AxeCount): Ceilings {
         cardsZero: probe.cards.zero,
         cardsOcc: probe.cards.occ,
         cardsStranded: probe.cards.stranded,
+        cardsSquare: probe.cardsSquareN,
         ctrlsZero: probe.ctrls.zero,
         ctrlsOcc: probe.ctrls.occ,
         ctrlsStranded: probe.ctrls.stranded,
@@ -261,7 +280,7 @@ export interface Evaluation {
 
 function fmtMetrics(m: Ceilings): string {
     return [
-        `cards zero${m.cardsZero} occ${m.cardsOcc} stranded${m.cardsStranded}`,
+        `cards zero${m.cardsZero} occ${m.cardsOcc} stranded${m.cardsStranded} square${m.cardsSquare}`,
         `ctrls zero${m.ctrlsZero} occ${m.ctrlsOcc} stranded${m.ctrlsStranded}`,
         `starved${m.starved}`,
         `small${m.small}`,

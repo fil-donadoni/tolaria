@@ -48,10 +48,10 @@ export default function BanlistCardTile({
                         sizes="112px"
                         alt={cardName}
                         loading="lazy"
-                        className="h-full w-full rounded-[7%] object-cover"
+                        className="h-full w-full card-corner object-cover"
                     />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center rounded-[7%] border border-border-subtle/40 bg-surface-elevated p-2 text-center text-[11px] leading-tight text-text-muted">
+                    <div className="flex h-full w-full items-center justify-center card-corner border border-border-subtle/40 bg-surface-elevated p-2 text-center text-[11px] leading-tight text-text-muted">
                         {cardName}
                     </div>
                 )}

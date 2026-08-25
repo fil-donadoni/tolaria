@@ -96,7 +96,7 @@ export default function AttachedCardsCluster({
                         // box up-and-left. Clipping it made the second-level
                         // Aura invisible on the board.
                         <div
-                            className="w-full h-full rounded-sm shadow-[0_4px_12px_rgba(0,0,0,0.6)]"
+                            className="w-full h-full card-corner shadow-[0_4px_12px_rgba(0,0,0,0.6)]"
                             style={{ pointerEvents: "auto" }}
                         >
                             {renderMember(card)}

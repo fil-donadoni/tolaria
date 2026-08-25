@@ -165,7 +165,7 @@ export default function BoardBattlefieldCard({
     const highlightRing =
         litState === "lit" ? (
             <div
-                className="absolute inset-0 rounded-sm pointer-events-none z-30"
+                className="absolute inset-0 card-corner pointer-events-none z-30"
                 style={{
                     boxShadow:
                         "0 0 0 2px var(--color-accent-strong), 0 0 16px 2px color-mix(in oklab, var(--color-accent) 55%, transparent)",
@@ -174,15 +174,16 @@ export default function BoardBattlefieldCard({
         ) : null;
 
     // Legal target of the spell/ability on the stack currently choosing targets
-    // (CR 601.2c). Same accent-strong ring + glow the player nameplate uses when
-    // it is a legal target (player-nameplate.tsx) so a targetable permanent and
-    // a targetable player read identically. It MUST be the card wrapper's OWN
-    // box-shadow, not a child overlay: the wrapper is `overflow-hidden`, which
-    // clips a descendant's outward box-shadow (the glow) but never its own — the
-    // same reason the pre-existing `ringClass` rings live on the wrapper itself.
+    // (CR 601.2c). The soft OUTER glow ADR 0103 §8 still allows for a candidate,
+    // in the `signal-target` the inset candidate ring uses, so a targetable
+    // permanent and a targetable player nameplate still read identically
+    // (player-nameplate.tsx). It MUST be the card wrapper's OWN box-shadow, not
+    // a child overlay: the wrapper is `overflow-hidden`, which clips a
+    // descendant's outward box-shadow but never its own. Since #2724 the state
+    // ring beside it is an inset pseudo-element, so the two no longer compete —
+    // the glow is purely outward and the ring purely inward.
     const TARGET_GLOW =
-        "0 0 0 2px var(--color-accent-strong)," +
-        " 0 0 16px 1px color-mix(in oklab, var(--color-accent-strong) 45%, transparent)";
+        "0 0 16px 1px color-mix(in oklab, var(--color-signal-target) 55%, transparent)";
     // Base chrome (black hairline + drop shadow) the wrapper normally gets from
     // Tailwind; inlined here so the glow composes with it instead of the inline
     // `boxShadow` wiping the Tailwind shadow out.
@@ -219,14 +220,14 @@ export default function BoardBattlefieldCard({
 
     const darkenOverlay =
         (vs.interactive && !vs.enabled) || vs.dimmed ? (
-            <div className="absolute inset-0 bg-black/40 rounded-sm pointer-events-none z-10" />
+            <div className="absolute inset-0 bg-black/40 card-corner pointer-events-none z-10" />
         ) : null;
 
     const colorDisplay = getEffectiveColorDisplay(card);
 
     const colorOverrideOverlay = colorDisplay ? (
         <div
-            className="absolute inset-0 pointer-events-none rounded-[7%] z-[5]"
+            className="absolute inset-0 pointer-events-none card-corner z-[5]"
             style={{
                 boxShadow: `inset 0 0 0 4px ${colorDisplay.inner}`,
                 background: [
@@ -340,27 +341,22 @@ export default function BoardBattlefieldCard({
             : "cursor-pointer"
         : "";
 
-    // Base card chrome: a black hairline ring + drop shadow. The hairline and a
-    // state `ringClass` are the SAME CSS property (`--tw-ring-color`), so the
-    // one that wins is whichever Tailwind emits LATER in the stylesheet — not
-    // whichever is written last in this template. Tailwind orders those
-    // utilities by class name, and `ring-accent/40` sorts BEFORE `ring-black/40`
-    // (verified in the built CSS: byte 73433 vs 73695), so a candidate ring in
-    // accent was painted BLACK on a dark board — i.e. invisible. That silently
-    // erased every accent-coloured state on this board: the legal-choice ring
-    // and all four cost-picker candidate rings (sacrifice, additional cost,
-    // activation cost, and the mana tap-other pick this surfaced on — Urza,
-    // Lord High Artificer). Combat rings (`ring-danger`, `ring-signal-self`)
-    // sort AFTER black, which is why only some rings ever showed.
+    // Base card chrome: a black hairline ring + drop shadow, ALWAYS present.
     //
-    // So the hairline is dropped whenever a state ring is present: the state
-    // ring IS the card's outline for as long as it lasts. The drop shadow stays
-    // either way — it is a different property and never conflicted.
-    const baseChrome = vs.targetGlow
-        ? ""
-        : vs.ringClass
-          ? "shadow-[0_6px_16px_rgba(0,0,0,0.55)]"
-          : "ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]";
+    // It used to be dropped whenever a state ring was present, because the
+    // hairline and the state ring were the same CSS property (`--tw-ring-color`)
+    // and Tailwind's class-name ordering decided the winner: `ring-accent/40`
+    // sorts BEFORE `ring-black/40` (verified in the built CSS: byte 73433 vs
+    // 73695), so every accent-coloured candidate ring on this board was painted
+    // BLACK — invisible — while `ring-danger`/`ring-signal-self` sorted after
+    // black and showed. Issue #2724 moved state rings onto an inset
+    // pseudo-element (`.card-ring`, ADR 0103 §8), which is a different property
+    // on a different box: nothing contends any more, so the card keeps its
+    // outline in every state and the hairline no longer has to be sacrificed to
+    // show a ring. The `targetGlow` branch only ADDS its outward glow to the
+    // same shadow stack.
+    const baseChrome =
+        "ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]";
 
     const phasedBadge = phased ? (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none z-20">
@@ -394,7 +390,7 @@ export default function BoardBattlefieldCard({
                 }}
             >
                 <div
-                    className={`relative w-full h-full rounded-sm overflow-hidden ${baseChrome} ${vs.ringClass}`}
+                    className={`relative w-full h-full card-corner overflow-hidden ${baseChrome} ${vs.ringClass}`}
                     style={
                         vs.targetGlow
                             ? { boxShadow: `${TARGET_GLOW}, ${BASE_SHADOW}` }

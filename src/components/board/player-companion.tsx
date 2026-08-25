@@ -28,7 +28,7 @@ export default function PlayerCompanion({ player }: { player: Player }) {
             className="relative w-(--card-w-sm) shrink-0 aspect-5/7"
         >
             <div
-                className="w-full h-full rounded-sm overflow-hidden ring-1 ring-border-accent/60"
+                className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60"
                 title="Companion"
             >
                 <CardImage card={companion.instance} />

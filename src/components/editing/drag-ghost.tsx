@@ -26,7 +26,7 @@ export default function DragGhost({
             src={getImageUrl(printId)}
             alt=""
             draggable={false}
-            className="z-modal-peak pointer-events-none fixed w-[92px] rounded-[6%] shadow-[0_14px_30px_rgba(0,0,0,.8)] ring-2 ring-accent"
+            className="z-modal-peak pointer-events-none fixed w-[92px] card-ring card-ring-selected shadow-[0_14px_30px_rgba(0,0,0,.8)]"
             style={{
                 left: drag.x,
                 top: drag.y,

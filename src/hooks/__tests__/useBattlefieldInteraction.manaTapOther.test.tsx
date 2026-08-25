@@ -321,9 +321,9 @@ describe("useBattlefieldInteraction — tap-another-artifact mana ability (Urza,
         // bug class this picker's two surfaces have to avoid.
         const ring = (c: CardInstance) =>
             handle.current!.getVisualState(c).ringClass ?? "";
-        expect(ring(artifact("art1"))).toContain("ring-accent");
-        expect(ring(artifact("art2"))).toContain("ring-accent");
-        expect(ring(source)).not.toContain("ring-accent");
+        expect(ring(artifact("art1"))).toContain("card-ring-candidate");
+        expect(ring(artifact("art2"))).toContain("card-ring-candidate");
+        expect(ring(source)).not.toContain("card-ring-candidate");
     });
 
     it("a candidate with its OWN activated ability (Millstone) is withheld from getActivatable while the picker is open, so the board binds a plain click to it (issue: dialog opens, click on the artifact does nothing / opens ITS menu instead)", () => {

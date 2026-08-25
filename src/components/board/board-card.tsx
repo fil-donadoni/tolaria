@@ -35,7 +35,7 @@ export default function BoardCard({ card, mirror = false }: BoardCardProps) {
                 // `closest('[data-board-card]')`. Pure attribute — no listener,
                 // no styling, absent entirely on a hidden (back) slot.
                 data-board-card={card?.id}
-                className="w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]"
+                className="w-full h-full card-corner overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]"
             >
                 {card ? (
                     // Opponent-hand slots render 76–84px wide; hint at the

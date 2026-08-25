@@ -16,7 +16,7 @@ export default function ArrivalGlow({ show }: { show: boolean }) {
         <div
             aria-hidden
             data-arrival-glow
-            className="arrival-glow pointer-events-none absolute -inset-1 z-20 rounded-[8%]"
+            className="arrival-glow pointer-events-none absolute -inset-1 z-20 card-corner"
         />
     );
 }

@@ -214,7 +214,9 @@ describe("BoardBattlefield — non-stack mana ability tap-other picker (Urza, Lo
         const { handle, container } = renderBoard(me);
 
         // Baseline: no picker, no candidate ring anywhere on the board.
-        expect(container.querySelectorAll(".ring-accent\\/40").length).toBe(0);
+        expect(container.querySelectorAll(".card-ring-candidate").length).toBe(
+            0
+        );
 
         act(() => {
             handle.current!.handleActivateAbility(
@@ -233,7 +235,7 @@ describe("BoardBattlefield — non-stack mana ability tap-other picker (Urza, Lo
         // must carry the candidate ring. A stale memo leaves this at 0 while
         // every hook-level assertion still passes.
         expect(
-            container.querySelectorAll(".ring-accent\\/40").length
+            container.querySelectorAll(".card-ring-candidate").length
         ).toBeGreaterThanOrEqual(2);
 
         // The same staleness that hides the ring also keeps each candidate's
@@ -243,16 +245,23 @@ describe("BoardBattlefield — non-stack mana ability tap-other picker (Urza, Lo
         );
 
         // …and the ring must actually be PAINTED, not merely present in the
-        // class list. The card's base chrome carries a black hairline on the
-        // SAME CSS property (`--tw-ring-color`); Tailwind emits `ring-black/40`
-        // AFTER `ring-accent/40`, so leaving both on one element renders the
-        // candidate ring black — invisible on a dark board, exactly the "banner
-        // is up but nothing is highlighted" report. jsdom loads no stylesheet
-        // and can't resolve the cascade, so the invariant is asserted on the
-        // class composition itself: a ringed card carries no competing ring
-        // colour.
-        for (const el of container.querySelectorAll(".ring-accent\\/40")) {
-            expect(el.className).not.toContain("ring-black");
+        // class list. This used to mean "carries no competing ring colour": the
+        // candidate ring and the card's black hairline were the same CSS
+        // property (`--tw-ring-color`), Tailwind emitted `ring-black/40` AFTER
+        // `ring-accent/40`, and a card wearing both rendered its candidate ring
+        // BLACK — invisible on a dark board, exactly the "banner is up but
+        // nothing is highlighted" report. Issue #2724 moved state rings onto an
+        // inset pseudo-element (`.card-ring`), so the contention is gone and
+        // the invariant flips: a candidate now carries the recipe that paints
+        // it AND keeps its hairline. jsdom loads no stylesheet and cannot
+        // resolve a cascade, so both halves are asserted on the composition.
+        const candidates = container.querySelectorAll(".card-ring-candidate");
+        expect(candidates.length).toBeGreaterThanOrEqual(2);
+        for (const el of candidates) {
+            // The role class is only a colour variable; `.card-ring` is what
+            // draws anything at all.
+            expect(el.className).toContain("card-ring ");
+            expect(el.className).toContain("ring-black/40");
         }
     });
 
@@ -272,7 +281,7 @@ describe("BoardBattlefield — non-stack mana ability tap-other picker (Urza, Lo
             );
         });
         expect(
-            container.querySelectorAll(".ring-accent\\/40").length
+            container.querySelectorAll(".card-ring-candidate").length
         ).toBeGreaterThanOrEqual(2);
 
         const cancel = Array.from(container.querySelectorAll("button")).find(
@@ -285,7 +294,9 @@ describe("BoardBattlefield — non-stack mana ability tap-other picker (Urza, Lo
         // The nodes must recompute on the way OUT too — a board left ringed and
         // click-locked after Cancel is the same staleness in the other
         // direction.
-        expect(container.querySelectorAll(".ring-accent\\/40").length).toBe(0);
+        expect(container.querySelectorAll(".card-ring-candidate").length).toBe(
+            0
+        );
         expect(
             handle.current!.getActivatable(millstoneCard("mill1")).length
         ).toBeGreaterThan(0);

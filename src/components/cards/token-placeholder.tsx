@@ -43,7 +43,7 @@ export default function TokenPlaceholder({
     const ptVisible =
         isCreature && power !== undefined && toughness !== undefined;
     return (
-        <div className="relative w-full h-full bg-parchment text-surface-base rounded-sm border border-border-strong flex flex-col">
+        <div className="relative w-full h-full bg-parchment text-surface-base card-corner border border-border-strong flex flex-col">
             <div className="px-1.5 py-1 border-b border-border-strong/60 bg-accent-soft/40 text-[0.55em] font-semibold leading-tight">
                 {name}
             </div>

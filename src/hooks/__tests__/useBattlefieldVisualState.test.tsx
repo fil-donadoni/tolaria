@@ -378,7 +378,7 @@ describe("useBattlefieldVisualState — multi-pick sacrifice cost selected ring 
         const { result } = renderVisualState(me, ctxWithSacrifice());
 
         expect(result.current.getVisualState(m1).ringClass).toBe(
-            "ring-2 ring-signal-self rounded-sm"
+            "card-ring card-ring-selected"
         );
     });
 
@@ -389,7 +389,7 @@ describe("useBattlefieldVisualState — multi-pick sacrifice cost selected ring 
         const { result } = renderVisualState(me, ctxWithSacrifice());
 
         expect(result.current.getVisualState(m2).ringClass).toBe(
-            "ring-2 ring-accent/40 rounded-sm"
+            "card-ring card-ring-candidate"
         );
     });
 });
@@ -419,22 +419,24 @@ describe("useBattlefieldVisualState — multi-target selected ring is green", ()
         const { result } = renderVisualState(me, ctxSelectingCreatures());
 
         expect(result.current.getVisualState(c1).ringClass).toBe(
-            "ring-2 ring-signal-self rounded-sm"
+            "card-ring card-ring-selected"
         );
     });
 
-    it("a still-valid unpicked target gets the accent-strong glow (matching a targetable player nameplate), not a ringClass", () => {
+    it("a still-valid unpicked target gets the candidate ring AND the outer glow", () => {
         const c1 = creature({ id: "c1", isSummoningSick: false });
         const c2 = creature({ id: "c2", isSummoningSick: false });
         const me = makePlayer("me", [c1, c2]);
         const { result } = renderVisualState(me, ctxSelectingCreatures());
 
         const vs = result.current.getVisualState(c2);
-        // A legal-but-unpicked target reads with the same accent-strong glow a
-        // targetable player nameplate gets — rendered as a box-shadow overlay
-        // (targetGlow), not a Tailwind ring class.
+        // A legal-but-unpicked target reads `candidate` (ADR 0103 §8) plus the
+        // soft OUTER glow a targetable player nameplate gets. Before #2724 the
+        // glow REPLACED the ring, because both were `--tw-ring-color` and could
+        // not coexist; the ring is an inset pseudo-element now, so a candidate
+        // permanent carries both and still matches the nameplate.
         expect(vs.targetGlow).toBe(true);
-        expect(vs.ringClass).toBe("");
+        expect(vs.ringClass).toContain("card-ring-candidate");
     });
 });
 
@@ -489,7 +491,7 @@ describe("useBattlefieldVisualState — choose-permanents (untap) selection ring
         const { result } = renderVisualState(me, ctxUntapLands());
 
         expect(result.current.getVisualState(me.battlefield[0]).ringClass).toBe(
-            "ring-2 ring-accent/40 rounded-sm"
+            "card-ring card-ring-candidate"
         );
     });
 
@@ -500,10 +502,10 @@ describe("useBattlefieldVisualState — choose-permanents (untap) selection ring
 
         // Selected → emerald; the other candidate stays faded-bronze.
         expect(result.current.getVisualState(me.battlefield[0]).ringClass).toBe(
-            "ring-2 ring-signal-self rounded-sm"
+            "card-ring card-ring-selected"
         );
         expect(result.current.getVisualState(me.battlefield[1]).ringClass).toBe(
-            "ring-2 ring-accent/40 rounded-sm"
+            "card-ring card-ring-candidate"
         );
         bufferHolder.ids = [];
     });

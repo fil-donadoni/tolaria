@@ -16,6 +16,7 @@ import ActionSheet, {
 import type { CardAction, CardInstance } from "~/types/game";
 
 import CardImage from "./card-image";
+import { cardRingClass } from "~/lib/card-ring";
 
 type SelectableCardProps = {
     cardInstance: CardInstance;
@@ -82,13 +83,10 @@ export default function SelectableCard({
 
     if (isHandChoice) {
         const ringClass = isChoiceSelected
-            ? "ring-2 ring-signal-self"
-            : "ring-2 ring-signal-target/60 cursor-pointer hover:ring-signal-target-strong";
+            ? cardRingClass("selected")
+            : `${cardRingClass("candidate")} cursor-pointer`;
         return (
-            <div
-                className={`relative rounded-md ${ringClass}`}
-                onClick={onChoiceClick}
-            >
+            <div className={`relative ${ringClass}`} onClick={onChoiceClick}>
                 <CardImage card={cardInstance} />
             </div>
         );
@@ -173,7 +171,7 @@ export default function SelectableCard({
         <>
             <ContextMenu>
                 <ContextMenuTrigger
-                    className="flex items-center justify-center rounded-md border border-dashed text-sm"
+                    className="flex items-center justify-center card-corner border border-dashed text-sm"
                     onTouchStart={() => {
                         isTouchRef.current = true;
                     }}

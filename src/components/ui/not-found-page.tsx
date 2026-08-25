@@ -39,7 +39,7 @@ export default function NotFoundPage() {
                     height={340}
                     draggable={false}
                     onError={() => setUseJpgFallback(true)}
-                    className="w-[244px] max-w-full rounded-[4.75%/3.5%] shadow-lg"
+                    className="w-[244px] max-w-full card-corner shadow-lg"
                 />
                 <div>
                     <p className="text-label">404</p>

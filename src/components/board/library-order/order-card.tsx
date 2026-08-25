@@ -37,7 +37,7 @@ export default function OrderCard({
             }}
             alt=""
             draggable={false}
-            className="pointer-events-none select-none rounded-[7%] border border-border object-cover shadow-md"
+            className="pointer-events-none select-none card-corner border border-border object-cover shadow-md"
             style={{ width: cardW, height: cardH }}
         />
     );

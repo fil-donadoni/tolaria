@@ -145,7 +145,7 @@ function CardImageImpl({
             holdPreview={holdPreview}
         >
             <div
-                className="relative w-full h-full rounded-[7%] overflow-hidden"
+                className="relative w-full h-full card-corner overflow-hidden"
                 style={promoteLayer ? STABLE_LAYER : CONTAINED_LAYER}
             >
                 {imageId ? (

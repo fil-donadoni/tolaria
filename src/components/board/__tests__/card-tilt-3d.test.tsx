@@ -300,11 +300,11 @@ describe("CardTilt3D under a tapped permanent's 90° rotation (#2551)", () => {
         // The glare is `absolute inset-0` inside `[data-card-tilt]` — the same
         // box the rotated visual layer starts from — so carrying the SAME
         // rotation makes the two coincide exactly: same centre, swapped
-        // width/height, `rounded-sm` landing on the card's own corners.
+        // width/height, the card corner landing on the card's own corners.
         renderRotated(90);
         expect(glare().style.transform).toBe("rotate(90deg)");
         expect(glare().className).toContain("inset-0");
-        expect(glare().className).toContain("rounded-sm");
+        expect(glare().className).toContain("card-corner");
     });
 
     it("keeps the unrotated caller byte-identical (hand, pile, untapped board)", () => {

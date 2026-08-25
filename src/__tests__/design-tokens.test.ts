@@ -404,10 +404,65 @@ describe("identity v4 — card corner (ADR 0103 §7)", () => {
         expect(v / h).toBeCloseTo(63 / 88, 2);
     });
 
-    it(".card-corner applies the token (the call sites #2724 migrates onto)", () => {
+    it(".card-corner applies the token (the recipe every card surface uses)", () => {
         const rule = /\.card-corner \{([\s\S]*?)\}/.exec(css);
         expect(rule, ".card-corner rule present").not.toBeNull();
         expect(rule![1]).toContain("var(--card-radius)");
+    });
+});
+
+describe("identity v4 — inset card rings (ADR 0103 §8, issue #2724)", () => {
+    /** The body of a top-level rule in `index.css`, by exact selector. */
+    function ruleBody(selector: string): string {
+        const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const m = new RegExp(`${escaped} \\{([^}]*)\\}`).exec(css);
+        expect(m, `${selector} rule present`).not.toBeNull();
+        return m![1];
+    }
+
+    it(".card-ring implies the card corner, so a ring can never outrun its surface", () => {
+        // The failure this prevents is a 2px ivory rectangle drawn around a
+        // rounded card — the exact shape ADR 0103 §8 replaced.
+        expect(ruleBody(".card-ring")).toContain("var(--card-radius)");
+    });
+
+    it("the ring is drawn INSET, above the art, and never intercepts a click", () => {
+        const after = ruleBody(".card-ring::after");
+        // `inset` is the whole point: an outward ring bleeds past the card's
+        // corner and over its neighbours in a tight zone.
+        expect(after).toMatch(/box-shadow:\s*inset\b/);
+        expect(after).toContain("var(--card-ring-color");
+        // Above the art (a plain inset box-shadow would paint UNDER it, which
+        // is why Tailwind's `ring-inset` cannot do this job).
+        expect(after).toMatch(/z-index:\s*\d+/);
+        expect(after).toContain("pointer-events: none");
+        // Follows whatever corner the element itself carries.
+        expect(after).toContain("border-radius: inherit");
+    });
+
+    it("every ring role resolves to a real palette token", () => {
+        const colors = themeColors(css);
+        const roles: Record<string, string> = {
+            ".card-ring-candidate": "--color-signal-target",
+            ".card-ring-selected": "--color-accent",
+            ".card-ring-attacking": "--color-signal-pending",
+            ".card-ring-pending": "--color-signal-pending",
+            ".card-ring-combat-1": "--color-combat-1",
+            ".card-ring-combat-2": "--color-combat-2",
+            ".card-ring-combat-3": "--color-combat-3",
+            ".card-ring-combat-4": "--color-combat-4",
+        };
+        for (const [selector, token] of Object.entries(roles)) {
+            const body = ruleBody(selector);
+            expect(body, selector).toContain("--card-ring-color");
+            expect(body, selector).toContain(`var(${token})`);
+            // A role pointing at a token that does not exist paints nothing,
+            // and paints nothing SILENTLY — the ring simply never appears.
+            expect(
+                colors[token.replace("--color-", "")],
+                `${token} is a defined palette token`
+            ).toBeTruthy();
+        }
     });
 });
 

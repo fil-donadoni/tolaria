@@ -79,7 +79,7 @@ export default function BattlefieldCard({
 
     const darkenOverlay =
         (vs.interactive && !vs.enabled) || vs.dimmed ? (
-            <div className="absolute inset-0 bg-black/40 rounded-sm pointer-events-none z-20" />
+            <div className="absolute inset-0 bg-black/40 card-corner pointer-events-none z-20" />
         ) : null;
 
     const tapped = card.isTapped;
@@ -141,7 +141,7 @@ export default function BattlefieldCard({
 
     const colorOverrideOverlay = colorDisplay ? (
         <div
-            className="absolute inset-0 pointer-events-none rounded-[7%] z-[5]"
+            className="absolute inset-0 pointer-events-none card-corner z-[5]"
             style={{
                 boxShadow: `inset 0 0 0 4px ${colorDisplay.inner}`,
                 background: [

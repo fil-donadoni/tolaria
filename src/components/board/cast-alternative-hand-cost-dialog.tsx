@@ -114,7 +114,7 @@ export default function CastAlternativeHandCostDialog({
                             disabled={isPending}
                             onClick={() => toggle(card.id)}
                             title={getDefinition(card.card.id).name}
-                            className={`relative ${PILE_GRID_TILE_W} aspect-5/7 rounded-sm overflow-hidden transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${pickerRingClass(isSel)}`}
+                            className={`relative ${PILE_GRID_TILE_W} aspect-5/7 overflow-hidden transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${pickerRingClass(isSel)}`}
                         >
                             <CardImage card={card} />
                         </button>

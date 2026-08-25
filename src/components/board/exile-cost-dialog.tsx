@@ -140,7 +140,7 @@ export default function ExileCostDialog({
                                     disabled={isPending}
                                     onClick={() => toggle(card.id)}
                                     title={getDefinition(card.card.id).name}
-                                    className={`relative rounded-sm overflow-hidden transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${pickerRingClass(isSel)}`}
+                                    className={`relative overflow-hidden transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${pickerRingClass(isSel)}`}
                                 >
                                     <CardImage card={card} />
                                 </button>

@@ -34,7 +34,7 @@ export default function BoardEmblem({ emblem }: { emblem: EmblemInstance }) {
                 className="relative w-full h-full"
                 aria-label={`Emblem: ${emblem.name}. ${emblem.text}`}
             >
-                <div className="w-full h-full rounded-sm overflow-hidden ring-1 ring-border-accent/60 bg-surface-base">
+                <div className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60 bg-surface-base">
                     {imageId ? (
                         <img
                             {...(jpgFallback
@@ -82,7 +82,7 @@ export default function BoardEmblem({ emblem }: { emblem: EmblemInstance }) {
  *  text, in the same parchment card frame as {@link TokenPlaceholder}. */
 function EmblemPlaceholder({ name, text }: { name: string; text: string }) {
     return (
-        <div className="relative w-full h-full bg-parchment text-surface-base rounded-sm border border-border-strong flex flex-col">
+        <div className="relative w-full h-full bg-parchment text-surface-base card-corner border border-border-strong flex flex-col">
             <div className="px-1.5 py-1 border-b border-border-strong/60 bg-accent-soft/40 text-[0.55em] font-semibold leading-tight">
                 {name}
             </div>

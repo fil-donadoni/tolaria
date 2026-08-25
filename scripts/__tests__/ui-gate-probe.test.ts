@@ -487,3 +487,183 @@ describe("check:ui probe — occ vs reachable across a scroll port's edge", () =
         expect(ctrls.occ).toBe(0);
     });
 });
+
+/**
+ * The square-corner check (`cardsSquareN`, ADR 0103 §7 / issue #2724).
+ *
+ * A card that has lost its `--card-radius` shows page background inside its own
+ * rectangle, and EVERY other counter in this probe reads clean on it: the image
+ * is present, correctly sized, unoccluded, reachable. Only the shape is wrong,
+ * which is precisely what happy-dom cannot see and what a screenshot reads past.
+ *
+ * The check walks the card's own box chain (the image plus any ancestor with
+ * the SAME box) and takes the largest corner radius on an element that actually
+ * clips to it, then compares it against a FRACTION of the card's width — the
+ * token is a fraction, so the check has to be one too, or a fixed radius that
+ * looks right on one card size passes on every other.
+ *
+ * Symmetric on purpose: a check proven only in the direction that reports
+ * NOTHING passes every budget and measures nothing.
+ *
+ * Geometry is stubbed exactly as the `occ`/`reachable` table above stubs its
+ * own; radii come from INLINE styles, so happy-dom's `getComputedStyle` (which
+ * evaluates no stylesheet) resolves them. Longhand rather than the
+ * `border-radius` shorthand for the same reason — a real browser expands it,
+ * happy-dom may not, and the shorthand is not what is under test here.
+ */
+function probeCorners(opts: {
+    vw: number;
+    vh: number;
+    html: string;
+    rects: Record<string, StubRect>;
+}) {
+    const window = new Window({ url: "http://localhost/" });
+    const context = createContext(window as unknown as object);
+    const doc = window.document;
+    doc.body.innerHTML = opts.html;
+
+    Object.defineProperty(window, "innerWidth", { value: opts.vw });
+    Object.defineProperty(window, "innerHeight", { value: opts.vh });
+
+    for (const [id, r] of Object.entries(opts.rects)) {
+        const el = doc.getElementById(id)!;
+        el.getBoundingClientRect = () => fullRect(r) as never;
+    }
+    doc.elementFromPoint = (() => null) as never;
+
+    runInContext(PROBE_SOURCE, context);
+    runInContext("globalThis.__result = window.__tolariaProbe();", context);
+    return (
+        window as unknown as {
+            __result: { cardsSquareN: number; cardsSquare: { r: number }[] };
+        }
+    ).__result;
+}
+
+/** The card's own box, browser-measured at 390x844x3 on the deck-detail pile —
+ *  the size the FIRST version of this check got wrong. */
+const CARD_RECT: StubRect = { left: 200, top: 300, width: 78, height: 109 };
+
+/** One card image, with the radius wherever the caller puts it. */
+function cardHtml(opts: { imgStyle?: string; wrapStyle?: string }) {
+    return `
+        <div id="board">
+            <div id="sizer" style="${opts.wrapStyle ?? ""}">
+                <img id="card" alt="Mountain"
+                     style="${opts.imgStyle ?? ""}"
+                     src="https://cards.scryfall.io/normal/front/b/d/bd.jpg" />
+            </div>
+        </div>
+    `;
+}
+
+describe("check:ui probe — square-corner check (issue #2724)", () => {
+    it("does not flag a card clipped to the proportional corner by its wrapper", () => {
+        // The shipped shape: `card-image.tsx`'s `card-corner overflow-hidden`
+        // box around the art. 4.8% of 78px is 3.74px.
+        const r = probeCorners({
+            vw: 390,
+            vh: 844,
+            html: cardHtml({
+                wrapStyle: "border-top-left-radius: 4.8%; overflow: hidden;",
+            }),
+            rects: { card: CARD_RECT, sizer: CARD_RECT },
+        });
+        expect(r.cardsSquareN).toBe(0);
+    });
+
+    it("does not flag a card carrying the radius on the image itself", () => {
+        // `card-back.tsx` and `peek-panel.tsx` are self-clipping — the radius
+        // is on the `<img>`, with no `overflow-hidden` wrapper at all.
+        const r = probeCorners({
+            vw: 390,
+            vh: 844,
+            html: cardHtml({ imgStyle: "border-top-left-radius: 4.8%;" }),
+            rects: { card: CARD_RECT, sizer: CARD_RECT },
+        });
+        expect(r.cardsSquareN).toBe(0);
+    });
+
+    it("flags a card with no radius anywhere on its own box", () => {
+        const r = probeCorners({
+            vw: 390,
+            vh: 844,
+            html: cardHtml({ wrapStyle: "overflow: hidden;" }),
+            rects: { card: CARD_RECT, sizer: CARD_RECT },
+        });
+        expect(r.cardsSquareN).toBe(1);
+        expect(r.cardsSquare[0]!.r).toBe(0);
+    });
+
+    it("flags a FIXED radius that is too small a fraction of the card", () => {
+        // `rounded-sm` (2px) on a 78px card is 2.6%, just over the floor — but
+        // on the 244px `not-found` card or a 180px preview it is 0.8%, and the
+        // corner visibly disappears. This is the size-dependence the token
+        // exists to remove, so the check is a fraction, not a length.
+        const big: StubRect = { left: 0, top: 0, width: 244, height: 341 };
+        const r = probeCorners({
+            vw: 1440,
+            vh: 900,
+            html: cardHtml({
+                wrapStyle: "border-top-left-radius: 2px; overflow: hidden;",
+            }),
+            rects: { card: big, sizer: big },
+        });
+        expect(r.cardsSquareN).toBe(1);
+        expect(r.cardsSquare[0]!.r).toBe(2);
+    });
+
+    it("ignores a radius on an ancestor that does NOT clip to it", () => {
+        // A rounded wrapper with `overflow: visible` does not shape the square
+        // art inside it — the art paints straight over the corner. Counting it
+        // would let exactly the bug this check is for pass.
+        const r = probeCorners({
+            vw: 390,
+            vh: 844,
+            html: cardHtml({
+                wrapStyle: "border-top-left-radius: 4.8%; overflow: visible;",
+            }),
+            rects: { card: CARD_RECT, sizer: CARD_RECT },
+        });
+        expect(r.cardsSquareN).toBe(1);
+    });
+
+    it("accepts paint containment as the clip, like CardImage's own box", () => {
+        // `card-image.tsx` sets `contain: paint` inline on the same box as its
+        // `overflow-hidden`; either one is a real clip.
+        const r = probeCorners({
+            vw: 390,
+            vh: 844,
+            html: cardHtml({
+                wrapStyle:
+                    "border-top-left-radius: 4.8%; overflow: visible; contain: paint;",
+            }),
+            rects: { card: CARD_RECT, sizer: CARD_RECT },
+        });
+        expect(r.cardsSquareN).toBe(0);
+    });
+
+    it("ignores a radius on an ancestor that is a DIFFERENT box", () => {
+        // A rounded page panel two levels up is not this card's corner. Walking
+        // past the card's own box is how a check like this quietly stops
+        // measuring anything.
+        const r = probeCorners({
+            vw: 390,
+            vh: 844,
+            html: `
+                <div id="panel" style="border-top-left-radius: 16px; overflow: hidden;">
+                    <div id="sizer" style="overflow: hidden;">
+                        <img id="card" alt="Mountain"
+                             src="https://cards.scryfall.io/a.jpg" />
+                    </div>
+                </div>
+            `,
+            rects: {
+                card: CARD_RECT,
+                sizer: CARD_RECT,
+                panel: { left: 0, top: 0, width: 390, height: 844 },
+            },
+        });
+        expect(r.cardsSquareN).toBe(1);
+    });
+});
