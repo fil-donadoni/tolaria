@@ -23,7 +23,10 @@ import {
     island,
     islandSanctuary,
     lightningBolt,
+    lordOfAtlantis,
     mountain,
+    moxJet,
+    moxSapphire,
     plains,
     savannahLions,
     serraAngel,
@@ -39,6 +42,7 @@ import {
 } from "../../cards/sets/inv";
 import { farrelitePriest } from "../../cards/sets/fem";
 import { moxOpal } from "../../cards/sets/som";
+import { urzaLordHighArtificer } from "../../cards/sets/mh1";
 import { firebolt } from "../../cards/sets/ody";
 import { nethergoyf } from "../../cards/sets/mh3";
 import { planarGate } from "../../cards/sets/leg";
@@ -506,6 +510,66 @@ describe("cast affordability — a cost.mana ability is NET mana, not a free uni
         const state = withTurnOf(makeState({ players: [player] }), "p1");
 
         expect(getLegalActions(state, player, spell)).not.toContain("cast");
+    });
+});
+
+// Review round 2, finding 2 (issue #2420) — a `tapOtherFilter` mana ability
+// (Urza, Lord High Artificer's "Tap an untapped artifact you control: Add
+// {U}.") taps a DIFFERENT permanent than the one activating it. Counting its
+// produced mana as an INDEPENDENT unit on top of that SAME artifact's own row
+// double-counted a single physical artifact: [Urza, Mox Sapphire] casting
+// Lord of Atlantis ({U}{U}) used to offer "cast" even though
+// `planManaPayment` (moves.ts) returns null on that exact board — the #1695
+// pendingCast trap (a Cast the player can never actually pay for). The
+// admission itself is correct and must stay: [Urza, Mox Sapphire, Mox Jet] IS
+// genuinely payable (Sapphire's own {U} plus Urza tapping Jet for a second
+// {U}) and must still offer "cast" — only the double-count is wrong.
+describe("cast affordability — a tapOtherFilter ability must not double-count the permanent it taps (issue #2420 review round 2 finding 2)", () => {
+    function onBattlefield(defId: string, id: string) {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+        });
+    }
+
+    it("[Urza, Mox Sapphire] cannot cast Lord of Atlantis ({U}{U}) — only ONE physical artifact to tap", () => {
+        const spell = makeInstance(lordOfAtlantis.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [spell],
+            battlefield: [
+                onBattlefield(urzaLordHighArtificer.id, "urza"),
+                onBattlefield(moxSapphire.id, "sapphire"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, spell)).not.toContain("cast");
+    });
+
+    it("[Urza, Mox Sapphire, Mox Jet] CAN cast Lord of Atlantis ({U}{U}) — Sapphire's own {U} plus Urza tapping Jet for a second {U}", () => {
+        const spell = makeInstance(lordOfAtlantis.id, {
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            hand: [spell],
+            battlefield: [
+                onBattlefield(urzaLordHighArtificer.id, "urza"),
+                onBattlefield(moxSapphire.id, "sapphire"),
+                onBattlefield(moxJet.id, "jet"),
+            ],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        });
+        const state = withTurnOf(makeState({ players: [player] }), "p1");
+
+        expect(getLegalActions(state, player, spell)).toContain("cast");
     });
 });
 

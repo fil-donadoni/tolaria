@@ -645,22 +645,66 @@ export function planManaPayment(
         return true;
     };
 
+    // Issue #2420 review round 2 finding 1 — a `consume()` failure must
+    // SKIP the failed source, never null the WHOLE plan. Round 1's fix
+    // (narrowing `isAutoPayableManaAbilityCost` admission to a pure-generic
+    // `cost.mana`) only covers the `cost.mana` branch, because that
+    // branch's executability is SHAPE-dependent (decidable at admission).
+    // `tapOtherFilter`'s executability is BOARD-dependent (Urza, Lord High
+    // Artificer with no untapped artifact to tap): it can only be known by
+    // actually trying `consume()`, so admission-time narrowing can never
+    // close this door. One unexecutable source must not destroy a plan
+    // other sources can still satisfy.
+    //
+    // `pickCandidate` returns the current best (idx, color) among sources
+    // not yet excluded this need, or `null` when none remain. A failed
+    // `consume()` call can partially mutate `remaining` / `taps` /
+    // `reserved` before returning false (a `cost.mana` sub-cost funding
+    // itself from plain sources, then running out) — those partial effects
+    // are rolled back before the source is marked excluded and the next
+    // candidate is tried.
+    const consumeBest = (
+        pickCandidate: (
+            excluded: Set<PlanSource>
+        ) => { idx: number; color: Color } | null
+    ): boolean => {
+        const excluded = new Set<PlanSource>();
+        for (;;) {
+            const candidate = pickCandidate(excluded);
+            if (!candidate) return false;
+            const src = remaining[candidate.idx];
+            const remainingSnapshot = [...remaining];
+            const tapsLen = taps.length;
+            const reservedSnapshot = new Set(reserved);
+            if (consume(candidate.idx, candidate.color)) return true;
+            remaining.length = 0;
+            remaining.push(...remainingSnapshot);
+            taps.length = tapsLen;
+            reserved.clear();
+            for (const id of reservedSnapshot) reserved.add(id);
+            excluded.add(src);
+        }
+    };
+
     // Colored requirements first, taking the least-flexible source that can
     // produce that color (basic land before dual, etc.).
     for (const c of MANA_COLORS) {
         let need = cost[c] ?? 0;
         while (need > 0) {
-            let bestIdx = -1;
-            let bestSize = Infinity;
-            for (let i = 0; i < remaining.length; i++) {
-                const s = remaining[i];
-                if (s.options.has(c) && s.options.size < bestSize) {
-                    bestIdx = i;
-                    bestSize = s.options.size;
+            const ok = consumeBest((excluded) => {
+                let bestIdx = -1;
+                let bestSize = Infinity;
+                for (let i = 0; i < remaining.length; i++) {
+                    const s = remaining[i];
+                    if (excluded.has(s)) continue;
+                    if (s.options.has(c) && s.options.size < bestSize) {
+                        bestIdx = i;
+                        bestSize = s.options.size;
+                    }
                 }
-            }
-            if (bestIdx === -1) return null;
-            if (!consume(bestIdx, c)) return null;
+                return bestIdx === -1 ? null : { idx: bestIdx, color: c };
+            });
+            if (!ok) return null;
             need--;
         }
     }
@@ -669,18 +713,27 @@ export function planManaPayment(
     let generic = cost.X ?? 0;
     while (generic > 0) {
         if (remaining.length === 0) return null;
-        let idx = remaining.findIndex((s) => !s.cardInstanceId);
-        if (idx === -1) {
-            let bestSize = Infinity;
-            for (let i = 0; i < remaining.length; i++) {
-                if (remaining[i].options.size < bestSize) {
-                    bestSize = remaining[i].options.size;
-                    idx = i;
+        const ok = consumeBest((excluded) => {
+            let idx = remaining.findIndex(
+                (s) => !s.cardInstanceId && !excluded.has(s)
+            );
+            if (idx === -1) {
+                let bestSize = Infinity;
+                idx = -1;
+                for (let i = 0; i < remaining.length; i++) {
+                    const s = remaining[i];
+                    if (excluded.has(s)) continue;
+                    if (s.options.size < bestSize) {
+                        bestSize = s.options.size;
+                        idx = i;
+                    }
                 }
             }
-        }
-        const color = remaining[idx].options.keys().next().value as Color;
-        if (!consume(idx, color)) return null;
+            if (idx === -1) return null;
+            const color = remaining[idx].options.keys().next().value as Color;
+            return { idx, color };
+        });
+        if (!ok) return null;
         generic--;
     }
 

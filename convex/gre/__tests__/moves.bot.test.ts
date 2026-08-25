@@ -620,6 +620,226 @@ describe("planManaPayment — summoning sickness still gates a {T}-cost source (
     });
 });
 
+// Review round 2, finding 1 (issue #2420) — round 1's fix (narrowing
+// `isAutoPayableManaAbilityCost` admission to a pure-generic `cost.mana`)
+// only closes the plan-nulling regression for the `cost.mana` branch, whose
+// executability is SHAPE-dependent (decidable at admission). Urza, Lord High
+// Artificer's `tapOtherFilter` ability is BOARD-dependent: whether it can be
+// paid depends on whether an untapped artifact exists elsewhere, which
+// admission-time narrowing can never decide. With Urza on the battlefield and
+// NO untapped artifact, `consume()` (moves.ts) used to `return false`, and
+// the two call sites (the colored-requirement loop and the generic-remainder
+// loop) turned that into `return null` for the WHOLE plan — even when an
+// ORDINARY {T} source (an Island) on the same board could pay the cost by
+// itself. The fix makes a `consume()` failure SKIP the failed source and
+// retry with the next-best one, never null the whole plan. Both permanent
+// orders are asserted so the order-dependence (the greedy tie-break just
+// happening to prefer whichever source comes first) cannot come back
+// silently — exactly the shape the Nomadic Elf regression above guards.
+describe("planManaPayment — Urza's unpayable tapOtherFilter never nulls a plan an ordinary {T} source could still pay (issue #2420 review round 2 finding 1)", () => {
+    function stateWith(p: PlayerState): GameState {
+        return makeState({ players: [p, makePlayer("p2")] });
+    }
+    const URZA = getCardByName("Urza, Lord High Artificer").id;
+    const ISLAND = getCardByName("Island").id;
+
+    it("[Urza, Island] paying {U}: taps the Island, does not null", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [urza, island] });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("island");
+    });
+
+    it("[Island, Urza] (swapped order) paying {U}: taps the Island, does not null", () => {
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [island, urza] });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("island");
+    });
+
+    it("[Urza, Island, Island] paying {U}{U}: a 2-tap plan, does not null", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island1 = makeInstance(ISLAND, {
+            id: "island1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island2 = makeInstance(ISLAND, {
+            id: "island2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", {
+            battlefield: [urza, island1, island2],
+        });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 2 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "island1",
+            "island2",
+        ]);
+    });
+
+    it("[Island, Island, Urza] (swapped order) paying {U}{U}: a 2-tap plan, does not null", () => {
+        const island1 = makeInstance(ISLAND, {
+            id: "island1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island2 = makeInstance(ISLAND, {
+            id: "island2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", {
+            battlefield: [island1, island2, urza],
+        });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 2 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "island1",
+            "island2",
+        ]);
+    });
+
+    it("[Urza, Island] paying {1}: taps the Island, does not null", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [urza, island] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("island");
+    });
+
+    it("[Island, Urza] (swapped order) paying {1}: taps the Island, does not null", () => {
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [island, urza] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("island");
+    });
+
+    it("[Urza, Island, Forest] paying {1}{G}: a 2-tap plan, does not null", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const forest = makeInstance(FOREST, {
+            id: "forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [urza, island, forest] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1, G: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "forest",
+            "island",
+        ]);
+    });
+
+    it("[Forest, Island, Urza] (swapped order) paying {1}{G}: a 2-tap plan, does not null", () => {
+        const forest = makeInstance(FOREST, {
+            id: "forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [forest, island, urza] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1, G: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "forest",
+            "island",
+        ]);
+    });
+});
+
 describe("enumerateAbilityMoves — non-tap mana abilities stay OFF the standalone Move list (issue #2420)", () => {
     // The macro-move enumerator's `if (!ability.useStack) continue` guard
     // (moves.ts, `enumerateAbilityMoves`) is a DELIBERATE design decision,

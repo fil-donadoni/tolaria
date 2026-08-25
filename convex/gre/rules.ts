@@ -50,6 +50,12 @@ import {
     hasCardSelfFlashPermission,
 } from "../cards/castRestrictions";
 import { tapManaBonusUnits } from "./tapManaBonus";
+// Issue #2420 review round 2 finding 2 — the SAME authority `planManaPayment`
+// (moves.ts) and the server's real activation cost (`selectActivationCost`,
+// game.ts) use to find `tapOtherFilter` fodder candidates, reused here so the
+// affordance census's "which permanents could serve as fodder" can never
+// drift from what a real activation would accept.
+import { tapOtherCandidates } from "./activationCostPicks";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
@@ -1591,6 +1597,23 @@ function getProducibleManaUnits(
             const ability = getEffectiveActivatedAbilities(card).find(
                 (r) => r.ability.id === abilityId
             )?.ability;
+            // Issue #2420 review round 2 finding 2 — a `tapOtherFilter`
+            // ability (Urza, Lord High Artificer's "Tap an untapped
+            // artifact you control: Add {U}.") taps a DIFFERENT permanent
+            // than `card`, so its produced mana is never CARD's own unit —
+            // counting it here double-counted the fodder artifact against
+            // that SAME artifact's own row, elsewhere in this same census
+            // (measured: [Urza, Mox Sapphire] casting Lord of Atlantis
+            // {U}{U} — offered "cast" although `planManaPayment` returns
+            // null). This function contributes 0 for a `tapOtherFilter`
+            // ability's OWNER; `coloredCostLeftover` (below) models the
+            // real capacity instead, by widening each matching untapped
+            // FODDER candidate's own row with the ability's produced
+            // colours — capacity bounded at one unit per physical
+            // permanent, never per ability.
+            if (ability?.cost.tapOtherFilter) {
+                units.length = 0;
+            }
             const generic = ability?.cost.mana
                 ? pureGenericManaSubCost(ability.cost.mana)
                 : null;
@@ -1765,6 +1788,50 @@ function coloredCostLeftover(
                 }
             }
         }
+        // Issue #2420 review round 2 finding 2 — the real capacity a
+        // `tapOtherFilter` mana ability (Urza's "Tap an untapped artifact
+        // you control: Add {U}.") adds is NOT an independent unit (that
+        // double-counts the fodder artifact, `getProducibleManaUnits`
+        // above now contributes 0 for the ability's OWNER) — it is the
+        // ability's produced colour WIDENING each matching, untapped
+        // candidate's own row, one unit per PHYSICAL permanent regardless
+        // of which ability actually taps it. Built once, keyed by fodder
+        // permanent id, so the loop below can fold it in per-permanent.
+        const converterColors = new Map<string, Set<Color>>();
+        if (opts.state) {
+            for (const converter of player.battlefield) {
+                if (abilitiesSuppressed(converter)) continue;
+                for (const { ability } of getEffectiveActivatedAbilities(
+                    converter
+                )) {
+                    if (
+                        ability.useStack ||
+                        ability.cost.tap ||
+                        !ability.cost.tapOtherFilter ||
+                        !ability.manaProduced
+                    ) {
+                        continue;
+                    }
+                    const colors = MANA_COLORS.filter(
+                        (c) => (ability.manaProduced?.[c] ?? 0) > 0
+                    );
+                    if (colors.length === 0) continue;
+                    const candidates = tapOtherCandidates(
+                        opts.state,
+                        player,
+                        converter,
+                        ability
+                    );
+                    for (const cand of candidates) {
+                        const set =
+                            converterColors.get(cand.id) ?? new Set<Color>();
+                        for (const c of colors) set.add(c);
+                        converterColors.set(cand.id, set);
+                    }
+                }
+            }
+        }
+
         for (const perm of player.battlefield) {
             if (perm.isTapped) continue;
             // CR 302.1 — creature with summoning sickness can't pay {T}.
@@ -1776,7 +1843,23 @@ function coloredCostLeftover(
                 boardControllerId,
                 boardBattlefields
             );
-            for (const unit of base) sources.push(unit);
+            const widen = converterColors.get(perm.id);
+            if (widen && widen.size > 0) {
+                // Fold the converter's colours into ONE unit — the FIRST
+                // slot of this permanent's own row when it has one (a
+                // second, independent unit would re-introduce the
+                // double-count), or a single new row when `perm` has no
+                // mana ability of its own (a "bare" artifact this ability
+                // alone makes into a mana source).
+                if (base.length > 0) {
+                    sources.push(new Set([...base[0], ...widen]));
+                    for (let i = 1; i < base.length; i++) sources.push(base[i]);
+                } else {
+                    sources.push(new Set(widen));
+                }
+            } else {
+                for (const unit of base) sources.push(unit);
+            }
             // CR 605.4 — a Wild-Growth-style triggered mana ability on ANOTHER
             // permanent adds extra mana when THIS land is tapped for mana. It only
             // fires on a for-mana tap, so gate on the land actually producing base
