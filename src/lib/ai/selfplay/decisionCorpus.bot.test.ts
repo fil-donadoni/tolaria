@@ -111,7 +111,11 @@ describe("decision-telemetry corpus (issue #1893, smoke)", () => {
         // other field, including `iterationsCompleted`/`iterationsRequested`/
         // `stoppedBy`, stays byte-identical run to run.
         const strip = (rs: RootDecisionRecord[]) =>
-            rs.map(({ elapsedMs: _elapsedMs, ...rest }) => rest);
+            rs.map((r) => {
+                const { elapsedMs, ...rest } = r;
+                void elapsedMs; // deliberately discarded, not a mistake
+                return rest;
+            });
         const a = strip(collectSelfPlayDecisions(SMOKE_CONFIG).records);
         const b = strip(collectSelfPlayDecisions(SMOKE_CONFIG).records);
         expect(b).toEqual(a);
