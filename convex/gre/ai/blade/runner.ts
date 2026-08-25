@@ -158,11 +158,13 @@ export function buildBladeState(scenario: BladeScenario): GameState {
  * (`convex/game.ts`) needs to make a browser-loaded position match the one
  * the blade harness actually tests against (issue #1432 review finding #1).
  *
- * `buildStateFromScenario` alone normalizes only zones/phase/turn/stack; it
- * never touches `activePlayerId`, life, or any turn-/game-scoped counter, so
- * feeding it a live game's snapshot directly leaves those fields wherever the
- * live game happened to be — a materially different position from the one
- * the harness built and the blade entry's `expect` was written against.
+ * `buildStateFromScenario` alone normalizes only zones/phase/turn/stack (plus
+ * life, but only when the scenario's own spec sets it — CR 119.1, issue
+ * #2147); it never touches `activePlayerId` or any other turn-/game-scoped
+ * counter, so feeding it a live game's snapshot directly leaves those fields
+ * wherever the live game happened to be — a materially different position
+ * from the one the harness built and the blade entry's `expect` was written
+ * against.
  *
  * Two prior fixup rounds tried to hand-pick which fields diverge: a 4-field
  * list (round 1) that leaked `restrictedMana`/`spellsCastThisTurn`/
