@@ -7,7 +7,7 @@
 // (`src/lib/design-tokens.ts`), which `src/__tests__/design-tokens.test.ts`
 // pins to `src/index.css`. The page cannot describe a token the stylesheet no
 // longer declares — which is exactly what the old hand-maintained arrays did.
-import { Section, Specimen, Sub } from "./lib";
+import { Section, Specimen, Sub, TokenRows } from "./lib";
 import {
     Panel,
     PanelHeader,
@@ -21,49 +21,7 @@ import {
     FLUID_TYPE_TOKENS,
     CONTROL_HEIGHT_TOKENS,
     bracketTitleGapPx,
-    type TokenGroup,
 } from "@/lib/design-tokens";
-
-function TokenRows({ group }: { group: TokenGroup }) {
-    return (
-        // Tab stop on the scroller — axe `scrollable-region-focusable`
-        // (issue #2593).
-        <div
-            tabIndex={0}
-            role="region"
-            aria-label={`${group.title} tokens (scrollable)`}
-            className="overflow-x-auto"
-        >
-            <table className="w-full min-w-[560px] text-left text-xs">
-                <thead>
-                    <tr className="text-text-disabled">
-                        <th className="py-1 pr-3 font-normal">token</th>
-                        <th className="py-1 pr-3 font-normal">value</th>
-                        <th className="py-1 font-normal">role</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {group.tokens.map((t) => (
-                        <tr
-                            key={t.name}
-                            className="border-t border-border-subtle/40"
-                        >
-                            <td className="py-1.5 pr-3 font-mono text-[11px] text-accent-strong">
-                                {t.name}
-                            </td>
-                            <td className="py-1.5 pr-3 font-mono text-[11px] break-all text-text">
-                                {t.value}
-                            </td>
-                            <td className="py-1.5 text-[11px] text-text-muted">
-                                {t.role}
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-}
 
 /** Live specimens: each step rendered AT its own clamp, so resizing the window
  *  shows the interpolation rather than describing it. */

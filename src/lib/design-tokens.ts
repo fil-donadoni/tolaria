@@ -219,7 +219,9 @@ export const PANEL_FRAME_TOKENS: readonly TokenSpec[] = [
     },
 ] as const;
 
-/** Every v3 group, in census order. */
+/** Every v3 group, in census order. Identity v4 adds three more families —
+ *  see `V4_TOKEN_GROUPS` below; `ALL_TOKEN_GROUPS` is what the drift guard
+ *  and the census walk. */
 export const V3_TOKEN_GROUPS: readonly TokenGroup[] = [
     {
         id: "fluid-type",
@@ -254,6 +256,100 @@ export const V3_TOKEN_GROUPS: readonly TokenGroup[] = [
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 6. Identity v4 — display type (ADR 0103 §4, issue #2722).
+//    The FACE is `--font-display` (Geist) in `@theme inline`; these three are
+//    its treatment. Beleren is retired from the chrome and reserved for the
+//    card domain, so there is no second face here.
+// ─────────────────────────────────────────────────────────────────────────────
+export const DISPLAY_TYPE_TOKENS: readonly TokenSpec[] = [
+    {
+        name: "--display-weight",
+        value: "500",
+        role: "display weight — titles, buttons, life totals",
+    },
+    {
+        name: "--display-tracking",
+        value: "-0.025em",
+        role: "display tracking (negative — Geist sets wide by default)",
+    },
+    {
+        name: "--display-numerals",
+        value: "lining-nums tabular-nums",
+        role: "numbers keep their width as they tick — no jitter",
+    },
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. Identity v4 — frame: hairlines + the proportional card corner
+//    (ADR 0103 §5, §7).
+// ─────────────────────────────────────────────────────────────────────────────
+export const FRAME_V4_TOKENS: readonly TokenSpec[] = [
+    { name: "--hairline-w", value: "1px", role: "the one hairline width" },
+    {
+        name: "--hairline",
+        value: "rgb(232 226 210 / 0.12)",
+        role: "ivory/12 — panel, bar and tile edges",
+    },
+    {
+        name: "--hairline-strong",
+        value: "rgb(232 226 210 / 0.3)",
+        role: "ivory/30 — rules, dividers, emphasised edges",
+    },
+    {
+        name: "--card-radius",
+        value: "4.8% / 3.45%",
+        role: "the printed Magic corner as a fraction of the card, so every card size shows the same corner (applied by .card-corner; call sites migrate in #2724)",
+    },
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Identity v4 — page-ground grain (ADR 0103 §5).
+// ─────────────────────────────────────────────────────────────────────────────
+export const GRAIN_TOKENS: readonly TokenSpec[] = [
+    {
+        name: "--grain-image",
+        value: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E\")",
+        role: "SVG fractal-noise tile — no ';' in the data URI, or it terminates the declaration",
+    },
+    { name: "--grain-size", value: "180px", role: "tile size" },
+    {
+        name: "--grain-blend",
+        value: "overlay",
+        role: "2·B·S on a near-black ground — modulates, never blows out",
+    },
+] as const;
+
+/** The identity-v4 families (ADR 0103), in census order. */
+export const V4_TOKEN_GROUPS: readonly TokenGroup[] = [
+    {
+        id: "v4-display",
+        title: "Display type",
+        blurb: "Geist is the one chrome face. Weight 500, −0.025em tracking, lining tabular numerals so a life total never changes width as it ticks. Beleren is retired from the chrome and reserved for the card domain — it is declared in :root but no longer exported through @theme inline, so no font-beleren utility exists to resolve to.",
+        tokens: DISPLAY_TYPE_TOKENS,
+    },
+    {
+        id: "v4-frame",
+        title: "Hairlines & card corner",
+        blurb: "One hairline width, two strengths (ivory/12 and ivory/30), kept translucent so an edge over card art composites instead of painting a grey line. --card-radius is a percentage pair, not a length: the printed Magic corner is a fraction of the card, so one token serves every card size.",
+        tokens: FRAME_V4_TOKENS,
+    },
+    {
+        id: "v4-grain",
+        title: "Page-ground grain",
+        blurb: "A fine noise material so the graphite ground reads as a surface. Applied once, on <body>, as a background layer — a fixed full-viewport overlay would have read as occluding every element to the ui-gate probe.",
+        tokens: GRAIN_TOKENS,
+    },
+] as const;
+
+/** Every mirrored non-colour family. The drift guard and the census both walk
+ *  THIS, so a new family is picked up by adding it to one of the two arrays
+ *  above and declaring it in `@layer base :root`. */
+export const ALL_TOKEN_GROUPS: readonly TokenGroup[] = [
+    ...V3_TOKEN_GROUPS,
+    ...V4_TOKEN_GROUPS,
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Semantic colour palette (ADR 0007, phase 3). Moved out of
 // `src/routes/design-system/sections-foundations.tsx`, where the same hexes
 // were hand-maintained and could drift from `src/index.css` unnoticed; the
@@ -266,31 +362,43 @@ export type ColorTokenSpec = {
 };
 
 export const PALETTE_TOKENS: readonly ColorTokenSpec[] = [
-    { name: "surface-base", hex: "#0d0b07", role: "app ground" },
-    { name: "surface", hex: "#16110a", role: "panel ground" },
-    { name: "surface-elevated", hex: "#241d12", role: "raised plate" },
-    { name: "border-subtle", hex: "#2e2516", role: "hairlines" },
-    { name: "border-accent", hex: "#6b5a36", role: "gold trim" },
-    { name: "accent", hex: "#c9a24b", role: "primary gold" },
-    { name: "accent-strong", hex: "#ecc878", role: "bright gold" },
-    { name: "accent-soft", hex: "#4a3a1c", role: "gold wash" },
+    { name: "surface-base", hex: "#0b0d11", role: "app ground — graphite" },
+    { name: "surface", hex: "#14171c", role: "panel ground" },
+    { name: "surface-elevated", hex: "#1c2027", role: "raised plate" },
+    { name: "border-subtle", hex: "#2d2f32", role: "hairline (ivory/12)" },
+    {
+        name: "border-accent",
+        hex: "#545453",
+        role: "strong hairline (ivory/30)",
+    },
+    { name: "accent", hex: "#efe9da", role: "ivory — the chrome" },
+    {
+        name: "accent-strong",
+        hex: "#f7f3ea",
+        role: "brightest ivory (role retired in v4, kept for 149 call sites)",
+    },
+    {
+        name: "accent-soft",
+        hex: "#2a2d33",
+        role: "selection wash (role retired in v4, kept for 59 call sites)",
+    },
     { name: "secondary-accent", hex: "#5f97a8", role: "cool teal" },
     { name: "secondary-accent-strong", hex: "#9cc6d4", role: "bright teal" },
-    { name: "secondary-accent-soft", hex: "#234049", role: "teal wash" },
+    { name: "secondary-accent-soft", hex: "#1d333b", role: "teal wash" },
     { name: "danger", hex: "#b1473a", role: "garnet fill" },
     { name: "danger-strong", hex: "#e89384", role: "danger text" },
     { name: "danger-soft", hex: "#4a1a14", role: "danger wash" },
     { name: "success", hex: "#6fa05a", role: "success fill" },
     { name: "success-strong", hex: "#a8d292", role: "success text" },
     { name: "success-soft", hex: "#274a1f", role: "success wash" },
-    { name: "parchment", hex: "#f3ead2", role: "brightest text" },
-    { name: "text", hex: "#e9e0cb", role: "body text" },
-    { name: "text-muted", hex: "#b7a984", role: "secondary text" },
-    { name: "text-disabled", hex: "#968a68", role: "labels / disabled" },
+    { name: "parchment", hex: "#f6f2e6", role: "brightest text" },
+    { name: "text", hex: "#e8e2d2", role: "body text" },
+    { name: "text-muted", hex: "#b0aba0", role: "secondary text" },
+    { name: "text-disabled", hex: "#949089", role: "labels / disabled" },
 ] as const;
 
 export const SIGNAL_TOKENS: readonly ColorTokenSpec[] = [
-    { name: "border-strong", hex: "#7d6b42", role: "input/control edges" },
+    { name: "border-strong", hex: "#6f6b62", role: "input/control edges" },
     { name: "signal-self", hex: "#34d399", role: "my turn/priority/selection" },
     { name: "signal-self-strong", hex: "#6ee7b7", role: "self, bright" },
     { name: "signal-opponent", hex: "#fb7185", role: "opponent turn" },

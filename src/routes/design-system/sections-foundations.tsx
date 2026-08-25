@@ -4,10 +4,19 @@ import { contrastRatio } from "./contrast";
 import { cn } from "@/lib/utils";
 import { PALETTE_TOKENS, SIGNAL_TOKENS } from "@/lib/design-tokens";
 
+/** The three surface tokens every ratio on this page is measured against.
+ *  Read from the typed mirror, not hand-listed: these were spelled out as
+ *  Antique Bronze hexes until identity v4 (issue #2722) moved all three, at
+ *  which point every "on surface" ratio the page printed would have been a
+ *  ratio against a ground the app no longer paints — the exact failure mode
+ *  the mirror exists to close. */
+const paletteHex = (name: string): string =>
+    PALETTE_TOKENS.find((t) => t.name === name)!.hex;
+
 const SURFACES: Array<[string, string]> = [
-    ["base", "#0d0b07"],
-    ["surface", "#16110a"],
-    ["elevated", "#241d12"],
+    ["base", paletteHex("surface-base")],
+    ["surface", paletteHex("surface")],
+    ["elevated", paletteHex("surface-elevated")],
 ];
 
 /** Current semantic palette + the phase-3 additions. Both arrays now come from
@@ -63,11 +72,17 @@ function TokenTable({
                 </thead>
                 <tbody>
                     {tokens.map((t) => {
+                        // `border-strong` is a UI BOUNDARY, not text: WCAG
+                        // 1.4.11 binds it at 3:1, and judging it by the 4.5:1
+                        // text floor printed a red "fail" badge on a token
+                        // that passes its own rule (it did, on both palettes).
+                        const floor = t.name === "border-strong" ? 3 : 4.5;
                         const fails =
                             t.name.startsWith("text") ||
                             t.name.includes("strong")
                                 ? SURFACES.some(
-                                      ([, bg]) => contrastRatio(t.hex, bg) < 4.5
+                                      ([, bg]) =>
+                                          contrastRatio(t.hex, bg) < floor
                                   )
                                 : false;
                         return (
@@ -126,17 +141,17 @@ export function FoundationsSections() {
                 title="Palette & contrast"
                 blurb={
                     <>
-                        Single Antique Bronze palette (ADR 0007). Ratios are
-                        computed live (WCAG relative luminance) against the
-                        three surface tokens. AA needs ≥4.5:1 for text, ≥3:1 for
-                        UI boundaries. Two failures today:{" "}
-                        <code className="text-danger-strong">
-                            text-disabled
-                        </code>{" "}
-                        (3.13, used by .text-label, placeholders, disabled
-                        controls) and{" "}
-                        <code className="text-danger-strong">danger</code> when
-                        used as text (3.43 — the 7 error banners).
+                        Single palette, identity v4 — "quiet chrome, loud world"
+                        (ADR 0103; roles unchanged from ADR 0007, values
+                        superseded). A cold graphite ground under monochrome
+                        ivory chrome, so card art, mana symbols and the signal
+                        hues are the only colour on screen. Ratios are computed
+                        live (WCAG relative luminance) against the three surface
+                        tokens. AA needs ≥4.5:1 for text, ≥3:1 for UI
+                        boundaries; every row below passes, and{" "}
+                        <code>design-tokens.test.ts</code> re-derives the same
+                        arithmetic from <code>src/index.css</code> so it stays
+                        that way.
                     </>
                 }
             >
@@ -146,18 +161,19 @@ export function FoundationsSections() {
                     </Specimen>
                 </Sub>
                 <Sub
-                    title="Proposed edits + new tokens"
-                    note="values verified ≥4.5 on every surface"
+                    title="Signal, combat and boundary tokens"
+                    note="every value verified ≥4.5 on every surface (≥3:1 for border-strong)"
                 >
                     <NextScope>
                         <Specimen
-                            label="New / changed tokens"
+                            label="Signal / combat / boundary"
                             tone="next"
-                            note="text-disabled #6f6244 → #968a68 · danger-as-text → danger-strong (existing) · + border-strong, signal-*, combat-*"
+                            note="hues unchanged by identity v4 (ADR 0103 §3: meaning-carrying colour stays) — only the surfaces under them moved, so every ratio here is re-derived"
                         >
                             <TokenTable title="token" tokens={NEW_TOKENS} />
                             <p className="mt-3 text-xs text-text-muted">
-                                Side-by-side on a panel:{" "}
+                                What a FAILING ratio looks like, on the v4
+                                ground:{" "}
                                 <span className="rounded-sm bg-surface px-2 py-0.5">
                                     {/* The RETIRED hex, rendered so the page
                                         shows the before/after side by side.
@@ -169,16 +185,21 @@ export function FoundationsSections() {
                                         data-axe-exempt="Retired token #6f6244, rendered as the failing half of a before/after contrast comparison (issue #2593)."
                                         style={{ color: "#6f6244" }}
                                     >
-                                        Old disabled label (3.13)
+                                        Retired disabled label (
+                                        {contrastRatio(
+                                            "#6f6244",
+                                            paletteHex("surface")
+                                        ).toFixed(2)}
+                                        )
                                     </span>
-                                    <span className="mx-2 text-border-accent">
+                                    <span className="mx-2 text-text-disabled">
                                         →
                                     </span>
                                     <span className="text-text-disabled">
-                                        New disabled label (
+                                        v4 disabled label (
                                         {contrastRatio(
-                                            "#968a68",
-                                            "#16110a"
+                                            paletteHex("text-disabled"),
+                                            paletteHex("surface")
                                         ).toFixed(2)}
                                         )
                                     </span>
@@ -188,16 +209,21 @@ export function FoundationsSections() {
                                         data-axe-exempt="Retired token #b1473a, rendered as the failing half of a before/after contrast comparison (issue #2593)."
                                         style={{ color: "#b1473a" }}
                                     >
-                                        Old error text (3.43)
+                                        danger as TEXT (
+                                        {contrastRatio(
+                                            "#b1473a",
+                                            paletteHex("surface")
+                                        ).toFixed(2)}
+                                        )
                                     </span>
-                                    <span className="mx-2 text-border-accent">
+                                    <span className="mx-2 text-text-disabled">
                                         →
                                     </span>
                                     <span className="text-danger-strong">
-                                        New error text (
+                                        danger-strong (
                                         {contrastRatio(
                                             "#e89384",
-                                            "#16110a"
+                                            paletteHex("surface")
                                         ).toFixed(2)}
                                         )
                                     </span>
@@ -297,20 +323,40 @@ export function FoundationsSections() {
                 id="typography"
                 index="03"
                 title="Typography"
-                blurb="Two faces: Beleren (display — headings, buttons, numbers on plates) and Geist Variable (UI body). Scale is small and ad-hoc but consistent in practice; the fix is codifying it, not changing it."
+                blurb={
+                    <>
+                        ONE chrome face: Geist Variable, in two registers —
+                        display (weight 500, −0.025em tracking, lining tabular
+                        numerals) for titles, buttons, life totals and counts;
+                        UI (400/600) for everything else. Beleren is retired
+                        from the chrome and reserved for the card domain (ADR
+                        0103 §4): <code>--font-beleren</code> is still declared
+                        in <code>:root</code> for the card renderers, but it is
+                        no longer exported through <code>@theme inline</code>,
+                        so no <code>font-beleren</code> utility exists for a
+                        chrome class to resolve to.
+                    </>
+                }
             >
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                    <Specimen label="Display — Beleren" tone="plain">
+                    <Specimen
+                        label="Display — Geist 500"
+                        tone="plain"
+                        note=".text-display · −0.025em · lining tabular"
+                    >
                         <p className="heading-panel text-left">
                             Panel heading (.heading-panel)
                         </p>
-                        <p className="mt-3 font-beleren text-base tracking-[0.16em] uppercase">
-                            Panel title (uppercase, 0.16em)
+                        <p className="text-display mt-3 text-base tracking-[0.16em] uppercase">
+                            Eyebrow label (uppercase, 0.16em)
                         </p>
-                        <p className="mt-3 font-beleren text-sm">
+                        <p className="text-display mt-3 text-sm">
                             Button label / stat chip
                         </p>
-                        <p className="title-treatment-glow mt-3 font-beleren text-2xl font-bold">
+                        <p className="text-display mt-3 text-2xl tabular-nums">
+                            20 · 17 · 4 — life totals never change width
+                        </p>
+                        <p className="title-treatment-glow text-display mt-3 text-2xl">
                             Title treatment glow
                         </p>
                     </Specimen>
@@ -338,18 +384,18 @@ export function FoundationsSections() {
                 id="scales"
                 index="04"
                 title="Radius · scrim · z-index"
-                blurb="Three scales that drifted: radius has 19 distinct values (rounded-sm dominates chrome at 155 uses, cards carve their own 7%), scrims range bg-black/10 → /70, and z-index is a flat ladder where z-100 serves 35 consumers and z-[110]/[120] exist only to beat it."
+                blurb="Three scales that drifted: radius had 19 distinct values (rounded-sm dominates chrome at 155 uses, and every card surface carved its own 6/7/8%), scrims ranged bg-black/10 → /70, and z-index is a flat ladder where z-100 serves 35 consumers and z-[110]/[120] exist only to beat it. Identity v4 closes the card half of the radius drift with --card-radius (a proportional 4.8% / 3.45%, the printed corner) and pins the scrim at one token; the chrome radii are unchanged."
             >
                 <Sub
                     title="Radius"
-                    note="proposal: codify 5 roles, migrate outliers"
+                    note="chrome radii unchanged by v4; the card corner becomes a token"
                 >
                     <div className="flex flex-wrap gap-3">
                         {[
                             ["rounded-sm", "chrome controls · 155", "now"],
                             ["rounded-md", "panels/buttons · 19", "now"],
                             ["rounded-xl", "dialog popup · 9", "now"],
-                            ["rounded-[7%]", "card art · 10", "now"],
+                            ["card-corner", "--card-radius · v4", "now"],
                             ["rounded-full", "pips/badges · 42", "now"],
                         ].map(([cls, use]) => (
                             <div key={cls} className="text-center">
@@ -371,13 +417,13 @@ export function FoundationsSections() {
                 </Sub>
                 <Sub
                     title="Scrim"
-                    note="dialog scrim is bg-black/10 today (spec: raise to 40–60%)"
+                    note="one token: --color-scrim, deepened 0.5 → 0.62 for the graphite ground"
                 >
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                         {[10, 40, 50, 60].map((pct) => (
                             <div key={pct} className="text-center">
                                 <div className="relative h-20 overflow-hidden rounded-sm border border-border-subtle">
-                                    <div className="absolute inset-0 bg-[linear-gradient(45deg,#5f97a8_25%,#c9a24b_25%,#c9a24b_50%,#b1473a_50%,#b1473a_75%,#6fa05a_75%)] bg-[size:24px_24px]" />
+                                    <div className="absolute inset-0 bg-[linear-gradient(45deg,#5f97a8_25%,#efe9da_25%,#efe9da_50%,#b1473a_50%,#b1473a_75%,#6fa05a_75%)] bg-[size:24px_24px]" />
                                     <div
                                         className="absolute inset-0"
                                         style={{

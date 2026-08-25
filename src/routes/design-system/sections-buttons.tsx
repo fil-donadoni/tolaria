@@ -84,14 +84,14 @@ export function ButtonsSection() {
             >
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                     <Specimen
-                        label='"Beleren plate" (15 uses in 10 files)'
+                        label='Bespoke "display plate" (15 uses in 10 files)'
                         tone="now"
                     >
                         <Row>
-                            <button className="rounded-sm border border-accent bg-accent-soft px-3 py-1.5 font-beleren text-xs tracking-wide text-accent-strong hover:bg-accent-soft/80">
+                            <button className="text-display rounded-sm border border-accent bg-accent-soft px-3 py-1.5 text-xs text-accent-strong hover:bg-accent-soft/80">
                                 Confirm
                             </button>
-                            <button className="rounded-sm border border-danger bg-danger-soft px-3 py-1.5 font-beleren text-xs tracking-wide text-danger-strong hover:bg-danger-soft/80">
+                            <button className="text-display rounded-sm border border-danger bg-danger-soft px-3 py-1.5 text-xs text-danger-strong hover:bg-danger-soft/80">
                                 Decline
                             </button>
                         </Row>
@@ -174,11 +174,11 @@ export function ButtonsSection() {
                     <p className="mt-3 text-xs text-text-muted">
                         Migration: <code>variant=&quot;default&quot;</code> →
                         primary, <code>outline</code> → secondary, destructive/
-                        ghost keep names, Beleren plates → primary/danger sm,
-                        circle pickers stay bespoke (card numerals),
-                        card-overlay buttons keep their recipe (fixed:
-                        bg-surface-muted → surface-elevated), debug buttons stay
-                        debug.
+                        ghost keep names, bespoke display plates →
+                        primary/danger sm, circle pickers stay bespoke (card
+                        numerals), card-overlay buttons keep their recipe
+                        (fixed: bg-surface-muted → surface-elevated), debug
+                        buttons stay debug.
                     </p>
                 </Specimen>
             </Sub>

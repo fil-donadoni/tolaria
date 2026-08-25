@@ -139,7 +139,7 @@ export function BannersSection() {
                     >
                         <div className="relative rounded-sm border border-border-subtle bg-surface px-4 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)]">
                             <InlineBrackets />
-                            <p className="text-center font-beleren text-sm tracking-wide text-parchment">
+                            <p className="text-display text-center text-sm text-parchment">
                                 Pay {`{2}{R}`}?
                             </p>
                             <div className="mt-2 flex justify-center gap-2">
@@ -219,7 +219,7 @@ export function BannersSection() {
                                 <span className="absolute bottom-1 left-1 h-3 w-3 rounded-bl-sm border-b-2 border-l-2 border-accent/70" />
                                 <span className="absolute right-1 bottom-1 h-3 w-3 rounded-br-sm border-b-2 border-r-2 border-accent/70" />
                             </span>
-                            <p className="text-center font-beleren text-sm tracking-wide text-parchment">
+                            <p className="text-display text-center text-sm text-parchment">
                                 Pay {`{2}{R}`}? — via CornerFiligreeFrame
                             </p>
                             <div className="mt-2 flex justify-center gap-2">

@@ -7,7 +7,7 @@ import { Section, Specimen, Where } from "./lib";
 function MockCard({ label }: { label: string }) {
     return (
         <div className="flex h-28 w-20 items-center justify-center rounded-[7%] border border-border-accent/60 bg-linear-to-b from-surface-elevated to-surface">
-            <span className="px-1 text-center font-beleren text-[10px] text-text-muted">
+            <span className="text-display px-1 text-center text-[10px] text-text-muted">
                 {label}
             </span>
         </div>
@@ -241,7 +241,7 @@ export function BoardDeadSections() {
                                     ],
                                     [
                                         "board/",
-                                        "15 floating banners → BoardBanner; 60 brackets → Panel overlay; turn pills/cue dots/priority → signal tokens; selection rings → signal tokens; Beleren plates → Button; surface-2/muted → surface-elevated",
+                                        "15 floating banners → BoardBanner; 60 brackets → Panel overlay; turn pills/cue dots/priority → signal tokens; selection rings → signal tokens; bespoke display-face plates → Button; surface-2/muted → surface-elevated",
                                         "~40 files",
                                     ],
                                     [
