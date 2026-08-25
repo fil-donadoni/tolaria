@@ -2532,6 +2532,64 @@ describe("backward compatibility", () => {
             expect(reading).toEqual(["Mountain"]);
         }
     });
+
+    it("backfills staticSeq from RECORD order across players, not player-major battlefield order (issue #1750, round 2 finding 2)", () => {
+        // Same Cyclopean Tomb + Blood Moon probe as above, but deliberately
+        // the OPPOSITE arrangement: Blood Moon on p2 applies FIRST, Cyclopean
+        // Tomb on p1 applies SECOND, so Tomb legitimately wins (["Swamp"]).
+        // Battlefield encounter order (`for (player) for (card)`) is
+        // player-major — p1's land+Tomb before p2's Moon — which is the
+        // OPPOSITE of true application order here. A backfill that dates by
+        // battlefield order instead of by the surviving record evidence
+        // (the land's own `grantedSubtypes` array order, which DOES capture
+        // "Moon pushed its record first") picks the wrong winner.
+        const land = makeInstance(tundra.id, {
+            id: "land-legacy-2",
+            counters: { mire: 1 },
+        });
+        const moon = makeInstance(bloodMoon.id, { id: "moon-legacy-2" });
+        const tomb = makeInstance(cyclopeanTomb.id, { id: "tomb-legacy-2" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, tomb] }),
+                makePlayer("p2", { battlefield: [moon] }),
+            ],
+        });
+
+        applySourceStaticEffects(state, moon);
+        applySourceStaticEffects(state, tomb);
+        expect(land.subtypes).toEqual(["Swamp"]);
+
+        const compact = compactState(state) as {
+            players: Array<{ battlefield: Array<Record<string, unknown>> }>;
+        };
+        for (const player of compact.players) {
+            for (const card of player.battlefield) {
+                delete card.staticSeq;
+                const grants = card.grantedSubtypes as
+                    | { seq?: number }[]
+                    | undefined;
+                for (const g of grants ?? []) delete g.seq;
+            }
+        }
+        expect(JSON.stringify(compact)).not.toContain("staticSeq");
+
+        const loaded = expandState(
+            compact as unknown as Record<string, unknown>
+        );
+        const loadedLand = loaded.players[0].battlefield.find(
+            (c) => c.id === "land-legacy-2"
+        )!;
+
+        const readings: string[][] = [[...loadedLand.subtypes]];
+        for (let i = 0; i < 3; i++) {
+            checkStateBasedActions(loaded);
+            readings.push([...loadedLand.subtypes]);
+        }
+        for (const reading of readings) {
+            expect(reading).toEqual(["Swamp"]);
+        }
+    });
 });
 
 describe("blob size regression guard", () => {

@@ -30,6 +30,7 @@ import { describe, it, expect } from "vitest";
 import {
     applySourceStaticEffects,
     buildSpellContext,
+    releaseGrantedKeywordOccurrence,
     removePermanentTo,
     unapplySourceStaticEffects,
     type CardInstanceState,
@@ -575,6 +576,47 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
                     suppressed: true,
                 },
                 { ability: "flying", auraId: "grant-a", seq: 1 },
+            ]);
+        });
+
+        it("a source's own removedKeywords entry is never mistaken for its debt (issue #1750, round 2 finding 3)", () => {
+            // CR 613.1f layer order makes a source outranking its OWN grant
+            // impossible — the apply-time `outrankedBy` check already
+            // excludes `r.sourceId !== source.id` — so a `removedKeywords`
+            // entry sharing the departing grant's `auraId` can only be an
+            // unrelated record that happens to name the same id in this
+            // constructed scenario. It must never be picked as the debt this
+            // release cancels, and the REAL outranking hold (from a
+            // different source) must still be the one that IS cancelled.
+            //
+            // Calls `releaseGrantedKeywordOccurrence` directly rather than
+            // through `unapplySourceStaticEffects`: that wrapper has its OWN
+            // separate `removedKeywords` restore block, keyed on `r.sourceId
+            // === source.id`, which would legitimately also touch a
+            // same-id entry and mask what this test is isolating.
+            const bear = makeInstance(grizzlyBears.id, { id: "bear-14" });
+            bear.staticAbilities = [];
+            bear.removedKeywords = [
+                // Shares the grant's own source id. The LOWER seq means an
+                // unguarded scan (picking the lowest QUALIFYING seq) would
+                // wrongly prefer this entry over the real hold below.
+                { keyword: "flying", sourceId: "self-src", seq: 2 },
+                // The real outranking hold, from an unrelated stripper.
+                { keyword: "flying", sourceId: "other-stripper", seq: 3 },
+            ];
+            const grant = {
+                ability: "flying",
+                auraId: "self-src",
+                seq: 1,
+                suppressed: true,
+            };
+
+            releaseGrantedKeywordOccurrence(bear, grant);
+
+            // The self-sourced entry survives untouched; the unrelated
+            // stripper's hold is the one actually cancelled.
+            expect(bear.removedKeywords).toEqual([
+                { keyword: "flying", sourceId: "self-src", seq: 2 },
             ]);
         });
     });

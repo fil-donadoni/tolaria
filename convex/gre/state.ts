@@ -6786,7 +6786,12 @@ function isIndefiniteKeywordGrant(grant: {
  *  re-apply needs the hold on record to re-decide suppression. */
 export function releaseGrantedKeywordOccurrence(
     card: CardInstanceState,
-    grant: { ability: string; suppressed?: boolean; seq?: number },
+    grant: {
+        ability: string;
+        suppressed?: boolean;
+        seq?: number;
+        auraId?: string;
+    },
     options: { transient?: boolean } = {}
 ): void {
     const keyword = grant.ability;
@@ -6798,6 +6803,13 @@ export function releaseGrantedKeywordOccurrence(
             for (let i = 0; i < removed.length; i++) {
                 const r = removed[i];
                 if (r.keyword !== keyword) continue;
+                // Mirrors the apply-time `outrankedBy` check
+                // (`applySourceStaticEffects`'s `r.sourceId !== source.id`):
+                // a source that both grants and strips the same keyword can
+                // never have outranked its OWN grant, so its own
+                // `removedKeywords` entry is not this grant's debtor and
+                // must not be cancelled by releasing it.
+                if (r.sourceId === grant.auraId) continue;
                 if ((r.seq ?? 0) <= (grant.seq ?? 0)) continue;
                 if (
                     bestIdx === -1 ||
