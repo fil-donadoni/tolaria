@@ -5,7 +5,10 @@ import {
     PERSISTED_OPTIONAL_KEYS,
     TRANSIENT_KEYS,
 } from "../serialize";
-import { applySourceStaticEffects } from "../state";
+import {
+    applySourceStaticEffects,
+    resetBattlefieldTransientState,
+} from "../state";
 import type { GameState, StackItem } from "../state";
 import {
     makeInstance,
@@ -336,6 +339,62 @@ describe("game_state serialize round-trip", () => {
         expect(
             empty.players[1].battlefield[0].temporarySubtypeChange
         ).toBeUndefined();
+    });
+
+    it("preserves an indefinite subtype set (Thelonite Monk shape, CR 400.7 / 611.2b, #1746/#2255)", () => {
+        // `indefiniteSubtypeSet` is the restore anchor for an INDEFINITE
+        // subtype replacement (`SpellContext.setSubtypes` — "target land
+        // becomes a Forest"). It has no duration to tick it out, so its only
+        // end is CR 400.7: the permanent becomes a new object on leaving the
+        // battlefield, and `resetBattlefieldTransientState` reads this anchor
+        // to restore the printed line. It was absent from both `compactCard`
+        // and `expandCard` (#2255) — the round-trip below is the fix.
+        const state = freshState();
+        const permanent = state.players[1].battlefield[0];
+        permanent.subtypes = ["Forest"];
+        permanent.indefiniteSubtypeSet = {
+            restoreSubtypes: ["Plains"],
+            subtypes: ["Forest"],
+        };
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[1].battlefield[0];
+        expect(got.subtypes).toEqual(["Forest"]);
+        expect(got.indefiniteSubtypeSet).toEqual({
+            restoreSubtypes: ["Plains"],
+            subtypes: ["Forest"],
+        });
+        // Absent when no indefinite set is active.
+        const empty = expandState(compactState(freshState()));
+        expect(
+            empty.players[1].battlefield[0].indefiniteSubtypeSet
+        ).toBeUndefined();
+    });
+
+    it("an indefinitely-set subtype line reverts on leaving the battlefield ACROSS a save/load (CR 400.7, #2255)", () => {
+        // A pure round-trip equality test (above) is not enough on its own —
+        // the bug was the ANCHOR being lost, whose only visible symptom is
+        // that a bounced permanent never reverts. This proves the anchor
+        // still does its job after a save/load boundary: a save mid-effect,
+        // then a reload, then the permanent leaves the battlefield — it must
+        // come back its printed subtype line (Plains), not stay a Forest.
+        const state = freshState();
+        const permanent = state.players[1].battlefield[0];
+        permanent.subtypes = ["Forest"];
+        permanent.indefiniteSubtypeSet = {
+            restoreSubtypes: ["Plains"],
+            subtypes: ["Forest"],
+        };
+        // Simulate the DB save/load boundary between the effect resolving
+        // and the permanent later leaving the battlefield.
+        const reloaded = expandState(compactState(state));
+        const got = reloaded.players[1].battlefield[0];
+        expect(got.subtypes).toEqual(["Forest"]);
+        // CR 400.7 — the permanent leaves the battlefield and becomes a new
+        // object; `resetBattlefieldTransientState` is the entry point that
+        // runs on that transition.
+        resetBattlefieldTransientState(got);
+        expect(got.subtypes).toEqual(["Plains"]);
+        expect(got.indefiniteSubtypeSet).toBeUndefined();
     });
 
     it("preserves an EMPTY mana-cost override and the art pin (CR 707.2 / 111, issue #2339)", () => {
