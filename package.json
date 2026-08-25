@@ -10,6 +10,7 @@
         "catalogue:build": "node scripts/fetch-full-catalogue.mjs",
         "oracle:corpus": "bun scripts/oracle-corpus.ts",
         "oracle:compile": "bun scripts/oracle-compile.ts",
+        "oracle:legality": "bun scripts/oracle-legality.ts",
         "oracle:report": "bun scripts/oracle-report.ts",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",

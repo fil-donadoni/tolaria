@@ -68,6 +68,7 @@ describe("resolveDeckCardMeta (deck legality metadata, ADR 0036)", () => {
         const meta = resolveDeckCardMeta(LIGHTNING_BOLT_LEA);
         expect(meta).toEqual({
             cardId: LIGHTNING_BOLT_LEA,
+            name: "Lightning Bolt", // issue #2695: the name-keyed legality join
             setCode: "lea",
             rarity: "common",
             isBasic: false,
