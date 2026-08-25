@@ -69,6 +69,16 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.number()),
         })
     ),
+    // CR 119.1 (issue #2147) — seed starting life totals, so a saved scenario
+    // can pin a life-dependent decision (chump-block vs. race, burn the
+    // creature vs. the face, a lethal check) instead of opening at the
+    // default. Mirrors `poison`'s per-seat, both-optional shape exactly.
+    life: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
     // CR 122.1 (issue #1969) — seed experience counters, so a saved scenario
     // can start at the SCALING state a "for each experience counter you have"
     // card reads. Mirrors `debugSetupScenario`'s matching arg
@@ -124,6 +134,10 @@ export type ScenarioSpec = {
     markLastDrawn?: boolean;
     rngSeed?: number;
     poison?: { me?: number; opp?: number };
+    /** CR 119.1 (issue #2147) — seed starting life totals, so a scenario can
+     *  pin a life-dependent decision (chump-block vs. race, a lethal check)
+     *  instead of opening at the default 20. */
+    life?: { me?: number; opp?: number };
     /** CR 122.1 (issue #1969) — seed experience counters on a player, so a
      *  scenario can start at the SCALING state a card's "for each experience
      *  counter you have" reads (Otharri, Suns' Glory). */
@@ -379,6 +393,12 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(poison, "me", pickNumber(raw.poison.me));
         set(poison, "opp", pickNumber(raw.poison.opp));
         spec.poison = poison;
+    }
+    if (isRecord(raw.life)) {
+        const life: { me?: number; opp?: number } = {};
+        set(life, "me", pickNumber(raw.life.me));
+        set(life, "opp", pickNumber(raw.life.opp));
+        spec.life = life;
     }
     if (isRecord(raw.experience)) {
         const experience: { me?: number; opp?: number } = {};

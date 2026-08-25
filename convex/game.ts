@@ -15981,6 +15981,21 @@ export const debugSetupScenario = mutation({
                 opp: v.optional(v.number()),
             })
         ),
+        /** Seed starting life totals (CR 119.1, issue #2147) — pins a
+         *  life-dependent decision (chump-block vs. race, a lethal check)
+         *  instead of opening at the default 20. Mirrors `poison`'s per-seat,
+         *  both-optional shape exactly. MUST stay in lock-step with
+         *  `scenarioSpecValidator` (`convex/debugScenarioSpec.ts`) — both live
+         *  load paths (`debug-db-scenarios.tsx`, `useScenarioTestGame.ts`)
+         *  spread a normalized spec straight into this mutation's args, so a
+         *  field present there and absent here throws
+         *  `ArgumentValidationError` before the handler runs. */
+        life: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
         /** Seed experience counters (CR 122.1, issue #1969) on a player. No
          *  rule removes them and no SBA reads them; they exist for the cards
          *  that count them (Otharri, Suns' Glory), so seeding them is how a
