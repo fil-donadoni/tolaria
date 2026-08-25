@@ -117,8 +117,9 @@ function isNonDestructiveManaOption(
     option: ManaTapOption
 ): boolean {
     if (option.source.kind !== "activated") return true;
+    const abilityId = option.source.abilityId;
     const entry = getEffectiveActivatedAbilities(card).find(
-        (r) => r.ability.id === option.source.abilityId
+        (r) => r.ability.id === abilityId
     );
     return !entry?.ability.cost.sacrifice;
 }
