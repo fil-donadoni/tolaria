@@ -15,6 +15,7 @@
 
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import type { Database } from "bun:sqlite";
 import { gatherLoopStatus, fetchPriorityGracefully } from "./loop-status";
@@ -23,6 +24,73 @@ import type { GracefulPriority } from "./loop-status";
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
 const HTML_PATH = join(PROJECT_DIR, "scripts/telemetry-dashboard.html");
+const DASHBOARD_DIR = join(PROJECT_DIR, "scripts/dashboard");
+
+/**
+ * The dashboard's static assets (#2625), as an EXPLICIT list of names.
+ *
+ * This is an allow-list, not sanitisation: the only thing a request
+ * contributes is a lookup key. It is never joined with a path, never
+ * decoded, never normalised, never compared with `startsWith` against a
+ * root — so `..`, an encoded `%2e%2e%2f`, an absolute path, a symlink or a
+ * null byte are all just keys that are not in the map, and the traversal is
+ * refused BY CONSTRUCTION rather than by a filter that has to be right.
+ * The paths below are built from these literals once, at module load.
+ *
+ * `Map`, not a plain object, so `__proto__` / `constructor` are ordinary
+ * missing keys rather than inherited truthy values.
+ *
+ * Kept in sync with the directory by
+ * `scripts/__tests__/telemetry-serve.test.ts`, which reds when a file lands
+ * in `scripts/dashboard/` without an entry here (the shape a later #2621
+ * ticket would otherwise ship: a module written, imported, and 404ing).
+ */
+export const DASHBOARD_ASSET_NAMES = [
+    "dashboard.css",
+    "main.js",
+    "tabs.js",
+    "theme.js",
+    "format.js",
+    "tooltip.js",
+    "svg.js",
+    "now-loop-status.js",
+    "now-verdict-band.js",
+    "now-claims-table.js",
+    "history-boot.js",
+    "history-state.js",
+    "history-colors.js",
+    "history-query.js",
+    "history-filters.js",
+    "history-refresh.js",
+    "history-narrative.js",
+    "history-timeline.js",
+    "history-ranking.js",
+    "history-metrics-table.js",
+    "history-tiles.js",
+    "history-drilldown.js",
+    "history-issues-table.js",
+    "history-sessions-table.js",
+    "history-families-table.js",
+] as const;
+
+const ASSET_CONTENT_TYPES: Record<string, string> = {
+    css: "text/css; charset=utf-8",
+    js: "text/javascript; charset=utf-8",
+};
+
+const ASSET_ALLOW_LIST: ReadonlyMap<string, { path: string; type: string }> =
+    new Map(
+        DASHBOARD_ASSET_NAMES.map((name) => [
+            name,
+            {
+                path: join(DASHBOARD_DIR, name),
+                type: ASSET_CONTENT_TYPES[name.split(".").pop() as string],
+            },
+        ])
+    );
+
+/** Everything under this prefix is an allow-list lookup and nothing else. */
+const ASSET_PREFIX = "/assets/";
 
 /**
  * `bun:sqlite` is a Bun-only builtin with no Node equivalent — a top-level
@@ -461,9 +529,22 @@ function getLoopStatusCached(): Promise<unknown> {
  */
 export interface TelemetryDeps {
     getLoopStatus: () => Promise<unknown>;
+    /**
+     * Reads one file off disk. Injected for the same reason
+     * `getLoopStatus` is: the `node` vitest project has no `Bun.file`, so an
+     * asset route built on it could not be tested at all — and the
+     * allow-list is precisely the part that must be. `node:fs/promises`
+     * would be portable enough on its own, but the injection also lets the
+     * test assert WHICH path the route asked for, which is how "the request
+     * string never reaches the filesystem" is proven rather than asserted.
+     */
+    readAsset: (absolutePath: string) => Promise<string>;
 }
 
-const defaultDeps: TelemetryDeps = { getLoopStatus: getLoopStatusCached };
+const defaultDeps: TelemetryDeps = {
+    getLoopStatus: getLoopStatusCached,
+    readAsset: (absolutePath) => readFile(absolutePath, "utf8"),
+};
 
 /**
  * The whole route table, extracted from the `Bun.serve` listener (#2623) so
@@ -474,14 +555,18 @@ const defaultDeps: TelemetryDeps = { getLoopStatus: getLoopStatusCached };
  */
 export async function handleRequest(
     req: Request,
-    deps: TelemetryDeps = defaultDeps
+    deps: Partial<TelemetryDeps> = {}
 ): Promise<Response> {
+    // `Partial`, so a test that only cares about one seam keeps passing one
+    // key — adding `readAsset` in #2625 must not force every existing call
+    // site to name every dependency.
+    const { getLoopStatus, readAsset } = { ...defaultDeps, ...deps };
     const url = new URL(req.url);
     try {
         // Reads no DB — must work even when telemetry.db is absent or
         // stale (#2519), so it is dispatched before any DB-backed route.
         if (url.pathname === "/api/loop-status") {
-            return Response.json(await deps.getLoopStatus());
+            return Response.json(await getLoopStatus());
         }
         if (url.pathname === "/api/meta") {
             return Response.json(meta());
@@ -511,8 +596,21 @@ export async function handleRequest(
             return Response.json(runQuery((await req.json()) as QueryBody));
         }
         if (url.pathname === "/" || url.pathname === "/index.html") {
-            return new Response(Bun.file(HTML_PATH), {
+            return new Response(await readAsset(HTML_PATH), {
                 headers: { "content-type": "text/html; charset=utf-8" },
+            });
+        }
+        if (url.pathname.startsWith(ASSET_PREFIX)) {
+            // The remainder of the path is used as a Map KEY and for nothing
+            // else. There is no `join` with it, no normalisation, no
+            // `startsWith` containment check — an unlisted name (including
+            // every spelling of a traversal) simply misses and 404s.
+            const asset = ASSET_ALLOW_LIST.get(
+                url.pathname.slice(ASSET_PREFIX.length)
+            );
+            if (!asset) return new Response("not found", { status: 404 });
+            return new Response(await readAsset(asset.path), {
+                headers: { "content-type": asset.type },
             });
         }
         return new Response("not found", { status: 404 });
