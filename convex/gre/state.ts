@@ -960,8 +960,12 @@ export type CardInstanceState = {
         subtype: string;
         auraId: string;
         /** CR 613.7 layer timestamp of the adding SOURCE (issue #1715) — see
-         *  `grantedSubtypes.seq`. Absent for the `"indefinite"` sentinel
-         *  source (a resolved one-shot, CR 611.2c), which sorts first. */
+         *  `grantedSubtypes.seq`. Stamped for the `"indefinite"` sentinel
+         *  source too (issue #1750, part a): `SpellContext.addSubtype`
+         *  mints a real `allocStaticTimestamp` like every other layer-4
+         *  writer, so a resolved one-shot add orders against a live
+         *  `subtype-set` by WHEN it resolved, not as an automatic earliest —
+         *  a genuinely later add must survive an earlier set's recompose. */
         seq?: number;
     }[];
     /** Layer 5 color grants (CR 305.7). Each entry records one source's
@@ -6585,8 +6589,13 @@ export function emitPermanentEntered(
 }
 
 /** Returns the effective static effects for a card, merging card-level and
- *  mode-level effects when a `chosenModeId` is present (CR 700.2c). */
-function getEffectiveStaticEffects(
+ *  mode-level effects when a `chosenModeId` is present (CR 700.2c).
+ *  Exported (issue #1750, part c) so `serialize.ts`'s legacy `staticSeq`
+ *  backfill can gate on the EXACT same "does this source ever get stamped"
+ *  question `applySourceStaticEffects` answers with its own `effects.length
+ *  === 0` early return — a card with no continuous static effects is never a
+ *  `staticSeq` producer/consumer and must not be backfilled one. */
+export function getEffectiveStaticEffects(
     def:
         | {
               staticEffects?: StaticEffect[];
@@ -6753,14 +6762,72 @@ function isIndefiniteKeywordGrant(grant: {
  *  Fail-closed by construction: a future grant producer that forgets the
  *  model still cannot over-splice through here, because the "no live
  *  occurrence" branch consumes a stripper hold instead of a stranger's
- *  keyword. */
+ *  keyword.
+ *
+ *  **A `suppressed` grant is NOT a true zero, though (issue #1750, part b).**
+ *  It owns no LIVE occurrence, but the `removedKeywords` entry that outranked
+ *  it at apply time (CR 613.1f) is still on record, and that entry's own
+ *  later unapply unconditionally hands ONE occurrence back
+ *  (`unapplySourceStaticEffects`'s `removedKeywords` block) — it does so
+ *  whether or not it can still find a suppressed grant to credit, because the
+ *  hold itself is proof an occurrence was taken from the multiset and is
+ *  owed back. If THIS grant's source leaves first, its `suppressed` entry
+ *  simply disappears (dropped by the `auraId === source.id` filter above this
+ *  function's call site) with nothing cancelling the debt on the other side —
+ *  so the stripper's later unapply hands the occurrence to nobody, which
+ *  reads exactly like the printed card had gained it. A FINAL (non-transient)
+ *  release of a suppressed grant must therefore cancel the specific
+ *  outranking hold — the same comparison `applySourceStaticEffects` used to
+ *  mark it suppressed (`r.seq > grant.seq`, lowest qualifying `r.seq` when
+ *  several holds match, mirroring the restore-site pick in
+ *  `unapplySourceStaticEffects`) — instead of restoring the occurrence at
+ *  all. A TRANSIENT release must still leave the hold untouched: it is one
+ *  half of a `refreshCounterGatedStatics` round trip and the immediate
+ *  re-apply needs the hold on record to re-decide suppression. */
 export function releaseGrantedKeywordOccurrence(
     card: CardInstanceState,
-    grant: { ability: string; suppressed?: boolean },
+    grant: {
+        ability: string;
+        suppressed?: boolean;
+        seq?: number;
+        auraId?: string;
+    },
     options: { transient?: boolean } = {}
 ): void {
-    if (grant.suppressed) return;
     const keyword = grant.ability;
+    if (grant.suppressed) {
+        if (options.transient) return;
+        const removed = card.removedKeywords;
+        if (removed?.length) {
+            let bestIdx = -1;
+            for (let i = 0; i < removed.length; i++) {
+                const r = removed[i];
+                if (r.keyword !== keyword) continue;
+                // Mirrors the apply-time `outrankedBy` check
+                // (`applySourceStaticEffects`'s `r.sourceId !== source.id`):
+                // a source that both grants and strips the same keyword can
+                // never have outranked its OWN grant, so its own
+                // `removedKeywords` entry is not this grant's debtor and
+                // must not be cancelled by releasing it.
+                if (r.sourceId === grant.auraId) continue;
+                if ((r.seq ?? 0) <= (grant.seq ?? 0)) continue;
+                if (
+                    bestIdx === -1 ||
+                    (r.seq ?? 0) < (removed[bestIdx].seq ?? 0)
+                ) {
+                    bestIdx = i;
+                }
+            }
+            if (bestIdx !== -1) {
+                const kept = [
+                    ...removed.slice(0, bestIdx),
+                    ...removed.slice(bestIdx + 1),
+                ];
+                card.removedKeywords = kept.length > 0 ? kept : undefined;
+            }
+        }
+        return;
+    }
     const idx = card.staticAbilities.indexOf(keyword);
     if (idx !== -1) {
         card.staticAbilities = [
@@ -6834,7 +6901,17 @@ function unapplyKeywordCounterGrant(
  *  here but has no permanent of its own to hang a `staticSeq` on. Counting only
  *  `staticSeq` made the next caller mint the SAME number, so a Blood Moon
  *  entering after that grant tied with it instead of outranking it and the
- *  Saga kept the mana ability the Moon should have stripped (CR 613.1f). */
+ *  Saga kept the mana ability the Moon should have stripped (CR 613.1f).
+ *
+ *  The SAME sourceless-record gap applies to `grantedSubtypesAdd` /
+ *  `grantedSubtypes` (issue #1750, part a): `SpellContext.addSubtype` /
+ *  `setSupertype`-style resolving-ability writers use the `"indefinite"`
+ *  sentinel source, which — like the activated-ability grant above — has no
+ *  battlefield permanent to carry a `staticSeq`. Without scanning these two
+ *  arrays too, a fresh `addSubtype` call could mint a seq that TIES an
+ *  existing indefinite add or set instead of strictly outranking it, silently
+ *  reintroducing the exact ordering bug this function exists to prevent one
+ *  layer down (CR 613 layer 4 instead of layer 6). */
 function allocStaticTimestamp(state: GameState): number {
     let max = 0;
     const bump = (seq: number | undefined) => {
@@ -6846,6 +6923,8 @@ function allocStaticTimestamp(state: GameState): number {
             for (const g of card.grantedActivatedAbilities ?? []) bump(g.seq);
             for (const g of card.grantedTriggeredAbilities ?? []) bump(g.seq);
             for (const s of card.abilitiesSuppressedBy ?? []) bump(s.seq);
+            for (const g of card.grantedSubtypesAdd ?? []) bump(g.seq);
+            for (const g of card.grantedSubtypes ?? []) bump(g.seq);
         }
     }
     return max + 1;
@@ -7412,15 +7491,26 @@ export function unapplySourceStaticEffects(
                     // it back to that grant so a later unapply of the GRANT
                     // splices it out again (and this stripper's restore is not
                     // double-counted). Exactly one grant per restored
-                    // occurrence, oldest first.
-                    const outranked = (
-                        target.grantedStaticAbilities ?? []
-                    ).find(
-                        (g) =>
-                            g.suppressed === true &&
-                            g.ability === r.keyword &&
-                            (g.seq ?? 0) < (r.seq ?? 0)
-                    );
+                    // occurrence, oldest (LOWEST seq) first — issue #1750
+                    // part b: with 2+ suppressed grants of the same keyword,
+                    // `.find` previously picked by ARRAY POSITION, which is
+                    // construction order, not layer order; the lowest-seq
+                    // grant is the one CR 613.7 actually reapplies first once
+                    // the stripper is gone, so it is the one that must
+                    // reclaim the slot.
+                    let outranked:
+                        | NonNullable<
+                              typeof target.grantedStaticAbilities
+                          >[number]
+                        | undefined;
+                    for (const g of target.grantedStaticAbilities ?? []) {
+                        if (g.suppressed !== true) continue;
+                        if (g.ability !== r.keyword) continue;
+                        if ((g.seq ?? 0) >= (r.seq ?? 0)) continue;
+                        if (!outranked || (g.seq ?? 0) < (outranked.seq ?? 0)) {
+                            outranked = g;
+                        }
+                    }
                     if (outranked) delete outranked.suppressed;
                 }
                 target.removedKeywords = kept.length > 0 ? kept : undefined;
@@ -13537,9 +13627,23 @@ export function buildSpellContext(
                 (o) => o.auraId === "indefinite" && o.subtype === subtype
             );
             if (already) return;
+            // CR 613.7 / 611.2c (issue #1750, part a) — stamp a real layer
+            // timestamp like every other layer-4 writer
+            // (`applySourceStaticEffects`'s `subtype-add` branch). Left
+            // unstamped, `composeMaterializedSubtypes` reads the entry via
+            // `seq ?? 0` and sorts it as the EARLIEST possible record, so a
+            // live `subtype-set` that applies later always wins the replay —
+            // even when this indefinite add is genuinely the more recent
+            // effect (Cocoon-style "gains flying" is duration-free, but a
+            // subtype-add resolving AFTER a subtype-set aura is already live
+            // must still show up on top of it).
             card.grantedSubtypesAdd = [
                 ...origins,
-                { subtype, auraId: "indefinite" },
+                {
+                    subtype,
+                    auraId: "indefinite",
+                    seq: allocStaticTimestamp(state),
+                },
             ];
             if (!card.subtypes.includes(subtype)) {
                 card.subtypes = [...card.subtypes, subtype];

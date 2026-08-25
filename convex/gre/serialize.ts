@@ -35,6 +35,7 @@
 // writes v2 going forward; there is no code path that writes v1 anymore.
 
 import { tryGetDefinition } from "../cards";
+import { getEffectiveStaticEffects } from "./state";
 import type {
     CardInstanceState,
     GameState,
@@ -1784,5 +1785,233 @@ export function expandState(data: Record<string, unknown>): GameState {
                       ),
         })) as GameState["stagedEntries"];
     }
+    backfillLegacyStaticSeq(result);
     return result;
+}
+
+/** One (field, id-key) pair per CR 613.7-timestamped layer-4/6 record a
+ *  continuous-effect SOURCE can own on some OTHER permanent's card state
+ *  (`gre/state.ts`'s `applySourceStaticEffects`). `idKey` is whichever field
+ *  the record uses to name its owning source: `auraId` for the four record
+ *  kinds that ALSO serve non-static-effect grant paths (duration-, counter-
+ *  or resolving-ability-sourced, none of which can ever name a legacy
+ *  battlefield card's id), `sourceId` for the three written only by a
+ *  continuous static effect. Shared between `backfillLegacyStaticSeq`'s
+ *  order-mining pass and its stamping pass so the two can never drift apart
+ *  on which record kinds are in scope. */
+const LEGACY_SEQ_RECORD_SPECS: {
+    field:
+        | "grantedStaticAbilities"
+        | "grantedActivatedAbilities"
+        | "grantedTriggeredAbilities"
+        | "removedKeywords"
+        | "abilitiesSuppressedBy"
+        | "grantedSubtypes"
+        | "grantedSubtypesAdd";
+    idKey: "sourceId" | "auraId";
+}[] = [
+    { field: "grantedStaticAbilities", idKey: "auraId" },
+    { field: "grantedActivatedAbilities", idKey: "auraId" },
+    { field: "grantedTriggeredAbilities", idKey: "auraId" },
+    { field: "removedKeywords", idKey: "sourceId" },
+    { field: "abilitiesSuppressedBy", idKey: "sourceId" },
+    { field: "grantedSubtypes", idKey: "sourceId" },
+    { field: "grantedSubtypesAdd", idKey: "auraId" },
+];
+
+/** Reads one record array off `card` loosely-typed — every shape in
+ *  `LEGACY_SEQ_RECORD_SPECS` is a plain `{ [idKey]: string, seq?: number,
+ *  ... }[]`, but they don't share a common TS interface, so this is the one
+ *  place that casts through `Record<string, unknown>` rather than scattering
+ *  the cast at every call site. */
+function legacySeqRecords(
+    card: CardInstanceState,
+    field: (typeof LEGACY_SEQ_RECORD_SPECS)[number]["field"]
+): Record<string, unknown>[] {
+    return (
+        (card as unknown as Record<string, Record<string, unknown>[]>)[field] ??
+        []
+    );
+}
+
+/** CR 613.7 (issue #1750, part c) — backfill `staticSeq` for every
+ *  battlefield card saved before issue #1715/#1730 introduced the field.
+ *  `expandState` is the ONE place that sees a freshly-loaded board before any
+ *  SBA pass touches it, so this is also the only place that can fix the
+ *  order ONCE rather than let it drift.
+ *
+ *  Without this, an undated card reads via `?? 0` everywhere the timestamp is
+ *  consulted (`composeMaterializedSubtypes`, the `keyword-grant`
+ *  `outrankedBy` check) — harmless AS LONG AS it stays undated, since every
+ *  other undated card ties with it the same way. The moment ONE of them is
+ *  next touched by `refreshCounterGatedStatics` (any counter- or
+ *  condition-gated static effect), `applySourceStaticEffects`'s
+ *  `preserveTimestamp && source.staticSeq !== undefined` guard is false, so
+ *  it mints a BRAND NEW timestamp — the current board's highest — jumping
+ *  that one card from "tied earliest with everyone else" to "strictly
+ *  latest" while its still-untouched neighbours stay at 0. That is a real
+ *  reorder, not a restamp: two sources that agreed before now disagree, and
+ *  WHICH one gets refreshed first (an SBA-pass accident, not a rule) decides
+ *  the outcome (Cyclopean Tomb + Blood Moon on a mired nonbasic land: the
+ *  land's type flips between "Mountain" and "Swamp" depending on how many
+ *  SBA passes have run since load).
+ *
+ *  Fix: give every undated SOURCE an EXPLICIT, stable timestamp before
+ *  anything can read `?? 0` for it — AND stamp every layer-4/6 RECORD that
+ *  source already owns on any target with that same value (issue #1750
+ *  round 2). A card-level restamp alone is not enough: those records
+ *  (`grantedSubtypes[].seq` etc., see `LEGACY_SEQ_RECORD_SPECS`) are what
+ *  `composeMaterializedSubtypes` / the `keyword-grant` `outrankedBy` check
+ *  actually read, and `applySourceStaticEffects`'s `already = grants.some(g
+ *  => g.sourceId === source.id)` guard means a plain re-apply never revisits
+ *  an existing record to fix its `seq` — only a full unapply+reapply
+ *  (`refreshCounterGatedStatics`) replaces the entry, and by then it copies
+ *  the NEW `staticSeq` this pass assigns. Left unstamped, a record kept
+ *  reading `?? 0` = tied-earliest even after its owning source stopped being
+ *  tied — exactly the bug this function exists to remove, just moved one
+ *  layer down.
+ *
+ *  Assigned NEGATIVE, strictly increasing — negative so a backfilled
+ *  (necessarily pre-#1730) source always sorts BEFORE any card that already
+ *  carries a real (non-negative) timestamp. `allocStaticTimestamp`
+ *  (`gre/state.ts`) is untouched by this choice: it only ever takes a MAX
+ *  over live `staticSeq`/grant `seq` values, so a negative backfilled value
+ *  never collides with, or gets exceeded by, a freshly-minted one.
+ *
+ *  **Order is mined from the surviving RECORD evidence, not battlefield
+ *  encounter order (CR 613.7a/613.7m).** Battlefield order is player-major
+ *  (`for (player of state.players) for (card of player.battlefield)`), which
+ *  dates every permanent of the FIRST player strictly before every permanent
+ *  of the SECOND — never a real CR 613.7a application order across two
+ *  players. What DOES survive a legacy blob is each target's layer-4/6
+ *  record ARRAY order: every write site pushes onto a target's record list
+ *  at the moment its source applies, so two sources that both touch the same
+ *  target leave their relative apply order encoded in that array's element
+ *  order, whatever timestamps did or didn't exist at the time. This pass
+ *  mines that evidence into a partial order (Kahn's topological sort over
+ *  "consecutive entries in the same target's record array" edges) and falls
+ *  back to battlefield encounter order ONLY to break a tie between two
+ *  sources with no surviving record to order them against each other (a
+ *  source whose static effects never touch a shared target, or a
+ *  first-ever load with no records at all).
+ *
+ *  **Gated on `getEffectiveStaticEffects` being non-empty** — the SAME
+ *  condition `applySourceStaticEffects` itself early-returns on
+ *  (`effects.length === 0`). The overwhelming majority of battlefield cards
+ *  (a vanilla creature, a basic land) never author a `staticSeq` at all —
+ *  not because they are legacy, but because nothing ever asks them to order
+ *  against anything. Backfilling those too is not just unnecessary, it is a
+ *  live bug: `compactState` never persists a `staticSeq` a card doesn't
+ *  have, so backfilling every seq-less card unconditionally would stamp a
+ *  fresh, made-up timestamp onto EVERY plain permanent on EVERY load,
+ *  failing the compact/expand round-trip for ordinary boards that were never
+ *  the target of this fix (caught by `serialize.test.ts`'s round-trip
+ *  assertion, which is exactly why this gate exists). */
+function backfillLegacyStaticSeq(state: GameState): void {
+    const legacy: CardInstanceState[] = [];
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (card.staticSeq !== undefined) continue;
+            const cardId = (card.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : null;
+            const effects = getEffectiveStaticEffects(def, card.chosenModeId);
+            if (effects.length === 0) continue;
+            legacy.push(card);
+        }
+    }
+    if (legacy.length === 0) return;
+
+    const legacyIds = new Set(legacy.map((c) => c.id));
+    const fallbackIndex = new Map(legacy.map((c, i) => [c.id, i]));
+
+    // Mine "u applied before v" edges from every target's record arrays —
+    // this is the ONLY surviving evidence of true application order; see the
+    // doc comment above.
+    const dependents = new Map<string, Set<string>>(); // u -> {v applied after u}
+    const inboundCount = new Map<string, number>();
+    const addEdge = (u: string, v: string) => {
+        if (u === v) return;
+        let set = dependents.get(u);
+        if (!set) {
+            set = new Set();
+            dependents.set(u, set);
+        }
+        if (!set.has(v)) {
+            set.add(v);
+            inboundCount.set(v, (inboundCount.get(v) ?? 0) + 1);
+        }
+    };
+    for (const player of state.players) {
+        for (const target of player.battlefield) {
+            for (const spec of LEGACY_SEQ_RECORD_SPECS) {
+                const ids = legacySeqRecords(target, spec.field)
+                    .map((entry) => entry[spec.idKey] as string | undefined)
+                    .filter(
+                        (id): id is string =>
+                            id !== undefined && legacyIds.has(id)
+                    );
+                for (let i = 1; i < ids.length; i++) {
+                    addEdge(ids[i - 1], ids[i]);
+                }
+            }
+        }
+    }
+
+    // Kahn's topological sort. Ties (no mined edge decides between two
+    // "ready" sources) are broken by battlefield encounter order — the
+    // fallback of last resort once the records run out.
+    const ready = legacy
+        .filter((c) => (inboundCount.get(c.id) ?? 0) === 0)
+        .map((c) => c.id)
+        .sort((a, b) => fallbackIndex.get(a)! - fallbackIndex.get(b)!);
+    const order: string[] = [];
+    while (ready.length > 0) {
+        const id = ready.shift()!;
+        order.push(id);
+        for (const next of dependents.get(id) ?? []) {
+            const remaining = (inboundCount.get(next) ?? 0) - 1;
+            inboundCount.set(next, remaining);
+            if (remaining === 0) {
+                const insertAt = fallbackIndex.get(next)!;
+                let pos = ready.findIndex(
+                    (r) => fallbackIndex.get(r)! > insertAt
+                );
+                if (pos === -1) pos = ready.length;
+                ready.splice(pos, 0, next);
+            }
+        }
+    }
+    // A cycle would mean two targets' record arrays disagree about which of
+    // two sources applied first — should never happen, since every array is
+    // independently written in true application order — but rather than
+    // silently drop a card's stamp, append whatever is left in fallback
+    // order.
+    if (order.length < legacy.length) {
+        const placed = new Set(order);
+        for (const card of legacy) {
+            if (!placed.has(card.id)) order.push(card.id);
+        }
+    }
+
+    const seqById = new Map<string, number>();
+    order.forEach((id, i) => seqById.set(id, i - legacy.length));
+    for (const card of legacy) {
+        card.staticSeq = seqById.get(card.id)!;
+    }
+
+    // Stamp every record a legacy source owns on any target with that
+    // source's freshly assigned seq — the actual fix (see doc comment).
+    for (const player of state.players) {
+        for (const target of player.battlefield) {
+            for (const spec of LEGACY_SEQ_RECORD_SPECS) {
+                for (const entry of legacySeqRecords(target, spec.field)) {
+                    if (entry.seq !== undefined) continue;
+                    const id = entry[spec.idKey] as string | undefined;
+                    if (id === undefined) continue;
+                    const seq = seqById.get(id);
+                    if (seq !== undefined) entry.seq = seq;
+                }
+            }
+        }
+    }
 }

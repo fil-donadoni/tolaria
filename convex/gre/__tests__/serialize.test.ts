@@ -5,6 +5,7 @@ import {
     PERSISTED_OPTIONAL_KEYS,
     TRANSIENT_KEYS,
 } from "../serialize";
+import { applySourceStaticEffects } from "../state";
 import type { GameState, StackItem } from "../state";
 import {
     makeInstance,
@@ -13,14 +14,18 @@ import {
 } from "../../cards/__tests__/setup";
 import {
     animateArtifact,
+    cyclopeanTomb,
     lightningBolt,
     mountain,
     plains,
     savannahLions,
+    tundra,
 } from "../../cards/sets/lea";
+import { bloodMoon } from "../../cards/sets/drk/red";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import type { TokenSpec } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
+import { checkStateBasedActions } from "../sba";
 
 function freshState(): GameState {
     const p1 = makePlayer("p1", {
@@ -2448,6 +2453,142 @@ describe("backward compatibility", () => {
         expect(first.card.id).toBe(expectedCardId);
         expect(first.zone).toBe("library");
         expect(first.ownerId).toBe(expanded.players[0].id);
+    });
+
+    it("CR 613.7 — backfills staticSeq for a pre-#1730 saved state, stable across repeated SBA passes (issue #1750 part c)", () => {
+        // Cyclopean Tomb (counter-gated subtype-set) + Blood Moon
+        // (unconditional subtype-set) both materializing "Mountain"/"Swamp"
+        // onto the SAME mired nonbasic land is the exact scenario the issue
+        // probed by hand: loads as ["Mountain"], then (without this fix)
+        // flips to ["Swamp"] the first time `refreshCounterGatedStatics`
+        // re-stamps Tomb with a brand-new LATEST timestamp instead of its
+        // (missing) original one.
+        const land = makeInstance(tundra.id, {
+            id: "land-legacy-1",
+            counters: { mire: 1 },
+        });
+        const tomb = makeInstance(cyclopeanTomb.id, { id: "tomb-legacy-1" });
+        const moon = makeInstance(bloodMoon.id, { id: "moon-legacy-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, tomb, moon] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Materialize both sources for real — Tomb first, then Moon (Moon's
+        // later set wins the tie), mirroring the narrative a legacy save
+        // would have recorded before #1715/#1730 ever stamped a seq.
+        applySourceStaticEffects(state, tomb);
+        applySourceStaticEffects(state, moon);
+        expect(land.subtypes).toEqual(["Mountain"]);
+
+        // Round-trip through the REAL compact path, then strip every
+        // #1730-era field by hand — exactly what a row saved before that
+        // deploy looks like on disk.
+        const compact = compactState(state) as {
+            players: Array<{ battlefield: Array<Record<string, unknown>> }>;
+        };
+        for (const card of compact.players[0].battlefield) {
+            delete card.staticSeq;
+            const grants = card.grantedSubtypes as
+                | { seq?: number }[]
+                | undefined;
+            for (const g of grants ?? []) delete g.seq;
+        }
+        // Every source's OWN `staticSeq`, and the layer-4 record seqs those
+        // sources wrote (`grantedSubtypes`), are gone — exactly what a row
+        // saved before #1715/#1730 looks like. `abilitiesSuppressedBy` (Blood
+        // Moon's CR 613.1f ability strip) predates this issue and is left
+        // alone: it is not part of the CR 613.7 subtype-ordering bug this
+        // test guards.
+        expect(JSON.stringify(compact)).not.toContain("staticSeq");
+        for (const card of compact.players[0].battlefield) {
+            expect(card.grantedSubtypes ?? []).not.toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ seq: expect.anything() }),
+                ])
+            );
+        }
+
+        const loaded = expandState(
+            compact as unknown as Record<string, unknown>
+        );
+        const loadedLand = loaded.players[0].battlefield.find(
+            (c) => c.id === "land-legacy-1"
+        )!;
+
+        // Stable across REPEATED SBA passes, not just a single before/after
+        // read: the bug this guards re-stamps Tomb once on its first refresh
+        // and then holds that (buggy, LATEST) value forever, so a test that
+        // only compares "load time" against "one pass later" cannot tell a
+        // fixed board from a board that flipped exactly once and stayed put.
+        const readings: string[][] = [[...loadedLand.subtypes]];
+        for (let i = 0; i < 3; i++) {
+            checkStateBasedActions(loaded);
+            readings.push([...loadedLand.subtypes]);
+        }
+        for (const reading of readings) {
+            expect(reading).toEqual(["Mountain"]);
+        }
+    });
+
+    it("backfills staticSeq from RECORD order across players, not player-major battlefield order (issue #1750, round 2 finding 2)", () => {
+        // Same Cyclopean Tomb + Blood Moon probe as above, but deliberately
+        // the OPPOSITE arrangement: Blood Moon on p2 applies FIRST, Cyclopean
+        // Tomb on p1 applies SECOND, so Tomb legitimately wins (["Swamp"]).
+        // Battlefield encounter order (`for (player) for (card)`) is
+        // player-major — p1's land+Tomb before p2's Moon — which is the
+        // OPPOSITE of true application order here. A backfill that dates by
+        // battlefield order instead of by the surviving record evidence
+        // (the land's own `grantedSubtypes` array order, which DOES capture
+        // "Moon pushed its record first") picks the wrong winner.
+        const land = makeInstance(tundra.id, {
+            id: "land-legacy-2",
+            counters: { mire: 1 },
+        });
+        const moon = makeInstance(bloodMoon.id, { id: "moon-legacy-2" });
+        const tomb = makeInstance(cyclopeanTomb.id, { id: "tomb-legacy-2" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, tomb] }),
+                makePlayer("p2", { battlefield: [moon] }),
+            ],
+        });
+
+        applySourceStaticEffects(state, moon);
+        applySourceStaticEffects(state, tomb);
+        expect(land.subtypes).toEqual(["Swamp"]);
+
+        const compact = compactState(state) as {
+            players: Array<{ battlefield: Array<Record<string, unknown>> }>;
+        };
+        for (const player of compact.players) {
+            for (const card of player.battlefield) {
+                delete card.staticSeq;
+                const grants = card.grantedSubtypes as
+                    | { seq?: number }[]
+                    | undefined;
+                for (const g of grants ?? []) delete g.seq;
+            }
+        }
+        expect(JSON.stringify(compact)).not.toContain("staticSeq");
+
+        const loaded = expandState(
+            compact as unknown as Record<string, unknown>
+        );
+        const loadedLand = loaded.players[0].battlefield.find(
+            (c) => c.id === "land-legacy-2"
+        )!;
+
+        const readings: string[][] = [[...loadedLand.subtypes]];
+        for (let i = 0; i < 3; i++) {
+            checkStateBasedActions(loaded);
+            readings.push([...loadedLand.subtypes]);
+        }
+        for (const reading of readings) {
+            expect(reading).toEqual(["Swamp"]);
+        }
     });
 });
 

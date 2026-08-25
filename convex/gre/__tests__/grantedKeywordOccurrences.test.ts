@@ -12,7 +12,13 @@
 //     another source (or the printed card) already put there, so idempotence
 //     keys on the grant's own `grantedStaticAbilities` record and never on
 //     `staticAbilities.includes(...)`;
-//   * a `suppressed` grant (CR 613.1f) owns ZERO occurrences and releases none;
+//   * a `suppressed` grant (CR 613.1f) owns ZERO LIVE occurrences and never
+//     splices `staticAbilities` — but the `removedKeywords` entry that
+//     outranked it at apply time is still on record, and a FINAL (not
+//     transient) release must cancel that specific hold, or the stripper's
+//     own later unapply hands the occurrence to nobody once the grant is
+//     gone (issue #1750 part b — see "a suppressed grant releases its debt"
+//     below);
 //   * a STRIPPER (`removedKeywords` / `temporaryRemovedKeywords`) TAKES one
 //     occurrence and holds it until it restores it — so a grant released while
 //     a stripper holds its occurrence must cancel that hold, or the restore
@@ -24,6 +30,7 @@ import { describe, it, expect } from "vitest";
 import {
     applySourceStaticEffects,
     buildSpellContext,
+    releaseGrantedKeywordOccurrence,
     removePermanentTo,
     unapplySourceStaticEffects,
     type CardInstanceState,
@@ -425,6 +432,192 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // occurrence of its own to give back.
             expect(count(elemental, "flying")).toBe(1);
             expect(elemental.grantedStaticAbilities).toBeUndefined();
+        });
+    });
+
+    describe("a suppressed grant releases its debt when its source leaves before the stripper does (CR 613.1f, issue #1750 part b)", () => {
+        // Constructed directly, same precedent as the block above: no shipped
+        // card produces a condition- or counter-gated `keyword-grant` that
+        // ALSO gets outranked by a stripper (the only way a grant is ever
+        // marked `suppressed` is `refreshCounterGatedStatics`'s preserve-
+        // timestamp reapply — Kavu Runner is the one shipped condition-gated
+        // `keyword-grant`, and nothing strips its self-granted haste). The
+        // shape below is exactly what that mechanism leaves behind: a
+        // `suppressed` grant record, and the stripper's `removedKeywords`
+        // hold that outranked it (taken from the grant's own occurrence
+        // BEFORE the refresh that suppressed it — issue #1750's own scenario
+        // has no printed keyword and no other live source in the mix, so the
+        // hold is UNAMBIGUOUSLY the departing grant's own escrowed unit; a
+        // hold shared with a printed keyword or another still-live source is
+        // a deeper, separate model limitation — tracked-by:
+        // docs/findings/1750-shared-hold-cross-contamination.md, out of
+        // scope here).
+        function suppressedScenario(bearId: string) {
+            const bear = makeInstance(grizzlyBears.id, { id: bearId });
+            bear.grantedStaticAbilities = [
+                {
+                    ability: "flying",
+                    auraId: "grant-src",
+                    seq: 1,
+                    suppressed: true,
+                },
+            ];
+            bear.removedKeywords = [
+                { keyword: "flying", sourceId: "stripper-src", seq: 2 },
+            ];
+            const state = makeBoard(bear);
+            const grantSrc = makeInstance(grizzlyBears.id, { id: "grant-src" });
+            const stripperSrc = makeInstance(grizzlyBears.id, {
+                id: "stripper-src",
+            });
+            return { bear, state, grantSrc, stripperSrc };
+        }
+
+        it("the grant's source leaving cancels the outranking hold — no phantom when the stripper leaves later", () => {
+            const { bear, state, grantSrc, stripperSrc } =
+                suppressedScenario("bear-10");
+            expect(count(bear, "flying")).toBe(0);
+
+            unapplySourceStaticEffects(state, grantSrc);
+
+            // The debt is CANCELLED, not merely dropped: `grantedStaticAbilities`
+            // loses its entry (as before the fix) AND the hold it was
+            // outranked by is gone too.
+            expect(bear.grantedStaticAbilities).toBeUndefined();
+            expect(bear.removedKeywords).toBeUndefined();
+            expect(count(bear, "flying")).toBe(0);
+
+            unapplySourceStaticEffects(state, stripperSrc);
+
+            // Exact inverses in THIS direction too (issue #1750 falsified
+            // #1730's commit-message claim specifically here): the stripper's
+            // later departure does not hand an occurrence to the printed
+            // card — there is nothing left to restore.
+            expect(count(bear, "flying")).toBe(0);
+
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "bear-10"
+            )!;
+            expect(slim.staticAbilities).not.toContain("flying");
+        });
+
+        it("a TRANSIENT release does not cancel the hold — the immediate reapply still needs it on record", () => {
+            const { bear, state, grantSrc } = suppressedScenario("bear-11");
+
+            unapplySourceStaticEffects(state, grantSrc, { transient: true });
+
+            // A refresh round trip's teardown half must leave the hold
+            // exactly as it found it, or the immediate reapply can no longer
+            // see it and re-decide suppression (CR 613.1f).
+            expect(bear.removedKeywords).toEqual([
+                { keyword: "flying", sourceId: "stripper-src", seq: 2 },
+            ]);
+        });
+
+        it("the stripper leaving FIRST still restores normally — this fix only changes the OTHER order", () => {
+            const { bear, state, grantSrc, stripperSrc } =
+                suppressedScenario("bear-12");
+
+            // Stripper leaves first: restores the occurrence and un-suppresses
+            // the grant (pre-existing behavior, unchanged by this fix).
+            unapplySourceStaticEffects(state, stripperSrc);
+            expect(count(bear, "flying")).toBe(1);
+            expect(bear.grantedStaticAbilities).toEqual([
+                { ability: "flying", auraId: "grant-src", seq: 1 },
+            ]);
+            expect(bear.removedKeywords).toBeUndefined();
+
+            // Grant's source leaves second, now un-suppressed: releases its
+            // own live occurrence normally.
+            unapplySourceStaticEffects(state, grantSrc);
+            expect(count(bear, "flying")).toBe(0);
+        });
+
+        it("2+ suppressed grants of the same keyword: the restore credits the LOWEST seq, not array position", () => {
+            // Issue #1750's second `.find` finding, same site: with multiple
+            // suppressed grants referencing the same hold, the stripper's
+            // restore must hand the occurrence to the EARLIEST (lowest-seq)
+            // one — the one CR 613.7 layer order would actually reapply
+            // first — not whichever happens to sit first in the array.
+            const bear = makeInstance(grizzlyBears.id, { id: "bear-13" });
+            // Deliberately array-ordered so the HIGHER-seq grant sits FIRST —
+            // a `.find` picking by array position would credit the wrong one.
+            bear.grantedStaticAbilities = [
+                {
+                    ability: "flying",
+                    auraId: "grant-b",
+                    seq: 3,
+                    suppressed: true,
+                },
+                {
+                    ability: "flying",
+                    auraId: "grant-a",
+                    seq: 1,
+                    suppressed: true,
+                },
+            ];
+            bear.removedKeywords = [
+                { keyword: "flying", sourceId: "stripper-src", seq: 5 },
+            ];
+            const state = makeBoard(bear);
+            const stripperSrc = makeInstance(grizzlyBears.id, {
+                id: "stripper-src",
+            });
+
+            unapplySourceStaticEffects(state, stripperSrc);
+
+            expect(count(bear, "flying")).toBe(1);
+            expect(bear.grantedStaticAbilities).toEqual([
+                {
+                    ability: "flying",
+                    auraId: "grant-b",
+                    seq: 3,
+                    suppressed: true,
+                },
+                { ability: "flying", auraId: "grant-a", seq: 1 },
+            ]);
+        });
+
+        it("a source's own removedKeywords entry is never mistaken for its debt (issue #1750, round 2 finding 3)", () => {
+            // CR 613.1f layer order makes a source outranking its OWN grant
+            // impossible — the apply-time `outrankedBy` check already
+            // excludes `r.sourceId !== source.id` — so a `removedKeywords`
+            // entry sharing the departing grant's `auraId` can only be an
+            // unrelated record that happens to name the same id in this
+            // constructed scenario. It must never be picked as the debt this
+            // release cancels, and the REAL outranking hold (from a
+            // different source) must still be the one that IS cancelled.
+            //
+            // Calls `releaseGrantedKeywordOccurrence` directly rather than
+            // through `unapplySourceStaticEffects`: that wrapper has its OWN
+            // separate `removedKeywords` restore block, keyed on `r.sourceId
+            // === source.id`, which would legitimately also touch a
+            // same-id entry and mask what this test is isolating.
+            const bear = makeInstance(grizzlyBears.id, { id: "bear-14" });
+            bear.staticAbilities = [];
+            bear.removedKeywords = [
+                // Shares the grant's own source id. The LOWER seq means an
+                // unguarded scan (picking the lowest QUALIFYING seq) would
+                // wrongly prefer this entry over the real hold below.
+                { keyword: "flying", sourceId: "self-src", seq: 2 },
+                // The real outranking hold, from an unrelated stripper.
+                { keyword: "flying", sourceId: "other-stripper", seq: 3 },
+            ];
+            const grant = {
+                ability: "flying",
+                auraId: "self-src",
+                seq: 1,
+                suppressed: true,
+            };
+
+            releaseGrantedKeywordOccurrence(bear, grant);
+
+            // The self-sourced entry survives untouched; the unrelated
+            // stripper's hold is the one actually cancelled.
+            expect(bear.removedKeywords).toEqual([
+                { keyword: "flying", sourceId: "self-src", seq: 2 },
+            ]);
         });
     });
 });
