@@ -306,8 +306,26 @@ a broken harness or an over-eager rule is caught.
 <a id="ladder"></a>**Ladder** — the strength metric: paired bot-vs-bot games
 where both seats play the same decks with the same shuffles and only the Brain
 configuration differs by seat, then swapped. The decks cancel out; the
-verdict is about the Brain. `bun run ladder` (`scripts/ladder.ts`); output is
-an append-only JSONL that doubles as the [calibration](#calibration) corpus.
+verdict is PAIRED — a McNemar-style interval over the two orientations of
+each seed (issue #2779), not an independent-trials Wilson interval over raw
+games — see [discordant pair](#discordant-pair). `bun run ladder`
+(`scripts/ladder.ts`); output is an append-only JSONL that doubles as the
+[calibration](#calibration) corpus.
+
+<a id="discordant-pair"></a>**Discordant pair** — a ladder seed whose two
+orientations agree on which AGENT won, not which deck: the candidate takes
+both games (a sweep FOR) or drops both (a sweep AGAINST). Only discordant
+pairs carry information about the candidate/control difference — a
+**concordant** pair (1-1: the same deck wins regardless of who is driving it)
+cancels identically under any true effect and is pure noise if folded into an
+independent-trials estimate. The paired 95% interval is built from the
+discordant count alone (`pairedAggregate`, `scripts/lib/ladder/verdict.ts`),
+which is why it reads roughly 2x tighter than treating every game as an
+independent trial, measured on the 2026-08-24 placebo corpus (issue #2779:
+±2.00pp paired vs. ±3.75pp unpaired on the same 680 games). A seed whose
+partner game is missing — a guard stop on one side, or a resumed/filtered run
+that never played it — is an **excluded pair**: dropped from the paired
+statistic and reported separately, never folded in as a half-pair.
 
 <a id="control-candidate"></a>**Control / candidate** — the two Brain
 configurations a ladder run compares: control = production defaults,

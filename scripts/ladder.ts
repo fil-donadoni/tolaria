@@ -372,7 +372,7 @@ if (workers === 1) {
 }
 
 // ── report ──────────────────────────────────────────────────────────────────
-const summary = summarizeRun(records, LADDER_PAIRINGS);
+const summary = summarizeRun(records, LADDER_PAIRINGS, header);
 console.log("\n" + formatVerdictBlock(summary, header) + "\n");
 console.log(`raw corpus: ${runFile}`);
 if (records.length < plan.length) {
