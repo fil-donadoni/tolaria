@@ -22,8 +22,17 @@
 //   * Mana is modelled as tapping the planned sources; the pool is not drained
 //     coin-exact (eval only reads available-mana coarsely).
 //   * `activate-ability` applies its costs but does NOT resolve the ability's
-//     effect (these are rarely enumerated and never in the #111 acceptance
-//     set); the bot therefore never *prefers* such an activation.
+//     effect. The original note here claimed the greedy selector therefore
+//     never *prefers* such an activation — that stopped being true when
+//     loyalty abilities became enumerable (issue #2491): a `+N` loyalty cost
+//     is a board GAIN, so the sandbox pays it, skips the payoff, and still
+//     scores the leaf above `pass`. The reason this is a documented limit
+//     rather than a bug is that the path is DEAD in production —
+//     `greedySelectMove` (`gre/greedy.ts`) has no live caller, the Brain
+//     (`src/lib/ai/brain-request.ts`) runs `searchWithTrace`, and the ISMCTS
+//     sandbox `applyMoveInSearch` (`gre/search.ts`) does push the ability so
+//     its payoff and its price are scored together (issue #1920). Anything
+//     that revives the greedy selector owes this leg the same push.
 //   * Single-block only, matching `enumerateMoves`' single-block scope.
 
 import type {

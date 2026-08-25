@@ -59,6 +59,7 @@ const HARVESTER = getCardByName("Harvester of Misery").id;
 const RING_OF_RENEWAL = getCardByName("Ring of Renewal").id;
 const ISLAND = getCardByName("Island").id;
 const METEOR_STORM = getCardByName("Meteor Storm").id;
+const LILIANA_VEIL = getCardByName("Liliana of the Veil").id;
 const MOUNTAIN = getCardByName("Mountain").id;
 
 function bf(cardId: string, id: string, owner = BOT, extra = {}) {
@@ -231,6 +232,133 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
                 abilityId: "thallid-make-saproling",
             })
         ).toThrow(/Not enough counters/);
+    });
+
+    it("cost.loyalty — a CR 606.6 activation REPORTS, changes nothing, and is never pushed", () => {
+        // The loyalty leg's fail-closed door (issue #2491 review finding 1),
+        // in the shape its siblings above use. It needs the report more than
+        // the `removeCounter` leg does, because `payLoyaltyCost` CLAMPS at zero
+        // (`Math.max(0, …)`) instead of throwing: with the guard gone, Liliana
+        // pays 3 counters for a 6-counter ultimate, drops to 0, sets the
+        // CR 606.3 lock and the ability reaches the stack — a FREE ultimate in
+        // the very leaf that scores it, exactly the #2422 / #2415 shape.
+        //
+        // Only a hand-built move can express this: `enumerateAbilityMoves`
+        // gates the same predicate, so a legal search line never gets here with
+        // a violation (asserted below).
+        const liliana = bf(LILIANA_VEIL, "liliana", BOT, {
+            counters: { loyalty: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, { battlefield: [liliana] }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        // The enumerator's own refusal — this ultimate is not on the menu, so
+        // the guard below is genuinely the last line and not a second opinion.
+        expect(
+            enumerateMoves(state, BOT).filter(
+                (m) =>
+                    m.kind === "activate-ability" &&
+                    m.abilityId === "liliana-veil-minus6"
+            )
+        ).toEqual([]);
+
+        const handBuilt: Move = {
+            kind: "activate-ability",
+            cardInstanceId: "liliana",
+            abilityId: "liliana-veil-minus6",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+
+        // REPORTS: false, not a throw and not a silent true.
+        expect(applyActivationCostsForSearch(state, BOT, handBuilt)).toBe(
+            false
+        );
+        // CHANGES NOTHING: the counters stay, and the CR 606.3 per-permanent
+        // lock is not spent either.
+        const untouched = botOf(state).battlefield.find(
+            (c) => c.id === "liliana"
+        );
+        expect(untouched?.counters?.loyalty).toBe(3);
+        expect(untouched?.loyaltyActivatedThisTurn).toBeUndefined();
+
+        // AND IS NEVER PUSHED: the ability does not buy its effect in the tree.
+        const leaf = cloneGameState(state);
+        applyMoveInSearch(leaf, BOT, handBuilt);
+        expect(leaf.stack.filter((i) => i.abilityId !== undefined)).toEqual([]);
+        const inLeaf = botOf(leaf).battlefield.find((c) => c.id === "liliana");
+        expect(inLeaf?.counters?.loyalty).toBe(3);
+        expect(inLeaf?.loyaltyActivatedThisTurn).toBeUndefined();
+
+        // The gate mirrors the SERVER's own rule — same predicate, one throw
+        // away (`assertLoyaltyActivationLegal`, `convex/game.ts`).
+        expect(() =>
+            activateAbilityOnState(cloneGameState(state), {
+                playerId: BOT,
+                cardInstanceId: "liliana",
+                abilityId: "liliana-veil-minus6",
+            })
+        ).toThrow(/Not enough loyalty/);
+    });
+
+    it("cost.loyalty — the CR 606.3 once-per-permanent lock is a door too", () => {
+        // The second clause of the same guard, on a `+N` cost — the one the
+        // sandbox has a positive REASON to prefer (the counter goes on, the
+        // effect is skipped, the ratio term reads the gain). Liliana already
+        // activated this turn, so a second activation is illegal however much
+        // loyalty is on her.
+        const liliana = bf(LILIANA_VEIL, "liliana", BOT, {
+            counters: { loyalty: 3 },
+            loyaltyActivatedThisTurn: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer(OPP),
+                makePlayer(BOT, { battlefield: [liliana] }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+        const handBuilt: Move = {
+            kind: "activate-ability",
+            cardInstanceId: "liliana",
+            abilityId: "liliana-veil-plus1",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+
+        expect(applyActivationCostsForSearch(state, BOT, handBuilt)).toBe(
+            false
+        );
+        expect(
+            botOf(state).battlefield.find((c) => c.id === "liliana")?.counters
+                ?.loyalty
+        ).toBe(3);
+
+        const leaf = cloneGameState(state);
+        applyMoveInSearch(leaf, BOT, handBuilt);
+        expect(leaf.stack.filter((i) => i.abilityId !== undefined)).toEqual([]);
+        expect(
+            botOf(leaf).battlefield.find((c) => c.id === "liliana")?.counters
+                ?.loyalty
+        ).toBe(3);
+
+        expect(() =>
+            activateAbilityOnState(cloneGameState(state), {
+                playerId: BOT,
+                cardInstanceId: "liliana",
+                abilityId: "liliana-veil-plus1",
+            })
+        ).toThrow(/already been activated/);
     });
 
     it("cost.life — the life is deducted from the ACTIVATING player (CR 119.4)", () => {
