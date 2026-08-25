@@ -1,7 +1,8 @@
 ---
 title: limited-list / limited-your-events budgets.json ceilings are stale — every viewport but 844x390x3 now over budget
 discoveredBy: 2671
-status: draft
+status: triaged
+issue: 2822
 confidence: medium
 ---
 
@@ -57,3 +58,20 @@ issue's target files.
 underlying account-state assumption in `surfaces.ts` if the walk should be
 pinning a fixed event count), and confirm whether the two new `starved 1`
 readings are real regressions or the same account-state drift.
+
+**Triaged 2026-08-25 → #2822.** Confirmed on a clean `main` (`91b355bb`): the
+same eight FAILs reproduce with byte-identical numbers, so the drift is stable
+rather than growing, and the guessed cause was right. The mechanism is now
+named: `/limited` renders the union of `listOpenLimitedEvents` +
+`myLimitedEvents` for `TOLARIA_UI_EMAIL`, so its control count is a function of
+the deployment's event list; and `reachDraftRoom` (`surfaces.ts`) picks its
+subject by list position, so `draft-pool-stop` moved the same way at
+`390x844x3` (`small` 6 → 9) and `844x390x3` (`cardsOcc`/`ctrlsOcc` 2 → 3). The
+ten cells were re-recorded with notes naming #2822; the fixture-pinning fix
+that makes the readings a function of the code alone is #2822's own work.
+
+The `starved 1` readings this finding flagged as "the one piece that might
+warrant its own look" are the `<main>`-as-page-scroller false positive already
+drafted in `docs/findings/2582-ui-gate-main-scroller-starved.md` — the event
+list simply grew past `probe.js`'s 10% threshold at two more viewports. Not a
+new defect.
