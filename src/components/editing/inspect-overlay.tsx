@@ -15,6 +15,23 @@ import type { EditingSurfaceAction } from "./editing-surface-action";
  *  panel's cap subtracts both sides of it, so the two are one number. */
 const SCRIM_PAD_REM = 0.75;
 
+/** The overlay's own controls — Oracle/Printed, ‹ ›, × — sit in the header
+ *  row marked `data-inspect-controls` below. Tap-anywhere dismissal exempts
+ *  them AS A CLASS (issue #2668): ANY interactive element rendered inside
+ *  that row matches this selector and is exempt automatically, so a future
+ *  control (or the face toggle, which used to be missing) never has to opt
+ *  out by hand — the shape that let the toggle silently fall through the
+ *  old per-control list. `:is(...)` lists every interactive tag CR-adjacent
+ *  UI actually uses, not just `<button>` — a review on this same issue
+ *  measured that a `<select>` dropped into the row was NOT exempt under a
+ *  `button`-only selector, i.e. it reproduced the exact bug one level up.
+ *  Scoped to the header row on purpose: it must NOT reach the action row
+ *  below (`actions.length > 0`), whose primary/non-primary distinction is a
+ *  separate, unrelated exemption (see `EditingActionButton`'s
+ *  `stopPropagation` prop). */
+const CONTROL_ROW_SELECTOR =
+    '[data-inspect-controls] :is(button, a, input, select, textarea, [role="button"])';
+
 export interface InspectOverlayProps {
     /** Registry card id being inspected. */
     cardId: string;
@@ -22,8 +39,10 @@ export interface InspectOverlayProps {
     actions?: readonly EditingSurfaceAction[];
     onClose: () => void;
     /** Draft Room (PRD #2405 D15): a tap ANYWHERE closes, so read → back to
-     *  picking is one tap. The `primary` action is exempt — it must fire, not
-     *  be swallowed by the dismiss. Off by default: the deckbuilder wants the
+     *  picking is one tap. Two things are exempt: the `primary` action (it
+     *  must fire, not be swallowed by the dismiss) and the header row's own
+     *  controls — Oracle/Printed, ‹ ›, × — exempt as a class (issue #2668),
+     *  never a per-control list. Off by default: the deckbuilder wants the
      *  overlay to stay put while the player reads. */
     tapAnywhereCloses?: boolean;
     /** ‹ › step through the surface's current row / column. Omit an end to
@@ -127,19 +146,31 @@ export default function InspectOverlay({
                 // just of the declaration.
                 style={{ maxHeight: `calc(100dvh - ${SCRIM_PAD_REM * 2}rem)` }}
                 onClick={(e) => {
-                    if (!tapAnywhereCloses) e.stopPropagation();
+                    if (!tapAnywhereCloses) {
+                        e.stopPropagation();
+                        return;
+                    }
+                    // Class-based exemption (issue #2668): any control in
+                    // the header row stops the dismiss here, regardless of
+                    // which one it is. The row's own buttons no longer need
+                    // to `stopPropagation()` themselves — this is the single
+                    // place that decides, so a new control added to the row
+                    // is exempt for free instead of silently falling through.
+                    if ((e.target as Element).closest(CONTROL_ROW_SELECTOR)) {
+                        e.stopPropagation();
+                    }
                 }}
             >
-                <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-2 py-1.5">
+                <div
+                    data-inspect-controls
+                    className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-2 py-1.5"
+                >
                     {onStep && (
                         <button
                             type="button"
                             aria-label="Previous card"
                             disabled={!onStep.previous}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onStep.previous?.();
-                            }}
+                            onClick={() => onStep.previous?.()}
                             style={{
                                 minHeight: "var(--control-h)",
                                 minWidth: "var(--control-h)",
@@ -166,10 +197,7 @@ export default function InspectOverlay({
                             type="button"
                             aria-label="Next card"
                             disabled={!onStep.next}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onStep.next?.();
-                            }}
+                            onClick={() => onStep.next?.()}
                             style={{
                                 minHeight: "var(--control-h)",
                                 minWidth: "var(--control-h)",
