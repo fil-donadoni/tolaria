@@ -636,7 +636,7 @@ export const tahngarthTalruumHero: CardDefinition = {
             // aiEffects (PRD #1423, issue #1431/#1519) — `fight` has no
             // registered Op yet (tracked-by: #2013, see the stop-and-issue
             // note above), so the bot's value model has nothing to walk
-            // without a shadow. Both directions are approximated with
+            // without a shadow. Both directions are approximated with (tracked-by: #2785)
             // Tahngarth's own printed power (4) — a flat, representative
             // amount for each side of the exchange (one-representative-value
             // idiom).

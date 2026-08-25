@@ -968,7 +968,7 @@ export const cloudCover: CardDefinition = {
 //   * layer 4 (type/subtype) — `subtype-add` grants "Zombie". "In addition to
 //     their other creature types" is exactly what `subtype-add` means (as
 //     opposed to `subtype-set`, the Conspiracy-style replacement).
-//   * layer 5 (colour) — see the DIVERGENCE note below.
+//   * layer 5 (colour) — see the DIVERGENCE note below. (tracked-by: #2785)
 //   * layer 7c (P/T modification) — `pt-buff` +1/+1. NOT `pt-cda`: this is a
 //     relative modification that stacks with other anthems, not a
 //     characteristic-defining set.
@@ -984,7 +984,7 @@ export const cloudCover: CardDefinition = {
 // only ADDS "Zombie" — a Goblin stays a Goblin, so the three effects cannot
 // de-select each other regardless of application order.
 //
-// DIVERGENCE (CR 613.1e / 105.2c) — "are black" is a colour SET (it replaces
+// DIVERGENCE (CR 613.1e / 105.2c) — "are black" is a colour SET (it replaces (tracked-by: #2785)
 // every other colour derivation), but the engine's only shipped layer-5 static
 // is `color-grant`, which UNIONS the colour with the permanent's printed
 // colours instead of replacing them. A mono-red Goblin correctly becomes black
@@ -1162,7 +1162,7 @@ export const hullBreach: CardDefinition = {
 //     copy effect, `putFromHandOntoBattlefield`), not only a spell resolving —
 //     `entersWith.asEnters`'s `name` kind (ADR 0100 D3, #2467). `filter:
 //     { excludeType: "Land" }` is "nonland card name" enforced EXACTLY, closing
-//     what the prior `resolveSteps` shape could only approximate (its single
+//     what the prior `resolveSteps` shape could only approximate (its single (tracked-by: #2785)
 //     `nameRestriction: "no-basic-land"` rejected a basic land name but still
 //     admitted a nonbasic one) — `applyNameCardSubmit`
 //     (`convex/gre/pendingChoiceSubmit.ts`) checks the FULL filter, fail-closed,
@@ -1717,7 +1717,7 @@ export const radiantKavu: CardDefinition = {
 // burn spell are prevented as well as combat damage. That is the whole point
 // of the clause versus Falling Timber's combat-only one.
 //
-// DIVERGENCE — "a source of your choice" is NOT a target (CR 609.7), but the
+// DIVERGENCE — "a source of your choice" is NOT a target (CR 609.7), but the (tracked-by: #2785)
 // engine has no non-targeted source picker that can also reach a SPELL on the
 // stack, so the mode declares a `targetRequirement` instead. This follows the
 // shipped Circle of Protection precedent exactly (`makeCircleOfProtection`,

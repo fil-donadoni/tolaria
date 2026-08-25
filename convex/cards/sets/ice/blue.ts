@@ -133,7 +133,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //   Snowfall, plus the "CU matters" enchantments Musician, Mystic Might, Mystic
 //   Remora and Reality Twist (#726).
 //
-// DEFERRED (remain commented stubs, owned by a later cluster):
+// DEFERRED (remain commented stubs, owned by a later cluster) (tracked-by: #2785):
 //   • Zur's Weirding cluster — Zur's Weirding itself and Dreams of the Dead
 //     (grants cumulative upkeep on reanimation).
 //   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips
@@ -161,7 +161,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     `choice(zone: "hand", filter: { excludeColor/color })` + `discard` +
 //     an `if { picksNonEmpty }` gate on the draw.
 //   • Shyft — upkeep `may` → `requestOptionChoice` colour → indefinite layer-5
-//     `setColorOverride` (single-colour reading; multicolour deferred).
+//     `setColorOverride` (single-colour reading; multicolour deferred). (tracked-by: #2785)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Arnjlot's Ascent — {U}{U} Enchantment with cumulative upkeep {U} (CR 702.24)
@@ -487,7 +487,7 @@ export const counterspellIce: CardPrint = {
 // resolution it enters a `retarget` phase via `requestRetarget`, asking the
 // caster to pick a new legal target for that spell.
 //
-// SIMPLIFICATION (flagged, no engine change): TargetRequirement has no
+// SIMPLIFICATION (flagged, no engine change): TargetRequirement has no (out of scope)
 // "spell with a single target" filter, so Deflection may be cast at any spell
 // on the stack. The retarget then re-validates against "any target"; for a
 // multi-target spell only one target would be re-chosen, which is a minor
@@ -804,7 +804,7 @@ export const iceberg: CardDefinition = {
 // (keyed to itself); each upkeep it is sacrificed unless {3} is paid; when it
 // leaves, the exiled card returns to the battlefield under its owner's control.
 //
-// SIMPLIFICATION (flagged, no engine change): the printed upkeep cost is "any
+// SIMPLIFICATION (flagged, no engine change): the printed upkeep cost is "any (tracked-by: #2785)
 // player pays {3}" — political. `makeUpkeepPayOrElse` prompts the controller
 // (the player who wants to keep it). In a duel the controller is the only
 // player with an incentive to pay, so this matches play in practice.
@@ -1884,7 +1884,7 @@ export const seaSpirit: CardDefinition = {
 // override rides the instance with no duration, so it lasts INDEFINITELY until
 // a zone change (CR 612.7) — exactly "this effect lasts indefinitely."
 //
-// SIMPLIFICATION (flagged, no engine change): the oracle "the color or colors
+// SIMPLIFICATION (flagged, no engine change): the oracle "the color or colors (tracked-by: #2785)
 // of your choice" permits any subset of the five colours (CR 105.2). The
 // `requestOptionChoice` primitive is a single pick, so this models the five
 // MONO-colour choices (each a one-element override, the common faithful
@@ -2154,7 +2154,7 @@ export const snowfall: CardDefinition = {
 // merges eligible restricted mana exactly as the cast path already did
 // (`spendablePoolForAbility` / `payManaCostForAbility`, `gre/state.ts`), keyed
 // on the effective card types of the ability's SOURCE permanent. All three
-// activation entry points (direct, targeted, and the deferred
+// activation entry points (direct, targeted, and the deferred (tracked-by: #2785)
 // `pendingActivation` auto-commit) go through it, so the mana is spendable
 // wherever an artifact's ability can be activated — and nowhere else: every
 // pre-existing restriction returns false at the ability path, and
@@ -2327,7 +2327,7 @@ export const windSpirit: CardDefinition = {
 //    ice/black.ts) — offer {2} first (creature untouched), then {1} (prevent).
 //    Outcomes are collected across the loop and applied ONCE after it, because
 //    the resolveStep re-runs on every may-pay resume (Stench of Evil pattern) —
-//    the deferred apply keeps `preventAllCombatDamageToAndBy` / the delayed
+//    the deferred apply keeps `preventAllCombatDamageToAndBy` / the delayed (tracked-by: #2785)
 //    destroy from firing on each replay.
 //  • Leaves: `preventAllCombatDamageToAndBy` (CR 615) for the {1} branch; one
 //    `next-end-of-combat` delayed destroy per unpaid creature (CR 603.7 /
@@ -2530,7 +2530,7 @@ export const wrathOfMaritLage: CardDefinition = {
 //     "if a player would draw" (all-players) scope; the outcome is
 //     `reveal-others-may-pay-life`. Now honored at the turn-based DRAW STEP AND
 //     at DSL `draw` Op effect draws (the unified suspend-capable seam) — the
-//     `drawRevealReplacement`/`draw-reveal-pay` divergence is retired.
+//     `drawRevealReplacement`/`draw-reveal-pay` divergence is retired. (tracked-by: #2785)
 export const zursWeirding: CardDefinition = {
     id: "e1f8531f-19ca-48a2-baf2-c5dc6f18d79c",
     name: "Zur's Weirding",

@@ -26,7 +26,7 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //   • Pit Scorpion → C5 (poison counters — no named-counter primitive yet).
 //   • Lesser Werewolf → C5 (-0/-1 counters on a combatant).
 //
-// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here):
+// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
 //   • Transmutation — "switch power and toughness" has no swap primitive.
 //   • Abomination, Infernal Medusa — "whenever this blocks / becomes blocked by
 //     [a creature], destroy that creature at end of combat". UNBLOCKED by the
@@ -806,7 +806,7 @@ export const moldDemon: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// C7 deferred — need a primitive not yet built; each lands when its primitive
+// C7 deferred — need a primitive not yet built; each lands when its primitive (tracked-by: #2785)
 // ships:
 //   • Elder Spawn — "At the beginning of your upkeep, sacrifice an Island. If
 //     you don't, sacrifice this and it deals 6 damage to you." The cost is a
@@ -928,7 +928,7 @@ export const spiritShackle: CardDefinition = {
 //     board-derived cost primitive its "{X}{X}, {T}" activation needs DOES now
 //     exist (`cost.manaEqualToCounterCount`, board-fixed and never prompted —
 //     Chromatic Armor). The one residual gap is that {X}{X} is TWICE the pin
-//     count and that descriptor has no multiplier. Deferred until it does,
+//     count and that descriptor has no multiplier. Deferred until it does, (tracked-by: #2785)
 //     rather than shipping a wrong cost.
 //   • Takklemaggot (tracked-by: #2228) — an Aura that, when its host dies,
 //     returns either attached to a creature chosen by the DYING CREATURE'S

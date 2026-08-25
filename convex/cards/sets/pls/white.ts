@@ -163,7 +163,7 @@ export const lashknifeBarrier: CardDefinition = {
 // colour-changing effect elsewhere on the board shifts the census on its own
 // — no extra wiring needed here.
 //
-// DIVERGENCE: `getCDAContribution` (`gre/layers.ts`) overwrites rather than
+// DIVERGENCE: `getCDAContribution` (`gre/layers.ts`) overwrites rather than (tracked-by: #2785)
 // sums layer-7a `pt-cda` contributions across sources, which is correct for
 // a true CR 613.4b "set" CDA but wrong for this card's CR 613.4c-shaped
 // *modification* — enchanting a creature that carries its OWN `pt-cda`
@@ -865,7 +865,7 @@ export const voiceOfAll: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Deferred (engine capability gap) — of the two PLS White cards below, only
+// Deferred (engine capability gap) — of the two PLS White cards below, only (tracked-by: #2003)
 // Planeswalker's Mirth still needs a genuinely unbuilt engine capability,
 // tracked-by: #2003. Sunscape Battlemage's OWN blocker (issue #1328) is
 // resolved — see its bullet — so it stays documented here for the

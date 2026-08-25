@@ -106,7 +106,7 @@ export const goblinCadets: CardDefinition = {
 // `grantAbility(haste)` uses `duration: { phase: "end-of-turn" }` (Spinal
 // Embrace's identical idiom, inv/multicolor.ts) rather than a genuinely
 // indefinite grant — the DSL's `grantAbility` Op requires a `DurationSpec`
-// (no "indefinite" member). No behavioural divergence: the delayed trigger
+// (no "indefinite" member). No behavioural divergence: the delayed trigger (out of scope)
 // fires at the BEGINNING of the next end step (sacrificing the creature),
 // strictly before the end-of-turn CLEANUP boundary the duration expires at —
 // the creature is always gone before the grant would lapse on its own.

@@ -26,7 +26,7 @@ import { PERMANENT_TYPES } from "../../types";
 // observable, which is also what the layer system (CR 613) and state-based
 // actions (CR 704.5) must see on their first read.
 //
-// Deviation (documented, CR-compliance default per gre-development.md): the
+// Deviation (documented, CR-compliance default per gre-development.md): the (tracked-by: #2785)
 // "put into your graveyard from anywhere" clause is implemented across the
 // two zone-change sources the engine's event vocabulary actually covers —
 // PERMANENT_LEFT (battlefield → graveyard, i.e. dies/sacrifice/destroy) and

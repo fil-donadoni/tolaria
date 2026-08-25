@@ -19,7 +19,7 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // (Dark Sphere half-from-source + Scarecrow flying-source-all), and the
 // `manaAmount`-from-counters read (City of Shadows). Costs/types/subtypes/P/T
 // validated against MTGJSON data/json/DRK.json; modern Scryfall oracle text is
-// authoritative (ADR 0004). Two cards are deferred at the foot of this section
+// authoritative (ADR 0004). Two cards are deferred at the foot of this section (tracked-by: #2785)
 // (Runesword, War Barge) — they need a "note a creature, destroy it if THIS
 // leaves the battlefield this turn" delayed-self-LTB mechanism the engine lacks.
 // ═════════════════════════════════════════════════════════════════════════════
@@ -532,7 +532,7 @@ export const towerOfCoireall: CardDefinition = {
 // City of Shadows — "{T}, Exile a creature you control: Put a storage counter on
 // this land.\n{T}: Add {C} for each storage counter on this land." (CR 605
 // activated abilities. The first's "Exile a creature you control" is modeled as
-// a creature TARGET you control (benign timing simplification, flagged: the cost
+// a creature TARGET you control (benign timing simplification, flagged: the cost (tracked-by: #2785)
 // union has no exile-a-permanent cost). The second is a mana ability whose
 // colorless output is computed from the source's storage counters via
 // `manaAmount`, CR 106.1 / 605.1a.)
@@ -691,7 +691,7 @@ export const safeHaven: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Deferred — these four DRK White cards each need a genuinely new engine
+// Deferred — these four DRK White cards each need a genuinely new engine (tracked-by: #2785)
 // capability that the free tranche does NOT ship. They are intentionally NOT
 // registered yet (no exported CardDefinition) to keep the card pool honest; the
 // definitions land with their mechanic. Flagged in the PR. TODO(#411):
@@ -747,7 +747,7 @@ export const safeHaven: CardDefinition = {
 //     (`hasAttackedThisTurn` is cleared at every CLEANUP) — AND it must be a
 //     conditional, host-scoped untap restriction re-evaluated each untap step
 //     (the `does-not-untap` keyword is unconditional; `keyword-grant` applies
-//     once at attach, not per-step). Both are unbuilt; defer the whole card.
+//     once at attach, not per-step). Both are unbuilt; defer the whole card. (tracked-by: #2785)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────

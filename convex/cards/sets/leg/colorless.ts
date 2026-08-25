@@ -113,7 +113,7 @@ export const koboldsOfKherKeep: CardDefinition = {
 //     variable multi-sacrifice activation cost; only single sacrificeFilter
 //     exists.
 //   • Gauntlets of Chaos — two-target type-matched control exchange + aura
-//     destruction; deferred to keep this batch low-risk.
+//     destruction; deferred to keep this batch low-risk. (tracked-by: #2785)
 //   • Knowledge Vault — "return all cards exiled with this artifact to hand /
 //     graveyard" needs exile-by-source tracking with non-battlefield return;
 //     returnExiledForSource returns to the battlefield only.

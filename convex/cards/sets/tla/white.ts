@@ -25,7 +25,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // `returnExiledForSource`, host-only since Aang's Iceberg's own ability
 // doesn't carry attachments along).
 //
-// SIMPLIFICATION (flagged, CR 702.155-style alternate-cost mechanic):
+// SIMPLIFICATION (flagged, CR 702.155-style alternate-cost mechanic) (tracked-by: #2785):
 // "Waterbend {3}" — tapping artifacts/creatures to help pay part of a cost —
 // is not modelled (no such cost-payment primitive exists yet); the ability is
 // implemented as a plain {3} generic cost. The golden path (sacrifice this,

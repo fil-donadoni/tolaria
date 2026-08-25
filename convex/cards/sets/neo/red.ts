@@ -146,7 +146,7 @@ export const fableOfTheMirrorBreaker: CardDefinition = {
                     // "draw that many cards" — one draw per DISCARDED card,
                     // iterating the picks binding. CR 121.2 makes "draw N
                     // cards" N sequential draws, so this is not an
-                    // approximation of the clause, it IS the clause. Runs
+                    // approximation of the clause, it IS the clause. Runs (tracked-by: #2785)
                     // AFTER the discard (CR 608.2, written order), so the
                     // discarded cards cannot be drawn back.
                     op: "forEach",

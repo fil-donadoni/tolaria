@@ -49,12 +49,12 @@ export const gravitySphere: CardDefinition = {
 //     upkeep, pay {X} or take X damage).
 //   • World rule (C2) — Gravity Sphere ("all creatures lose flying"), Land's
 //     Edge, Storm World. These carry the World supertype; like every other
-//     World-supertype LEG card they are deferred to the world-rule cluster so
+//     World-supertype LEG card they are deferred to the world-rule cluster so (tracked-by: #2785)
 //     the supertype and its SBA ship together (mirrors the blue/black tranches).
 //
 // Out of scope for the whole set (per #369): Tempest Efreet (ante, ADR 0010).
 //
-// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here):
+// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
 //   • Backdraft — "half the damage dealt by one of those sorcery spells this
 //     turn" needs a per-spell damage tally; no such surface exists. (Its
 //     "copy that spell" clause is now expressible via the `copyResolvingSpell`

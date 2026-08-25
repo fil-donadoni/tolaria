@@ -539,7 +539,7 @@ export const seasonOfTheWitch: CardDefinition = {
             resolve: (ctx) => {
                 // CR 603.6a — every untapped creature that didn't attack this
                 // turn and could have attacked is destroyed. "Couldn't attack"
-                // is approximated by the two structural reasons in this pool: a
+                // is approximated by the two structural reasons in this pool: a (tracked-by: #2785)
                 // creature with defender, or one that was summoning-sick this
                 // turn (CR 508.1a). Tapped creatures are excluded by the
                 // `tapped: false` filter (CR 508.1g).

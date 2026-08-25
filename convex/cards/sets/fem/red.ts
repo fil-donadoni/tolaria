@@ -93,7 +93,7 @@ export const goblinGrenade: CardDefinition = {
     types: ["Sorcery"],
     additionalCosts: { sacrificeFilter: { subtypes: ["Goblin"] } },
     targetRequirement: { type: "any", count: 1 },
-    // MIGRATION DEFERRED (ADR 0045): the effect is a trivial
+    // MIGRATION DEFERRED (ADR 0045): the effect is a trivial (tracked-by: #2785)
     // `[{ op: "dealDamage", amount: 5, to: { target: 0 } }]`, but the
     // auto-generated smoke sweep (scenarioGenerator) asserts the damaged target
     // SURVIVES with `damageMarked`, using a toughness-5 filler creature. 5 damage

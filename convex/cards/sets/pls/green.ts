@@ -55,7 +55,7 @@ import { tokenPrintIdFor } from "../../tokenPrintLookup";
 // this creature", from ANY source), unlike Jade Monolith's chosen-source
 // filter.
 //
-// DIVERGENCE: the official ruling says "during combat it is possible for
+// DIVERGENCE: the official ruling says "during combat it is possible for (tracked-by: #2785)
 // multiple sources to damage the Treefolk at one time, in which case damage
 // from all of those sources is redirected" — but the shield is `remaining: 1`
 // and the engine emits one combat-damage event PER SOURCE
@@ -78,7 +78,7 @@ export const mirrorwoodTreefolk: CardDefinition = {
     // extension): the redirect ability is `resolve()`-only with no `effects[]`
     // it could carry (see the protocol-card justification above) and its
     // `addDamageRedirectionShield` mechanism has no `EffectOp` a shadow script
-    // could honestly approximate, so this plugs the `aiEffectsGuard`
+    // could honestly approximate, so this plugs the `aiEffectsGuard` (tracked-by: #2785)
     // ability-level gap (`convex/cards/__tests__/aiEffectsGuard.bot.test.ts`)
     // with a card-level override rather than a misleading shadow script.
     // Calibrated against `creatureValueRaw`/`LATENT_DISCOUNT`

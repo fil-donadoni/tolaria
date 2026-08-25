@@ -271,7 +271,7 @@ export const lotusGuardian: CardDefinition = {
 // Phyrexian Altar — {3} Artifact. "Sacrifice a creature: Add one mana of any
 // color." (CR 602.1/118.5 filtered-sacrifice cost — same `sacrificeFilter`
 // shape as Devouring Strossus above / Ashnod's Altar / Atog / Priest of
-// Yawgmoth; per the CR 605.1a deviation note in `atq/red.ts`, a
+// Yawgmoth; per the CR 605.1a deviation note in `atq/red.ts`, a (tracked-by: #2785)
 // filtered-sacrifice cost needs a player choice the instant tap-mana path
 // can't model, so it's `useStack: true`.) The "any color" pick can't ride
 // `manaChoices` — that shape is reserved for `useStack: false` mana

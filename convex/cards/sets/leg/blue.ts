@@ -19,7 +19,7 @@ import { isBlockingCreature } from "../../combatDamagePrevention";
 // Wall of Vapor — {3}{U} 0/1 Wall, Defender. "Prevent all damage that would be
 // dealt to this creature by creatures it's blocking." Source filter: the
 // damage source is a creature this Wall is currently blocking (CR 509.1).
-// Simplification: the Oracle says "all damage", but a creature only deals
+// Simplification: the Oracle says "all damage", but a creature only deals (tracked-by: #2785)
 // damage to a creature blocking it during the combat-damage step, so the
 // combat-damage-prevention static covers the practical case (CR 615).
 export const wallOfVapor: CardDefinition = {
@@ -59,7 +59,7 @@ export const wallOfVapor: CardDefinition = {
 //     Venarian Gold (sleep counters).
 //   • C6 shroud / can't-be-targeted — SHIPPED below (Spectral Cloak,
 //     Anti-Magic Aura, Bartel Runeaxe). Tetsuo Umezawa and Wall of Shadows are
-//     deferred — see the C6 section footer for the per-card reasons.
+//     deferred — see the C6 section footer for the per-card reasons. (tracked-by: #2785)
 //   • C7 upkeep pay-or-sacrifice — Elder Spawn ("unless you sacrifice an
 //     Island, sacrifice this and it deals 6 damage to you").
 //   • C8 cast-tax counter-unless-pay — Nether Void and In the Eye of Chaos
@@ -750,7 +750,7 @@ export const energyTap: CardDefinition = {
 
 // Reset — "Untap all lands you control." Cast only during an opponent's turn
 // after their upkeep step (CR 117.1b — opponent-turn restriction; the
-// post-upkeep window is approximated by excluding the opponent's UPKEEP).
+// post-upkeep window is approximated by excluding the opponent's UPKEEP). (tracked-by: #2785)
 export const reset: CardDefinition = {
     id: "1c829d83-d5b8-4be7-80f7-55b42f52b309",
     rarity: "uncommon",

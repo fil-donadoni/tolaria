@@ -17,7 +17,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // `exileFaceDown` + `grantCastFromExile`, same idiom, sourced from the
 // defending player's library instead of the caster's own.
 //
-// SIMPLIFICATIONS (flagged, stacked on the above):
+// SIMPLIFICATIONS (flagged, stacked on the above) (tracked-by: #2785):
 //   - "During any turn you attacked with a Rogue" — matching every other
 //     shipped impulse card, the cast-permission window is not auto-revoked
 //     on a timer (no such primitive exists); the permission persists while

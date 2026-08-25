@@ -273,7 +273,7 @@ export const earthquake: CardDefinition = {
 
 // False Orders — "Cast only during the declare blockers step. Remove target
 // creature defending player controls from combat." (CR 506.4 remove from
-// combat). The optional re-assignment as blocker is deferred (not modeled
+// combat). The optional re-assignment as blocker is deferred (not modeled (tracked-by: #2785)
 // in initial scope — the primary effect of removing from combat is complete).
 export const falseOrders: CardDefinition = {
     id: "7eb71ac4-796d-4011-9002-1129bc09c284",
@@ -822,7 +822,7 @@ export const orcishOriflamme: CardDefinition = {
 // Power Surge — "At the beginning of each player's upkeep, Power Surge
 // deals damage to that player equal to the number of untapped lands they
 // control." (CR 603.6a phase trigger, 120.1 damage). APNAP not modeled —
-// per-trigger event identifies the upkeep player via `activePlayerId`.
+// per-trigger event identifies the upkeep player via `activePlayerId`. (tracked-by: #2785)
 export const powerSurge: CardDefinition = {
     id: "62858604-ca5a-4f69-a045-a7515ebfabf2",
     rarity: "rare",

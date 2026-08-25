@@ -67,20 +67,31 @@
  * note ("detecting markers inside commented-out card stubs … a separate
  * known gap already drafted in the findings drawer",
  * `docs/findings/2392-guard-b-misses-commented-out-card-stubs.md` part ii).
- * Guard B's presence check does not distinguish (its MARKER regex matches a
- * stub's own `// TODO(issue #NNN stub — …)` note exactly like a shipped
- * card's divergence), so left unfiltered this sweep would resolve liveness
- * for ~60 stub notes clustered on a handful of residue-tranche umbrellas
- * (`#676`, `#679`, …) — a different, larger cleanup than this issue scopes.
- * `isStubContext` below reproduces `check-stub-coverage.ts`'s own
- * `STUB_ANCHOR` and walks the same contiguous-comment-run window it does.
+ * Left unfiltered this sweep would resolve liveness for ~60 stub notes
+ * clustered on a handful of residue-tranche umbrellas (`#676`, `#679`, …) —
+ * a different, larger cleanup than this issue scoped. `isStubContext` /
+ * `STUB_ANCHOR`, imported from `scripts/lib/divergence-markers.ts`, reproduce
+ * `check-stub-coverage.ts`'s own anchor and contiguous-comment-run window.
+ * Issue #1900 moved them into the shared scanner so Guard B's OWN presence
+ * check applies the same suppression — its widened MARKER vocabulary would
+ * otherwise land inside commented-out-stub section prose too.
  */
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gh } from "./lib/gh";
-import { scanTrackedByRefs, type MarkerRecord } from "./lib/divergence-markers";
+import {
+    scanTrackedByRefs,
+    isStubContext,
+    type MarkerRecord,
+} from "./lib/divergence-markers";
+// `STUB_ANCHOR` / `isStubContext` moved to `scripts/lib/divergence-markers.ts`
+// in issue #1900, so Guard B's OWN scan can suppress stub context too (the
+// widened MARKER vocabulary otherwise lands inside commented-out-stub
+// section prose). Re-exported here so any external caller importing them
+// from this module keeps working.
+export { STUB_ANCHOR, isStubContext } from "./lib/divergence-markers";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -123,34 +134,6 @@ export function readSources(root = ROOT): { file: string; text: string }[] {
         }
     }
     return sources;
-}
-
-/** Same anchor `check-stub-coverage.ts` uses to identify a commented-out card
- *  definition (`scripts/check-stub-coverage.ts`'s `STUB_ANCHOR`) — duplicated
- *  rather than imported: that module's top level runs `getAllCards()` to
- *  build its dead-duplicate index, so importing anything from it would pull
- *  in the whole card registry just for a regex constant. If `STUB_ANCHOR`
- *  ever changes there, mirror the edit here. */
-const STUB_ANCHOR =
-    /^\s*\/\/\s*export const\s+[A-Za-z0-9_]+\s*(?::\s*(?:CardDefinition|CardPrint)\b|=\s*[A-Za-z_][A-Za-z0-9_]*\s*\()/;
-const IS_COMMENT_LINE = /^\s*\/\//;
-
-/** True when `lines[i]` sits in the same contiguous `//` comment run as a
- *  commented-out card-definition stub anchor — `check-stub-coverage.ts`'s
- *  domain, out of scope here (see the module doc above). Walks the whole
- *  contiguous run in both directions, wider than Guard B's paragraph window,
- *  because a stub's own tracking note can sit above OR below its anchor and
- *  the run is not always paragraph-broken from it. */
-export function isStubContext(lines: string[], i: number): boolean {
-    let start = i;
-    while (start > 0 && IS_COMMENT_LINE.test(lines[start - 1])) start--;
-    let end = i;
-    while (end < lines.length - 1 && IS_COMMENT_LINE.test(lines[end + 1]))
-        end++;
-    for (let k = start; k <= end; k++) {
-        if (STUB_ANCHOR.test(lines[k])) return true;
-    }
-    return false;
 }
 
 /** Scan every in-scope source for `tracked-by:` dispositions, dropping

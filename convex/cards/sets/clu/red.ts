@@ -10,7 +10,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // this turn. At the beginning of your upkeep, exile the top card of your
 // library face down. You may look at and play that card this turn."
 //
-// SIMPLIFICATION (flagged, CR 115 "target player"): `TriggeredAbility`
+// SIMPLIFICATION (flagged, CR 115 "target player"): `TriggeredAbility` (out of scope)
 // carries no `targetRequirement`/player-choice zone-pick kind (no
 // `ZonePickKind` targets a player), and this engine is 2-player/solo only
 // (CLAUDE.md — no 3+ player multiplayer), so "target player" always

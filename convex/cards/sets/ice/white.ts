@@ -161,7 +161,7 @@ function makeScarab(args: {
 // counter-removal prevention), Justice (upkeep pay-or-sac + red-damage
 // reflect), Seraph (Krovikan-Vampire-style next-end-step reanimate).
 //
-// DEFERRED (remain commented stubs, owned by a later cluster):
+// DEFERRED (remain commented stubs, owned by a later cluster) (tracked-by: #2785):
 //   • Cumulative upkeep — Cold Snap, Energy Storm (ADR 0042 cluster).
 //   • Restricted-mana CU support — Adarkar Unicorn (CU mana cluster).
 //   • Snow-gated combat eligibility — Arctic Foxes (block restriction keyed on
@@ -1066,7 +1066,7 @@ export const fylgja: CardDefinition = {
 // live block graph, which the DSL vocabulary does not model. This is the
 // accepted combat-primitive escape hatch, not a papered-over Op gap.
 //
-// SIMPLIFICATION (flagged, no engine change): `combatRoleFilter` has no
+// SIMPLIFICATION (flagged, no engine change): `combatRoleFilter` has no (tracked-by: #2785)
 // "blocked" refinement, so the target requirement admits any attacking creature
 // (controlled by EITHER player — the oracle has no controller clause); the
 // primitive's own CR 509.1 gate no-ops on an unblocked attacker, so targeting
@@ -1972,7 +1972,7 @@ export const sacredBoon: CardDefinition = {
 // `damagedBySources` — the Sengir/Krovikan Vampire check — composed with a
 // next-end-step delayed reanimation, CR 603.7c, exactly like Krovikan Vampire.)
 //
-// SIMPLIFICATION (flagged, no engine change — identical to Krovikan Vampire):
+// SIMPLIFICATION (flagged, no engine change — identical to Krovikan Vampire) (tracked-by: #2785):
 // the "Sacrifice the creature when you lose control of this creature" clause
 // requires per-permanent control-loss tracking the engine doesn't model yet.
 // The reanimation (the card's main effect) is faithful; the

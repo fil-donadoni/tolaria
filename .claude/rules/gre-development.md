@@ -53,13 +53,27 @@ the Op vocabulary.
   `mechanicsRegistry.test.ts`. To satisfy: ship the mechanic first, or add a
   narrow `{ cardId, keyword, issue }` row to `KEYWORD_ALLOWLIST` with a real
   open issue (the allowlist empties out, never a standing hatch).
-- **Guard B — documented-divergence-needs-issue (#962).** Every `// Deferred`
-  / `// divergence` / `// not implemented` / `// TODO` marker in
+- **Guard B — documented-divergence-needs-issue (#962, vocabulary/window
+  widened in #1900).** Every confession-shaped marker in
   `convex/cards/sets/**` MUST carry a tracking ref (`tracked-by: #NNN`) or an
-  explicit "out of scope" note **in the marker's own comment paragraph**
-  (bounded by blank `//` lines / box rules — a ref in a different paragraph
-  does not vouch; `ADR NNNN` is provenance, not a work ticket). Enforced by
-  `divergenceMarkers.test.ts`.
+  explicit "out of scope" note. The vocabulary is `Deferred` / `divergence` /
+  `not implemented` / `TODO` / `simplif*` / `approximat*` / `not model(l)?ed`
+  / `not enforced` / `deviat*` / `unimplemented` / `unbuilt`, matched
+  UNANCHORED — anywhere in a `//` comment line, not only as its first word
+  (#1900: most per-card divergence prose opens with the card's own name, not
+  a marker word, so anchoring silently missed roughly half the confessions
+  that existed). The disposition must sit **on the marker's own line, the
+  line immediately following it, or an earlier line of the same paragraph
+  that is itself a dispositioned marker** — narrower than the old
+  whole-paragraph scan (#1900 closed a leak one level down from #962's: an
+  UNRELATED ref elsewhere in the same paragraph — a provenance citation, a
+  different clause's own ref — no longer vouches for a marker it isn't
+  attached to; a shared section-footer header's ref still vouches for the
+  marker-word bullets listed under it). `ADR NNNN` is still provenance, never
+  a work ticket. A marker sitting inside a commented-out card stub's comment
+  run is out of scope here — `check-stub-coverage.ts`'s domain. Enforced by
+  `divergenceMarkers.test.ts`; scanner shared with the liveness sweep in
+  `scripts/lib/divergence-markers.ts`.
 
 **Guard B polices markers; it does not licence them.** A `tracked-by:` ref
 makes an already-accepted divergence findable — it never makes one

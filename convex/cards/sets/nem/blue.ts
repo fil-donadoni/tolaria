@@ -13,7 +13,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // (CR 702.32 Fading; CR 701.13 exile; CR 603.7a leaves-the-battlefield.)
 //
 // The blue land-exiling half of the Parallax Wave cycle — identical structure
-// (see nem/white.ts for the full rationale), the only divergence being the
+// (see nem/white.ts for the full rationale), the only divergence being the (tracked-by: #2785)
 // target type (`Land` instead of `Creature`). Fading 5 rides the getDefinition
 // seam (ADR 0054); the exile-and-return bundle is the DSL-first (ADR 0045)
 // `exileWithAttachments` / `returnExiledForSource` Op pair (ADR 0028).

@@ -240,7 +240,7 @@ export const arcumsWeathervane: CardDefinition = {
 //
 // The attack-requirement seam shipped (`setMustAttackThisTurn` +
 // `hasAttackedThisTurn` + `next-end-step` delayed destroy — the Nettling Imp
-// pattern, lea/black.ts). The DEFERRED note above is stale: those primitives
+// pattern, lea/black.ts). The DEFERRED note above is stale: those primitives (tracked-by: #2785)
 // now exist. The activation window "before attackers are declared" is
 // `activationPhaseRestriction` (all steps up to BEGINNING_OF_COMBAT). The
 // target uses the `controller: "active"` filter (CR 102.1) — the creature the
@@ -576,7 +576,7 @@ export const crownOfTheAges: CardDefinition = {
 //     opponent but known to its controller (CR 406.3), same as Ice Cauldron.
 //   - `grantCastFromExile(id, caster)` marks it castable from exile by the
 //     controller (CR 601.3e) — the shipped impulse-play seam (#666).
-// SIMPLIFICATION (flagged, CR 608.2g): the "until the beginning of your next
+// SIMPLIFICATION (flagged, CR 608.2g): the "until the beginning of your next (tracked-by: #2785)
 // upkeep" window END is not auto-revoked on a timer — the play permission
 // persists while the card remains in exile, matching every other shipped
 // impulse card (Ice Cauldron: no window; Baleful Mastery/STX bottom: rest of
@@ -760,7 +760,7 @@ export const goblinLyre: CardDefinition = {
 // Op has no such guard and would surface the payment prompt even with
 // nothing to untap — the pre-existing per-card test
 // ("declining the target … resolves as a no-op — no may-pay") catches
-// exactly this divergence. Blocked on: a target-slot-resolved predicate
+// exactly this divergence. Blocked on: a target-slot-resolved predicate (tracked-by: #2785)
 // (planned — no issue filed yet).
 function makeTalisman(args: {
     id: string;
@@ -837,7 +837,7 @@ export const hematiteTalisman: CardDefinition = makeTalisman({
 // the cast pipeline accepts it only when the spell being cast is that exiled
 // card.
 //
-// SIMPLIFICATION (flagged, CR 605.1a): as with Jeweled Amulet, the "add the
+// SIMPLIFICATION (flagged, CR 605.1a): as with Jeweled Amulet, the "add the (tracked-by: #2785)
 // noted mana" ability is a mana ability that this engine models as
 // `useStack: true` (the mana-ability path can't produce stored/variable mana).
 export const iceCauldron: CardDefinition = {
@@ -1140,7 +1140,7 @@ export const jestersMask: CardDefinition = {
 // `addNotedMana`. Both gate on the no-counter / has-counter invariant so only
 // one charge sits on the artifact at a time (CR 122 counters).
 //
-// SIMPLIFICATION (flagged, CR 605.1a): the "add the noted mana" ability is a
+// SIMPLIFICATION (flagged, CR 605.1a): the "add the noted mana" ability is a (out of scope)
 // mana ability and should not use the stack. The engine's mana-ability path
 // (`useStack: false` / `manaProduced`) produces only fixed, definition-time
 // mana; it cannot read the artifact's stored note to produce a variable colour.
@@ -1438,7 +1438,7 @@ export const skullCatapult: CardDefinition = {
 // Snow Fortress — Defender Wall with two self-pumps and a {3} ping (CR 702.3
 // defender; CR 605 activated abilities; CR 613 layer 7c buffs; CR 120.1 damage).
 //
-// SIMPLIFICATION (flagged, no engine change): the printed ping targets a
+// SIMPLIFICATION (flagged, no engine change): the printed ping targets a (tracked-by: #2785)
 // non-flying creature "that's attacking you". The engine's combat-role filter
 // can express "attacking" and "without flying" but not the "attacking YOU"
 // (the controller is the defending player) refinement. In a duel every
@@ -1771,7 +1771,7 @@ export const timeBomb: CardDefinition = {
 // next-upkeep cantrip is buildable via the shared `nextUpkeepDrawTrigger`, and
 // the "look at a card at random in target player's hand" clause is purely
 // informational (no game-state change, no decision derives from it — unlike
-// Wand of Ith), so it is intentionally not modelled. See the def for the note.
+// Wand of Ith), so it is intentionally not modelled. See the def for the note. (tracked-by: #2785)
 // Vexing Arcanix — {3}, {T}: Target player names a card, reveals their top card;
 // hit → hand, miss → graveyard + 2 damage to them (CR 605 activated ability;
 // CR 202.3 name-a-card via `requestNameCard` made by the TARGET player; CR 701.13

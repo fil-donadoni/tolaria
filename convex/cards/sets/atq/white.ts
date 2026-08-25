@@ -55,7 +55,7 @@ export const argivianArchaeologist: CardDefinition = {
 // Prevent the next 2 damage that would be dealt to target artifact creature
 // this turn." (CR 615.1 prevention shield.)
 //
-// DIVERGENCE (flagged): the target filter is "artifact creature" (AND of two
+// DIVERGENCE (flagged): the target filter is "artifact creature" (AND of two (tracked-by: #2785)
 // card types), but `TargetRequirement.type` arrays are OR-of-types (rules.ts
 // uses `.some()`), and there is no AND-of-types filter. The target is scoped to
 // `type: "Creature"` here, so it can prevent damage to a non-artifact creature

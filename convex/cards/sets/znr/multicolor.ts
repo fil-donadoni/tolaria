@@ -22,7 +22,7 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // `landfallTrigger` (Landfall CAP, #694) with a THREE-way nested `if` chain on
 // `abilityResolutionCount` — no targeting needed ("each opponent" / "each
 // planeswalker you don't control" are both untargeted sweeps, CR 102.2
-// 2-player-only simplification: "each opponent" is the one other player).
+// 2-player-only simplification: "each opponent" is the one other player). (tracked-by: #2785)
 // 4th-or-later landfall this turn falls through every branch as a no-op —
 // matches the real card's "choose one that hasn't been chosen this turn" cap
 // (only three modes exist, so a fourth trigger has nothing left to choose).

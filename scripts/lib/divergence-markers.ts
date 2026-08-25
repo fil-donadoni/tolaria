@@ -5,14 +5,42 @@
 // function living inside Guard B's test so the two consumers share one parser
 // instead of two that can drift.
 //
-// Guard B checks that a divergence marker's own comment PARAGRAPH carries a
-// tracking disposition (`#NNN` / `tracked-by:` / an explicit "out of scope"
-// note) — presence only, never whether the referenced issue is still open.
-// The liveness sweep is the other half: it needs to know WHICH issue
-// number(s) a marker's paragraph names, so it can ask `gh` whether each is
-// still open. `issueNumbersIn` below is the only addition beyond what Guard B
-// already had; everything else (the marker/disposition regexes, paragraph
-// scoping) is moved verbatim.
+// Guard B checks that a divergence marker carries a tracking disposition
+// (`#NNN` / `tracked-by:` / an explicit "out of scope" note) in its own
+// comment line, the line right after it, or an earlier same-paragraph line
+// that is itself a dispositioned marker (issue #1900 tightened this from the
+// whole paragraph — see `isDispositioned` below) — presence only, never
+// whether the referenced issue is still open. The liveness sweep is the
+// other half: it needs to know WHICH issue number(s) a marker's paragraph
+// names, so it can ask `gh` whether each is still open. `issueNumbersIn`
+// below is the only addition beyond what Guard B already had; everything
+// else (the marker/disposition regexes, paragraph scoping) is moved
+// verbatim.
+//
+// ── Vocabulary (issue #1900) ────────────────────────────────────────────────
+// Guard B's original MARKER (`Deferred`/`divergence`/`not implemented`/
+// `TODO`, anchored as the FIRST word after `//`) missed the confession
+// vocabulary card authors actually use — `SIMPLIFICATION (flagged)`,
+// `approximated by`, `not modelled`, `not enforced`, `deviation`,
+// `unimplemented`, `unbuilt` — and almost never as the first word of the
+// comment (most per-card divergence prose opens with the card's own name;
+// see `scanTrackedByRefs`'s own doc comment below, which hit the identical
+// problem for `tracked-by:`). Both were derived empirically off this
+// corpus, not guessed from the issue's own examples (a plain grep of just
+// those five phrases found only 22 hits against a measured ~200 misses):
+// dumping every `//` line matching a wide net of divergence-adjacent English
+// (simplif*/approximat*/deviat*/not modelled/not enforced/unbuilt/
+// unimplemented/stub/placeholder/no-op/capability gap/…) and reading the
+// results by hand. Several candidates were REJECTED after that read because
+// they hit sanctioned, non-confession shapes far more than real ones:
+// `no-op` (78 hits, almost all ordinary CR 608.2b/107.3 no-op explanations,
+// not divergences), `stub`/`placeholder` (219/12, `check-stub-coverage.ts`'s
+// domain — commented-out cards, not a shipped card's partial behaviour),
+// `best effort`/`capability gap`/`engine gap` (mostly fallback-caller or
+// provenance prose, not a card confession). What survived — added below,
+// UNANCHORED (a confession word anywhere in a `//` line, not just first) —
+// is `simplif\w*`, `approximat\w*`, `not model(l)?ed`, `not enforced`,
+// `deviat\w*`, `unimplemented`, `unbuilt`.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -23,11 +51,42 @@ import * as path from "path";
 export const SETS_DIR = path.resolve("convex/cards/sets");
 
 export const MARKER =
-    /\/\/\s*(Deferred|DEFERRED|divergence|DIVERGENCE|not implemented|TODO)\b/i;
+    /\/\/.*\b(Deferred|divergence|not implemented|TODO|simplif\w*|approximat\w*|not model(?:l)?ed|not enforced|deviat\w*|unimplemented|unbuilt)\b/i;
 // Tracking dispositions. `#NNN` or an explicit out-of-scope note — NOT a bare
 // `ADR NNNN` provenance citation (see Guard B's own header comment for why).
 export const DISPOSITION = /#\d+|tracked-by:|out[-\s]of[-\s]scope/i;
 const IS_COMMENT = /^\s*\/\//;
+
+/** Same anchor `check-stub-coverage.ts` uses to identify a commented-out card
+ *  definition — duplicated rather than imported: that module's top level
+ *  runs `getAllCards()` to build its dead-duplicate index, so importing
+ *  anything from it would pull in the whole card registry just for a regex
+ *  constant. If `STUB_ANCHOR` ever changes there, mirror the edit here.
+ *  (Moved here from `scripts/check-marker-liveness.ts` in issue #1900 so
+ *  Guard B's OWN scan can suppress stub context too — the widened MARKER
+ *  vocabulary otherwise lands inside commented-out-stub section prose, e.g.
+ *  the `#676`/`#679`/`#684` sites in `mh1/`, which is `check-stub-coverage.ts`'s
+ *  domain, not Guard B's: Guard B's header above is explicit that it polices
+ *  an ACTIVE card's documented partial implementation, never a commented-out
+ *  one.) */
+export const STUB_ANCHOR =
+    /^\s*\/\/\s*export const\s+[A-Za-z0-9_]+\s*(?::\s*(?:CardDefinition|CardPrint)\b|=\s*[A-Za-z_][A-Za-z0-9_]*\s*\()/;
+
+/** True when `lines[i]` sits in the same contiguous `//` comment run as a
+ *  commented-out card-definition stub anchor. Walks the whole contiguous run
+ *  in both directions, wider than Guard B's paragraph window, because a
+ *  stub's own tracking note can sit above OR below its anchor and the run is
+ *  not always paragraph-broken from it. */
+export function isStubContext(lines: string[], i: number): boolean {
+    let start = i;
+    while (start > 0 && IS_COMMENT.test(lines[start - 1])) start--;
+    let end = i;
+    while (end < lines.length - 1 && IS_COMMENT.test(lines[end + 1])) end++;
+    for (let k = start; k <= end; k++) {
+        if (STUB_ANCHOR.test(lines[k])) return true;
+    }
+    return false;
+}
 
 /** A comment line that ENDS the current paragraph when it sits adjacent to
  *  the marker: a blank `//` separator, or a box-rule line whose only content
@@ -64,16 +123,53 @@ export function collectSetFiles(root: string): string[] {
     return out;
 }
 
-/** The comment PARAGRAPH containing line `i`: expand up and down while the
- *  adjacent line is neither a paragraph break nor a non-comment line. Pure
- *  function of `lines` (no disk I/O) so it can be unit-tested against a
- *  fixture. */
-export function paragraphAround(lines: string[], i: number): string {
+/** Start/end line indices (inclusive) of the comment PARAGRAPH containing
+ *  line `i`: expand up and down while the adjacent line is neither a
+ *  paragraph break nor a non-comment line. */
+function paragraphBounds(
+    lines: string[],
+    i: number
+): { start: number; end: number } {
     let start = i;
     let end = i;
     while (start > 0 && !isParagraphBreak(lines[start - 1])) start--;
     while (end < lines.length - 1 && !isParagraphBreak(lines[end + 1])) end++;
+    return { start, end };
+}
+
+/** The comment PARAGRAPH containing line `i`, joined as text. Pure function
+ *  of `lines` (no disk I/O) so it can be unit-tested against a fixture. Used
+ *  only for `issueNumbers` extraction (liveness) — Guard B's own tracking
+ *  check uses the tighter `isDispositioned` window below (issue #1900). */
+export function paragraphAround(lines: string[], i: number): string {
+    const { start, end } = paragraphBounds(lines, i);
     return lines.slice(start, end + 1).join("\n");
+}
+
+/** Whether the marker at line `i` carries its own tracking disposition —
+ *  TIGHTENED WINDOW (issue #1900). Accepts:
+ *    1. a disposition on the marker's OWN line;
+ *    2. a disposition on the line immediately following it, still within
+ *       the same paragraph;
+ *    3. a disposition on an EARLIER line of the same paragraph that is
+ *       ITSELF a marker line carrying its own (case 1) disposition — the
+ *       "shared section-footer header" shape: a single
+ *       `// C5 deferred (tracked-by: #1213) — …` line vouches for the
+ *       marker-word bullets listed underneath it in the same paragraph.
+ *  This is narrower than the old whole-paragraph scan: an UNRELATED ref
+ *  sitting in a different sentence of the same paragraph (a provenance
+ *  citation, a separate deferral's own ref) no longer vouches for a marker
+ *  it isn't attached to — issue #1900's "same-paragraph vouching" leak
+ *  (`eld/colorless.ts`'s Fabled Passage, since fixed on its merits, was the
+ *  original repro). */
+function isDispositioned(lines: string[], i: number): boolean {
+    if (DISPOSITION.test(lines[i])) return true;
+    const { start, end } = paragraphBounds(lines, i);
+    if (i + 1 <= end && DISPOSITION.test(lines[i + 1])) return true;
+    for (let j = start; j < i; j++) {
+        if (MARKER.test(lines[j]) && DISPOSITION.test(lines[j])) return true;
+    }
+    return false;
 }
 
 export interface MarkerHit {
@@ -82,16 +178,18 @@ export interface MarkerHit {
     text: string;
 }
 
-/** Every divergence-marker comment line in `lines`, paired with whether its
- *  own comment PARAGRAPH (not the whole contiguous block) carries a tracking
- *  disposition. */
+/** Every divergence-marker comment line in `lines`, paired with whether it
+ *  carries a tracking disposition per `isDispositioned`'s tightened window.
+ *  A marker sitting inside a commented-out card stub's comment run is
+ *  skipped entirely — `check-stub-coverage.ts`'s domain, not Guard B's. */
 export function scanDivergenceMarkers(lines: string[]): MarkerHit[] {
     const hits: MarkerHit[] = [];
     for (let i = 0; i < lines.length; i++) {
         if (!MARKER.test(lines[i])) continue;
+        if (isStubContext(lines, i)) continue;
         hits.push({
             line: i + 1,
-            tracked: DISPOSITION.test(paragraphAround(lines, i)),
+            tracked: isDispositioned(lines, i),
             text: lines[i].trim(),
         });
     }

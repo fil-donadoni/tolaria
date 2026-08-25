@@ -366,7 +366,7 @@ export const phyrexianGremlins: CardDefinition = {
 // artifact's P/T is its mana value, snapshotted at resolution via
 // `ctx.getManaValue` and stored as the animation's base P/T.
 //
-// Note (not a divergence): `animateAsCreature` adds the Creature type only —
+// Note (not a divergence, out of scope — re-verified in #1212): `animateAsCreature` adds the Creature type only —
 // the target is already an artifact, so the resulting "artifact creature" type
 // line is correct without an Artifact type-add. Re-verified 2026-08-05 in the
 // #1212 tracker audit; nothing is missing here.
