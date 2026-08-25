@@ -2,64 +2,76 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { Panel, PanelHeader, PanelBody, PanelFooter } from "../panel";
 
+/** Token-exact className assertion (issue #2666): a bare `toContain` is a raw
+ *  substring match, so `"border"` would be satisfied by `border-t` and
+ *  `"border-[var(--hairline)]"` by `border-[var(--hairline-strong)]` — which
+ *  is exactly the pair of edges this file has to tell apart. */
+function classTokens(el: Element): string[] {
+    return el.className.split(/\s+/).filter(Boolean);
+}
+
 describe("Panel", () => {
     it("renders children", () => {
         render(<Panel>Hello</Panel>);
         expect(screen.getByText("Hello")).toBeTruthy();
     });
 
-    it("renders the physical bezel", () => {
+    it("renders the panel material", () => {
         const { container } = render(<Panel>content</Panel>);
         const panel = container.querySelector('[data-slot="panel"]')!;
         expect(panel.className).toContain("panel-physical");
     });
 
-    // ADR 0101 §2 / issue #2581: the v3 frame is four 10px inset brackets at
-    // 1px / opacity .5. The 40px filigree is no longer the default frame —
-    // it survives only behind the explicit `ornament` opt-in.
-    it("renders v3 corner brackets at all four corners, and no filigree", () => {
+    // ADR 0103 §5 / issue #2723: the v4 frame is the panel's own EDGE — a 1px
+    // translucent-ivory border on a `--panel-radius` corner. Nothing is drawn
+    // at the corners any more: the 40px filigree (issue #595) and the 10px
+    // brackets that replaced it (issue #2581) are both gone from Panel.
+    it("draws no corner ornament of any kind — neither brackets nor filigree", () => {
         const { container } = render(<Panel>content</Panel>);
-        const corners = container.querySelectorAll(
-            '[data-slot="corner-bracket"]'
-        );
-        expect(corners).toHaveLength(4);
-        const positions = Array.from(corners).map((c) =>
-            c.getAttribute("data-corner")
-        );
-        expect(positions.sort()).toEqual(["bl", "br", "tl", "tr"]);
+        expect(
+            container.querySelectorAll('[data-slot="corner-bracket"]')
+        ).toHaveLength(0);
         expect(
             container.querySelectorAll('[data-slot="corner-filigree"]')
         ).toHaveLength(0);
     });
 
-    it("ornament opts back into the filigree, keeping brackets as the phone fallback", () => {
+    it("frames itself with the hairline edge on the panel corner", () => {
+        const { container } = render(<Panel>content</Panel>);
+        const panel = container.querySelector('[data-slot="panel"]')!;
+        expect(classTokens(panel)).toContain("border");
+        expect(classTokens(panel)).toContain("rounded-[var(--panel-radius)]");
+    });
+
+    // The `ornament` prop outlived its behaviour on purpose: three call sites
+    // still pass it and this slice changes no consumer file (#2734 removes the
+    // prop and those call sites together). Accepted, and inert — a Panel that
+    // asks for the ornament must NOT get a corner ornament back.
+    it("accepts the retired ornament prop and renders nothing extra for it", () => {
+        const plain = render(<Panel>content</Panel>).container.innerHTML;
         const { container } = render(<Panel ornament>content</Panel>);
         expect(
             container.querySelectorAll('[data-slot="corner-filigree"]')
-        ).toHaveLength(4);
-        // Both frames are mounted; CSS picks one. `compact-chrome` is the
-        // phone-shaped variant, so the ornament shows only above 844x390.
-        const filigree = container.querySelector(
-            '[data-slot="corner-filigree-frame"]'
-        )!;
-        expect(filigree.className).toContain("compact-chrome:hidden");
-        const brackets = container.querySelector(
-            '[data-slot="corner-bracket-frame"]'
-        )!;
-        expect(brackets.className).toContain("hidden");
-        expect(brackets.className).toContain("compact-chrome:block");
+        ).toHaveLength(0);
+        expect(
+            container.querySelectorAll('[data-slot="corner-bracket"]')
+        ).toHaveLength(0);
+        expect(container.innerHTML).toBe(plain);
     });
 
-    it("applies neutral tone border by default", () => {
+    // Both tones are the TRANSLUCENT hairline pair, never the flattened
+    // `border-*` hexes: a Panel over card art or a gradient would paint a
+    // visible grey line with a flattened edge.
+    it("applies the neutral hairline edge by default", () => {
         const { container } = render(<Panel>x</Panel>);
         const panel = container.querySelector('[data-slot="panel"]')!;
-        expect(panel.className).toContain("border-border-subtle");
+        expect(classTokens(panel)).toContain("border-[var(--hairline)]");
     });
 
-    it("applies accent tone border", () => {
+    it("applies the strong hairline edge for the accent tone", () => {
         const { container } = render(<Panel tone="accent">x</Panel>);
         const panel = container.querySelector('[data-slot="panel"]')!;
-        expect(panel.className).toContain("border-accent");
+        expect(classTokens(panel)).toContain("border-[var(--hairline-strong)]");
     });
 
     // v3 density (ADR 0101 §2): the rung is published as `data-density` and
@@ -104,29 +116,32 @@ describe("Panel", () => {
         expect(panel.className).toContain("my-custom");
     });
 
-    it("overlay mode renders only the bracket frame stretched inset-0", () => {
+    it("overlay mode renders only the edge, stretched inset-0", () => {
         const { container } = render(<Panel overlay />);
-        // no opaque bezel in overlay mode
+        // no material in overlay mode — the caller owns the box
         expect(container.querySelector('[data-slot="panel"]')).toBeNull();
-        const frame = container.querySelector(
-            '[data-slot="corner-bracket-frame"]'
-        )!;
-        expect(frame.className).toContain("inset-0");
-        expect(
-            container.querySelectorAll('[data-slot="corner-bracket"]')
-        ).toHaveLength(4);
+        const frame = container.querySelector('[data-slot="panel-frame"]')!;
+        const tokens = classTokens(frame);
+        expect(tokens).toContain("absolute");
+        expect(tokens).toContain("inset-0");
+        expect(tokens).toContain("border");
+        expect(tokens).toContain("border-[var(--hairline)]");
+        expect(tokens).toContain("rounded-[var(--panel-radius)]");
+        // decorative: it lies over the caller's own content
+        expect(tokens).toContain("pointer-events-none");
+        expect(frame.getAttribute("aria-hidden")).toBe("true");
     });
 });
 
 describe("PanelHeader", () => {
-    it("renders title with Beleren font in an engraved band", () => {
+    it("renders the title in the header band", () => {
         render(<PanelHeader title="Test Title" />);
         const heading = screen.getByRole("heading", { name: "Test Title" });
         expect(heading.className).toContain("heading-panel");
     });
 
-    // ADR 0101 §2: title LEFT, a 1px rule beneath, and no centred diamond
-    // node (it contradicts a left-aligned title).
+    // ADR 0101 §2: title LEFT, ONE hairline rule beneath, and no centred
+    // diamond node (it contradicts a left-aligned title).
     it("left-aligns the title and drops the centred diamond node", () => {
         const { container } = render(<PanelHeader title="T" />);
         const heading = screen.getByRole("heading", { name: "T" });
@@ -136,8 +151,7 @@ describe("PanelHeader", () => {
     });
 
     // The band bleeds to the panel border by cancelling `--panel-pad`, and the
-    // title starts at `--panel-header-pad-x` from that border — the quantity
-    // the bracket-clearance guard compares against the bracket reach.
+    // title starts at `--panel-header-pad-x` from that border.
     it("insets the title by the header padding token, measured from the panel border", () => {
         const { container } = render(<PanelHeader title="T" />);
         const band = container.querySelector(".panel-header-band")!;
@@ -267,9 +281,7 @@ describe("Panel composition", () => {
             </Panel>
         );
         expect(screen.getByText("row content")).toBeTruthy();
-        const corners = container.querySelectorAll(
-            '[data-slot="corner-bracket"]'
-        );
-        expect(corners).toHaveLength(4);
+        const panel = container.querySelector('[data-slot="panel"]')!;
+        expect(classTokens(panel)).toContain("border-[var(--hairline)]");
     });
 });

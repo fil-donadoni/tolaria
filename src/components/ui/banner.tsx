@@ -8,14 +8,34 @@ export type BannerTone =
     | "success"
     | "neutral";
 
-const TONE_CLASSES: Record<BannerTone, string> = {
-    /* danger text is danger-strong (7.99:1 on surface — the 3.43:1 `danger`
-       as text was a phase-3 contrast failure) */
-    danger: "border-danger/60 bg-danger-soft/40 text-danger-strong",
-    info: "border-accent/40 bg-accent-soft/30 text-text",
-    prominent: "border-2 border-accent bg-accent/15 font-medium text-text",
-    success: "border-success/50 bg-success-soft/40 text-success-strong",
-    neutral: "border-border-subtle bg-surface-elevated/30 text-text-muted",
+/** v4 strips (ADR 0103 §5 / PRD #2721, issue #2723): every tone is the SAME
+ *  quiet strip — surface fill, one hairline edge, body text at the normal
+ *  colour — and the tone is carried by the dot and by the edge tint alone.
+ *
+ *  The v3 recipe tinted the whole box (`bg-danger-soft/40` + `text-danger-strong`,
+ *  a 2px accent border for `prominent`), so five simultaneous notices read as
+ *  five different components and a plain heads-up looked like an error. The
+ *  hues are still the meaning-carrying signal tokens the ADR keeps; they just
+ *  live in 8 pixels instead of the whole strip.
+ *
+ *  `danger` keeps its text colour, and only `danger`: an error message is the
+ *  one tone whose TEXT must survive being skimmed, and `danger-strong` is
+ *  7.99:1 on surface (plain `danger` as text was a phase-3 failure at 3.43:1). */
+const TONE_EDGE: Record<BannerTone, string> = {
+    danger: "border-danger/60 text-danger-strong",
+    info: "border-[var(--hairline)] text-text",
+    prominent: "border-[var(--hairline-strong)] font-medium text-text",
+    success: "border-success/50 text-text",
+    neutral: "border-[var(--hairline)] text-text-muted",
+};
+
+/** The status dot's fill — the one place a banner is allowed to be loud. */
+const TONE_DOT: Record<BannerTone, string> = {
+    danger: "bg-danger-strong",
+    info: "bg-accent",
+    prominent: "bg-accent",
+    success: "bg-success-strong",
+    neutral: "bg-text-disabled",
 };
 
 /**
@@ -25,8 +45,12 @@ const TONE_CLASSES: Record<BannerTone, string> = {
  * - `tone="danger"` — errors; pass `role="alert"`/`aria-live` as needed.
  * - `tone="info"` — neutral heads-up; `title` renders the small-caps lead-in
  *   (e.g. "Incompleteness Notice").
- * - `tone="prominent"` — the heavier accent strip (active-game notice).
+ * - `tone="prominent"` — the heavier strip (active-game notice): a stronger
+ *   hairline and a medium weight, not a thicker border and a wash.
  * - `tone="success"` / `"neutral"` — confirmations, quiet notes.
+ *
+ * A caller may still pass an `icon`; it replaces the dot rather than sitting
+ * beside it, so a banner never shows two leading marks.
  */
 function Banner({
     tone,
@@ -48,13 +72,24 @@ function Banner({
             data-slot="banner"
             data-tone={tone}
             className={cn(
-                "flex items-start gap-2 rounded-sm border px-3 py-2 text-sm",
-                TONE_CLASSES[tone],
+                "flex items-start gap-2.5 rounded-sm border bg-surface px-3 py-2 text-sm",
+                TONE_EDGE[tone],
                 className
             )}
             {...props}
         >
-            {icon && <span className="mt-0.5 shrink-0">{icon}</span>}
+            {icon ? (
+                <span className="mt-0.5 shrink-0">{icon}</span>
+            ) : (
+                <span
+                    data-slot="banner-dot"
+                    aria-hidden
+                    className={cn(
+                        "mt-[0.45rem] size-2 shrink-0 rounded-full",
+                        TONE_DOT[tone]
+                    )}
+                />
+            )}
             <div className="min-w-0 flex-1">
                 {title && (
                     <span className="mr-1 font-semibold tracking-wide uppercase">

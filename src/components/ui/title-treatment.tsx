@@ -1,6 +1,13 @@
-// Epic Title Treatment (issue #597): a glowy Beleren headline flanked by clasp
-// flourishes with a slowly-rotating runic ring behind it. For start/end-of-Game
-// banners and other major messages — it floats, no panel box.
+// Epic Title Treatment (issue #597): a glowy DISPLAY-FACE headline flanked by
+// clasp flourishes with a slowly-rotating runic ring behind it. For
+// start/end-of-Game banners and other major messages — it floats, no panel box.
+//
+// v4 (ADR 0103 §4, issue #2723): the headline and the subtitle moved off
+// Beleren onto the chrome display face via `.text-display` (Geist 500,
+// -0.025em, lining tabular numerals). This component IS "the display-face
+// large title" the ADR names, and it was one of the last chrome consumers
+// still naming the retired Beleren utility — a class that resolves to nothing
+// since #2722, so it already rendered as Geist with none of the treatment.
 //
 // The runic ring's rotation is reduced-motion-gated in CSS (`.runic-ring`,
 // index.css); a later slice (#598) owns the broader motion pass. This component
@@ -49,14 +56,14 @@ export default function TitleTreatment({
                 <span className="runic-ring aspect-square h-full max-h-52 rounded-full opacity-40" />
             </span>
 
-            <h1 className="title-treatment-glow relative font-beleren text-4xl font-bold tracking-[0.06em] sm:text-5xl">
+            <h1 className="text-display title-treatment-glow relative text-4xl sm:text-5xl">
                 {title}
             </h1>
 
             {subtitle && (
                 <div className="relative mt-3 flex items-center gap-3">
                     <SubtitleFlourish side="left" />
-                    <span className="font-beleren text-base tracking-wide text-parchment">
+                    <span className="text-display text-base text-parchment">
                         {subtitle}
                     </span>
                     <SubtitleFlourish side="right" />

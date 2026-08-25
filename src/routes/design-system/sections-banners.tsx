@@ -210,7 +210,7 @@ export function BannersSection() {
                     <Specimen
                         label="BoardBanner shell"
                         tone="next"
-                        note="Panel frame (filigree) instead of 4 hand-drawn brackets"
+                        note="Panel frame (v4 hairline + material) instead of 4 hand-drawn brackets"
                     >
                         <div className="panel-physical relative rounded-md border border-border-subtle px-4 py-3">
                             <span className="pointer-events-none absolute inset-0">
@@ -220,7 +220,7 @@ export function BannersSection() {
                                 <span className="absolute right-1 bottom-1 h-3 w-3 rounded-br-sm border-b-2 border-r-2 border-accent/70" />
                             </span>
                             <p className="text-display text-center text-sm text-parchment">
-                                Pay {`{2}{R}`}? — via CornerFiligreeFrame
+                                Pay {`{2}{R}`}? — via the Panel frame
                             </p>
                             <div className="mt-2 flex justify-center gap-2">
                                 <button className="btn-base btn-tone-primary px-3 py-1 text-xs">

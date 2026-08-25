@@ -1,4 +1,5 @@
 // Panels & dialogs: the universal frame, chrome atoms, and the modal languages.
+// Frame census refreshed for identity v4 (ADR 0103 §5, issue #2723).
 import { useState } from "react";
 import {
     Panel,
@@ -33,13 +34,13 @@ export function PanelsDialogsSections() {
                 id="panels"
                 index="07"
                 title="Panel & chrome atoms"
-                blurb="The universal frame (ADR 0007): one Panel owns the physical bezel + corner filigree; everything panel-like composes it. Atoms: sunburst well, subtitle flourish, ornamental divider, stat chip, heading treatment."
+                blurb="The universal frame (ADR 0007, re-skinned by ADR 0103 §5): one Panel owns the material and the edge; everything panel-like composes it. v4 is hairline + material — a 1px ivory/12 border on a 6px corner, one top-light gradient, a soft elevation shadow, and NO corner ornament. The 40px filigree (#595) and the 10px brackets that replaced it (#2581) both left Panel in #2723. Atoms that survive: sunburst well, subtitle flourish, and the ornamental divider — the one ornament the ADR keeps."
             >
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <Panel>
                         <PanelHeader
-                            title="Panel — neutral, default density"
-                            subtitle="composition API"
+                            title="Panel v4 — neutral, default density"
+                            subtitle="hairline + material · composition API"
                             icon={
                                 <Sparkles className="h-8 w-8 text-accent-strong" />
                             }
@@ -49,7 +50,8 @@ export function PanelsDialogsSections() {
                             <p className="text-sm text-text-muted">
                                 Panel + PanelHeader + PanelBody + PanelFooter.
                                 38 GameDialog consumers + lobby/deck surfaces
-                                sit on this frame.
+                                sit on this frame. The composition API is
+                                unchanged by v4 — no consumer file moved.
                             </p>
                         </PanelBody>
                         <PanelFooter>
@@ -66,17 +68,21 @@ export function PanelsDialogsSections() {
                             <p className="text-xs text-text-muted">
                                 tone=&quot;accent&quot;
                                 density=&quot;compact&quot; — same frame,
-                                tighter padding.
+                                tighter padding. In v4 the tone picks the
+                                hairline STRENGTH (ivory/12 → ivory/30), not a
+                                different colour: the chrome is monochrome.
                             </p>
                         </Panel>
                         <Specimen label="overlay mode" tone="plain">
                             <div className="relative rounded-md border border-border-subtle bg-surface p-4">
                                 <Panel overlay />
                                 <p className="text-xs text-text-muted">
-                                    &lt;Panel overlay /&gt; stretches the
-                                    filigree onto an existing relative box —
-                                    this is what the 60 inline bracket copies
-                                    collapse into.
+                                    &lt;Panel overlay /&gt; stretches the v4
+                                    EDGE onto an existing relative box, so an
+                                    already-positioned panel can be framed
+                                    without re-wrapping it. It used to stretch
+                                    the corner frame; the corners are gone, the
+                                    seam is not.
                                 </p>
                             </div>
                         </Specimen>
@@ -94,9 +100,23 @@ export function PanelsDialogsSections() {
                             <OrnamentalDivider className="mt-4" />
                             <Where>
                                 sunburst (panel/game-dialog) · flourish
-                                (panel/title-treatment) · divider
-                                (dashboard-top-bar) · StatChip PRUNED
+                                (panel/title-treatment) · divider — the ONE
+                                ornament ADR 0103 §5 keeps · StatChip PRUNED
                             </Where>
+                            <p className="mt-2 text-xs text-text-muted">
+                                <strong className="text-text">
+                                    Retired from Panel, not yet deleted.
+                                </strong>{" "}
+                                <code>CornerBracket*</code> /{" "}
+                                <code>CornerFiligree*</code> left the frame in
+                                #2723 but are NOT orphaned: two production
+                                surfaces still import them directly (
+                                <code>chrome/app-header.tsx</code>,{" "}
+                                <code>board/player-nameplate.tsx</code>). #2734
+                                re-skins those two and deletes the atoms, their
+                                CSS recipes and the{" "}
+                                <code>--panel-bracket-*</code> tokens together.
+                            </p>
                         </Specimen>
                     </div>
                 </div>
