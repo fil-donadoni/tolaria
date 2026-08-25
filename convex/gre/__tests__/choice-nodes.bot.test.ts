@@ -8,10 +8,16 @@
 // fetch/tutor generator (CR 701.23, issue #1429).
 
 import { describe, it, expect, afterEach, vi } from "vitest";
-import type { GameState, PendingChoice } from "../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    StackItem,
+} from "../state";
 import { resolveTopOfStack } from "../state";
 import type { CardDefinition, EffectOp, MayPayCost } from "../../cards/types";
 import { registerTokenDefinition } from "../../cards";
+import { projectPublicState } from "../../gameProjections";
 
 /** A fixed-cardinal sacrifice leg (CR 701.21a) over creatures. */
 const SAC_ONE_CREATURE: MayPayCost = {
@@ -46,6 +52,7 @@ import {
 } from "../ai/choiceCandidates";
 import {
     heuristicChoicePrior,
+    NEUTRAL_PRIOR,
     priorFor,
     resetChoicePriorFn,
     setChoicePriorFn,
@@ -64,6 +71,8 @@ import { lightningBolt } from "../../cards/sets/lea/red";
 import { blackLotus } from "../../cards/sets/lea/colorless";
 import { mindStone } from "../../cards/sets/wth/colorless";
 import { mirrisGuile } from "../../cards/sets/tmp/green";
+import { kavuChameleon } from "../../cards/sets/inv/green";
+import { motherOfRunes } from "../../cards/sets/ulg/white";
 
 afterEach(() => resetChoicePriorFn());
 
@@ -393,6 +402,68 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         expect(keys.every((k) => !/\d{2,}/.test(k))).toBe(true); // no instance-id-shaped key
     });
 
+    it("option-pick (issue #2306): a genuine PROTECTION colour-mode option threads `option.protectionColor` onto the candidate's `hint.colorMode`", () => {
+        // The root-cause drop this issue fixes: `toCandidate` used to build
+        // `{ key, move }` with no hint at all, so the colour tag on
+        // `PendingChoice.options[]` never reached the candidate the prior
+        // seam reads.
+        const state = stateWithChoice({
+            kind: "option-pick",
+            options: [
+                {
+                    id: "protection-blue",
+                    label: "Protection from blue",
+                    color: "U",
+                    protectionColor: "U",
+                },
+                {
+                    id: "protection-red",
+                    label: "Protection from red",
+                    color: "R",
+                    protectionColor: "R",
+                },
+                { id: "primal-clay-3-3", label: "3/3 body" }, // no colour tag at all
+            ],
+        });
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        const blue = cands.find(
+            (c) => c.key === "option-pick:protection-blue"
+        )!;
+        const red = cands.find((c) => c.key === "option-pick:protection-red")!;
+        const body = cands.find(
+            (c) => c.key === "option-pick:primal-clay-3-3"
+        )!;
+        expect(blue.hint?.colorMode).toBe("U");
+        expect(red.hint?.colorMode).toBe("R");
+        expect(body.hint?.colorMode).toBeUndefined();
+    });
+
+    it("option-pick (issue #2306 review finding 1): a `colorChoiceModes`-shaped option — `color` set, no `protectionColor` — does NOT thread `hint.colorMode`", () => {
+        // `EffectMode.color` is a UI RENDERING tag set by BOTH
+        // `protectionColorModes` (protection — dodge a colour) AND
+        // `colorChoiceModes`/`COLOR_OPTIONS` ("become a colour" — a
+        // different, sometimes opposite, intent, out of scope per the
+        // issue). Only `protectionColor` (set structurally by
+        // `gre/effects/interpreter.ts`'s `modeProtectionColor`, never for a
+        // `colorChoiceModes` mode's `setColor` body) may reach the prior
+        // seam's `hint.colorMode` — reading the bare `color` tag here is
+        // exactly the bug review finding 1 caught: it steered Kavu
+        // Chameleon and siblings by the opponent's colours too, backwards
+        // for a "become a colour" effect.
+        const state = stateWithChoice({
+            kind: "option-pick",
+            options: (["W", "U", "B", "R", "G"] as const).map((color) => ({
+                id: color,
+                label: color,
+                color, // colorChoiceModes shape — no protectionColor
+            })),
+        });
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        for (const cand of cands) {
+            expect(cand.hint?.colorMode).toBeUndefined();
+        }
+    });
+
     it("random-reveal (CR 705.2 / ADR 0023, issue #1511): a degenerate single-candidate ack", () => {
         // Unlike every other family the chooser makes NO real decision — the
         // outcome was already drawn from the seeded PRNG and persisted on the
@@ -455,6 +526,291 @@ describe("priorFor seam (issue #1425)", () => {
         expect(choiceCandidates(state, head)[0].key).toBe(
             "draw-replacement:no"
         );
+    });
+});
+
+describe("colorModePrior (issue #2306) — protection-colour choice scored against observed opponent colour", () => {
+    const PROTECTION_MODES = [
+        {
+            id: "protection-white",
+            label: "Protection from white",
+            color: "W" as const,
+        },
+        {
+            id: "protection-blue",
+            label: "Protection from blue",
+            color: "U" as const,
+        },
+        {
+            id: "protection-black",
+            label: "Protection from black",
+            color: "B" as const,
+        },
+        {
+            id: "protection-red",
+            label: "Protection from red",
+            color: "R" as const,
+        },
+        {
+            id: "protection-green",
+            label: "Protection from green",
+            color: "G" as const,
+        },
+    ];
+
+    /** p1 is the chooser (Mother of Runes' controller); p2 is the opponent
+     *  whose board the evidence is read from. */
+    function colorChoiceState(opponentBattlefield: string[] = []): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: opponentBattlefield.map((cardId, i) =>
+                        makeInstance(cardId, {
+                            id: `opp-perm-${i}`,
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        })
+                    ),
+                }),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+            pendingChoices: [
+                {
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "optionChoiceMode",
+                    playerId: "p1",
+                    kind: "option-pick",
+                    count: 1,
+                    options: PROTECTION_MODES,
+                    prompt: "Choose a color",
+                },
+            ],
+        });
+    }
+
+    const candidateFor = (id: string, color: string) => ({
+        key: `option-pick:${id}`,
+        move: {
+            kind: "resolution-choice" as const,
+            stackItemId: "stack-1",
+            step: 0,
+            choiceId: "optionChoiceMode",
+            cardInstanceIds: [id],
+        },
+        hint: { colorMode: color as never },
+    });
+
+    it("a colour the opponent's board shows scores ABOVE one it doesn't", () => {
+        const state = colorChoiceState([grizzlyBears.id]); // green permanent
+        const head = state.pendingChoices![0];
+        const green = heuristicChoicePrior(
+            state,
+            head,
+            candidateFor("protection-green", "G")
+        );
+        const red = heuristicChoicePrior(
+            state,
+            head,
+            candidateFor("protection-red", "R")
+        );
+        expect(green).toBeGreaterThan(red);
+    });
+
+    it("no colour evidence at all: every colour stays at the neutral baseline (acceptance criteria — never stalls, any pick legal)", () => {
+        const state = colorChoiceState([]);
+        const head = state.pendingChoices![0];
+        for (const mode of PROTECTION_MODES) {
+            expect(
+                heuristicChoicePrior(
+                    state,
+                    head,
+                    candidateFor(mode.id, mode.color)
+                )
+            ).toBe(NEUTRAL_PRIOR);
+        }
+    });
+
+    it("colourless (`C`, Giver of Runes' extra mode) is scored neutral, never penalised for carrying no colour evidence", () => {
+        const state = colorChoiceState([grizzlyBears.id]);
+        const head = state.pendingChoices![0];
+        const colorless = heuristicChoicePrior(
+            state,
+            head,
+            candidateFor("protection-colorless", "C")
+        );
+        expect(colorless).toBe(NEUTRAL_PRIOR);
+    });
+
+    it("a non-colour option-pick (Primal Clay body modes) is untouched — no `hint.colorMode` stays neutral", () => {
+        const state = colorChoiceState([grizzlyBears.id]);
+        const head = state.pendingChoices![0];
+        const noColor = heuristicChoicePrior(state, head, {
+            key: "option-pick:3-3-body",
+            move: {
+                kind: "resolution-choice",
+                stackItemId: "stack-1",
+                step: 0,
+                choiceId: "optionChoiceMode",
+                cardInstanceIds: ["3-3-body"],
+            },
+        });
+        expect(noColor).toBe(NEUTRAL_PRIOR);
+    });
+
+    it("issue #2306 review finding 1 — end-to-end: a `colorChoiceModes` pick (Kavu Chameleon's real mode shape) stays NEUTRAL_PRIOR through the REAL candidate pipeline, even with strong opponent evidence", () => {
+        // Unlike the tests above (which hand-build `hint.colorMode`), this
+        // one runs the full chain the bug actually lived in:
+        // `PendingChoice.options[]` → `choiceCandidates` → `heuristicChoicePrior`.
+        // A `colorChoiceModes`-shaped option-pick (`color` set, no
+        // `protectionColor` — Kavu Chameleon's own modes) against a board
+        // that shows ONLY green must NOT score green above the rest: this
+        // family's decision is an out-of-scope "become a colour" pick, not
+        // a "dodge the opponent's colour" one.
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "opp-bear",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+            pendingChoices: [
+                {
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "optionChoiceMode",
+                    playerId: "p1",
+                    kind: "option-pick",
+                    count: 1,
+                    options: (["W", "U", "B", "R", "G"] as const).map(
+                        (color) => ({
+                            id: color,
+                            label: color,
+                            color, // colorChoiceModes shape: no protectionColor
+                        })
+                    ),
+                    prompt: "Choose a color.",
+                },
+            ],
+        });
+        const head = state.pendingChoices![0];
+        const cands = choiceCandidates(state, head);
+        expect(cands).toHaveLength(5);
+        for (const cand of cands) {
+            expect(heuristicChoicePrior(state, head, cand)).toBe(NEUTRAL_PRIOR);
+        }
+    });
+});
+
+// issue #2306 review round 2 (PR #2774) — every test above hand-builds
+// `PendingChoice.options[]`, so none of them ever reach `modeProtectionColor`
+// (`gre/effects/interpreter.ts:311`), the seam that actually DECIDES whether
+// `protectionColor` gets set. Mutating that helper back to round 1's bug
+// (`return mode.color` — tag every colour-tagged mode as protection intent)
+// left the WHOLE suite green, including every test above. These two push the
+// cards' REAL activated abilities onto the stack and resolve them through the
+// real interpreter, so the seam itself is under test.
+describe("modeProtectionColor through the REAL interpreter (issue #2306 review round 2)", () => {
+    function stateWithGreenOpponent(
+        controllerBattlefield: CardInstanceState[]
+    ) {
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: controllerBattlefield }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "opp-bear",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("Kavu Chameleon's real `colorChoiceModes` ability raises options with NO protectionColor — every candidate stays NEUTRAL_PRIOR even against strong opponent evidence", () => {
+        const kavu = makeInstance(kavuChameleon.id, {
+            id: "kavu",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = stateWithGreenOpponent([kavu]);
+        state.stack.push({
+            ...kavu,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "kavu-chameleon-color",
+            targets: [],
+        } as StackItem);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the color pick
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.options!.length).toBeGreaterThan(0);
+        for (const option of head.options!) {
+            expect(option.color).toBeDefined(); // the rendering tag IS set…
+            expect(option.protectionColor).toBeUndefined(); // …but never protection intent
+        }
+
+        const cands = choiceCandidates(state, head);
+        expect(cands.length).toBeGreaterThan(0);
+        for (const cand of cands) {
+            expect(heuristicChoicePrior(state, head, cand)).toBe(NEUTRAL_PRIOR);
+        }
+    });
+
+    it("Mother of Runes' real protection ability raises options WITH protectionColor set, scored against opponent evidence, and the field survives the wire projection", () => {
+        const mother = makeInstance(motherOfRunes.id, {
+            id: "mother",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = stateWithGreenOpponent([mother]);
+        state.stack.push({
+            ...mother,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "mother-of-runes-protect",
+            targets: [{ type: "permanent", id: "mother" }],
+        } as StackItem);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the color pick
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        const greenOption = head.options!.find((o) => o.color === "G")!;
+        expect(greenOption).toBeDefined();
+        expect(greenOption.protectionColor).toBe("G");
+
+        // Scored against the opponent's board, which shows ONLY green: a 100%
+        // evidence share clamps to PRIOR_MAX (0.95, `choicePriors.ts`).
+        const cands = choiceCandidates(state, head);
+        const green = cands.find(
+            (c) => c.key === `option-pick:${greenOption.id}`
+        )!;
+        expect(heuristicChoicePrior(state, head, green)).toBe(0.95);
+
+        // Wire format: `projectPublicState` spreads `...state` for
+        // `pendingChoices` (gameProjections.ts) rather than rebuilding it
+        // field-by-field, but that is exactly the shape a future refactor
+        // could break — assert the newly-projected field survives for real.
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedHead = projected.pendingChoices![0];
+        const projectedGreen = projectedHead.options!.find(
+            (o) => o.id === greenOption.id
+        )!;
+        expect(projectedGreen.protectionColor).toBe("G");
     });
 });
 

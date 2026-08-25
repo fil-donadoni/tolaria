@@ -51,6 +51,7 @@ import { getEffectivePower } from "../layers";
 import { tryGetDefinition } from "../../cards";
 import type { PendingChoiceKind } from "../types";
 import type { Move } from "../moves";
+import type { Color } from "../../cards/types";
 import {
     getChoicePriorGeneration,
     priorFor,
@@ -407,19 +408,42 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
     // The SMALLEST legal answer: picking beyond `min` is never forced, and the
     // subset lattice above it is exactly the explosion `search-library` avoids.
     const pick = Math.min(Math.max(min, 1), max);
-    const toCandidate = (ids: string[]) => ({
-        // Keyed by KIND as well as option id (issue #2461) — the same generator
-        // now serves the announce-time `trigger-mode` choice (CR 603.3c), and
-        // two kinds sharing an option id must not collide on one key.
-        key: `${choice.kind}:${ids.join("+")}`,
-        move: {
-            kind: "resolution-choice" as const,
-            stackItemId: choice.stackItemId,
-            step: choice.step,
-            choiceId: choice.choiceId,
-            cardInstanceIds: ids,
-        },
-    });
+    // issue #2306 (review finding 1) — a PROTECTION-colour-mode option
+    // (`option.protectionColor`, set by the `optionChoice` interpreter Op only
+    // when the mode structurally grants "protection from <colour>" —
+    // `gre/effects/interpreter.ts`'s `modeProtectionColor`) is the structural
+    // hint the prior seam needs to score the pick against the opponent's
+    // observed colours. Deliberately NOT `option.color`: that field is a UI
+    // RENDERING tag set by BOTH `protectionColorModes` (dodge a colour) AND
+    // `colorChoiceModes`/`COLOR_OPTIONS` ("become a colour" — a different,
+    // sometimes opposite, intent that issue #2306 explicitly puts out of
+    // scope) — keying on the bare tag steered the latter family backwards
+    // (measured: it picked the opponent's BEST-shown colour for a
+    // dodge-a-colour effect, worse than the arbitrary pick it replaced).
+    // Meaningful only for a SINGLE-option candidate: a multi-pick combo has no
+    // one colour to report, and no shipped colour choice has `min > 1` today.
+    const colorModeOf = (ids: string[]): Color | undefined =>
+        ids.length === 1
+            ? options.find((o) => o.id === ids[0])?.protectionColor
+            : undefined;
+    const toCandidate = (ids: string[]) => {
+        const colorMode = colorModeOf(ids);
+        return {
+            // Keyed by KIND as well as option id (issue #2461) — the same
+            // generator now serves the announce-time `trigger-mode` choice
+            // (CR 603.3c), and two kinds sharing an option id must not
+            // collide on one key.
+            key: `${choice.kind}:${ids.join("+")}`,
+            move: {
+                kind: "resolution-choice" as const,
+                stackItemId: choice.stackItemId,
+                step: choice.step,
+                choiceId: choice.choiceId,
+                cardInstanceIds: ids,
+            },
+            ...(colorMode !== undefined ? { hint: { colorMode } } : {}),
+        };
+    };
     if (pick === 1) return options.map((option) => toCandidate([option.id]));
     const out: ReturnType<typeof toCandidate>[] = [];
     const walk = (start: number, acc: string[]): void => {

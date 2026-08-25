@@ -382,6 +382,133 @@ describe("blade setup — `activate` runs the real activation path (ADR 0070 §4
 });
 
 /**
+ * `activate`'s `target` field (issue #2306) — the second half of the step,
+ * for a TARGETED ability the raw `activateAbilityOnState` path above can
+ * never reach the stack for: it always opens `pendingTarget` (never
+ * auto-resolved, even with one legal target), which is exactly the "stopped
+ * at a payment/target decision" throw the tests above pin. Mother of Runes
+ * ("{T}: Target creature you control gains protection from the colour of
+ * your choice…") is the motivating card: its colour choice (the position
+ * issue #2306's blade entries assert on) does not exist until the ability
+ * is on the stack.
+ */
+describe("blade setup — `activate`'s `target` field reaches a targeted ability's stack (issue #2306)", () => {
+    function motherBoard(extra: ScenarioSpec["cards"] = []): GameState {
+        return build({
+            cards: [
+                {
+                    name: "Mother of Runes",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                ...extra,
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+        });
+    }
+
+    it("funds a real target selection through enumerateMoves/applyMoveInSearch and reaches the stack", () => {
+        const state = motherBoard();
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [
+                {
+                    kind: "activate",
+                    card: "Mother of Runes",
+                    target: "Mother of Runes",
+                },
+            ],
+        });
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].abilityId).toBe("mother-of-runes-protect");
+        // The REAL target-commit path ran (not a hand-placed stack item):
+        // targets are populated, and no pendingTarget is left dangling.
+        expect(state.stack[0].targets).toHaveLength(1);
+        expect(state.pendingTarget).toBeUndefined();
+    });
+
+    it("resolving it opens the colour-mode choice the #2306 blade entries decide on", () => {
+        const state = motherBoard();
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [
+                {
+                    kind: "activate",
+                    card: "Mother of Runes",
+                    target: "Mother of Runes",
+                },
+                { kind: "resolve-top" },
+            ],
+        });
+        const choice = state.pendingChoices?.[0];
+        expect(choice?.kind).toBe("option-pick");
+        expect(choice?.options?.map((o) => o.id).sort()).toEqual([
+            "protection-black",
+            "protection-blue",
+            "protection-green",
+            "protection-red",
+            "protection-white",
+        ]);
+    });
+
+    it("THROWS when no legal activation targets `target`", () => {
+        // Mother's ability requires "you control" — an opponent's creature is
+        // never a legal target, so no candidate survives the narrowing.
+        const state = motherBoard([
+            {
+                name: "Grizzly Bears",
+                owner: "opp",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+        ]);
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    {
+                        kind: "activate",
+                        card: "Mother of Runes",
+                        target: "Grizzly Bears",
+                    },
+                ],
+            })
+        ).toThrow(
+            /"Mother of Runes" has no legal activation targeting "Grizzly Bears"/
+        );
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("THROWS on an ambiguous target name rather than guessing", () => {
+        // Two Grizzly Bears the caster controls: the target NAME resolves to
+        // two distinct legal activations, and the step refuses to pick one.
+        const state = motherBoard([
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+                count: 2,
+            },
+        ]);
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    {
+                        kind: "activate",
+                        card: "Mother of Runes",
+                        target: "Grizzly Bears",
+                    },
+                ],
+            })
+        ).toThrow(/still target "Grizzly Bears"/);
+    });
+});
+
+/**
  * `activate` resolves POST-LAYER abilities (issue #1522, CR 611.2a/613.1f
  * layer 6) — not the static `CardDefinition` alone. Two directions:
  *   - a native ability another permanent's continuous static effect GRANTED

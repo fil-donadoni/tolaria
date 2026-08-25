@@ -235,6 +235,20 @@ function applyActivate(
         abilityId = abilities[0].id;
     }
 
+    // issue #2306 — a TARGETED ability can never reach the stack through the
+    // raw `activateAbilityOnState` path below: it always opens
+    // `pendingTarget` (never auto-resolved, even with one legal target — see
+    // the `target` field's own doc comment on `BladeSetupStep`), which is
+    // exactly the "stopped at a payment/target decision" throw further down.
+    // `target` routes through the SAME production seam `applyCast` uses
+    // instead: `enumerateMoves` (the legality gate — only legal, FULLY
+    // targeted activations) + `applyMoveInSearch` (the exact application the
+    // search itself replays an activation with).
+    if (step.target !== undefined) {
+        applyTargetedActivate(state, label, step, permanent, abilityId);
+        return;
+    }
+
     const before = state.stack.length;
     try {
         activateAbilityOnState(state, {
@@ -259,6 +273,70 @@ function applyActivate(
             label,
             step,
             `activating "${abilityId}" put nothing on the stack — it stopped at a payment/target decision (${state.pendingActivation ? "pendingActivation" : state.pendingTarget ? "pendingTarget" : "no pending decision"}). A setup step activates only abilities whose costs commit immediately.`
+        );
+    }
+}
+
+/** The `target`-bearing half of `applyActivate` (issue #2306) — see that
+ *  field's doc comment on `BladeSetupStep` for why a targeted ability needs
+ *  this second path. Mirrors `applyCast`'s candidate-narrowing shape:
+ *  enumerate the real legal activations of THIS permanent/ability, narrow to
+ *  the ones targeting `step.target`, and reject an ambiguous or empty match
+ *  rather than guessing. */
+function applyTargetedActivate(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "activate" }>,
+    permanent: CardInstanceState,
+    abilityId: string
+): void {
+    const target = step.target;
+    if (target === undefined) return; // narrows for TS; callers only reach here when set
+    const legal = enumerateMoves(state, permanent.controllerId);
+    const isActivate = (
+        m: Move
+    ): m is Extract<Move, { kind: "activate-ability" }> =>
+        m.kind === "activate-ability";
+    let candidates = legal
+        .filter(isActivate)
+        .filter(
+            (m) =>
+                m.cardInstanceId === permanent.id && m.abilityId === abilityId
+        );
+    if (candidates.length === 0) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no legal activation of "${step.card}" — the engine offered none (check priority, cost, or timing).`
+        );
+    }
+
+    const wanted = castTargetIds(state, target);
+    candidates = candidates.filter((m) =>
+        m.targets.some((t) => wanted.has(t.id))
+    );
+    if (candidates.length === 0) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `"${step.card}" has no legal activation targeting "${target}".`
+        );
+    }
+    if (candidates.length > 1) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `${candidates.length} legal activations of "${step.card}" still target "${target}" — narrow the step further.`
+        );
+    }
+
+    const before = state.stack.length;
+    applyMoveInSearch(state, permanent.controllerId, candidates[0]);
+    if (state.stack.length <= before) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `activating "${step.card}" put nothing on the stack (it may have resolved immediately or been countered by a replacement).`
         );
     }
 }

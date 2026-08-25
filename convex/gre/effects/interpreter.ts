@@ -67,6 +67,7 @@
 // keeps `OP_EXECUTORS` and that census in exact 1:1 correspondence.
 
 import type {
+    Color,
     ControlChangeCondition,
     DynamicMayPayManaCost,
     DynamicMayPayEnergyCost,
@@ -100,6 +101,7 @@ import type {
 import type { LibraryDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import { resolveTokenTriggeredAbilities } from "../../cards/tokenTriggeredAbilities";
+import { parseProtectionFromColor } from "../protection";
 import { parseTargetNameRef } from "./targetRef";
 import {
     categorizedEligibleIds,
@@ -290,6 +292,35 @@ function resolveNameRef(ctx: SpellContext, ref: string): string | undefined {
  *  consumed inline, never read by a later `ref`), so it never collides with an
  *  author binding name. */
 const OPTION_CHOICE_ID = "optionChoiceMode";
+
+/** Set ONLY when `mode` is a genuine "protection from the colour of your
+ *  choice" pick (CR 702.16a) — issue #2306 review finding 1. `EffectMode.color`
+ *  is a UI RENDERING tag (`cards/types.ts`'s own doc: "so the frontend renders
+ *  a ManaSymbol icon") set by BOTH `protectionColorModes` (protection —
+ *  DODGE the opponent's colours) and `colorChoiceModes`/`COLOR_OPTIONS`
+ *  ("becomes the colour of your choice" — a different, sometimes opposite,
+ *  intent; out of scope per the issue). A bot heuristic keyed on the bare
+ *  `color` tag steers BOTH families identically, which is backwards for the
+ *  latter (measured: it picks the opponent's best-shown colour for a
+ *  dodge-a-colour effect). So this derives INTENT structurally instead of
+ *  trusting a flag a card author could mis-set: true only when the mode's own
+ *  effects grant an ability that `parseProtectionFromColor` (`gre/protection.ts`
+ *  — the issue's own named single authority for this parse) resolves back to
+ *  this SAME colour. `colorChoiceModes` bodies are `setColor` Ops, never
+ *  `grantAbility`, so they always return `undefined` here. */
+function modeProtectionColor(mode: EffectMode): Color | undefined {
+    if (!mode.color) return undefined;
+    for (const effect of mode.effects) {
+        if (
+            effect.op === "grantAbility" &&
+            effect.ability !== undefined &&
+            parseProtectionFromColor(effect.ability) === mode.color
+        ) {
+            return mode.color;
+        }
+    }
+    return undefined;
+}
 
 /** The fixed `choiceId` a `coinFlip` Op (issue #851) hands to
  *  `requestCoinFlip`. Like `OPTION_CHOICE_ID` it need not be unique across Ops:
@@ -4613,6 +4644,7 @@ export const OP_EXECUTORS: {
                           id: optionId(mode, i),
                           label: mode.label,
                           color: mode.color,
+                          protectionColor: modeProtectionColor(mode),
                       })),
                       prompt: op.prompt,
                   });

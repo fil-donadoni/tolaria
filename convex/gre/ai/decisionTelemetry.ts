@@ -30,7 +30,8 @@ export type RootDecisionMechanism =
     | "announcement-variant"
     | "self-harm-removal"
     | "free-development"
-    | "hold-trick";
+    | "hold-trick"
+    | "colour-mode-evidence";
 
 /** One record per `selectRootMove` call (i.e. per real bot decision with at
  *  least one visited root edge). All reward quantities are in the [0, 1]
@@ -104,6 +105,7 @@ const NAMED_RULES: RootDecisionMechanism[] = [
     "self-harm-removal",
     "free-development",
     "hold-trick",
+    "colour-mode-evidence",
 ];
 
 export type RootDecisionSummary = {

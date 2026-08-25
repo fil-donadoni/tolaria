@@ -27,6 +27,7 @@
 import type { CardInstanceState, GameState, PendingChoice } from "../state";
 import { getOpponentId, getPlayer } from "../state";
 import type { Move } from "../moves";
+import type { Color } from "../../cards/types";
 import {
     contextAwareGroundingForChoice,
     libraryTargetWorth,
@@ -35,6 +36,7 @@ import {
 } from "./candidateValue";
 import type { GroundingContext } from "./grounding";
 import { isNoOpChoiceAnswer } from "./dominance";
+import { observedOpponentColors } from "./observedColors";
 
 /** A candidate as seen by a prior function: its stable identity key, the move
  *  it would play, and the generator's structural hints (what the candidate
@@ -59,6 +61,20 @@ export type ChoiceCandidateHint = {
      *  The mirror of `materialGivenUp`: same rough point currency, opposite
      *  sign of intent. */
     materialGained?: number;
+    /** Set when this candidate IS a genuine PROTECTION-colour-mode pick
+     *  (issue #2306, narrowed by review finding 1) — an `option-pick` /
+     *  `trigger-mode` candidate whose option carried
+     *  `PendingChoice.options[].protectionColor`, threaded onto the
+     *  candidate's hint by `optionPickCandidates`' `toCandidate`.
+     *  Deliberately NOT every option carrying `EffectMode.color`: that field
+     *  is a UI rendering tag shared by `protectionColorModes` (dodge a
+     *  colour) AND `colorChoiceModes`/`COLOR_OPTIONS` ("become a colour" — a
+     *  different, sometimes opposite, intent — out of scope per the issue).
+     *  `"C"` (colourless, Giver of Runes) is a legal value but carries no
+     *  colour-EVIDENCE opinion — `colorModePrior` scores it neutral rather
+     *  than against the opponent's footprint. Absent for a non-colour modal
+     *  option (Primal Clay's body modes) AND for a "become a colour" pick. */
+    colorMode?: Color;
 };
 
 /** The pluggable prior seam: score a candidate at a choice node. Higher = try
@@ -107,6 +123,44 @@ function acceptOf(move: Move): boolean | undefined {
         : undefined;
 }
 
+// ---------------------------------------------------------------------------
+// Colour-mode prior (issue #2306) — "protection from the colour of your
+// choice" and its siblings (`protectionColorModes`), scored against the
+// opponent's OBSERVED colour footprint instead of the flat NEUTRAL_PRIOR
+// every `option-pick` candidate fell to before (no branch existed for a
+// `resolution-choice` move — `acceptOf` returns `undefined` for it, so every
+// colour mode was indistinguishable at this seam).
+// ---------------------------------------------------------------------------
+
+/** How much of the prior BAND (`PRIOR_MIN`..`PRIOR_MAX`) a colour mode's
+ *  SHARE of the opponent's total observed evidence claims. A colour with
+ *  ZERO evidence sits at `PRIOR_MIN`; a colour that is the opponent's ENTIRE
+ *  footprint sits at `PRIOR_MAX`; an even split across N shown colours sits
+ *  proportionally between — never a hard filter, `choiceCandidates` still
+ *  opens every mode (CHOICE_TOP_K comfortably covers 5-6 colour modes), so a
+ *  low-share colour is still explorable and still choosable on real reward
+ *  (the "lethal threat on the stack" case). */
+function colorModePrior(
+    state: GameState,
+    choice: PendingChoice,
+    candidate: PriorCandidate
+): number {
+    const color = candidate.hint?.colorMode;
+    // No colour hint (a non-colour modal option) or colourless (CR 105.2a —
+    // "protection from colourless" has no colour-EVIDENCE opinion, and must
+    // stay pickable per the issue's acceptance criteria): neutral, same as
+    // every other kind this seam has no opinion about.
+    if (color === undefined || color === "C") return NEUTRAL_PRIOR;
+    const opponentId = getOpponentId(state, choice.playerId);
+    const evidence = observedOpponentColors(state, opponentId);
+    const total = Object.values(evidence).reduce((sum, n) => sum + (n ?? 0), 0);
+    // Edge case (acceptance criteria): no colour evidence at all — every mode
+    // stays at the neutral baseline, any pick is acceptable, nothing stalls.
+    if (total <= 0) return NEUTRAL_PRIOR;
+    const share = (evidence[color] ?? 0) / total;
+    return clampPrior(PRIOR_MIN + share * (PRIOR_MAX - PRIOR_MIN));
+}
+
 /** v1 prior: the live bot's existing choice heuristics (`brain.ts`, ADR 0016),
  *  restated as an ORDERING score instead of a hard answer.
  *
@@ -120,9 +174,14 @@ function acceptOf(move: Move): boolean | undefined {
  *    paying life to bin an unknown card is speculative.
  *  - `search-library` (CR 701.23, fetchlands / tutors): the better the card
  *    found, the earlier that branch opens; failing to find (CR 701.23b) sits at
- *    the bottom of the band but is never pruned. */
+ *    the bottom of the band but is never pruned.
+ *  - `option-pick` / `trigger-mode` colour modes (issue #2306): scored by
+ *    `colorModePrior` against the opponent's observed colour footprint,
+ *    checked BEFORE the accept/decline dispatch below — a `resolution-choice`
+ *    move has no `.accept`, so `acceptOf` returns `undefined` and every
+ *    colour mode would otherwise fall through to the flat NEUTRAL_PRIOR. */
 export function heuristicChoicePrior(
-    _state: GameState,
+    state: GameState,
     choice: PendingChoice,
     candidate: PriorCandidate
 ): number {
@@ -133,6 +192,9 @@ export function heuristicChoicePrior(
             SEARCH_FIND_PRIOR_FLOOR +
                 (candidate.hint?.materialGained ?? 0) / MATERIAL_PRIOR_SCALE
         );
+    }
+    if (choice.kind === "option-pick" || choice.kind === "trigger-mode") {
+        return colorModePrior(state, choice, candidate);
     }
 
     const accept = acceptOf(candidate.move);

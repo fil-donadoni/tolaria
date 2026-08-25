@@ -57,6 +57,15 @@ export type MoveMatcher = {
     /** Expected boolean for the yes/no move kinds (`may-pay`, `land-entry`,
      *  `draw-replacement`). */
     accept?: boolean;
+    /** An OPTION id that must be among a `resolution-choice` move's submitted
+     *  `cardInstanceIds` (issue #2306) — an `option-pick` / `trigger-mode`
+     *  answer's author-supplied semantic id ("protection-blue", the mode id
+     *  from `protectionColorModes`), never a card name. Named `option` rather
+     *  than reusing `card`/`cards` because `instanceIdsForName` cannot
+     *  resolve it (it names no card at all) and because `cardInstanceIds` on
+     *  this move kind is genuinely overloaded — a zone-pick's ids ARE real
+     *  card instance ids, an option-pick's are not. */
+    option?: string;
 };
 
 /**
@@ -121,12 +130,32 @@ export type BladeSetupStep =
      *  ambiguous or unknown, when the real path rejects the activation, and
      *  when the activation does not reach the stack (an ability whose costs
      *  need further input — mana payment, a cost choice, target selection —
-     *  is not a position `setup` can walk forward on its own). */
+     *  is not a position `setup` can walk forward on its own) UNLESS `target`
+     *  is given.
+     *
+     *  `target` (issue #2306) pins WHICH legal target the activation takes —
+     *  a seat (`me`/`opp`) for a player target, else a card NAME for a
+     *  permanent/spell target — for a TARGETED ability (Mother of Runes'
+     *  "target creature you control …"), which `activateAbilityOnState` alone
+     *  can never reach the stack for: it always opens `pendingTarget`, even
+     *  with exactly one legal target (CR 601.2c is never auto-resolved in
+     *  this engine — see PR #2757), so the raw path throws
+     *  "stopped at a payment/target decision" every time. When `target` is
+     *  set, the step instead goes through the SAME production seam the
+     *  `cast` step below uses — `enumerateMoves` (the legality gate: only
+     *  legal, FULLY-targeted activations) + `applyMoveInSearch` (the exact
+     *  application the search itself replays an activation with) — so a
+     *  targeted ability reaches the stack the same way a human's `activate` +
+     *  `selectTarget` clicks would, without re-implementing the target-commit
+     *  flow by hand. Throws when no legal activation targets `target`, and
+     *  — rather than guess — when more than one still matches (narrow with
+     *  `ability`). */
     | {
           kind: "activate";
           card: string;
           ability?: string;
           controller?: BladeSeat;
+          target?: BladeSeat | string;
       }
     /** Cast the named card from a seat's hand through the REAL move pipeline
      *  (issue #1490, ADR 0070 §4), leaving the spell on the stack UNRESOLVED —
