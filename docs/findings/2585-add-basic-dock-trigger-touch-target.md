@@ -1,7 +1,8 @@
 ---
 title: The dock "Add Basic" trigger is a 73x22px touch target; fixing it costs #2585's own AC
 discoveredBy: 2585
-status: draft
+status: triaged
+issue: 2670
 confidence: high
 ---
 
@@ -67,3 +68,16 @@ recorded in this file and in `scripts/ui-gate/budgets.json`'s `deck-builder`
 `1180x820x2` entry (that entry now describes the shipped 22px state; do not
 "fix" it back to describing the reverted experiment without re-deriving the
 chrome budget first).
+
+**#2670's own pass (2026-08-25): still unfixed, by design.** The only chrome
+this PR actually reclaimed in the 1180x820 dock column was 8px off
+`SaveDeckBar`'s own padding (`deck-source-dock:py-2`, `save-deck-bar.tsx`) —
+enough to pay for `DeckFeaturedSelect`'s 4px cost (a DIFFERENT control in the
+same row, see `scripts/ui-gate/budgets.json`'s `1180x820x2` `knownDebt`) with
+a little left over, not the ~20px this trigger needs. No other slack was
+found in this column without touching a band #2585 or #2581 already tuned to
+its own floor (the header's `deck-source-dock:py-2` is already spent; the
+strip below is governed by `docs/findings/2581-deckbuilder-toolbar-starved-
+by-touch-rung.md`'s own zero-slack finding). The trigger stays 73×22px.
+Recorded as debt, not traded for a reopened #2585 floor — the hard constraint
+this issue was given.
