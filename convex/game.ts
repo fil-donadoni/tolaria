@@ -365,6 +365,15 @@ import {
     isSorceryTiming,
     wasCastOffSorceryTiming,
 } from "./gre/phases";
+// CR 606 (issue #2491) — the loyalty-ability rules live in pure engine code so
+// the bot's enumerator/search can consume the SAME predicate this module's
+// throwing wrapper does. `payLoyaltyCost` is re-exported below, unchanged, for
+// the callers (and tests) that have always imported it from here.
+import {
+    LOYALTY_VIOLATION_MESSAGE,
+    loyaltyActivationViolation,
+    payLoyaltyCost,
+} from "./gre/loyalty";
 import { effectivePermanentView } from "./gre/permanentView";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import { makeMulliganState, recordDeclaration } from "./gre/mulligan";
@@ -6124,64 +6133,40 @@ export function assertActivationTimingLegal(
 
 /** CR 606 — validates a LOYALTY ABILITY (an ability whose cost carries a signed
  *  `cost.loyalty`) up-front, before any cost is paid. No-op for a non-loyalty
- *  ability. Enforces the three restrictions the CR derives from a loyalty
- *  ability being a planeswalker's activated ability:
- *   - CR 606.3 — sorcery-speed, and only the source's controller during their
- *     own main phase with an empty stack (reuses `isSorceryTiming`, which
- *     already requires the active player to hold priority with an empty stack);
+ *  ability.
+ *
+ *  THE THROWING WRAPPER, nothing more. The rule itself lives in
+ *  `convex/gre/loyalty.ts` (`loyaltyActivationViolation`), because the bot's
+ *  move enumerator and the search's cost payer need the SAME rule in boolean
+ *  form and cannot import this module (`convex/gre/**` must not depend on
+ *  `convex/game.ts`). Issue #2491: before the extraction the enumerator simply
+ *  refused every loyalty ability, so the bot cast planeswalkers it never
+ *  activated; re-deriving the rule there instead would have produced an
+ *  enumerator-says-legal / server-rejects divergence that half-applies the
+ *  bot's `activateAbility → selectTarget` sequence.
+ *
+ *  The three clauses (unchanged, and the messages are byte-identical):
  *   - CR 606.3 — at most one loyalty ability of a given permanent per turn
  *     (the per-instance `loyaltyActivatedThisTurn` lock);
- *   - CR 606.5 — a `-N` cost is illegal if it would drop the permanent below 0
- *     loyalty. */
+ *   - CR 606.3 — the controller's own main phase, empty stack, holding
+ *     priority (`isSorceryTimingFor`, the engine's one authority on that
+ *     window — the old inline form paired the player-agnostic
+ *     `isSorceryTiming` with an explicit active-player check, which is the
+ *     same condition);
+ *   - CR 606.6 — a `-N` cost is illegal unless the permanent has at least that
+ *     many loyalty counters. (This clause cited CR 606.5 before #2491; 606.5
+ *     is the cost-COMBINATION rule and 606.6 is the floor — `bun run cr 606.6`
+ *     prints it.) */
 export function assertLoyaltyActivationLegal(
     state: GameState,
     card: CardInstanceState,
     ability: { cost: { loyalty?: number } }
 ): void {
-    const loyalty = ability.cost.loyalty;
-    if (loyalty === undefined) return;
-    // CR 606.3 — one loyalty ability per permanent per turn.
-    if (card.loyaltyActivatedThisTurn) {
-        throw new Error(
-            "A loyalty ability of this permanent has already been activated this turn"
-        );
-    }
-    // CR 606.3 — sorcery-speed, controller's own turn only.
-    if (!isSorceryTiming(state) || state.activePlayerId !== card.controllerId) {
-        throw new Error(
-            "A loyalty ability can only be activated at sorcery speed on your turn"
-        );
-    }
-    // CR 606.5 — a loyalty cost that removes counters may not take the
-    // permanent below 0 loyalty.
-    if (loyalty < 0) {
-        const current = card.counters?.loyalty ?? 0;
-        if (current + loyalty < 0) {
-            throw new Error("Not enough loyalty to activate this ability");
-        }
-    }
+    const violation = loyaltyActivationViolation(state, card, ability);
+    if (violation) throw new Error(LOYALTY_VIOLATION_MESSAGE[violation]);
 }
 
-/** CR 606.5 / 606.2 — pays a loyalty ability's cost at activation commit:
- *  adjusts `counters["loyalty"]` by the signed `cost.loyalty` (`+N` adds, `-N`
- *  removes, floored at 0) and sets the per-permanent once-per-turn lock. No-op
- *  for a non-loyalty ability. Called at every activation commit site (immediate
- *  no-target and `finalizeTargetSelection`); a loyalty ability has no
- *  mana/tap/sacrifice component, so it never reaches the deferred
- *  `pendingActivation` commit. */
-export function payLoyaltyCost(
-    card: CardInstanceState,
-    ability: { cost: { loyalty?: number } }
-): void {
-    const loyalty = ability.cost.loyalty;
-    if (loyalty === undefined) return;
-    const current = card.counters?.loyalty ?? 0;
-    card.counters = {
-        ...(card.counters ?? {}),
-        loyalty: Math.max(0, current + loyalty),
-    };
-    card.loyaltyActivatedThisTurn = true;
-}
+export { payLoyaltyCost };
 
 /** Minimum number of targets required for a TargetRequirement.count value.
  *  Fixed N → N; range → min. Used to validate confirmTargets (CR 601.2c). */
@@ -6814,7 +6799,7 @@ export function finalizeTargetSelection(
         if (ability.cost.life !== undefined) {
             player.life -= ability.cost.life;
         }
-        // CR 606.5 — pay a targeted loyalty ability's signed loyalty cost as it
+        // CR 606.4 — pay a targeted loyalty ability's signed loyalty cost as it
         // goes on the stack (Liliana's "-2"). No-op for a non-loyalty ability.
         payLoyaltyCost(card, ability);
         if (ability.cost.sacrifice) {
@@ -14465,7 +14450,7 @@ export function activateAbilityOnState(
     if (ability.cost.life !== undefined) {
         player.life -= ability.cost.life;
     }
-    // CR 606.5 — pay a non-targeted loyalty ability's signed loyalty cost as
+    // CR 606.4 — pay a non-targeted loyalty ability's signed loyalty cost as
     // it goes on the stack (Liliana's "+1", Garruk's "-4"). No-op otherwise.
     payLoyaltyCost(card, ability);
     if (ability.cost.sacrifice) {

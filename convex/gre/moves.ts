@@ -98,6 +98,7 @@ import {
     getMinimumBlockers,
 } from "./combat";
 import { isSorceryTiming } from "./phases";
+import { loyaltyActivationViolation } from "./loyalty";
 import { effectivePermanentView } from "./permanentView";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -1685,13 +1686,20 @@ function enumerateAbilityMoves(
         // leave them to a later slice rather than enumerate possibly-illegal
         // moves. (Documented limitation — server would reject anyway.)
         if (ability.canActivate || ability.getTargetRequirement) continue;
-        // CR 606 — a loyalty ability (planeswalker) has a signed `cost.loyalty`
-        // and sorcery-speed / one-per-turn / not-below-0 gates the move planner
-        // doesn't yet cost or fund. Bot planeswalker play is a follow-up to the
-        // loyalty FRAMEWORK slice (issue #700, ADR 0058); skip these for now so
-        // the bot never enumerates an unpayable/mis-costed loyalty move. The
-        // server (`assertLoyaltyActivationLegal`) rejects them regardless.
-        if (ability.cost.loyalty !== undefined) continue;
+        // CR 606 (issue #2491) — a loyalty ability (planeswalker) carries a
+        // signed `cost.loyalty` and three restrictions: the per-permanent
+        // once-per-turn lock (CR 606.3), the controller's own main phase with
+        // an empty stack (CR 606.3), and the negative-cost floor (CR 606.6).
+        // This enumerator used to skip every one of them unconditionally — 13
+        // shipped planeswalkers, 37 loyalty abilities, none reachable by the
+        // bot — because the rule lived only on the mutation path and
+        // `convex/gre/**` cannot import `convex/game.ts`. The rule now lives
+        // HERE, in pure engine code (`gre/loyalty.ts`), and the mutation's
+        // `assertLoyaltyActivationLegal` is a throwing wrapper over this exact
+        // predicate. One authority, so the enumerator can never offer a
+        // loyalty move the server rejects — the divergence that half-applies
+        // the bot's `activateAbility → selectTarget` sequence.
+        if (loyaltyActivationViolation(state, perm, ability) !== null) continue;
         // CR 602.5 — once-per-turn enforcement.
         if (
             ability.oncePerTurn &&

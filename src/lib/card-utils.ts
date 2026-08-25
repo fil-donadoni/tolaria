@@ -44,6 +44,14 @@ import {
     grantOutrankedByAbilityLoss,
 } from "@convex/gre/activatedAbilities";
 import { findTriggeredAbility } from "@convex/gre/copy";
+// CR 606 (issue #2491) — the shared loyalty authority. The client reads the two
+// STATE-ONLY clauses from it; the timing clause stays a documented narrowing
+// (this view has no stack length / priority holder), with the server the gate.
+import {
+    isLoyaltyAbility,
+    loyaltyCostPayable,
+    loyaltyLockedThisTurn,
+} from "@convex/gre/loyalty";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
@@ -2025,9 +2033,17 @@ export function getStackAbilities(
         // CR 606 — a LOYALTY ABILITY (signed `cost.loyalty`) is offered only as
         // a UI hint when its three restrictions can be met; the `activateAbility`
         // mutation is the authoritative gate.
-        if (a.cost.loyalty !== undefined) {
+        //
+        // The two STATE-ONLY clauses come from the shared engine authority
+        // (`@convex/gre/loyalty`, issue #2491) — the same predicates the server
+        // wrapper and the bot's enumerator read, so a change to either rule
+        // reaches this gate too. Only the TIMING clause stays local: this view
+        // carries no stack length and no priority holder, so
+        // `loyaltyActivationViolation`'s `isSorceryTimingFor` is unavailable
+        // here and the narrowing below is the closest safe approximation.
+        if (isLoyaltyAbility(a)) {
             // CR 606.3 — at most one loyalty ability of this permanent per turn.
-            if (card.loyaltyActivatedThisTurn) return false;
+            if (loyaltyLockedThisTurn(card)) return false;
             // CR 606.3 — sorcery-speed: the controller's own MAIN PHASE. Both
             // halves matter, and only checking the turn left the abilities
             // offered all through combat and the end step on your own turn,
@@ -2051,11 +2067,8 @@ export function getStackAbilities(
             ) {
                 return false;
             }
-            // CR 606.5 — a `-N` cost may not take loyalty below 0.
-            if (a.cost.loyalty < 0) {
-                const loyalty = card.counters?.loyalty ?? 0;
-                if (loyalty + a.cost.loyalty < 0) return false;
-            }
+            // CR 606.6 — a `-N` cost may not take loyalty below 0.
+            if (!loyaltyCostPayable(card, a)) return false;
         }
         // CR 118.3 — "discard the last card you drew this turn" cost
         // (Jandor's Ring) is unpayable when no such card is in hand.
