@@ -19,6 +19,12 @@ receipt — paste it. A surface it could not reach prints `UNWALKED` and reds
 the run; that is a coverage failure, not a pass. Drive CDP by hand only for
 what the lane does not cover, or to diagnose what it flagged.
 
+**Paste it byte-exact, banner + coverage line included** (#2760) —
+`bun run land` re-derives them and refuses a `skin`-lane PR that doesn't match
+(`bun run verify:ui-receipt <PR#>` checks by hand). Only a `RECEIPT` run,
+never `DIAGNOSTIC`; never reflow a row. Only the "known debt" trailer may be
+elided, behind its marker.
+
 **Five viewports per surface touched** (ADR 0101), via `emulate`: desktop
 `1440x900x2`, phone `390x844x3,mobile,touch` and
 `844x390x3,mobile,touch,landscape`, tablet `820x1180x2,mobile,touch` and

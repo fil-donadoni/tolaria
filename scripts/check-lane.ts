@@ -475,7 +475,11 @@ function git(args: string[], cwd: string): string {
  * (`public/img/symbols/½.svg`, `…/∞.svg`) and plain `--name-only` returns
  * them C-quoted, which would classify as an unrecognised path.
  */
-function changedPaths(base: string, cwd: string, deleted: boolean): string[] {
+export function changedPaths(
+    base: string,
+    cwd: string,
+    deleted: boolean
+): string[] {
     const filter = deleted ? [] : ["--diff-filter=d"];
     return git(["diff", "-z", "--name-only", ...filter, `${base}...HEAD`], cwd)
         .split("\0")

@@ -25,6 +25,14 @@
  * longer defines is also a failure. Otherwise a renamed surface silently
  * carries its old ceilings and measures nothing.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const BUDGETS_PATH = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "budgets.json"
+);
 
 /**
  * The measured quantities a budget puts a ceiling on. Flat and explicit — one
@@ -191,6 +199,24 @@ export interface BudgetFile {
     surfaces: Record<string, SurfaceBudget>;
 }
 
+/**
+ * Read `budgets.json` off disk. Lives here, not in `index.ts` (issue #2760
+ * review, finding 1) — `index.ts` has no `import.meta.main` guard (see the
+ * module comment on `metricsOf`), so importing it for this one function runs
+ * the WHOLE CLI: boots Vite, launches Playwright. `verify-receipt.ts` needs
+ * the real budget file to check a pasted receipt's row census against it, and
+ * must not drag a browser dependency into a PR-body text check to get it.
+ * The only fs touch in this otherwise-pure module, by design — `evaluateRun`/
+ * `planRecord` stay fs-free so they unit-test without a filesystem fixture;
+ * this one function is the deliberate exception.
+ */
+export function loadBudgets(path: string = BUDGETS_PATH): BudgetFile {
+    if (!existsSync(path)) {
+        throw new Error(`budget file missing: ${path}`);
+    }
+    return JSON.parse(readFileSync(path, "utf8")) as BudgetFile;
+}
+
 /** One surface × viewport measurement handed back by the browser half. */
 export interface Measurement {
     viewport: string;
@@ -269,6 +295,24 @@ export interface ResultRow {
     verdict: Verdict;
     detail: string;
     screenshot?: string;
+}
+
+/**
+ * The exact text of one printed row. Pulled out (issue #2760) so `index.ts`'s
+ * printer and the PR-receipt verifier (`verify-receipt.ts`) share the SAME
+ * format string instead of two copies that can drift — the verifier's whole
+ * job is catching a receipt that no longer matches what this function would
+ * print, so it must call this, never re-implement it.
+ *
+ * `viewport` prints as an em dash for a whole-surface row (declared
+ * unwalked / unreachable / no budget entry). Fixed-width via `padEnd`,
+ * which is why the verifier's parser does NOT split on column offsets: a
+ * surface id at or past 20 chars, or a detail containing extra whitespace,
+ * makes a positional split lossy. It matches against the real, finite
+ * surface/viewport vocabularies instead.
+ */
+export function formatResultRow(row: ResultRow): string {
+    return `${row.verdict.padEnd(8)} ${row.surface.padEnd(20)} ${(row.viewport ?? "—").padEnd(12)} ${row.detail}`;
 }
 
 export interface Evaluation {

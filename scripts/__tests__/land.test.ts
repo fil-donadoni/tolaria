@@ -14,9 +14,22 @@ import {
     buildLockedCommand,
     rebaseStep,
     lockedEnv,
+    computeSkinReceiptInvalid,
+    safeSkinReceiptInvalid,
     type LandFacts,
     type LockedCommandOptions,
 } from "../land";
+import {
+    evaluateRun,
+    formatResultRow,
+    coverageLine,
+    receiptKindLine,
+    loadBudgets,
+    BUDGET_KEYS,
+    type Ceilings,
+    type SurfaceWalk,
+} from "../ui-gate/budgets.ts";
+import { SURFACE_IDS } from "../ui-gate/surfaces.ts";
 
 const GATE = resolve(__dirname, "..", "gate.ts");
 
@@ -40,6 +53,7 @@ describe("land.ts — refusal matrix", () => {
         dirty: false,
         prState: "OPEN",
         prHeadRefName: "fix/issue-2517",
+        skinReceiptInvalid: false,
     };
 
     it("allows a clean branch with a matching open PR", () => {
@@ -84,6 +98,40 @@ describe("land.ts — refusal matrix", () => {
     // Proof-of-failure: commented out the `if (facts.dirty)` branch in
     // refusalReason — "refuses a dirty tree" went red (refusalReason
     // returned null instead of the dirty-tree reason). Reverted.
+
+    // Issue #2760 — `land` refuses a `skin` landing diff whose pasted
+    // check:ui receipt failed verification. `skinReceiptInvalid` is a
+    // PRE-COMPUTED fact (`lane === "skin" && !verifyReceiptText(body).ok`)
+    // by the time it reaches `refusalReason` — this suite proves only the
+    // refusal-matrix side (the flag is checked, and checked last, after the
+    // cheaper structural facts); `verify-receipt.test.ts` proves the flag
+    // itself is computed correctly.
+    it("refuses a skin diff with an invalid receipt", () => {
+        expect(refusalReason({ ...clean, skinReceiptInvalid: true })).toMatch(
+            /check:ui receipt failed verification/
+        );
+    });
+
+    it("does not refuse when the receipt verified clean (or the diff never reached skin)", () => {
+        expect(
+            refusalReason({ ...clean, skinReceiptInvalid: false })
+        ).toBeNull();
+    });
+
+    it("checks head-branch match before the receipt — a branch mismatch never needs the (expensive) receipt fact to fire", () => {
+        expect(
+            refusalReason({
+                ...clean,
+                prHeadRefName: "someone-elses-branch",
+                skinReceiptInvalid: true,
+            })
+        ).toMatch(/head branch/);
+    });
+
+    // Proof-of-failure: commented out the `if (facts.skinReceiptInvalid)`
+    // branch — "refuses a skin diff with an invalid receipt" went red
+    // (refusalReason returned null instead of naming the receipt failure).
+    // Reverted.
 });
 
 describe("land.ts — the locked command", () => {
@@ -552,4 +600,113 @@ describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {
     // existed under .git/, and HEAD read `feature` only nominally while a
     // rebase was still active) — the test caught the tree being left
     // unusable. Reverted.
+});
+
+describe("land.ts — computeSkinReceiptInvalid (issue #2760 review, finding 3)", () => {
+    // The PR that introduced this function claimed it was "tested directly"
+    // — it was not: `grep -rn computeSkinReceiptInvalid scripts/` returned
+    // only the definition and its one call site. Deleting the
+    // `lane === "skin" &&` guard left the receipt check firing on every
+    // lane, which would make `land` refuse EVERY engine/full landing (the
+    // merge-train dies). These tests exercise the function directly, per
+    // this file's own convention.
+
+    it("is false for a non-skin lane, regardless of the receipt body", () => {
+        expect(
+            computeSkinReceiptInvalid("engine", "garbage, not a receipt")
+        ).toBe(false);
+        expect(
+            computeSkinReceiptInvalid("full", "garbage, not a receipt")
+        ).toBe(false);
+    });
+
+    it("is true for a skin lane whose receipt is garbage/invalid", () => {
+        expect(
+            computeSkinReceiptInvalid("skin", "garbage, not a receipt")
+        ).toBe(true);
+    });
+
+    it("is false for a skin lane whose receipt actually verifies clean", () => {
+        // Build a REAL full walk against the real budgets.json/SURFACE_IDS
+        // — every budgeted viewport measured exactly at its ceiling (never
+        // over budget) — and render it through the real functions, exactly
+        // as `check:ui` would. This must verify clean under
+        // `verifyReceiptText`'s defaults, which `computeSkinReceiptInvalid`
+        // calls with no overrides.
+        const budgets = loadBudgets();
+        const walks: SurfaceWalk[] = [];
+        for (const surface of SURFACE_IDS) {
+            const budget = budgets.surfaces[surface];
+            if (!budget || budget.status !== "budgeted") continue;
+            const vpBudgets = budget.viewports ?? {};
+            walks.push({
+                surface,
+                status: "measured",
+                measurements: Object.entries(vpBudgets).map(
+                    ([viewport, ceilings]) => ({
+                        viewport,
+                        metrics: Object.fromEntries(
+                            BUDGET_KEYS.map((k) => [k, ceilings[k]])
+                        ) as Ceilings,
+                    })
+                ),
+            });
+        }
+        const ev = evaluateRun(budgets, SURFACE_IDS, walks, SURFACE_IDS);
+        const body = [
+            "Closes #2760",
+            "",
+            "```",
+            receiptKindLine(ev),
+            ...ev.rows.map(formatResultRow),
+            coverageLine(ev),
+            "```",
+        ].join("\n");
+
+        expect(computeSkinReceiptInvalid("skin", body)).toBe(false);
+    });
+
+    // Proof-of-failure (not a permanent test): deleted the
+    // `lane === "skin" &&` guard in `computeSkinReceiptInvalid` — "is false
+    // for a non-skin lane…" went red (`true` instead of `false` for both
+    // "engine" and "full", on garbage input that always fails
+    // `verifyReceiptText`). Reverted after confirming red; recorded in the
+    // PR receipt's `proofOfFailure` list.
+});
+
+describe("land.ts — safeSkinReceiptInvalid tolerates a diff-classification failure (issue #2760 review, finding 6)", () => {
+    let dir: string;
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), "tolaria-land-safe-test-"));
+        const r = spawnSync("git", ["init", "-q", "-b", "main", dir], {
+            encoding: "utf8",
+        });
+        if (r.status !== 0) {
+            throw new Error(`git init failed: ${r.stderr}`);
+        }
+    });
+
+    afterEach(() => {
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("returns false instead of throwing when origin/main does not exist (no remote at all)", () => {
+        // `changedPaths` shells out to `git diff … origin/main...HEAD` —
+        // with no remote configured at all, that is an unresolvable
+        // revision and `check-lane.ts`'s `git()` throws. This used to run
+        // BEFORE any of `land`'s refusal checks, on every lane.
+        expect(() =>
+            safeSkinReceiptInvalid(dir, "irrelevant body")
+        ).not.toThrow();
+        expect(safeSkinReceiptInvalid(dir, "irrelevant body")).toBe(false);
+    });
+
+    // Proof-of-failure (not a permanent test): removed the try/catch from
+    // `safeSkinReceiptInvalid` (called `classifyLane(changedPaths(...))`
+    // directly, unguarded) — the test above went red with an UNCAUGHT
+    // exception ("git diff … failed: fatal: ambiguous argument
+    // 'origin/main...HEAD': unknown revision…") instead of returning `false`
+    // cleanly. Reverted after confirming red; recorded in the PR receipt's
+    // `proofOfFailure` list.
 });

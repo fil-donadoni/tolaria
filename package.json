@@ -48,6 +48,7 @@
         "check:all": "bun scripts/gate.ts heavy 'bun run check:all:inner'",
         "check:pr": "bun scripts/gate.ts light 'bun run check:all:inner && bun run check:guards'",
         "check:ui": "bun scripts/ui-gate/index.ts",
+        "verify:ui-receipt": "bun scripts/ui-gate/verify-receipt.ts",
         "check:lane": "bun scripts/check-lane.ts",
         "worktree:init": "bun scripts/bootstrap-worktree.ts",
         "wt:docs": "bun scripts/docs-lane.ts new",

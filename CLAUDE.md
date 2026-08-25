@@ -183,7 +183,9 @@ layout, responsive rule, overlay, scroll container — at five viewports, with a
 measured receipt, because happy-dom has no layout and cannot see a collapsed
 or occluded element. Run **`bun run check:ui`** (#2580): it drives headless
 Chrome through the runbook surfaces, probes + axe, and fails on
-`scripts/ui-gate/budgets.json`; its output IS the receipt.
+`scripts/ui-gate/budgets.json`; its output IS the receipt — paste it
+byte-exact, banner + coverage line included (#2760; `bun run land` enforces
+this — see `.claude/rules/chrome-debug.md`).
 Engine/Convex/script work owes nothing here. Rule:
 `.claude/rules/chrome-debug.md` (auto-loaded); procedure and click sequences:
 `docs/guides/browser-verification.md`, `docs/guides/ui-runbooks.md`.

@@ -83,6 +83,48 @@ import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { changedPaths, classifyLane, type Lane } from "./check-lane";
+import { verifyReceiptText } from "./ui-gate/verify-receipt.ts";
+
+/**
+ * The one DECISION `land` makes about a `check:ui` receipt (issue #2760),
+ * pulled out as a pure function per this file's own convention (git/gh
+ * plumbing stays thin and untested; every decision is testable directly) —
+ * `main()` only supplies the two impure inputs (the classified lane, the PR
+ * body text).
+ */
+export function computeSkinReceiptInvalid(lane: Lane, prBody: string): boolean {
+    return lane === "skin" && !verifyReceiptText(prBody).ok;
+}
+
+/**
+ * `classifyLane(changedPaths("origin/main", cwd, true))` plus
+ * `computeSkinReceiptInvalid`, tolerating a failure in the diff computation
+ * (issue #2760 review, finding 6). `changedPaths` shells out to
+ * `git diff … origin/main...HEAD` (`check-lane.ts`'s `git()` throws on
+ * non-zero status), and this call ran BEFORE any of `refusalReason`'s
+ * refusal checks — so a checkout whose `origin/main` was never fetched
+ * crashed `land` with an unhandled stack trace instead of the existing
+ * "refusing — …" message, on EVERY lane, including an engine/full landing
+ * this feature owes nothing to.
+ *
+ * On failure: warn and treat the diff as not-skin. `land` is not blind to a
+ * real skin diff this way — a caller actually landing one still needs a
+ * fetched `origin/main` for the rebase step a few lines later in `main()`,
+ * so a genuine problem resurfaces there (loudly, inside the gate) instead of
+ * as a bare stack trace before any refusal check ran.
+ */
+export function safeSkinReceiptInvalid(cwd: string, prBody: string): boolean {
+    try {
+        const lane = classifyLane(changedPaths("origin/main", cwd, true)).lane;
+        return computeSkinReceiptInvalid(lane, prBody);
+    } catch (err) {
+        console.warn(
+            `land: could not classify the landing diff to check the check:ui receipt (${(err as Error).message}) — proceeding as if it is not a skin diff`
+        );
+        return false;
+    }
+}
 
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
@@ -135,6 +177,17 @@ export interface LandFacts {
     prState: string | null;
     /** The PR's `headRefName` from `gh pr view`, or null if not found. */
     prHeadRefName: string | null;
+    /**
+     * true only when the landing diff classifies `skin` (`check-lane.ts`'s
+     * `classifyLane`) AND its pasted `check:ui` receipt fails
+     * `verifyReceiptText` (issue #2760) — a `check:ui` receipt is the whole
+     * enforcement for a diff that can change what a user sees (the lane
+     * stays outside `check:all` by contract, and there is no CI), so a
+     * fabricated or truncated paste must block the merge the same way a red
+     * gate does. false for a non-`skin` diff, or a `skin` diff whose receipt
+     * verified clean — `land` owes this check nothing in either case.
+     */
+    skinReceiptInvalid: boolean;
 }
 
 /**
@@ -157,6 +210,12 @@ export function refusalReason(facts: LandFacts): string | null {
     }
     if (facts.prHeadRefName !== facts.branch) {
         return `PR head branch (${facts.prHeadRefName}) does not match the current branch (${facts.branch})`;
+    }
+    if (facts.skinReceiptInvalid) {
+        return (
+            "landing diff is `skin` and its pasted check:ui receipt failed verification " +
+            "— re-run `bun run verify:ui-receipt <PR#>` for the mismatch, and paste a real full-lane receipt"
+        );
     }
     return null;
 }
@@ -340,22 +399,43 @@ function main(): void {
 
     let prState: string | null = null;
     let prHeadRefName: string | null = null;
+    let prBody = "";
     try {
         const raw = gh([
             "pr",
             "view",
             String(pr),
             "--json",
-            "state,headRefName",
+            "state,headRefName,body",
         ]);
-        const info = JSON.parse(raw) as { state: string; headRefName: string };
+        const info = JSON.parse(raw) as {
+            state: string;
+            headRefName: string;
+            body: string;
+        };
         prState = info.state;
         prHeadRefName = info.headRefName;
+        prBody = info.body;
     } catch {
         // leave both null — refusalReason reports "PR not found"
     }
 
-    const reason = refusalReason({ branch, dirty, prState, prHeadRefName });
+    // The receipt check only applies to a `skin` landing diff (issue #2760)
+    // — `check:ui` is the whole enforcement for a diff that can change what
+    // a user sees, and does nothing for engine/full diffs. Computed even
+    // when the PR wasn't found: `refusalReason` checks `prState` first and
+    // short-circuits before this ever matters. `safeSkinReceiptInvalid`
+    // tolerates a diff-classification failure (finding 6) instead of
+    // crashing `land` before any refusal check runs.
+    const skinReceiptInvalid = safeSkinReceiptInvalid(cwd, prBody);
+
+    const reason = refusalReason({
+        branch,
+        dirty,
+        prState,
+        prHeadRefName,
+        skinReceiptInvalid,
+    });
     if (reason) fail(`refusing — ${reason}`);
 
     const primary = primaryCheckout(cwd);
