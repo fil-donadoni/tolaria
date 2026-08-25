@@ -912,6 +912,7 @@ export const personalIncarnation: CardDefinition = {
             oracleText:
                 "All damage that would be dealt to its owner is dealt to Personal Incarnation instead.",
             eventKind: "damage",
+            damageEffectKind: "redirection",
             appliesTo: (event, self) => {
                 if (event.kind !== "damage") return false;
                 if (event.target.type !== "player") return false;
@@ -1230,6 +1231,7 @@ export const veteranBodyguard: CardDefinition = {
             oracleText:
                 "All damage from unblocked attacking creatures that would be dealt to you is dealt to Veteran Bodyguard instead.",
             eventKind: "damage",
+            damageEffectKind: "redirection",
             appliesTo: (event, self, state) => {
                 if (event.kind !== "damage") return false;
                 if (event.target.type !== "player") return false;

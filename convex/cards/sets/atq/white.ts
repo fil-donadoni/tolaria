@@ -142,6 +142,7 @@ function artifactSourcePreventionEffect(opts: {
         id: opts.id,
         oracleText: opts.oracleText,
         eventKind: "damage",
+        damageEffectKind: "prevention",
         appliesTo: (event, self) => {
             if (event.kind !== "damage") return false;
             if (event.target.type !== "permanent") return false;
@@ -228,6 +229,7 @@ export const martyrsOfKorlis: CardDefinition = {
             oracleText:
                 "All damage from artifacts that would be dealt to you is dealt to Martyrs of Korlis instead.",
             eventKind: "damage",
+            damageEffectKind: "redirection",
             appliesTo: (event, self) => {
                 if (event.kind !== "damage") return false;
                 // "Damage dealt to you" — the controller of Martyrs.

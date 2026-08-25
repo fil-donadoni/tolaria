@@ -459,6 +459,7 @@ export const divinePresence: CardDefinition = {
             oracleText:
                 "If a source would deal 4 or more damage to a permanent or player, that source deals 3 damage to that permanent or player instead.",
             eventKind: "damage",
+            damageEffectKind: "other",
             appliesTo: (event) => event.kind === "damage" && event.amount >= 4,
             replace: (event) => {
                 if (event.kind !== "damage") return { kind: "consumed" };
@@ -511,6 +512,7 @@ export const harshJudgment: CardDefinition = {
             oracleText:
                 "If an instant or sorcery spell of the chosen color would deal damage to you, it deals that damage to its controller instead.",
             eventKind: "damage",
+            damageEffectKind: "redirection",
             appliesTo: (event, self) => {
                 if (event.kind !== "damage") return false;
                 if (event.target.type !== "player") return false;

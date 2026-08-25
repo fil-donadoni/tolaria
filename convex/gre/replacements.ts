@@ -27,6 +27,7 @@ import type {
     AsEntersChoice,
     CardType,
     Color,
+    DamageEffectKind,
     DamageReplacementEvent,
     DestroyReplacementEvent,
     DiscardReplacementEvent,
@@ -335,10 +336,46 @@ function buildApplyCtx(
     };
 }
 
+/** CR 615.12 / 614.9 (issue #2231) — the two independent damage locks, threaded
+ *  from `runDamageReplacement` into both CR 614 loops. Empty (both false) for
+ *  every non-damage event kind and for ordinary damage. */
+export type DamageLocks = {
+    /** CR 615.12 — "this damage can't be prevented". */
+    unpreventable: boolean;
+    /** CR 614.9 — "…or dealt instead to another permanent or player". */
+    unredirectable: boolean;
+};
+
+const NO_DAMAGE_LOCKS: DamageLocks = {
+    unpreventable: false,
+    unredirectable: false,
+};
+
+/** True when `locks` suppresses a damage replacement of the given class.
+ *
+ *  An UNCLASSIFIED damage replacement (`damageEffectKind` absent) is suppressed
+ *  by either lock — fail CLOSED. The catalogue guard
+ *  (`damageReplacementKinds.test.ts`) makes that unreachable for a shipped
+ *  card, so the branch only covers a hand-built fixture; suppressing is the
+ *  conservative side, because a leaked lock is a silent CR violation while an
+ *  over-suppressed unclassified effect is a loud one in that effect's own
+ *  test. */
+function damageLockSuppresses(
+    locks: DamageLocks,
+    effectKind: DamageEffectKind | undefined
+): boolean {
+    if (!locks.unpreventable && !locks.unredirectable) return false;
+    if (effectKind === "other") return false;
+    if (effectKind === "prevention") return locks.unpreventable;
+    if (effectKind === "redirection") return locks.unredirectable;
+    return true;
+}
+
 function applyReplacementsLoop(
     state: GameState,
     kind: ReplacementEventKind,
-    initial: ReplacementEvent
+    initial: ReplacementEvent,
+    locks: DamageLocks = NO_DAMAGE_LOCKS
 ): ReplacementEvent | null {
     let event = initial;
     const used = new Set<string>();
@@ -352,6 +389,20 @@ function applyReplacementsLoop(
         for (const c of candidates) {
             const key = `${c.source.id}|${c.effect.id}`;
             if (used.has(key)) continue;
+            // CR 615.12 / 614.9 (issue #2231) — a locked damage event skips the
+            // suppressed CLASS of replacement and nothing else. It is skipped
+            // ENTIRELY rather than applied-and-discarded: CR 615.12's "any
+            // additional effects they have will take place" is about riders
+            // measured on the amount PREVENTED, which is zero here, so every
+            // catalogue member behaves identically either way (Reverse Damage
+            // gains life "equal to the damage prevented"). It also keeps the
+            // one-shot bookkeeping honest — "existing damage prevention shields
+            // won't be reduced by damage that can't be prevented".
+            if (
+                kind === "damage" &&
+                damageLockSuppresses(locks, c.effect.damageEffectKind)
+            )
+                continue;
             const view = buildPermanentView(c.source);
             if (!c.effect.appliesTo(event, view, stateView)) continue;
             pick = c;
@@ -369,9 +420,10 @@ function applyReplacementsLoop(
 
 export function applyDamageReplacements(
     state: GameState,
-    event: DamageReplacementEvent
+    event: DamageReplacementEvent,
+    locks: DamageLocks = NO_DAMAGE_LOCKS
 ): DamageReplacementEvent | null {
-    const result = applyReplacementsLoop(state, "damage", event);
+    const result = applyReplacementsLoop(state, "damage", event, locks);
     return result === null ? null : (result as DamageReplacementEvent);
 }
 
@@ -446,9 +498,36 @@ function applyTransientDestroyShields(
  *  event. Each kind of shield is one-shot: consumed shields are spliced out
  *  of `state.damageRedirections`. Returns the (possibly rewritten) event,
  *  or null if a shield consumed the event entirely. */
+/** CR 615.12 / 614.9 (issue #2231) — which chapter each transient shield kind
+ *  belongs to, and therefore which lock suppresses it. Typed as a TOTAL record
+ *  over `DamageRedirection["kind"]`, so a fifth kind cannot be added without
+ *  classifying it: tsc is the fail-closed discriminator here, and the name
+ *  `damageRedirections` is a misnomer for the array — only two of the four
+ *  kinds actually redirect.
+ *
+ *  - `prevent-from-source-gain-life` (Reverse Damage) PREVENTS — its Oracle
+ *    text uses the word "prevent" (CR 615.1a).
+ *  - `to-self-redirect-to-owner` and `from-source-to-permanent-redirect`
+ *    (Jade Monolith, Mirrorwood Treefolk) REDIRECT — CR 614.9.
+ *  - `reflect-to-source-controller` (Eye for an Eye) is NEITHER: the damage to
+ *    the chosen player proceeds unchanged and a SECOND, separate amount is
+ *    dealt to the source's controller. Nothing is prevented and nothing is
+ *    dealt "instead", so it fires under both locks — which is why the map
+ *    exists rather than a `kind.includes("redirect")` test. */
+const SHIELD_DAMAGE_EFFECT_KIND: Record<
+    DamageRedirection["kind"],
+    DamageEffectKind
+> = {
+    "prevent-from-source-gain-life": "prevention",
+    "to-self-redirect-to-owner": "redirection",
+    "reflect-to-source-controller": "other",
+    "from-source-to-permanent-redirect": "redirection",
+};
+
 export function applyTransientDamageRedirections(
     state: GameState,
-    event: DamageReplacementEvent
+    event: DamageReplacementEvent,
+    locks: DamageLocks = NO_DAMAGE_LOCKS
 ): DamageReplacementEvent | null {
     const shields = state.damageRedirections;
     if (!shields || shields.length === 0) return event;
@@ -466,6 +545,14 @@ export function applyTransientDamageRedirections(
     for (let i = 0; i < shields.length; i++) {
         const sh = shields[i];
         if (consumed) {
+            kept.push(sh);
+            continue;
+        }
+        // CR 615.12 / 614.9 (issue #2231) — the locked class is skipped without
+        // being consumed, so an unspent shield survives the locked event
+        // ("existing damage prevention shields won't be reduced by damage that
+        // can't be prevented", and CR 614.9's redirect simply "does nothing").
+        if (damageLockSuppresses(locks, SHIELD_DAMAGE_EFFECT_KIND[sh.kind])) {
             kept.push(sh);
             continue;
         }

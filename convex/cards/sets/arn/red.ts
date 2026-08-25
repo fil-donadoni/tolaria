@@ -175,6 +175,7 @@ export const aliFromCairo: CardDefinition = {
             oracleText:
                 "Damage that would reduce your life total to less than 1 reduces it to 1 instead.",
             eventKind: "damage",
+            damageEffectKind: "other",
             appliesTo: (event, self, state) => {
                 if (event.kind !== "damage") return false;
                 if (event.target.type !== "player") return false;
@@ -260,6 +261,7 @@ export const desertNomads: CardDefinition = {
             oracleText:
                 "Prevent all damage that would be dealt to this creature by Deserts.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             appliesTo: (event, self) =>
                 event.kind === "damage" &&
                 event.target.type === "permanent" &&

@@ -278,6 +278,7 @@ export const chromaticArmor: CardDefinition = {
             oracleText:
                 "Prevent all damage that would be dealt to enchanted creature by sources of the last chosen color.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             appliesTo: (event, self) => {
                 if (event.kind !== "damage") return false;
                 if (self.attachedTo === undefined) return false;

@@ -902,6 +902,18 @@ export type CardInstanceState = {
      *  regeneration: the SBA path treats this identically to `cantBeRegenerated`.
      *  Transient — cleared at CLEANUP (CR 514.2). */
     exileOnDeath?: boolean;
+    /** When set, damage that would be dealt TO this permanent this turn "can't
+     *  be prevented or dealt instead to another permanent or player"
+     *  (Whippoorwill, issue #2231) — CR 615.12 for the first clause (including
+     *  protection's damage leg, CR 702.16e, which CR 702.16e itself words as
+     *  "is prevented") and CR 614.9 for the second. Source-agnostic: it applies
+     *  to combat damage, spell damage, ability damage and fight damage alike,
+     *  which is why every one of the four damage sinks reads it through
+     *  `isDamageLockedTarget` rather than any one of them owning the check.
+     *  Transient — cleared at CLEANUP (CR 514.2) and scrubbed on leaving the
+     *  battlefield, exactly like `exileOnDeath`. Set by
+     *  `SpellContext.setDamageLockThisTurn` / the `lockDamage` Op. */
+    damageLockThisTurn?: boolean;
     /** When set, this permanent is exiled instead of going to any other zone if
      *  it would leave the battlefield (CR 614.1c — Dreams of the Dead). Read by
      *  `removePermanentTo` for EVERY departure path (dies, sacrifice, bounce,
@@ -8726,7 +8738,8 @@ export function runDamageReplacement(
     target: TargetSelection,
     amount: number,
     isCombat: boolean,
-    unpreventable: boolean = false
+    unpreventable: boolean = false,
+    unredirectable: boolean = false
 ): { target: TargetSelection; amount: number } | null {
     if (
         sourcePreventionShieldApplies(
@@ -8739,22 +8752,74 @@ export function runDamageReplacement(
         return null;
     }
     const desc = describeDamageSource(state, sourceInstanceId);
-    const continuous = applyDamageReplacements(state, {
-        kind: "damage",
-        sourceInstanceId,
-        sourceControllerId,
-        sourceColors: desc.colors,
-        sourceTypes: desc.types,
-        sourceSubtypes: desc.subtypes,
-        sourceStaticAbilities: desc.staticAbilities,
-        target,
-        amount,
-        isCombat,
-    });
+    // CR 615.12 / 614.9 (issue #2231) — the two locks are applied PER
+    // REPLACEMENT EFFECT, never by skipping either loop wholesale. Both loops
+    // carry all three `damageEffectKind` classes at once: skipping
+    // `applyDamageReplacements` under `unpreventable` would stop Harsh
+    // Judgment from redirecting kicked Urza's Rage (a redirect is not a
+    // prevention, CR 614.9), and skipping it under `unredirectable` would stop
+    // Divine Presence's clamp, which is neither.
+    const locks = { unpreventable, unredirectable };
+    const continuous = applyDamageReplacements(
+        state,
+        {
+            kind: "damage",
+            sourceInstanceId,
+            sourceControllerId,
+            sourceColors: desc.colors,
+            sourceTypes: desc.types,
+            sourceSubtypes: desc.subtypes,
+            sourceStaticAbilities: desc.staticAbilities,
+            target,
+            amount,
+            isCombat,
+        },
+        locks
+    );
     if (continuous === null) return null;
-    const transient = applyTransientDamageRedirections(state, continuous);
+    const transient = applyTransientDamageRedirections(
+        state,
+        continuous,
+        locks
+    );
     if (transient === null) return null;
     return { target: transient.target, amount: transient.amount };
+}
+
+/** CR 615.12 / 614.9 (issue #2231) — does the TARGET of a would-be damage event
+ *  carry Whippoorwill's turn-scoped "damage dealt to that creature can't be
+ *  prevented or dealt instead to another permanent or player" lock?
+ *
+ *  Read from the RAW target, before any CR 614 replacement runs: the Oracle
+ *  clause is about the damage that "would be dealt to that creature", so the
+ *  lock is what stops the redirect, not something the redirect can dodge by
+ *  moving the event first. Always false for a player target — the flag lives on
+ *  a permanent (CR 120.3), and a redirect landing ON the locked creature does
+ *  not retroactively acquire the lock (the lock protects the creature from
+ *  losing damage, not other objects from gaining it). */
+export function isDamageLockedTarget(
+    state: GameState,
+    target: { type: string; id: string }
+): boolean {
+    if (target.type !== "permanent") return false;
+    return (
+        findOnBattlefield(state, target.id)?.card.damageLockThisTurn === true
+    );
+}
+
+/** Is ANY permanent on the board currently carrying the damage lock?
+ *
+ *  The board-wide sibling of `isDamageLockedTarget`, and the reason it exists:
+ *  `applyAllCombatDamage` short-circuits the WHOLE combat damage step when a
+ *  Fog is up, before any individual damage event is built, so a per-event check
+ *  never runs. That fast path may only survive while nothing on the board can
+ *  punch through it — exactly the shape
+ *  `anyCombatDamageUnpreventableStatic` already guards for the source side
+ *  (Questing Beast). */
+export function anyDamageLockOnBoard(state: GameState): boolean {
+    return state.players.some((p) =>
+        p.battlefield.some((c) => c.damageLockThisTurn === true)
+    );
 }
 
 /** Deals `amount` damage from an explicit battlefield-permanent source to a
@@ -8773,7 +8838,9 @@ export function dealDamageFromPermanentToPlayer(
     source: CardInstanceState,
     sourceControllerId: string,
     playerId: string,
-    amount: number
+    amount: number,
+    unpreventable: boolean = false,
+    unredirectable: boolean = false
 ): void {
     if (amount <= 0) return;
     // CR 614 — replacement effects (redirects/cancels) run first, keyed on the
@@ -8784,7 +8851,9 @@ export function dealDamageFromPermanentToPlayer(
         sourceControllerId,
         { type: "player", id: playerId },
         amount,
-        false
+        false,
+        unpreventable,
+        unredirectable
     );
     if (replaced === null) return;
     const finalTarget = replaced.target;
@@ -8799,22 +8868,35 @@ export function dealDamageFromPermanentToPlayer(
             source,
             sourceControllerId,
             finalTarget.id,
-            finalAmount
+            finalAmount,
+            unpreventable,
+            unredirectable
         );
         return;
     }
     // CR 615.1 — prevention shields (source-matched, then target-keyed).
-    if (consumePreventionIfAny(state, source.id, finalTarget.id)) return;
+    // CR 615.12 — an unpreventable event skips each shield ENTIRELY rather than
+    // consuming it ("existing damage prevention shields won't be reduced by
+    // damage that can't be prevented").
+    if (
+        !unpreventable &&
+        consumePreventionIfAny(state, source.id, finalTarget.id)
+    )
+        return;
     const desc = describeDamageSource(state, source.id);
-    let reduced = applyPlayerDamagePrevention(
-        state,
-        finalTarget.id,
-        source.id,
-        desc.staticAbilities,
-        finalAmount
-    );
+    let reduced = unpreventable
+        ? finalAmount
+        : applyPlayerDamagePrevention(
+              state,
+              finalTarget.id,
+              source.id,
+              desc.staticAbilities,
+              finalAmount
+          );
     if (reduced <= 0) return;
-    reduced = applyTargetPrevention(state, "player", finalTarget.id, reduced);
+    reduced = unpreventable
+        ? reduced
+        : applyTargetPrevention(state, "player", finalTarget.id, reduced);
     if (reduced <= 0) return;
     getPlayer(state, finalTarget.id).life -= reduced;
     // CR 119.3 — damage dealt to a player causes that player to lose life.
@@ -8879,9 +8961,21 @@ function markDamageFromPermanentSource(
     source: CardInstanceState,
     sourceControllerId: string,
     targetId: string,
-    amount: number
+    amount: number,
+    forcedUnpreventable: boolean = false,
+    forcedUnredirectable: boolean = false
 ): string | null {
     if (amount <= 0) return null;
+    // CR 615.12 / 614.9 (issue #2231) — Whippoorwill's target-bound lock. ORed
+    // with whatever the CALLER already locked (Lava Burst's rider arriving via
+    // a redirect, say): the two are independent sources of the same override
+    // and either alone is enough. Read off the RAW target, before CR 614.
+    const unpreventable =
+        forcedUnpreventable ||
+        isDamageLockedTarget(state, { type: "permanent", id: targetId });
+    const unredirectable =
+        forcedUnredirectable ||
+        isDamageLockedTarget(state, { type: "permanent", id: targetId });
     // CR 614: replacement effects (redirects/cancels) run first, keyed on the
     // creature source's identity (colors/types) — not the ability's.
     const replaced = runDamageReplacement(
@@ -8890,7 +8984,9 @@ function markDamageFromPermanentSource(
         sourceControllerId,
         { type: "permanent", id: targetId },
         amount,
-        false
+        false,
+        unpreventable,
+        unredirectable
     );
     if (replaced === null) return null;
     const finalTarget = replaced.target;
@@ -8901,22 +8997,26 @@ function markDamageFromPermanentSource(
         // Incarnation). Apply it through the same player-damage shaping the
         // combat/spell paths use, then return (no permanent lethal check).
         const desc = describeDamageSource(state, source.id);
-        if (consumePreventionIfAny(state, source.id, finalTarget.id))
+        // CR 615.12 — an unpreventable event skips each shield ENTIRELY rather
+        // than consuming it.
+        if (
+            !unpreventable &&
+            consumePreventionIfAny(state, source.id, finalTarget.id)
+        )
             return null;
-        let reduced = applyPlayerDamagePrevention(
-            state,
-            finalTarget.id,
-            source.id,
-            desc.staticAbilities,
-            finalAmount
-        );
+        let reduced = unpreventable
+            ? finalAmount
+            : applyPlayerDamagePrevention(
+                  state,
+                  finalTarget.id,
+                  source.id,
+                  desc.staticAbilities,
+                  finalAmount
+              );
         if (reduced <= 0) return null;
-        reduced = applyTargetPrevention(
-            state,
-            "player",
-            finalTarget.id,
-            reduced
-        );
+        reduced = unpreventable
+            ? reduced
+            : applyTargetPrevention(state, "player", finalTarget.id, reduced);
         if (reduced <= 0) return null;
         getPlayer(state, finalTarget.id).life -= reduced;
         // CR 119.3 — damage dealt to a player causes that player to lose life.
@@ -8956,13 +9056,20 @@ function markDamageFromPermanentSource(
     // with protection is prevented.
     // The source is an explicit BATTLEFIELD PERMANENT (a fight combatant, a
     // redirect source) — never a spell (CR 112.1).
-    if (isProtectedFromSource(found.card, source, false)) return null;
-    const reduced = applyTargetPrevention(
-        state,
-        "permanent",
-        finalTarget.id,
-        finalAmount
-    );
+    // CR 615.12 (issue #2231): "is prevented" makes this a prevention effect,
+    // so unpreventable damage goes through protection. Only protection's DAMAGE
+    // leg is bypassed; can't-be-blocked / can't-be-targeted / can't-be-attached
+    // (CR 702.16b–d) are enforced elsewhere and untouched.
+    if (!unpreventable && isProtectedFromSource(found.card, source, false))
+        return null;
+    const reduced = unpreventable
+        ? finalAmount
+        : applyTargetPrevention(
+              state,
+              "permanent",
+              finalTarget.id,
+              finalAmount
+          );
     if (reduced <= 0) return null;
     // CR 120.3 / 704.5i — damage dealt to a planeswalker removes that many
     // loyalty counters instead of being marked (a planeswalker has no
@@ -11111,6 +11218,10 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.untapLockedBy;
     delete card.skipNextUntap;
     delete card.exileOnDeath;
+    // CR 400.7 (issue #2231) — the turn-scoped damage lock is per-INSTANCE; a
+    // permanent that leaves the battlefield becomes a new object, so the flag
+    // must not ride back in on a re-entry (same reason as `exileOnDeath`).
+    delete card.damageLockThisTurn;
     delete card.colorOverride;
     // CR 400.7 (issue #1872) — the layer-5 colour SET's REVERT record is
     // scrubbed with the override it guards. `colorOverride` alone was deleted
@@ -13128,18 +13239,28 @@ export function buildSpellContext(
         dealDamage(
             target: TargetSelection,
             amount: number,
-            unpreventable = false
+            unpreventableArg = false,
+            unredirectableArg = false
         ) {
             // CR 614 replacement effects run BEFORE CR 615 prevention. May
             // rewrite target (Simulacrum / Veteran Bodyguard / Personal
             // Incarnation redirect damage to themselves) or cancel
             // (Jade Monolith's activated redirect cancels by rewriting).
-            // `unpreventable` (Urza's Rage's kicked mode: "the damage can't be
-            // prevented") only suppresses CR 615 PREVENTION shields below —
-            // CR 614 replacement/redirection effects are a distinct rule and
-            // still apply, and so does CR 702.16 protection (a card would need
-            // to say so explicitly to override protection too; no card in the
-            // catalogue does).
+            //
+            // CR 615.12 — `unpreventable` (kicked Urza's Rage, Lava Burst's
+            // creature rider) suppresses every CR 615 prevention step below AND
+            // protection's damage leg (CR 702.16e words it as "is prevented",
+            // issue #2231). CR 614.9 — `unredirectable` (Lava Burst's second
+            // clause) suppresses redirection replacements only. Neither
+            // implies the other.
+            //
+            // Whippoorwill's target-bound `damageLockThisTurn` ORs into both:
+            // the lock belongs to the CREATURE, so a burn spell that has never
+            // heard of it is still locked. Read off the RAW target, before any
+            // CR 614 replacement can move the event off the locked creature.
+            const targetLocked = isDamageLockedTarget(state, target);
+            const unpreventable = unpreventableArg || targetLocked;
+            const unredirectable = unredirectableArg || targetLocked;
             const replaced = runDamageReplacement(
                 state,
                 item.id,
@@ -13147,7 +13268,8 @@ export function buildSpellContext(
                 target,
                 amount,
                 false,
-                unpreventable
+                unpreventable,
+                unredirectable
             );
             if (replaced === null) return;
             target = replaced.target;
@@ -13243,7 +13365,15 @@ export function buildSpellContext(
                 // the stated quality to a permanent with protection is
                 // prevented. `item` is the stack item resolving (spell or
                 // ability); its colors come from its mana cost (CR 202.2).
+                // CR 615.12 (issue #2231): "is prevented" makes protection's
+                // damage leg a prevention effect, so unpreventable damage is
+                // dealt through it. Protection's other legs (CR 702.16b–d —
+                // can't be blocked/targeted/attached) live elsewhere and are
+                // untouched; in particular a protected creature still cannot be
+                // TARGETED by Lava Burst, so this only reaches it via a
+                // non-targeted or already-legal path.
                 if (
+                    !unpreventable &&
                     isProtectedFromSource(
                         found.card,
                         item,
@@ -13340,7 +13470,9 @@ export function buildSpellContext(
         dealDamageFromPermanent(
             sourceInstanceId: string,
             playerId: string,
-            amount: number
+            amount: number,
+            unpreventable = false,
+            unredirectable = false
         ) {
             // CR 120.1 — the CR-120.1 source is the named battlefield
             // permanent, not the resolving stack item. Backlash: the tapped
@@ -13356,7 +13488,9 @@ export function buildSpellContext(
                 found.card,
                 found.card.controllerId,
                 playerId,
-                amount
+                amount,
+                unpreventable,
+                unredirectable
             );
         },
         fight(target: TargetSelection) {
@@ -16361,6 +16495,18 @@ export function buildSpellContext(
             if (!found) return;
             if (!found.card.types.includes("Creature")) return;
             found.card.exileOnDeath = true;
+        },
+
+        setDamageLockThisTurn(target: TargetSelection): void {
+            // CR 615.12 / 614.9 (issue #2231) — Whippoorwill's middle clause.
+            // Same guards as its sibling `setExileOnDeath` right above (the two
+            // are set by the same Oracle sentence): a permanent selection, a
+            // creature, and still on the battlefield (CR 608.2b).
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            if (!found.card.types.includes("Creature")) return;
+            found.card.damageLockThisTurn = true;
         },
 
         getActivationCount(abilityId: string): number {

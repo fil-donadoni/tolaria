@@ -2786,17 +2786,53 @@ export interface SpellContext {
     ) => string | undefined;
     // --- Primitives ---
     /** Deals `amount` damage to `target` (CR 120). Runs CR 614 replacement
-     *  effects, then — unless `unpreventable` is set — CR 615 prevention
-     *  shields (per-player/per-target). `unpreventable` (Urza's Rage's kicked
-     *  mode: "the damage can't be prevented") skips ONLY the prevention
-     *  shields; CR 614 replacement/redirection and CR 702.16 protection still
-     *  apply (no card in the catalogue needs "can't be prevented" to override
-     *  protection too). Default false — every existing caller is unaffected. */
+     *  effects, then CR 702.16e protection, then CR 615 prevention shields
+     *  (per-player/per-target).
+     *
+     *  `unpreventable` (CR 615.12 — Urza's Rage's kicked mode: "the damage
+     *  can't be prevented") suppresses every CR 615 PREVENTION step, and that
+     *  includes protection's damage leg: CR 702.16e says damage from a source
+     *  with the stated quality "is prevented", so it is a prevention effect
+     *  like any other and CR 615.12's override reaches it (issue #2231 — the
+     *  engine used to apply protection unconditionally here, a CR-conformance
+     *  defect). Protection's OTHER legs — can't be blocked by, can't be
+     *  targeted by, can't be enchanted/equipped by (CR 702.16b–d) — are
+     *  untouched: they are not prevention.
+     *
+     *  `unredirectable` (CR 614.9 — Lava Burst's "…or dealt instead to another
+     *  permanent or player") suppresses CR 614 REDIRECTION effects only. The
+     *  two are independent booleans, not one merged flag: they are separate
+     *  Oracle sentences under separate CR chapters, and kicked Urza's Rage
+     *  wants the first without the second. Damage replacements that neither
+     *  prevent nor redirect (amount rewrites — Divine Presence, Ali from
+     *  Cairo, Lashknife Barrier — and the face-down turn-up) apply under both
+     *  locks, exactly as CR 614/615 require.
+     *
+     *  Both default false — every existing caller is unaffected. A
+     *  `damageLockThisTurn` flag on the TARGET permanent (Whippoorwill) ORs
+     *  into both, so the lock is honoured whether the card that armed it or
+     *  the card dealing the damage knows about it. */
     dealDamage: (
         target: TargetSelection,
         amount: number,
-        unpreventable?: boolean
+        unpreventable?: boolean,
+        unredirectable?: boolean
     ) => void;
+    /** CR 615.12 / 614.9 (issue #2231) — flags a permanent so that damage which
+     *  would be dealt TO it this turn can't be prevented and can't be dealt
+     *  instead to another permanent or player (Whippoorwill). Sets the
+     *  turn-scoped `CardInstanceState.damageLockThisTurn`, read by EVERY damage
+     *  sink (spell/ability, permanent-source, fight, combat) and cleared at
+     *  CLEANUP (CR 514.2), exactly like its sibling `setExileOnDeath`.
+     *
+     *  ONE boolean covers both clauses at this scope deliberately: no printed
+     *  card locks only half of them target-side, and a pair of flags would be
+     *  two things to forget at each of the four sinks. The one-shot,
+     *  spell-scoped leg (Lava Burst) does split them — see
+     *  `dealDamage`'s two params. No-op on a non-permanent selection, a
+     *  non-CREATURE permanent, or one that has left the battlefield
+     *  (CR 608.2b). */
+    setDamageLockThisTurn: (target: TargetSelection) => void;
     /** CR 120.1 — deals `amount` damage to a player FROM an explicit
      *  battlefield permanent (`sourceInstanceId`), rather than from the
      *  resolving stack item. The named permanent is stamped as the damage
@@ -2811,7 +2847,9 @@ export interface SpellContext {
     dealDamageFromPermanent: (
         sourceInstanceId: string,
         playerId: string,
-        amount: number
+        amount: number,
+        unpreventable?: boolean,
+        unredirectable?: boolean
     ) => void;
     /** Generic Fight primitive (CR 701.14-style mutual damage). The resolving
      *  ability's source permanent (`sourceInstanceId`) and `target` each deal
@@ -9794,10 +9832,40 @@ export type ReplacementResult =
     | { kind: "modified"; event: ReplacementEvent }
     | { kind: "consumed" };
 
+/** Which CR chapter a `eventKind: "damage"` replacement belongs to (issue
+ *  #2231). MANDATORY on every damage replacement — enforced catalogue-wide by
+ *  `convex/cards/__tests__/damageReplacementKinds.test.ts`, because the
+ *  classification is exactly what a type checker cannot infer from a `replace`
+ *  body and exactly what an anti-prevention / anti-redirection lock has to ask.
+ *
+ *  It is NOT derivable from the `replace` return value: `{ kind: "consumed" }`
+ *  is returned both by prevention (Uncle Istvan) and — via a target rewrite —
+ *  never by redirection, while an amount rewrite is used by prevention (Rock
+ *  Hydra's counter-scaled partial) AND by effects that are neither (Divine
+ *  Presence's clamp). The dividing line is CR 615.1a: an effect is prevention
+ *  iff its Oracle text uses the word "prevent".
+ *
+ *  - `"prevention"` — CR 615. Suppressed by "damage can't be prevented"
+ *    (CR 615.12): Urza's Rage kicked, Lava Burst's rider, Whippoorwill's lock.
+ *  - `"redirection"` — CR 614.9, "dealt instead to another permanent or
+ *    player". Suppressed by "can't be dealt instead to another permanent or
+ *    player" and by NOTHING else — a prevention lock must still let a redirect
+ *    redirect.
+ *  - `"other"` — neither: an amount rewrite that does not use the word
+ *    "prevent" (Divine Presence, Ali from Cairo, Lashknife Barrier) or a
+ *    side-effect replacement (the face-down turn-up). Applies under both
+ *    locks. */
+export type DamageEffectKind = "prevention" | "redirection" | "other";
+
 export interface ReplacementEffect {
     id: string;
     oracleText: string;
     eventKind: ReplacementEventKind;
+    /** REQUIRED for `eventKind: "damage"`, meaningless otherwise (issue #2231).
+     *  See `DamageEffectKind`. Optional in the type only because
+     *  `ReplacementEffect` is one flat interface across every event kind — the
+     *  catalogue guard, not tsc, is what makes it mandatory where it matters. */
+    damageEffectKind?: DamageEffectKind;
     /** CR 614.1a self-referential "would be put into a graveyard from
      *  anywhere ... instead" clauses (Blightsteel Colossus, issue #2106):
      *  the replacement is intrinsic to the object itself, not to it sitting
@@ -11039,6 +11107,21 @@ export type EffectOp =
            *  which CR 615 checks this suppresses (CR 614 replacement and CR
            *  702.16 protection are unaffected). */
           unpreventable?: boolean;
+          /** CR 614.9 (issue #2231) — when true, the damage skips REDIRECTION
+           *  effects: neither a permanent-bound `replacementEffects[]` entry
+           *  classified `damageEffectKind: "redirection"` (Veteran Bodyguard,
+           *  Personal Incarnation, Martyrs of Korlis, Harsh Judgment) nor a
+           *  transient `DamageRedirection` shield of a redirecting kind (Jade
+           *  Monolith, Mirrorwood Treefolk) may send it "instead to another
+           *  permanent or player". The SIBLING of `unpreventable`, never a
+           *  merge of it: the two clauses are separate Oracle sentences under
+           *  separate CR chapters (CR 615.12 vs CR 614.9), and one shipped card
+           *  — kicked Urza's Rage — wants prevention-only, so a redirect must
+           *  still redirect it. Lava Burst is the first card passing BOTH.
+           *  Amount-rewriting and turn-up replacements (`"other"`: Divine
+           *  Presence, Ali from Cairo, Lashknife Barrier) are untouched — they
+           *  neither prevent nor redirect. */
+          unredirectable?: boolean;
       }
     /** CR 601.2d / 120.4 — deal `total` damage DIVIDED AS YOU CHOOSE among the
      *  spell/ability's announced targets (Arc Lightning, Fiery Justice, Meteor
@@ -12733,6 +12816,26 @@ export type EffectOp =
      *  nothing here, which is exactly what "that creature" in the Oracle text
      *  means. */
     | { op: "exileOnDeath"; target: EffectObjectSelector }
+    /** CR 615.12 / 614.9 (issue #2231) — lock a permanent so that damage which
+     *  would be dealt TO it this turn "can't be prevented or dealt instead to
+     *  another permanent or player" (Whippoorwill). A thin declarative skin
+     *  over the single SpellContext primitive `setDamageLockThisTurn`, one
+     *  execution path (ADR 0045). `target` is an announced target slot
+     *  (`{ target: N }`), the resolving source (`$source`), or a forEach
+     *  `$each`.
+     *
+     *  TARGET-bound and turn-scoped, and therefore distinct from all three
+     *  neighbours it is easy to confuse it with: `dealDamage`'s
+     *  `unpreventable` / `unredirectable` fields lock ONE damage event dealt by
+     *  the resolving spell (Lava Burst); the `combat-damage-unpreventable`
+     *  static effect (Questing Beast) is SOURCE-bound, continuous and
+     *  combat-only; this flag applies to damage from ANY source — combat
+     *  included, long after the ability has left the stack — until CLEANUP
+     *  (CR 514.2). No duration field: the turn scope is intrinsic to the flag,
+     *  exactly as for `exileOnDeath` / `preventRegeneration`, the two clauses
+     *  Whippoorwill's own Oracle sentence pairs it with. No-op on a
+     *  non-permanent selection or one already gone (CR 608.2b). */
+    | { op: "lockDamage"; target: EffectObjectSelector }
     /** CR 510.1c (issue #1283) — mark a permanent so it assigns NO combat
      *  damage for the rest of the turn: a SOURCE-side prevention (the creature
      *  still fights and can be dealt damage / die, it merely deals 0 in every

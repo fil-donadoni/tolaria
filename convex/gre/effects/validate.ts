@@ -2833,17 +2833,26 @@ function isInlineTargetRequirement(value: unknown): boolean {
  *  test fails CI when the three drift apart. `bind` (ADR 0045) is an optional
  *  field on the object-moving Ops that can snapshot their target. */
 const OP_SCHEMAS: Record<string, OpSchema> = {
-    // CR 615 (issue #1065) — `unpreventable` skips prevention shields only
-    // (Urza's Rage's kicked mode: "the damage can't be prevented"); CR 614
-    // replacement and CR 702.16 protection are unaffected. Omitted/false is
-    // the default preventable path every other `dealDamage` card uses.
+    // CR 615.12 (issue #1065) — `unpreventable` skips every CR 615 prevention
+    // step, protection's damage leg included (CR 702.16e words itself "is
+    // prevented", issue #2231). Omitted/false is the default preventable path
+    // every other `dealDamage` card uses.
+    // CR 614.9 (issue #2231) — `unredirectable` skips REDIRECTION replacements
+    // only ("…or dealt instead to another permanent or player", Lava Burst).
+    // Independent of `unpreventable`, NOT implied by it: kicked Urza's Rage is
+    // unpreventable and still redirectable, so the two are validated (and
+    // authored) separately.
     // CR 120.1 (issue #1416) — optional `source` names a bound PERMANENT that
     // is the damage source instead of the resolving stack item (Backlash: the
     // tapped creature deals the damage). An object selector (a `$c`-style bind
     // ref); routed through the permanent-source player-damage pipeline.
     dealDamage: {
         required: { amount: isEffectValue, to: isDamageRecipient },
-        optional: { unpreventable: isBoolean, source: isObjectSelector },
+        optional: {
+            unpreventable: isBoolean,
+            unredirectable: isBoolean,
+            source: isObjectSelector,
+        },
     },
     // CR 601.2d / 120.4 — divide-as-you-choose damage over the announced target
     // group (Arc Lightning, Fiery Justice, Meteor Shower). `total` mirrors the
@@ -3495,6 +3504,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // turn-scoped lifetime is intrinsic to the flag (cleared at CLEANUP,
     // CR 514.2), mirroring `preventRegeneration` right above.
     exileOnDeath: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
+    // CR 615.12 / 614.9 (issue #2231) — lock a permanent so damage dealt TO it
+    // this turn can't be prevented or dealt instead to another permanent or
+    // player (Whippoorwill). `target` is an object selector (announced slot,
+    // `$source`, or a forEach `$each`). No duration and no per-clause split:
+    // the turn scope is intrinsic to the flag and no printed card locks only
+    // half of the sentence at this scope (the per-EVENT leg does split them —
+    // `dealDamage`'s `unpreventable` / `unredirectable`).
+    lockDamage: {
         required: {
             target: isObjectSelector,
         },

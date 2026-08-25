@@ -18104,6 +18104,162 @@ describe("Effect Script Op: exileOnDeath (CR 614.1a)", () => {
     });
 });
 
+// CR 615.12 / 614.9 (issue #2231) — the `lockDamage` Op: the turn-scoped,
+// TARGET-bound "damage that would be dealt to that creature this turn can't be
+// prevented or dealt instead to another permanent or player" lock. The DSL skin
+// over `SpellContext.setDamageLockThisTurn`, which Whippoorwill's `resolve()`
+// closure already calls. End-to-end behaviour of the lock itself (shields,
+// redirects, protection, combat, CLEANUP) lives in
+// `convex/gre/__tests__/damageLock.test.ts`; this is the Op's own entry-fee
+// test — that it reaches the primitive through every construct.
+describe("Effect Script Op: lockDamage (CR 615.12 / 614.9)", () => {
+    function oneBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("arms the lock on an announced target creature", () => {
+        const id = registerScript("test-op-lockdamage-target", [
+            { op: "lockDamage", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageLockThisTurn
+        ).toBe(true);
+    });
+
+    it("the lock actually fires — a target prevention shield stops nothing", () => {
+        const id = registerScript("test-op-lockdamage-fires", [
+            { op: "lockDamage", target: { target: 0 } },
+            { op: "dealDamage", amount: 2, to: { target: 0 } },
+        ]);
+        const state = oneBear();
+        state.targetPreventionShields = [
+            {
+                targetType: "permanent",
+                targetId: "bearA",
+                remaining: 100,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageMarked
+        ).toBe(2);
+    });
+
+    it("without the Op the same shield DOES prevent the damage (the contrast case)", () => {
+        const id = registerScript("test-op-lockdamage-absent", [
+            { op: "dealDamage", amount: 2, to: { target: 0 } },
+        ]);
+        const state = oneBear();
+        state.targetPreventionShields = [
+            {
+                targetType: "permanent",
+                targetId: "bearA",
+                remaining: 100,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageMarked
+        ).toBeUndefined();
+    });
+
+    it("is a no-op on a PLAYER target (CR 608.2b) and still resolves", () => {
+        const id = registerScript(
+            "test-op-lockdamage-player",
+            [{ op: "lockDamage", target: { target: 0 } }],
+            { targetRequirement: { type: "any", count: 1 } }
+        );
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageLockThisTurn
+        ).toBeUndefined();
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b)", () => {
+        const id = registerScript("test-op-lockdamage-gone", [
+            { op: "lockDamage", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageLockThisTurn
+        ).toBeUndefined();
+    });
+
+    it("arms every member of a forEach set via $each", () => {
+        const id = registerScript("test-op-lockdamage-foreach", [
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield" },
+                effects: [{ op: "lockDamage", target: { ref: "$each" } }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearB",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.map((c) => c.damageLockThisTurn)
+        ).toEqual([true, true]);
+    });
+
+    it("the flag survives projection (wire format)", () => {
+        const id = registerScript("test-op-lockdamage-wire", [
+            { op: "lockDamage", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(slim.damageLockThisTurn).toBe(true);
+    });
+});
+
 // --- lookDistribute Op: look at top N, put one (or K) into hand, rest on the bottom
 // (CR 401.4, issue #984) ---------------------------------------------------------
 // lookDistribute SUSPENDS on a `look-distribute` choice over exactly the looked-at

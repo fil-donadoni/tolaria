@@ -66,6 +66,7 @@ export const solitaryConfinement: CardDefinition = {
             id: "solitary-confinement-damage-prevention",
             oracleText: "Prevent all damage that would be dealt to you.",
             eventKind: "damage",
+            damageEffectKind: "prevention",
             appliesTo: (event, self) =>
                 event.kind === "damage" &&
                 event.target.type === "player" &&

@@ -105,6 +105,7 @@ export const lashknifeBarrier: CardDefinition = {
         {
             id: "lashknife-barrier-reduce",
             eventKind: "damage",
+            damageEffectKind: "other",
             oracleText:
                 "If a source would deal damage to a creature you control, it deals that much damage minus 1 to that creature instead.",
             appliesTo: (event, self, state) => {

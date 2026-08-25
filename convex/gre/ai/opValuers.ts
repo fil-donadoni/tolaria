@@ -878,6 +878,23 @@ const exileOnDeath: Valuer<"exileOnDeath"> = (op) => ({
         : ["boardRemoval"],
 });
 
+// CR 615.12 / 614.9 (issue #2231) — "damage dealt to that creature this turn
+// can't be prevented or dealt instead to another permanent or player". Like
+// `exileOnDeath`, a rider that makes removal STICK rather than removal in its
+// own right: it only pays off if damage is actually aimed at the creature this
+// turn, and what it buys is the Fog / Circle of Protection / Jade Monolith the
+// defender would otherwise spend. Valued a shade under `exileOnDeath` because
+// the graveyard denial that Op buys is unconditional once the creature dies,
+// whereas this one is dead weight in a turn with no damage in it.
+const DAMAGE_LOCK_VALUE = 20;
+
+const lockDamage: Valuer<"lockDamage"> = (op) => ({
+    points: DAMAGE_LOCK_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval"],
+});
+
 // Source-side combat-damage neutralization (Warning / Restrain): the marked
 // creature deals 0 combat damage this turn — a single-creature defensive shield
 // worth a fraction of a full Fog (which stops the whole combat).
@@ -1121,6 +1138,7 @@ export const OP_VALUERS: {
     regenerate,
     preventRegeneration,
     exileOnDeath,
+    lockDamage,
     restrictActivation,
     restrictCasting,
     grantCastTiming,
@@ -1304,6 +1322,11 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     gainControl: "harmful",
     preventRegeneration: "harmful",
     exileOnDeath: "harmful",
+    // CR 615.12 / 614.9 — the lock is armed on a creature the caster intends to
+    // KILL through a shield/redirect the defender would otherwise get to use
+    // (Whippoorwill). Harmful to the permanent it names, exactly like its
+    // `preventRegeneration` / `exileOnDeath` sentence-mates.
+    lockDamage: "harmful",
     restrictActivation: "harmful",
     restrictCasting: "harmful",
     restrictCombat: "harmful",

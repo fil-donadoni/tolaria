@@ -335,6 +335,7 @@ function compactCard(
     // CR 111 — cosmetic art pin for a copy with its own printed token card.
     if (card.imagePrintId) out.imagePrintId = card.imagePrintId;
     if (card.exileOnDeath) out.exileOnDeath = true;
+    if (card.damageLockThisTurn) out.damageLockThisTurn = true;
     if (card.exileOnLeave) out.exileOnLeave = true;
     if (card.cantBeRegeneratedThisTurn) out.cantBeRegeneratedThisTurn = true;
     if (card.mustAttackThisTurn) out.mustAttackThisTurn = true;
@@ -754,6 +755,7 @@ function expandCard(
         result.imagePrintId = compact.imagePrintId as string;
     }
     if (compact.exileOnDeath) result.exileOnDeath = true;
+    if (compact.damageLockThisTurn) result.damageLockThisTurn = true;
     if (compact.exileOnLeave) result.exileOnLeave = true;
     if (compact.cantBeRegeneratedThisTurn)
         result.cantBeRegeneratedThisTurn = true;

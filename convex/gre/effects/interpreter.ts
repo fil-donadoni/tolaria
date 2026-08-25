@@ -1859,19 +1859,31 @@ export const OP_EXECUTORS: {
                 // CR 608.2b — a source that has left the battlefield deals no
                 // damage (the permanent-source primitive is player-only).
                 if (src && src.type === "permanent") {
-                    ctx.dealDamageFromPermanent(src.id, playerId, amount);
+                    // CR 615.12 / 614.9 (issue #2231) — both locks ride the
+                    // permanent-source branch too. It used to drop them
+                    // silently, so a `source`-bearing Op carrying either flag
+                    // was quietly preventable AND redirectable.
+                    ctx.dealDamageFromPermanent(
+                        src.id,
+                        playerId,
+                        amount,
+                        op.unpreventable,
+                        op.unredirectable
+                    );
                 }
                 return;
             }
             ctx.dealDamage(
                 { type: "player", id: playerId },
                 amount,
-                op.unpreventable
+                op.unpreventable,
+                op.unredirectable
             );
             return;
         }
         const target = resolveObjectRef(ctx, op.to);
-        if (target) ctx.dealDamage(target, amount, op.unpreventable);
+        if (target)
+            ctx.dealDamage(target, amount, op.unpreventable, op.unredirectable);
     },
     // CR 601.2d / 120.4 — deal `total` damage divided as chosen among the
     // announced target group (`ctx.targets`). The per-target split was chosen at
@@ -3910,6 +3922,16 @@ export const OP_EXECUTORS: {
         const target = resolveObjectRef(ctx, op.target);
         if (!target || target.type !== "permanent") return;
         ctx.setExileOnDeath(target);
+    },
+    // CR 615.12 / 614.9 (issue #2231) — arm the turn-scoped "damage dealt to
+    // that creature can't be prevented or dealt instead to another permanent or
+    // player" lock. Thin skin over the single primitive
+    // `setDamageLockThisTurn`, one execution path (ADR 0045). No-op when the
+    // target is gone or is not a permanent (CR 608.2b).
+    lockDamage(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target || target.type !== "permanent") return;
+        ctx.setDamageLockThisTurn(target);
     },
     // CR 510.1c (issue #1283) — mark a permanent so it assigns no combat damage
     // this turn (source-side prevention). Thin skin over the single primitive

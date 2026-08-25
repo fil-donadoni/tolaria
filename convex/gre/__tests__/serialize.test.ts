@@ -901,6 +901,8 @@ describe("game_state serialize round-trip", () => {
             },
         ];
         lion.exileOnDeath = true;
+        // CR 615.12 / 614.9 (issue #2231) — Whippoorwill's turn-scoped lock.
+        lion.damageLockThisTurn = true;
         lion.cantBeRegeneratedThisTurn = true;
         lion.mustAttackThisTurn = true;
         lion.colorOverride = ["R"];
@@ -1063,6 +1065,7 @@ describe("game_state serialize round-trip", () => {
             },
         ]);
         expect(got.exileOnDeath).toBe(true);
+        expect(got.damageLockThisTurn).toBe(true);
         expect(got.mustAttackThisTurn).toBe(true);
         expect(got.colorOverride).toEqual(["R"]);
         expect(got.textChanges).toEqual([
