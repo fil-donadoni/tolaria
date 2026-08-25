@@ -131,6 +131,76 @@ describe("InspectOverlay (issue #2583)", () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
+    // Issue #2668 — the header row's OWN controls (Oracle/Printed, ‹ ›, ×)
+    // are exempt from tap-anywhere dismissal AS A CLASS, not a per-control
+    // list: the face toggle used to be missing from that list, so a tap on
+    // "Printed" flipped the mode and dismissed the overlay in the same tap,
+    // making the printed face unreachable in the Draft Room. Drives the
+    // REAL overlay end to end, not a hand-built view.
+    it("tapAnywhereCloses: the Oracle/Printed toggle switches faces without closing; a background tap still closes in one", () => {
+        const onClose = vi.fn();
+        renderOverlay({ onClose, tapAnywhereCloses: true });
+
+        const printedButton = document.querySelector(
+            '[data-preview-mode="printed"]'
+        ) as HTMLElement;
+        const oracleButton = document.querySelector(
+            '[data-preview-mode="computed"]'
+        ) as HTMLElement;
+        expect(printedButton).not.toBeNull();
+
+        // The printed face renders its own `<img alt="… (printed)">` branch
+        // (distinct from `CardPreviewFace`'s art `<img>`, which is present in
+        // BOTH modes) — that is the real signal the mode actually switched.
+        const printedFaceImg = () =>
+            content().querySelector('img[alt$="(printed)"]');
+
+        // Tap "Printed" — the overlay MUST still be mounted, and the printed
+        // face must be showing.
+        fireEvent.click(printedButton);
+        expect(document.querySelector("[data-inspect-overlay]")).not.toBeNull();
+        expect(onClose).not.toHaveBeenCalled();
+        expect(printedFaceImg()).not.toBeNull();
+
+        // Tap "Oracle" — still open, face switches back.
+        fireEvent.click(oracleButton);
+        expect(document.querySelector("[data-inspect-overlay]")).not.toBeNull();
+        expect(onClose).not.toHaveBeenCalled();
+        expect(printedFaceImg()).toBeNull();
+
+        // With the printed face showing, a tap on the art still closes the
+        // overlay in ONE tap.
+        fireEvent.click(printedButton);
+        onClose.mockClear();
+        fireEvent.click(printedFaceImg()!);
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    // Same class of control, from the other two members of the row: the
+    // step arrows and the close button must keep behaving exactly as they
+    // did before the centralized exemption replaced their own
+    // `stopPropagation()` calls (issue #2668).
+    it("tapAnywhereCloses: the step arrows and the × still act without closing / still close", () => {
+        const onClose = vi.fn();
+        const previous = vi.fn();
+        renderOverlay({
+            onClose,
+            tapAnywhereCloses: true,
+            onStep: { previous },
+        });
+
+        fireEvent.click(
+            document.querySelector('[aria-label="Previous card"]')!
+        );
+        expect(previous).toHaveBeenCalledTimes(1);
+        expect(onClose).not.toHaveBeenCalled();
+
+        fireEvent.click(
+            document.querySelector('[aria-label="Close inspect overlay"]')!
+        );
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
     it("steps with ‹ ›, disabling the arrow the surface has no card for", () => {
         const previous = vi.fn();
         renderOverlay({ onStep: { previous } });
