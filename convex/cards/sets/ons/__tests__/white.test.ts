@@ -90,7 +90,7 @@ describe("Exalted Angel — whenever it deals damage, gain that much life (CR 12
     });
 
     it("DOES trigger once it is face up (non-vacuity control for the case above)", () => {
-        const { state, angel } = angelBoard();
+        const { state } = angelBoard();
         const triggers = collectTriggers(state, [
             {
                 type: "DAMAGE_DEALT",
