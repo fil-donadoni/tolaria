@@ -50,6 +50,7 @@ import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 // Issue #1890 item 3 — the single authority on whether an activation could just
 // as well happen in a later, better-informed window (CR 117.1b / 602.5d).
 import { isDeferrableStackAbility } from "./ai/abilityTiming";
+import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
 import {
     getInstanceManaCost,
     getInstanceAiValue,
@@ -546,8 +547,21 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
             // `evaluate`. Lands are excluded — their worth is already counted by
             // the `mana` term (an untapped source), so adding the body here
             // would double-count and skew the land-drop invariant (issue #149).
+            //
+            // CR 306.5b / 606.4 (issue #2491, ADR 0107) — a PLANESWALKER's
+            // realized worth is that same body scaled by how much of its
+            // useful loyalty range it currently holds. Loyalty counters are a
+            // resource: a `-N` that empties the walker trades the permanent
+            // away, and a `+1` banks a real gain. Without the scale both
+            // valued as ~nothing and the search picked between them by
+            // rollout noise. `loyaltyRealizationRatio` is exactly 1 at
+            // starting loyalty (and for every non-walker), so this line is a
+            // no-op for the rest of the catalogue and for every position that
+            // existed before the term. The flat `W_PERMANENT` above stays
+            // unscaled — "a permanent is here" is equally true at 1 loyalty.
             if (!isLand(perm)) {
-                terms.permanents += cardValue(state, perm);
+                terms.permanents +=
+                    cardValue(state, perm) * loyaltyRealizationRatio(perm);
             }
         }
     }

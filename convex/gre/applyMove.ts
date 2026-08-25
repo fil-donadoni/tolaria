@@ -22,8 +22,17 @@
 //   * Mana is modelled as tapping the planned sources; the pool is not drained
 //     coin-exact (eval only reads available-mana coarsely).
 //   * `activate-ability` applies its costs but does NOT resolve the ability's
-//     effect (these are rarely enumerated and never in the #111 acceptance
-//     set); the bot therefore never *prefers* such an activation.
+//     effect. The original note here claimed the greedy selector therefore
+//     never *prefers* such an activation — that stopped being true when
+//     loyalty abilities became enumerable (issue #2491): a `+N` loyalty cost
+//     is a board GAIN, so the sandbox pays it, skips the payoff, and still
+//     scores the leaf above `pass`. The reason this is a documented limit
+//     rather than a bug is that the path is DEAD in production —
+//     `greedySelectMove` (`gre/greedy.ts`) has no live caller, the Brain
+//     (`src/lib/ai/brain-request.ts`) runs `searchWithTrace`, and the ISMCTS
+//     sandbox `applyMoveInSearch` (`gre/search.ts`) does push the ability so
+//     its payoff and its price are scored together (issue #1920). Anything
+//     that revives the greedy selector owes this leg the same push.
 //   * Single-block only, matching `enumerateMoves`' single-block scope.
 
 import type {
@@ -64,6 +73,9 @@ import {
 // different answers to "which ability is this" is how an ability gets pushed
 // and resolved with its costs unpaid.
 import { effectiveAbilityOf } from "./ai/abilityTiming";
+// CR 606 (issue #2491) — the shared loyalty authority, so the search pays the
+// signed loyalty leg exactly as the mutation's commit sites do.
+import { loyaltyActivationViolation, payLoyaltyCost } from "./loyalty";
 import { isPlaneswalker, manaGateBattlefields, manaValue } from "./constants";
 import {
     activationSacrificeVictims,
@@ -322,9 +334,15 @@ export function applyRetraceCastForSearch(
  *  activation, and the three counters were still on the card in the leaf that
  *  scored it.
  *
- *  Two legs stay out, both deliberately and neither of them free value:
- *    * `cost.loyalty` (CR 606.5) — `enumerateAbilityMoves` refuses loyalty
- *      abilities outright, so no move carrying one exists to pay.
+ *  `cost.loyalty` (CR 606.4) IS paid here as of issue #2491. It used to be the
+ *  one leg exempted on the grounds that `enumerateAbilityMoves` refused loyalty
+ *  abilities outright, so no move carrying one existed to pay. That
+ *  justification died with the enumeration gate: a loyalty move now exists, and
+ *  an unpaid loyalty leg would let the search simulate free unlimited
+ *  activations — a `-6` ultimate every ply, on a walker whose counters never
+ *  move and whose CR 606.3 lock is never set.
+ *
+ *  One leg stays out, deliberately and not as free value:
  *    * `notedManaSpent` (CR 106.10) — not a cost at all but a record OF the
  *      cost, needing a coin-exact pool delta the coarse tap-plan mana model
  *      does not produce. Documented at the search's push site. */
@@ -441,8 +459,25 @@ export function applyActivationCostsForSearch(
     ) {
         return false;
     }
+    // CR 606.3 / 606.6 (issue #2491) — the LOYALTY leg's affordability, through
+    // the same authority the enumerator and the mutation read. Fail-closed
+    // backstop for the hand-built moves this exported function also accepts
+    // (tests, blade setup steps): `enumerateAbilityMoves` already refuses an
+    // illegal loyalty activation, so a legal search line never reaches here
+    // with a violation. Reported rather than skipped, exactly as its siblings
+    // above are — a skipped loyalty leg is a FREE ultimate in the scoring leaf.
+    if (loyaltyActivationViolation(state, src, ability) !== null) {
+        return false;
+    }
 
     if (ability.cost.tap) src.isTapped = true;
+    // CR 606.4 (issue #2491) — put on / remove the loyalty counters the loyalty
+    // symbol names and set the CR 606.3 per-permanent lock, through the SAME
+    // helper the mutation's commit sites call. Without it the tree keeps the
+    // ability's payoff and pays nothing: the walker's counters never move, the
+    // lock is never set, and the enumerator (which reads both) offers the
+    // ultimate again on the very next ply.
+    payLoyaltyCost(src, ability);
     // CR 119.4 — the life leg (fetchland-style "Pay N life", Griselbrand).
     if (ability.cost.life !== undefined && payer) {
         payer.life -= ability.cost.life;
