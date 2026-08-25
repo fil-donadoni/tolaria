@@ -98,8 +98,12 @@ export function activationDiscardCandidates(
 }
 
 /** Untapped non-source permanents that can pay `cost.tapOtherFilter`
- *  (CR 118.8), with the crew power each contributes (CR 702.122a/b). */
-function tapOtherCandidates(
+ *  (CR 118.8), with the crew power each contributes (CR 702.122a/b).
+ *  Exported (issue #2420) because it is also the fodder scan the mana
+ *  CONVERTER model reads (`manaConverters.ts`), shared by the castability
+ *  census and the bot's payment planner so "who can be tapped to pay this"
+ *  is decided in exactly one place. */
+export function tapOtherCandidates(
     state: GameState,
     player: PlayerState,
     source: CardInstanceState,

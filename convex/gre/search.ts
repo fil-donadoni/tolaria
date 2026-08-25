@@ -469,15 +469,34 @@ function findCreature(
 }
 
 /** Coarse mana model (same as the greedy sandbox, issue #111): mark the planned
- *  sources tapped so spent mana is reflected in the leaf position. */
+ *  sources tapped so spent mana is reflected in the leaf position.
+ *
+ *  Issue #2420 — an `abilityId`-carrying entry ACTIVATES the source's own
+ *  non-tap mana ability (Urza's `tapOtherFilter`, Farrelite Priest's pure
+ *  `cost.mana`) rather than tapping the source: `cardInstanceId` itself is
+ *  never tapped by this payment (CR 602.1); only the permanent(s) named in
+ *  `tapOtherIds`, if any, are. Mirrors the identical fix in `applyMove.ts`'s
+ *  own `applyTapPlan` — kept as a separate copy (issue #111's "same as the
+ *  greedy sandbox" note above), so both need the same fix. */
 function applyTapPlan(
     state: GameState,
     playerId: string,
-    tapPlan: { cardInstanceId: string }[]
+    tapPlan: {
+        cardInstanceId: string;
+        abilityId?: string;
+        tapOtherIds?: string[];
+    }[]
 ): void {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return;
     for (const tap of tapPlan) {
+        if (tap.abilityId) {
+            for (const otherId of tap.tapOtherIds ?? []) {
+                const other = player.battlefield.find((c) => c.id === otherId);
+                if (other) other.isTapped = true;
+            }
+            continue;
+        }
         const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
         if (src) src.isTapped = true;
     }

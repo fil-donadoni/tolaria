@@ -283,6 +283,625 @@ describe("planManaPayment (issue #110)", () => {
     });
 });
 
+// issue #2420 — a `useStack: false` mana ability whose cost has neither
+// `tap` nor `sacrifice` (Urza's `tapOtherFilter`, Farrelite Priest's pure
+// `cost.mana`) was structurally unreachable by `planManaPayment`: the
+// `requireTap` gate (`getManaTapOptionsDetailed`, constants.ts) recognised
+// only `cost.tap`, so these sources never appeared even as options. Scope:
+// the issue's acceptance criteria name only these two cost shapes — a
+// `removeCounter` cost (Rasputin Dreamweaver) and a `life` cost (Channel)
+// stay deliberately out of scope (guarded below).
+describe("planManaPayment — non-tap mana abilities (issue #2420)", () => {
+    function stateWith(p: PlayerState): GameState {
+        return makeState({ players: [p, makePlayer("p2")] });
+    }
+    const URZA = getCardByName("Urza, Lord High Artificer").id;
+    const ORNITHOPTER = getCardByName("Ornithopter").id;
+    const FARRELITE = getCardByName("Farrelite Priest").id;
+    const EBON_HAND = getCardByName("Initiates of the Ebon Hand").id;
+    const RASPUTIN = getCardByName("Rasputin Dreamweaver").id;
+
+    it("funds a colored pip via Urza's tapOtherFilter — taps the OTHER artifact, never Urza itself (CR 602.1)", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const art = makeInstance(ORNITHOPTER, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [urza, art] });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("urza");
+        expect(plan![0].abilityId).toBe("urza-lha-mana");
+        expect(plan![0].tapOtherIds).toEqual(["art"]);
+    });
+
+    it("Urza's mana ability is usable while SUMMONING SICK (CR 302.6 — no {T} on Urza's own cost)", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const art = makeInstance(ORNITHOPTER, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [urza, art] });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan![0].abilityId).toBe("urza-lha-mana");
+    });
+
+    it("returns null when Urza has no OTHER untapped artifact to tap", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [urza] });
+
+        expect(planManaPayment(stateWith(p), p, { U: 1 })).toBeNull();
+    });
+
+    it("funds a colored pip via Farrelite Priest's pure cost.mana, funding it BEFORE its own activation entry", () => {
+        const priest = makeInstance(FARRELITE, {
+            id: "priest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mtn = makeInstance(MOUNTAIN, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [priest, mtn] });
+
+        const plan = planManaPayment(stateWith(p), p, { W: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        // The generic funding tap MUST precede the activation entry: the
+        // real mutation (`activateManaAbility`, game.ts) requires the
+        // generic cost to already be in the pool.
+        expect(plan![0].cardInstanceId).toBe("mtn");
+        expect(plan![0].abilityId).toBeUndefined();
+        expect(plan![1].cardInstanceId).toBe("priest");
+        expect(plan![1].abilityId).toBe("farrelite-priest-mana");
+    });
+
+    it("Farrelite Priest's mana ability is usable while SUMMONING SICK (CR 302.6 — no {T} in its cost)", () => {
+        const priest = makeInstance(FARRELITE, {
+            id: "priest",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const mtn = makeInstance(MOUNTAIN, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [priest, mtn] });
+
+        const plan = planManaPayment(stateWith(p), p, { W: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan!.some((t) => t.abilityId === "farrelite-priest-mana")).toBe(
+            true
+        );
+    });
+
+    it("never funds one mana-cost ability's generic sub-cost with ANOTHER mana-cost ability — fails closed with NO other plain source", () => {
+        const priest = makeInstance(FARRELITE, {
+            id: "priest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const ebonHand = makeInstance(EBON_HAND, {
+            id: "ebon",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [priest, ebonHand] });
+
+        // Only Farrelite Priest produces {W}; its {1} sub-cost has no PLAIN
+        // source on this board — Initiates of the Ebon Hand is itself a
+        // mana-cost ability, so funding must fail closed rather than
+        // recurse into it.
+        expect(planManaPayment(stateWith(p), p, { W: 1 })).toBeNull();
+    });
+
+    it("recursion guard is load-bearing — with a genuine plain source present, Ebon Hand is never recruited to fund Farrelite (one level of conversion only)", () => {
+        const priest = makeInstance(FARRELITE, {
+            id: "priest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const ebonHand = makeInstance(EBON_HAND, {
+            id: "ebon",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mtn = makeInstance(MOUNTAIN, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", {
+            battlefield: [priest, ebonHand, mtn],
+        });
+
+        // Only {W} is needed: the Mountain alone funds Farrelite's {1}
+        // sub-cost, so Ebon Hand is never NEEDED. Without the guard
+        // (`isPlainTapSource` excluding another mana-cost ability), the
+        // funder would prefer whichever source it scans first — here that
+        // is Ebon Hand — and recruit it into a two-level funding chain
+        // (Mountain funds Ebon Hand funds Farrelite): a 3-entry plan that
+        // taps a permanent the correct 2-entry plan never touches.
+        const plan = planManaPayment(stateWith(p), p, { W: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "mtn",
+            "priest",
+        ]);
+        expect(plan!.some((t) => t.cardInstanceId === "ebon")).toBe(false);
+    });
+
+    it("does NOT auto-fund a removeCounter-cost mana ability (Rasputin Dreamweaver) — deliberately out of scope", () => {
+        const rasputin = makeInstance(RASPUTIN, {
+            id: "rasputin",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { dream: 3 },
+        });
+        const p = makePlayer("p1", { battlefield: [rasputin] });
+
+        expect(planManaPayment(stateWith(p), p, { C: 1 })).toBeNull();
+    });
+});
+
+// Review round 2, finding 1 (issue #2420) — Nomadic Elf's "{1}{G}: Add one
+// mana of any color" is a NON-pure-generic `cost.mana` (`{X:1,G:1}`, unlike
+// Farrelite Priest's pure-generic `{X:1}` above). `isAutoPayableManaAbilityCost`
+// used to admit ANY `cost.mana` shape; `planManaPayment`'s `consume()` can
+// only EXECUTE a pure-generic one, so the admitted-but-unexecutable source
+// nulled the WHOLE plan — a bot regression on the ORDINARY {T} source sharing
+// the board (Birds of Paradise / Island), measured order-dependent: swapping
+// the two permanents used to restore the plan, because the greedy tie-break
+// (`options.size < bestSize`) just happened to prefer whichever equally-
+// flexible source came first. Both permanent orders are asserted below so
+// the order-dependence cannot come back silently.
+describe("planManaPayment — Nomadic Elf's unexecutable mana ability never nulls the whole plan (issue #2420 review round 2)", () => {
+    function stateWith(p: PlayerState): GameState {
+        return makeState({ players: [p, makePlayer("p2")] });
+    }
+    const NOMADIC_ELF = getCardByName("Nomadic Elf").id;
+    const BIRDS = getCardByName("Birds of Paradise").id;
+
+    it("[Nomadic Elf, Birds of Paradise] paying {1}: taps Birds, does not null", () => {
+        const elf = makeInstance(NOMADIC_ELF, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const birds = makeInstance(BIRDS, {
+            id: "birds",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [elf, birds] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("birds");
+    });
+
+    it("[Birds of Paradise, Nomadic Elf] (swapped order) paying {1}: taps Birds, does not null", () => {
+        const birds = makeInstance(BIRDS, {
+            id: "birds",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const elf = makeInstance(NOMADIC_ELF, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [birds, elf] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("birds");
+    });
+
+    it("[Nomadic Elf, Birds of Paradise, Island] paying {2}: a 2-tap plan, does not null", () => {
+        const elf = makeInstance(NOMADIC_ELF, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const birds = makeInstance(BIRDS, {
+            id: "birds",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(getCardByName("Island").id, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [elf, birds, island] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 2 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "birds",
+            "island",
+        ]);
+    });
+
+    it("[Nomadic Elf, Utopia Tree] paying {W}: taps Utopia Tree via its manaChoices, does not null", () => {
+        const elf = makeInstance(NOMADIC_ELF, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const tree = makeInstance(getCardByName("Utopia Tree").id, {
+            id: "tree",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [elf, tree] });
+
+        const plan = planManaPayment(stateWith(p), p, { W: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("tree");
+    });
+});
+
+// Review round 2, finding 3 (issue #2420) — the summoning-sickness check
+// moved from unconditional-per-permanent to PER-OPTION (CR 302.6 is correct
+// either way for a {T}-cost ability), but nothing guarded the over-relaxed
+// direction: deleting the per-option `cost.tap` filter (moves.ts) left a
+// summoning-sick {T}-cost creature's options untouched, and 16 test files /
+// 1770 tests stayed green under that exact mutation. These two pin the
+// direction the prior proof-of-failure (#2 in the original PR) never
+// exercised.
+describe("planManaPayment — summoning sickness still gates a {T}-cost source (CR 302.6, issue #2420 review round 2 finding 3)", () => {
+    function stateWith(p: PlayerState): GameState {
+        return makeState({ players: [p, makePlayer("p2")] });
+    }
+    const LLANOWAR_ELVES = getCardByName("Llanowar Elves").id;
+    const BIRDS = getCardByName("Birds of Paradise").id;
+
+    it("does NOT auto-tap a summoning-sick Llanowar Elves for mana", () => {
+        const elf = makeInstance(LLANOWAR_ELVES, {
+            id: "elf",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const p = makePlayer("p1", { battlefield: [elf] });
+
+        expect(planManaPayment(stateWith(p), p, { G: 1 })).toBeNull();
+    });
+
+    it("does NOT auto-tap a summoning-sick Birds of Paradise for mana", () => {
+        const birds = makeInstance(BIRDS, {
+            id: "birds",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        const p = makePlayer("p1", { battlefield: [birds] });
+
+        expect(planManaPayment(stateWith(p), p, { G: 1 })).toBeNull();
+    });
+});
+
+// Review round 2, finding 1 (issue #2420) — round 1's fix (narrowing
+// `isAutoPayableManaAbilityCost` admission to a pure-generic `cost.mana`)
+// only closes the plan-nulling regression for the `cost.mana` branch, whose
+// executability is SHAPE-dependent (decidable at admission). Urza, Lord High
+// Artificer's `tapOtherFilter` ability is BOARD-dependent: whether it can be
+// paid depends on whether an untapped artifact exists elsewhere, which
+// admission-time narrowing can never decide. With Urza on the battlefield and
+// NO untapped artifact, `consume()` (moves.ts) used to `return false`, and
+// the two call sites (the colored-requirement loop and the generic-remainder
+// loop) turned that into `return null` for the WHOLE plan — even when an
+// ORDINARY {T} source (an Island) on the same board could pay the cost by
+// itself. The fix makes a `consume()` failure SKIP the failed source and
+// retry with the next-best one, never null the whole plan. Both permanent
+// orders are asserted so the order-dependence (the greedy tie-break just
+// happening to prefer whichever source comes first) cannot come back
+// silently — exactly the shape the Nomadic Elf regression above guards.
+describe("planManaPayment — Urza's unpayable tapOtherFilter never nulls a plan an ordinary {T} source could still pay (issue #2420 review round 2 finding 1)", () => {
+    function stateWith(p: PlayerState): GameState {
+        return makeState({ players: [p, makePlayer("p2")] });
+    }
+    const URZA = getCardByName("Urza, Lord High Artificer").id;
+    const ISLAND = getCardByName("Island").id;
+
+    it("[Urza, Island] paying {U}: taps the Island, does not null", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [urza, island] });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("island");
+    });
+
+    it("[Island, Urza] (swapped order) paying {U}: taps the Island, does not null", () => {
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [island, urza] });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("island");
+    });
+
+    it("[Urza, Island, Island] paying {U}{U}: a 2-tap plan, does not null", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island1 = makeInstance(ISLAND, {
+            id: "island1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island2 = makeInstance(ISLAND, {
+            id: "island2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", {
+            battlefield: [urza, island1, island2],
+        });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 2 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "island1",
+            "island2",
+        ]);
+    });
+
+    it("[Island, Island, Urza] (swapped order) paying {U}{U}: a 2-tap plan, does not null", () => {
+        const island1 = makeInstance(ISLAND, {
+            id: "island1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island2 = makeInstance(ISLAND, {
+            id: "island2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", {
+            battlefield: [island1, island2, urza],
+        });
+
+        const plan = planManaPayment(stateWith(p), p, { U: 2 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "island1",
+            "island2",
+        ]);
+    });
+
+    it("[Urza, Island] paying {1}: taps the Island, does not null", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [urza, island] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("island");
+    });
+
+    it("[Island, Urza] (swapped order) paying {1}: taps the Island, does not null", () => {
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [island, urza] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardInstanceId).toBe("island");
+    });
+
+    it("[Urza, Island, Forest] paying {1}{G}: a 2-tap plan, does not null", () => {
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const forest = makeInstance(FOREST, {
+            id: "forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [urza, island, forest] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1, G: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "forest",
+            "island",
+        ]);
+    });
+
+    it("[Forest, Island, Urza] (swapped order) paying {1}{G}: a 2-tap plan, does not null", () => {
+        const forest = makeInstance(FOREST, {
+            id: "forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const urza = makeInstance(URZA, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p = makePlayer("p1", { battlefield: [forest, island, urza] });
+
+        const plan = planManaPayment(stateWith(p), p, { X: 1, G: 1 });
+
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(2);
+        expect(plan!.map((t) => t.cardInstanceId).sort()).toEqual([
+            "forest",
+            "island",
+        ]);
+    });
+});
+
+describe("enumerateAbilityMoves — non-tap mana abilities stay OFF the standalone Move list (issue #2420)", () => {
+    // The macro-move enumerator's `if (!ability.useStack) continue` guard
+    // (moves.ts, `enumerateAbilityMoves`) is a DELIBERATE design decision,
+    // not an oversight this issue lifts: a mana ability floated with no
+    // spend plan valuates as neutral at best (see the issue body). Reaching
+    // the bot happens entirely through `planManaPayment` co-planning a
+    // cast/activation's cost — never as its own standalone Move.
+    it("Urza's tapOtherFilter mana ability never enumerates as a standalone activate-ability Move", () => {
+        const urza = makeInstance(
+            getCardByName("Urza, Lord High Artificer").id,
+            {
+                id: "urza",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const art = makeInstance(getCardByName("Ornithopter").id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", { battlefield: [urza, art] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+
+        const moves = enumerateMoves(state, "p1");
+        const urzaActivations = moves.filter(
+            (m) => m.kind === "activate-ability" && m.cardInstanceId === "urza"
+        );
+        expect(urzaActivations).toHaveLength(0);
+    });
+
+    it("Farrelite Priest's pure cost.mana ability never enumerates as a standalone activate-ability Move", () => {
+        const priest = makeInstance(getCardByName("Farrelite Priest").id, {
+            id: "priest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mtn = makeInstance(MOUNTAIN, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1 = makePlayer("p1", { battlefield: [priest, mtn] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+
+        const moves = enumerateMoves(state, "p1");
+        const priestActivations = moves.filter(
+            (m) =>
+                m.kind === "activate-ability" && m.cardInstanceId === "priest"
+        );
+        expect(priestActivations).toHaveLength(0);
+    });
+});
+
 describe("enumerateMoves — combat (issue #110)", () => {
     function attackingSetup() {
         const a1 = makeInstance(BEARS, { controllerId: "p1", ownerId: "p1" });

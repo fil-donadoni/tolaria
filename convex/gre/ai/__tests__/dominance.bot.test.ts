@@ -17,9 +17,15 @@ import {
     deepEqual,
     dominanceProbeStats,
     resetDominanceProbeStats,
+    applyProbeCast,
 } from "../dominance";
-import { tryGetDefinition } from "../../../cards";
+import { getCardByName, tryGetDefinition } from "../../../cards";
 import { searchWithTrace } from "../../search";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../cards/__tests__/setup";
 
 /** Build a position from a bare `ScenarioSpec`, reusing the blade harness so
  *  these tests and the blade registry entries describe boards the same way. */
@@ -618,6 +624,66 @@ describe("dominance pruning guards (issue #1887)", () => {
         for (const move of casts) isDominatedNoOpMove(state, me(state), move);
         const after = JSON.parse(JSON.stringify(state)) as unknown;
         expect(deepEqual(before, after)).toBe(true);
+    });
+});
+
+// issue #2420 — the probe's own `applyTapPlan` (a THIRD independent copy,
+// kept isolated from `search.ts`/`applyMove.ts` by this module's own design)
+// must also route an `abilityId` tapPlan entry to the OTHER permanent, never
+// the enumerated source. A wrong model here isn't cosmetic: `isNoOpDelta`
+// compares tap state to decide dominance pruning, so a mistakenly-tapped Urza
+// could mask a real cost/benefit delta for a probed cast.
+describe("applyProbeCast — Urza's tapOtherFilter mana ability (issue #2420)", () => {
+    it("never taps Urza itself on the probe board; taps the OTHER artifact instead", () => {
+        const urzaId = getCardByName("Urza, Lord High Artificer").id;
+        const artifactId = getCardByName("Ornithopter").id;
+        const spellId = getCardByName("Brainstorm").id;
+
+        const urza = makeInstance(urzaId, {
+            id: "urza",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const art = makeInstance(artifactId, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const spell = makeInstance(spellId, {
+            id: "spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const probe = makeState({
+            players: [
+                makePlayer("p1", { hand: [spell], battlefield: [urza, art] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+
+        const ok = applyProbeCast(probe, "p1", {
+            kind: "cast-spell",
+            cardInstanceId: "spell",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [
+                {
+                    cardInstanceId: "urza",
+                    abilityId: "urza-lha-mana",
+                    tapOtherIds: ["art"],
+                },
+            ],
+        });
+
+        expect(ok).toBe(true);
+        const p1 = probe.players.find((p) => p.id === "p1")!;
+        expect(p1.battlefield.find((c) => c.id === "urza")!.isTapped).toBe(
+            false
+        );
+        expect(p1.battlefield.find((c) => c.id === "art")!.isTapped).toBe(true);
     });
 });
 

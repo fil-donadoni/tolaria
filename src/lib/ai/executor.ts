@@ -96,6 +96,21 @@ export type MoveMutations = {
             payments: { cardInstanceId: string; manaChoiceIndex?: number }[];
         }
     ) => Promise<unknown>;
+    /** CR 605.1a / 605.3c (issue #2420) — activates a NON-tap mana ability
+     *  (Urza, Lord High Artificer's `tapOtherFilter` leg; Farrelite Priest's
+     *  pure `cost.mana`) rather than tapping the source. Dispatched for any
+     *  `tapPlan` entry carrying `abilityId`, in BOTH the cast-spell and the
+     *  activate-ability branches below — the executor's mirror of
+     *  `convex/game.ts`'s `activateManaAbility`, which is legal mid-payment
+     *  (CR 605.3b) for exactly this reason. */
+    activateManaAbility: (
+        a: GP & {
+            cardInstanceId: string;
+            abilityId: string;
+            manaChoiceIndex?: number;
+            tapOtherIds?: string[];
+        }
+    ) => Promise<unknown>;
     activateAbility: (
         a: GP & {
             cardInstanceId: string;
@@ -168,6 +183,56 @@ export type MoveMutations = {
     ) => Promise<unknown>;
     passPriority: (a: GP) => Promise<unknown>;
 };
+
+/** Realise one `tapPlan` (issue #2420), splitting it into runs of PLAIN taps
+ *  — handed to `sendPlain` as one batch each — and individual `abilityId`
+ *  entries — handed to `sendAbility` one at a time, via
+ *  `mutations.activateManaAbility`. Order is preserved: `planManaPayment`
+ *  always orders a mana-cost ability's OWN funding taps (plain) before its
+ *  activation entry, so the pool already covers the ability's cost by the
+ *  time `sendAbility` runs for it. */
+async function runTapPlan(
+    tapPlan: {
+        cardInstanceId: string;
+        manaChoiceIndex?: number;
+        abilityId?: string;
+        tapOtherIds?: string[];
+    }[],
+    sendPlain: (
+        batch: { cardInstanceId: string; manaChoiceIndex?: number }[]
+    ) => Promise<unknown>,
+    sendAbility: (tap: {
+        cardInstanceId: string;
+        abilityId: string;
+        manaChoiceIndex?: number;
+        tapOtherIds?: string[];
+    }) => Promise<unknown>
+): Promise<void> {
+    let i = 0;
+    while (i < tapPlan.length) {
+        const tap = tapPlan[i];
+        if (tap.abilityId) {
+            await sendAbility({
+                cardInstanceId: tap.cardInstanceId,
+                abilityId: tap.abilityId,
+                manaChoiceIndex: tap.manaChoiceIndex,
+                tapOtherIds: tap.tapOtherIds,
+            });
+            i++;
+            continue;
+        }
+        const batch: { cardInstanceId: string; manaChoiceIndex?: number }[] =
+            [];
+        while (i < tapPlan.length && !tapPlan[i].abilityId) {
+            batch.push({
+                cardInstanceId: tapPlan[i].cardInstanceId,
+                manaChoiceIndex: tapPlan[i].manaChoiceIndex,
+            });
+            i++;
+        }
+        await sendPlain(batch);
+    }
+}
 
 export type MoveExecContext = {
     gameId: Id<"games">;
@@ -391,15 +456,17 @@ export async function executeMove(
             }
             if (move.tapPlan.length > 0) {
                 // issue #1779 / PRD #1776 T4 — one batched call instead of N
-                // sequential `tapForPayment` round-trips; `planManaPayment`
-                // already computed the whole plan before dispatch.
-                await mutations.tapForPayment({
-                    ...base,
-                    payments: move.tapPlan.map((tap) => ({
-                        cardInstanceId: tap.cardInstanceId,
-                        manaChoiceIndex: tap.manaChoiceIndex,
-                    })),
-                });
+                // sequential `tapForPayment` round-trips for the PLAIN runs;
+                // `planManaPayment` already computed the whole plan before
+                // dispatch. issue #2420 — an `abilityId` entry (Urza,
+                // Farrelite Priest) instead activates the ability via
+                // `activateManaAbility`, never `tapForPayment`.
+                await runTapPlan(
+                    move.tapPlan,
+                    (batch) =>
+                        mutations.tapForPayment({ ...base, payments: batch }),
+                    (tap) => mutations.activateManaAbility({ ...base, ...tap })
+                );
             }
             return;
         }
@@ -480,15 +547,23 @@ export async function executeMove(
                     });
                 }
             }
-            // `tapForActivationPayment` batching is out of this issue's named
-            // scope (item 1 is `tapForPayment` only) — stays per-item.
-            for (const tap of move.tapPlan) {
-                await mutations.tapForActivationPayment({
-                    ...base,
-                    cardInstanceId: tap.cardInstanceId,
-                    manaChoiceIndex: tap.manaChoiceIndex,
-                });
-            }
+            // `tapForActivationPayment` batching is out of #1779's named
+            // scope (item 1 is `tapForPayment` only) — stays per-item. issue
+            // #2420 — an `abilityId` entry (this activation's OWN cost
+            // co-funded by Urza / Farrelite Priest) instead activates the
+            // ability via `activateManaAbility`, never `tapForActivationPayment`.
+            await runTapPlan(
+                move.tapPlan,
+                async (batch) => {
+                    for (const tap of batch) {
+                        await mutations.tapForActivationPayment({
+                            ...base,
+                            ...tap,
+                        });
+                    }
+                },
+                (tap) => mutations.activateManaAbility({ ...base, ...tap })
+            );
             return;
         }
 

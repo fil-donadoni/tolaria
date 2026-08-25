@@ -235,6 +235,12 @@ export function useVsAiDriver(
         selectTargets: useMutation(api.game.selectTargets),
         confirmTargets: useMutation(api.game.confirmTargets),
         tapForPayment: useMutation(api.game.tapForPayment),
+        // CR 605.1a / 605.3c (issue #2420) — funds a NON-tap mana ability
+        // (Urza, Lord High Artificer's `tapOtherFilter` leg; Farrelite
+        // Priest's pure `cost.mana`) inside a `tapPlan`. Dispatched by
+        // `runTapPlan` (executor.ts) instead of `tapForPayment`/
+        // `tapForActivationPayment` whenever a plan entry carries `abilityId`.
+        activateManaAbility: useMutation(api.game.activateManaAbility),
         activateAbility: useMutation(api.game.activateAbility),
         tapForActivationPayment: useMutation(api.game.tapForActivationPayment),
         selectSacrifice: useMutation(api.game.selectSacrifice),

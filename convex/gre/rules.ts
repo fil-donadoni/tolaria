@@ -31,6 +31,7 @@ import {
     manaGateBattlefields,
     manaValue,
     pendingSourceIsSpell,
+    pureGenericManaSubCost,
     resolvePendingTargetKind,
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
@@ -49,6 +50,14 @@ import {
     hasCardSelfFlashPermission,
 } from "../cards/castRestrictions";
 import { tapManaBonusUnits } from "./tapManaBonus";
+// Issue #2420 — the ONE model of a `tapOtherFilter` mana ability (Urza, Lord
+// High Artificer), shared with the payment planner (`planManaPayment`,
+// moves.ts) so this affordance census and the concrete tap plan can never
+// disagree about which boards such an ability makes payable. See that
+// module's header for why "the mana belongs to the permanent that gets
+// tapped" is the exact model rather than "the converter is a mana source".
+import { manaConverterColors } from "./manaConverters";
+import type { ManaTapOption } from "./constants";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
@@ -1360,6 +1369,60 @@ function hasEnoughLegalTargets(
     return false;
 }
 
+/** The RAW `requireTap: true` mana-tap option list for one permanent, plus the
+ *  index convention that turns an option's position into a `manaChoiceIndex`
+ *  (issue #2420). `planManaPayment` (moves.ts) needs both — it has to recover
+ *  which ABILITY backs a chosen colour — and used to get them by calling
+ *  `getManaTapOptionsDetailed` a SECOND time per untapped permanent, which
+ *  measured 55-65% slower per `planManaPayment` call on an ordinary board with
+ *  no such ability anywhere on it (review round 3, finding 3: 9.8 → 16.1 µs,
+ *  on `enumerateCastMoves`'s hot path, i.e. every ISMCTS rollout). One scan;
+ *  the colour map is derived by whichever caller wants one. */
+export interface ProducibleManaSourceView {
+    detailed: ManaTapOption[];
+    /** Whether a tap of this source must carry a `manaChoiceIndex` at all. */
+    needIndex: boolean;
+}
+
+export function getProducibleManaSourceView(
+    card: CardInstanceState,
+    controllerId?: string,
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): ProducibleManaSourceView {
+    // requireTap: the auto-tap planner only ever taps for mana — it must never
+    // auto-commit a sacrifice-only source (Lion's Eye Diamond discards the hand).
+    const detailed = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        {
+            requireTap: true,
+        }
+    );
+    if (detailed.length === 0) return { detailed, needIndex: false };
+
+    // Mirror `manaTapNeedsChoice`: the tap mutations require a `manaChoiceIndex`
+    // whenever 2+ options exist, or the source carries a choice-based ability
+    // (Talisman / Fellwar Stone). A single fixed/basic option taps index-free.
+    const cardId = (card.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    // POST-LAYER set (issue #1880) — a GRANTED choice-based mana ability needs
+    // an index exactly like a printed one, or the planner and the tap mutation
+    // disagree about whether `manaChoiceIndex` is required.
+    const hasChoiceAbility =
+        !!def &&
+        !abilitiesSuppressed(card) &&
+        getEffectiveActivatedAbilities(card).some(
+            ({ ability: a }) =>
+                !a.useStack &&
+                (a.manaChoices || a.getManaChoices || a.manaColorSource)
+        );
+    return { detailed, needIndex: detailed.length >= 2 || hasChoiceAbility };
+}
+
 /** Maps each color a permanent can produce when tapped to the
  *  `manaChoiceIndex` the payment mutations expect, or `undefined` when the
  *  source produces that color with no choice (single-option source). Reads the
@@ -1390,37 +1453,12 @@ export function getProducibleManaOptions(
         battlefield: readonly CardInstanceState[];
     }>
 ): Map<Color, number | undefined> {
-    const options = new Map<Color, number | undefined>();
-    // requireTap: the auto-tap planner only ever taps for mana — it must never
-    // auto-commit a sacrifice-only source (Lion's Eye Diamond discards the hand).
-    const detailed = getManaTapOptionsDetailed(
+    const { detailed, needIndex } = getProducibleManaSourceView(
         card,
         controllerId,
-        battlefields,
-        {
-            requireTap: true,
-        }
+        battlefields
     );
-    if (detailed.length === 0) return options;
-
-    // Mirror `manaTapNeedsChoice`: the tap mutations require a `manaChoiceIndex`
-    // whenever 2+ options exist, or the source carries a choice-based ability
-    // (Talisman / Fellwar Stone). A single fixed/basic option taps index-free.
-    const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    // POST-LAYER set (issue #1880) — a GRANTED choice-based mana ability needs
-    // an index exactly like a printed one, or the planner and the tap mutation
-    // disagree about whether `manaChoiceIndex` is required.
-    const hasChoiceAbility =
-        !!def &&
-        !abilitiesSuppressed(card) &&
-        getEffectiveActivatedAbilities(card).some(
-            ({ ability: a }) =>
-                !a.useStack &&
-                (a.manaChoices || a.getManaChoices || a.manaColorSource)
-        );
-    const needIndex = detailed.length >= 2 || hasChoiceAbility;
-
+    const options = new Map<Color, number | undefined>();
     detailed.forEach((opt, index) => {
         for (const c of MANA_COLORS) {
             if ((opt.mana[c] ?? 0) > 0 && !options.has(c)) {
@@ -1428,7 +1466,6 @@ export function getProducibleManaOptions(
             }
         }
     });
-
     return options;
 }
 
@@ -1563,11 +1600,56 @@ function getProducibleManaUnits(
         }
     );
 
+    // Issue #2420 review finding 2 — the widened `requireTap` gate now also
+    // returns a PURE-GENERIC `cost.mana` option (Farrelite Priest's
+    // repeatable "{1}: Add {W}"), which is NET ZERO: activating it spends as
+    // much generic mana as it returns, unlike a genuine {T} source. Counting
+    // its produced colour as a free +1 unit (the pre-fix behaviour) let
+    // `canPotentiallyPayCost` (below) offer "Cast" on a spell that was NOT
+    // actually payable — measured on [Farrelite Priest, Plains] casting
+    // Island Sanctuary {1}{W}. Net the ability's own funding requirement out
+    // of its produced units so this affordance census matches what
+    // `planManaPayment` (moves.ts) can ACTUALLY realise (it funds the same
+    // sub-cost from an OTHER plain source, `fundGenericFromPlain`) —
+    // deliberately still an OVER-approximation elsewhere (this function's own
+    // header), never an under-approximation: a net-negative shape
+    // (Nomadic Elf's `{X:1,G:1}`) is excluded upstream by
+    // `isAutoPayableManaAbilityCost` (constants.ts) and never reaches
+    // `detailed` at all, so it needs no clamp here.
     const perOptionUnits: Set<Color>[][] = detailed.map((opt) => {
         const units: Set<Color>[] = [];
         for (const c of MANA_COLORS) {
             const amount = opt.mana[c] ?? 0;
             for (let i = 0; i < amount; i++) units.push(new Set<Color>([c]));
+        }
+        if (opt.source.kind === "activated") {
+            const abilityId = opt.source.abilityId;
+            const ability = getEffectiveActivatedAbilities(card).find(
+                (r) => r.ability.id === abilityId
+            )?.ability;
+            // Issue #2420 review round 2 finding 2 — a `tapOtherFilter`
+            // ability (Urza, Lord High Artificer's "Tap an untapped
+            // artifact you control: Add {U}.") taps a DIFFERENT permanent
+            // than `card`, so its produced mana is never CARD's own unit —
+            // counting it here double-counted the fodder artifact against
+            // that SAME artifact's own row, elsewhere in this same census
+            // (measured: [Urza, Mox Sapphire] casting Lord of Atlantis
+            // {U}{U} — offered "cast" although `planManaPayment` returns
+            // null). This function contributes 0 for a `tapOtherFilter`
+            // ability's OWNER; `coloredCostLeftover` (below) models the
+            // real capacity instead, by widening each matching untapped
+            // FODDER candidate's own row with the ability's produced
+            // colours — capacity bounded at one unit per physical
+            // permanent, never per ability.
+            if (ability?.cost.tapOtherFilter) {
+                units.length = 0;
+            }
+            const generic = ability?.cost.mana
+                ? pureGenericManaSubCost(ability.cost.mana)
+                : null;
+            if (generic !== null && generic > 0) {
+                units.splice(Math.max(0, units.length - generic));
+            }
         }
         return units;
     });
@@ -1707,6 +1789,20 @@ function coloredCostLeftover(
     const boardControllerId = boardBattlefields ? player.id : undefined;
     // Each source is the set of colors it can supply for this cost slot.
     const sources: Set<Color>[] = [];
+    // Issue #2420 — the real capacity a `tapOtherFilter` mana ability (Urza's
+    // "Tap an untapped artifact you control: Add {U}.") adds is NOT an
+    // independent unit (that double-counts the fodder artifact, which is
+    // already a unit in its own right; `getProducibleManaUnits` contributes 0
+    // for the ability's OWNER) — it is the ability's produced colour WIDENING
+    // each matching, untapped candidate's own row, one unit per PHYSICAL
+    // permanent regardless of which ability actually taps it. Built once,
+    // keyed by fodder permanent id, by the SAME authority `planManaPayment`
+    // (moves.ts) plans against. Hoisted above `cantSpendMana` because the
+    // Improvise census further down must skip an artifact already counted
+    // here.
+    const converterColors = opts.state
+        ? manaConverterColors(opts.state, player)
+        : (new Map() as ReadonlyMap<string, ReadonlySet<Color>>);
     if (!cantSpendMana) {
         for (const c of MANA_COLORS) {
             const n = player.manaPool[c] ?? 0;
@@ -1738,8 +1834,16 @@ function coloredCostLeftover(
         }
         for (const perm of player.battlefield) {
             if (perm.isTapped) continue;
+            const widen = converterColors.get(perm.id);
             // CR 302.1 — creature with summoning sickness can't pay {T}.
-            if (isTapLockedBySummoningSickness(perm)) continue;
+            // It CAN still be tapped to pay another permanent's
+            // `tapOtherFilter` cost, though (CR 302.6 gates a {T}/{Q} cost
+            // and nothing else — cf. crew, CR 702.122b), so a sick permanent
+            // still contributes the converter's colours as its one unit.
+            if (isTapLockedBySummoningSickness(perm)) {
+                if (widen && widen.size > 0) sources.push(new Set(widen));
+                continue;
+            }
             // One entry per mana the source taps for: a {C}{C} source (Sol Ring)
             // contributes two, not one (issue #132).
             const base = getProducibleManaUnits(
@@ -1747,7 +1851,22 @@ function coloredCostLeftover(
                 boardControllerId,
                 boardBattlefields
             );
-            for (const unit of base) sources.push(unit);
+            if (widen && widen.size > 0) {
+                // Fold the converter's colours into ONE unit — the FIRST
+                // slot of this permanent's own row when it has one (a
+                // second, independent unit would re-introduce the
+                // double-count), or a single new row when `perm` has no
+                // mana ability of its own (a "bare" artifact this ability
+                // alone makes into a mana source).
+                if (base.length > 0) {
+                    sources.push(new Set([...base[0], ...widen]));
+                    for (let i = 1; i < base.length; i++) sources.push(base[i]);
+                } else {
+                    sources.push(new Set(widen));
+                }
+            } else {
+                for (const unit of base) sources.push(unit);
+            }
             // CR 605.4 — a Wild-Growth-style triggered mana ability on ANOTHER
             // permanent adds extra mana when THIS land is tapped for mana. It only
             // fires on a for-mana tap, so gate on the land actually producing base
@@ -1781,6 +1900,11 @@ function coloredCostLeftover(
         for (const perm of player.battlefield) {
             if (perm.isTapped) continue;
             if (!perm.types.includes("Artifact")) continue;
+            // Issue #2420 — an artifact already counted above as a CONVERTER's
+            // fodder (Urza taps it for {U}) has contributed its one unit, and
+            // it can be tapped only once: adding an Improvise source for it
+            // would double-count it, exactly as its own mana ability would.
+            if (!cantSpendMana && converterColors.has(perm.id)) continue;
             const producesMana =
                 !isTapLockedBySummoningSickness(perm) &&
                 getProducibleManaUnits(
