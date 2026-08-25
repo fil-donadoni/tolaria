@@ -18,7 +18,16 @@
  */
 
 import { MECHANICS_REGISTRY } from "../../../cards/mechanicsRegistry";
-import { atom, listOf, map, rule, type Rule } from "../../rule";
+import {
+    atom,
+    fail,
+    listOf,
+    map,
+    ok,
+    rule,
+    type Rule,
+    type RuleResult,
+} from "../../rule";
 import type { KeywordIR, SlotIR } from "../ir";
 
 /** name (lowercased) → the keyword it denotes. Built once, from the registry. */
@@ -58,23 +67,26 @@ const semicolonGroups: Rule<KeywordIR[][]> = listOf(
 
 export const KEYWORD_LINE_SLOT = "keyword-line";
 
-export const keywordLineRule: Rule<SlotIR> = map(semicolonGroups, (groups) => {
-    const keywords = groups.flat();
-    const seen = new Set<string>();
-    for (const k of keywords) {
-        // The same keyword twice on one line is not a shape Magic prints; it is
-        // a sign the line was misread, so it fails rather than being deduped.
-        if (seen.has(k.registryId)) {
-            return {
-                ok: false as const,
-                reason: `keyword "${k.ability}" named twice on one line`,
-                fragment: k.ability,
-            };
+export const keywordLineRule: Rule<SlotIR> = map(
+    semicolonGroups,
+    (groups): RuleResult<SlotIR> => {
+        const keywords = groups.flat();
+        const seen = new Set<string>();
+        for (const k of keywords) {
+            // The same keyword twice on one line is not a shape Magic prints;
+            // it is a sign the line was misread, so it fails rather than being
+            // silently deduped.
+            if (seen.has(k.registryId)) {
+                return fail(
+                    `keyword "${k.ability}" named twice on one line`,
+                    k.ability
+                );
+            }
+            seen.add(k.registryId);
         }
-        seen.add(k.registryId);
+        return ok({ kind: "keywords", keywords });
     }
-    return { kind: "keywords" as const, keywords };
-});
+);
 
 /** Guard: keyword lines are only meaningful on an object with a text box. */
 export const keywordLineSlot: Rule<SlotIR> = rule(

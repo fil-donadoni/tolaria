@@ -191,7 +191,7 @@ describe("slot router — unique dispatch (CR 113.3a-d)", () => {
     it("routes a line to exactly one slot", () => {
         const r = routeLine("Flying", ctx);
         expect(r.ok).toBe(true);
-        if (r.ok) expect(r.slot ?? r.value.slot).toBe("keyword-line");
+        if (r.ok) expect(r.value.slot).toBe("keyword-line");
     });
 
     it("fails, with no slot chosen, when nothing consumes the line", () => {
