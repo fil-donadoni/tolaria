@@ -15022,6 +15022,20 @@ export function buildSpellContext(
             if (foundDef?.cantBeCountered || found.dynamicCantBeCountered)
                 return;
             const [item] = state.stack.splice(idx, 1);
+            // CR 708.9 (issue #2705) — "If a face-down spell moves from the
+            // stack to any zone other than the battlefield, its owner must
+            // reveal it to all players as they move it." Placed on the LINE
+            // AFTER the splice, i.e. before the ability-vanish early return and
+            // before every `destination` branch, so ALL FOUR destinations are
+            // covered by one call: exile, library-top (Memory Lapse) and hand
+            // (Remand) move the card themselves, and only the `graveyard`
+            // default reaches `sendStackItemToGraveyard`'s own reveal. Without
+            // it a countered morph spell reaches a HIDDEN zone still wearing
+            // the 2/2 sentinel — its identity is destroyed, not merely
+            // unrevealed, so it can never be drawn, cast or matched as itself
+            // again. A face-up spell and an ability (which has no card at all)
+            // are both no-ops here.
+            turnFaceUp(item);
             const owner = getPlayer(state, item.ownerId);
             // Abilities on the stack are not cards: activated (CR 113.7a),
             // triggered (CR 113.7a) and delayed-triggered abilities all just
@@ -15089,6 +15103,11 @@ export function buildSpellContext(
             const idx = state.stack.findIndex((s) => s.id === target.id);
             if (idx === -1) return; // no longer on the stack (CR 608.2b) — no-op.
             const [item] = state.stack.splice(idx, 1);
+            // CR 708.9 (issue #2705) — the same stack-departure reveal as
+            // `counter`, on the same line relative to the splice and for the
+            // same reason: the library is a hidden zone, so a face-down morph
+            // spell put there by Subtlety would lose its identity outright.
+            turnFaceUp(item);
             // An ability on the stack is not a card (CR 113.7a) — it just
             // ceases to exist, like a countered ability.
             if (

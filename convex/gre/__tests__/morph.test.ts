@@ -29,19 +29,33 @@ import {
     turnableFaceUpPermanents,
 } from "../morph";
 import { turnFaceDown, turnFaceUp } from "../faceDown";
-import { removePermanentTo, resolveTopOfStack } from "../state";
+import {
+    applySourceStaticEffects,
+    removePermanentTo,
+    resolveTopOfStack,
+} from "../state";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
-import { collectTriggers } from "../triggers";
-import { applyTurnPermanentFaceUp, tryAutoCommitPendingCast } from "../../game";
+import { collectTriggers, placeTriggersOnStack } from "../triggers";
+import {
+    applyTurnPermanentFaceUp,
+    finalizeTargetSelection,
+    tryAutoCommitPendingCast,
+} from "../../game";
+import { raiseTriggerTargetSelection } from "../rules";
 import { projectPublicState } from "../../gameProjections";
 import { compactState, expandState } from "../serialize";
 import { applyCopy } from "../copy";
 import type { CardInstanceState, GameState, StackItem } from "../state";
+import type { TargetSelection } from "../../cards/types";
 
 const ANGEL = getCardByName("Exalted Angel").id;
 const PLAINS = getCardByName("Plains").id;
 const BEARS = getCardByName("Grizzly Bears").id;
 const COUNTERSPELL = getCardByName("Counterspell").id;
+const REMAND = getCardByName("Remand").id;
+const MEMORY_LAPSE = getCardByName("Memory Lapse").id;
+const VILE_CONSUMPTION = getCardByName("Vile Consumption").id;
+const SUBTLETY = getCardByName("Subtlety").id;
 
 /** `n` untapped Plains on p1's battlefield. */
 function plains(n: number): CardInstanceState[] {
@@ -434,6 +448,75 @@ describe("morph — wire redaction (CR 702.37c, issue #2705)", () => {
         ).toBeUndefined();
     });
 
+    it("the opponent's PENDING TRIGGER BATCH never carries the real card id", () => {
+        // CR 603.3b / ADR 0058 — two DISTINCT triggers under one controller are
+        // held OFF the stack in `pendingTriggerBatch` while that controller
+        // orders them, and the batch is projected on its own path. A face-down
+        // permanent CAN contribute a trigger to it: Vile Consumption grants
+        // every creature an upkeep ability (layer 6), and the grant survives
+        // the layer replay `turnFaceDown` performs. `buildTriggerItem` spreads
+        // `...self`, so that batch entry carries the face-down permanent's
+        // `faceDownOf` — the real Angel id — straight to the opponent unless
+        // the batch is projected per viewer.
+        const morphed = makeInstance(ANGEL, {
+            id: "morphed",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        turnFaceDown(morphed);
+        const vc = makeInstance(VILE_CONSUMPTION, {
+            id: "vc",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const bear = makeInstance(BEARS, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vc, morphed, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, vc);
+
+        const triggers = collectTriggers(state, [
+            {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            } as never,
+        ]);
+        // The face-down 2/2 and the Bears each get the granted upkeep tax, and
+        // their differing card ids make it a REAL ordering decision — so the
+        // batch is held off-stack rather than pushed.
+        expect(triggers).toHaveLength(2);
+        expect(placeTriggersOnStack(state, triggers)).toBe(false);
+        expect(state.pendingTriggerBatch).toHaveLength(2);
+
+        // SURFACE assertion — through the real reducer, not a hand-built view.
+        const opp = projectPublicState(state, 1, "p2");
+        const batch = opp.pendingTriggerBatch!;
+        expect(batch).toHaveLength(2);
+        const hidden = batch.find((i) => i.triggerSourceId === "morphed")!;
+        expect(hidden.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(hidden.faceDownOf).toBeUndefined();
+        expect(JSON.stringify(opp)).not.toContain(ANGEL);
+
+        // …and the controller still sees their own card.
+        const own = projectPublicState(state, 1, "p1");
+        expect(
+            own.pendingTriggerBatch!.find(
+                (i) => i.triggerSourceId === "morphed"
+            )!.card.id
+        ).toBe(ANGEL);
+    });
+
     it("the affordance is absent when the action is illegal", () => {
         // Three Plains cannot pay {2}{W}{W}.
         const { state, permanent } = faceDownBoard(3);
@@ -475,6 +558,140 @@ describe("morph — revealed as it leaves (CR 708.9)", () => {
         )!;
         expect(inHand.faceDown).toBeUndefined();
         expect((inHand.card as { id: string }).id).toBe(ANGEL);
+    });
+
+    /** A face-down Exalted Angel spell on the stack, countered by the spell
+     *  `counterId` (cast by p2 targeting it) and resolved. Each player gets a
+     *  one-card library so a "draw a card" rider (Remand) has something to
+     *  draw and the library-top destination has a card to sit above. */
+    function counterAFaceDownSpell(counterId: string): GameState {
+        const angel: StackItem = {
+            ...makeInstance(ANGEL, {
+                id: "spell",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+        };
+        turnFaceDown(angel);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeInstance(PLAINS, { id: "p1-lib", zone: "library" }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    library: [
+                        makeInstance(PLAINS, {
+                            id: "p2-lib",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        state.stack.push(angel);
+        pushSpell(state, counterId, "p2", [{ type: "spell", id: "spell" }]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("a face-down SPELL countered to its owner's HAND (Remand) is revealed as it goes (CR 708.9)", () => {
+        // `counter`'s `destination: "hand"` branch moves the card itself and
+        // never reaches `sendStackItemToGraveyard` — the second of the three
+        // stack-departure funnels. Left face down the card would sit in a
+        // HIDDEN zone as the 2/2 sentinel: its identity is destroyed, not
+        // merely unrevealed, so it could never be cast or matched again.
+        const state = counterAFaceDownSpell(REMAND);
+        const inHand = state.players[0].hand.find((c) => c.id === "spell")!;
+        expect(inHand).toBeDefined();
+        expect(inHand.faceDown).toBeUndefined();
+        expect(inHand.faceDownOf).toBeUndefined();
+        expect((inHand.card as { id: string }).id).toBe(ANGEL);
+        expect(inHand.types).toContain("Creature");
+        expect(inHand.subtypes).toContain("Angel");
+    });
+
+    it("a face-down SPELL countered onto its owner's LIBRARY (Memory Lapse) is revealed as it goes (CR 708.9)", () => {
+        // `counter`'s `destination: "library-top"` branch — the third funnel,
+        // and the same hidden-zone identity loss as the Remand case above.
+        const state = counterAFaceDownSpell(MEMORY_LAPSE);
+        const onTop = state.players[0].library[0];
+        expect(onTop.id).toBe("spell");
+        expect(onTop.faceDown).toBeUndefined();
+        expect(onTop.faceDownOf).toBeUndefined();
+        expect((onTop.card as { id: string }).id).toBe(ANGEL);
+        expect(onTop.subtypes).toContain("Angel");
+    });
+
+    it("a face-down SPELL put on its owner's LIBRARY by Subtlety is revealed as it goes (CR 708.9)", () => {
+        // `putSpellOnLibrary` is the fourth stack-departure path and is NOT a
+        // counter (CR 113.6g does not shield against it), so it never reaches
+        // `counter` or `sendStackItemToGraveyard`. Same hidden-zone identity
+        // loss if the card stays face down.
+        const angel: StackItem = {
+            ...makeInstance(ANGEL, {
+                id: "spell",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+        };
+        turnFaceDown(angel);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        state.stack.push(angel);
+        // p2 flashes in Subtlety; its ETB trigger targets the face-down
+        // creature spell (a face-down spell IS a creature spell, CR 708.2).
+        const source = makeInstance(SUBTLETY, {
+            id: "sub-src",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        state.stack.push({
+            ...source,
+            id: "sub-trig",
+            zone: "stack",
+            castById: "p2",
+            triggeredAbilityId: "subtlety-etb",
+            triggerSourceId: source.id,
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: source.id,
+                controllerId: "p2",
+                types: ["Creature"],
+            } as StackItem["triggerEvent"],
+            targets: undefined,
+        });
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        const pt = state.pendingTarget!;
+        pt.selected = [{ type: "spell", id: "spell" }] as TargetSelection[];
+        finalizeTargetSelection(state, pt, "p2");
+        resolveTopOfStack(state);
+        // The OWNER (p1) picks the library end; inject it the way
+        // `submitPendingChoice` would, then resume.
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        const trig = state.stack.find((i) => i.id === "sub-trig")!;
+        trig.collectedChoices = {
+            [`${head.step}:${head.choiceId}`]: ["top"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+
+        const onTop = state.players[0].library[0];
+        expect(onTop.id).toBe("spell");
+        expect(onTop.faceDown).toBeUndefined();
+        expect(onTop.faceDownOf).toBeUndefined();
+        expect((onTop.card as { id: string }).id).toBe(ANGEL);
+        expect(onTop.subtypes).toContain("Angel");
     });
 
     it("a face-down SPELL countered off the stack is revealed in the graveyard", () => {

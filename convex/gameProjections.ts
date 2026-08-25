@@ -477,9 +477,16 @@ function projectBattlefieldCard(
  *  battlefield zone had stripped that field per viewer since ADR 0013; the
  *  stack never did.
  *
- *  Deliberately NOT applied to `pendingTriggerBatch`: a triggered ability is
- *  never a face-down object (CR 708 covers spells and permanents), and its
- *  StackItem's `card` is its SOURCE, whose identity is public. */
+ *  Also applied to `pendingTriggerBatch` (the off-stack CR 603.3b ordering
+ *  batch). A triggered ability is not itself a face-down OBJECT, but its
+ *  StackItem is built by `buildTriggerItem` spreading `...self` from the
+ *  source permanent, so it inherits that permanent's `faceDown` /
+ *  `faceDownOf`. A face-down permanent CAN have a trigger: a granted one
+ *  (`grantedTriggeredAbilities`, layer 6 — leg/white.ts, ice/blue.ts,
+ *  m12/blue.ts) survives the layer replay `turnFaceDown` performs, so the
+ *  source's identity is NOT public and must be gated per viewer here too.
+ *  `castById` is the source's controller (`buildTriggerItem`), so the
+ *  controller keeps seeing their own card and the opponent does not. */
 function projectStackItem(item: StackItem, viewerId: string): SlimStackItem {
     if (!item.faceDown) return slimCard(item);
     if (viewerId === item.castById && item.faceDownOf) {
@@ -1296,7 +1303,17 @@ export function projectPublicState(
         // public (the triggers are going on the stack); slim it like `stack` so
         // the ordering picker can render card art without the raw `...state`
         // spread leaking fat card defs.
-        pendingTriggerBatch: state.pendingTriggerBatch?.map(slimCard),
+        //
+        // CR 708.2 (issue #2705) — projected through `projectStackItem`, not
+        // `slimCard`, because a trigger CAN be a face-down object: a granted
+        // trigger (`grantedTriggeredAbilities`, layer 6) survives
+        // `turnFaceDown`'s layer replay, and `buildTriggerItem` spreads
+        // `...self`, so a batch item inherits `faceDown` / `faceDownOf` from
+        // the face-down permanent that is its source. A bare `slimCard` sent
+        // that permanent's real card id straight to the opponent.
+        pendingTriggerBatch: state.pendingTriggerBatch?.map((i) =>
+            projectStackItem(i, viewerId)
+        ),
         // CR 702.26 — phased-out permanents are public (set aside face-up), so
         // project them for the wire (the raw `...state` spread would leak the
         // fat card defs). Per-card face-down hiding still applies via
