@@ -8,10 +8,12 @@
 // evaluate stylesheets, so we parse `src/index.css` text (Node fs) — same
 // pattern as motion-gating.test.ts.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { resolve, join, relative } from "node:path";
 import {
     V3_TOKEN_GROUPS,
+    V4_TOKEN_GROUPS,
+    ALL_TOKEN_GROUPS,
     DENSITY_RUNGS,
     PALETTE_TOKENS,
     SIGNAL_TOKENS,
@@ -100,6 +102,14 @@ function ruleBody(source: string, selector: string, mustContain = ""): string {
     throw new Error(
         `${selector} rule${mustContain ? ` containing ${mustContain}` : ""} not found in @layer base`
     );
+}
+
+/** CSS comments removed. Several assertions below ask whether the stylesheet
+ *  DOES something, and the surrounding comment routinely names the thing it
+ *  deliberately does not do — a raw substring match reads that prose as the
+ *  code. */
+function stripComments(source: string): string {
+    return source.replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 /** `--name: value` declarations of a rule body, comments stripped, whitespace
@@ -209,6 +219,15 @@ describe("design tokens — WCAG contrast (phase 3)", () => {
         // test pair fails above — assert the token moved explicitly.
         expect(colors["text-disabled"]).not.toBe("#6f6244");
     });
+
+    it("the Antique Bronze ground and gold are retired (ADR 0103 supersedes ADR 0007's values)", () => {
+        // v4 is a VALUES swap on unchanged roles, so nothing structural fails
+        // if the warm palette creeps back one token at a time — the rungs
+        // above pass for brown just as they pass for graphite. Name the two
+        // hexes that carried the old identity.
+        expect(colors["surface-base"]).not.toBe("#0d0b07");
+        expect(colors["accent"]).not.toBe("#c9a24b");
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -216,10 +235,10 @@ describe("design tokens — WCAG contrast (phase 3)", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("design tokens v3 — CSS ↔ typed mirror", () => {
-    const allV3 = V3_TOKEN_GROUPS.flatMap((g) => g.tokens);
+    const allV3 = ALL_TOKEN_GROUPS.flatMap((g) => g.tokens);
 
     it("declares every mirrored family in @layer base :root, not @theme inline", () => {
-        // Five families × their tokens. A count assertion is the cheap guard
+        // Eight families × their tokens. A count assertion is the cheap guard
         // against a family being dropped from the mirror wholesale.
         expect(V3_TOKEN_GROUPS.map((g) => g.id)).toEqual([
             "fluid-type",
@@ -228,7 +247,13 @@ describe("design tokens v3 — CSS ↔ typed mirror", () => {
             "motion",
             "panel-frame",
         ]);
-        expect(allV3.length).toBeGreaterThanOrEqual(26);
+        // Identity v4 (ADR 0103, issue #2722) adds three more.
+        expect(V4_TOKEN_GROUPS.map((g) => g.id)).toEqual([
+            "v4-display",
+            "v4-frame",
+            "v4-grain",
+        ]);
+        expect(allV3.length).toBeGreaterThanOrEqual(36);
     });
 
     it.each(allV3.map((t) => [t.name, t.value] as const))(
@@ -338,6 +363,306 @@ describe("design tokens v3 — CSS ↔ typed mirror", () => {
     it("the density rungs are strictly ordered 8 < 10 < 12", () => {
         const units = DENSITY_RUNGS.map((r) => pxValue(r.unit));
         expect(units).toEqual([8, 10, 12]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity v4 (ADR 0103, PRD #2721, issue #2722).
+//
+// Each token below gets a row that asserts something the token would be WRONG
+// without — a shape, a relation, or the fact that the stylesheet actually
+// consumes it. A row that only restated the mirror would be covered by the
+// drift guard above already and would prove nothing new.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("identity v4 — card corner (ADR 0103 §7)", () => {
+    /** `4.8% / 3.45%` → `[4.8, 3.45]`. Throws on a length, which is the point:
+     *  the corner has to be PROPORTIONAL or one token cannot serve a 63mm hand
+     *  card and a 40px battlefield thumb at once. */
+    function radiusPercents(value: string): [number, number] {
+        const m = /^([\d.]+)%\s*\/\s*([\d.]+)%$/.exec(value.trim());
+        if (!m)
+            throw new Error(`--card-radius is not a percentage pair: ${value}`);
+        return [Number(m[1]), Number(m[2])];
+    }
+
+    it("--card-radius is a percentage pair, not a length", () => {
+        // A `px` radius here is the bug the token exists to prevent: it would
+        // look right at exactly one card size and wrong at every other.
+        const [h, v] = radiusPercents(rootTokens["--card-radius"]);
+        expect(h).toBeCloseTo(4.8, 5);
+        expect(v).toBeCloseTo(3.45, 5);
+    });
+
+    it("the horizontal fraction exceeds the vertical one, in the card's aspect ratio", () => {
+        // A Magic card is 63×88mm, so the SAME physical corner is a bigger
+        // fraction of the width than of the height. Equal percentages (the
+        // obvious-looking `4.8% / 4.8%`) paint an egg.
+        const [h, v] = radiusPercents(rootTokens["--card-radius"]);
+        expect(h).toBeGreaterThan(v);
+        // 63/88 = 0.716; the pair must encode the same ratio to within a
+        // rounding step, or the corner is not circular.
+        expect(v / h).toBeCloseTo(63 / 88, 2);
+    });
+
+    it(".card-corner applies the token (the call sites #2724 migrates onto)", () => {
+        const rule = /\.card-corner \{([\s\S]*?)\}/.exec(css);
+        expect(rule, ".card-corner rule present").not.toBeNull();
+        expect(rule![1]).toContain("var(--card-radius)");
+    });
+});
+
+describe("identity v4 — hairlines (ADR 0103 §5)", () => {
+    /** Alpha of an `rgb(r g b / a)` value. */
+    function alpha(value: string): number {
+        const m = /\/\s*([\d.]+)\s*\)/.exec(value);
+        expect(m, `alpha channel in ${value}`).not.toBeNull();
+        return Number(m![1]);
+    }
+
+    it("both hairlines are translucent ivory, strong stronger than subtle", () => {
+        // Translucency is the whole point: these are the edges that sit over
+        // card art and gradients, where the flattened
+        // `--color-border-subtle` hex would paint a visible grey line.
+        for (const name of ["--hairline", "--hairline-strong"]) {
+            expect(rootTokens[name], name).toMatch(
+                /^rgb\(232 226 210 \/ [\d.]+\)$/
+            );
+        }
+        expect(alpha(rootTokens["--hairline-strong"])).toBeGreaterThan(
+            alpha(rootTokens["--hairline"])
+        );
+        expect(alpha(rootTokens["--hairline"])).toBeCloseTo(0.12, 5);
+        expect(alpha(rootTokens["--hairline-strong"])).toBeCloseTo(0.3, 5);
+    });
+
+    it("the flattened hexes agree with the translucent pair, to within a rounding step", () => {
+        // `--color-border-subtle` / `--color-border-accent` are the SAME two
+        // hairlines flattened onto `--color-surface` for the Tailwind
+        // `/opacity` utilities and the contrast guard. If the two drift, the
+        // app paints two different hairlines depending on which one a
+        // component happens to reach for — invisible in review, obvious on
+        // screen.
+        const surface = colors["surface"];
+        const composite = (a: number): string => {
+            const s = [1, 3, 5].map((i) =>
+                parseInt(surface.slice(i, i + 2), 16)
+            );
+            const ivory = [232, 226, 210];
+            return ivory
+                .map((c, i) => Math.round(a * c + (1 - a) * s[i]))
+                .map((c) => c.toString(16).padStart(2, "0"))
+                .join("");
+        };
+        for (const [token, a] of [
+            ["border-subtle", 0.12],
+            ["border-accent", 0.3],
+        ] as const) {
+            const want = composite(a);
+            const got = colors[token].slice(1);
+            for (let i = 0; i < 3; i++) {
+                const d = Math.abs(
+                    parseInt(want.slice(i * 2, i * 2 + 2), 16) -
+                        parseInt(got.slice(i * 2, i * 2 + 2), 16)
+                );
+                expect(
+                    d,
+                    `--color-${token} (#${got}) vs ivory/${a * 100} flattened on ${surface} (#${want}), channel ${i}`
+                ).toBeLessThanOrEqual(1);
+            }
+        }
+    });
+
+    it("border-strong is brighter than the strong hairline (a control edge is not decoration)", () => {
+        // WCAG 1.4.11 binds control boundaries at 3:1; ivory/30 is 2.37:1, so
+        // the two roles cannot collapse into one token however much they look
+        // alike.
+        expect(
+            ratio(colors["border-strong"], colors["surface"])
+        ).toBeGreaterThan(ratio(colors["border-accent"], colors["surface"]));
+    });
+
+    it(".hairline / .hairline-strong apply the tokens", () => {
+        for (const [cls, token] of [
+            ["hairline", "--hairline"],
+            ["hairline-strong", "--hairline-strong"],
+        ] as const) {
+            const rule = new RegExp(`\\.${cls} \\{([\\s\\S]*?)\\}`).exec(css);
+            expect(rule, `.${cls} rule present`).not.toBeNull();
+            expect(rule![1]).toContain(`var(${token})`);
+            expect(rule![1]).toContain("var(--hairline-w)");
+        }
+    });
+});
+
+describe("identity v4 — page-ground grain (ADR 0103 §5)", () => {
+    it("the grain image is a semicolon-free inline SVG data URI", () => {
+        const v = rootTokens["--grain-image"];
+        expect(v).toMatch(/^url\("data:image\/svg\+xml,%3Csvg /);
+        expect(v).toContain("feTurbulence");
+        // `data:image/svg+xml;utf8,…` is the natural way to write this and it
+        // terminates the CSS declaration for every regex-based reader of the
+        // stylesheet — this parser included, which would then see the token as
+        // absent rather than as wrong.
+        expect(v).not.toContain(";");
+    });
+
+    it("<body> actually paints the grain, as a background layer", () => {
+        // Without this the tokens exist and nothing ever renders them. The
+        // "background layer" half is load-bearing too: the prototype's fixed
+        // full-viewport `::after` overlay would read as occluding every card
+        // and control to the ui-gate probe's `elementFromPoint` sweep.
+        // Comments stripped first: this rule's own comment EXPLAINS the fixed
+        // overlay it is not, and a raw substring match would read that as the
+        // defect.
+        const body = stripComments(
+            ruleBody(baseLayer, "body", "--grain-image")
+        );
+        expect(body).toContain("background-image: var(--grain-image)");
+        expect(body).toContain("var(--grain-size)");
+        expect(body).toContain("background-blend-mode: var(--grain-blend)");
+        expect(body).not.toContain("position: fixed");
+    });
+});
+
+describe("identity v4 — Geist is the chrome face, Beleren is card-domain only (ADR 0103 §4)", () => {
+    /** The `@theme inline` block verbatim (`themeColors` only returns the
+     *  hexes it matched, so a font token needs the raw text). */
+    function themeBlock(source: string): string {
+        const at = source.indexOf("@theme inline {");
+        expect(at, "@theme inline block present").toBeGreaterThan(-1);
+        return block(source, source.indexOf("{", at));
+    }
+    const theme = stripComments(themeBlock(css));
+
+    it("@theme inline exports --font-display and NOT --font-beleren", () => {
+        // A `@theme` entry is exactly what makes Tailwind emit the matching
+        // `font-*` utility. Dropping `--font-beleren` from this block is what
+        // makes "no chrome consumer resolves to Beleren" true mechanically:
+        // the class stops generating any font-family at all, so the ~75
+        // component call sites that still carry the name inherit `font-sans`
+        // (Geist) until the slices that own those files delete it.
+        expect(theme).toMatch(/--font-display:\s*"Geist Variable"/);
+        expect(theme).not.toContain("--font-beleren");
+    });
+
+    it("--font-beleren stays declared in :root, reserved for the card domain", () => {
+        // Retired from the chrome, NOT deleted: the card-frame and
+        // text-only-card renderers read it as `var(--font-beleren)`, and the
+        // @font-face that loads the woff is still the point of it.
+        const root = /:root \{([\s\S]*?)\n\}/.exec(css);
+        expect(root, "first :root block").not.toBeNull();
+        expect(root![1]).toMatch(/--font-beleren:\s*"Beleren", serif;/);
+        expect(css).toContain('font-family: "Beleren"');
+    });
+
+    it("no CSS recipe applies the Beleren utility any more", () => {
+        // `.btn-base` (every Button in the app) and `.heading-panel` were the
+        // two `@apply font-beleren` sites; an `@apply` of a utility that no
+        // longer exists is also a build error, so this row is the early
+        // warning for re-adding one.
+        expect(css).not.toMatch(/@apply[^;]*\bfont-beleren\b/);
+    });
+
+    it("the chrome display recipes are on the display face and its treatment", () => {
+        for (const cls of ["text-display", "btn-base", "heading-panel"]) {
+            const rule = new RegExp(`\\.${cls} \\{([\\s\\S]*?)\\n {4}\\}`).exec(
+                css
+            );
+            expect(rule, `.${cls} rule present`).not.toBeNull();
+            expect(rule![1], cls).toContain("var(--font-display)");
+            expect(rule![1], cls).toContain("var(--display-weight)");
+            expect(rule![1], cls).toContain("var(--display-tracking)");
+            expect(rule![1], cls).toContain("var(--display-numerals)");
+        }
+    });
+
+    // ── The residual-site RATCHET (PR #2783 review) ──────────────────────
+    //
+    // The CSS half of the Beleren retirement is fail-CLOSED: `@apply
+    // font-beleren` is a hard BUILD error now that the utility does not exist
+    // ("Cannot apply unknown utility class"), and the rows above pin the
+    // `@theme inline` export. The TSX half is fail-OPEN, and that asymmetry is
+    // the whole reason this row exists: a `className="… font-beleren …"` added
+    // to a component compiles, type-checks, lints and renders — as Geist,
+    // silently — because a Tailwind class is just a string.
+    //
+    // That matters right now specifically. This slice deliberately leaves ~74
+    // inert `font-beleren` class names in ~56 component files, because those
+    // files belong to thirteen sibling slices of PRD #2721 (#2723, #2724,
+    // #2726, #2727, #2728, #2729-#2733) and editing them here would collide
+    // with every one of them in the merge-train for zero rendered difference.
+    // Each slice deletes its own as it re-skins. Without a ratchet, that
+    // intermediate state can silently GROW instead of shrinking, and #2734's
+    // closure sweep would be the first thing to notice — after the fact.
+    //
+    // So: the count may only ever go DOWN. #2734 ("closure: retire bracket/
+    // filigree atoms and dead v3 recipes") is the slice that drives it to 0,
+    // at which point this row and its constant are deleted with it.
+    const BELEREN_RESIDUAL_CEILING = 78;
+
+    /** Every `.ts`/`.tsx` under `src/`, except this guard file — which names
+     *  the class in its own assertions and would otherwise count itself. */
+    function sourceFiles(dir: string, out: string[] = []): string[] {
+        for (const entry of readdirSync(dir)) {
+            if (entry === "node_modules" || entry === "_generated") continue;
+            const full = join(dir, entry);
+            if (statSync(full).isDirectory()) sourceFiles(full, out);
+            else if (/\.tsx?$/.test(entry)) out.push(full);
+        }
+        return out;
+    }
+
+    it("the residual font-beleren sites only ever go DOWN (ratchet, #2734 drives them to 0)", () => {
+        const root = resolve(process.cwd(), "src");
+        const self = resolve(
+            process.cwd(),
+            "src/__tests__/design-tokens.test.ts"
+        );
+        const perFile: Array<[string, number]> = [];
+        let count = 0;
+        for (const file of sourceFiles(root)) {
+            if (file === self) continue;
+            const n = (readFileSync(file, "utf8").match(/font-beleren/g) ?? [])
+                .length;
+            if (n > 0) {
+                perFile.push([relative(process.cwd(), file), n]);
+                count += n;
+            }
+        }
+        const worst = perFile
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([f, n]) => `${f} (${n})`)
+            .join(", ");
+
+        expect(
+            count,
+            `A NEW font-beleren site was added. The utility no longer exists (ADR 0103 §4) — ` +
+                `the class renders NOTHING and the element silently falls back to Geist, which is ` +
+                `why nothing else in the build complains. Use the display face instead: ` +
+                `\`.text-display\`, or \`var(--font-display)\` + the --display-* tokens. ` +
+                `Ceiling ${BELEREN_RESIDUAL_CEILING}, found ${count}. Heaviest files: ${worst}`
+        ).toBeLessThanOrEqual(BELEREN_RESIDUAL_CEILING);
+
+        // ...and the ceiling may not go slack. Without this, a slice that
+        // deletes ten sites leaves nine spare slots for someone to add five
+        // new ones under the old ceiling, undetected — a ratchet that never
+        // ratchets is just a very patient rubber stamp.
+        expect(
+            count,
+            `${BELEREN_RESIDUAL_CEILING - count} font-beleren site(s) were removed — thank you. ` +
+                `Now LOWER \`BELEREN_RESIDUAL_CEILING\` to ${count} in this file, so the ratchet ` +
+                `keeps its grip. When it reaches 0, delete this row and the constant with it (#2734).`
+        ).toBe(BELEREN_RESIDUAL_CEILING);
+    });
+
+    it("the display treatment is the ADR's: 500 / −0.025em / lining tabular numerals", () => {
+        expect(rootTokens["--display-weight"]).toBe("500");
+        expect(rootTokens["--display-tracking"]).toBe("-0.025em");
+        // Tabular is not a flourish: life totals and counts tick in place, and
+        // proportional numerals make them jitter.
+        expect(rootTokens["--display-numerals"]).toContain("tabular-nums");
+        expect(rootTokens["--display-numerals"]).toContain("lining-nums");
     });
 });
 

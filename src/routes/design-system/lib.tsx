@@ -3,6 +3,11 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { contrastRatio } from "./contrast";
+import {
+    PALETTE_TOKENS,
+    SIGNAL_TOKENS,
+    type TokenGroup,
+} from "@/lib/design-tokens";
 
 export function RatioBadge({
     fg,
@@ -33,6 +38,50 @@ export function RatioBadge({
     );
 }
 
+/** The token / value / role table every mirrored family renders as. Shared by
+ *  the v3 and identity-v4 sections so a new family is one array, not a new
+ *  table. */
+export function TokenRows({ group }: { group: TokenGroup }) {
+    return (
+        // Tab stop on the scroller — axe `scrollable-region-focusable`
+        // (issue #2593).
+        <div
+            tabIndex={0}
+            role="region"
+            aria-label={`${group.title} tokens (scrollable)`}
+            className="overflow-x-auto"
+        >
+            <table className="w-full min-w-[560px] text-left text-xs">
+                <thead>
+                    <tr className="text-text-disabled">
+                        <th className="py-1 pr-3 font-normal">token</th>
+                        <th className="py-1 pr-3 font-normal">value</th>
+                        <th className="py-1 font-normal">role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {group.tokens.map((t) => (
+                        <tr
+                            key={t.name}
+                            className="border-t border-border-subtle/40"
+                        >
+                            <td className="py-1.5 pr-3 font-mono text-[11px] text-accent-strong">
+                                {t.name}
+                            </td>
+                            <td className="py-1.5 pr-3 font-mono text-[11px] break-all text-text">
+                                {t.value}
+                            </td>
+                            <td className="py-1.5 text-[11px] text-text-muted">
+                                {t.role}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 /* ── Page scaffolding ─────────────────────────────────────────────────── */
 
 export function Section({
@@ -51,7 +100,7 @@ export function Section({
     return (
         <section id={id} className="scroll-mt-6">
             <div className="flex items-baseline gap-3">
-                <span className="font-beleren text-sm text-accent">
+                <span className="text-display text-sm text-accent">
                     {index}
                 </span>
                 <h2 className="heading-panel text-left">{title}</h2>
@@ -79,9 +128,7 @@ export function Sub({
     return (
         <div>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h3 className="font-beleren text-sm tracking-wide text-parchment">
-                    {title}
-                </h3>
+                <h3 className="text-display text-sm text-parchment">{title}</h3>
                 {note && (
                     <span className="text-xs text-text-muted">{note}</span>
                 )}
@@ -151,23 +198,22 @@ export function Where({ children }: { children: React.ReactNode }) {
 /* ── Candidate token scope for "next" specimens ─────────────────────────
  * Overrides/proposes tokens inside a subtree: Tailwind v4 utilities resolve
  * var(--color-*) at the use site, so wrapping a specimen in this style makes
- * the real classes render with the candidate values. */
+ * the real classes render with the candidate values.
+ *
+ * Read from the typed mirror rather than hand-listed: the two palette entries
+ * that used to be spelled out here (`--color-text-disabled` #968a68,
+ * `--color-border-strong` #7d6b42) were the SHIPPED values when they were
+ * written, and identity v4 moved both — so a hand-listed override would have
+ * pinned every "next" specimen to the retired palette while the rest of the
+ * page rendered the new one. */
 const NEXT_TOKENS = {
-    "--color-text-disabled": "#968a68",
-    "--color-border-strong": "#7d6b42",
-    "--color-scrim": "rgba(0, 0, 0, 0.5)",
-    "--color-signal-self": "#34d399",
-    "--color-signal-self-strong": "#6ee7b7",
-    "--color-signal-opponent": "#fb7185",
-    "--color-signal-opponent-strong": "#fda4af",
-    "--color-signal-pending": "#fbbf24",
-    "--color-signal-pending-strong": "#fcd34d",
-    "--color-signal-target": "#a78bfa",
-    "--color-signal-target-strong": "#c4b5fd",
-    "--color-combat-1": "#ef4444",
-    "--color-combat-2": "#3b82f6",
-    "--color-combat-3": "#22c55e",
-    "--color-combat-4": "#eab308",
+    ...Object.fromEntries(
+        [...PALETTE_TOKENS, ...SIGNAL_TOKENS].map((t) => [
+            `--color-${t.name}`,
+            t.hex,
+        ])
+    ),
+    "--color-scrim": "rgb(0 0 0 / 0.62)",
 } as React.CSSProperties;
 
 export function NextScope({ children }: { children: React.ReactNode }) {

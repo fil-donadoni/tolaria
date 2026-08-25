@@ -11,6 +11,7 @@ import { PanelsDialogsSections } from "./design-system/sections-panels-dialogs";
 import { InputsChipsSections } from "./design-system/sections-inputs-chips";
 import { BoardDeadSections } from "./design-system/sections-board-dead";
 import { V3Sections } from "./design-system/sections-v3";
+import { IdentityV4Sections } from "./design-system/sections-identity-v4";
 
 const TOC: Array<[string, string]> = [
     ["palette", "01 Palette & contrast"],
@@ -27,6 +28,7 @@ const TOC: Array<[string, string]> = [
     ["dead-layer", "12 Dead layer"],
     ["application-map", "13 Application map"],
     ["v3-tokens", "14 Design system v3"],
+    ["identity-v4", "15 Identity v4"],
 ];
 
 export default function DesignSystemRoute() {
@@ -36,13 +38,14 @@ export default function DesignSystemRoute() {
             <AmbientPageGround />
             <div className="relative z-10 mx-auto max-w-6xl px-4 py-10 sm:px-8">
                 <header>
-                    <p className="text-label">reference — phase 3</p>
+                    <p className="text-label">reference — identity v4</p>
                     <h1 className="heading-panel mt-1 text-left text-3xl">
                         Design system census
                     </h1>
                     <span className="panel-rule mt-3 block h-px w-full" />
                     <p className="mt-3 max-w-3xl text-sm text-text-muted">
-                        Every element of the Tolaria UI: the retired recipes (
+                        Every element of the Tolaria UI, wearing identity v4
+                        (ADR 0103): the retired recipes (
                         <span className="rounded-sm bg-surface-elevated px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-text-muted uppercase">
                             now
                         </span>
@@ -76,6 +79,7 @@ export default function DesignSystemRoute() {
                     <InputsChipsSections />
                     <BoardDeadSections />
                     <V3Sections />
+                    <IdentityV4Sections />
                 </main>
             </div>
         </div>
