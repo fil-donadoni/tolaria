@@ -5,6 +5,7 @@
 // passes is indistinguishable from a gate that is not wired up.
 
 import { describe, expect, it } from "vitest";
+import type { EffectOp } from "../../cards/types";
 import { MECHANICS_REGISTRY } from "../../cards/mechanicsRegistry";
 import { compileCard } from "../compile";
 import { collectOps, runGates, sortKeys } from "../gates";
@@ -169,21 +170,17 @@ describe("the ready gates demote", () => {
     it("never throws on a malformed script — a gate that throws aborts the run", () => {
         // `planSmokeTest` throws on a `draw` with no `player`; the gate must
         // turn that into a quarantine reason for ONE card, not a dead sweep.
-        for (const effects of [
+        const malformed = [
             [{ op: "draw" }],
             [{ op: "dealDamage" }],
             [{ op: "forEach", each: undefined }],
-        ]) {
+        ] as unknown as EffectOp[][];
+        for (const effects of malformed) {
             expect(() =>
                 runGates({
                     oracleId: "x",
                     plannedMechanics: [],
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    definition: {
-                        name: "X",
-                        types: ["Instant"],
-                        effects: effects as any,
-                    },
+                    definition: { name: "X", types: ["Instant"], effects },
                 })
             ).not.toThrow();
         }

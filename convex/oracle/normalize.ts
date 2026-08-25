@@ -29,10 +29,12 @@ export type NormalizeResult =
 
 /** Typographic variants Scryfall emits that carry no rules meaning. */
 const TYPOGRAPHY: readonly (readonly [RegExp, string])[] = [
-    [/ /g, " "], // non-breaking space
+    // Escaped rather than literal: an irregular-whitespace character sitting
+    // in source is invisible to a reviewer and to `no-irregular-whitespace`.
+    [/\u00a0/g, " "], // non-breaking space
     [/[‘’]/g, "'"], // curly single quotes
     [/[“”]/g, '"'], // curly double quotes
-    [/−/g, "-"], // unicode minus
+    [/\u2212/g, "-"], // unicode minus
     [/\r\n?/g, "\n"], // CRLF
 ];
 
