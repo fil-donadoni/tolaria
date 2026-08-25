@@ -20,6 +20,15 @@
  * than making it lie.
  */
 import type { Page } from "playwright";
+// The fixture's labels come from the module that SEEDS it — one definition,
+// so renaming a label cannot leave the lane addressing a row that no longer
+// exists (issue #2822 review). Aliased to the shorter names the walks read
+// with; see the block above `FIXTURE_LIST_PATH` for what they address.
+import {
+    UI_GATE_DRAFT_LABEL as FIXTURE_DRAFT_LABEL,
+    UI_GATE_LABEL_PREFIX as FIXTURE_LABEL_PREFIX,
+    UI_GATE_OPEN_LABEL as FIXTURE_OPEN_LABEL,
+} from "../../convex/limitedFixtures";
 
 /** Thrown by a walk that could not reach its screen. Reason is user-facing. */
 export class Unreachable extends Error {
@@ -149,10 +158,11 @@ const EVENT_VIEW = "button:has-text('View'), a:has-text('View')";
  * fixture is therefore an expected state, and it reports UNWALKED carrying
  * `SEED_FIXTURES_COMMAND` — never a fallback walk of some other event, which
  * is precisely what used to make a PASS mean less than it read.
+ *
+ * `FIXTURE_LABEL_PREFIX` / `FIXTURE_OPEN_LABEL` / `FIXTURE_DRAFT_LABEL` are
+ * imported at the top of this file from `convex/limitedFixtures.ts` — the
+ * seeder owns the strings, this file only addresses them.
  */
-const FIXTURE_LABEL_PREFIX = "ui-gate/";
-const FIXTURE_OPEN_LABEL = "ui-gate/open";
-const FIXTURE_DRAFT_LABEL = "ui-gate/draft";
 const SEED_FIXTURES_COMMAND = `bunx convex run limitedFixtures:seedUiGateFixtures '{"email":"<TOLARIA_UI_EMAIL>"}'`;
 
 /** The list, narrowed to the fixture rows by the `?label=` prefix filter

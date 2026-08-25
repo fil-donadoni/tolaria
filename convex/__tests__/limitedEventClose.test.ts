@@ -31,6 +31,7 @@ import {
 import { type InMemoryRow, makeInMemoryDb } from "./fixtures/inMemoryDb";
 import { validatorJsonOf, validationErrors } from "./fixtures/validatorWalk";
 import { buildEmptySeats, assignFreeSeat } from "../limited/eventLogic";
+import { UI_GATE_LABEL_PREFIX, UI_GATE_OPEN_LABEL } from "../limitedFixtures";
 import type { LimitedRound } from "../limited/eventTypes";
 
 const summaryValidatorJson = validatorJsonOf(limitedEventSummaryValidator);
@@ -43,6 +44,7 @@ const summaryValidatorJson = validatorJsonOf(limitedEventSummaryValidator);
 function buildEvent(overrides: {
     status: Doc<"limitedEvents">["status"];
     rounds?: LimitedRound[];
+    label?: string;
 }): Doc<"limitedEvents"> {
     let seats = buildEmptySeats(2);
     seats = assignFreeSeat(seats, "user1", "Alice");
@@ -295,6 +297,44 @@ describe("projectEventSummary round-trips viewerMatchRecord through the REAL lim
             "user1"
         );
         expect(summary.viewerMatchRecord).toBeUndefined();
+        expect(validationErrors(summary, summaryValidatorJson)).toEqual([]);
+    });
+
+    // Issue #2822: `label` is the handle `check:ui` addresses its seeded
+    // fixture by, and this projection is the ONLY hop of the chain
+    // (schema -> summary validator -> `/limited?label=` filter ->
+    // `data-limited-event-label`) that nothing else can see fail. The
+    // validator conformance walk above cannot catch a dropped `label`
+    // because the field is `v.optional`, and both frontend suites mock the
+    // query — so a convex-only refactor that drops the line keeps the whole
+    // gate green and the lane silently reports "no seeded Limited fixture on
+    // this deployment" on a deployment where the fixture IS seeded.
+    it("carries the event's `label` onto the list row — the handle the ui-gate fixture is addressed by (issue #2822)", async () => {
+        const event = buildEvent({
+            status: "open",
+            label: UI_GATE_OPEN_LABEL,
+        });
+        const summary = await projectEventSummary(
+            ctxFor(event),
+            event,
+            "user1"
+        );
+        expect(summary.label).toBe(UI_GATE_OPEN_LABEL);
+        // The prefix filter `/limited?label=ui-gate/` narrows on exactly this
+        // projected string, so assert the property the page's `startsWith`
+        // relies on rather than only the equality above.
+        expect(summary.label?.startsWith(UI_GATE_LABEL_PREFIX)).toBe(true);
+        expect(validationErrors(summary, summaryValidatorJson)).toEqual([]);
+    });
+
+    it("leaves `label` undefined for an unlabelled event — the field is optional, not defaulted", async () => {
+        const event = buildEvent({ status: "open" });
+        const summary = await projectEventSummary(
+            ctxFor(event),
+            event,
+            "user1"
+        );
+        expect(summary.label).toBeUndefined();
         expect(validationErrors(summary, summaryValidatorJson)).toEqual([]);
     });
 
