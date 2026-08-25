@@ -59,12 +59,25 @@ export default function DeckFeaturedSelect({
     return (
         <label className="flex items-center gap-2 text-sm">
             <span className="text-label tracking-wide text-text-muted">★</span>
+            {/* min-h-[var(--control-h)] (ADR 0101 §2, issue #2670): the native
+                select measured 135x30px, under the 44px coarse-pointer rung
+                (32px on a mouse — see `--control-h`'s pointer-aware
+                resolution). `SaveDeckBar`'s row has slack for the extra
+                height on every viewport this control renders on (it never
+                mounts in portrait, `!portrait` gate above), EXCEPT
+                `short-viewport:` (the phone-landscape band, `max-height:
+                500px`): forcing 44px there re-opened a `ctrlsOcc` regression
+                against that row's already-tuned compact padding
+                (`short-viewport:py-0.5`), so the rung is dropped back to 0
+                there and the existing compact treatment governs — same
+                short-viewport carve-out `DeckBuilderHeader` and `SaveDeckBar`
+                itself already use for their own controls. */}
             <select
                 value={explicitCardId ?? ""}
                 onChange={(e) =>
                     onSet(e.target.value === "" ? null : e.target.value)
                 }
-                className="input-field max-w-36 px-2 py-1 short-viewport:py-0.5 short-viewport:text-xs"
+                className="input-field max-w-36 min-h-[var(--control-h)] px-2 py-1 short-viewport:min-h-0 short-viewport:py-0.5 short-viewport:text-xs"
                 aria-label="Featured card"
                 title="The card that supplies this deck's art"
             >

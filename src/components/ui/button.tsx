@@ -33,8 +33,8 @@ const buttonVariants = cva(
             // `h`, so a wrapping label still grows the plate instead of
             // overflowing it. The three icon-only rungs and `xs` are
             // deliberately NOT retargeted here — enlarging every board HUD
-            // glyph to a 44px square is a layout change that belongs to the
-            // touch-primitives slice (#2583), not the token slice.
+            // glyph to a 44px square is a layout change with cross-surface
+            // blast radius, tracked separately (#2792), not the token slice.
             size: {
                 default: "min-h-[var(--control-h)] px-4 py-2 text-sm",
                 sm: "min-h-[var(--control-h-sm)] px-3 py-1.5 text-xs",

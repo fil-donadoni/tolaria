@@ -1,7 +1,8 @@
 ---
 title: The dock "Add Basic" trigger is a 73x22px touch target; fixing it costs #2585's own AC
 discoveredBy: 2585
-status: draft
+status: triaged
+issue: 2670
 confidence: high
 ---
 
@@ -56,9 +57,14 @@ with that very AC UNMET and parked the gap in its own drawer draft,
 `docs/findings/2593-coarse-pointer-touch-targets-below-44px.md` (see that
 file's table — the deck-builder surface alone still carries 39–65 sub-44px
 controls at the coarse viewports). This dock trigger's gap, and #2593's
-whole census, are now tracked by **#2670** ("a11y: coarse-pointer targets
+whole census, were tracked by **#2670** ("a11y: coarse-pointer targets
 below the ADR 0101 §2 44px rung — #2593's unmet AC, currently drawer-only"),
-a #2405 sub-issue, P0 on the board.
+a #2405 sub-issue, P0 on the board. #2670 closed with a partial fix (see
+below) that could not reach this trigger; the remaining gap is now tracked
+by **#2793** (unlabelled — human triage decides if/when it becomes agent
+work). #2670's own `budgets.json` `knownDebt` notes briefly mis-cited #2659
+for this gap; #2659's real scope is Limited list/overflow-menu controls, no
+deckbuilder file, so #2670 review round 1 corrected the citation.
 
 **For #2670:** do not re-apply the naive `minHeight: var(--control-h)` patch
 verified above without first finding ~20px to reclaim elsewhere in the
@@ -67,3 +73,18 @@ recorded in this file and in `scripts/ui-gate/budgets.json`'s `deck-builder`
 `1180x820x2` entry (that entry now describes the shipped 22px state; do not
 "fix" it back to describing the reverted experiment without re-deriving the
 chrome budget first).
+
+**#2670's own pass (2026-08-25): still unfixed, by design.** The only chrome
+this PR actually reclaimed in the 1180x820 dock column was 8px off
+`SaveDeckBar`'s own padding (`deck-source-dock:py-2`, `save-deck-bar.tsx`) —
+enough to pay for `DeckFeaturedSelect`'s 4px cost (a DIFFERENT control in the
+same row, see `scripts/ui-gate/budgets.json`'s `1180x820x2` `knownDebt`) with
+a little left over, not the ~20px this trigger needs. No other slack was
+found in this column without touching a band #2585 or #2581 already tuned to
+its own floor (the header's `deck-source-dock:py-2` is already spent; the
+strip below is governed by `docs/findings/2581-deckbuilder-toolbar-starved-
+by-touch-rung.md`'s own zero-slack finding). The trigger stays 73×22px.
+Recorded as debt, not traded for a reopened #2585 floor — the hard constraint
+this issue was given. Now tracked by **#2793** (see above); #2670 review
+round 1 found the PR's own text had briefly pointed this gap at #2659,
+which does not cover it.

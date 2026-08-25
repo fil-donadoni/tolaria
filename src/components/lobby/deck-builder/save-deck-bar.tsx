@@ -56,7 +56,23 @@ export default function SaveDeckBar({
                 e.preventDefault();
                 onDone();
             }}
-            className="flex flex-wrap items-center gap-2 border-t border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:py-1 md:gap-3 md:px-6"
+            // `deck-source-dock:py-2` (issue #2670, same lever
+            // `DeckBuilderHeader` already uses, `deck-builder-header.tsx`):
+            // growing `DeckFeaturedSelect` to the 44px coarse-pointer rung
+            // (`deck-featured-select.tsx`) costs this row ~4px of the
+            // deck pane's `flex-1` share at 1180x820 with a search active —
+            // enough to drop #2585's own ≥60% floor (measured 60.18% ->
+            // 59.70% without this trim). Trimming this band's own padding by
+            // 8px in the SAME `deck-source-dock:` context reclaims more
+            // than that 4px back, net positive (measured 60.18% -> 60.67%
+            // with both changes). Left at `py-3` everywhere else — this row
+            // never renders in portrait, and outside `deck-source-dock:` the
+            // deck pane has real margin over the floor (66-71% idle).
+            // `deck-source-dock:` is landscape + min-width:1024px +
+            // min-height:501px, so this trim also applies at 1440x900x2,
+            // not only 1180x820x2 — harmless there (that cell PASSes with
+            // unchanged ceilings, it only adds pane height).
+            className="flex flex-wrap items-center gap-2 border-t border-border-subtle/30 bg-surface/60 px-4 py-3 deck-source-dock:py-2 short-viewport:py-1 md:gap-3 md:px-6"
         >
             {onBack && (
                 <Button

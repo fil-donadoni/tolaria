@@ -1,7 +1,8 @@
 ---
 title: 39-68 controls per surface still measure under 44px at pointer: coarse
 discoveredBy: 2593
-status: draft
+status: triaged
+issue: 2670
 confidence: high
 ---
 
@@ -44,3 +45,76 @@ the PRD #2405 tracker, rather than a ticket of its own: the work is per-cluster
 layout, not one change, and a single "make everything 44px" ticket would be
 re-sliced immediately. Against that: it is the one acceptance-criterion phrase of
 #2593 that shipped unmet, so leaving it only in a PR description loses it.
+
+---
+
+**RESOLVED INTO #2670 (2026-08-25).** This draft got a real ticket after all —
+issue #2670 ("a11y: coarse-pointer targets below the ADR 0101 §2 44px rung —
+#2593's unmet AC, currently drawer-only"). Every `smallN` ceiling this draft's
+table measured now lives in `scripts/ui-gate/budgets.json` (issue #2658/#2660
+wired the key in generally; #2670 is the first slice to actually lower one).
+Re-verified line by line against HEAD, one entry per surface × viewport this
+draft measured:
+
+| surface       | 390x844x3             | 844x390x3              | 820x1180x2                | 1180x820x2                |
+| ------------- | --------------------- | ---------------------- | ------------------------- | ------------------------- |
+| lobby         | 5 → 10, STILL-OPEN †  | 8 → 10, STILL-OPEN †   | 20 → 22, STILL-OPEN †     | 25 → 15, STILL-OPEN †     |
+| deck-builder  | 12 → 12, STILL-OPEN   | 25 → 19, PARTIAL-FIX ‡ | 65 → 23, PARTIAL-FIX (-1) | 65 → 46, PARTIAL-FIX (-1) |
+| design-system | 16 → 16, STILL-OPEN § | 21 → 21, STILL-OPEN §  | 21 → 21, STILL-OPEN §     | 21 → 21, STILL-OPEN §     |
+
+No entry is STALE — every control this draft named still exists and still
+measures under 44px somewhere it renders; nothing closed by unrelated work.
+
+- **† lobby** is outside this issue's target dirs (`src/components/lobby/`
+  minus the `deck-builder/` subdirectory) — `docs/findings/`,
+  `scripts/ui-gate/`, `src/components/deckbuilder/`,
+  `src/components/lobby/deck-builder/`, `src/components/ui/` only. The
+  numbers moved between #2593 and HEAD (mostly upward) from unrelated
+  intervening work (nav/header churn, not a deliberate touch-target pass) —
+  a correction to this draft's baseline, not a fix. Left for a future lobby
+  slice.
+- **‡ deck-builder 844x390x3** dropped 25 → 19 across #2585 (PR #2650/#2653,
+  filters into a sheet/popover), #2662 (+2, a deliberate short-viewport
+  trade documented on that cell), and #2665 (-9, the landscape-phone Column
+  rung folding away rename/delete glyphs) — all landed before #2670 opened.
+  This issue's own fix (`DeckFeaturedSelect`'s coarse-pointer rung) is
+  DELIBERATELY carved out at this viewport (`short-viewport:min-h-0`, see
+  the cell's own `knownDebt` note) — it does not move this number.
+- The two `(-1)` deck-builder cells are #2670's OWN contribution this PR:
+  `DeckFeaturedSelect`'s "Featured card" native `<select>`
+  (`deck-featured-select.tsx`) now reaches the 44px rung at the two
+  viewports where it costs nothing (`820x1180x2`) or where an 8px chrome
+  reclaim on `SaveDeckBar` (`save-deck-bar.tsx`, `deck-source-dock:py-2`)
+  more than pays for the 4px it costs the deck pane's `flex-1` share
+  (`1180x820x2`) — full measurement in each cell's `knownDebt` note. The
+  large remainder at both cells (this draft's own two dense clusters,
+  `deck-column-actions.tsx` and `zone-color-filter-toggles.tsx`, plus the
+  dock's 73×22px `Add Basic` trigger, `deck-builder-shell.tsx`) is
+  DELIBERATELY left unfixed — re-spacing either cluster needs the Column/Zone
+  header band to gain real height it does not have without breaking the
+  `ctrlsStranded 0` / `starved 0` floor (`docs/findings/2581-deckbuilder-
+toolbar-starved-by-touch-rung.md`), and growing the dock trigger the naive
+  way was already measured to cost more chrome than #2670's own 8px reclaim
+  recovers, dropping #2585's own ≥60% deck-pane floor (`docs/findings/2585-
+add-basic-dock-trigger-touch-target.md`). Recorded as debt, not traded for
+  a different red — see the `820x1180x2`/`1180x820x2` `knownDebt` notes in
+  `scripts/ui-gate/budgets.json` for the full account, including the
+  `.filter-chip` geometry recipe that was tried and measured (in
+  `src/index.css`, above `.input-field`) and made `ctrlsStranded`/`ctrlsOcc`
+  worse.
+- **§ design-system** is unchanged — its three demo specimens use
+  `src/components/ui/button.tsx`'s `xs`/`icon`/`icon-sm`/`icon-xs` size
+  variants, whose retarget to the pointer-aware `--control-h-coarse` token
+  is a layout change with cross-surface blast radius (it reflows every
+  consumer's row, board HUD glyphs included) — "enlarging every board HUD
+  glyph to a 44px square is a layout change with cross-surface blast
+  radius" (`button.tsx`'s own comment). Previously mis-pointed at #2583
+  (whose real scope — gesture engine, Peek Panel, Inspect Overlay — never
+  covered `button.tsx`); corrected and now tracked by **#2792**, filed as
+  an unlabelled (no `ready-for-agent`) tracking issue, not done here even
+  though `src/components/ui/` is nominally a target dir in this issue.
+
+This draft is superseded by #2670 and the `knownDebt` notes it left in
+`scripts/ui-gate/budgets.json` (the load-bearing, gate-enforced record going
+forward). The 21 design-system controls this row names are now tracked by
+**#2792**; no further action on this file.
