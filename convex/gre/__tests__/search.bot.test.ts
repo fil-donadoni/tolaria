@@ -40,6 +40,7 @@ const MOUNTAIN = getCardByName("Mountain").id;
 const BOP = getCardByName("Birds of Paradise").id; // 0/1 mana dork
 const GIANT_GROWTH = getCardByName("Giant Growth").id; // {G} instant +3/+3
 const FOREST = getCardByName("Forest").id;
+const CONTAINMENT_PRIEST = getCardByName("Containment Priest").id; // {1}{W} 2/2 flash, no ETB/target choices
 
 function creature(
     cardId: string,
@@ -1306,6 +1307,85 @@ describe("isDiscouragedRolloutMove — rollout guardrails (issue #209)", () => {
         const move: Move = { kind: "play-land", cardInstanceId: "m" };
         expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(false);
     });
+
+    // Issue #2248: the guardrail widened from raw `types.includes("Instant")`
+    // to `hasInstantSpeed` (Instant OR the Flash keyword) — a non-Instant
+    // FLASH PERMANENT dumped at sorcery speed must now carry the same policy
+    // penalty a plain instant already does. Containment Priest ({1}{W} 2/2,
+    // no ETB/target choices) is the flash-permanent fixture the blade suite
+    // also uses.
+    it("flags casting a flash PERMANENT at sorcery speed, same as an Instant (issue #2248)", () => {
+        const cp = makeInstance(CONTAINMENT_PRIEST, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "cp",
+            zone: "hand",
+        });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [makePlayer("p1", { hand: [cp] }), makePlayer("p2")],
+        });
+        const move: Move = {
+            kind: "cast-spell",
+            cardInstanceId: "cp",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+        expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(true);
+    });
+
+    it("does NOT flag the same flash permanent during combat (a reactive window)", () => {
+        const cp = makeInstance(CONTAINMENT_PRIEST, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "cp",
+            zone: "hand",
+        });
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [makePlayer("p1", { hand: [cp] }), makePlayer("p2")],
+        });
+        const move: Move = {
+            kind: "cast-spell",
+            cardInstanceId: "cp",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+        expect(isDiscouragedRolloutMove(state, "p1", move)).toBe(false);
+    });
+
+    it("does NOT flag a flash permanent cast by the NON-active player (mover scoping)", () => {
+        // p2 is the one casting; p1 is the active player. The guardrail is
+        // scoped to the ACTIVE player's own sorcery-speed window, never the
+        // defender's reactive cast — the over-fire shape a mute-button
+        // regression would produce.
+        const cp = makeInstance(CONTAINMENT_PRIEST, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "cp",
+            zone: "hand",
+        });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [cp] })],
+        });
+        const move: Move = {
+            kind: "cast-spell",
+            cardInstanceId: "cp",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+        expect(isDiscouragedRolloutMove(state, "p2", move)).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -1593,6 +1673,57 @@ describe("reactivePrior — soft reactive-line bias (issue #223)", () => {
     it("does NOT fire for a non-instant move", () => {
         const { state } = reactiveCast();
         expect(reactivePrior(state, "p1", { kind: "pass" }, 1)).toBe(0);
+    });
+
+    // Issue #2248: `isReactiveHold` gained a second shape — holding priority
+    // (a `pass`) in the MOVER'S OWN main phase, no combat pending at all,
+    // while holding an affordable FLASH PERMANENT. Before this shape the
+    // "wait for the opponent's end step" line was never explorable outside
+    // the mid-combat ambush hold above.
+    it("fires on an own-main hold while holding an affordable flash permanent (issue #2248)", () => {
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(CONTAINMENT_PRIEST, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "cp",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: [land("p1", "m1"), land("p1", "m2")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const move: Move = { kind: "pass" };
+        expect(reactivePrior(state, "p1", move, 1)).toBeGreaterThan(0);
+    });
+
+    it("does NOT fire on an own-main hold with only a plain instant (no flash permanent) in hand", () => {
+        // Same shape as above but the held card is a plain Instant, not a
+        // flash PERMANENT — the own-main hold nudge is deliberately narrower
+        // than "any instant-speed card" (`hasCastableFlashPermanent`, not
+        // `hasCastableInstant`), so a bare instant alone must not make this
+        // pass explorable via the new shape.
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [bolt("p1", "bolt")],
+                    battlefield: [land("p1", "m1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const move: Move = { kind: "pass" };
+        expect(reactivePrior(state, "p1", move, 1)).toBe(0);
     });
 });
 
