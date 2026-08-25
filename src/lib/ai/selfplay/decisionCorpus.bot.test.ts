@@ -74,13 +74,19 @@ function expectWellFormed(r: RootDecisionRecord): void {
     // `runSearchWithTrace`, the sole `selectRootMove` caller that supplies
     // `SearchStats`, so these are never absent here (only the ~30 unit-test
     // call sites that hand-build a `Node` omit them — `Partial<SearchStats>`
-    // exists for those, not for this corpus).
-    expect(r.iterationsCompleted).toBeGreaterThan(0);
-    expect(r.iterationsRequested).toBeGreaterThan(0);
-    expect(r.iterationsCompleted).toBeLessThanOrEqual(r.iterationsRequested);
-    expect(Number.isFinite(r.elapsedMs)).toBe(true);
-    expect(r.elapsedMs).toBeGreaterThanOrEqual(0);
-    expect(["iterations", "time"]).toContain(r.stoppedBy);
+    // exists for those, not for this corpus). `toBeDefined()` first, so a
+    // regression that stops threading `searchStats` fails loudly here rather
+    // than on the `!` below silently asserting against `undefined`.
+    expect(r.iterationsCompleted).toBeDefined();
+    expect(r.iterationsRequested).toBeDefined();
+    expect(r.elapsedMs).toBeDefined();
+    expect(r.stoppedBy).toBeDefined();
+    expect(r.iterationsCompleted!).toBeGreaterThan(0);
+    expect(r.iterationsRequested!).toBeGreaterThan(0);
+    expect(r.iterationsCompleted!).toBeLessThanOrEqual(r.iterationsRequested!);
+    expect(Number.isFinite(r.elapsedMs!)).toBe(true);
+    expect(r.elapsedMs!).toBeGreaterThanOrEqual(0);
+    expect(["iterations", "time"]).toContain(r.stoppedBy!);
 }
 
 const SMOKE_CONFIG: SelfPlayCorpusConfig = {
