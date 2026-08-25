@@ -52,9 +52,11 @@ import {
     renderDriverLines,
     renderQueueDepthLines,
     renderReceiptsLines,
+    renderVerdictLines,
     worktreeIssueNumbers,
     type ClaimRow,
     type DriverState,
+    type LoopVerdict,
     type QueueDepth,
     type ReadyQueueIssue,
     type ReceiptsSummary,
@@ -211,6 +213,15 @@ export interface GatherLoopStatusOptions {
  * CONDITION) at the exact moment GitHub was unreachable.
  */
 export interface GatheredLoopStatus {
+    /**
+     * The one shared verdict (#2624) — `deriveLoopVerdict`, computed inside
+     * `buildLoopStatus` with the section errors below in hand. Both this
+     * CLI and the dashboard render THESE strings; neither re-words the
+     * driver's three facts into a health statement of its own, which is how
+     * the 2026-08-19 outage came to read as `armed · no driver pid ·
+     * no stop-file` on both surfaces at once.
+     */
+    verdict: LoopVerdict;
     driver: DriverState;
     claims: ClaimRow[] | null;
     claimsError: string | null;
@@ -300,9 +311,16 @@ export function gatherLoopStatus(
             readyQueueSection.status === "ok" ? readyQueueSection.data : [],
         receipts,
         driver,
+        // The verdict is derived inside `buildLoopStatus`; it needs to know
+        // a section FAILED rather than seeing the empty value substituted
+        // just above, which is indistinguishable from a healthy zero.
+        claimsError: claimsInputs.status === "ok" ? null : claimsInputs.error,
+        queueDepthError:
+            readyQueueSection.status === "ok" ? null : readyQueueSection.error,
     });
 
     return {
+        verdict: status.verdict,
         driver: status.driver,
         claims: claimsInputs.status === "ok" ? status.claims : null,
         claimsError: claimsInputs.status === "ok" ? null : claimsInputs.error,
@@ -325,6 +343,8 @@ export function renderGatheredLoopStatusText(
 ): string {
     return (
         [
+            ...renderVerdictLines(gathered.verdict),
+            "",
             ...renderDriverLines(gathered.driver),
             "",
             ...renderClaimsLines(gathered.claims, gathered.claimsError),

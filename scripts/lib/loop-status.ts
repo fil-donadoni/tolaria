@@ -294,6 +294,16 @@ export interface LoopStatusInput {
     driver: DriverState;
     now?: number;
     minAgeHours?: number;
+    /**
+     * Set by `gatherLoopStatus` when the claimed-issue / ready-queue read
+     * FAILED (`GatheredLoopStatus`). They exist so the verdict is derived
+     * exactly ONCE, here, with the same fail-closed knowledge the CLI and
+     * the dashboard have — rather than a second `deriveLoopVerdict` call at
+     * the gather layer that could drift from this one. Absent/`null` means
+     * the read succeeded, which is what every hand-built fixture wants.
+     */
+    claimsError?: string | null;
+    queueDepthError?: string | null;
 }
 
 /** One (role, outcome) bucket's count — the aggregate `receiptsSummary`
@@ -356,11 +366,288 @@ export function summarizeReceipts(receipts: Receipt[]): ReceiptsSummary {
     };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Verdict (#2624) — ONE derivation of "what is the loop doing, and is it
+// healthy", shared by `bun run loop:status` and the dashboard so the two can
+// never tell an operator different things.
+//
+// It exists because of the night of 2026-08-19 (PRD #2621): the driver died
+// at 00:58 holding five claims and stayed dead for eight hours, and both
+// surfaces reported the outage as `armed · no driver pid · no stop-file` —
+// three independent facts, hand-concatenated twice (`renderDriverLines` here,
+// `renderLoopStatus` in `telemetry-dashboard.html`), neither ranking them,
+// neither naming a cause or a remedy.
+//
+// THREE THINGS THIS IS NOT:
+//
+//   * It is NOT `loop-drain.sh`'s `no_progress_streak`. That detector is
+//     LIVE, inside the driver process, pass-over-pass, off the total open
+//     `ready-for-agent` count and the green SHA — inputs this function
+//     structurally cannot see (a snapshot has no history and no SHA). Its
+//     consequence is stopping the driver; this one's consequence is a
+//     sentence on a screen. Re-deriving a weaker "no progress" from the data
+//     here would produce a plausible-but-wrong `STALLED`, so it is not
+//     attempted: the only progress statement made below is the one the
+//     snapshot genuinely supports (`claimsHeld`).
+//   * It does NOT re-derive live/orphan/suspect. `classifyClaim`
+//     (`loop-doctor.ts`) is the sole authority; `ClaimRow.verdict` already
+//     carries its output, and this function only ever COUNTS it. No second
+//     age threshold is introduced here — deliberately, since a threshold
+//     that disagreed with `loop:doctor` is exactly the divergence the module
+//     header is about.
+//   * It is NOT a view. The sentence and the remedy live here rather than in
+//     a renderer precisely because two renderers exist.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Every state a verdict can take, HIGHEST precedence first — the order
+ *  `deriveLoopVerdict` resolves them in, and the list the dashboard's tone
+ *  map is checked against (`loop-status-dashboard.test.ts`), so a state added
+ *  here cannot ship unstyled on the page. */
+export const LOOP_VERDICT_STATES = [
+    "NEEDS ATTENTION",
+    "STALLED",
+    "STOPPED",
+    "RUNNING",
+    "IDLE",
+] as const;
+
+export type LoopVerdictState = (typeof LOOP_VERDICT_STATES)[number];
+
+/** Why a verdict came out the way it did. Codes are stable identifiers a
+ *  surface can style or filter on; `detail` is the prose it renders. */
+export type LoopFindingCode =
+    | "failed-reads"
+    | "orphaned-claims"
+    | "claims-held";
+
+export interface LoopFinding {
+    code: LoopFindingCode;
+    detail: string;
+}
+
+export interface LoopVerdict {
+    state: LoopVerdictState;
+    /** One plain-English sentence naming the CAUSE. */
+    sentence: string;
+    /** What to do next, naming the command. */
+    remedy: string;
+    /** The evidence behind the verdict — reported whichever state won, so a
+     *  `STOPPED` loop still says how many claims are outstanding. */
+    findings: LoopFinding[];
+}
+
+/**
+ * The `claims-held` predicate (#2624 AC), exported on its own so
+ * `loop-drain.sh` can consume it in a later ticket without importing a view.
+ *
+ * A pass whose claim count ROSE and whose merge count stayed at zero did not
+ * find "nothing to do" — it took work and lost it. That distinction is the
+ * whole point: on 2026-08-19 two killed passes left five claims held, and the
+ * next passes reported `no-progress`, which reads as "there was nothing to
+ * do" when the truth was "there was work and it was lost".
+ */
+export interface PassClaimAccounting {
+    /** Claims held at the start of the window. */
+    claimsBefore: number;
+    /** Claims held at the end of it. */
+    claimsAfter: number;
+    /** Work the window actually LANDED — merged PRs / closed issues. */
+    merges: number;
+}
+
+export function claimsHeld(a: PassClaimAccounting): boolean {
+    return a.claimsAfter > a.claimsBefore && a.merges === 0;
+}
+
+/**
+ * The snapshot's accounting, for the predicate above.
+ *
+ * `loop:status` and the dashboard are handed "what is true NOW", never "what
+ * changed across the last pass", so the window is not a pass — it is "since
+ * the loop last held nothing". Both endpoints are then exact rather than
+ * estimated:
+ *
+ *   * `claimsBefore: 0` — every claim standing right now is one the loop took
+ *     and has not given back.
+ *   * `merges: 0` — a claim that LANDED is neither open nor labelled
+ *     `in-progress`, so it is not in this list at all. Over the set of
+ *     currently-held claims the merge count is zero by construction, not by
+ *     estimate. (This is also why no merge count is invented from receipts:
+ *     `Receipt` has no merged role/outcome, and guessing one would be the
+ *     fail-open shape.)
+ *
+ * The rise half is therefore true whenever anything is claimed, which on its
+ * own would fire on every healthy pass mid-flight. The guard is not a smaller
+ * before-count — it is the liveness gate at the call site: `deriveLoopVerdict`
+ * only consults this when the driver is NOT alive, because a live driver
+ * holding claims is ordinary work in progress. A live driver holding claims
+ * that went BAD is covered by `classifyClaim`'s orphan verdict instead, which
+ * is why no threshold is duplicated here.
+ */
+function snapshotClaimAccounting(heldClaims: number): PassClaimAccounting {
+    return { claimsBefore: 0, claimsAfter: heldClaims, merges: 0 };
+}
+
+export interface LoopVerdictInput {
+    driver: DriverState;
+    /** `null` means the read FAILED (see `GatheredLoopStatus`), never "none". */
+    claims: ClaimRow[] | null;
+    claimsError: string | null;
+    queueDepth: QueueDepth | null;
+    queueDepthError: string | null;
+}
+
+const REMEDY = {
+    reads: "check `gh auth status` and the API rate limit, then re-run `bun run loop:status`",
+    orphans:
+        "`bun run loop:doctor` to inspect, `bun run loop:doctor --release` to drop `in-progress` on the orphans",
+    start: "`bun run loop:afk` starts a detached driver",
+    resume: "`bun run loop:afk --resume` clears the stop-file and starts a driver",
+    arm: "`bun run loop:afk` arms the loop and starts a driver",
+    none: "nothing to do — `bun run loop:afk --stop` asks the driver to stop after the current pass",
+    feed: "label issues `ready-for-agent` to give the loop work",
+} as const;
+
+/**
+ * PRECEDENCE (#2624): `NEEDS ATTENTION` > `STALLED` > `STOPPED` > `RUNNING` >
+ * `IDLE`. A blocked tree outranks a liveness fact, because a live driver
+ * holding orphaned claims still makes no progress while looking healthy.
+ *
+ * Two refinements this function AUTHORS, because no precedence between
+ * `armed` / `pidAlive` / `stopFilePresent` existed anywhere before it:
+ *
+ *   1. `claims-held` escalates to STALLED, not to NEEDS ATTENTION. NEEDS
+ *      ATTENTION exists for what liveness CANNOT show — orphans under a
+ *      healthy-looking driver, and reads that failed. When the driver is
+ *      visibly down, STALLED already names the cause and carries the same
+ *      remedy, and escalating would bury the more specific diagnosis. The
+ *      finding is still reported either way. It also closes the hole that
+ *      the queue-depth test alone leaves: claiming an issue REMOVES it from
+ *      the unclaimed queue (`count_unclaimed` in `loop-drain.sh`), so a dead
+ *      driver holding every remaining issue would otherwise read as `IDLE`
+ *      — precisely the 2026-08-19 shape, one pass later.
+ *   2. A stop-file suppresses STALLED rather than losing to it. A deliberate
+ *      stop is not a stall: with the stop-file present a dead driver is the
+ *      EXPECTED state, so the STALLED condition does not hold and STOPPED
+ *      wins without contradicting the order above. (STOPPED still outranks
+ *      RUNNING, per the table: a driver alive under a stop-file is exiting
+ *      after this pass, and "nothing will start" is the operative fact.)
+ */
+export function deriveLoopVerdict(input: LoopVerdictInput): LoopVerdict {
+    const d = input.driver;
+    const findings: LoopFinding[] = [];
+
+    const readErrors = [input.claimsError, input.queueDepthError].filter(
+        (e): e is string => e !== null
+    );
+    if (readErrors.length > 0) {
+        findings.push({
+            code: "failed-reads",
+            detail: `${readErrors.length} of the loop's own reads failed (${readErrors.join("; ")}) — this is not the same as "nothing claimed, queue empty"`,
+        });
+    }
+
+    // `ClaimRow.verdict` is `classifyClaim`'s output, consumed not re-derived.
+    const claims = input.claims ?? [];
+    const orphans = claims.filter((c) => c.verdict.state === "orphan");
+    if (orphans.length > 0) {
+        findings.push({
+            code: "orphaned-claims",
+            detail: `${orphans.length} claimed issue(s) are orphaned (${orphans.map((c) => `#${c.issue}`).join(", ")}) — nothing in the loop will release them`,
+        });
+    }
+
+    // See `snapshotClaimAccounting` for why the liveness gate, and not a
+    // smaller before-count, is what keeps this off a healthy pass.
+    const heldWithDriverDown =
+        !d.pidAlive &&
+        input.claimsError === null &&
+        claimsHeld(snapshotClaimAccounting(claims.length));
+    if (heldWithDriverDown) {
+        findings.push({
+            code: "claims-held",
+            detail: `no driver is running, yet ${claims.length} issue(s) are still claimed — that work was taken and never landed, which is not "nothing to do"`,
+        });
+    }
+
+    const needsAttention = findings.some(
+        (f) => f.code === "failed-reads" || f.code === "orphaned-claims"
+    );
+    const queueTotal = input.queueDepth?.total ?? 0;
+    const stalled =
+        d.armed &&
+        !d.pidAlive &&
+        !d.stopFilePresent &&
+        (queueTotal > 0 || heldWithDriverDown);
+
+    if (needsAttention) {
+        // Failed reads first: when a read failed, every other number on the
+        // screen is suspect, so saying WHY the screen cannot be trusted
+        // outranks anything derived from it.
+        const readFinding = findings.find((f) => f.code === "failed-reads");
+        return {
+            state: "NEEDS ATTENTION",
+            sentence: readFinding
+                ? "The loop's own reads failed, so this screen cannot tell you whether the loop is healthy."
+                : `${orphans.length} claimed issue(s) are orphaned — claimed with nothing to show, and nothing left to release them.`,
+            remedy: readFinding ? REMEDY.reads : REMEDY.orphans,
+            findings,
+        };
+    }
+
+    if (stalled) {
+        return {
+            state: "STALLED",
+            sentence: `The loop is armed but no driver is running, and there is still work outstanding (queue ${queueTotal}, claimed ${claims.length}).`,
+            remedy: REMEDY.start,
+            findings,
+        };
+    }
+
+    if (d.stopFilePresent) {
+        return {
+            state: "STOPPED",
+            sentence:
+                "A stop-file is present — nothing will start until it is removed.",
+            remedy: REMEDY.resume,
+            findings,
+        };
+    }
+
+    if (d.pidAlive) {
+        return {
+            state: "RUNNING",
+            sentence: `The driver is running (pid ${d.pid}), working through the queue (${queueTotal} unclaimed, ${claims.length} claimed).`,
+            remedy: REMEDY.none,
+            findings,
+        };
+    }
+
+    if (!d.armed) {
+        return {
+            state: "IDLE",
+            sentence: `The loop is not armed — the end-of-pass handoff will not fire, and ${queueTotal} issue(s) are waiting.`,
+            remedy: REMEDY.arm,
+            findings,
+        };
+    }
+
+    return {
+        state: "IDLE",
+        sentence:
+            "The loop is armed, nothing is claimed and the queue is empty — there is nothing to do.",
+        remedy: REMEDY.feed,
+        findings,
+    };
+}
+
 export interface LoopStatus {
     driver: DriverState;
     claims: ClaimRow[];
     queueDepth: QueueDepth;
     receiptsSummary: ReceiptsSummary;
+    /** The one shared derivation (#2624) — see `deriveLoopVerdict`. */
+    verdict: LoopVerdict;
 }
 
 const PRIORITY_RANK: Record<BoardPriority, number> = { P0: 0, P1: 1, P2: 2 };
@@ -403,14 +690,28 @@ export function buildLoopStatus(input: LoopStatusInput): LoopStatus {
         return b.ageHours - a.ageHours;
     });
 
+    const queueDepth = queueDepthByPriority(
+        input.readyQueueIssues,
+        input.priority
+    );
+    const claimsError = input.claimsError ?? null;
+    const queueDepthError = input.queueDepthError ?? null;
+
     return {
         driver: input.driver,
         claims,
-        queueDepth: queueDepthByPriority(
-            input.readyQueueIssues,
-            input.priority
-        ),
+        queueDepth,
         receiptsSummary: summarizeReceipts(input.receipts),
+        verdict: deriveLoopVerdict({
+            driver: input.driver,
+            // A failed read contributes `null`, never the empty value
+            // `buildLoopStatus` had to substitute to compute the rest —
+            // that substitution is exactly what must not reach a verdict.
+            claims: claimsError === null ? claims : null,
+            claimsError,
+            queueDepth: queueDepthError === null ? queueDepth : null,
+            queueDepthError,
+        }),
     };
 }
 
@@ -461,6 +762,28 @@ export function gatherSection<T>(fn: () => T, label: string): Section<T> {
 
 function verdictMark(state: ClaimVerdict["state"]): string {
     return state === "orphan" ? "×" : state === "suspect" ? "?" : "·";
+}
+
+/**
+ * The verdict band — FIRST thing `bun run loop:status` prints (#2624 AC), and
+ * the same three strings the dashboard renders, so the two surfaces cannot
+ * word the same state differently. Findings print under it: the verdict says
+ * what state the loop is in, the findings say what is outstanding regardless
+ * of which state won.
+ */
+export function renderVerdictLines(verdict: LoopVerdict): string[] {
+    const lines = [
+        `LOOP: ${verdict.state}`,
+        `  ${verdict.sentence}`,
+        `  → ${verdict.remedy}`,
+    ];
+    if (verdict.findings.length > 0) {
+        lines.push("  findings:");
+        for (const f of verdict.findings) {
+            lines.push(`    · ${f.code}: ${f.detail}`);
+        }
+    }
+    return lines;
 }
 
 export function renderDriverLines(driver: DriverState): string[] {
@@ -586,6 +909,8 @@ export function renderReceiptsLines(summary: ReceiptsSummary): string[] {
 export function renderLoopStatusText(status: LoopStatus): string {
     return (
         [
+            ...renderVerdictLines(status.verdict),
+            "",
             ...renderDriverLines(status.driver),
             "",
             ...renderClaimsLines(status.claims, null),

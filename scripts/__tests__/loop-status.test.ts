@@ -14,14 +14,19 @@ import {
     renderLoopStatusText,
     renderClaimsLines,
     renderQueueDepthLines,
+    renderVerdictLines,
     gatherSection,
     summarizeReceipts,
+    claimsHeld,
+    deriveLoopVerdict,
     INTERESTING_RECEIPTS_CAP,
     type LoopStatusInput,
+    type LoopVerdictInput,
     type DriverState,
     type ClaimRow,
+    type QueueDepth,
 } from "../lib/loop-status";
-import { type ClaimedIssue } from "../loop-doctor";
+import { type ClaimedIssue, type ClaimVerdict } from "../loop-doctor";
 import type { Receipt } from "../lib/receipt";
 
 /**
@@ -657,5 +662,398 @@ describe("loop-status — renderQueueDepthLines (unavailable vs. zero)", () => {
         expect(claimsLines).toContain("UNAVAILABLE");
         expect(queueLines).toContain("total: 1");
         expect(queueLines).not.toContain("UNAVAILABLE");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Verdict engine (#2624)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A `ClaimRow` in whatever verdict state the case under test needs.
+ *  `classifyClaim`'s output is an INPUT here — the verdict engine counts it,
+ *  it never re-derives it, so a fixture states it directly. */
+function verdictClaim(
+    issue: number,
+    state: ClaimVerdict["state"],
+    overrides: Partial<ClaimRow> = {}
+): ClaimRow {
+    return {
+        issue,
+        title: `issue ${issue}`,
+        stage: "claimed",
+        verdict: { state, reason: `${state} (fixture)` } as ClaimVerdict,
+        priority: null,
+        ageHours: 12,
+        ...overrides,
+    };
+}
+
+function verdictInput(
+    overrides: Partial<LoopVerdictInput> = {}
+): LoopVerdictInput {
+    return {
+        driver: EMPTY_DRIVER,
+        claims: [],
+        claimsError: null,
+        queueDepth: { P0: 0, P1: 0, P2: 0, unprioritized: 0, total: 0 },
+        queueDepthError: null,
+        ...overrides,
+    };
+}
+
+function queue(total: number): QueueDepth {
+    return { P0: 0, P1: 0, P2: 0, unprioritized: total, total };
+}
+
+/**
+ * The `claims-held` predicate on its own (#2624 AC: exported separately so
+ * `loop-drain.sh` can consume it without importing a view). These are the
+ * DRAIN-shaped rows — a real pass boundary, with a real merge count — which
+ * is the window the snapshot consumers cannot observe and the drain can.
+ */
+describe("loop-status — claimsHeld predicate (#2624)", () => {
+    it("fires when the claim count rose and nothing merged — work taken, not 'nothing to do'", () => {
+        expect(claimsHeld({ claimsBefore: 0, claimsAfter: 5, merges: 0 })).toBe(
+            true
+        );
+    });
+
+    it("does NOT fire when the pass merged something, however many claims it took", () => {
+        expect(claimsHeld({ claimsBefore: 0, claimsAfter: 5, merges: 1 })).toBe(
+            false
+        );
+    });
+
+    it("does NOT fire when the claim count did not rise — a pass that genuinely found nothing to do", () => {
+        expect(claimsHeld({ claimsBefore: 3, claimsAfter: 3, merges: 0 })).toBe(
+            false
+        );
+    });
+
+    it("does NOT fire when claims were RELEASED rather than taken", () => {
+        expect(claimsHeld({ claimsBefore: 5, claimsAfter: 2, merges: 0 })).toBe(
+            false
+        );
+    });
+});
+
+describe("loop-status — deriveLoopVerdict (#2624)", () => {
+    it("RUNNING when the driver process is alive", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: {
+                    ...EMPTY_DRIVER,
+                    armed: true,
+                    pid: 4242,
+                    pidAlive: true,
+                },
+                queueDepth: queue(12),
+            })
+        );
+        expect(v.state).toBe("RUNNING");
+        expect(v.sentence).toContain("4242");
+        expect(v.remedy).toContain("loop:afk --stop");
+    });
+
+    it("IDLE when armed with no driver and an empty queue", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({ driver: { ...EMPTY_DRIVER, armed: true } })
+        );
+        expect(v.state).toBe("IDLE");
+        expect(v.findings).toEqual([]);
+        expect(v.remedy).toContain("ready-for-agent");
+    });
+
+    it("IDLE, naming 'not armed' as the cause, when the conf is absent", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({ driver: EMPTY_DRIVER, queueDepth: queue(7) })
+        );
+        expect(v.state).toBe("IDLE");
+        expect(v.sentence).toContain("not armed");
+        expect(v.remedy).toContain("loop:afk");
+    });
+
+    it("STOPPED when the stop-file is present", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: {
+                    ...EMPTY_DRIVER,
+                    armed: true,
+                    stopFilePresent: true,
+                },
+            })
+        );
+        expect(v.state).toBe("STOPPED");
+        expect(v.remedy).toContain("--resume");
+    });
+
+    it("STALLED when armed, the driver is not alive and the queue is non-empty", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: { ...EMPTY_DRIVER, armed: true, pid: 99 },
+                queueDepth: queue(195),
+            })
+        );
+        expect(v.state).toBe("STALLED");
+        expect(v.sentence).toContain("195");
+        expect(v.remedy).toContain("loop:afk");
+    });
+
+    it("NEEDS ATTENTION when a claim is orphaned, even under a live driver", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: {
+                    ...EMPTY_DRIVER,
+                    armed: true,
+                    pid: 7,
+                    pidAlive: true,
+                },
+                claims: [
+                    verdictClaim(2582, "orphan"),
+                    verdictClaim(2583, "orphan"),
+                ],
+                queueDepth: queue(3),
+            })
+        );
+        expect(v.state).toBe("NEEDS ATTENTION");
+        expect(v.findings.map((f) => f.code)).toContain("orphaned-claims");
+        expect(v.findings[0]!.detail).toContain("#2582");
+        expect(v.remedy).toContain("loop:doctor --release");
+    });
+
+    it("NEEDS ATTENTION when a read failed — never a verdict derived from the substituted zero", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: {
+                    ...EMPTY_DRIVER,
+                    armed: true,
+                    pid: 7,
+                    pidAlive: true,
+                },
+                claims: null,
+                claimsError: "claimed issues: API rate limit exceeded",
+                queueDepth: null,
+                queueDepthError: "ready-for-agent queue: API rate limit",
+            })
+        );
+        expect(v.state).toBe("NEEDS ATTENTION");
+        expect(v.sentence).toContain("cannot tell you whether the loop is");
+        expect(v.findings.map((f) => f.code)).toContain("failed-reads");
+        // The historical bug, spelled out: a failed read must never be
+        // reported as the healthy shape it is indistinguishable from.
+        expect(v.state).not.toBe("RUNNING");
+    });
+
+    it("STALLED, not IDLE, when a dead driver holds every remaining claim and the queue reads empty", () => {
+        // Claiming an issue REMOVES it from the unclaimed queue
+        // (`count_unclaimed`, loop-drain.sh), so the queue-depth test alone
+        // would call the worst state of the loop "nothing to do".
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: { ...EMPTY_DRIVER, armed: true, pid: 99 },
+                claims: [verdictClaim(1, "live"), verdictClaim(2, "live")],
+                queueDepth: queue(0),
+            })
+        );
+        expect(v.state).toBe("STALLED");
+        expect(v.findings.map((f) => f.code)).toContain("claims-held");
+    });
+
+    it("reports NO claims-held finding while the driver is alive — ordinary work in progress", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: {
+                    ...EMPTY_DRIVER,
+                    armed: true,
+                    pid: 7,
+                    pidAlive: true,
+                },
+                claims: [verdictClaim(1, "live"), verdictClaim(2, "suspect")],
+                queueDepth: queue(4),
+            })
+        );
+        expect(v.state).toBe("RUNNING");
+        expect(v.findings).toEqual([]);
+    });
+});
+
+describe("loop-status — verdict precedence (#2624)", () => {
+    const deadArmedDriver: DriverState = {
+        ...EMPTY_DRIVER,
+        armed: true,
+        pid: 99,
+    };
+
+    it("NEEDS ATTENTION outranks STALLED — a blocked tree beats a liveness fact", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: deadArmedDriver,
+                claims: [verdictClaim(2582, "orphan")],
+                queueDepth: queue(195),
+            })
+        );
+        expect(v.state).toBe("NEEDS ATTENTION");
+    });
+
+    it("failed reads outrank orphaned claims in the SENTENCE — every other number is suspect", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: deadArmedDriver,
+                claims: [verdictClaim(2582, "orphan")],
+                claimsError: "claimed issues: boom",
+                queueDepth: queue(195),
+            })
+        );
+        expect(v.state).toBe("NEEDS ATTENTION");
+        expect(v.remedy).toContain("gh auth status");
+    });
+
+    it("STALLED outranks RUNNING's absence and IDLE — armed, dead, work outstanding", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: deadArmedDriver,
+                queueDepth: queue(195),
+            })
+        );
+        expect(v.state).toBe("STALLED");
+    });
+
+    it("a stop-file makes a dead driver STOPPED, not STALLED — a deliberate stop is not a stall", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: { ...deadArmedDriver, stopFilePresent: true },
+                claims: [verdictClaim(1, "live")],
+                queueDepth: queue(195),
+            })
+        );
+        expect(v.state).toBe("STOPPED");
+        // The evidence still prints — the verdict picks a state, it does not
+        // suppress what is outstanding.
+        expect(v.findings.map((f) => f.code)).toContain("claims-held");
+    });
+
+    it("STOPPED outranks RUNNING — a live driver under a stop-file is exiting after this pass", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: {
+                    ...EMPTY_DRIVER,
+                    armed: true,
+                    pid: 7,
+                    pidAlive: true,
+                    stopFilePresent: true,
+                },
+                queueDepth: queue(195),
+            })
+        );
+        expect(v.state).toBe("STOPPED");
+    });
+
+    it("RUNNING outranks IDLE — a live driver with an empty queue is not idle", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: {
+                    ...EMPTY_DRIVER,
+                    armed: true,
+                    pid: 7,
+                    pidAlive: true,
+                },
+            })
+        );
+        expect(v.state).toBe("RUNNING");
+    });
+});
+
+/**
+ * The night this module exists for (PRD #2621): the driver died at 00:58
+ * holding five claims and stayed dead for eight hours, and both surfaces
+ * rendered it as `armed · no driver pid · no stop-file`.
+ *
+ * The five claims classify as `live`, not orphaned — each was a pass killed
+ * mid-edit, leaving a local branch that `classifyClaim` gives a 24h rope
+ * (`localOnlyBranchHours`), and twelve hours is inside it. That is precisely
+ * why the outage was invisible: `loop:doctor` said the claims were fine.
+ */
+describe("loop-status — the 2026-08-19 outage as a fixture (#2624)", () => {
+    const status = () =>
+        buildLoopStatus(
+            baseInput({
+                driver: {
+                    armed: true,
+                    pid: 41234,
+                    pidAlive: false,
+                    stopFilePresent: false,
+                    recentPasses: [],
+                },
+                claimedIssues: [
+                    issue(2582, "2026-08-19T00:58:00Z"),
+                    issue(2583, "2026-08-19T00:58:00Z"),
+                    issue(2584, "2026-08-19T00:58:00Z"),
+                    issue(2585, "2026-08-19T00:58:00Z"),
+                    issue(2586, "2026-08-19T00:58:00Z"),
+                ],
+                // Killed mid-edit: local branches, never pushed, no PRs.
+                branches: {
+                    local: [
+                        "feat/issue-2582",
+                        "feat/issue-2583",
+                        "feat/issue-2584",
+                        "feat/issue-2585",
+                        "feat/issue-2586",
+                    ],
+                    remote: [],
+                },
+                prBranches: new Set<string>(),
+                readyQueueIssues: Array.from({ length: 195 }, (_, i) => ({
+                    number: 5000 + i,
+                })),
+                now: new Date("2026-08-19T12:58:00Z").getTime(),
+            })
+        );
+
+    it("classifies the five claims as live — twelve hours is inside classifyClaim's local-branch rope", () => {
+        expect(status().claims.map((c) => c.verdict.state)).toEqual([
+            "live",
+            "live",
+            "live",
+            "live",
+            "live",
+        ]);
+    });
+
+    it("yields STALLED with a claims-held finding — never the grey three-clause subtitle", () => {
+        const v = status().verdict;
+        expect(v.state).toBe("STALLED");
+        expect(v.findings.map((f) => f.code)).toContain("claims-held");
+        expect(
+            v.findings.find((f) => f.code === "claims-held")!.detail
+        ).toContain("5 issue(s) are still claimed");
+        expect(v.sentence).toContain("195");
+        expect(v.remedy).toContain("bun run loop:afk");
+    });
+});
+
+describe("loop-status — renderVerdictLines (#2624)", () => {
+    it("prints the verdict, its sentence and its remedy at the top of loop:status", () => {
+        const status = buildLoopStatus(
+            baseInput({
+                driver: { ...EMPTY_DRIVER, armed: true, pid: 99 },
+                readyQueueIssues: [{ number: 1 }],
+            })
+        );
+        const text = renderLoopStatusText(status);
+        expect(text.startsWith("LOOP: STALLED\n")).toBe(true);
+        expect(text).toContain("The loop is armed but no driver is running");
+        expect(text).toContain("→ `bun run loop:afk` starts a detached driver");
+    });
+
+    it("lists each finding under the band", () => {
+        const lines = renderVerdictLines({
+            state: "NEEDS ATTENTION",
+            sentence: "s",
+            remedy: "r",
+            findings: [{ code: "orphaned-claims", detail: "2 orphaned" }],
+        });
+        expect(lines).toContain("  findings:");
+        expect(lines).toContain("    · orphaned-claims: 2 orphaned");
     });
 });

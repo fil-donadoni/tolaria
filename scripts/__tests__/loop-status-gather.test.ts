@@ -118,6 +118,12 @@ function gathered(
     overrides: Partial<GatheredLoopStatus> = {}
 ): GatheredLoopStatus {
     return {
+        verdict: {
+            state: "IDLE",
+            sentence: "s",
+            remedy: "r",
+            findings: [],
+        },
         driver: EMPTY_DRIVER,
         claims: [],
         claimsError: null,
@@ -161,5 +167,59 @@ describe("loop-status — renderGatheredLoopStatusText", () => {
         );
         expect(text).toContain("Claimed issues: UNAVAILABLE");
         expect(text).toContain("total: 1");
+    });
+});
+
+/**
+ * #2624 — the verdict is derived ONCE, inside `buildLoopStatus`, and reaches
+ * the payload both surfaces read. The failed-read case is the one that must
+ * not regress: `gatherLoopStatus` substitutes empty values for a failed
+ * section so it can still build the rest, and a verdict derived from that
+ * substitution would report the loop as healthy at the exact moment the
+ * screen knows nothing.
+ */
+describe("loop-status — gatherLoopStatus carries the shared verdict (#2624)", () => {
+    it("ships the verdict in the payload the CLI and the dashboard both read", () => {
+        const result = gatherLoopStatus({
+            noPriority: true,
+            claimsRunner: () => "[]",
+            queueRunner: () => "[]",
+        });
+        expect(result.verdict).toBeDefined();
+        expect(typeof result.verdict.sentence).toBe("string");
+        expect(result.verdict.sentence.length).toBeGreaterThan(0);
+        expect(result.verdict.remedy.length).toBeGreaterThan(0);
+    });
+
+    it("reports NEEDS ATTENTION when a read failed — not a verdict derived from the substituted empties", () => {
+        const result = gatherLoopStatus({
+            noPriority: true,
+            claimsRunner: () => {
+                throw new Error("GraphQL: API rate limit already exceeded");
+            },
+            queueRunner: () => "[]",
+        });
+        expect(result.verdict.state).toBe("NEEDS ATTENTION");
+        expect(result.verdict.findings.map((f) => f.code)).toContain(
+            "failed-reads"
+        );
+    });
+
+    it("prints the verdict band FIRST in the CLI text", () => {
+        const text = renderGatheredLoopStatusText(
+            gathered({
+                verdict: {
+                    state: "STALLED",
+                    sentence: "The loop is armed but no driver is running.",
+                    remedy: "`bun run loop:afk` starts a detached driver",
+                    findings: [
+                        { code: "claims-held", detail: "5 issue(s) held" },
+                    ],
+                },
+            })
+        );
+        expect(text.startsWith("LOOP: STALLED\n")).toBe(true);
+        expect(text).toContain("no driver is running");
+        expect(text).toContain("claims-held: 5 issue(s) held");
     });
 });

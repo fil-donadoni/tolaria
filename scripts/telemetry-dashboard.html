@@ -327,6 +327,45 @@
                 font-size: 12px;
             }
 
+            /* Verdict band (#2624) — the loop's health is the LOUDEST thing
+               on this card, not a grey 11px third clause. The wording comes
+               from `deriveLoopVerdict` server-side, so this page and
+               `bun run loop:status` cannot word the same state differently. */
+            .ls-verdict {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: baseline;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+            .ls-verdict-state {
+                font-size: 20px;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                color: var(--text-primary);
+            }
+            .ls-verdict-state.bad {
+                color: var(--series-2);
+            }
+            .ls-verdict-state.warn {
+                color: var(--series-4);
+            }
+            .ls-verdict-state.good {
+                color: var(--series-3);
+            }
+            .ls-verdict-sentence {
+                font-size: 13px;
+                color: var(--text-primary);
+            }
+            .ls-verdict-remedy {
+                font-size: 12px;
+                color: var(--text-secondary);
+            }
+            .ls-finding {
+                font-size: 11px;
+                color: var(--series-4);
+            }
+
             #tip {
                 position: fixed;
                 pointer-events: none;
@@ -1110,6 +1149,13 @@
                 const sub = document.getElementById("loop-status-sub");
                 const body = document.getElementById("loop-status-body");
                 const d = data.driver ?? {};
+
+                // The subtitle keeps the RAW driver facts; the verdict band
+                // below states what they MEAN. Before #2624 this line was the
+                // only health signal on the page, and it rendered the
+                // eight-hour outage of 2026-08-19 as
+                // `armed · no driver pid · no stop-file` — three equal grey
+                // clauses, no cause and no remedy.
                 sub.textContent =
                     `${d.armed ? "armed" : "not armed"} · ` +
                     `${
@@ -1123,6 +1169,43 @@
                     (data.priorityWarning
                         ? ` · ⚠ ${esc(data.priorityWarning)}`
                         : "");
+
+                // Verdict band — `data.verdict` is `deriveLoopVerdict`'s
+                // output (scripts/lib/loop-status.ts), the SAME object
+                // `bun run loop:status` prints. This RENDERS it; it never
+                // re-derives a health statement from `d.armed` /
+                // `d.pidAlive` / `d.stopFilePresent`, which is how the two
+                // surfaces used to be able to disagree.
+                const verdict = data.verdict;
+                // Keys are `LOOP_VERDICT_STATES`; the guard in
+                // `scripts/__tests__/loop-status-dashboard.test.ts` fails if
+                // the engine grows a state this map does not name. The
+                // fallback is `bad`, not `good`: an unrecognised state must
+                // shout, never render as health.
+                const VERDICT_TONE = {
+                    "NEEDS ATTENTION": "bad",
+                    STALLED: "bad",
+                    STOPPED: "warn",
+                    RUNNING: "good",
+                    IDLE: "good",
+                };
+                const verdictTone =
+                    verdict == null
+                        ? ""
+                        : (VERDICT_TONE[verdict.state] ?? "bad");
+                const verdictHtml = verdict
+                    ? `<div class="ls-verdict">` +
+                      `<span class="ls-verdict-state ${verdictTone}">${esc(verdict.state)}</span>` +
+                      `<span class="ls-verdict-sentence">${esc(verdict.sentence)}</span>` +
+                      `<span class="ls-verdict-remedy">→ ${esc(verdict.remedy)}</span>` +
+                      `</div>` +
+                      (verdict.findings ?? [])
+                          .map(
+                              (f) =>
+                                  `<div class="ls-finding">· ${esc(f.code)}: ${esc(f.detail)}</div>`
+                          )
+                          .join("")
+                    : "";
 
                 const passesHtml = (d.recentPasses ?? []).length
                     ? d.recentPasses
@@ -1214,6 +1297,7 @@
                 const receiptsHtml = countsHtml + interestingHtml;
 
                 body.innerHTML =
+                    verdictHtml +
                     `<div class="ls-grid">` +
                     `<div><b>Driver</b>${passesHtml}</div>` +
                     `<div><b>Queue depth</b>${queueHtml}</div>` +
