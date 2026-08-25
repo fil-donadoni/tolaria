@@ -54,24 +54,14 @@ import type {
     LimitedPoolCard,
 } from "./limited/eventTypes";
 import { SCORER_VERSION } from "./limited/scorerVersion";
-
-/** Every fixture label starts with this. The lane's list walks navigate to
- *  `/limited?label=ui-gate/`, which the page filters by PREFIX — so the two
- *  list surfaces measure exactly the fixture rows and nothing else. */
-export const UI_GATE_LABEL_PREFIX = "ui-gate/";
-
-/** Seating still open, viewer at seat 0, no pools. The one event state whose
- *  detail page neither redirects into the Draft Room
- *  (`useDraftRoomRedirect` needs a pending pick) nor auto-opens the deck
- *  builder (`useAutoOpenLimitedBuilder` needs a final pool) — which is what
- *  makes `limited-antechamber` land on the antechamber every single time
- *  instead of once per tab. */
-export const UI_GATE_OPEN_LABEL = "ui-gate/open";
-
-/** Mid-draft: viewer at seat 0 with a live pack AND a non-empty pool, so one
- *  fixture serves `draft-pick`, `draft-pool-stop`, `draft-pool-peek` and
- *  (via `/limited/<id>/build`, which needs only a dealt pool) `limited-build`. */
-export const UI_GATE_DRAFT_LABEL = "ui-gate/draft";
+// The three labels live in a dependency-free leaf module, not here: this file
+// is a registered Convex function module, so a `scripts/`-side importer of
+// these constants would drag gitignored `convex/_generated` into `bun run
+// land`. See that file's header (issue #2822 review round 2).
+import {
+    UI_GATE_DRAFT_LABEL,
+    UI_GATE_OPEN_LABEL,
+} from "./limited/uiGateFixtureLabels";
 
 /** Alpha — a checked-in Booster Config (`convex/limited/registry.ts`) and the
  *  set every pinned card below is printed in. Only ever DISPLAYED here (the

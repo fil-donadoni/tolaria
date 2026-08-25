@@ -31,7 +31,10 @@ import {
 import { type InMemoryRow, makeInMemoryDb } from "./fixtures/inMemoryDb";
 import { validatorJsonOf, validationErrors } from "./fixtures/validatorWalk";
 import { buildEmptySeats, assignFreeSeat } from "../limited/eventLogic";
-import { UI_GATE_LABEL_PREFIX, UI_GATE_OPEN_LABEL } from "../limitedFixtures";
+import {
+    UI_GATE_LABEL_PREFIX,
+    UI_GATE_OPEN_LABEL,
+} from "../limited/uiGateFixtureLabels";
 import type { LimitedRound } from "../limited/eventTypes";
 
 const summaryValidatorJson = validatorJsonOf(limitedEventSummaryValidator);
