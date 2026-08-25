@@ -2097,20 +2097,38 @@ describe("Effect Script Op: gainLife (CR 119.3)", () => {
     });
 });
 
-// New Op (issue #697, Cube CAP Energy) → full per-Op regime: interpreter
-// coverage of the construct combinations it participates in (controller /
-// opponent player refs, accumulation across two Ops in one script), plus a
-// wire-format assertion through projectPublicState (energy is a player scalar
-// that must survive the wire, like poisonCounters). `getEnergy` is a thin
-// declarative skin over `SpellContext.addEnergy` (the dedicated
-// PlayerState.energyCounters scalar). This is the Op's permanent test,
-// inherited free by every later energy card.
-describe("Effect Script Op: getEnergy (CR 122.1)", () => {
+// The player-counter primitive (CR 122.1 — "A counter is a marker placed on an
+// object or player"). Both halves get the full per-Op / new-value-member
+// regime here: the WRITE Op `addPlayerCounter` (issue #697's energy, issue
+// #1969's generalization to every kind) and the READ value member
+// `playerCounters` (issue #1969). Interpreter coverage of the construct
+// combinations they participate in (controller / opponent player refs,
+// accumulation across two Ops in one script, an amount that READS a player
+// counter), plus wire-format assertions through `projectPublicState` — every
+// player counter is a scalar that must survive the wire, like poisonCounters.
+// This is the Op's and the member's permanent test, inherited free by every
+// later energy / experience / poison card.
+describe("Effect Script Op: addPlayerCounter (CR 122.1)", () => {
     it("the selected player gets energy counters, accumulating", () => {
         const id = registerScript("test-op-energy", [
-            { op: "getEnergy", player: "controller", amount: 3 },
-            { op: "getEnergy", player: "controller", amount: 2 },
-            { op: "getEnergy", player: "opponent", amount: 1 },
+            {
+                op: "addPlayerCounter",
+                player: "controller",
+                counter: "energy",
+                amount: 3,
+            },
+            {
+                op: "addPlayerCounter",
+                player: "controller",
+                counter: "energy",
+                amount: 2,
+            },
+            {
+                op: "addPlayerCounter",
+                player: "opponent",
+                counter: "energy",
+                amount: 1,
+            },
         ]);
         const state = makeState();
         pushSpell(state, id, "p1");
@@ -2121,13 +2139,154 @@ describe("Effect Script Op: getEnergy (CR 122.1)", () => {
 
     it("the energy total survives projection (wire format)", () => {
         const id = registerScript("test-op-energy-wire", [
-            { op: "getEnergy", player: "controller", amount: 4 },
+            {
+                op: "addPlayerCounter",
+                player: "controller",
+                counter: "energy",
+                amount: 4,
+            },
         ]);
         const state = makeState();
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p2");
         expect(projected.players[0].energyCounters).toBe(4);
+    });
+
+    it("each counter kind writes its OWN dedicated scalar, never another's", () => {
+        const id = registerScript("test-op-counter-kinds", [
+            {
+                op: "addPlayerCounter",
+                player: "controller",
+                counter: "experience",
+                amount: 2,
+            },
+            {
+                op: "addPlayerCounter",
+                player: "opponent",
+                counter: "poison",
+                amount: 3,
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].experienceCounters).toBe(2);
+        expect(state.players[0].poisonCounters).toBeUndefined();
+        expect(state.players[0].energyCounters).toBeUndefined();
+        expect(state.players[1].poisonCounters).toBe(3);
+        expect(state.players[1].experienceCounters).toBeUndefined();
+    });
+
+    it("an amount of zero or less puts no counters on (CR 122)", () => {
+        const id = registerScript("test-op-counter-zero", [
+            {
+                op: "addPlayerCounter",
+                player: "controller",
+                counter: "experience",
+                amount: 0,
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].experienceCounters).toBeUndefined();
+    });
+});
+
+describe("EffectValue member: playerCounters (CR 122.1)", () => {
+    it("reads the counter total back as an amount, post-increment", () => {
+        // The Otharri shape in miniature: increment, THEN read. CR 122.1 —
+        // the two clauses are sequential inside one resolution, so the read
+        // sees the counter the same script just added.
+        const id = registerScript("test-value-player-counters", [
+            {
+                op: "addPlayerCounter",
+                player: "controller",
+                counter: "experience",
+                amount: 1,
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    playerCounters: {
+                        of: "controller",
+                        type: "experience",
+                    },
+                },
+            },
+        ]);
+        const state = makeState();
+        state.players[0].experienceCounters = 2;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].experienceCounters).toBe(3);
+        // 20 + 3 — the POST-increment total, not the pre-increment 2.
+        expect(state.players[0].life).toBe(23);
+    });
+
+    it("reads each kind from its own scalar, and the OPPONENT's when asked", () => {
+        const id = registerScript("test-value-player-counters-kinds", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    playerCounters: { of: "opponent", type: "poison" },
+                },
+            },
+            {
+                op: "loseLife",
+                player: "controller",
+                amount: {
+                    playerCounters: { of: "controller", type: "energy" },
+                },
+            },
+        ]);
+        const state = makeState();
+        state.players[1].poisonCounters = 4;
+        state.players[0].energyCounters = 3;
+        state.players[0].experienceCounters = 99; // must NOT be read
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // 20 + 4 (opponent poison) - 3 (own energy) = 21.
+        expect(state.players[0].life).toBe(21);
+    });
+
+    it("resolves to zero when the player has no counters of that kind", () => {
+        const id = registerScript("test-value-player-counters-absent", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    playerCounters: {
+                        of: "controller",
+                        type: "experience",
+                    },
+                },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // CR 122 — an amount of 0 is a no-op at every consuming Op.
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("the experience total survives projection (wire format)", () => {
+        const id = registerScript("test-value-player-counters-wire", [
+            {
+                op: "addPlayerCounter",
+                player: "controller",
+                counter: "experience",
+                amount: 4,
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].experienceCounters).toBe(4);
     });
 });
 

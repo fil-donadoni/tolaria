@@ -334,6 +334,43 @@ describe("landscape-compact nameplate never clips the life total (round-3 review
         ).not.toBeNull();
     });
 
+    // CR 122.1 (issue #1969) — the nameplate must actually PASS
+    // `player.experienceCounters` down to the badge. The badge's own unit test
+    // proves it renders a count it is handed; only a test through the
+    // nameplate proves the count reaches it (the "server-side correct, dead in
+    // the UI" class `.claude/rules/gre-development.md` § Frontend wiring
+    // analysis names). Asserted in BOTH nameplate variants, since each passes
+    // its badges separately.
+    it("surfaces a player's experience counters in the full nameplate (CR 122.1)", () => {
+        viewportHolder.mode = "desktop";
+        portrait = false;
+        const { container } = renderSpatial(
+            makePlayer("p2", { name: "Urza", life: 20, experienceCounters: 7 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const plate = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-player="p2"]'
+        )!;
+        expect(
+            plate.querySelector('[aria-label="7 experience counters"]')
+        ).not.toBeNull();
+    });
+
+    it("surfaces a player's experience counters in the COMPACT nameplate row (CR 122.1)", () => {
+        viewportHolder.mode = "landscape-compact";
+        portrait = false;
+        const { container } = renderSpatial(
+            makePlayer("p2", { life: 20, experienceCounters: 2 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const row = findCompactRow(container);
+        expect(
+            row.querySelector('[aria-label="2 experience counters"]')
+        ).not.toBeNull();
+    });
+
     it("portrait-compact: keeps the name span (its box is unconstrained — dropping it would cost nothing back)", () => {
         viewportHolder.mode = "desktop";
         portrait = true;

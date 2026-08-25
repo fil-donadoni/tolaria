@@ -1169,6 +1169,7 @@ type CompactPlayer = {
     qualifyingActionLastTurn?: boolean;
     poisonCounters?: number;
     energyCounters?: number;
+    experienceCounters?: number;
     permanentYouControlledLeftThisTurn?: boolean;
     /** Companion slot (CR 702.139, ADR 0064). `instance` is a fat
      *  `CardInstanceState` outside every real zone array, so it needs the
@@ -1240,6 +1241,18 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     // Energy counters (CR 122.1) — persisted so a player's energy pool survives
     // a save/load round-trip (issue #697).
     if (player.energyCounters) out.energyCounters = player.energyCounters;
+    // Experience counters (CR 122.1) — persisted so a player's experience total
+    // survives a save/load round-trip (issue #1969). Load-bearing beyond the
+    // usual: no rule ever removes an experience counter, and CR 122.2's
+    // zone-change loss is OBJECT-scoped, so this total is meant to persist for
+    // the whole GAME — a drop here silently resets Otharri's scaling to zero at
+    // every save point. `PlayerState` has no exhaustiveness guard (the
+    // `_cardKeysExhaustive` one at the top of this file covers
+    // `CardInstanceState` only), so nothing but the round-trip test in
+    // `serialize.test.ts` catches an omission.
+    if (player.experienceCounters) {
+        out.experienceCounters = player.experienceCounters;
+    }
     // Revolt (CR 702.RV) — persisted so the flag survives a save/load round-trip.
     if (player.permanentYouControlledLeftThisTurn) {
         out.permanentYouControlledLeftThisTurn = true;
@@ -1321,6 +1334,9 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
     }
     if (player.poisonCounters) result.poisonCounters = player.poisonCounters;
     if (player.energyCounters) result.energyCounters = player.energyCounters;
+    if (player.experienceCounters) {
+        result.experienceCounters = player.experienceCounters;
+    }
     if (player.permanentYouControlledLeftThisTurn) {
         result.permanentYouControlledLeftThisTurn = true;
     }

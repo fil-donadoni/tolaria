@@ -13,7 +13,7 @@ import type { CardDefinition } from "../../types";
 // that token unless you pay an amount of {E} equal to its mana value."
 //
 // Was a tracked stop-and-issue stub (#1195) blocked on three capabilities
-// beyond the Energy resource (#697's `getEnergy`/`payEnergy`), all closed by
+// beyond the Energy resource (#697's `addPlayerCounter`/`payEnergy`), all closed by
 // this issue:
 //
 //   (1) TAPPED-AND-ATTACKING token copy (CR 508.4) — `TokenSpec` gains two
@@ -143,7 +143,12 @@ export const satyaAetherfluxGenius: CardDefinition = {
                     bind: "$copy",
                 },
                 // Unconditional — see the file-header note.
-                { op: "getEnergy", player: "controller", amount: 2 },
+                {
+                    op: "addPlayerCounter",
+                    player: "controller",
+                    counter: "energy",
+                    amount: 2,
+                },
                 {
                     op: "if",
                     // "up to one": nothing chosen, or the source left the

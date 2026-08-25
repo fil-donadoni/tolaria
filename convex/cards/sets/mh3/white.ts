@@ -44,7 +44,12 @@ export const guideOfSouls: CardDefinition = {
             filter: { types: "Creature" },
             effects: [
                 { op: "gainLife", player: "controller", amount: 1 },
-                { op: "getEnergy", player: "controller", amount: 1 },
+                {
+                    op: "addPlayerCounter",
+                    player: "controller",
+                    counter: "energy",
+                    amount: 1,
+                },
             ],
         }),
         {

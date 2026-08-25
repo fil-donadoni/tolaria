@@ -28,7 +28,7 @@ import type {
     EffectChoiceKind,
     TokenTriggeredEventKind,
 } from "../../cards/types";
-import { PERMANENT_TYPES } from "../../cards/types";
+import { PERMANENT_TYPES, PLAYER_COUNTER_KINDS } from "../../cards/types";
 import {
     getEventFieldRow,
     isRegisteredEffectOp,
@@ -1209,6 +1209,37 @@ function isLifeGainedThisTurnValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** `{ playerCounters: { of, type } }` — SHAPE of the player-counter read
+ *  (CR 122.1, issue #1969, fourteenth EffectValue member). `of` is a PLAYER
+ *  selector (`EffectPlayerRef`) — like `domain`'s / `lifeGainedThisTurn`'s and
+ *  UNLIKE `counters`/`manaValue`'s object `of`. `type` is a CLOSED vocabulary
+ *  (`PLAYER_COUNTER_KINDS`), not the object-counter `counters.type`'s free
+ *  string: an object can carry any counter kind, whereas a player carries only
+ *  the kinds the engine gives a dedicated `PlayerState` scalar (ADR 0032), so
+ *  a typo'd kind must be a validation error rather than a silent zero.
+ *  Family-checked as a PLAYER position by the ordered ref pass (the
+ *  `keyHint === "playerCounters"` case in `collectRefUses`, needed for the same
+ *  `of`-key collision reason `domain` documents). */
+function isPlayerCountersValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "playerCounters") return false;
+    const spec = (value as { playerCounters: unknown }).playerCounters;
+    if (typeof spec !== "object" || spec === null) return false;
+    const t = spec as Record<string, unknown>;
+    if (!Object.keys(t).every((k) => k === "of" || k === "type")) return false;
+    if (!isPlayerCounterKind(t.type)) return false;
+    return isPlayerRef(t.of);
+}
+
+/** A member of the closed player-counter vocabulary (CR 122.1). */
+function isPlayerCounterKind(value: unknown): boolean {
+    return (
+        typeof value === "string" &&
+        (PLAYER_COUNTER_KINDS as readonly string[]).includes(value)
+    );
+}
+
 /** One operand of a `difference` (issue #2006) — a TERMINAL only: a
  *  positive-int literal or a `count`. Deliberately NOT `isEffectValue`: making
  *  the operand check non-recursive is what keeps the value grammar depth-1 and
@@ -1327,6 +1358,7 @@ function isEffectValue(value: unknown): boolean {
         isEscapedValue(value) ||
         isAbilityResolutionCountValue(value) ||
         isLifeGainedThisTurnValue(value) ||
+        isPlayerCountersValue(value) ||
         isDifferenceValue(value) ||
         isScaledValue(value) ||
         isDivideValue(value)
@@ -2867,7 +2899,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // $source and routes to that card's own owner's hand.
     randomExileToHand: { required: {} },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
-    getEnergy: { required: { player: isPlayerRef, amount: isEffectValue } },
+    addPlayerCounter: {
+        required: {
+            player: isPlayerRef,
+            counter: isPlayerCounterKind,
+            amount: isEffectValue,
+        },
+    },
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time Warp).
     extraTurn: { required: { player: isPlayerRef } },
@@ -4731,6 +4769,21 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         keyHint === "lifeGainedThisTurn" &&
         keys.length === 1 &&
         keys[0] === "of"
+    ) {
+        collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // playerCounters — { playerCounters: { of, type } } (CR 122.1, issue
+    // #1969): `of` is a PLAYER position, same reasoning as `domain`'s. `type`
+    // is a plain closed-vocabulary literal with no ref grammar (the generic
+    // fallback would recurse into it and immediately no-op on a bare string —
+    // this early return exists only to route `of` correctly, so a ref under it
+    // isn't mis-tagged "object" by the `of`-key convention the OBJECT-scoped
+    // `counters`/`manaValue` established).
+    if (
+        keyHint === "playerCounters" &&
+        keys.includes("of") &&
+        keys.every((k) => k === "of" || k === "type")
     ) {
         collectRefUses(obj.of, "player", out);
         return;

@@ -149,6 +149,9 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             markLastDrawn: true,
             rngSeed: 7,
             poison: { me: 4, opp: 9 },
+            // CR 122.1 (issue #1969) — the scaling seed for a "for each
+            // experience counter you have" card.
+            experience: { me: 2 },
         };
         expect(normalizeScenarioSpec(raw)).toEqual({
             cards: [
@@ -168,6 +171,7 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             markLastDrawn: true,
             rngSeed: 7,
             poison: { me: 4, opp: 9 },
+            experience: { me: 2 },
         });
     });
 

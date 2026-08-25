@@ -11,6 +11,7 @@ import CornerFiligreeFrame from "~/components/ui/corner-filigree-frame";
 import AnimatedLifeTotal from "./animated-life-total";
 import PlayerPoisonCounters from "./player-poison-counters";
 import PlayerEnergyCounters from "./player-energy-counters";
+import PlayerExperienceCounters from "./player-experience-counters";
 
 type PlayerNameplateProps = {
     player: Player;
@@ -327,6 +328,10 @@ export default function PlayerNameplate({
                         count={player.energyCounters}
                         compact
                     />
+                    <PlayerExperienceCounters
+                        count={player.experienceCounters}
+                        compact
+                    />
                 </div>
             ) : (
                 <>
@@ -336,6 +341,9 @@ export default function PlayerNameplate({
                     </div>
                     <PlayerPoisonCounters count={player.poisonCounters} />
                     <PlayerEnergyCounters count={player.energyCounters} />
+                    <PlayerExperienceCounters
+                        count={player.experienceCounters}
+                    />
                 </>
             )}
             {/* The Monarch designation moved off the nameplate to a marker-card

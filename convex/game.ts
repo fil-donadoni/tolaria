@@ -15996,6 +15996,16 @@ export const debugSetupScenario = mutation({
                 opp: v.optional(v.number()),
             })
         ),
+        /** Seed experience counters (CR 122.1, issue #1969) on a player. No
+         *  rule removes them and no SBA reads them; they exist for the cards
+         *  that count them (Otharri, Suns' Glory), so seeding them is how a
+         *  scenario starts at a SCALED state. Absent / zero leaves none. */
+        experience: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
         /** CR 702.139c / ADR 0064 (issue #1392) — directly declare a
          *  companion into `owner`'s slot, bypassing the normal sideboard/
          *  maindeck auto-declare (`selectCompanion`, game init) that a

@@ -39,6 +39,7 @@ import {
     type TargetRequirement,
     type TargetSelection,
     type TextChange,
+    type PlayerCounterKind,
     type TokenSpec,
     type TriggerFizzledEvent,
     countDomain,
@@ -166,6 +167,7 @@ import {
     applyLandTypeReplacement,
     composeMaterializedSubtypes,
 } from "./constants";
+import { PLAYER_COUNTER_FIELD, readPlayerCounters } from "./playerCounters";
 import { revertBestow } from "./bestow";
 import {
     STATIC_EFFECT_CTX,
@@ -1747,6 +1749,22 @@ export type PlayerState = {
      *  rather than an entry in the object `counters[type]` map, mirroring
      *  `poisonCounters` (ADR 0032). */
     energyCounters?: number;
+    /** Experience counters on this player (CR 122.1 — "A counter is a marker
+     *  placed on an object or player"). Absent means zero; no cap and no loss
+     *  condition. Experience counters have NO rule of their own in the CR
+     *  (`bun run cr grep "experience counter"` matches nothing) — they are an
+     *  ordinary player counter whose meaning is entirely the card text that
+     *  reads them (Otharri, Suns' Glory: "you get an experience counter …
+     *  create a token for each experience counter you have").
+     *
+     *  They are never removed by any rule: CR 122.2 ("Counters on an object are
+     *  not retained if that object moves from one zone to another") is scoped
+     *  to OBJECTS, and a player never changes zones, so this total survives the
+     *  granting permanent dying, being exiled or leaving the battlefield — that
+     *  persistence is the whole engine of the cards that use it. Kept as a
+     *  dedicated scalar rather than an entry in the object `counters[type]`
+     *  map, mirroring `poisonCounters`/`energyCounters` (ADR 0032). */
+    experienceCounters?: number;
     /** Revolt (CR 702.RV): true when a permanent this player controlled left
      *  the battlefield this turn. Set by `removePermanentTo` whenever a
      *  permanent leaves the battlefield (destroy / exile / sacrifice / bounce).
@@ -13744,22 +13762,35 @@ export function buildSpellContext(
             // (Oath of Lim-Dûl) fire off this primitive too.
             loseLifeEmitting(state, playerId, amount);
         },
-        addPoisonCounters(playerId: string, n: number) {
+        // CR 122.1 — "A counter is a marker placed on an object or player".
+        // THE player-counter write primitive: one body for every kind, keyed
+        // through `PLAYER_COUNTER_FIELD` onto the kind's dedicated scalar (ADR
+        // 0032). No cap on any kind — poison's CR 704.5c "ten or more loses
+        // the game" is an SBA (`checkGameOverSBA`), never a clamp here.
+        addPlayerCounters(
+            playerId: string,
+            kind: PlayerCounterKind,
+            n: number
+        ) {
             if (n <= 0) return;
-            // CR 122 — counters on a player. CR 704.5c (lose at ten or more) is
-            // enforced by the SBA, not here, so the field has no cap.
             const player = getPlayer(state, playerId);
-            player.poisonCounters = (player.poisonCounters ?? 0) + n;
+            const field = PLAYER_COUNTER_FIELD[kind];
+            player[field] = (player[field] ?? 0) + n;
+        },
+        // CR 122.1 — THE player-counter read primitive (0 when absent).
+        getPlayerCounters(playerId: string, kind: PlayerCounterKind): number {
+            return readPlayerCounters(getPlayer(state, playerId), kind);
+        },
+        addPoisonCounters(playerId: string, n: number) {
+            // CR 122.1f — poison-specific spelling; delegates, no own logic.
+            ctx.addPlayerCounters(playerId, "poison", n);
         },
         addEnergy(playerId: string, n: number) {
-            if (n <= 0) return;
-            // CR 122.1 — "you get {E}": add energy counters to the player. No
-            // cap and no loss SBA (energy, unlike poison, is a pure resource).
-            const player = getPlayer(state, playerId);
-            player.energyCounters = (player.energyCounters ?? 0) + n;
+            // CR 122.1 — "you get {E}"; delegates, no own logic.
+            ctx.addPlayerCounters(playerId, "energy", n);
         },
         getEnergy(playerId: string): number {
-            return getPlayer(state, playerId).energyCounters ?? 0;
+            return ctx.getPlayerCounters(playerId, "energy");
         },
         payEnergy(playerId: string, n: number): boolean {
             // CR 122.1 / 118.12 — "pay {E}": spend energy counters, all-or-

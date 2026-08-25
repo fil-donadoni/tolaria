@@ -11,7 +11,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 //
 // Energy resource (CR 122.1) — the Cube CAP Energy mechanic (issue #697). The
 // GENERATION half ("you get {E}{E}{E}") is `SpellContext.addEnergy`, the same
-// primitive the `getEnergy` Effect Script Op skins; the SPENDING half ("pay any
+// primitive the `addPlayerCounter` Effect Script Op skins; the SPENDING half ("pay any
 // amount of {E}") is `SpellContext.payEnergy`.
 //
 // NOT DSL-migratable (ADR 0045): `resolveSteps` (NOT DSL) because "pay ANY

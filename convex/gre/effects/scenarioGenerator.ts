@@ -40,6 +40,7 @@ import type {
 import type { CardInstanceState, GameState } from "../state";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { readPlayerCounters } from "../playerCounters";
 import { registerTokenDefinition } from "../../cards";
 import {
     makeInstance,
@@ -324,6 +325,16 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a player's life gained this turn — the canned generator does not gain life before resolving`;
         return;
     }
+    // playerCounters (CR 122.1, issue #1969): the amount reads how many
+    // counters of one kind a PLAYER has. The canned generator builds a fresh
+    // board and never seeds poison / energy / experience on either player, so
+    // the value is always 0 there and no declared outcome can be sized off it;
+    // skip-with-reason — the value member's own interpreter test is the
+    // behavioural guarantor (new-construct regime).
+    if ("playerCounters" in value) {
+        req.skip ??= `amount reads a player's counters of one kind — the canned generator does not seed player counters`;
+        return;
+    }
     // difference (issue #2006): `from` minus `minus`. The filler seeds ONE
     // count set at COUNT_SET_SIZE and the predictor reads that fixed size back,
     // so a TWO-operand amount has no faithful prediction here — and a hand
@@ -483,7 +494,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             return;
         case "gainLife":
         case "loseLife":
-        case "getEnergy":
+        case "addPlayerCounter":
             analysePlayer(op.player, req, false);
             analyseValue(op.amount, req);
             return;
@@ -1474,6 +1485,7 @@ function predictAmount(value: EffectValue): number | null {
     if ("domain" in value) return null; // skipped earlier — defensive
     if ("devotion" in value) return null; // skipped earlier — defensive
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
+    if ("playerCounters" in value) return null; // skipped earlier — defensive
     if ("difference" in value) return null; // skipped earlier — defensive
     if ("scaled" in value) return null; // skipped earlier — defensive
     if ("divide" in value) return null; // skipped earlier — defensive
@@ -1559,20 +1571,26 @@ const OP_ASSERTORS: Record<string, Assertor> = {
             },
         };
     },
-    getEnergy(rawOp, _scenario, pre) {
-        const op = rawOp as Extract<EffectOp, { op: "getEnergy" }>;
+    // CR 122.1 — counters on a PLAYER. Reads the kind's dedicated scalar
+    // through `PLAYER_COUNTER_FIELD`, so a new kind is asserted without a new
+    // assertor (issue #1969).
+    addPlayerCounter(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "addPlayerCounter" }>;
         const amount = predictAmount(op.amount);
         if (amount === null) return null;
         const pid = assertionPlayerId(op.player);
-        const before = findPlayer(pre, pid).energyCounters ?? 0;
+        const before = readPlayerCounters(findPlayer(pre, pid), op.counter);
         const expected = before + amount;
         return {
-            label: `getEnergy ${amount} for player ${pid} (energy ${before}→${expected})`,
+            label: `addPlayerCounter ${amount} ${op.counter} for player ${pid} (${before}→${expected})`,
             check: (post) => {
-                const energy = findPlayer(post, pid).energyCounters ?? 0;
+                const have = readPlayerCounters(
+                    findPlayer(post, pid),
+                    op.counter
+                );
                 return {
-                    ok: energy === expected,
-                    detail: `energy ${energy}, expected ${expected}`,
+                    ok: have === expected,
+                    detail: `${op.counter} ${have}, expected ${expected}`,
                 };
             },
         };
