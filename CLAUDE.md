@@ -183,7 +183,13 @@ layout, responsive rule, overlay, scroll container — at five viewports, with a
 measured receipt, because happy-dom has no layout and cannot see a collapsed
 or occluded element. Run **`bun run check:ui`** (#2580): it drives headless
 Chrome through the runbook surfaces, probes + axe, and fails on
-`scripts/ui-gate/budgets.json`; its output IS the receipt.
+`scripts/ui-gate/budgets.json`; its output IS the receipt — paste it
+**byte-exact, including the `RECEIPT`/`DIAGNOSTIC` banner and the coverage
+line** (issue #2760): `bun run land` re-derives them from the pasted rows and
+refuses to merge a `skin`-lane PR whose paste does not match
+(`scripts/ui-gate/verify-receipt.ts`; check it yourself first with
+`bun run verify:ui-receipt <PR#>`). Reflowed padding or a summarized row fails
+the same as a deleted one.
 Engine/Convex/script work owes nothing here. Rule:
 `.claude/rules/chrome-debug.md` (auto-loaded); procedure and click sequences:
 `docs/guides/browser-verification.md`, `docs/guides/ui-runbooks.md`.

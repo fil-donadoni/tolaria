@@ -97,6 +97,35 @@ export function computeSkinReceiptInvalid(lane: Lane, prBody: string): boolean {
     return lane === "skin" && !verifyReceiptText(prBody).ok;
 }
 
+/**
+ * `classifyLane(changedPaths("origin/main", cwd, true))` plus
+ * `computeSkinReceiptInvalid`, tolerating a failure in the diff computation
+ * (issue #2760 review, finding 6). `changedPaths` shells out to
+ * `git diff … origin/main...HEAD` (`check-lane.ts`'s `git()` throws on
+ * non-zero status), and this call ran BEFORE any of `refusalReason`'s
+ * refusal checks — so a checkout whose `origin/main` was never fetched
+ * crashed `land` with an unhandled stack trace instead of the existing
+ * "refusing — …" message, on EVERY lane, including an engine/full landing
+ * this feature owes nothing to.
+ *
+ * On failure: warn and treat the diff as not-skin. `land` is not blind to a
+ * real skin diff this way — a caller actually landing one still needs a
+ * fetched `origin/main` for the rebase step a few lines later in `main()`,
+ * so a genuine problem resurfaces there (loudly, inside the gate) instead of
+ * as a bare stack trace before any refusal check ran.
+ */
+export function safeSkinReceiptInvalid(cwd: string, prBody: string): boolean {
+    try {
+        const lane = classifyLane(changedPaths("origin/main", cwd, true)).lane;
+        return computeSkinReceiptInvalid(lane, prBody);
+    } catch (err) {
+        console.warn(
+            `land: could not classify the landing diff to check the check:ui receipt (${(err as Error).message}) — proceeding as if it is not a skin diff`
+        );
+        return false;
+    }
+}
+
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
 
@@ -395,9 +424,10 @@ function main(): void {
     // — `check:ui` is the whole enforcement for a diff that can change what
     // a user sees, and does nothing for engine/full diffs. Computed even
     // when the PR wasn't found: `refusalReason` checks `prState` first and
-    // short-circuits before this ever matters.
-    const lane = classifyLane(changedPaths("origin/main", cwd, true)).lane;
-    const skinReceiptInvalid = computeSkinReceiptInvalid(lane, prBody);
+    // short-circuits before this ever matters. `safeSkinReceiptInvalid`
+    // tolerates a diff-classification failure (finding 6) instead of
+    // crashing `land` before any refusal check runs.
+    const skinReceiptInvalid = safeSkinReceiptInvalid(cwd, prBody);
 
     const reason = refusalReason({
         branch,

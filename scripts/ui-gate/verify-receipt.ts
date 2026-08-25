@@ -63,6 +63,10 @@ import {
     receiptKindLine,
     receiptKindOf,
     formatResultRow,
+    loadBudgets,
+    BUDGET_KEYS,
+    type BudgetFile,
+    type BudgetKey,
     type Evaluation,
     type ResultRow,
     type Verdict,
@@ -241,11 +245,36 @@ export function extractReceiptRegion(
     };
 }
 
-/** A surface counts as measured (for the recomputed coverage line) iff it
- *  has at least one row and every row for it is PASS — the same predicate
- *  `evaluateRun`'s `surfaceComplete` flag encodes, read back off rows alone
- *  since that is all a pasted receipt gives us. */
-function countMeasuredSurfaces(rows: readonly ResultRow[]): number {
+/**
+ * A surface counts as measured iff EVERY viewport `budgets.json` budgets for
+ * it appears among its rows, all as PASS — this is `evaluateRun`'s real
+ * `surfaceComplete` (issue #2760 review, finding 2), not the "every row for
+ * this surface happens to be PASS" the prior version checked.
+ *
+ * Those two are NOT equivalent, and the gap is `budgets.ts:406-419`:
+ * `evaluateRun` can push an extra "measured but no budget for this viewport"
+ * UNWALKED row for a surface WITHOUT ever clearing `surfaceComplete` — that
+ * row is about a viewport `budgets.json` does not cover, which is simply not
+ * part of what "this surface is complete" means. The prior predicate treated
+ * that row as disqualifying, so an honest, byte-perfect, unmodified paste of
+ * exactly that shape was rejected (banner AND coverage mismatch) even though
+ * it is the correct, unmodified output of the real evaluator — reachable the
+ * moment a viewport is added to `viewports.ts` ahead of a `budgets.json`
+ * update, or a surface ships before its first `--record` run.
+ *
+ * Grouping rows by surface and requiring every BUDGETED viewport present (no
+ * more, no fewer) as PASS also gives the row-census check
+ * (`rowCensusProblems`) a second, independent line of defense: a paste that
+ * drops a budgeted viewport's row now undercounts here too, so the banner
+ * and coverage lines a forger recomputed from the SAME (already-fixed) logic
+ * would themselves go inconsistent unless the forger also hand-edits this
+ * count — which `rowCensusProblems` catches regardless of what the banner or
+ * coverage line claims.
+ */
+export function countMeasuredSurfaces(
+    rows: readonly ResultRow[],
+    budgets: BudgetFile
+): number {
     const bySurface = new Map<string, ResultRow[]>();
     for (const row of rows) {
         const list = bySurface.get(row.surface) ?? [];
@@ -253,23 +282,162 @@ function countMeasuredSurfaces(rows: readonly ResultRow[]): number {
         bySurface.set(row.surface, list);
     }
     let count = 0;
-    for (const forSurface of bySurface.values()) {
-        if (forSurface.every((r) => r.verdict === "PASS")) count++;
+    for (const [surface, forSurface] of bySurface) {
+        const budget = budgets.surfaces[surface];
+        if (!budget || budget.status !== "budgeted") {
+            // No budget to check completeness against (undeclared, or
+            // declared unwalked) — falls back to the old all-PASS predicate,
+            // which is harmless here since neither shape is ever "complete".
+            if (forSurface.every((r) => r.verdict === "PASS")) count++;
+            continue;
+        }
+        const budgetedViewports = new Set(Object.keys(budget.viewports ?? {}));
+        if (budgetedViewports.size === 0) continue;
+
+        const budgetedRows = forSurface.filter(
+            (r) => r.viewport !== null && budgetedViewports.has(r.viewport)
+        );
+        const presentViewports = new Set(budgetedRows.map((r) => r.viewport));
+        const complete =
+            presentViewports.size === budgetedViewports.size &&
+            budgetedRows.every((r) => r.verdict === "PASS");
+        if (complete) count++;
     }
     return count;
 }
 
 /**
- * The pure verification: given the PR body text and the real
- * surface/viewport vocabularies (defaulted to the real ones; overridable so
- * tests never depend on the live catalogue), decide whether the pasted
- * receipt matches what the real renderer would print for the rows it
- * claims.
+ * The row-census check (issue #2760 review, finding 1 — the HIGH one).
+ * Nothing previously anchored a pasted receipt's rows to `budgets.json`, so
+ * only the SURFACE axis was ever checked (via `receiptKindOf`'s
+ * RECEIPT/DIAGNOSTIC label, which compares surface ids only): a paste could
+ * delete every viewport row for a surface but ONE and keep the surface
+ * itself represented, and nothing caught the missing viewport axis — not
+ * even a genuine FAIL row's disappearance, since a forger who also
+ * hand-edits the banner/coverage counts to match the shrunken row set makes
+ * those byte-diffs agree with each other by construction (they are both
+ * derived FROM the same rows). This check does not care what the banner or
+ * coverage line say: it walks `budgets.json` directly and requires a row for
+ * every (surface, budgeted-viewport) pair among the surfaces the paste
+ * actually claims to cover.
+ *
+ * Scoped to surfaces present in the paste's own rows — a surface missing
+ * ENTIRELY is already the `receiptKindOf`/banner check's job (it shows up as
+ * a DIAGNOSTIC banner disagreeing with a RECEIPT paste); this only closes
+ * the gap one level down, a surface PARTIALLY present.
+ */
+export function rowCensusProblems(
+    rows: readonly ResultRow[],
+    budgets: BudgetFile
+): string[] {
+    const problems: string[] = [];
+    const bySurface = new Map<string, ResultRow[]>();
+    for (const row of rows) {
+        const list = bySurface.get(row.surface) ?? [];
+        list.push(row);
+        bySurface.set(row.surface, list);
+    }
+
+    for (const [surface, surfaceRows] of bySurface) {
+        const budget = budgets.surfaces[surface];
+        if (!budget) continue; // undeclared entirely — a different failure shape, not this check's job
+
+        const seenViewports = new Set(surfaceRows.map((r) => r.viewport));
+
+        if (budget.status === "unwalked") {
+            if (!seenViewports.has(null)) {
+                problems.push(
+                    `row census: "${surface}" is declared unwalked in budgets.json, but the paste carries no whole-surface row for it`
+                );
+            }
+            continue;
+        }
+
+        const budgetedViewports = Object.keys(budget.viewports ?? {});
+        if (budgetedViewports.length === 0) {
+            if (!seenViewports.has(null)) {
+                problems.push(
+                    `row census: "${surface}" is budgeted with no viewport ceilings, so the paste should carry a single whole-surface row for it`
+                );
+            }
+            continue;
+        }
+
+        const missing = budgetedViewports.filter(
+            (vp) => !seenViewports.has(vp)
+        );
+        if (missing.length > 0) {
+            problems.push(
+                `row census: "${surface}" is missing a verdict row for budgeted viewport(s) ${missing.join(", ")} — budgets.json requires ${budgetedViewports.length} row(s) for this surface, the paste has ${surfaceRows.length}`
+            );
+        }
+    }
+
+    return problems;
+}
+
+/** Matches one `<key> <actual> > <ceiling>` token inside a FAIL row's
+ *  "over budget: …" suffix (see `evaluateRun`'s `over.push` in `budgets.ts`). */
+const OVER_BUDGET_TOKEN = /([A-Za-z]+) (-?\d+(?:\.\d+)?) > (-?\d+(?:\.\d+)?)/g;
+
+/**
+ * Cross-checks the CEILING half of a FAIL row's "over budget: key val >
+ * ceiling" text against the real ceiling in `budgets.json` (issue #2760
+ * review, finding 1's closing sentence — "FAIL-row ceilings in detail text
+ * are likewise never compared to budgets.json"). The per-row byte-diff in
+ * `verifyReceiptText` only proves a row round-trips through
+ * `parseResultRowLine`/`formatResultRow` unchanged; it says nothing about
+ * whether the NUMBERS inside `detail` are honest, because `detail` is opaque
+ * free text to that check. This walks the finite `BUDGET_KEYS` vocabulary
+ * over the "over budget:" suffix and compares each claimed ceiling to the
+ * real one.
+ */
+export function failCeilingProblems(
+    rows: readonly ResultRow[],
+    budgets: BudgetFile
+): string[] {
+    const problems: string[] = [];
+    const keySet = new Set<string>(BUDGET_KEYS);
+    for (const row of rows) {
+        if (row.verdict !== "FAIL" || row.viewport === null) continue;
+        const budget = budgets.surfaces[row.surface];
+        const ceilings =
+            budget?.status === "budgeted"
+                ? budget.viewports?.[row.viewport]
+                : undefined;
+        if (!ceilings) continue; // no ceiling to check against — the census check above already flags this shape
+
+        const overIdx = row.detail.indexOf("over budget:");
+        if (overIdx === -1) continue; // shape mismatch is the row byte-diff's job, not this one's
+        const overText = row.detail.slice(overIdx);
+        for (const m of overText.matchAll(OVER_BUDGET_TOKEN)) {
+            const [, key, , claimedCeiling] = m;
+            if (!keySet.has(key)) continue;
+            const real = ceilings[key as BudgetKey];
+            if (real !== undefined && String(real) !== claimedCeiling) {
+                problems.push(
+                    `row census: "${row.surface}" @ ${row.viewport} claims a ${key} ceiling of ${claimedCeiling}, but budgets.json says ${real}`
+                );
+            }
+        }
+    }
+    return problems;
+}
+
+/**
+ * The pure verification: given the PR body text, the real surface/viewport
+ * vocabularies and the real budget file (all defaulted to the real ones;
+ * overridable so tests never depend on the live catalogue), decide whether
+ * the pasted receipt matches what the real renderer would print for the rows
+ * it claims, AND that the rows it claims are the complete census
+ * `budgets.json` requires (issue #2760 review, finding 1) — the two checks
+ * this file existed for before this fix only ever verified the FIRST half.
  */
 export function verifyReceiptText(
     body: string,
     definedSurfaceIds: readonly string[] = SURFACE_IDS,
-    definedViewportIds: readonly string[] = VIEWPORT_IDS
+    definedViewportIds: readonly string[] = VIEWPORT_IDS,
+    budgets: BudgetFile = loadBudgets()
 ): ReceiptVerification {
     const { region, problems } = extractReceiptRegion(
         body,
@@ -287,7 +455,7 @@ export function verifyReceiptText(
     const ev: Evaluation = {
         rows: region.rows,
         failures: [],
-        measuredSurfaces: countMeasuredSurfaces(region.rows),
+        measuredSurfaces: countMeasuredSurfaces(region.rows, budgets),
         declaredUnwalked: region.rows.filter(
             (r) =>
                 r.verdict === "UNWALKED" &&
@@ -323,6 +491,14 @@ export function verifyReceiptText(
             );
         }
     });
+
+    // The row-census + FAIL-ceiling checks (finding 1) — independent of the
+    // banner/coverage/per-row checks above: they compare the pasted rows
+    // directly against `budgets.json`, so a forger who recomputes a
+    // self-consistent banner/coverage FROM a trimmed row set cannot satisfy
+    // them by construction.
+    mismatches.push(...rowCensusProblems(region.rows, budgets));
+    mismatches.push(...failCeilingProblems(region.rows, budgets));
 
     return { ok: mismatches.length === 0, problems: mismatches };
 }

@@ -199,10 +199,18 @@ lane runs alongside the probe (`axeSerious` / `axeCritical` are budgeted).
 
 ## What goes in the PR
 
-The `check:ui` table IS the receipt — paste the surface × viewport lines, the
-coverage line and the screenshot directory:
+The `check:ui` table IS the receipt — paste it **byte-exact**: the
+`RECEIPT`/`DIAGNOSTIC` banner line, every surface × viewport row, the coverage
+line and the screenshot directory. This is not a style preference — `bun run
+land` re-derives the banner, the coverage line and every row from the pasted
+text and refuses to merge a `skin`-lane PR whose paste does not match
+(`scripts/ui-gate/verify-receipt.ts`, issue #2760; check it yourself first
+with `bun run verify:ui-receipt <PR#>`). A row whose padding was reflowed to
+single spaces, a hand-summarized row, or a missing banner/coverage line all
+fail the same way a deleted row does:
 
 ```
+RECEIPT — full lane run, 8 surface(s) in scope (5 measured, 3 declared unwalked)
 PASS     lobby           1440x900x2   cards n39 zero0 occ1 stranded0 | ctrls … | starved2 | small24 | axe s1/c0
 PASS     lobby           390x844x3    …
 PASS     lobby           844x390x3    …
@@ -212,6 +220,13 @@ coverage: 5/8 surfaces measured, 3 declared unwalked
 console errors: none
 screenshots: .claude/telemetry/ui-gate/
 ```
+
+Paste only a `RECEIPT`-labelled run — a `DIAGNOSTIC` (a `--surface=` subset)
+is for your own fast local iteration, never the PR body. The one region you
+may shorten is the "known debt carried by the budgets" trailer at the bottom
+(pure `budgets.json` prose), and only behind the literal marker
+`verify-receipt.ts` defines — never a verdict row, a ceiling, the coverage
+line or the banner itself.
 
 For a surface the lane does not walk, the hand-driven equivalent — same five
 viewports, same probe:

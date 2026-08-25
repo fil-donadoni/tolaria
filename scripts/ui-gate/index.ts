@@ -62,6 +62,7 @@ import {
     coverageLine,
     evaluateRun,
     formatResultRow,
+    loadBudgets as loadBudgetsFromDisk,
     metricsOf,
     planRecord,
     receiptKindLine,
@@ -374,11 +375,17 @@ function parseArgs(argv: string[]): Options {
     return opts;
 }
 
+// The actual load moved to `budgets.ts` (issue #2760 review, finding 1) so
+// `verify-receipt.ts` can read the same file without importing this module —
+// which has no `import.meta.main` guard and boots the whole CLI (Vite,
+// Playwright) on import. Wrapped here only to keep this CLI's existing
+// `FatalError` presentation (a friendly one-liner, not a raw stack trace).
 function loadBudgets(): BudgetFile {
-    if (!fs.existsSync(BUDGETS_PATH)) {
-        throw new FatalError(`budget file missing: ${BUDGETS_PATH}`);
+    try {
+        return loadBudgetsFromDisk(BUDGETS_PATH);
+    } catch (err) {
+        throw new FatalError((err as Error).message);
     }
-    return JSON.parse(fs.readFileSync(BUDGETS_PATH, "utf8")) as BudgetFile;
 }
 
 function fmtChange(c: RecordChange): string {

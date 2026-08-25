@@ -25,6 +25,14 @@
  * longer defines is also a failure. Otherwise a renamed surface silently
  * carries its old ceilings and measures nothing.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const BUDGETS_PATH = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "budgets.json"
+);
 
 /**
  * The measured quantities a budget puts a ceiling on. Flat and explicit — one
@@ -189,6 +197,24 @@ export interface BudgetFile {
     recordedOn: string;
     note?: string;
     surfaces: Record<string, SurfaceBudget>;
+}
+
+/**
+ * Read `budgets.json` off disk. Lives here, not in `index.ts` (issue #2760
+ * review, finding 1) — `index.ts` has no `import.meta.main` guard (see the
+ * module comment on `metricsOf`), so importing it for this one function runs
+ * the WHOLE CLI: boots Vite, launches Playwright. `verify-receipt.ts` needs
+ * the real budget file to check a pasted receipt's row census against it, and
+ * must not drag a browser dependency into a PR-body text check to get it.
+ * The only fs touch in this otherwise-pure module, by design — `evaluateRun`/
+ * `planRecord` stay fs-free so they unit-test without a filesystem fixture;
+ * this one function is the deliberate exception.
+ */
+export function loadBudgets(path: string = BUDGETS_PATH): BudgetFile {
+    if (!existsSync(path)) {
+        throw new Error(`budget file missing: ${path}`);
+    }
+    return JSON.parse(readFileSync(path, "utf8")) as BudgetFile;
 }
 
 /** One surface × viewport measurement handed back by the browser half. */
