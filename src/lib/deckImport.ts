@@ -35,18 +35,29 @@ function isSectionHeader(line: string): Section | null {
  *
  * A pasted line carries only a NAME, which resolves to the canonical
  * `CardDefinition` — whose id is the ORIGINAL printing (e.g. Counterspell → LEA).
- * That original set is often out of the target format's pool, so importing the
- * home printing would seed an illegal deck (LEA Counterspell in Premodern). To
- * keep the import legal by construction, we remap the id to the card's EARLIEST
- * printing that is legal in the format — "earliest" meaning first in the format's
- * `allowedSets` order (the format-author-defined precedence; Premodern lists
- * 4th Edition → Scourge, so Counterspell resolves to its 4ed/Ice-Age-era print,
- * never LEA).
+ * For Alpha 40 and Old School, whose legality genuinely IS built-set membership
+ * (`checkSets`), that original set is often out of the target format's pool, so
+ * importing the home printing would seed an illegal deck. To keep the import
+ * legal by construction, we remap the id to the card's EARLIEST printing that
+ * is in the format's `allowedSets` — "earliest" meaning first in that list's
+ * order (the format-author-defined precedence).
+ *
+ * Premodern is the exception (issue #2695): its legality is a NAME join
+ * against Scryfall's `legalities.premodern` (`checkOracleLegality`), which
+ * does not care which set a card was built in at all — an LEA Counterspell
+ * import already validates fine for Premodern without this remap. This
+ * function still runs for Premodern (harmless — `allowedSets` here is
+ * `PREMODERN_LEGAL_SETS`, kept for exactly this kind of UI preference, see
+ * its doc comment in `convex/formats.ts`), but it is now purely COSMETIC for
+ * that format: it prefers a Premodern-appropriate printing's art/set code
+ * when one of the card's built printings has one, never a legality
+ * requirement.
  *
  * Falls back to the home printing (`defId`) when the format is unrestricted
- * (`allowedSets === null`, Freeform) or when no built printing of the card is in
- * the pool — in the latter case the deck's validator surfaces the illegality,
- * exactly as before. */
+ * (`allowedSets === null`, Freeform) or when no built printing of the card is
+ * in `allowedSets` — for Alpha 40/Old School the deck's validator then
+ * surfaces the illegality, exactly as before; for Premodern the deck still
+ * validates fine regardless, per above. */
 function pickPrintingForFormat(defId: string, format: FormatId): string {
     const allowedSets = FORMAT_RULES[format].allowedSets;
     if (!allowedSets) return defId;

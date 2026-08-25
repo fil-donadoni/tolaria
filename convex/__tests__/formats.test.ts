@@ -5,6 +5,7 @@ import {
     checkBanned,
     checkCategoryBudgets,
     checkCopyLimit,
+    checkOracleLegality,
     checkRestricted,
     checkSets,
     checkSize,
@@ -16,6 +17,7 @@ import {
     OLD_SCHOOL_RESTRICTED,
     PREMODERN_BANLIST_SEED,
     PREMODERN_BANNED,
+    PREMODERN_LEGAL_NAMES,
     resolveBanlistEnforcement,
     validateDeck,
     type BanlistEntry,
@@ -187,31 +189,60 @@ describe("isFormatId — typed boundary guard (ADR 0036)", () => {
     });
 });
 
-describe("Premodern validator (ADR 0036)", () => {
-    // A Premodern-scoped pool: a legal-set card, a pre-4th (out-of-pool) card,
-    // a basic, and a banned-by-id card printed in a Premodern-legal set.
+describe("Premodern validator — Scryfall legality (ADR 0036, issue #2695)", () => {
+    // A Premodern-scoped pool, keyed by fake deck-card ids but resolving to
+    // REAL Scryfall names — legality is now a NAME lookup against the
+    // generated PREMODERN_LEGAL_NAMES map, not a set-code lookup, so the
+    // fixture's `setCode`s below are arbitrary/unused by the checks under
+    // test (kept only because `DeckCardMeta` still requires the field).
     const PM_POOL: Record<string, DeckCardMeta> = {
-        "scg-card": {
-            cardId: "scg-card",
-            setCode: "scg",
+        "legal-card": {
+            cardId: "legal-card",
+            name: "Lightning Bolt", // real, Premodern-legal per Scryfall
+            setCode: "arbitrary",
             rarity: "common",
             isBasic: false,
         },
-        "lea-card": {
-            cardId: "lea-card",
-            setCode: "lea", // pre-4th: out of the Premodern pool
+        // A REAL card that Scryfall does not list as Premodern-legal (banned
+        // outright, not merely a Tolaria-seed ban) — the "illegal-by-Scryfall"
+        // case the generated map must reject on its own, with no id on any
+        // banlist at all.
+        "illegal-card": {
+            cardId: "illegal-card",
+            name: "Black Lotus",
+            setCode: "arbitrary",
+            rarity: "rare",
+            isBasic: false,
+        },
+        // A name that exists NOWHERE in the generated map — not a real card,
+        // not a typo of one. Proves the FAIL-CLOSED miss path: an unresolvable
+        // name is illegal, never silently passed (never assume "unlisted
+        // means legal").
+        "unknown-name-card": {
+            cardId: "unknown-name-card",
+            name: "Not A Real Card Whatsoever",
+            setCode: "arbitrary",
             rarity: "common",
             isBasic: false,
         },
         island: {
             cardId: "island",
+            name: "Island",
             setCode: "scg",
             rarity: "common",
             isBasic: true,
         },
-        // Necropotence's canonical id — on PREMODERN_BANNED, printed in ice.
+        // Necropotence's canonical id — on PREMODERN_BANNED (the code seed)
+        // AND `legalities.premodern === "banned"` on Scryfall (verified
+        // directly against the live API, 2026-08-25) — i.e. genuinely IN the
+        // Premodern pool, merely banned. `PREMODERN_LEGAL_NAMES` is built from
+        // POOL membership (legal ∪ banned ∪ restricted), not "legal" alone
+        // (issue #2695 review, finding 3), specifically so this case reports
+        // ONLY "banned" — never "premodern-illegal" too, which would make an
+        // admin un-ban (removing the DB/seed row) insufficient on its own.
         "necro-print": {
             cardId: "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
+            name: "Necropotence",
             setCode: "ice",
             rarity: "rare",
             isBasic: false,
@@ -221,18 +252,27 @@ describe("Premodern validator (ADR 0036)", () => {
 
     it("passes a legal 60-card Premodern deck", () => {
         const deck: ValidatableDeck = {
-            cards: [...repeat("scg-card", 4), ...repeat("island", 56)],
+            cards: [...repeat("legal-card", 4), ...repeat("island", 56)],
         };
         expect(validateDeck(deck, "premodern", pmResolve).isLegal).toBe(true);
     });
 
-    it("rejects a pre-4th-Edition (out-of-pool) card by set", () => {
+    it("rejects a REAL card that Scryfall does not list as Premodern-legal", () => {
         const deck: ValidatableDeck = {
-            cards: [...repeat("lea-card", 4), ...repeat("island", 56)],
+            cards: [...repeat("illegal-card", 4), ...repeat("island", 56)],
         };
         const { isLegal, reasons } = validateDeck(deck, "premodern", pmResolve);
         expect(isLegal).toBe(false);
-        expect(reasons.some((r) => r.code === "set-not-allowed")).toBe(true);
+        expect(reasons.some((r) => r.code === "premodern-illegal")).toBe(true);
+    });
+
+    it("fails CLOSED on a name absent from the generated map (never silently legal)", () => {
+        const deck: ValidatableDeck = {
+            cards: [...repeat("unknown-name-card", 4), ...repeat("island", 56)],
+        };
+        const { isLegal, reasons } = validateDeck(deck, "premodern", pmResolve);
+        expect(isLegal).toBe(false);
+        expect(reasons.some((r) => r.code === "premodern-illegal")).toBe(true);
     });
 
     it("bans a card on the banlist by Card ID across printings", () => {
@@ -244,13 +284,128 @@ describe("Premodern validator (ADR 0036)", () => {
         expect(reasons.some((r) => r.code === "banned")).toBe(true);
     });
 
+    it("a banned-but-in-pool card reports ONLY 'banned', never also 'premodern-illegal' (issue #2695 review, finding 3)", () => {
+        // Necropotence is a pool member (Scryfall lists it `banned`, not
+        // `not_legal`) — the pool-membership check must not ALSO reject it,
+        // or an admin un-banning it (clearing the banlist override) could
+        // never make it legal again without a corpus re-pin + code release.
+        const deck: ValidatableDeck = {
+            cards: [...repeat("necro-print", 1), ...repeat("island", 59)],
+        };
+        const { reasons } = validateDeck(deck, "premodern", pmResolve);
+        expect(reasons.some((r) => r.code === "banned")).toBe(true);
+        expect(reasons.some((r) => r.code === "premodern-illegal")).toBe(false);
+    });
+
+    it("un-banning via an injected banlist override makes the pool-member card legal again, with no re-pin needed", () => {
+        // Simulates PRD #1138/#1143's live banlist sync: an empty `banned`
+        // override (the un-ban) must be sufficient on its own — the pool-
+        // membership map must never independently re-enforce the ban.
+        const deck: ValidatableDeck = {
+            cards: [...repeat("necro-print", 1), ...repeat("island", 59)],
+        };
+        const { isLegal, reasons } = validateDeck(
+            deck,
+            "premodern",
+            pmResolve,
+            {
+                banned: new Set(),
+                restricted: new Set(),
+            }
+        );
+        expect(reasons).toEqual([]);
+        expect(isLegal).toBe(true);
+    });
+
     it("enforces the 4-copy limit and has no restricted list", () => {
         const deck: ValidatableDeck = {
-            cards: [...repeat("scg-card", 5), ...repeat("island", 55)],
+            cards: [...repeat("legal-card", 5), ...repeat("island", 55)],
         };
         const { reasons } = validateDeck(deck, "premodern", pmResolve);
         expect(reasons.some((r) => r.code === "copy-limit")).toBe(true);
         expect(reasons.some((r) => r.code === "restricted")).toBe(false);
+    });
+});
+
+describe("checkOracleLegality — Scryfall Premodern legality, unit (issue #2695)", () => {
+    // Pure-unit tests against a hand-injected legality set — no dependency on
+    // the real generated `PREMODERN_LEGAL_NAMES`, so these prove the FUNCTION,
+    // not the DATA (the fixture-based describe block above proves the data).
+    const legalNames = new Set(["fictional legal card"]);
+    const pool: Record<string, DeckCardMeta> = {
+        legal: {
+            cardId: "legal",
+            name: "Fictional Legal Card",
+            setCode: "x",
+            rarity: "common",
+            isBasic: false,
+        },
+        illegal: {
+            cardId: "illegal",
+            name: "Fictional Illegal Card",
+            setCode: "x",
+            rarity: "common",
+            isBasic: false,
+        },
+        basic: {
+            cardId: "basic",
+            name: "Fictional Illegal Card", // deliberately illegal-by-name…
+            setCode: "x",
+            rarity: "common",
+            isBasic: true, // …but exempt as a Basic (ADR 0036)
+        },
+    };
+    const resolve: ResolveCard = (id) => pool[id] ?? null;
+
+    it("accepts a name present in the legality set (case-insensitive)", () => {
+        const deck: ValidatableDeck = { cards: [card("legal")] };
+        expect(checkOracleLegality(deck, legalNames, resolve)).toEqual([]);
+    });
+
+    it("rejects a name absent from the legality set", () => {
+        const deck: ValidatableDeck = { cards: [card("illegal")] };
+        const reasons = checkOracleLegality(deck, legalNames, resolve);
+        expect(reasons).toHaveLength(1);
+        expect(reasons[0].code).toBe("premodern-illegal");
+    });
+
+    it("never trips on a Basic land regardless of name", () => {
+        const deck: ValidatableDeck = { cards: [card("basic")] };
+        expect(checkOracleLegality(deck, legalNames, resolve)).toEqual([]);
+    });
+
+    it("flags an id the registry can't resolve as out-of-pool", () => {
+        const deck: ValidatableDeck = {
+            cards: [card("ghost-card", "Phantom")],
+        };
+        const reasons = checkOracleLegality(deck, legalNames, resolve);
+        expect(reasons[0].code).toBe("set-unknown");
+        expect(reasons[0].message).toContain("Phantom");
+    });
+
+    it("de-duplicates by card id (a 4-of illegal card yields one reason)", () => {
+        const deck: ValidatableDeck = { cards: repeat("illegal", 4) };
+        expect(checkOracleLegality(deck, legalNames, resolve)).toHaveLength(1);
+    });
+
+    it("falls back to the deck's own cardName when resolve returns no name (pre-existing stub compatibility)", () => {
+        const noNamePool: Record<string, DeckCardMeta> = {
+            "no-name": {
+                cardId: "no-name",
+                setCode: "x",
+                rarity: "common",
+                isBasic: false,
+                // `name` deliberately omitted — mirrors the many hand-rolled
+                // ResolveCard stubs elsewhere that predate this field.
+            },
+        };
+        const noNameResolve: ResolveCard = (id) => noNamePool[id] ?? null;
+        const deck: ValidatableDeck = {
+            cards: [card("no-name", "Fictional Legal Card")],
+        };
+        expect(checkOracleLegality(deck, legalNames, noNameResolve)).toEqual(
+            []
+        );
     });
 });
 
@@ -269,12 +424,14 @@ describe("validateDeck / assertDeckLegal — injected banlist override (issue #1
     const PM_POOL: Record<string, DeckCardMeta> = {
         "scg-card": {
             cardId: "scg-card",
+            name: "Lightning Bolt", // real, Premodern-legal per Scryfall
             setCode: "scg",
             rarity: "common",
             isBasic: false,
         },
         island: {
             cardId: "island",
+            name: "Island",
             setCode: "scg",
             rarity: "common",
             isBasic: true,
@@ -373,6 +530,7 @@ describe("validateDeck / assertDeckLegal — injected banlist override (issue #1
             ...PM_POOL,
             "necro-print": {
                 cardId: "54d7a0c1-efb4-4a8d-ad92-a96d43835052", // on PREMODERN_BANNED
+                name: "Necropotence",
                 setCode: "ice",
                 rarity: "rare",
                 isBasic: false,
@@ -759,14 +917,25 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
     });
 });
 
-// --- Premodern printing-gap reprints (issue #980, ADR 0036) ---------------
+// --- Premodern printing-gap reprints (issue #980 — SUPERSEDED by #2695) ---
 //
 // Counterspell (lea), Lightning Bolt (lea) and Ball Lightning (drk) each only
-// carried a pre-Premodern printing, so a Premodern deck containing them failed
-// checkSets. The fix adds a Premodern-legal CardPrint per card (Tempest,
-// 4th Edition, Beatdown) — the reprint machinery collapses printId -> the
-// canonical CardDefinition id. These are the real per-print Scryfall UUIDs.
-describe("validateDeck — Premodern reprints, REAL registry (issue #980)", () => {
+// carried a pre-Premodern printing, so a Premodern deck containing them used
+// to fail checkSets; #980's fix was to add a Premodern-legal CardPrint per
+// card (Tempest, 4th Edition, Beatdown) so the reprint machinery would
+// collapse printId -> the canonical CardDefinition id inside an allowed set.
+//
+// #2695 supersedes that per-card workaround: `premodernValidate` no longer
+// calls `checkSets`/`allowedSets` at all, so which set a card is BUILT in is
+// irrelevant to its legality — only Scryfall's `legalities.premodern` (by
+// name) matters. The three reprints below still validate (they already have
+// an allowed-set printing from #980's fix), but the block now ALSO proves the
+// stronger claim #980's own fix could not: a card whose ONLY built printing
+// is in a non-Premodern-legal set (never patched with a reprint) validates
+// too — the "moot by construction" case. #980 was already CLOSED before this
+// change; it is commented as superseded (its own historical fix stays correct
+// and harmless), not reopened.
+describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue #2695, supersedes #980)", () => {
     const COUNTERSPELL_TMP = "dacdd380-71cf-4832-bd02-3697501325f3";
     const BOLT_4ED = "9521375e-0bc1-45ef-b513-6d332a25f9d2";
     const BALL_LIGHTNING_BTD = "6312e369-aef7-486e-a689-97eef04c71d8";
@@ -775,8 +944,20 @@ describe("validateDeck — Premodern reprints, REAL registry (issue #980)", () =
     const COUNTERSPELL_DEF = "0df55e3f-14de-46ef-b6b1-616618724d9e";
     const BOLT_DEF = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
     const BALL_LIGHTNING_DEF = "c1ba83ab-83f5-421d-bba1-0f925870b5c8";
+    // City of Brass's ONLY built printing (arn) — verified against
+    // `data/card-index.json` and `convex/cards/sets/**` to have no second
+    // CardDefinition/reprint anywhere in the catalogue, so `resolveDeckCardMeta`
+    // can never resolve it to an allowed-set printing (unlike Animate Dead,
+    // which this block used to cite here but which ALSO has a built `4ed`
+    // print — `convex/cards/sets/4ed/black.ts` — so its printing-gap claim was
+    // false; `4ed` is in PREMODERN_LEGAL_SETS, making the old assertion pass
+    // for a reason unrelated to the class it claimed to prove — issue #2695
+    // review, finding 2). City of Brass genuinely has no allowed-set printing
+    // at all: a real, well-known Premodern utility land the OLD checkSets-based
+    // validator would have rejected outright.
+    const CITY_OF_BRASS_ARN = "f4e32327-380d-471e-813b-4c27477787ce";
 
-    it("resolves each reprint printId to a Premodern-legal set code", () => {
+    it("resolves each reprint printId to its canonical definition (unaffected by the legality change)", () => {
         const cs = resolveDeckCardMeta(COUNTERSPELL_TMP);
         expect(cs?.setCode).toBe("tmp");
         expect(cs?.cardId).toBe(COUNTERSPELL_DEF);
@@ -788,15 +969,39 @@ describe("validateDeck — Premodern reprints, REAL registry (issue #980)", () =
         const ball = resolveDeckCardMeta(BALL_LIGHTNING_BTD);
         expect(ball?.setCode).toBe("btd");
         expect(ball?.cardId).toBe(BALL_LIGHTNING_DEF);
-
-        // All three sets are in the Premodern-legal pool.
-        const allowed = new Set(FORMAT_RULES["premodern"].allowedSets ?? []);
-        expect(allowed.has("tmp")).toBe(true);
-        expect(allowed.has("4ed")).toBe(true);
-        expect(allowed.has("btd")).toBe(true);
     });
 
-    it("passes a Premodern deck containing all three reprints (no set-not-allowed)", () => {
+    it("the generated legality map lists all four names as Premodern-legal, regardless of built set", () => {
+        expect(PREMODERN_LEGAL_NAMES.has("counterspell")).toBe(true);
+        expect(PREMODERN_LEGAL_NAMES.has("lightning bolt")).toBe(true);
+        expect(PREMODERN_LEGAL_NAMES.has("ball lightning")).toBe(true);
+        expect(PREMODERN_LEGAL_NAMES.has("city of brass")).toBe(true);
+    });
+
+    it("MOOT BY CONSTRUCTION: a card whose only built printing sits outside the legal-set list still validates", () => {
+        // City of Brass's only built printing is `arn`, which is NOT in
+        // PREMODERN_LEGAL_SETS and never received a reprint into an allowed
+        // set (unlike this block's other three examples). The OLD
+        // checkSets-based validator would have rejected this deck outright;
+        // #2695's name-based legality does not care which set it was built
+        // in at all. `setCode !== "arn"` here would mean this test stopped
+        // proving what it claims (e.g. if a future `4ed`/`ice` reprint of
+        // City of Brass were added) — assert it explicitly so that drift
+        // fails loudly instead of silently, exactly the shape of bug finding
+        // 2 caught in the Animate Dead version of this test.
+        expect(resolveDeckCardMeta(CITY_OF_BRASS_ARN)?.setCode).toBe("arn");
+        const deck: ValidatableDeck = {
+            cards: [
+                card(CITY_OF_BRASS_ARN, "City of Brass"),
+                ...Array.from({ length: 59 }, () => card(MOUNTAIN, "Mountain")),
+            ],
+        };
+        const { isLegal, reasons } = validateDeck(deck, "premodern");
+        expect(reasons.some((r) => r.code === "premodern-illegal")).toBe(false);
+        expect(isLegal).toBe(true);
+    });
+
+    it("passes a Premodern deck containing all three reprints (no premodern-illegal)", () => {
         // 3 target reprints + 57 basics = 60. Basics are set-exempt.
         const deck: ValidatableDeck = {
             cards: [
@@ -807,7 +1012,7 @@ describe("validateDeck — Premodern reprints, REAL registry (issue #980)", () =
             ],
         };
         const { isLegal, reasons } = validateDeck(deck, "premodern");
-        expect(reasons.some((r) => r.code === "set-not-allowed")).toBe(false);
+        expect(reasons.some((r) => r.code === "premodern-illegal")).toBe(false);
         expect(reasons.some((r) => r.code === "set-unknown")).toBe(false);
         expect(isLegal).toBe(true);
         expect(reasons).toEqual([]);
@@ -825,6 +1030,71 @@ describe("validateDeck — Premodern reprints, REAL registry (issue #980)", () =
             ],
         };
         expect(() => assertDeckLegal(deck)).not.toThrow();
+    });
+});
+
+// --- Tier 1 archetype spot-check (issue #2695 AC: "nine Tier 1 lists") ----
+//
+// The literal nine Tier 1 decklists (the six PRD #2693 supplied lists —
+// Goblin, Psychatog, Parallax Replenish, Landstill, Oath Ponza, Aluren — plus
+// the three already-shipped Premodern presets) are #2696's OWN deliverable
+// (`data/premodern-tier1-decks.json`, "Tier 1 deck report", target file of
+// that ticket) and do not exist in this tree yet: several archetype-defining
+// cards each list needs (Goblin Piledriver, Psychatog, Exalted Angel, Oath of
+// Druids, Aluren itself, …) are not yet built — exactly the PRD's "49 missing
+// cards" gap #2693/#2696 track. Building a literal nine-deck fixture here
+// would either fabricate an inaccurate decklist or duplicate #2696's own
+// target file ahead of it landing (and risk a merge collision with whoever
+// picks it up).
+//
+// What THIS ticket owes instead, and what this block proves: the mechanism
+// works against real cards already spanning four of the six archetypes —
+// Goblin (burn-adjacent), Psychatog (control pieces), Parallax
+// Replenish/Landstill (enchantment/control shells) and general Premodern
+// staples — using only cards genuinely in the catalogue today. Once #2696's
+// canonical lists land, they can replace this spot-check with the literal
+// nine; this proves the VALIDATOR is sound in the meantime.
+describe("validateDeck — Premodern Tier 1 archetype spot-check (issue #2695)", () => {
+    // One card from each of several Tier 1 archetypes, all ALREADY built
+    // (`data/card-index.json`) and Premodern-legal per Scryfall.
+    const TIER1_SAMPLE: [name: string, cardId: string][] = [
+        ["Mogg Fanatic", "ca2ecfd4-c874-4468-8601-87aa110d5a00"], // Goblin
+        ["Fact or Fiction", "7fd4d018-dcf3-4439-8445-02d66e44f7d3"], // Psychatog control
+        ["Counterspell", "0df55e3f-14de-46ef-b6b1-616618724d9e"], // Psychatog control
+        ["Replenish", "7fd2fe13-bbc0-42b7-bc42-3b51910ce118"], // Parallax Replenish
+        ["Parallax Wave", "cef789e8-e4cc-4f61-bc15-debc2487777f"], // Parallax Replenish
+        ["Opalescence", "3c0071fb-afa5-47b5-b266-2b10a4f5a98a"], // Parallax Replenish
+        ["Wrath of God", "a2788d69-6a3a-42f0-8736-cc6b57755ecd"], // Landstill
+        ["Duress", "ca367f49-0f4a-4b7f-8104-851893fbcd8a"], // Landstill
+        ["Swords to Plowshares", "386ea9eb-abc1-4862-aa2d-8fb808d79490"], // Landstill
+        ["Stone Rain", "57ff74cb-a2ed-4123-ac42-f72f9820049e"], // Oath Ponza
+        ["Cavern Harpy", "adfb0804-50d6-4bca-8733-72e01030a543"], // Aluren
+        ["Lightning Bolt", "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"], // format staple
+        ["Wasteland", "99ff731b-8399-40c8-b539-ba6ba5783771"], // format staple
+    ];
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+
+    it("resolves and lists every sampled staple as Premodern-legal by name", () => {
+        for (const [name, cardId] of TIER1_SAMPLE) {
+            const meta = resolveDeckCardMeta(cardId);
+            expect(meta?.name).toBe(name);
+            expect(PREMODERN_LEGAL_NAMES.has(name.toLowerCase())).toBe(true);
+        }
+    });
+
+    it("a 60-card deck of Tier 1 staples across four archetypes validates as legal", () => {
+        const padding = 60 - TIER1_SAMPLE.length;
+        const deck: ValidatableDeck = {
+            cards: [
+                ...TIER1_SAMPLE.map(([name, id]) => card(id, name)),
+                ...Array.from({ length: padding }, () =>
+                    card(MOUNTAIN, "Mountain")
+                ),
+            ],
+        };
+        const { isLegal, reasons } = validateDeck(deck, "premodern");
+        expect(reasons).toEqual([]);
+        expect(isLegal).toBe(true);
     });
 });
 

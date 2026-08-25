@@ -28,11 +28,35 @@
  * tier 3 happens to also answer. Shipping only tier 3 would mean the guard is
  * silently a no-op on every clean checkout, which is the shape of a guard that
  * is not there.
+ *
+ * Also guards `data/oracle-legality.json` (issue #2695), the sibling artifact
+ * `convex/formats.ts` consumes for Premodern deck legality. It has no
+ * "compiler source" to hash (its only input is the corpus), so its tiers are:
+ * a self-contained CONTENT-HASH check offline (always — no corpus, no pin,
+ * just the committed file re-hashing its own `premodern[]` and comparing
+ * against its own committed `contentHash`), pin agreement offline (when
+ * `data/oracle-corpus.pin.json` is present), and full regenerate-and-diff
+ * when the corpus cache is present. The content-hash tier exists because pin
+ * agreement alone is content-blind: it proves the file CLAIMS to come from a
+ * given Scryfall snapshot, never that `premodern[]` itself still matches that
+ * claim — a hand-edit or a bad merge-conflict resolution touching only the
+ * array used to pass with exit 0 on a clean checkout (no corpus cache, the
+ * NORMAL state — issue #2695 review finding 4). A production-consumed
+ * artifact with no drift guard at all would silently rot the moment the
+ * corpus is re-pinned without re-running `oracle:legality` — sharing this
+ * file's `check:oracle` wiring (rather than a second package.json script)
+ * keeps the gate surface from growing per artifact.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildLockfile } from "./oracle-compile";
+import {
+    buildLegalityFile,
+    legalityContentHash,
+    serializeLegalityFile,
+    type OracleLegalityFile,
+} from "./oracle-legality";
 import { corpusIsCached, readCorpus, readPin } from "./oracle-corpus";
 import {
     compilerHash,
@@ -43,6 +67,7 @@ import {
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
+const LEGALITY_PATH = join(ROOT, "data", "oracle-legality.json");
 
 const RED = "\x1b[31m";
 const GREEN = "\x1b[32m";
@@ -66,39 +91,47 @@ const RESET = "\x1b[0m";
  * gate is offline by contract (CLAUDE.md), so a check may TELL you to hit the
  * network and may never do it for you.
  */
-function fail(message: string): never {
-    process.stderr.write(`${RED}✗ oracle lockfile — ${message}${RESET}\n`);
+function fail(label: string, message: string, fixCommand: string): never {
+    process.stderr.write(`${RED}✗ ${label} — ${message}${RESET}\n`);
     if (corpusIsCached()) {
-        process.stderr.write(`${DIM}  fix: bun run oracle:compile${RESET}\n`);
+        process.stderr.write(`${DIM}  fix: ${fixCommand}${RESET}\n`);
     } else {
         process.stderr.write(
             `${DIM}  fix: bun run oracle:corpus   # one-off Scryfall fetch — ` +
                 `data/oracle-corpus.json.gz is gitignored and absent here\n` +
-                `       then: bun run oracle:compile${RESET}\n`
+                `       then: ${fixCommand}${RESET}\n`
         );
     }
     process.exit(1);
 }
 
-function main(): void {
+function checkLockfile(): void {
     if (!existsSync(LOCKFILE_PATH))
-        fail("data/oracle-compiled.json is missing");
+        fail(
+            "oracle lockfile",
+            "data/oracle-compiled.json is missing",
+            "bun run oracle:compile"
+        );
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
 
     // Tier 1 — header hashes.
     const expectedCompiler = compilerHash(ROOT);
     if (lock.header.compilerHash !== expectedCompiler) {
         fail(
+            "oracle lockfile",
             `compiler hash drift — a compiler source file has changed since the lockfile was generated\n` +
                 `    (convex/oracle/**, scripts/oracle-corpus.ts, scripts/oracle-compile.ts, scripts/lib/oracle-lockfile.ts)\n` +
-                `    header: ${lock.header.compilerHash}\n    tree:   ${expectedCompiler}`
+                `    header: ${lock.header.compilerHash}\n    tree:   ${expectedCompiler}`,
+            "bun run oracle:compile"
         );
     }
     const expectedRegistry = registryHash();
     if (lock.header.registryHash !== expectedRegistry) {
         fail(
+            "oracle lockfile",
             `registry hash drift — a Mechanics Registry name or status has changed\n` +
-                `    header: ${lock.header.registryHash}\n    tree:   ${expectedRegistry}`
+                `    header: ${lock.header.registryHash}\n    tree:   ${expectedRegistry}`,
+            "bun run oracle:compile"
         );
     }
 
@@ -106,9 +139,11 @@ function main(): void {
     const pin = readPin();
     if (pin !== null && pin.sha256 !== lock.header.corpus.sha256) {
         fail(
+            "oracle lockfile",
             `corpus pin drift — the lockfile was built from a different Scryfall snapshot\n` +
                 `    header: ${lock.header.corpus.updatedAt} (${lock.header.corpus.sha256.slice(0, 12)})\n` +
-                `    pin:    ${pin.updatedAt} (${pin.sha256.slice(0, 12)})`
+                `    pin:    ${pin.updatedAt} (${pin.sha256.slice(0, 12)})`,
+            "bun run oracle:compile"
         );
     }
 
@@ -117,7 +152,9 @@ function main(): void {
         const regenerated = serializeLockfile(buildLockfile(readCorpus()));
         if (regenerated !== readFileSync(LOCKFILE_PATH, "utf8")) {
             fail(
-                "regenerating from the cached corpus does not reproduce the committed lockfile"
+                "oracle lockfile",
+                "regenerating from the cached corpus does not reproduce the committed lockfile",
+                "bun run oracle:compile"
             );
         }
         process.stdout.write(
@@ -131,6 +168,79 @@ function main(): void {
         `${GREEN}✓ oracle lockfile${RESET} ${DIM}(hashes; corpus cache absent, ` +
             `run \`bun run oracle:corpus\` for the full regenerate-and-diff)${RESET}\n`
     );
+}
+
+/**
+ * Guards `data/oracle-legality.json` (issue #2695). No compiler/registry hash
+ * applies — the file's only input is the corpus — so this has just the pin
+ * and full-regenerate tiers.
+ */
+function checkLegality(): void {
+    if (!existsSync(LEGALITY_PATH))
+        fail(
+            "oracle legality",
+            "data/oracle-legality.json is missing",
+            "bun run oracle:legality"
+        );
+    const legality = JSON.parse(
+        readFileSync(LEGALITY_PATH, "utf8")
+    ) as OracleLegalityFile;
+
+    // Tier "content hash" — always, offline, no corpus/pin needed. Proves
+    // `premodern[]` matches its own committed `contentHash`; see the file
+    // header for why pin agreement alone cannot catch this.
+    const expectedContentHash = legalityContentHash(legality.premodern);
+    if (legality.contentHash !== expectedContentHash) {
+        fail(
+            "oracle legality",
+            `content-hash mismatch — data/oracle-legality.json's premodern[] array ` +
+                `does not match its own committed contentHash (hand-edited or corrupted)\n` +
+                `    committed: ${legality.contentHash}\n` +
+                `    computed:  ${expectedContentHash}`,
+            "bun run oracle:legality"
+        );
+    }
+
+    // Tier "pin agreement" — offline.
+    const pin = readPin();
+    if (pin !== null && pin.sha256 !== legality.corpus.sha256) {
+        fail(
+            "oracle legality",
+            `corpus pin drift — data/oracle-legality.json was built from a different Scryfall snapshot\n` +
+                `    header: ${legality.corpus.updatedAt} (${legality.corpus.sha256.slice(0, 12)})\n` +
+                `    pin:    ${pin.updatedAt} (${pin.sha256.slice(0, 12)})`,
+            "bun run oracle:legality"
+        );
+    }
+
+    // Tier "full regenerate-and-diff" — when the corpus cache is here.
+    if (corpusIsCached() && pin !== null) {
+        const regenerated = serializeLegalityFile(
+            buildLegalityFile(readCorpus(), pin)
+        );
+        if (regenerated !== readFileSync(LEGALITY_PATH, "utf8")) {
+            fail(
+                "oracle legality",
+                "regenerating from the cached corpus does not reproduce the committed data/oracle-legality.json",
+                "bun run oracle:legality"
+            );
+        }
+        process.stdout.write(
+            `${GREEN}✓ oracle legality${RESET} ${DIM}(content-hash + pin + full regenerate-and-diff, ` +
+                `${legality.premodern.length} Premodern names)${RESET}\n`
+        );
+        return;
+    }
+
+    process.stdout.write(
+        `${GREEN}✓ oracle legality${RESET} ${DIM}(content-hash + pin; corpus cache absent, ` +
+            `run \`bun run oracle:corpus\` for the full regenerate-and-diff)${RESET}\n`
+    );
+}
+
+function main(): void {
+    checkLockfile();
+    checkLegality();
 }
 
 if (import.meta.main) {

@@ -3,7 +3,11 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { CardPrinting } from "@convex/cards/catalogue";
 import { foldAccents } from "@convex/cards/textNormalize";
-import { FORMAT_RULES, type FormatId } from "@convex/formats";
+import {
+    FORMAT_RULES,
+    PREMODERN_LEGAL_NAMES,
+    type FormatId,
+} from "@convex/formats";
 import {
     compareEntries,
     tiebreakForSets,
@@ -218,14 +222,31 @@ const BASIC_SUPERTYPE = "Basic";
  * (`Basic` supertype) are always available regardless of format. This narrows
  * discovery only - the authoritative legality check still lives in
  * `validateDeck` (ADR 0036).
+ *
+ * `nameLegality`, when supplied, OVERRIDES the set-based gate entirely with a
+ * name join against a generated pool-membership map (issue #2695 review,
+ * finding 1) — Premodern's validator (`checkOracleLegality`) has not read
+ * `allowedSets` since #2695, so gating the SEARCH on it left the two
+ * disagreeing: a card whose only built printing sits outside
+ * `PREMODERN_LEGAL_SETS` (City of Brass: `arn` only) validated fine but
+ * returned ZERO search results — 128 built, Scryfall-Premodern-legal cards
+ * were in exactly that position. A card the caller resolves to `allowedSets`
+ * AND a `nameLegality` map at once is a contradiction the type doesn't allow
+ * — supply one or the other per Format, never both.
  */
 export function matchesFormatSets(
     prints: CardPrinting[],
     supertypes: string[],
-    allowedSets: string[] | null
+    allowedSets: string[] | null,
+    nameLegality?: { name: string; legalNames: ReadonlySet<string> }
 ): boolean {
-    if (allowedSets === null) return true; // Freeform: every set.
     if (supertypes.includes(BASIC_SUPERTYPE)) return true; // basics always legal.
+    if (nameLegality) {
+        return nameLegality.legalNames.has(
+            nameLegality.name.trim().toLowerCase()
+        );
+    }
+    if (allowedSets === null) return true; // Freeform: every set.
     const allowed = new Set(allowedSets);
     return prints.some((p) => allowed.has(p.setCode));
 }
@@ -351,6 +372,14 @@ export function useCardSearch(
     // never hardcodes set codes - it reads them from the Format registry.
     const allowedSets =
         format === undefined ? null : FORMAT_RULES[format].allowedSets;
+    // Premodern's search gate is a NAME join against the same pool-membership
+    // map `checkOracleLegality` validates against (issue #2695 review, finding
+    // 1) - never `allowedSets`, which the validator stopped reading entirely.
+    // A second, set-based gate here would silently disagree with the real
+    // validator again the moment a legal card's only built printing sits
+    // outside the historical `PREMODERN_LEGAL_SETS` list.
+    const premodernLegalNames =
+        format === "premodern" ? PREMODERN_LEGAL_NAMES : null;
 
     // Cube membership (discovery filter). Only queried when a cube is selected;
     // `"skip"` avoids the round-trip otherwise. `null` = no cube gate; while
@@ -417,7 +446,14 @@ export function useCardSearch(
         const filtered = parts.filter(
             (e) =>
                 passesTokenGate(e) &&
-                matchesFormatSets(e.prints, e.supertypes, allowedSets) &&
+                matchesFormatSets(
+                    e.prints,
+                    e.supertypes,
+                    allowedSets,
+                    premodernLegalNames
+                        ? { name: e.name, legalNames: premodernLegalNames }
+                        : undefined
+                ) &&
                 matchesCube(e.cardId, e.name, cubeIds) &&
                 matchesText(e, filters.text) &&
                 matchesColors(e.colors, filters) &&
@@ -454,7 +490,13 @@ export function useCardSearch(
                         matchesFormatSets(
                             entry.prints,
                             entry.supertypes,
-                            allowedSets
+                            allowedSets,
+                            premodernLegalNames
+                                ? {
+                                      name: entry.name,
+                                      legalNames: premodernLegalNames,
+                                  }
+                                : undefined
                         ) &&
                         matchesCube(entry.cardId, entry.name, cubeIds) &&
                         matchesColors(entry.colors, filters) &&
@@ -489,6 +531,7 @@ export function useCardSearch(
         idle,
         isManual,
         allowedSets,
+        premodernLegalNames,
         cubeIds,
         scryfallText.names,
     ]);

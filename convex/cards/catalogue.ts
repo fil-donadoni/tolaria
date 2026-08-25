@@ -454,6 +454,15 @@ export interface DeckCardMeta {
     setCode: string;
     rarity: Rarity;
     isBasic: boolean;
+    /** The canonical `CardDefinition.name` (Scryfall oracle name), used by
+     *  legality checks that join on name rather than set/id (issue #2695 —
+     *  Premodern's Scryfall-legality gate; `convex/formats.ts`'s
+     *  `checkOracleLegality`). OPTIONAL so the many hand-rolled `ResolveCard`
+     *  test stubs across the repo (`convex/__tests__/formats*.test.ts`,
+     *  `convex/limited/__tests__/*`, …) that predate this field keep
+     *  type-checking unchanged; every REAL resolver (this function) always
+     *  populates it. */
+    name?: string;
 }
 
 export const resolveDeckCardMeta = (cardId: string): DeckCardMeta | null => {
@@ -464,6 +473,7 @@ export const resolveDeckCardMeta = (cardId: string): DeckCardMeta | null => {
     if (print) {
         return {
             cardId: def.id,
+            name: def.name,
             setCode: print.setCode,
             rarity: print.rarity,
             isBasic,
@@ -471,6 +481,7 @@ export const resolveDeckCardMeta = (cardId: string): DeckCardMeta | null => {
     }
     return {
         cardId: def.id,
+        name: def.name,
         setCode: definitionSetCode.get(def.id) ?? "",
         rarity: def.rarity,
         isBasic,

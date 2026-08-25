@@ -23,6 +23,7 @@ const ROOT = join(import.meta.dirname, "..", "..");
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
 
 function corpusCard(overrides: Partial<CorpusCard> = {}): CorpusCard {
+    const legalIn = overrides.legalIn ?? ["premodern", "legacy"];
     return {
         oracleId: "00000000-0000-0000-0000-000000000001",
         name: "Test Bear",
@@ -32,7 +33,11 @@ function corpusCard(overrides: Partial<CorpusCard> = {}): CorpusCard {
         power: "2",
         toughness: "2",
         layout: "normal",
-        legalIn: ["premodern", "legacy"],
+        legalIn,
+        // Unread by this file's assertions (oracle-compile.ts only folds
+        // `legalIn` into aggregate counts) — mirrors `legalIn` so this fixture
+        // stays a valid `CorpusCard` after `poolIn` was added (issue #2695).
+        poolIn: legalIn,
         ...overrides,
     };
 }

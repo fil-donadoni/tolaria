@@ -15,6 +15,11 @@
 
 import type { DeckCard } from "./deckPresets";
 import { resolveDeckCardMeta, type DeckCardMeta } from "./cards";
+// Generated (issue #2695): `bun run oracle:legality`, guarded by
+// `check:oracle` (`scripts/check-oracle-lockfile.ts`). NEVER hand-edited —
+// see `scripts/oracle-legality.ts` for the corpus → name-set derivation, the
+// name-vs-oracle-id join rationale and the collision handling.
+import oracleLegalityData from "../data/oracle-legality.json";
 
 /**
  * The three shipped Formats (ADR 0036). A row's `format` field is one of these
@@ -499,6 +504,101 @@ export function checkSets(
     return reasons;
 }
 
+/**
+ * Generated-legality-map file shape, DUPLICATED from `scripts/oracle-legality.ts`
+ * (`OracleLegalityFile`) rather than imported — that module sits in the
+ * `scripts` TS project (`tsconfig.scripts.json`, `node:fs`/`node:path`
+ * imports), a separate project from `convex/` with no reference edge to it,
+ * and pulling it in for a type-only need isn't worth adding one. Narrowed to
+ * only the fields this module reads. `scripts/__tests__/oracle-legality.test.ts`
+ * exercises the real generator against this same shape (`generator`,
+ * `corpus.sha256`, `premodern[]`), so a field rename on either side surfaces
+ * as a compile error on one side and a test failure on the other.
+ */
+interface OracleLegalityFile {
+    readonly generator: string;
+    readonly corpus: { readonly sha256: string };
+    readonly premodern: readonly string[];
+}
+
+/**
+ * Case-folded (matching `nameRegistry`'s own `.toLowerCase()` convention,
+ * ADR 0057) set of Premodern POOL-MEMBER card names, built once at module
+ * load from the generated, committed `data/oracle-legality.json`.
+ *
+ * Despite the name, this deliberately INCLUDES cards Scryfall lists as
+ * `banned` (and `restricted`), not just `legal` — pool membership and ban
+ * status are separate questions. `checkOracleLegality` (below) uses this set
+ * ONLY to answer "is this card in the Premodern pool at all"; `checkBanned`
+ * (fed by `PREMODERN_BANNED`/the injected DB banlist, ADR 0057) is the sole,
+ * overridable authority on whether an in-pool card is banned. Building this
+ * set from "legal only" would conflate the two: an admin un-banning a card
+ * (removing it from the DB banlist) would find it STILL illegal here, since
+ * the map itself would still be missing its name (issue #2695 review,
+ * finding 3).
+ */
+export const PREMODERN_LEGAL_NAMES: ReadonlySet<string> = new Set(
+    (oracleLegalityData as OracleLegalityFile).premodern.map((name) =>
+        name.trim().toLowerCase()
+    )
+);
+
+/**
+ * Premodern POOL MEMBERSHIP by Scryfall `legalities.premodern`, per oracle id
+ * — via a NAME join, not `checkSets`'s set-membership join (issue #2695).
+ * Replaces "legal sets ∩ built sets" (`PREMODERN_LEGAL_SETS`): a card is IN
+ * THE POOL when Scryfall says so (`legal`/`banned`/`restricted`), never when
+ * its BUILT printing happens to land in a hand-maintained set list — the
+ * exact printing-gap problem #980 (now superseded) worked around per-card.
+ * `CardDefinition` carries no oracle id (see `scripts/oracle-legality.ts`'s
+ * header for why the join key is the card's NAME, and the union-by-name
+ * collision handling), so this reads `cardMeta.name` (falling back to the
+ * deck's own `cardName` only for the handful of pre-existing hand-rolled
+ * `ResolveCard` test stubs that predate the `DeckCardMeta.name` field — the
+ * real resolver always sets it).
+ *
+ * This is a POOL check, not a full legality check: `legalNames` (see
+ * `PREMODERN_LEGAL_NAMES`'s doc comment) includes banned/restricted names on
+ * purpose, so a banned-but-in-pool card passes here and is rejected
+ * separately by `checkBanned` — the two never double-report the same cause.
+ *
+ * FAILS CLOSED on every miss: an unresolvable id and a name absent from the
+ * generated map (genuinely `not_legal`/unsupported by the format) are BOTH
+ * reported illegal — never silently passed. A fail-open legality gate would
+ * be strictly worse than the hand-authored set list it replaces.
+ */
+export function checkOracleLegality(
+    deck: ValidatableDeck,
+    legalNames: ReadonlySet<string>,
+    resolve: ResolveCard
+): Reason[] {
+    const reasons: Reason[] = [];
+    const seen = new Set<string>();
+
+    const all = [...deck.cards, ...(deck.sideboard ?? [])];
+    for (const card of all) {
+        if (seen.has(card.cardId)) continue;
+        seen.add(card.cardId);
+        const cardMeta = resolve(card.cardId);
+        if (cardMeta === null) {
+            reasons.push({
+                code: "set-unknown",
+                message: `${card.cardName}: card is not in the playable pool.`,
+            });
+            continue;
+        }
+        if (cardMeta.isBasic) continue; // basics always legal (ADR 0036)
+        const key = (cardMeta.name ?? card.cardName).trim().toLowerCase();
+        if (!legalNames.has(key)) {
+            reasons.push({
+                code: "premodern-illegal",
+                message: `${card.cardName}: not Premodern-legal per Scryfall.`,
+            });
+        }
+    }
+    return reasons;
+}
+
 // --- Card-ID copy counting (ADR 0036) -------------------------------------
 //
 // All copy-bounded rules (the 4-copy limit, the Restricted one-copy list)
@@ -974,11 +1074,32 @@ function alpha40Validate(
 // card that isn't built yet simply never appears here.
 
 /**
- * Premodern LEGAL SETS — the official pool (4th Edition → Scourge + Portal),
- * intersected with the sets Tolaria actually implements. A card whose only
- * built printing is in a non-Premodern set (e.g. an Alpha-only Counterspell)
- * is out-of-pool until a Premodern-legal printing ships. Kept as a named const
- * so the intent is documented and the intersection is auditable at a glance.
+ * Premodern LEGAL SETS — DEMOTED to documentation + deck-builder UI only
+ * (issue #2695; supersedes #980, which was already CLOSED before this change
+ * — this comment records the supersession, it does not reopen it). Deck
+ * LEGALITY no longer reads this list: `premodernValidate` calls
+ * `checkOracleLegality` against the generated `PREMODERN_LEGAL_NAMES` map
+ * (Scryfall `legalities.premodern` per oracle id), so a card whose only built
+ * printing is in a non-Premodern set is legal exactly when Scryfall says the
+ * CARD is, never gated on which set Tolaria happened to build it in — the
+ * printing-gap problem #980 patched per-card is moot by construction.
+ *
+ * What's left: `FORMAT_RULES.premodern.allowedSets` still derives from this
+ * list, feeding two advisory UI consumers — neither is the legality gate:
+ *  - `useCardSearch.ts`'s deck-builder search now gates Premodern discovery
+ *    on `PREMODERN_LEGAL_NAMES` directly (name join, same map the validator
+ *    reads), NOT on this set list — a card whose only built printing sits
+ *    outside `PREMODERN_LEGAL_SETS` (City of Brass: `arn` only) is findable.
+ *    This list only still feeds the basic-land ART picker (`basicLands.ts`),
+ *    where it is purely a style preference — basics are exempt from every
+ *    legality check regardless of format.
+ *  - `deckImport.ts`'s `pickPrintingForFormat` uses this list to choose WHICH
+ *    of a card's several built printings a name-only pasted line prefers.
+ *    That's cosmetic ordering, not a gate: it falls back to the card's home
+ *    printing when none of its printings sit in this list, and the deck still
+ *    validates fine either way (name-based legality does not care).
+ * Kept as the official pool (4th Edition → Scourge + Portal), intersected
+ * with the sets Tolaria implements, purely for those UI purposes.
  */
 export const PREMODERN_LEGAL_SETS: readonly string[] = [
     // Core sets
@@ -1057,13 +1178,19 @@ export const PREMODERN_BANNED: ReadonlySet<string> = new Set([
 const PREMODERN_COPY_LIMIT = 4;
 
 /**
- * The full Premodern validator (ADR 0036): size (≥60 main, ≤15 side) + set
- * membership (the 4th-Edition→Scourge + Portal pool) + the 4-copy limit + the
- * Banned list. Premodern has NO restricted list, so none is applied. Composed
- * from the shared helpers; counting for copy/banned is by Card ID across
- * printings, with basics exempt. When `banlist` is injected (issue #1140),
- * its `banned` set overrides `PREMODERN_BANNED`; absent, the code constant is
- * the seed/fallback.
+ * The full Premodern validator (ADR 0036): size (≥60 main, ≤15 side) +
+ * Scryfall pool membership (issue #2695, `checkOracleLegality` against the
+ * generated `PREMODERN_LEGAL_NAMES` map — NOT `checkSets`/`allowedSets`) +
+ * the 4-copy limit + the Banned list. Pool membership and banning are
+ * separate checks on purpose (review finding 3): `checkOracleLegality`
+ * answers "is this card supported by the format at all", `checkBanned`
+ * answers "is it banned" — a card can be in-pool AND banned, but never
+ * reported illegal for both reasons from the same cause. Premodern has NO
+ * restricted list, so none is applied. Composed from the shared helpers;
+ * counting for copy/banned is by Card ID across printings, with basics
+ * exempt. When `banlist` is injected (issue #1140), its `banned` set
+ * overrides `PREMODERN_BANNED`; absent, the code constant is the
+ * seed/fallback.
  */
 function premodernValidate(
     deck: ValidatableDeck,
@@ -1073,7 +1200,7 @@ function premodernValidate(
     const meta = FORMAT_RULES["premodern"];
     return [
         ...checkSize(deck, meta),
-        ...checkSets(deck, meta, resolve),
+        ...checkOracleLegality(deck, PREMODERN_LEGAL_NAMES, resolve),
         ...checkCopyLimit(deck, PREMODERN_COPY_LIMIT, resolve),
         ...checkBanned(deck, banlist?.banned ?? PREMODERN_BANNED, resolve),
     ];
