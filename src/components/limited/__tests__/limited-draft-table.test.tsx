@@ -6,8 +6,23 @@
 // NEVER commits; double click / the context-menu commit; "Pick to
 // sideboard" composes submitPick + setPoolArrangementEntry with the
 // resolved poolIndex; a selected card renders highlighted.
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeAll,
+    beforeEach,
+    afterEach,
+} from "vitest";
+import {
+    render,
+    fireEvent,
+    waitFor,
+    cleanup,
+    within,
+} from "@testing-library/react";
+import { DragDropManager } from "@dnd-kit/dom";
 import {
     PEEK_PANEL_RAIL_WIDTH,
     PEEK_PANEL_SHEET_RESERVE,
@@ -16,7 +31,22 @@ import {
     projectLimitedEvent,
     type LimitedEventRow,
 } from "@convex/limited/eventProjection";
+import {
+    dragOnto,
+    installDndJsdomShims,
+} from "~/components/deckbuilder/__tests__/dragHarness";
+import { paneOf } from "~/components/deckbuilder/__tests__/zoneQueries";
 import LimitedDraftTable from "../limited-draft-table";
+
+// A real dnd-kit drag (`dragOnto`, driven through the REAL droppable
+// registry rather than synthetic pointer coordinates — jsdom has no layout)
+// needs a few browser APIs jsdom does not implement. Installed once: it only
+// sets fallbacks (`matches: false` when nothing else stubs `matchMedia`,
+// `elementFromPoint`, `getAnimations`), so it changes nothing for every other
+// test in this file, which already runs with no `matchMedia` at all
+// (`useViewportMode` falls back to `"desktop"` either way — see
+// `stubViewport`'s own doc comment above).
+beforeAll(() => installDndJsdomShims());
 
 // LimitedDraftTable mounts LimitedDraftTimer (issue #2238), which reads
 // `useReducedMotion` from `motion/react` — jsdom has no `matchMedia`, so
@@ -157,7 +187,7 @@ function eventRow(overrides: EventRowOverrides): LimitedEventRow {
     };
 }
 
-function renderTable(overrides: EventRowOverrides) {
+function renderTable(overrides: EventRowOverrides, manager?: DragDropManager) {
     const view = projectLimitedEvent(eventRow(overrides), "user1");
     const seat = view.seats.find((s) => s.seatIndex === 0)!;
     // `projectLimitedEvent`'s pure return type has no `autoBuiltDeck` — that
@@ -172,6 +202,10 @@ function renderTable(overrides: EventRowOverrides) {
             eventId={"event-1" as never}
             seat={seatView}
             round={0}
+            // `manager` is only ever supplied by a test that needs to drive a
+            // REAL drag (`dragOnto`) — omitted, `LimitedDraftTable` mints its
+            // own private one, exactly as the app does.
+            manager={manager}
         />
     );
 }
@@ -540,7 +574,16 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
         );
     });
 
-    it("moving a Pool card to a specific Column from the panel persists the same Pool Arrangement entry a long-press drag onto that Column persists", () => {
+    // Issue #2667 round 3 (PR #2797 review round 2): a column pin from the
+    // panel used to send `sideboard: false` unconditionally, on the
+    // assumption a Pool selection can never go stale about its own Zone — an
+    // assumption a concurrent drag breaks (see the DRAG regression test
+    // below). The pin now sends NO `sideboard` field at all — "don't touch
+    // the Zone", the same contract the build view's own `handlePin`
+    // (`pool-deck-builder-form.tsx`) has always used for a pin — so the
+    // resolved Arrangement below still comes out unsideboarded, but via
+    // "never asserted" rather than "explicitly asserted false".
+    it("moving a Pool card to a specific Column from the panel persists the same Pool Arrangement entry a long-press drag onto that Column persists, without asserting the Zone", () => {
         const { getByTitle, getByRole } = renderTable({
             pool: [
                 ...boltInPool,
@@ -559,7 +602,6 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
         expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
             eventId: "event-1",
             poolIndex: 0,
-            sideboard: false,
             column: "mv:lands",
         });
     });
@@ -617,6 +659,72 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
         // `setPoolArrangementEntry` call reverting `sideboard` back to
         // `false` (the exact corruption the stale selection produced).
         expect(setPoolArrangementEntryMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Review round 2 (PR #2797), the reason this is round 3: round 1's fix
+    // above only closed the CTA door — `setPoolSelection(null)` fires from
+    // the PANEL's own "→ Side"/"→ Pool" buttons, so it can only ever save a
+    // player who moved the card THROUGH the panel. A Pool ⇄ Sideboard DRAG
+    // is a second, independent door onto the exact same stale-selection
+    // trap: `handleDragEnd` → `handleMoveArrangement` writes the Arrangement
+    // directly and never touches `poolSelection` at all, so the panel stays
+    // open, still reading the PRE-drag zone, with "Move to…" still offered.
+    // This reproduces that exact path and proves the ROOT fix — a column pin
+    // no longer asserts a Zone (`handlePoolPin`/`poolArrangementPatch`) — is
+    // what makes it safe now, not a second per-door clear.
+    it("a DRAG to the Sideboard, with the panel still open, does not let a follow-up 'Move to…' pin pull the card back out of the Sideboard", async () => {
+        const manager = new DragDropManager();
+        const { container, getByTitle, getByRole } = renderTable(
+            {
+                pool: [
+                    ...boltInPool,
+                    { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+                ],
+            },
+            manager
+        );
+
+        // Tap-select the Bolt: opens the panel with `poolSelection.zone ===
+        // "maindeck"`.
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(panels()).toHaveLength(1);
+
+        // Drag the SAME tile into the Sideboard — NOT the panel's own "→
+        // Side" CTA, so `poolSelection` never hears about the move.
+        const pool = paneOf(container, /^Pool 2/);
+        const sideboardPane = paneOf(container, /^Sideboard 0/);
+        await dragOnto(
+            manager,
+            within(pool).getByTitle(/^Remove Lightning Bolt/),
+            sideboardPane
+        );
+        expect(setPoolArrangementEntryMock).toHaveBeenLastCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: true,
+        });
+
+        // The panel is STILL open, holding the now-stale "maindeck"
+        // selection — the exact trap the reviewer walked.
+        expect(panels()).toHaveLength(1);
+        const moveTo = actionEls().find(
+            (el) => el.dataset.editingAction === "Move to…"
+        );
+        expect(moveTo).toBeTruthy();
+        fireEvent.click(moveTo!);
+        fireEvent.click(getByRole("button", { name: "Lands" }));
+
+        // The pin write must never assert a Zone: no call ever sends
+        // `sideboard: false`, so the card the drag just sideboarded is not
+        // silently pulled back into the Pool.
+        for (const [args] of setPoolArrangementEntryMock.mock.calls) {
+            expect((args as { sideboard?: boolean }).sideboard).not.toBe(false);
+        }
+        expect(setPoolArrangementEntryMock).toHaveBeenLastCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            column: "mv:lands",
+        });
     });
 
     // The Booster's own Peek Panel deliberately does NOT reserve on a phone

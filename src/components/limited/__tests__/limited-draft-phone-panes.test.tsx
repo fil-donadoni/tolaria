@@ -275,6 +275,39 @@ describe("phone portrait — two snap stops, Pack 85 / Pool 15 (issue #2588 AC 1
         expect(surface.style.paddingRight).toBe("");
         expect(surface.style.paddingBottom).toBe("");
     });
+
+    // Review finding (PR #2797 round 1, LOW): the strip's inline CTA row —
+    // including the destructive "Pick" — was ungated against an OPEN Pool
+    // selection, unlike the Booster's own `peekPanel` (which already carries
+    // the same `!poolSelection` gate off the phone regimes). A tap on a Pool
+    // tile sets `poolSelection` LOCALLY and synchronously; the server clear
+    // of `seat.selectedPickId` this triggers (`handlePoolSelect`) is
+    // best-effort and async, so for at least one render the strip's own
+    // "Pick" kept sitting there beside a now-open Pool selection, reading a
+    // Booster card the player is no longer even looking at. This was
+    // previously unguarded by any test — the fix landed with 327/327 green
+    // in this directory — so this pins it directly on the CTA row itself
+    // rather than on `poolSelection`'s internal state.
+    it("an open Pool selection gates the strip's CTA row off, the same way it gates the Booster's own Peek Panel", () => {
+        const { getByTitle } = renderTable("phone-portrait", {
+            selectedPickId: "r0-p0-c1",
+            poolLength: 1,
+        });
+        const bar = () =>
+            document.querySelector("[data-slot=draft-pack-status]")!;
+        // Before any Pool tap: the Booster's own CTA row, unchanged.
+        expect(
+            [...bar().querySelectorAll("[data-editing-action]")].map(
+                (el) => (el as HTMLElement).dataset.editingAction
+            )
+        ).toEqual(["Pick", "→ Side", "Inspect"]);
+
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+
+        // The strip's CTA row — "Pick" included — is gone: a Pool selection
+        // is now open, and the two must never both offer actions at once.
+        expect(bar().querySelectorAll("[data-editing-action]")).toHaveLength(0);
+    });
 });
 
 describe("phone landscape — pack 80 | sneak-peek column 20 (issue #2588 AC 2)", () => {

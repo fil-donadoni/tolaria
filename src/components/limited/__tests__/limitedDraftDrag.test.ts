@@ -246,4 +246,20 @@ describe("poolArrangementPatch (issue #1632)", () => {
             sideboard: true,
         });
     });
+
+    // Issue #2667 round 3, PR #2797 review round 2: the reviewer proved the
+    // stale-selection corruption survived round 2's CTA-only fix because a
+    // pure column PIN — `handlePoolPin` in `limited-draft-table.tsx` — always
+    // sent a `sideboard` value even though it never reads the Zone. Passing
+    // `undefined` here (the new, root-level "don't touch the Zone" contract,
+    // matching `ArrangementPatch.sideboard`/`.column`'s own independent-
+    // optional semantics in `convex/limited/poolArrangement.ts`) must omit
+    // the field entirely — the same shape the build view's own `handlePin`
+    // (`pool-deck-builder-form.tsx`) has always sent for a pin.
+    it("omits `sideboard` entirely for a Zone-agnostic pin — the 'don't touch' contract a pure column pin needs", () => {
+        expect(poolArrangementPatch(2, undefined, "color:R")).toEqual({
+            poolIndex: 2,
+            column: "color:R",
+        });
+    });
 });

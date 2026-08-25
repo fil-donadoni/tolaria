@@ -246,9 +246,22 @@ export default function LimitedDraftTable({
     // `poolIndex`, stringified (`poolCopyPinKey`, `poolZoneCards.ts`) — the
     // SAME parse `resolveDraftDragAction` already does for a drag's payload,
     // so a click-placed Pin and a dragged one resolve through one function
-    // from here on. Always `sideboard: false`: `onPin` is threaded to the
-    // Pool's ("maindeck") `DeckZoneSurface` only (never the Sideboard's, which
-    // has no Columns), so every card reaching this is already Pool-side.
+    // from here on.
+    //
+    // `undefined`, never a Zone value (PR #2797 review round 2 / issue #2667
+    // round 3): a column PIN reads no Zone, so it must not ASSERT one either —
+    // `handleMoveArrangement`/`poolArrangementPatch` treat `undefined` as
+    // "leave the Zone untouched", the same contract the mutation's own
+    // `sideboard` arg already speaks. This used to hard-code `sideboard:
+    // false` on the assumption `onPin` is only ever reachable from a Pool
+    // (not Sideboard) selection — true when the tap that OPENED the panel
+    // fired, but not necessarily true by the time this CTA is tapped: a DRAG
+    // can move the same card to the Sideboard while the panel sits open and
+    // never hears about it (`poolSelection` is local React state, not
+    // recomputed off the live Arrangement), so the "already Pool-side"
+    // assumption could go stale mid-panel. Passing `undefined` here makes
+    // the write correct regardless of whether the assumption still holds —
+    // no caller of a pure column pin can corrupt a Zone it never read.
     const handlePoolPin = (
         _cardId: string,
         columnId: ColumnId,
@@ -256,7 +269,7 @@ export default function LimitedDraftTable({
     ) => {
         const poolIndex = Number(pinKey);
         if (!Number.isInteger(poolIndex)) return;
-        handleMoveArrangement(poolIndex, false, columnId);
+        handleMoveArrangement(poolIndex, undefined, columnId);
     };
 
     // The Pool selection's zone-move CTA ("→ Side" / "→ Pool") — the SAME
@@ -320,7 +333,10 @@ export default function LimitedDraftTable({
     // view opens (issue #1632).
     const handleMoveArrangement = (
         poolIndex: number,
-        sideboard: boolean,
+        // `undefined` = don't touch the Zone (a pure column pin — see
+        // `handlePoolPin`'s doc comment); every other caller here passes a
+        // real, freshly-computed boolean off an actual drop/CTA target.
+        sideboard: boolean | undefined,
         columnId: ColumnId | null
     ) => {
         void setPoolArrangementEntry({
@@ -425,14 +441,18 @@ export default function LimitedDraftTable({
     //
     // `setPoolSelection(null)` after firing (review finding #2797-1): without
     // it the panel stayed open holding a now-STALE selection whose zone no
-    // longer matched reality, and `handlePoolPin`'s `sideboard: false` is
-    // hard-coded on the assumption `onPin` is only ever reachable from a Pool
-    // (not Sideboard) selection — an assumption a stale selection breaks. A
-    // player who tapped "→ Side" and then "Move to… → Lands" on the still-open
-    // panel got the card silently pulled back OUT of the Sideboard. Mirrors
-    // `deck-zones-surface.tsx`'s `actionsFor`, which clears `selection` the
-    // same way; the Inspect Overlay's own copy of this row closes via
-    // `DeckZonePeek`'s `onCloseInspect` wrapper already, same as there.
+    // longer matched reality. Kept as a UX improvement — closing the panel
+    // after its own zone-move CTA fires, exactly like
+    // `deck-zones-surface.tsx`'s `actionsFor` does — but it is NOT what keeps
+    // a stale selection from corrupting the Arrangement any more: this CTA is
+    // only one of several doors onto a stale `poolSelection` (a Pool ⇄
+    // Sideboard DRAG opens the same one, and it does not fire through here at
+    // all — issue #2667 round 3, PR #2797 review round 2). The actual fix is
+    // at the write itself: `handlePoolPin`/`poolArrangementPatch` no longer
+    // let a column pin assert a Zone value in the first place, so a stale
+    // selection — however it went stale — can no longer overwrite one. The
+    // Inspect Overlay's own copy of this row closes via `DeckZonePeek`'s
+    // `onCloseInspect` wrapper already, same as `deck-zones-surface.tsx`.
     const poolActionsFor = (
         target: DeckZoneSelection
     ): readonly EditingSurfaceAction[] =>

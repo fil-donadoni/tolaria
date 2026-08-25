@@ -152,12 +152,32 @@ export function resolveDraftDragAction(
  *  `upsertPoolArrangementEntry` already fails closed on it (an unnamespaced id
  *  records nothing), so sending it would be a no-op field on the wire; leaving
  *  it out keeps the request honest and matches what the build view's own
- *  `handlePin` does with the same ids. */
+ *  `handlePin` does with the same ids.
+ *
+ *  `sideboard: undefined` (issue #2667 round 3, PR #2797 review round 2) means
+ *  "don't touch the Zone" — the SAME "don't touch" contract every OTHER
+ *  omitted field on this patch and the mutation itself already carries
+ *  (`ArrangementPatch.sideboard`/`.column` in `convex/limited/poolArrangement.ts`
+ *  are independently optional for exactly this reason). Before round 3 this
+ *  function accepted only a `boolean` and always emitted it, which forced
+ *  every caller — including a pure column PIN, which reads no Zone at all —
+ *  to assert a Zone value it never observed. A caller holding a STALE
+ *  selection (the panel does not react to a concurrent drag) then asserted
+ *  the WRONG one, silently reverting a Zone move the drag just made. The
+ *  build view's own `handlePin` (`pool-deck-builder-form.tsx`) never had this
+ *  bug: it always sent `{poolIndex, column}` with no `sideboard` field.
+ *  Making a pin's caller pass `undefined` here — rather than adding another
+ *  clear at the CTA that happens to reach a stale selection — closes every
+ *  such path at once, not just the one a review happened to walk. */
 export function poolArrangementPatch(
     poolIndex: number,
-    sideboard: boolean,
+    sideboard: boolean | undefined,
     columnId: ColumnId | null
-): { poolIndex: number; sideboard: boolean; column?: ColumnId } {
+): { poolIndex: number; sideboard?: boolean; column?: ColumnId } {
     const pinnable = columnId !== null && parseColumnId(columnId) !== null;
-    return { poolIndex, sideboard, ...(pinnable ? { column: columnId } : {}) };
+    return {
+        poolIndex,
+        ...(sideboard !== undefined ? { sideboard } : {}),
+        ...(pinnable ? { column: columnId } : {}),
+    };
 }
