@@ -398,7 +398,7 @@ function compactCard(
     if (card.temporarySubtypeChange) {
         out.temporarySubtypeChange = card.temporarySubtypeChange;
     }
-    // CR 400.7 / 611.2b (issue #1746) — indefinite subtype-set restore anchor.
+    // CR 400.7 / 611.2a (issue #1746) — indefinite subtype-set restore anchor.
     // No duration ticks this out; its only end is the permanent leaving the
     // battlefield (`resetBattlefieldTransientState`). Must round-trip or a
     // save/load boundary loses the anchor while the mutated `subtypes` array

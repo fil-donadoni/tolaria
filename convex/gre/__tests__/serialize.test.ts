@@ -341,7 +341,7 @@ describe("game_state serialize round-trip", () => {
         ).toBeUndefined();
     });
 
-    it("preserves an indefinite subtype set (Thelonite Monk shape, CR 400.7 / 611.2b, #1746/#2255)", () => {
+    it("preserves an indefinite subtype set (Thelonite Monk shape, CR 400.7 / 611.2a, #1746/#2255)", () => {
         // `indefiniteSubtypeSet` is the restore anchor for an INDEFINITE
         // subtype replacement (`SpellContext.setSubtypes` — "target land
         // becomes a Forest"). It has no duration to tick it out, so its only
