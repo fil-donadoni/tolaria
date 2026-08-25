@@ -42,14 +42,24 @@ export const exaltedAngel: CardDefinition = {
     // special action. NOT the cost of the face-down cast (CR 702.37a's {3}).
     morph: { X: 2, W: 2 },
     triggeredAbilities: [
-        damageDealtTrigger({
-            id: "exalted-angel-lifegain",
-            oracleText:
-                "Whenever this creature deals damage, you gain that much life.",
-            source: "self",
-            resolve: (ctx, event) => {
-                ctx.gainLife(ctx.controller, event.amount);
-            },
-        }),
+        {
+            ...damageDealtTrigger({
+                id: "exalted-angel-lifegain",
+                oracleText:
+                    "Whenever this creature deals damage, you gain that much life.",
+                source: "self",
+                resolve: (ctx, event) => {
+                    ctx.gainLife(ctx.controller, event.amount);
+                },
+            }),
+            // aiEffects (PRD #1423, issue #1431/#1519) — a bare `resolve()`
+            // ability, so the bot's value model has nothing to walk without a
+            // shadow script. `amount: 4` is Exalted Angel's own printed power,
+            // the life gained in the common attacks-face case; the trigger only
+            // ever fires once the permanent is FACE UP (a face-down 2/2 has no
+            // abilities at all, CR 702.37c), so the printed power is the right
+            // constant rather than the face-down 2.
+            aiEffects: [{ op: "gainLife", player: "controller", amount: 4 }],
+        },
     ],
 };
