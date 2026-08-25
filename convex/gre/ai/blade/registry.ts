@@ -716,6 +716,80 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Charter scenario 4 (evaluation, not choice-node). NOT blocking loses the game by force: 4 x Craw Wurm = 24 unblocked damage into 20 life (CR 510.1c / 704.5a), with no instant, mana or life gain in the position. Any single block leaves 18 and the bot lives at 2, at the cost of the 2/2 — a materially losing block that survival requires. Guards `lethalUnblockedDelta` (issue #1489): before it, the leaf evaluation was identical for both moves and the block-quality tie-break actively preferred dying.",
     },
     {
+        // LIFE-DEPENDENT NEGATIVE CONTROL (issue #2147) — the exact SAME board
+        // as charter scenario 4 above (4 x Craw Wurm attacking into a lone
+        // Grizzly Bears), with only `life.opp` changed. This is the entry
+        // `ScenarioSpec`'s missing `life` field was blocking: before #2147 no
+        // scenario could pin "the bot at a life total other than 20", so a
+        // life-dependent decision could only ever be tested at the default —
+        // and scenario 4's own default-life board is ITSELF a case where the
+        // right answer would silently flip if the field existed and nobody
+        // used it: block only because 24 unblocked damage is lethal at 20.
+        //
+        // Here it is not. `life.opp = 40` puts the defender eleven safely
+        // above the 24 incoming: taking it all leaves 16. Grizzly Bears (2/2)
+        // trades with nothing — Craw Wurm is a 6/4, so the block kills
+        // nothing and only prevents 6 of the 24 already-survivable damage.
+        // Blocking here is a PURE material loss for zero survival benefit;
+        // the correct move is to decline (an empty `declare-blockers`).
+        //
+        // MEASURED, NOT ASSERTED (both at `budget.iterations = 400`, seeds
+        // [0xb1ade, 1, 2, 3, 4], via `runBladeScenario` on this exact board):
+        //   - life.opp = 20 (scenario 4, default): the bot blocks with
+        //     Grizzly Bears on ALL 5 seeds ("declare-blockers cards=[Grizzly
+        //     Bears] targets=[Craw Wurm]") — it must, or it dies.
+        //   - life.opp = 40 (this entry): the bot declines to block on ALL 5
+        //     seeds (empty "declare-blockers", no assignments) — the same
+        //     board, the same attackers, only the life total moved.
+        // The chosen move flips 5/5 seeds solely on `life`; an entry that
+        // opened at 4 life and "still passed" for the same reason it would at
+        // 20 is exactly the silent false-green this field exists to close —
+        // this entry is the other half of that pair, proving the FLIP rather
+        // than one more position at the default.
+        //
+        // Before #2147 this position was simply unwritable: `ScenarioSpec`
+        // had no way to say "opp at 40", so the only life-dependent board
+        // reachable was the ambient default — which is what would have made
+        // a "block or die" entry pass for the wrong reason had it been
+        // authored without care.
+        label: "life-dependent: does NOT chump-block when the incoming damage isn't lethal (issue #2147)",
+        spec: {
+            cards: [
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 4,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            // The one line that differs from charter scenario 4: 24 unblocked
+            // damage into 40 leaves 16, not a loss. `!== 20`, the base
+            // state's default, is the entire point — this is the field the
+            // issue exists for.
+            life: { opp: 40 },
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "declare-blockers", card: "Grizzly Bears" }],
+        },
+        note: "life-dependent negative control (issue #2147): same board as charter scenario 4 (4 x Craw Wurm vs. lone Grizzly Bears), only `life.opp` raised from the default 20 to 40. 24 unblocked damage no longer kills, so blocking (which trades the 2/2 for nothing against a 6/4) is pure material loss with zero survival benefit — the bot must decline. Measured 5/5 seeds: blocks at life 20 (scenario 4), declines at life 40 (this entry). Proves the ScenarioSpec `life` field actually reaches the built board and changes the bot's decision, not just the definition.",
+    },
+    {
         // DEEP LETHAL-BLOCK charter (issue #1505) — the LEAF companion to
         // charter scenario 4 above. Scenario 4's block-or-die decision sits at
         // the ROOT, where the `blockDeltaOf` tie-break (`search.ts`) fires; the

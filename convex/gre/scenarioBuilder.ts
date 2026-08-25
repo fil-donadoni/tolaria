@@ -563,6 +563,17 @@ export function buildStateFromScenario(
         if (spec.poison.opp) p2.poisonCounters = spec.poison.opp;
     }
 
+    // Seed starting life totals (CR 119.1, issue #2147). Otherwise both
+    // players keep the base state's default (20) regardless of what the
+    // scenario is trying to pin — the class of bug this field exists to
+    // close. `!== undefined` (not truthy, unlike poison/experience above):
+    // 0 life is a real, if degenerate, position (a lethal-check scenario one
+    // point past the line), not "absent".
+    if (spec.life) {
+        if (spec.life.me !== undefined) p1.life = spec.life.me;
+        if (spec.life.opp !== undefined) p2.life = spec.life.opp;
+    }
+
     // Seed experience counters (CR 122.1, issue #1969). No rule removes them
     // and no SBA reads them — they exist only for the cards that count them,
     // so a scenario seeds them to start at the scaling state under test.

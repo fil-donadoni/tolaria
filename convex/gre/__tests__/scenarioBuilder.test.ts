@@ -49,6 +49,53 @@ describe("buildStateFromScenario (issue #1424)", () => {
         expect(state.players[1].experienceCounters).toBeUndefined();
     });
 
+    // CR 119.1 (issue #2147) — every blade entry depending on a life total
+    // (chump-block vs. race, burn the creature vs. the face, any lethal
+    // check) was unpinnable before this: the built board always opened at
+    // the base state's default life regardless of what the scenario asked
+    // for.
+    it("seeds life totals on both seats (CR 119.1)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [],
+            life: { me: 4, opp: 17 },
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        expect(state.players[0].life).toBe(4);
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("seeds only the requested seat, leaving the other at the base default", () => {
+        const base = makeState();
+        expect(base.players[0].life).toBe(20);
+        expect(base.players[1].life).toBe(20);
+
+        const state = buildStateFromScenario(base, {
+            cards: [],
+            life: { me: 3 },
+        });
+
+        expect(state.players[0].life).toBe(3);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("leaves life at the base state's default when the spec omits `life` entirely", () => {
+        const state = buildStateFromScenario(makeState(), { cards: [] });
+        expect(state.players[0].life).toBe(20);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("honors an explicit 0 life (a degenerate lethal-check position, not 'absent')", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [],
+            life: { me: 0 },
+        });
+        expect(state.players[0].life).toBe(0);
+        expect(state.players[1].life).toBe(20);
+    });
+
     it("places cards into the requested zones for the requested owner", () => {
         const base = makeState();
         const spec: ScenarioSpec = {

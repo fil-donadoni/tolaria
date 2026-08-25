@@ -133,6 +133,16 @@ export const SCENARIO_JSON_SCHEMA = {
                 opp: { type: "integer" },
             },
         },
+        life: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "Starting life totals, if the description names one (default 20 each).",
+        },
     },
     required: ["cards"],
 };
@@ -192,6 +202,9 @@ export function buildScenarioSystemPrompt(
         "- Default zone is battlefield; default phase is PRECOMBAT_MAIN.",
         "- Intentionally illegal boards are fine — do not 'fix' the description;",
         "  but 'playable' (the resources to perform the play exist) is REQUIRED.",
+        "- If the description names a life total ('me at 4 life', 'opp at 2'),",
+        "  set `life.me` / `life.opp` to that exact number; omit `life` entirely",
+        "  when no life total is mentioned (default 20 each).",
         "",
         `ALLOWED CARDS (${allowList.length}):`,
         allowList.join(", "),

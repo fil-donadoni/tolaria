@@ -149,6 +149,9 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             markLastDrawn: true,
             rngSeed: 7,
             poison: { me: 4, opp: 9 },
+            // CR 119.1 (issue #2147) — starting life totals, mirroring the
+            // `poison` shape exactly.
+            life: { me: 4, opp: 17 },
             // CR 122.1 (issue #1969) — the scaling seed for a "for each
             // experience counter you have" card.
             experience: { me: 2 },
@@ -171,8 +174,33 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             markLastDrawn: true,
             rngSeed: 7,
             poison: { me: 4, opp: 9 },
+            life: { me: 4, opp: 17 },
             experience: { me: 2 },
         });
+    });
+
+    // CR 119.1 (issue #2147) — round-trip `life` through every shape the
+    // tolerant load must handle: both seats, one seat, absent, and garbage.
+    it("normalizes `life` — both seats, one seat, absent, garbage (CR 119.1)", () => {
+        expect(
+            normalizeScenarioSpec({ cards: [], life: { me: 4, opp: 17 } })
+        ).toEqual({ cards: [], life: { me: 4, opp: 17 } });
+
+        expect(normalizeScenarioSpec({ cards: [], life: { me: 4 } })).toEqual({
+            cards: [],
+            life: { me: 4 },
+        });
+
+        expect(normalizeScenarioSpec({ cards: [] })).toEqual({ cards: [] });
+
+        // Garbage `life` (wrong shape, wrong types) degrades to an empty
+        // `{}` rather than throwing or leaking the raw value through.
+        expect(normalizeScenarioSpec({ cards: [], life: "dead" })).toEqual({
+            cards: [],
+        });
+        expect(
+            normalizeScenarioSpec({ cards: [], life: { me: "four" } })
+        ).toEqual({ cards: [], life: {} });
     });
 
     it("DROPS unknown fields rather than throwing", () => {
