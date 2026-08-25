@@ -26,15 +26,24 @@
 // interrogate the tree it produces — which is what this file does.
 //
 // WHY POSTCSS AND NOT LIGHTNINGCSS. lightningcss is the compiler that
-// downgraded this to a warning, so "assert zero lightningcss warnings" is the
-// obvious guard — and it does not work. Run against the RAW Tailwind source it
-// reports 21 warnings on a HEALTHY file (`Unknown at rule: @custom-variant`,
-// `@apply`, `@theme` — Tailwind syntax it only sees post-expansion) and
-// **exactly the same 21 on the broken one**: the dangling combinator surfaces
-// only after Tailwind expands, i.e. only in a full build. Measured both ways
-// before choosing. postcss parses Tailwind's at-rule syntax without complaint
-// and discriminates cleanly: 0 offending selectors on the fixed file, 1 on the
-// broken one.
+// downgraded this to a warning (under `errorRecovery`, Vite's build mode), so
+// "assert zero lightningcss warnings" looks like the obvious guard — and the
+// naive COUNT is a real trap, correctly rejected: run with `errorRecovery`
+// over the RAW Tailwind source and the HEALTHY file reports 21 warnings
+// (`@apply`×16, `@custom-variant`×4, `@theme`×1 — Tailwind syntax it only
+// understands post-expansion) and the BROKEN file also reports 21 — but a
+// DIFFERENT 21 (`@apply`×15, one traded away for a `SelectorError: Invalid
+// dangling combinator in selector`, `@custom-variant`×4, `@theme`×1). A count
+// assertion cannot see that swap. The detection itself is not blind,
+// though: run WITHOUT `errorRecovery` (lightningcss's default), the healthy
+// file still transforms successfully while the broken one THROWS that same
+// `Invalid dangling combinator in selector` — pre-expansion, on the raw
+// source, same as postcss below. Measured all three ways before choosing.
+// postcss is still the right call: beyond the dangling combinator, this file
+// also needs to interrogate the parsed rule tree for empty rule bodies and
+// for specific named recipes (`LOAD_BEARING_RECIPES` below) having vanished
+// entirely — checks a warning count or a throw/no-throw signal cannot
+// express on their own.
 //
 // postcss is not a declared dependency — it arrives with vite (a direct
 // devDependency) and is version-pinned in `bun.lock`. That is deliberate and
@@ -100,6 +109,7 @@ const LOAD_BEARING_RECIPES = [
     ".panel-physical",
     ".panel-header-band",
     ".panel-rule",
+    ".heading-panel",
     // Segmented control.
     ".segment-pill",
     ".segment-active",
@@ -110,6 +120,26 @@ const LOAD_BEARING_RECIPES = [
     ".hairline",
     ".hairline-strong",
     ".text-display",
+    ".text-label",
+    // Modal scrim (#1891) — the ONE blur/scrim treatment; a lost rule
+    // silently drops the backdrop blur and leaves the overlay unreadable.
+    ".modal-scrim",
+    // Z-index scale — one mechanism (a single `@layer` of one-line
+    // `z-index: var(--z-*)` utilities). Losing any one is the SAME silent
+    // failure `.z-modal` was added for: the element keeps its default stack
+    // order with nothing else visibly wrong (`.z-modal` alone: 36
+    // `className` consumers by word-boundary grep over `src/**/*.{ts,tsx}`,
+    // tests excluded — a lost `.z-modal` puts a modal behind the board).
+    ".z-hud",
+    ".z-dev-overlay",
+    ".z-sheet",
+    ".z-arrows",
+    ".z-stack",
+    ".z-banner",
+    ".z-chip",
+    ".z-modal",
+    ".z-modal-top",
+    ".z-modal-peak",
 ] as const;
 
 describe("src/index.css parses as written (PR #2827 review, issue #2723)", () => {
