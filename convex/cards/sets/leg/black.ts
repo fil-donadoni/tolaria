@@ -806,7 +806,7 @@ export const moldDemon: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// C7 deferred — need a primitive not yet built; each lands when its primitive (tracked-by: #2785)
+// C7 deferred (tracked-by: #2785) — need a primitive not yet built; each lands when its primitive
 // ships:
 //   • Elder Spawn — "At the beginning of your upkeep, sacrifice an Island. If
 //     you don't, sacrifice this and it deals 6 damage to you." The cost is a
@@ -928,7 +928,7 @@ export const spiritShackle: CardDefinition = {
 //     board-derived cost primitive its "{X}{X}, {T}" activation needs DOES now
 //     exist (`cost.manaEqualToCounterCount`, board-fixed and never prompted —
 //     Chromatic Armor). The one residual gap is that {X}{X} is TWICE the pin
-//     count and that descriptor has no multiplier. Deferred until it does, (tracked-by: #2785)
+//     count and that descriptor has no multiplier. Deferred (tracked-by: #2785) until it does,
 //     rather than shipping a wrong cost.
 //   • Takklemaggot (tracked-by: #2228) — an Aura that, when its host dies,
 //     returns either attached to a creature chosen by the DYING CREATURE'S

@@ -1340,7 +1340,7 @@ export const wrathOfGod: CardDefinition = {
 // Used by cards whose upkeep cost is a flat may-pay with a hard consequence
 // on decline (Phantasmal Forces → sacrifice self, Force of Nature → deal
 // damage to controller, Stasis / Pestilence → sacrifice self). Cumulative
-// upkeep (CR 702.23, post-LEA) is a distinct mechanic and not modeled here. (tracked-by: #2785)
+// upkeep (CR 702.23, post-LEA) is a distinct mechanic and not modeled (tracked-by: #2785) here.
 // Delegates to the `phaseTrigger` factory so the matches() narrowing and
 // scope filter live in one place.
 //

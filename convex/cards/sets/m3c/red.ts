@@ -40,7 +40,7 @@ import { EFFECT_AFFECTS_SELF } from "../../types";
 // script to walk (PRD #1423 / issue #1519), since a bare `resolve()` ability
 // is otherwise AI-blind.
 //
-// DIVERGENCE (source attribution): `SpellContext.dealDamage` always sources (tracked-by: #2785)
+// DIVERGENCE (tracked-by: #2785) (source attribution): `SpellContext.dealDamage` always sources
 // the damage from the resolving ability's own permanent (Pyrogoyf) — there is
 // no per-call source override (`gre/state.ts` `dealDamage` reads the stack
 // item's source). For Pyrogoyf's own ETB this is exactly correct; for the

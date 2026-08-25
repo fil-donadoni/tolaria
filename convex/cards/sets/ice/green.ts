@@ -238,7 +238,7 @@ export const chubToad: CardDefinition = {
 // control a Plains." (CR 702.22 banding; `gre/banding.ts` reads the keyword from
 // `staticAbilities`.)
 //
-// SIMPLIFICATION (flagged, no engine change): the "as long as you control a (tracked-by: #2785)
+// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the "as long as you control a
 // Plains" condition is a CONTINUOUS keyword gate on board state. The engine's
 // `keyword-grant` static effect is applied imperatively at ETB and reversed only
 // when the source leaves play — its `applies` predicate gets no board view
@@ -853,8 +853,8 @@ export const freyalisesWinds: CardDefinition = {
 //   • Forgotten Lore / Freyalise Supplicant / Freyalise's Winds — blocked
 //     one-offs owned by later clusters.
 //
-// FLAGGED SIMPLIFICATIONS (no new primitive): Blizzard drops its snow cast-
-// condition (no snow lands in pool); Dire Wolves grants banding unconditionally (tracked-by: #2785)
+// FLAGGED SIMPLIFICATIONS (no new primitive) (tracked-by: #2785): Blizzard drops its snow cast-
+// condition (no snow lands in pool); Dire Wolves grants banding unconditionally
 // (the "as long as you control a Plains" gate needs a board-aware keyword-grant
 // predicate the engine lacks); Thermokarst's snow-land lifegain is a no-op.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1354,7 +1354,7 @@ export const shamblingStrider: CardDefinition = {
 // toughness on its own. The host's toughness read in `compute` is its toughness
 // WITHOUT this effect (the CDA delta is added on top), giving the intended cap.
 //
-// SIMPLIFICATION (flagged): the "defending player" while the host attacks is (tracked-by: #2785)
+// SIMPLIFICATION (tracked-by: #2785) (flagged): the "defending player" while the host attacks is
 // resolved as the host's opponent (the non-controller in 2-player). Multiplayer
 // (3+) is out of scope (CLAUDE.md), so the single opponent is the defender.
 export const snowblind: CardDefinition = {
@@ -1496,7 +1496,7 @@ export const tarpan: CardDefinition = {
 // Thermokarst — {1}{G}{G} Sorcery. "Destroy target land. If that land was a snow
 // land, you gain 1 life." (CR 701.8 destroy.)
 //
-// SIMPLIFICATION (flagged, no engine change): the "if that land was a snow land, (tracked-by: #2785)
+// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the "if that land was a snow land,
 // you gain 1 life" rider degrades to a no-op — the ICE pool ships NO snow-
 // supertype lands (snow mana is deferred; see CONTEXT.md "Snow" / PRD #628), so
 // no target can ever satisfy the snow branch. The destroy is the load-bearing

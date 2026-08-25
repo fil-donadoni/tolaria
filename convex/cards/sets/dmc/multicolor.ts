@@ -89,7 +89,7 @@ export const torstenFounderOfBenalia: CardDefinition = {
                         // No registered token-print art yet (issue #1305 —
                         // `scripts/fetch-token-prints.mjs` clobbers the whole
                         // generated file on every run, so it needs a full
-                        // set-file list, not just this file; deferred to a (tracked-by: #2785)
+                        // set-file list, not just this file; deferred (tracked-by: #2785) to a
                         // follow-up regeneration). Omitted `imagePrintId`
                         // falls back to `TokenPlaceholder` client-side.
                     },

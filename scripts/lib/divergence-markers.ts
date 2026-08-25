@@ -41,6 +41,32 @@
 // UNANCHORED (a confession word anywhere in a `//` line, not just first) —
 // is `simplif\w*`, `approximat\w*`, `not model(l)?ed`, `not enforced`,
 // `deviat\w*`, `unimplemented`, `unbuilt`.
+//
+// UNANCHORING has one cost the anchored version never paid: a comment that
+// explicitly DISCLAIMS a divergence ("this is not an approximation of the
+// clause, it IS the clause"; "No behavioural divergence"; "Note (not a
+// divergence)") now matches `approximat\w*`/`divergence` exactly like a real
+// confession, because those two words describe the STATE being denied, not
+// only the state being confessed — found empirically, issue #1900 fixup
+// round 2, finding 2, after the widened regex forced bogus `tracked-by:`
+// dispositions onto four comments that say, in their own words, they are not
+// divergences. `isNegatedConfession` below excludes only these two words
+// (never `not implemented`/`not modelled`/`not enforced`, which are
+// themselves two-word confessions — "not" there is part of the vocabulary,
+// not a negation of it) when a `not`/`no` sits within 24 characters before
+// them on the marker's own line or the line immediately above it (comments
+// wrap at ~76 columns, so a negation and its object can straddle one line
+// break — `neo/red.ts`'s "so this is not an\n// approximation of the
+// clause" is exactly that shape). A repo-wide sweep of every `not|no …
+// approximat|divergence` occurrence confirmed this window catches all three
+// live confession-disclaiming sites (this one, `usg/red.ts`, `atq/black.ts`)
+// plus three PRE-EXISTING ones this PR never touched (`inv/green.ts`,
+// `ice/black.ts`, `pls/white.ts` — already correctly undisposed-free because
+// they separately carry their own ref) and nothing else: a wider 3-line
+// window was tried and rejected because it also swallowed three GENUINE,
+// correctly-tracked markers (`mid/white.ts`, `pls/black.ts`,
+// `leg/black.ts`) whose nearby "no"/"not" belongs to unrelated prose ("no
+// engine event", "no legal choice"), not a negation of the confession.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -84,6 +110,58 @@ export function isStubContext(lines: string[], i: number): boolean {
     while (end < lines.length - 1 && IS_COMMENT.test(lines[end + 1])) end++;
     for (let k = start; k <= end; k++) {
         if (STUB_ANCHOR.test(lines[k])) return true;
+    }
+    return false;
+}
+
+/** Negates only the two confession words whose own text describes the STATE
+ *  being denied (`approximat\w*`, `divergence`) — never `not implemented` /
+ *  `not modelled` / `not enforced`, which are themselves two-word confession
+ *  phrases where "not" IS the vocabulary, not a negation of it. See the
+ *  module note above ("UNANCHORING has one cost…") for the corpus sweep that
+ *  picked the 24-character window and the two-line (not three-line) span. */
+export const NEGATED_CONFESSION =
+    /\b(?:not|no)\b.{0,24}?\b(?:approximat\w*|divergence)\b/i;
+
+/** True when the marker candidate at `lines[i]` is actually a comment
+ *  DISCLAIMING a divergence/approximation rather than confessing one — "this
+ *  is not an approximation of the clause, it IS the clause" reads exactly
+ *  like a confession to the unanchored `MARKER` regex, but is the opposite
+ *  claim. Checked against the marker's own line AND the line immediately
+ *  above it joined together (comment-prefix stripped first), because a wrapped
+ *  comment can split the negation from its object across the line break
+ *  (`neo/red.ts`'s "so this is not an\n// approximation of the clause"). */
+export function isNegatedConfession(lines: string[], i: number): boolean {
+    const strip = (line: string) => line.replace(/^\s*\/\/\s?/, "");
+    const prev = i > 0 ? strip(lines[i - 1]) : "";
+    const joined = `${prev} ${strip(lines[i])}`;
+    return NEGATED_CONFESSION.test(joined);
+}
+
+/** Anchor for the sanctioned `aiEffects`/AI-valuation shadow-script idiom
+ *  (PRD #1423, issue #1431/#1519/#2364 — see any of the ~15 sites using it,
+ *  e.g. `mh1/blue.ts`, `pls/blue.ts`). A shadow script is an intentional,
+ *  DOCUMENTED approximation of a card's effect for the bot's valuer only —
+ *  it never changes actual game behaviour — so a confession word inside its
+ *  own paragraph (`big/green.ts`'s "Approximates the real effect closely
+ *  enough for valuation") is not a Guard-B divergence at all, the same way a
+ *  commented-out card stub is `check-stub-coverage.ts`'s domain and not
+ *  Guard B's (issue #1900 fixup round 2, finding 2: the widened vocabulary
+ *  landed a bogus `tracked-by:` on this sanctioned prose because it happens
+ *  to contain "Approximates" — the fix is to stop matching the context, not
+ *  to disposition it). Only this one site currently trips it: the other
+ *  aiEffects sites document their approximation without a MARKER word. */
+export const AI_EFFECTS_SHADOW_ANCHOR = /\baiEffects\b\s*\(PRD #1423/i;
+
+/** True when `lines[i]` sits in the same contiguous `//` comment run as an
+ *  `aiEffects` shadow-script anchor — same walk shape as `isStubContext`. */
+export function isAiEffectsShadowContext(lines: string[], i: number): boolean {
+    let start = i;
+    while (start > 0 && IS_COMMENT.test(lines[start - 1])) start--;
+    let end = i;
+    while (end < lines.length - 1 && IS_COMMENT.test(lines[end + 1])) end++;
+    for (let k = start; k <= end; k++) {
+        if (AI_EFFECTS_SHADOW_ANCHOR.test(lines[k])) return true;
     }
     return false;
 }
@@ -154,8 +232,15 @@ export function paragraphAround(lines: string[], i: number): string {
  *    3. a disposition on an EARLIER line of the same paragraph that is
  *       ITSELF a marker line carrying its own (case 1) disposition — the
  *       "shared section-footer header" shape: a single
- *       `// C5 deferred (tracked-by: #1213) — …` line vouches for the
+ *       `// C5 deferred (tracked-by: #NNNN) — …` line vouches for the
  *       marker-word bullets listed underneath it in the same paragraph.
+ *       (`#NNNN` here is a placeholder, not a real issue number — this file
+ *       is itself in-scope tracked source for the liveness sweep, and a
+ *       real, resolvable `#NNN` in this example would register as a live
+ *       `tracked-by:` ref that later rots when that issue closes; see the
+ *       identical hazard called out in `scanTrackedByRefs`'s own doc
+ *       comment below, which splits its `#1324` example across two
+ *       literals for the same reason.)
  *  This is narrower than the old whole-paragraph scan: an UNRELATED ref
  *  sitting in a different sentence of the same paragraph (a provenance
  *  citation, a separate deferral's own ref) no longer vouches for a marker
@@ -180,13 +265,18 @@ export interface MarkerHit {
 
 /** Every divergence-marker comment line in `lines`, paired with whether it
  *  carries a tracking disposition per `isDispositioned`'s tightened window.
- *  A marker sitting inside a commented-out card stub's comment run is
- *  skipped entirely — `check-stub-coverage.ts`'s domain, not Guard B's. */
+ *  Three classes of non-marker are skipped entirely before a hit is ever
+ *  recorded: a commented-out card stub's comment run (`check-stub-coverage.ts`'s
+ *  domain, not Guard B's), a comment explicitly DISCLAIMING a divergence/
+ *  approximation rather than confessing one (`isNegatedConfession`), and the
+ *  sanctioned `aiEffects` shadow-script idiom (`isAiEffectsShadowContext`). */
 export function scanDivergenceMarkers(lines: string[]): MarkerHit[] {
     const hits: MarkerHit[] = [];
     for (let i = 0; i < lines.length; i++) {
         if (!MARKER.test(lines[i])) continue;
         if (isStubContext(lines, i)) continue;
+        if (isNegatedConfession(lines, i)) continue;
+        if (isAiEffectsShadowContext(lines, i)) continue;
         hits.push({
             line: i + 1,
             tracked: isDispositioned(lines, i),

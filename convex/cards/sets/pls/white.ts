@@ -163,7 +163,7 @@ export const lashknifeBarrier: CardDefinition = {
 // colour-changing effect elsewhere on the board shifts the census on its own
 // — no extra wiring needed here.
 //
-// DIVERGENCE: `getCDAContribution` (`gre/layers.ts`) overwrites rather than (tracked-by: #2785)
+// DIVERGENCE (tracked-by: #2785): `getCDAContribution` (`gre/layers.ts`) overwrites rather than
 // sums layer-7a `pt-cda` contributions across sources, which is correct for
 // a true CR 613.4b "set" CDA but wrong for this card's CR 613.4c-shaped
 // *modification* — enchanting a creature that carries its OWN `pt-cda`

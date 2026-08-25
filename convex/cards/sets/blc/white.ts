@@ -70,7 +70,7 @@ export const jackedRabbit: CardDefinition = {
             // puts a doomed trigger on the stack in front of the player, and
             // the resolution-time check still holds the CR line.
             //
-            // DIVERGENCE (CR 603.4 + 400.7 + 608.2h): the `interveningIf` leg (tracked-by: #2785)
+            // DIVERGENCE (tracked-by: #2785) (CR 603.4 + 400.7 + 608.2h): the `interveningIf` leg
             // below misfires when the rabbit is blinked while this trigger is
             // on the stack. `resolveTopOfStackInner` (`gre/state.ts`)
             // re-evaluates it against the LIVE permanent found by

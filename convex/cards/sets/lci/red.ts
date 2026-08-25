@@ -26,7 +26,7 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 // Ability 2 — the SAME impulse-draw PROTOCOL shipped for Ragavan/Robber of
 // the Rich (no Op skin, precedent: Elkin Bottle / Ice Cauldron,
 // ice/colorless.ts), riding `discardTrigger`'s resolve hook.
-// SIMPLIFICATION (flagged, `discardTrigger`'s own documented behavior): one (tracked-by: #2785)
+// SIMPLIFICATION (tracked-by: #2785) (flagged, `discardTrigger`'s own documented behavior): one
 // CARD_DISCARDED event fires PER discarded card (a discard of N cards fires
 // this ability N times, not once for "one or more cards") — unobservable
 // here since Inti's OWN ability 1 above only ever discards exactly one card

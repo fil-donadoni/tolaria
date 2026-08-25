@@ -49,7 +49,7 @@ export const gravitySphere: CardDefinition = {
 //     upkeep, pay {X} or take X damage).
 //   • World rule (C2) — Gravity Sphere ("all creatures lose flying"), Land's
 //     Edge, Storm World. These carry the World supertype; like every other
-//     World-supertype LEG card they are deferred to the world-rule cluster so (tracked-by: #2785)
+//     World-supertype LEG card they are deferred (tracked-by: #2785) to the world-rule cluster so
 //     the supertype and its SBA ship together (mirrors the blue/black tranches).
 //
 // Out of scope for the whole set (per #369): Tempest Efreet (ante, ADR 0010).

@@ -1066,7 +1066,7 @@ export const fylgja: CardDefinition = {
 // live block graph, which the DSL vocabulary does not model. This is the
 // accepted combat-primitive escape hatch, not a papered-over Op gap.
 //
-// SIMPLIFICATION (flagged, no engine change): `combatRoleFilter` has no (tracked-by: #2785)
+// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): `combatRoleFilter` has no
 // "blocked" refinement, so the target requirement admits any attacking creature
 // (controlled by EITHER player — the oracle has no controller clause); the
 // primitive's own CR 509.1 gate no-ops on an unblocked attacker, so targeting

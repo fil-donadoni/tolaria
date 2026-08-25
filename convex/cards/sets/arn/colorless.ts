@@ -271,7 +271,7 @@ export const libraryOfAlexandria: CardDefinition = {
 // catalogue already uses (Jalum Tome). The Effect Script interpreter runs
 // each Op EXACTLY ONCE per resolution (CR 608.3 checkpointing), so the draw
 // never re-runs when the discard choice suspends — the re-draw bug this card
-// was originally deferred for (see the old `resolveSteps` comment this (tracked-by: #2785)
+// was originally deferred (tracked-by: #2785) for (see the old `resolveSteps` comment this
 // replaced) was a property of a naive single-`resolve` closure, not of the
 // DSL. `count: 3` self-clamps to hand size with zero candidates skipping the
 // choice entirely (CR 608.2b), same as the old imperative clamp. The

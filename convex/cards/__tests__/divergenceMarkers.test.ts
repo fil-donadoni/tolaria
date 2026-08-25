@@ -338,12 +338,12 @@ describe("Guard B — documented-divergence-needs-issue (issue #962)", () => {
         expect(hits[0].tracked).toBe(true);
     });
 
-    it("false positive 3 is the multi-marker section footer test above (one ref vouches the whole block)", () => {
-        // Covered by "a real multi-marker section footer needs its tracking
-        // ref only once" above — kept as a single source of truth rather
-        // than duplicated.
-        expect(true).toBe(true);
-    });
+    // False positive 3 (a multi-marker section footer needing its tracking
+    // ref only once) is covered by "a real multi-marker section footer
+    // needs its tracking ref only once" above — no separate test here, to
+    // avoid a duplicate assertion with nothing new to prove (issue #1900
+    // fixup round 2, finding 4: the placeholder test that used to sit here
+    // was `expect(true).toBe(true)`, vacuous).
 
     it("false positive 4: a card NAME containing a confession-shaped word does not itself become a marker unless the vocabulary actually matches", () => {
         // "Fear of Missing Out" (dsk/red.ts) — none of the widened words

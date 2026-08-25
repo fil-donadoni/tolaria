@@ -821,8 +821,8 @@ export const orcishOriflamme: CardDefinition = {
 
 // Power Surge — "At the beginning of each player's upkeep, Power Surge
 // deals damage to that player equal to the number of untapped lands they
-// control." (CR 603.6a phase trigger, 120.1 damage). APNAP not modeled —
-// per-trigger event identifies the upkeep player via `activePlayerId`. (tracked-by: #2785)
+// control." (CR 603.6a phase trigger, 120.1 damage). APNAP not modeled (tracked-by: #2785) —
+// per-trigger event identifies the upkeep player via `activePlayerId`.
 export const powerSurge: CardDefinition = {
     id: "62858604-ca5a-4f69-a045-a7515ebfabf2",
     rarity: "rare",

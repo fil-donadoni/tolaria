@@ -673,7 +673,7 @@ export const venom: CardDefinition = {
     targetRequirement: { type: "Creature", count: 1 },
     // Migrated resolve()→effects[] (ADR 0049, issue #865). "Destroy the OTHER
     // creature in the pair" is expressed as TWO triggered abilities rather than
-    // an id-equality conditional pick (deferred as the `$id-equality` classifier (tracked-by: #2785)
+    // an id-equality conditional pick (deferred (tracked-by: #2785) as the `$id-equality` classifier
     // pseudo-blocker): role discrimination stays in the imperative `matches`
     // (host-is-attacker vs host-is-blocker), and each ability captures the
     // single relevant `$event` field (the blocker when the host attacks, the

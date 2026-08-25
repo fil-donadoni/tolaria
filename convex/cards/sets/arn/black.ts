@@ -456,7 +456,7 @@ export const cuombajjWitches: CardDefinition = {
 // Auras already attached" is automatic — the enchant gate only blocks NEW
 // attachment; auras already on a guarded artifact are untouched.
 //
-// Simplification (flagged): the printed "if something would destroy Guardian (tracked-by: #2785)
+// Simplification (tracked-by: #2785) (flagged): the printed "if something would destroy Guardian
 // Beast and your artifacts simultaneously, only Guardian Beast is destroyed"
 // rider is handled implicitly — our engine resolves "destroy" effects
 // sequentially and the indestructible guard is read at each destroy, so a mass

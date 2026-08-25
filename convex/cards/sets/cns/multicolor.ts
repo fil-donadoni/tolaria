@@ -17,7 +17,7 @@ import { DACK_FAYDEN_EMBLEM_ID } from "../../emblems";
 //   • −2 — "Gain control of target artifact." `gainControl` with no `duration`
 //     is the INDEFINITE layer-2 reassignment (CR 613.1b) — it never reverts.
 //   • −6 — the emblem (CR 114.1). The trigger seam, the CR 603.2c one-vs-N
-//     reasoning and the deliberate divergence are documented in full on the (tracked-by: #2785)
+//     reasoning and the deliberate divergence (tracked-by: #2785) are documented in full on the
 //     emblem definition itself (`convex/cards/emblems.ts`,
 //     `DACK_FAYDEN_EMBLEM_ID`).
 export const dackFayden: CardDefinition = {

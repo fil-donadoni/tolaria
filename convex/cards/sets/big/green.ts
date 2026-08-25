@@ -187,7 +187,7 @@ const vaultbornTyrantDiesTrigger = diedTrigger({
     // (no Effect Op exposes `createTokenCopyOf`'s `additionalTypes` +
     // `lastKnownFromGraveyardOrExile` combination, see the comment above), so
     // the bot's value model has nothing to walk without a shadow script.
-    // Approximates (tracked-by: #2785)
+    // Approximates
     // the real effect closely enough for valuation: a 6/6 trampler token
     // appears (the shadow omits the token's own triggeredAbilities — the
     // valuer doesn't need that fidelity to weigh "a 6/6 trample body

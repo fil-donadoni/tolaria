@@ -2383,7 +2383,7 @@ export const aetherRift: CardDefinition = {
 //     and `tappedTrigger({ scope: "any", filter: { types: "Land" },
 //     forMana: true })` is the shipped way to key off it.
 //   - "the mana doubling has no engine precedent (Extraplanar Lens-style
-//     doublers unimplemented catalogue-wide)" — Mana Flare (`lea/red.ts`) (tracked-by: #2785)
+//     doublers unimplemented catalogue-wide)" (tracked-by: #2785) — Mana Flare (`lea/red.ts`)
 //     is SHIPPED and its Oracle text is this card's first clause verbatim;
 //     Gauntlet of Might (`lea/colorless.ts`) ships the same shape.
 //
@@ -2817,7 +2817,7 @@ const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
 // 0014). Coalition Victory and Ordered Migration (the Domain cluster's own
 // two gold cards, issue #1066) are already active above this section — not
 // duplicated. Two of the five dragons (Crosis, Darigaaz) and one Apprentice
-// (Nightscape) hit genuine capability gaps and are deferred at the end of (tracked-by: #2785)
+// (Nightscape) hit genuine capability gaps and are deferred (tracked-by: #2785) at the end of
 // this file.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -3385,7 +3385,7 @@ export const tinderFarm: CardDefinition = {
 // activated ability, CR 701.26 tap; CR 119.3 life loss.) Two independent
 // tap-only activated abilities — same fused-pair shape as Samite Archer
 // (this file, WU tranche) and Stormscape Apprentice's own sibling Sunscape
-// Apprentice (`white.ts`, deferred elsewhere — a DIFFERENT ability pair). (tracked-by: #2785)
+// Apprentice (`white.ts`, deferred (tracked-by: #2785) elsewhere — a DIFFERENT ability pair).
 export const stormscapeApprentice: CardDefinition = {
     id: "1eb42f39-9187-44e4-aa34-14ab31977199",
     rarity: "common",

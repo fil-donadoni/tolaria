@@ -128,7 +128,7 @@ export const sylvanLibrary: CardDefinition = {
 //     counter on its own combat-damage end-step trigger).
 //   • World rule (C2) — Concordant Crossroads, Living Plane, Revelation. These
 //     carry the World supertype; like every other World-supertype LEG card they
-//     are deferred to the world-rule cluster so the supertype and its SBA ship (tracked-by: #2785)
+//     are deferred (tracked-by: #2785) to the world-rule cluster so the supertype and its SBA ship
 //     together (mirrors the blue/black/red tranches).
 //   • C9 conditional attack restriction (World) — Arboria. SHIPPED in the C9
 //     section at the foot of this file (#386).

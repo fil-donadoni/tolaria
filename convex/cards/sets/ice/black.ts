@@ -608,7 +608,7 @@ export const demonicConsultation: CardDefinition = {
 // that declaration a materialized grant is evaluated once, at ETB, and both
 // clauses ship inert.
 //
-// DIVERGENCE (CR 611.2c): pieces 2 and 3 are sourced from Dread Wight's own (tracked-by: #2785)
+// DIVERGENCE (tracked-by: #2785) (CR 611.2c): pieces 2 and 3 are sourced from Dread Wight's own
 // `staticEffects[]`, so the untap lock and the {4} ability end if Dread Wight
 // leaves the battlefield, whereas the Oracle text creates them once as
 // indefinite effects of the resolved trigger. The paralyzation counters
@@ -1374,7 +1374,7 @@ export const infernalDenizen: CardDefinition = {
             // is COVERED (the card's ACTIVATED ability migrated), this UPKEEP
             // trigger also reads APNAP order (`ctx.apNapOrder()`) to pick the
             // opponent who chooses, then drives an opponent choose-permanents +
-            // a per-pick gainControl. `apNapOrder` is an unimplemented backlog (tracked-by: #2785)
+            // a per-pick gainControl. `apNapOrder` is an unimplemented (tracked-by: #2785) backlog
             // Op and the choice-picked gainControl target is not expressible.
             // Blocked on: the apNapOrder Op + a choice-picked object selector —
             // stays resolve().
@@ -1702,7 +1702,7 @@ export const krovikanFetish: CardDefinition = {
 // that turn's end step and reanimates the card under the Vampire's controller
 // via `returnToBattlefield(..., "graveyard")`.
 //
-// SIMPLIFICATION (flagged, no engine change): the "sacrifice it when you lose (tracked-by: #2785)
+// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the "sacrifice it when you lose
 // control of this creature" linkage requires per-permanent control-loss
 // tracking the engine doesn't model yet. The reanimation (the card's main
 // effect) is faithful; the sacrifice-on-loss-of-control clause — only reachable
