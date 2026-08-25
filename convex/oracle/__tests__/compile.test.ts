@@ -5,11 +5,12 @@
 // passes is indistinguishable from a gate that is not wired up.
 
 import { describe, expect, it } from "vitest";
-import type { EffectOp } from "../../cards/types";
+import type { ActivatedAbility, EffectOp } from "../../cards/types";
 import { MECHANICS_REGISTRY } from "../../cards/mechanicsRegistry";
 import { compileCard } from "../compile";
 import { collectOps, runGates, sortKeys } from "../gates";
 import { slugify } from "../lower";
+import { declareTargets } from "../lowerActivated";
 import { oracleCard } from "./fixtures";
 
 describe("compileCard — states", () => {
@@ -236,5 +237,49 @@ describe("gate helpers", () => {
     it("slugify matches the catalogue's own ability-id convention", () => {
         expect(slugify("Llanowar Elves")).toBe("llanowar-elves");
         expect(slugify("Ach! Hans, Run!")).toBe("ach-hans-run");
+    });
+});
+
+describe("declareTargets (CR 601.2c)", () => {
+    function ability(): ActivatedAbility {
+        return {
+            id: "x",
+            oracleText: "{T}: Do a thing.",
+            cost: { tap: true },
+            useStack: true,
+            effects: [],
+        };
+    }
+
+    it("declares the one announced target", () => {
+        const a = ability();
+        expect(
+            declareTargets(a, [{ type: "Creature" as const, count: 1 }])
+        ).toBeNull();
+        expect(a.targetRequirement).toEqual({ type: "Creature", count: 1 });
+    });
+
+    it("declares nothing when no target was announced", () => {
+        const a = ability();
+        expect(declareTargets(a, [])).toBeNull();
+        expect(a.targetRequirement).toBeUndefined();
+    });
+
+    it("REFUSES two announced targets instead of dropping them", () => {
+        // The ops already reference `{target: 0}` and `{target: 1}`
+        // positionally, so silently dropping the requirements emits a
+        // definition whose script points at targets nothing declares — the
+        // shape that reads as `ready` and is broken on the stack.
+        // `TargetSlots.allocate` refuses the second allocation first, which is
+        // why the list is a parameter: it is the only way to reach the second
+        // line of defence, and a refusal no test can enter is one nobody has
+        // watched hold.
+        const a = ability();
+        const reason = declareTargets(a, [
+            { type: "Creature" as const, count: 1 },
+            { type: "Artifact" as const, count: 1 },
+        ]);
+        expect(reason).toMatch(/at most one/);
+        expect(a.targetRequirement).toBeUndefined();
     });
 });

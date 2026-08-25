@@ -14,19 +14,28 @@
  * CR 605.1a makes an activated ability a mana ability iff it (a) does not
  * require a target, (b) could add mana on resolution, (c) is not a loyalty
  * ability, and (d) neither its cost nor its effect moves a card to or from a
- * library. This grammar's cost atoms are the tap symbol and mana, and its only
- * effect is "Add"; none of the four criteria can be violated by anything it can
- * produce. The classification is therefore a property of the accepted language,
- * not a check applied to the output — which is why `useStack: false`
- * (CR 605.3a: a mana ability does not use the stack) is safe to emit.
+ * library. Its only effect is "Add", so (b) holds and (a) cannot be violated —
+ * "Add" takes no target. The COST is the shared activation-cost sub-grammar
+ * (`grammar/shared/cost.ts`), which is what lets this slot read "Sacrifice a
+ * Goblin: Add {R}" and "{T}, Pay 1 life: Add {B} or {R}"; every atom that
+ * sub-grammar accepts pays with the tap symbol, mana, a permanent, life, a
+ * card in hand, a counter or a card in a graveyard, and NONE of them touches a
+ * library, so (d) holds, and none of them is a loyalty cost, so (c) does. The
+ * classification is therefore still a property of the accepted language, not a
+ * check applied to the output — which is why `useStack: false` (CR 605.3a: a
+ * mana ability does not use the stack) is safe to emit. A cost atom that could
+ * move a card to or from a library would have to re-open this argument, and
+ * the criterion is written out here so that it must be.
  *
  * ── What v0 deliberately refuses ───────────────────────────────────────────
  *
  * "Add one mana of any color", "Add three mana of any one color" and
- * "Add {G} for each Forest you control" all need the shared QUANTITY
- * sub-grammar, which is a stub until #2697. They are `unparsed`, not
- * approximated: a quantity read as a constant is the competitor's documented
- * "for each collapsed to a constant" misparse.
+ * "Add {G} for each Forest you control" all need a mana DESCRIPTOR the engine
+ * models with `manaColorSource` / `getManaChoices` rather than with a fixed
+ * `ManaCost`, so the shared quantity sub-grammar landing in #2697 is necessary
+ * but not sufficient for them. They stay `unparsed`, not approximated: a
+ * quantity read as a constant is the competitor's documented "for each
+ * collapsed to a constant" misparse.
  */
 
 import { PERMANENT_TYPES } from "../../../cards/types";
@@ -44,7 +53,8 @@ import {
     type Rule,
 } from "../../rule";
 import type { ParseContext } from "../../types";
-import type { ManaAbilityCostIR, ManaProductionIR, SlotIR } from "../ir";
+import { activationCostRule } from "../shared/cost";
+import type { ManaProductionIR, SlotIR } from "../ir";
 
 export const MANA_ABILITY_SLOT = "mana-ability";
 
@@ -53,53 +63,6 @@ const manaSymbols: Rule<ManaCost> = rule("mana symbols", (span) => {
     const read = readManaCost(span);
     return read.ok ? ok(read.cost) : fail(read.reason, read.fragment);
 });
-
-/** CR 107.5 — the tap symbol in an activation cost means "tap this permanent". */
-const tapAtom: Rule<{ kind: "tap" }> = rule("tap symbol", (span) =>
-    span === "{T}"
-        ? ok({ kind: "tap" as const })
-        : fail("not the tap symbol", span)
-);
-
-const manaAtom: Rule<{ kind: "mana"; mana: ManaCost }> = map(
-    manaSymbols,
-    (mana) => ({
-        kind: "mana" as const,
-        mana,
-    })
-);
-
-type CostAtom = { kind: "tap" } | { kind: "mana"; mana: ManaCost };
-
-const costAtom: Rule<CostAtom> = oneOf<CostAtom>("activation cost atom", [
-    tapAtom,
-    manaAtom,
-]);
-
-/**
- * CR 602.1a — the activation cost is everything before the colon. Cost atoms
- * are comma-separated; each KIND may appear at most once, because two tap
- * symbols or two mana runs in one cost is a line we have misread.
- */
-const activationCost: Rule<ManaAbilityCostIR> = map(
-    listOf("activation cost", ", ", costAtom),
-    (atoms) => {
-        let tap = false;
-        let mana: ManaCost | undefined;
-        for (const a of atoms) {
-            if (a.kind === "tap") {
-                if (tap)
-                    return fail("tap symbol appears twice in the cost", "{T}");
-                tap = true;
-            } else {
-                if (mana !== undefined)
-                    return fail("two mana runs in one cost", "cost");
-                mana = a.mana;
-            }
-        }
-        return mana === undefined ? { tap } : { tap, mana };
-    }
-);
 
 const fixedProduction: Rule<ManaProductionIR> = map(manaSymbols, (mana) => ({
     kind: "fixed" as const,
@@ -151,7 +114,7 @@ const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
 const manaAbilityBody: Rule<SlotIR> = pair(
     MANA_ABILITY_SLOT,
     ": ",
-    activationCost,
+    activationCostRule,
     addEffect,
     (cost, produces) => ({ kind: "mana-ability" as const, cost, produces })
 );

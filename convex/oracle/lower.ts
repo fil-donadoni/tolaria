@@ -14,6 +14,8 @@
  */
 
 import type { ActivatedAbility, ManaCost } from "../cards/types";
+import { lowerActivationCost } from "./grammar/shared/cost";
+import { lowerActivatedAbility } from "./lowerActivated";
 import { readManaCost } from "./manaCost";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
@@ -68,16 +70,14 @@ function lowerLine(
                 index === 0
                     ? `${slugify(card.name)}-mana`
                     : `${slugify(card.name)}-mana-${index + 1}`;
-            const cost: ActivatedAbility["cost"] = {};
-            // Key order matches the catalogue's own hand-written mana abilities
-            // so a lockfile row reads like the cards beside it; equality is
-            // key-order-insensitive either way (see `gold.ts`).
-            if (ir.cost.mana !== undefined) cost.mana = ir.cost.mana;
-            if (ir.cost.tap) cost.tap = true;
+            // The cost lowering is shared with the stack-using activated slot
+            // (CR 602.1a draws no distinction); only the EFFECT half differs.
+            const cost = lowerActivationCost(ir.cost);
+            if (!cost.ok) return cost.reason;
             const ability: ActivatedAbility = {
                 id,
                 oracleText: parsed.line,
-                cost,
+                cost: cost.value,
                 // CR 605.3b — a mana ability doesn't go on the stack. Safe to emit
                 // unconditionally: see the CR 605.1a argument in the slot file.
                 useStack: false,
@@ -86,6 +86,23 @@ function lowerLine(
                 ability.manaProduced = ir.produces.mana;
             else ability.manaChoices = ir.produces.options as ManaCost[];
             acc.activatedAbilities.push(ability);
+            return null;
+        }
+        case "activated": {
+            const index = acc.activatedAbilities.length;
+            const id =
+                index === 0
+                    ? `${slugify(card.name)}-ability`
+                    : `${slugify(card.name)}-ability-${index + 1}`;
+            const lowered = lowerActivatedAbility({
+                id,
+                oracleText: parsed.line,
+                cost: ir.cost,
+                effects: ir.effects,
+                restrictions: ir.restrictions,
+            });
+            if (!lowered.ok) return lowered.reason;
+            acc.activatedAbilities.push(lowered.ability);
             return null;
         }
         default: {

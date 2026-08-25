@@ -18,6 +18,20 @@
  * The distinction it buys is diagnostic — "we read this card correctly and the
  * engine cannot run it yet" is a different backlog from "we cannot read it".
  *
+ * ── `ready` is COMPILER fidelity, not an engine-capability claim ───────────
+ *
+ * All five gates read the emitted DEFINITION. None of them consults an engine
+ * ACTIVATION path, and this module imports none — so `ready` means "the Oracle
+ * text was read whole and the definition we emitted is well-formed and
+ * implemented", never "a live mutation can run it today". The two can diverge,
+ * and #2697 is where they first visibly do: the shared cost grammar emits the
+ * CR-605.1a-faithful `{ sacrificeFilter, useStack: false }` for eight cards
+ * (Ashnod's Altar, Skirk Prospector, …) and no non-stack engine path pays a
+ * filter cost — `docs/findings/2697-mana-ability-filter-cost-engine-gap.md`
+ * has the sites and the two ways out. Read the lockfile accordingly: a `ready`
+ * row is a statement about the COMPILER, and closing the gap means either
+ * teaching the engine the shape or adding a sixth, engine-capability gate here.
+ *
  * ── What this module deliberately does NOT do ──────────────────────────────
  *
  * The PRD also lists a generated smoke scenario and a wire-projection round
@@ -35,7 +49,11 @@
  */
 
 import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
-import { planSmokeTest } from "../gre/effects/scenarioGenerator";
+import { registerTokenDefinition } from "../cards/registry";
+import {
+    FILLER_CARD_DEFINITION,
+    planSmokeTest,
+} from "../gre/effects/scenarioGenerator";
 import { validateEffectScript } from "../gre/effects/validate";
 import type { EffectOp } from "../cards/types";
 import type { CompiledDefinition, QuarantineReason } from "./types";
@@ -119,6 +137,15 @@ export function runGates(input: GateInput): GateResult {
     //     throw does not fail one card, it aborts a 35,000-card run, and the
     //     visible symptom would be a lockfile that simply stops.
     if (errors.length === 0) {
+        // The generator only REFERENCES the filler card's id; every caller
+        // registers the definition itself (see `FILLER_CARD_DEFINITION`), and
+        // the catalogue sweeps do it at module load. Skipping it here made the
+        // planner throw `Card not found: gen-scenario-filler` for every script
+        // that needs a target, which the catch below then recorded as a
+        // quarantine reason — so a correctly compiled card was quarantined for
+        // a missing fixture rather than for anything about the card.
+        // `registerTokenDefinition` is idempotent (`cards/registry.ts`).
+        registerTokenDefinition(FILLER_CARD_DEFINITION);
         for (const script of collectScripts(definition)) {
             try {
                 const plan = planSmokeTest(script);

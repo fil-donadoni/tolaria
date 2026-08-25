@@ -24,23 +24,85 @@ import { readManaCost } from "../manaCost";
 const CARDS = getAllCards();
 const REPORT = runGoldHarness(CARDS);
 
+/**
+ * Cards where the compiler and the HAND-WRITTEN definition genuinely disagree.
+ *
+ * An enumerated list, not a tolerance. A ratio gate ("99% must match") would
+ * let a new misread hide inside the budget; naming each divergence means the
+ * NEXT one reds the suite, and each entry is a claim somebody signed rather
+ * than a number somebody rounded. The list is meant to empty out — three of the
+ * four are catalogue defects the harness FOUND, filed in docs/findings/ and
+ * fixable in their own tickets (this issue's diff is `convex/oracle/**` plus
+ * the lockfile, and changing four cards' behaviour is not a compiler change).
+ *
+ * Adding a row is a deliberate act with two obligations: state which side is
+ * wrong and why, and file the finding. "The compiler differs, so the card must
+ * be wrong" is exactly the reasoning this list exists to make expensive.
+ */
+const KNOWN_DIVERGENCES: readonly string[] = [
+    // Oracle: "Sacrifice a creature: Add {C}{C}." No target, adds mana, not a
+    // loyalty ability, touches no library — a mana ability by every criterion
+    // of CR 605.1a, so `useStack: false`. The hand-written ability puts it on
+    // the stack. docs/findings/2697-gold-catalogue-divergences.md
+    "Ashnod's Altar (activated)",
+    // Oracle: "Sacrifice a Swamp: Regenerate target black creature." The
+    // hand-written `sacrificeFilter` restates `types: "Land"` beside
+    // `subtypes: "Swamp"`; three other cards with the same phrase shape
+    // (Dark Heart of the Wood, Orcish Lumberjack, Deadapult) omit it. An
+    // encoding tie, not a reading difference — see `readNoun`.
+    "Horror of Horrors (activated)",
+    // Oracle: "Destroy target black permanent." The hand-written
+    // `targetRequirement` is `type: "Creature"` — narrower than the card
+    // (CR 109.1 / 300.1). Same finding.
+    "Northern Paladin (activated)",
+    // Oracle prints "{G}: Regenerate this creature." and the hand-written
+    // definition has no activated ability at all. Same finding.
+    "Wall of Brambles (keyword-only)",
+];
+
 describe("gold round-trip — precision", () => {
-    it("every accepted card is structurally equal to its hand-written definition", () => {
-        expect(REPORT.mismatches.map((m) => `${m.name} (${m.bucket})`)).toEqual(
-            []
-        );
+    it("every accepted card matches, except the enumerated divergences", () => {
+        expect(
+            REPORT.mismatches.map((m) => `${m.name} (${m.bucket})`).sort()
+        ).toEqual([...KNOWN_DIVERGENCES].sort());
     });
 
-    it("the three grammar-v0 buckets round-trip at 100%", () => {
-        for (const bucket of [
-            "vanilla",
-            "keyword-only",
-            "mana-ability",
-        ] as const) {
+    it("the two closed grammar-v0 buckets round-trip at 100%", () => {
+        // `keyword-only` was here until #2697. It left not because the keyword
+        // grammar changed but because Wall of Brambles is classified from the
+        // HAND-WRITTEN side (`goldBucket`), and the hand-written side is
+        // missing the regenerate ability its own Oracle text prints — so the
+        // card is keyword-only there and keyword-line+activated here. It is in
+        // `KNOWN_DIVERGENCES` above, which is a stricter statement than the
+        // percentage this loop used to make about it.
+        for (const bucket of ["vanilla", "mana-ability"] as const) {
             const stats = REPORT.buckets[bucket];
             expect(`${bucket}: ${stats.equal}/${stats.accepted}`).toBe(
                 `${bucket}: ${stats.accepted}/${stats.accepted}`
             );
+        }
+    });
+
+    it("the activated bucket's precision does not drift below its measured floor", () => {
+        // A ratio floor UNDER the enumerated list, not instead of it: the list
+        // catches a new named divergence, this catches a change that trades a
+        // dozen matches for a dozen new accepts and calls it progress.
+        const stats = REPORT.buckets.activated;
+        const comparable = stats.accepted - stats.incomparable;
+        expect(comparable).toBeGreaterThan(100);
+        expect(stats.equal / comparable).toBeGreaterThanOrEqual(0.97);
+    });
+
+    it("reports the accepted cards the projection CANNOT compare", () => {
+        // A hand-written `resolve()` closure and a compiled Effect Script are
+        // not comparable in either direction — see `GoldIncomparable`. Counted
+        // separately and bounded so the hole cannot grow unnoticed.
+        expect(REPORT.incomparable.length).toBeLessThan(10);
+        expect(REPORT.incomparable.map((i) => i.name)).toContain(
+            "Royal Assassin"
+        );
+        for (const card of REPORT.incomparable) {
+            expect(card.expected).toContain("[closure]");
         }
     });
 });
@@ -50,6 +112,9 @@ describe("gold round-trip — the harness is not vacuous", () => {
         expect(REPORT.buckets.vanilla.accepted).toBeGreaterThan(10);
         expect(REPORT.buckets["keyword-only"].accepted).toBeGreaterThan(30);
         expect(REPORT.buckets["mana-ability"].accepted).toBeGreaterThan(10);
+        // #2697 — without this the activated slot could be switched off
+        // entirely and every assertion above would still pass.
+        expect(REPORT.buckets.activated.accepted).toBeGreaterThan(80);
     });
 
     it("exercises every grammar-v0 slot against gold", () => {
@@ -57,6 +122,7 @@ describe("gold round-trip — the harness is not vacuous", () => {
         expect(slotKeys).toContain("keyword-line");
         expect(slotKeys).toContain("mana-ability");
         expect(slotKeys).toContain("vanilla");
+        expect(slotKeys).toContain("activated");
     });
 
     it("reports the hand-written cards that carry no Oracle text at all", () => {
@@ -128,6 +194,8 @@ describe("gold fixtures reconstruct a faithful Oracle card", () => {
         expect(goldBucket(sprites)).toBe("keyword-only");
         const elves = CARDS.find((c) => c.name === "Llanowar Elves")!;
         expect(goldBucket(elves)).toBe("mana-ability");
+        const sorcerer = CARDS.find((c) => c.name === "Prodigal Sorcerer")!;
+        expect(goldBucket(sorcerer)).toBe("activated");
     });
 
     it("compiles a known keyword card to exactly the hand-written behaviour", () => {
@@ -137,6 +205,23 @@ describe("gold fixtures reconstruct a faithful Oracle card", () => {
         if (outcome.state !== "unparsed") {
             expect(behaviouralProjection(outcome.definition)).toEqual(
                 behaviouralProjection(sprites)
+            );
+        }
+    });
+
+    it("compiles a known activated ability to exactly the hand-written behaviour", () => {
+        const sorcerer = CARDS.find((c) => c.name === "Prodigal Sorcerer")!;
+        const outcome = compileCard(goldOracleCard(sorcerer));
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state !== "unparsed") {
+            expect(behaviouralProjection(outcome.definition)).toEqual(
+                behaviouralProjection(sorcerer)
+            );
+            expect(outcome.definition.activatedAbilities?.[0]?.id).toBe(
+                "prodigal-sorcerer-ability"
+            );
+            expect(outcome.definition.activatedAbilities?.[0]?.useStack).toBe(
+                true
             );
         }
     });

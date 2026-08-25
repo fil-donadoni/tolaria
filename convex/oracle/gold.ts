@@ -98,6 +98,90 @@ function isDeadManaAbilityClosure(ability: Record<string, unknown>): boolean {
     );
 }
 
+/**
+ * Fields `cards/types.ts` documents as "single X is shorthand for one X".
+ *
+ * `subtypeFilter: "Wall"` and `subtypeFilter: ["Wall"]` are the SAME filter —
+ * every consumer normalises them at read time, and the catalogue writes both,
+ * sometimes for the same phrase on two different cards ("Sacrifice a Saproling"
+ * is `subtypes: "Saproling"` on Nemata and `subtypes: ["Saproling"]` on Elvish
+ * Farmer). Comparing the two encodings as different values would report a
+ * dozen spurious mismatches and say nothing about whether the compiler READ the
+ * card correctly, which is the only question this harness exists to answer.
+ *
+ * So the comparison is canonicalised the same way `sortKeys` canonicalises key
+ * ORDER: symmetrically, on both sides, over an ENUMERATED list of fields whose
+ * own doc comment declares the equivalence. It is deliberately not "lift every
+ * bare string into an array" — that would also erase a difference between
+ * `name: "Wall"` and `name: ["Wall"]`, which is not a shorthand and not
+ * equivalent.
+ */
+const SHORTHAND_ARRAY_KEYS: ReadonlySet<string> = new Set([
+    "type",
+    "types",
+    "subtypes",
+    "supertypes",
+    "colors",
+    "subtypeFilter",
+    "supertypeFilter",
+    "excludeTypes",
+    "excludeSubtypes",
+    "excludeSupertypes",
+    "excludeColors",
+    "combatRoleFilter",
+    "spellTypeFilter",
+    "spellExcludeTypeFilter",
+    "spellTargetsTypeFilter",
+]);
+
+/**
+ * `ManaCost`-valued fields, where a generic component of ZERO is the same
+ * second documented dual encoding.
+ *
+ * `printManaCost` renders `{}` and `{ X: 0 }` identically (a zero generic
+ * contributes no symbol), and `gold.test.ts` already states the equivalence
+ * outright — "`{0}` is encoded both as `{}` and as `{ X: 0 }` in the
+ * catalogue". Blinking Spirit writes `{ X: 0 }` for its "{0}:" cost and Urza's
+ * Avenger writes `{}` for the same printed cost, so a comparison that told them
+ * apart would report one of the two as a compiler defect whichever way the
+ * compiler chose.
+ */
+const MANA_COST_KEYS: ReadonlySet<string> = new Set([
+    "mana",
+    "manaCost",
+    "manaProduced",
+]);
+
+/** Lift every declared shorthand field to its canonical form, at any depth. */
+function canonicaliseShorthands(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(canonicaliseShorthands);
+    if (value === null || typeof value !== "object") return value;
+    const out: Record<string, unknown> = {};
+    for (const [key, inner] of Object.entries(
+        value as Record<string, unknown>
+    )) {
+        const canonical = canonicaliseShorthands(inner);
+        if (SHORTHAND_ARRAY_KEYS.has(key) && typeof canonical === "string") {
+            out[key] = [canonical];
+            continue;
+        }
+        out[key] =
+            MANA_COST_KEYS.has(key) && canonical !== null
+                ? withoutZeroGeneric(canonical)
+                : canonical;
+    }
+    return out;
+}
+
+function withoutZeroGeneric(value: unknown): unknown {
+    if (typeof value !== "object" || value === null) return value;
+    const record = value as Record<string, unknown>;
+    if (record.X !== 0) return value;
+    const rest: Record<string, unknown> = { ...record };
+    delete rest.X;
+    return rest;
+}
+
 const ABILITY_ARRAY_KEYS: ReadonlySet<string> = new Set([
     "activatedAbilities",
     "triggeredAbilities",
@@ -105,7 +189,12 @@ const ABILITY_ARRAY_KEYS: ReadonlySet<string> = new Set([
     "triggeredGrantTemplates",
 ]);
 
-export type GoldBucket = "vanilla" | "keyword-only" | "mana-ability" | "other";
+export type GoldBucket =
+    | "vanilla"
+    | "keyword-only"
+    | "mana-ability"
+    | "activated"
+    | "other";
 
 /** Behavioural projection: everything the GRAMMAR is responsible for. */
 export function behaviouralProjection(
@@ -130,7 +219,7 @@ export function behaviouralProjection(
         }
         out[key] = sortKeys(value);
     }
-    return sortKeys(out) as Record<string, unknown>;
+    return canonicaliseShorthands(sortKeys(out)) as Record<string, unknown>;
 }
 
 /** Which v0 shape a hand-written card is, judged from the HAND-WRITTEN side. */
@@ -141,12 +230,13 @@ export function goldBucket(definition: CardDefinition): GoldBucket {
         return "keyword-only";
     if (keys.length === 1 && keys[0] === "activatedAbilities") {
         const abilities = definition.activatedAbilities ?? [];
-        if (
-            abilities.length > 0 &&
-            abilities.every((a) => a.useStack === false)
-        ) {
-            return "mana-ability";
-        }
+        if (abilities.length === 0) return "other";
+        // CR 605.1a — a card whose every activated ability is a mana ability is
+        // the shape grammar v0 shipped first; anything with a stack-using
+        // ability is the #2697 shape, and the two are measured separately
+        // because they are produced by different slots.
+        if (abilities.every((a) => a.useStack === false)) return "mana-ability";
+        return "activated";
     }
     return "other";
 }
@@ -214,12 +304,35 @@ export interface GoldBucketStats {
     total: number;
     accepted: number;
     equal: number;
+    /** Accepted cards whose hand-written side the projection cannot read. */
+    incomparable: number;
+}
+
+/**
+ * An accepted card whose hand-written definition keeps its behaviour in a
+ * CLOSURE (`resolve` / `resolveSteps` / `canActivate` / `getTargetRequirement`).
+ *
+ * `sortKeys` renders a function as the sentinel `"[closure]"` rather than
+ * dropping it, so such a card never silently "matches" — but it never
+ * legitimately mismatches either: an Effect Script and a closure are not
+ * comparable in either direction, and calling the difference a compiler defect
+ * would be as unfounded as calling it a pass. Counted and listed on its own, so
+ * the hole is a number somebody can watch rather than an absence, exactly like
+ * `withoutOracleText`.
+ */
+export interface GoldIncomparable {
+    readonly name: string;
+    readonly bucket: GoldBucket;
+    readonly expected: string;
+    readonly actual: string;
 }
 
 export interface GoldReport {
     readonly buckets: Record<GoldBucket, GoldBucketStats>;
     readonly slots: Record<string, GoldBucketStats>;
     readonly mismatches: readonly GoldMismatch[];
+    /** Accepted cards the projection cannot compare — see `GoldIncomparable`. */
+    readonly incomparable: readonly GoldIncomparable[];
     /**
      * Hand-written cards with NO `oracleText` field at all. They are excluded
      * from every count above, because the compiler's INPUT is missing rather
@@ -231,15 +344,20 @@ export interface GoldReport {
     readonly withoutOracleText: readonly string[];
 }
 
+/** What `sortKeys` renders a function-valued field as (`gates.ts`). */
+const CLOSURE_SENTINEL = '"[closure]"';
+
 export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
     const buckets: Record<GoldBucket, GoldBucketStats> = {
-        vanilla: { total: 0, accepted: 0, equal: 0 },
-        "keyword-only": { total: 0, accepted: 0, equal: 0 },
-        "mana-ability": { total: 0, accepted: 0, equal: 0 },
-        other: { total: 0, accepted: 0, equal: 0 },
+        vanilla: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
+        "keyword-only": { total: 0, accepted: 0, equal: 0, incomparable: 0 },
+        "mana-ability": { total: 0, accepted: 0, equal: 0, incomparable: 0 },
+        activated: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
+        other: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
     };
     const slots: Record<string, GoldBucketStats> = {};
     const mismatches: GoldMismatch[] = [];
+    const incomparable: GoldIncomparable[] = [];
     const withoutOracleText: string[] = [];
 
     for (const definition of cards) {
@@ -265,7 +383,7 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
 
         const slotKey =
             outcome.slots.length === 0 ? "vanilla" : outcome.slots.join("+");
-        slots[slotKey] ??= { total: 0, accepted: 0, equal: 0 };
+        slots[slotKey] ??= { total: 0, accepted: 0, equal: 0, incomparable: 0 };
         slots[slotKey].total += 1;
         slots[slotKey].accepted += 1;
 
@@ -274,6 +392,15 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
         if (expected === actual) {
             buckets[bucket].equal += 1;
             slots[slotKey].equal += 1;
+        } else if (expected.includes(CLOSURE_SENTINEL)) {
+            buckets[bucket].incomparable += 1;
+            slots[slotKey].incomparable += 1;
+            incomparable.push({
+                name: definition.name,
+                bucket,
+                expected,
+                actual,
+            });
         } else {
             mismatches.push({
                 name: definition.name,
@@ -289,6 +416,7 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
         buckets,
         slots,
         mismatches,
+        incomparable,
         withoutOracleText: withoutOracleText.sort(),
     };
 }

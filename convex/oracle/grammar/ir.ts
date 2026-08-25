@@ -12,6 +12,8 @@
  */
 
 import type { Color, ManaCost } from "../../cards/types";
+import type { ActivationCostIR } from "./shared/cost";
+import type { EffectSentenceIR, RestrictionIR } from "./shared/effectClause";
 
 /** One keyword ability named on a keyword line (CR 702.1). */
 export interface KeywordIR {
@@ -23,12 +25,6 @@ export interface KeywordIR {
     readonly status: "implemented" | "planned" | "out-of-scope";
 }
 
-/** The activation cost of a mana ability, restricted to grammar v0's atoms. */
-export interface ManaAbilityCostIR {
-    readonly tap: boolean;
-    readonly mana?: ManaCost;
-}
-
 /** What a mana ability adds (CR 605.1a). */
 export type ManaProductionIR =
     | { readonly kind: "fixed"; readonly mana: ManaCost }
@@ -38,8 +34,21 @@ export type SlotIR =
     | { readonly kind: "keywords"; readonly keywords: readonly KeywordIR[] }
     | {
           readonly kind: "mana-ability";
-          readonly cost: ManaAbilityCostIR;
+          readonly cost: ActivationCostIR;
           readonly produces: ManaProductionIR;
+      }
+    /**
+     * CR 113.3b — an activated ability that uses the stack. Its cost is the
+     * SAME `ActivationCostIR` a mana ability carries (CR 602.1a makes no
+     * distinction), and the split between the two IR nodes is only about how
+     * they lower: a mana ability's effect is a mana descriptor and
+     * `useStack: false` (CR 605.3a), everything else is an Effect Script.
+     */
+    | {
+          readonly kind: "activated";
+          readonly cost: ActivationCostIR;
+          readonly effects: readonly EffectSentenceIR[];
+          readonly restrictions: readonly RestrictionIR[];
       };
 
 /** A line, the slot that consumed it, and what it means. */
