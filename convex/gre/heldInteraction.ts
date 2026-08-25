@@ -23,8 +23,8 @@
 //
 // PURE and prediction-only: nothing here changes how a spell actually resolves.
 
-import type { GameState, PlayerState, CardInstanceState } from "./state";
-import { isUntappedManaSource, manaValue } from "./constants";
+import type { GameState, PlayerState } from "./state";
+import { isUntappedManaSource, hasInstantSpeed, manaValue } from "./constants";
 import { getInstanceManaCost, getInstanceAiCombatHint } from "../cards/index";
 
 /** A pump the held interaction can apply to a single creature this combat. */
@@ -69,14 +69,6 @@ export function availableManaFor(player: PlayerState): number {
     return mana;
 }
 
-/** Whether a hand card can be cast at instant speed — an Instant, or any card
- *  with the Flash keyword (CR 702.8). Mirrors `evaluate.hasInstantTiming` so the
- *  predictor's notion of "holdable response" matches the flexibility term's. */
-function hasInstantTiming(card: CardInstanceState): boolean {
-    if (card.types.includes("Instant")) return true;
-    return card.staticAbilities.includes("flash");
-}
-
 /** Whether `player` holds at least one castable instant carrying an
  *  `aiCombatHint` — the castability gate (instant timing + affordable mana
  *  value) the issue calls out, reused as the entry point for "is held
@@ -84,7 +76,7 @@ function hasInstantTiming(card: CardInstanceState): boolean {
 export function hasCastableInstantHint(player: PlayerState): boolean {
     const mana = availableManaFor(player);
     return player.hand.some((card) => {
-        if (!hasInstantTiming(card)) return false;
+        if (!hasInstantSpeed(card)) return false;
         if (!getInstanceAiCombatHint(card)) return false;
         return manaValue(getInstanceManaCost(card)) <= mana;
     });
@@ -101,7 +93,7 @@ export function castableHeldInteraction(player: PlayerState): HeldInteraction {
     const mana = availableManaFor(player);
     const result: HeldInteraction = { removal: false };
     for (const card of player.hand) {
-        if (!hasInstantTiming(card)) continue;
+        if (!hasInstantSpeed(card)) continue;
         const hint = getInstanceAiCombatHint(card);
         if (!hint) continue;
         if (manaValue(getInstanceManaCost(card)) > mana) continue; // affordability gate
