@@ -300,17 +300,54 @@ describe("telemetry-serve — dashboard asset allow-list (#2625)", () => {
 const stripComments = (src: string) =>
     src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
+/**
+ * A STATIC import edge, and only a static one: `import` followed by
+ * whitespace, so `await import("./history-boot.js")` — no whitespace after
+ * the keyword — is deliberately not matched. That exclusion is the point:
+ * statically imported modules evaluate before the importer's first line,
+ * while the dynamic edge is exactly the one #2519 requires History to stay
+ * behind. `[^;]*` spans newlines, so a multi-line named-import list is one
+ * match. (Same shape as the allow-list census above, narrowed from "any
+ * relative specifier" to "an import".)
+ */
+const STATIC_IMPORT_RE = /import\s[^;]*["']\.\/([^"']+)["']/g;
+
+/**
+ * Everything reachable from `main.js` over static import edges — the
+ * transitive closure, CRAWLED, never listed. A hand-maintained list sees only
+ * the edges its author remembered: with one, `tabs.js -> svg.js ->
+ * history-state.js` reintroduces both the eager History load and the DB read
+ * #2519 forbids while every assertion below stays green (measured — see the
+ * PR's proof-of-failure table). Deriving the set means a new static edge at
+ * any depth, in any module, is inside the guards the moment it is written.
+ */
+const nowClosure = (): string[] => {
+    const seen = new Set<string>();
+    const queue = ["main.js"];
+    while (queue.length > 0) {
+        const name = queue.shift()!;
+        if (seen.has(name)) continue;
+        seen.add(name);
+        const src = stripComments(
+            readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8")
+        );
+        for (const m of src.matchAll(STATIC_IMPORT_RE)) queue.push(m[1]);
+    }
+    return [...seen];
+};
+
 describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
     /** Everything reachable from `main.js` WITHOUT loading History. */
-    const NOW_MODULES = [
-        "main.js",
-        "tabs.js",
-        "theme.js",
-        "now-loop-status.js",
-        "now-verdict-band.js",
-        "now-claims-table.js",
-        "format.js",
-    ];
+    const NOW_MODULES = nowClosure();
+
+    it("the Now closure is crawled from main.js, transitively — a one-hop crawl would pass the guards below vacuously", () => {
+        // `format.js` is reachable only at depth 2 (main.js ->
+        // now-loop-status.js -> format.js): it is here iff the crawl really
+        // followed an edge out of a module main.js does not import itself.
+        expect(NOW_MODULES).toContain("main.js");
+        expect(NOW_MODULES).toContain("now-loop-status.js");
+        expect(NOW_MODULES).toContain("format.js");
+    });
 
     it("Now reads /api/loop-status and nothing else — no database route, direct or transitive", () => {
         for (const name of NOW_MODULES) {
@@ -325,20 +362,11 @@ describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
         }
     });
 
-    it("no Now module imports a History module — a static edge would drag the store-backed graph into the Now load", () => {
-        for (const name of NOW_MODULES) {
-            const src = stripComments(
-                readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8")
-            );
-            for (const m of src.matchAll(
-                /import\s[^;]*["']\.\/([^"']+)["']/g
-            )) {
-                expect(
-                    m[1].startsWith("history-"),
-                    `${name} statically imports ${m[1]}`
-                ).toBe(false);
-            }
-        }
+    it("no module in the Now closure is a History module — a static edge, at any depth, would drag the store-backed graph into the Now load", () => {
+        expect(
+            NOW_MODULES.filter((name) => name.startsWith("history-")),
+            "reachable from main.js without a dynamic import"
+        ).toEqual([]);
     });
 
     it("History is reached only through a dynamic import inside main.js's try/catch — #2519's guarantee, preserved across the module split", () => {
