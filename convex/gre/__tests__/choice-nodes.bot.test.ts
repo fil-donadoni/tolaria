@@ -394,12 +394,11 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         expect(keys.every((k) => !/\d{2,}/.test(k))).toBe(true); // no instance-id-shaped key
     });
 
-    it("option-pick (issue #2306): a colour-mode option threads `option.color` onto the candidate's `hint.colorMode`", () => {
+    it("option-pick (issue #2306): a genuine PROTECTION colour-mode option threads `option.protectionColor` onto the candidate's `hint.colorMode`", () => {
         // The root-cause drop this issue fixes: `toCandidate` used to build
         // `{ key, move }` with no hint at all, so the colour tag on
-        // `PendingChoice.options[].color` (already threaded verbatim from
-        // `EffectMode.color` by `requestOptionChoice`) never reached the
-        // candidate the prior seam reads.
+        // `PendingChoice.options[]` never reached the candidate the prior
+        // seam reads.
         const state = stateWithChoice({
             kind: "option-pick",
             options: [
@@ -407,13 +406,15 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
                     id: "protection-blue",
                     label: "Protection from blue",
                     color: "U",
+                    protectionColor: "U",
                 },
                 {
                     id: "protection-red",
                     label: "Protection from red",
                     color: "R",
+                    protectionColor: "R",
                 },
-                { id: "primal-clay-3-3", label: "3/3 body" }, // no colour tag
+                { id: "primal-clay-3-3", label: "3/3 body" }, // no colour tag at all
             ],
         });
         const cands = choiceCandidates(state, state.pendingChoices![0]);
@@ -427,6 +428,32 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         expect(blue.hint?.colorMode).toBe("U");
         expect(red.hint?.colorMode).toBe("R");
         expect(body.hint?.colorMode).toBeUndefined();
+    });
+
+    it("option-pick (issue #2306 review finding 1): a `colorChoiceModes`-shaped option — `color` set, no `protectionColor` — does NOT thread `hint.colorMode`", () => {
+        // `EffectMode.color` is a UI RENDERING tag set by BOTH
+        // `protectionColorModes` (protection — dodge a colour) AND
+        // `colorChoiceModes`/`COLOR_OPTIONS` ("become a colour" — a
+        // different, sometimes opposite, intent, out of scope per the
+        // issue). Only `protectionColor` (set structurally by
+        // `gre/effects/interpreter.ts`'s `modeProtectionColor`, never for a
+        // `colorChoiceModes` mode's `setColor` body) may reach the prior
+        // seam's `hint.colorMode` — reading the bare `color` tag here is
+        // exactly the bug review finding 1 caught: it steered Kavu
+        // Chameleon and siblings by the opponent's colours too, backwards
+        // for a "become a colour" effect.
+        const state = stateWithChoice({
+            kind: "option-pick",
+            options: (["W", "U", "B", "R", "G"] as const).map((color) => ({
+                id: color,
+                label: color,
+                color, // colorChoiceModes shape — no protectionColor
+            })),
+        });
+        const cands = choiceCandidates(state, state.pendingChoices![0]);
+        for (const cand of cands) {
+            expect(cand.hint?.colorMode).toBeUndefined();
+        }
     });
 
     it("random-reveal (CR 705.2 / ADR 0023, issue #1511): a degenerate single-candidate ack", () => {
@@ -623,6 +650,57 @@ describe("colorModePrior (issue #2306) — protection-colour choice scored again
             },
         });
         expect(noColor).toBe(NEUTRAL_PRIOR);
+    });
+
+    it("issue #2306 review finding 1 — end-to-end: a `colorChoiceModes` pick (Kavu Chameleon's real mode shape) stays NEUTRAL_PRIOR through the REAL candidate pipeline, even with strong opponent evidence", () => {
+        // Unlike the tests above (which hand-build `hint.colorMode`), this
+        // one runs the full chain the bug actually lived in:
+        // `PendingChoice.options[]` → `choiceCandidates` → `heuristicChoicePrior`.
+        // A `colorChoiceModes`-shaped option-pick (`color` set, no
+        // `protectionColor` — Kavu Chameleon's own modes) against a board
+        // that shows ONLY green must NOT score green above the rest: this
+        // family's decision is an out-of-scope "become a colour" pick, not
+        // a "dodge the opponent's colour" one.
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "opp-bear",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+            pendingChoices: [
+                {
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "optionChoiceMode",
+                    playerId: "p1",
+                    kind: "option-pick",
+                    count: 1,
+                    options: (["W", "U", "B", "R", "G"] as const).map(
+                        (color) => ({
+                            id: color,
+                            label: color,
+                            color, // colorChoiceModes shape: no protectionColor
+                        })
+                    ),
+                    prompt: "Choose a color.",
+                },
+            ],
+        });
+        const head = state.pendingChoices![0];
+        const cands = choiceCandidates(state, head);
+        expect(cands).toHaveLength(5);
+        for (const cand of cands) {
+            expect(heuristicChoicePrior(state, head, cand)).toBe(NEUTRAL_PRIOR);
+        }
     });
 });
 

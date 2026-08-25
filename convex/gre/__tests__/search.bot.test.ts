@@ -679,6 +679,209 @@ describe("selectRootMove — land-drop tie-break (issue #206)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Colour-mode tie-break gates on PROTECTION intent, not the bare colour tag
+// (issue #2306 review finding 1). `protectionColorModes` ("protection from
+// the colour of your choice" — a DEFENSIVE dodge of the opponent's colours)
+// and `colorChoiceModes`/`COLOR_OPTIONS` ("becomes the colour of your
+// choice" — a different, sometimes opposite, intent, explicitly out of
+// scope per the issue) both set `EffectMode.color` — a UI RENDERING tag
+// (`cards/types.ts`'s own doc), not an intent signal. Only the former sets
+// `option.protectionColor` (`gre/effects/interpreter.ts`'s
+// `modeProtectionColor`, derived via the shared `parseProtectionFromColor`
+// parser, never a hand-set flag). `colorModeTiebreak` (`search.ts`) must key
+// on `.protectionColor`: reading the bare `.color` steers a "become a
+// colour" pick toward the opponent's BEST-shown colour, which is backwards
+// for an effect that isn't dodging anything — a directional inversion, worse
+// than the arbitrary pick the original #2306 fix replaced. Measured before
+// this fix: Kavu Chameleon's real modes against a lone opposing Grizzly
+// Bears scored G=0.95, every other colour 0.05.
+// ---------------------------------------------------------------------------
+describe("selectRootMove — colour-mode tie-break gates on protection intent, not the bare colour tag (issue #2306 review finding 1)", () => {
+    /** Five colour-mode edges, one per WUBRG id, all OUTCOME-EQUAL (identical
+     *  mean reward) so every one is a `selectRootMove` contender. Distinct,
+     *  strictly descending `meanMargin` (W highest) makes the MATERIAL
+     *  tie-break's own pick deterministic ("W") with no colour signal at all
+     *  — the value this test checks stays undisturbed. */
+    function colorModeRoot(): Node {
+        const children = new Map<string, Edge>();
+        const COLORS = ["W", "U", "B", "R", "G"] as const;
+        COLORS.forEach((color, i) => {
+            const key = `option-pick:${color}`;
+            const visits = 100;
+            children.set(key, {
+                move: {
+                    kind: "resolution-choice",
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "optionChoiceMode",
+                    cardInstanceIds: [color],
+                },
+                key,
+                mover: "p1",
+                node: { children: new Map() },
+                visits,
+                totalReward: 0.6 * visits,
+                totalMargin: (10 - i) * visits, // W=10 .. G=6, strictly descending
+                avail: visits,
+            });
+        });
+        return { children };
+    }
+
+    /** A `colorChoiceModes`-shaped `option-pick` — every option carries the
+     *  `color` UI tag but NOT `protectionColor` (Kavu Chameleon's real
+     *  modes have exactly this shape). Opponent's board shows ONLY green (a
+     *  lone Grizzly Bears) — the exact position the review measured scoring
+     *  G=0.95 when the heuristic read the bare `color` tag instead. */
+    function rootStateWithColorChoiceModes(): GameState {
+        const p2 = makePlayer("p2", {
+            battlefield: [
+                makeInstance(BEARS, {
+                    id: "opp-bear",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }),
+            ],
+        });
+        return makeState({
+            players: [makePlayer("p1"), p2],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+            pendingChoices: [
+                {
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "optionChoiceMode",
+                    playerId: "p1",
+                    kind: "option-pick",
+                    count: 1,
+                    options: (["W", "U", "B", "R", "G"] as const).map(
+                        (color) => ({
+                            id: color,
+                            label: color,
+                            color, // colorChoiceModes shape: `color` set, no `protectionColor`
+                        })
+                    ),
+                    prompt: "Choose a color.",
+                },
+            ],
+        });
+    }
+
+    it("does NOT steer a `colorChoiceModes` pick toward the opponent's shown colour — the material tie-break's own pick stands", () => {
+        const root = colorModeRoot();
+        const rootState = rootStateWithColorChoiceModes();
+        const moves = [...root.children.values()].map((e) => e.move);
+        const picked = selectRootMove(root, moves, rootState, "p1");
+        expect(picked.kind).toBe("resolution-choice");
+        // The material tie-break's own deterministic pick (highest margin,
+        // "W") stands — NOT "G", the colour the opponent's board shows.
+        expect(picked).toMatchObject({ cardInstanceIds: ["W"] });
+    });
+
+    it("review finding 3 — a FLAT evidence tie (every colour shown equally) does not fall back to POOL-ITERATION order — the material tie-break's own pick stands", () => {
+        // A genuine PROTECTION option-pick this time (`protectionColor` set —
+        // the tie-break's OWN correctness, independent of finding 1's gate).
+        // The opponent's board shows ONE permanent of each colour, so
+        // `observedOpponentColors` ties every colour's SHARE at 0.2 — the
+        // shape a wide, even manabase produces (`untappedProducibleColors`
+        // is a `Set`, so five-colour mana sources tie the same way). Margins
+        // are deliberately NOT in `W..G` order — "R" (third of five in pool
+        // insertion order) is the highest — so a stale "return
+        // `contenders[0]` on a tie" bug (which would always answer "W", the
+        // FIRST edge built below, regardless of margin) is distinguishable
+        // from the correct answer ("R", the real material tie-break's pick).
+        const root: Node = (() => {
+            const children = new Map<string, Edge>();
+            const margins: Record<string, number> = {
+                W: 6,
+                U: 7,
+                B: 8,
+                R: 10,
+                G: 9,
+            };
+            (["W", "U", "B", "R", "G"] as const).forEach((color) => {
+                const key = `option-pick:protection-${color}`;
+                const visits = 100;
+                children.set(key, {
+                    move: {
+                        kind: "resolution-choice",
+                        stackItemId: "stack-1",
+                        step: 0,
+                        choiceId: "optionChoiceMode",
+                        cardInstanceIds: [`protection-${color}`],
+                    },
+                    key,
+                    mover: "p1",
+                    node: { children: new Map() },
+                    visits,
+                    totalReward: 0.6 * visits,
+                    totalMargin: margins[color] * visits,
+                    avail: visits,
+                });
+            });
+            return { children };
+        })();
+        const p2 = makePlayer("p2", {
+            battlefield: [
+                makeInstance(getCardByName("White Knight").id, {
+                    id: "opp-white",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }),
+                makeInstance(getCardByName("Merfolk of the Pearl Trident").id, {
+                    id: "opp-blue",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }),
+                makeInstance(getCardByName("Black Knight").id, {
+                    id: "opp-black",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }),
+                makeInstance(GIANT, {
+                    id: "opp-red",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }),
+                makeInstance(BEARS, {
+                    id: "opp-green",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }),
+            ],
+        });
+        const rootState: GameState = makeState({
+            players: [makePlayer("p1"), p2],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+            pendingChoices: [
+                {
+                    stackItemId: "stack-1",
+                    step: 0,
+                    choiceId: "optionChoiceMode",
+                    playerId: "p1",
+                    kind: "option-pick",
+                    count: 1,
+                    options: (["W", "U", "B", "R", "G"] as const).map(
+                        (color) => ({
+                            id: `protection-${color}`,
+                            label: `Protection from ${color}`,
+                            color,
+                            protectionColor: color,
+                        })
+                    ),
+                    prompt: "Choose a color.",
+                },
+            ],
+        });
+        const moves = [...root.children.values()].map((e) => e.move);
+        const picked = selectRootMove(root, moves, rootState, "p1");
+        expect(picked).toMatchObject({ cardInstanceIds: ["protection-R"] });
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Free-development tie-break, extended to FREE MANA SOURCES (issue #244). A
 // 0-cost mana artifact (Mox Jet) develops mana that washes out of the rollout
 // like a land drop, so `pass` can win the material tie-break on noise (reported:

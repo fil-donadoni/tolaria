@@ -4759,7 +4759,15 @@ export interface SpellContext {
     requestOptionChoice: (req: {
         playerId: string;
         choiceId: string;
-        options: { id: string; label: string; color?: Color }[];
+        options: {
+            id: string;
+            label: string;
+            color?: Color;
+            /** Set ONLY for a genuine protection-from-colour pick — see
+             *  `PendingChoice.options[].protectionColor`'s doc (`gre/state.ts`,
+             *  issue #2306 review finding 1). */
+            protectionColor?: Color;
+        }[];
         prompt: string;
         /** Acting Player (ADR 0037): set when the prompted `playerId` is acting
          *  on another player's behalf (Word of Command — the controller picks X

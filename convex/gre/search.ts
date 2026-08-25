@@ -2191,11 +2191,17 @@ function rootMoveFor(edge: Edge, rootState?: GameState): Move {
     return match?.move ?? edge.move;
 }
 
-/** The colour a `resolution-choice` move answers a colour-mode choice with —
- *  `headChoice.options[].color` (CR 105.1, `protectionColorModes` /
- *  `colorChoiceModes`), looked up by the SINGLE submitted option id. `undefined`
- *  for a multi-id submission, an id with no colour tag (Primal Clay's body
- *  modes), or an id resolving to no option at all. */
+/** The colour a `resolution-choice` move answers a PROTECTION colour-mode
+ *  choice with — `headChoice.options[].protectionColor` (CR 702.16a,
+ *  `protectionColorModes` only), looked up by the SINGLE submitted option id.
+ *  `undefined` for a multi-id submission, an id with no colour tag (Primal
+ *  Clay's body modes), an id resolving to no option at all, or — issue #2306
+ *  review finding 1 — an option whose colour tag exists but is NOT a
+ *  protection intent (`colorChoiceModes`/`COLOR_OPTIONS`'s "become a colour"
+ *  family, deliberately out of scope: steering it by the opponent's shown
+ *  colours is a directional INVERSION for a dodge-a-colour effect, not a
+ *  refinement). Reads `.protectionColor`, never the bare `.color` UI tag both
+ *  families set. */
 function colorModeOfMove(
     move: Move,
     headChoice: PendingChoice
@@ -2204,7 +2210,7 @@ function colorModeOfMove(
     if (move.cardInstanceIds.length !== 1) return undefined;
     return (headChoice.options ?? []).find(
         (o) => o.id === move.cardInstanceIds[0]
-    )?.color;
+    )?.protectionColor;
 }
 
 /** Colour-mode tie-break (issue #2306). "Protection from the colour of your
@@ -2231,7 +2237,16 @@ function colorModeOfMove(
  *  disagree about which colour the position favours. Colourless (`"C"`) and
  *  a colour with NO evidence at all both score 0 — never preferred over an
  *  evidenced colour, but no worse than each other, so a no-evidence position
- *  falls through unchanged (any pick stays acceptable). */
+ *  falls through unchanged (any pick stays acceptable).
+ *
+ *  FLAT-EVIDENCE GUARD (review finding 3). A wide, even manabase (e.g. a
+ *  five-colour board) can make every colour's SHARE tie at a positive value
+ *  (`untappedProducibleColors` is a `Set`, so a 20-basic five-colour manabase
+ *  yields `{W:1,U:1,B:1,R:1,G:1}` — five equal, positive shares). The winner
+ *  must beat the RUNNER-UP strictly, not merely score `> 0`: on a tie the old
+ *  `>` comparison silently kept `contenders[0]` — pool ITERATION order, not
+ *  evidence — while still reporting `mechanism: "colour-mode-evidence"` to
+ *  telemetry for a decision the evidence did not actually make. */
 function colorModeTiebreak(
     rootState: GameState,
     pool: Edge[],
@@ -2259,11 +2274,25 @@ function colorModeTiebreak(
     };
     const contenders = pool.filter((e) => mean(e) >= bestMean - OUTCOME_EPS);
     if (contenders.length === 0) return null;
-    let winner = contenders[0];
+    // Track the top share AND the runner-up's, not just the top: a flat
+    // manabase can put several contenders at the SAME positive share, and
+    // that is a tie the evidence did not break — never pick iteration order.
+    // Seeded from -Infinity (never from `contenders[0]`'s own share) so the
+    // first element compared against ITSELF cannot masquerade as a tie.
+    let winner: Edge | null = null;
+    let topShare = -Infinity;
+    let runnerUpShare = -Infinity;
     for (const e of contenders) {
-        if (shareOf(e) > shareOf(winner)) winner = e;
+        const share = shareOf(e);
+        if (share > topShare) {
+            runnerUpShare = topShare;
+            topShare = share;
+            winner = e;
+        } else if (share > runnerUpShare) {
+            runnerUpShare = share;
+        }
     }
-    return shareOf(winner) > 0 ? winner : null;
+    return winner && topShare > 0 && topShare > runnerUpShare ? winner : null;
 }
 
 export function selectRootMove(

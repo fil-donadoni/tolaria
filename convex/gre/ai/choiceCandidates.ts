@@ -408,15 +408,23 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
     // The SMALLEST legal answer: picking beyond `min` is never forced, and the
     // subset lattice above it is exactly the explosion `search-library` avoids.
     const pick = Math.min(Math.max(min, 1), max);
-    // issue #2306 — a colour-mode option (`EffectMode.color`, threaded
-    // verbatim onto `option.color` by `requestOptionChoice`) is a structural
+    // issue #2306 (review finding 1) — a PROTECTION-colour-mode option
+    // (`option.protectionColor`, set by the `optionChoice` interpreter Op only
+    // when the mode structurally grants "protection from <colour>" —
+    // `gre/effects/interpreter.ts`'s `modeProtectionColor`) is the structural
     // hint the prior seam needs to score the pick against the opponent's
-    // observed colours. Meaningful only for a SINGLE-option candidate: a
-    // multi-pick combo has no one colour to report, and no shipped colour
-    // choice has `min > 1` today.
+    // observed colours. Deliberately NOT `option.color`: that field is a UI
+    // RENDERING tag set by BOTH `protectionColorModes` (dodge a colour) AND
+    // `colorChoiceModes`/`COLOR_OPTIONS` ("become a colour" — a different,
+    // sometimes opposite, intent that issue #2306 explicitly puts out of
+    // scope) — keying on the bare tag steered the latter family backwards
+    // (measured: it picked the opponent's BEST-shown colour for a
+    // dodge-a-colour effect, worse than the arbitrary pick it replaced).
+    // Meaningful only for a SINGLE-option candidate: a multi-pick combo has no
+    // one colour to report, and no shipped colour choice has `min > 1` today.
     const colorModeOf = (ids: string[]): Color | undefined =>
         ids.length === 1
-            ? options.find((o) => o.id === ids[0])?.color
+            ? options.find((o) => o.id === ids[0])?.protectionColor
             : undefined;
     const toCandidate = (ids: string[]) => {
         const colorMode = colorModeOf(ids);

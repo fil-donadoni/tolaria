@@ -2828,7 +2828,26 @@ export type PendingChoice = {
      *  abilities). Used by Primal Clay / Shapeshifter (choose-body-on-entry,
      *  no `color`) and the color-choice family (Mother/Giver of Runes,
      *  Blind Seer, `chooseColorEffects`). */
-    options?: { id: string; label: string; color?: Color }[];
+    options?: {
+        id: string;
+        label: string;
+        color?: Color;
+        /** Set ONLY when this option is a genuine "protection from the colour
+         *  of your choice" pick (CR 702.16a) — `protectionColorModes`
+         *  (`cards/abilities/index.ts`), never `colorChoiceModes`/`COLOR_OPTIONS`
+         *  (issue #2306 review finding 1). `color` above is a UI RENDERING tag
+         *  set by BOTH families (`cards/types.ts`'s `EffectMode.color` doc) —
+         *  it says nothing about intent, so `color` alone cannot gate a
+         *  bot heuristic that should apply to a DEFENSIVE "dodge a threatened
+         *  colour" pick and must NOT apply to an OFFENSIVE/neutral
+         *  "become a colour" pick (a directional inversion for the latter).
+         *  Derived structurally by the `optionChoice` interpreter Op: true
+         *  only when the mode's own effects grant an ability that
+         *  `parseProtectionFromColor` (`gre/protection.ts`, the issue's own
+         *  named single authority) resolves back to this same `color` — never
+         *  a hand-set flag a card author could get wrong. */
+        protectionColor?: Color;
+    }[];
     /** For `kind: "order-top"` only — the second zone the un-kept looked-at
      *  cards are sent to (`library-bottom` scry / `graveyard` surveil / `none`
      *  order-only Ponder). Set when the choice is raised; read by the resolve

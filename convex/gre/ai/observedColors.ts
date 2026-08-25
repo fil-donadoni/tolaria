@@ -23,7 +23,7 @@
 // every colour "equally threatening", which is the vacuous heuristic this
 // issue exists to kill. So:
 //
-//   - a permanent's EFFECTIVE colour on the battlefield (CR 613.1d,
+//   - a permanent's EFFECTIVE colour on the battlefield (CR 613.1e,
 //     `getEffectiveColors`) is the STRONGEST signal — resolved, present,
 //     already layer-5-correct.
 //   - a card's static colour (CR 202.2) in the graveyard or on the stack is

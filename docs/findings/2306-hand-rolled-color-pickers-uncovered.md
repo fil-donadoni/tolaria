@@ -1,35 +1,47 @@
 ---
 title: Four hand-rolled colour pickers never carry EffectMode.color, so they stay outside colorModePrior's coverage
 discoveredBy: 2306
-status: draft
-confidence: medium
+status: declined
+confidence: high
 ---
 
-**What is wrong.** Issue #2306 fixed the Bot's arbitrary protection-colour pick
-by threading `EffectMode.color` (`option.color` on the wire) through to a new
-`colorModePrior` / `colorModeTiebreak` pair that scores a colour choice against
-the opponent's observed colour footprint. That fix is scoped to cards built on
-the shared `optionChoice` Op with `EffectMode.color` set — `protectionColorModes`
-and `colorChoiceModes` (`convex/cards/abilities/`). Four cards call
-`ctx.requestOptionChoice` directly with a hand-rolled options list that never
-sets `color`, so they are structurally invisible to the new heuristic even
-though their choice IS a colour pick in spirit.
+**Correction (round 2 review).** This finding's premise is wrong. All four
+cards it names DO carry the colour tag:
 
-**Evidence.** `convex/cards/abilities/chooseColor.ts:34-40`, `COLOR_OPTIONS`
-— flags Kavu Chameleon, Alloy Golem, Fertile Ground, and Shyft as calling
-`ctx.requestOptionChoice` with options built without the `color` tag
-`optionPickCandidates`' `toCandidate` (`convex/gre/ai/choiceCandidates.ts`)
-now reads. Their colour pick falls through to the flat `NEUTRAL_PRIOR`, same
-as every colour choice before this issue.
+- Kavu Chameleon (`convex/cards/sets/inv/green.ts:101`), Alloy Golem
+  (`convex/cards/sets/inv/colorless.ts:161`) and Shyft
+  (`convex/cards/sets/ice/blue.ts:1929`) build their modes with
+  `colorChoiceModes` (`convex/cards/abilities/chooseColor.ts`), which sets
+  `color` on every mode it produces.
+- Fertile Ground (`convex/cards/sets/usg/green.ts:118`) uses `COLOR_OPTIONS`
+  (`convex/cards/abilities/chooseColor.ts`), which is literally
+  `COLOR_LABELS.map(([color, label]) => ({ id: color, label, color }))` — it
+  sets `color` too.
 
-**Why it may not deserve its own issue yet.** These four cards are a
-different SHAPE of colour choice than protection-from-colour or "becomes the
-colour of your choice" (chameleon/becomes-a-colour effects, a colour-fixing
-land, a "name a colour" static-effect setup) — whether the SAME
-opponent-evidence heuristic is even the right prior for them needs its own
-grill (a land like Fertile Ground picking its own future colour is arguably
-about the CASTER's future needs, not the opponent's threats, which is the
-opposite orientation from protection). A blanket "thread `color` everywhere"
-ticket risks conflating four genuinely different decisions under one label.
-Worth a scoped audit of each of the four before cutting a ticket, rather than
-assuming they all want `colorModePrior` unchanged.
+The original finding was written from `chooseColor.ts`'s own historical
+`COLOR_OPTIONS` doc comment ("QA: four near-identical hand-rolled … literals,
+each missing the `color` tag"), which describes the state BEFORE
+`COLOR_OPTIONS`/`colorChoiceModes` existed, not the code as it now stands —
+that comment has been corrected in the same commit as this rewrite. Nobody
+re-read the call sites before drafting the finding.
+
+**Why this mattered.** These four cards carrying `color` is precisely the
+mechanism behind review finding 1 on this PR: `colorModePrior` /
+`colorModeTiebreak` keyed on the bare `color` tag, which is set by BOTH
+`protectionColorModes` (protection — dodge a colour) AND
+`colorChoiceModes`/`COLOR_OPTIONS` ("become a colour" — a different,
+sometimes opposite, intent that issue #2306 explicitly puts out of scope).
+So Kavu Chameleon and siblings were not uncovered at all — they were
+OVER-covered, and steered in the wrong direction (toward the opponent's
+best-shown colour, which is backwards for a colour a creature is BECOMING
+rather than dodging). That defect is fixed in this same PR: both the prior
+and the tie-break now gate on `protectionColor`, a field set only when the
+mode's own effects structurally grant a "protection from <colour>" ability
+(`gre/effects/interpreter.ts`'s `modeProtectionColor`, via the shared
+`parseProtectionFromColor` parser), never on the presence of the `color`
+rendering tag alone.
+
+**Declining, not re-opening.** No gap remains to scope: these four cards are
+correctly OUT of `colorModePrior`'s coverage now (as issue #2306 intended),
+and the mechanism producing that gap is understood and fixed. Nothing here
+needs a follow-up ticket.

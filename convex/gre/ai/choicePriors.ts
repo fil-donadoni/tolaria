@@ -61,15 +61,19 @@ export type ChoiceCandidateHint = {
      *  The mirror of `materialGivenUp`: same rough point currency, opposite
      *  sign of intent. */
     materialGained?: number;
-    /** Set when this candidate IS a colour-mode pick (issue #2306) — an
-     *  `option-pick` / `trigger-mode` candidate whose option carried
-     *  `EffectMode.color` (`protectionColorModes` / `colorChoiceModes`,
-     *  threaded through `PendingChoice.options[].color` onto the candidate's
-     *  hint by `optionPickCandidates`' `toCandidate`). `"C"` (colourless,
-     *  Giver of Runes) is a legal value but carries no colour-EVIDENCE
-     *  opinion — `colorModePrior` scores it neutral rather than against the
-     *  opponent's footprint. Absent for a non-colour modal option (Primal
-     *  Clay's body modes). */
+    /** Set when this candidate IS a genuine PROTECTION-colour-mode pick
+     *  (issue #2306, narrowed by review finding 1) — an `option-pick` /
+     *  `trigger-mode` candidate whose option carried
+     *  `PendingChoice.options[].protectionColor`, threaded onto the
+     *  candidate's hint by `optionPickCandidates`' `toCandidate`.
+     *  Deliberately NOT every option carrying `EffectMode.color`: that field
+     *  is a UI rendering tag shared by `protectionColorModes` (dodge a
+     *  colour) AND `colorChoiceModes`/`COLOR_OPTIONS` ("become a colour" — a
+     *  different, sometimes opposite, intent — out of scope per the issue).
+     *  `"C"` (colourless, Giver of Runes) is a legal value but carries no
+     *  colour-EVIDENCE opinion — `colorModePrior` scores it neutral rather
+     *  than against the opponent's footprint. Absent for a non-colour modal
+     *  option (Primal Clay's body modes) AND for a "become a colour" pick. */
     colorMode?: Color;
 };
 
